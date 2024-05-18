@@ -1,20 +1,20 @@
-import OpenAI from "openai";
 import {
   type Page,
   type Browser,
   type BrowserContext,
   chromium,
+  Locator,
 } from "@playwright/test";
 import { expect } from "@playwright/test";
 import {
+  getCacheKey,
+  initCache,
   readActions,
   readObservations,
-  writeObservations,
   writeActions,
-  getCacheKey,
-  evictCache,
-  initCache,
+  writeObservations,
 } from "../cache";
+import OpenAI from "openai";
 
 require("dotenv").config({ path: ".env" });
 
@@ -22,7 +22,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
     );
     const context = browser.contexts()[0];
     return { browser, context };
@@ -41,6 +41,46 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
   }
 }
 
+const interactiveElements = [
+  "a",
+  "button",
+  "[role='button']",
+  "[aria-role='button']",
+  "details",
+  "embed",
+  "input",
+  "label",
+  "menu",
+  "[role='menu']",
+  "[aria-role='menu']",
+  "menuitem",
+  "[role='menuitem']",
+  "[aria-role='menuitem']",
+  "object",
+  "select",
+  "textarea",
+  "summary",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='slider']",
+  "[role='tab']",
+  "[role='tabpanel']",
+  "[role='textbox']",
+  "[role='combobox']",
+  "[role='grid']",
+  "[role='listbox']",
+  "[role='option']",
+  "[role='progressbar']",
+  "[role='scrollbar']",
+  "[role='searchbox']",
+  "[role='switch']",
+  "[role='tree']",
+  "[role='treeitem']",
+  "[role='spinbutton']",
+  "[role='tooltip']",
+];
+
 export class Stagehand {
   private openai: OpenAI;
   public observations: { [key: string]: { result: string; testKey: string } };
@@ -52,7 +92,7 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
 
   constructor(
-    { env }: { env: "LOCAL" | "BROWSERBASE" } = { env: "BROWSERBASE" }
+    { env }: { env: "LOCAL" | "BROWSERBASE" } = { env: "BROWSERBASE" },
   ) {
     this.openai = new OpenAI();
     this.env = env;
@@ -75,8 +115,32 @@ export class Stagehand {
     });
   }
 
-  async cleanDOM() {
-    // implement me
+  async cleanDOM(parent: Locator) {
+    const elementsSelector = interactiveElements.join(", ");
+
+    console.log("\nCLEAN DOM SELECTOR");
+    console.log(elementsSelector);
+
+    const foundElements = await parent.locator(elementsSelector).all();
+
+    const results = await Promise.allSettled(
+      foundElements.map((el) => el.evaluate((el) => el.outerHTML)),
+    );
+
+    console.log("\nFOUND ELEMENTS STRING");
+    console.log(results);
+
+    const cleanedHtml = results
+      .filter(
+        (r): r is PromiseFulfilledResult<string> => r.status === "fulfilled",
+      )
+      .map((r) => r.value)
+      .join("\n");
+
+    console.log("\nCLEANED HTML STRING");
+    console.log(cleanedHtml);
+
+    return cleanedHtml;
   }
 
   async observe(observation: string): Promise<string> {
@@ -175,15 +239,15 @@ export class Stagehand {
       }
 
       expect(
-        this.page.locator(selectorResponse.choices[0].message.content)
+        this.page.locator(selectorResponse.choices[0].message.content),
       ).toBeAttached();
 
       console.log(
-        this.page.locator(selectorResponse.choices[0].message.content)
+        this.page.locator(selectorResponse.choices[0].message.content),
       );
       const key = await this.cacheObservation(
         observation,
-        selectorResponse.choices[0].message.content
+        selectorResponse.choices[0].message.content,
       );
 
       return key;
@@ -244,7 +308,7 @@ export class Stagehand {
         const args = command["args"];
 
         console.log(
-          `Cached action ${method} on ${locatorStr} with args ${args}`
+          `Cached action ${method} on ${locatorStr} with args ${args}`,
         );
         const locator = await this.page.locator(locatorStr).first();
         await locator[method](...args);
@@ -254,12 +318,13 @@ export class Stagehand {
       return;
     }
 
-    const cleanDOM = await this.cleanDOM();
-    const area = observation
-      ? await this.page
-          .locator(this.observations[observation].result)
-          .innerHTML()
-      : await this.page.locator("body").innerHTML();
+    const area = await this.cleanDOM(
+      observation
+        ? this.page.locator(this.observations[observation].result)
+        : this.page.locator("body"),
+    );
+
+    console.log(area);
 
     const response = await this.openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
