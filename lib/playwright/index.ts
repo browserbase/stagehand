@@ -43,7 +43,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
 
 export class Stagehand {
   private openai: OpenAI;
-  private observations: { [key: string]: { result: string; testKey: string } };
+  public observations: { [key: string]: { result: string; testKey: string } };
   private actions: { [key: string]: { result: string; testKey: string } };
   testKey: string;
   public browser: Browser;
@@ -68,7 +68,7 @@ export class Stagehand {
     this.context = context;
     this.page = this.context.pages()[0];
 
-    const currentPath = require("path").resolve(__dirname, "./preload.js");
+    const currentPath = require("path").resolve(__dirname, "../lib/playwright/preload.js");
     await this.page.addInitScript({ path: currentPath });
     await this.page.on("domcontentloaded", async () => {
       return this.page.evaluate(() => window.waitForDomSettle());
@@ -83,7 +83,7 @@ export class Stagehand {
     const key = getCacheKey(observation);
     if (this.observations[key]) {
       console.log("cache hit!");
-      console.log(`using ${this.observations[key]}`);
+      console.log(`using ${JSON.stringify(this.observations[key])}`);
 
       expect(this.page.locator(this.observations[key].result)).toBeAttached();
 
@@ -188,6 +188,8 @@ export class Stagehand {
 
       return key;
     }
+
+    console.log("Found bodies", bodies)
 
     throw new Error("fail");
   }

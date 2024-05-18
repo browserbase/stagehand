@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "example": "tsx examples/index.ts",
-    "cache:clear": "rm -rf .cache"
+    "cache:clear": "rm -rf .cache",
+    "evals": "npx braintrust eval evals"
   },
   "keywords": [],
   "author": "",
@@ -13,8 +14,10 @@
   "devDependencies": {
     "@playwright/test": "^1.42.1",
     "@types/node": "^20.11.30"
-    },
+  },
   "dependencies": {
+    "autoevals": "^0.0.64",
+    "braintrust": "^0.0.127",
     "dotenv": "^16.4.5",
     "e": "^0.2.33",
     "openai": "^4.29.2"
