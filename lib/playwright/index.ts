@@ -22,7 +22,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
+      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
     );
     const context = browser.contexts()[0];
     return { browser, context };
@@ -92,7 +92,7 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
 
   constructor(
-    { env }: { env: "LOCAL" | "BROWSERBASE" } = { env: "BROWSERBASE" },
+    { env }: { env: "LOCAL" | "BROWSERBASE" } = { env: "BROWSERBASE" }
   ) {
     this.openai = new OpenAI();
     this.env = env;
@@ -108,7 +108,10 @@ export class Stagehand {
     this.context = context;
     this.page = this.context.pages()[0];
 
-    const currentPath = require("path").resolve(__dirname, "../lib/playwright/preload.js");
+    const currentPath = require("path").resolve(
+      __dirname,
+      "../lib/playwright/preload.js"
+    );
     await this.page.addInitScript({ path: currentPath });
     await this.page.on("domcontentloaded", async () => {
       return this.page.evaluate(() => window.waitForDomSettle());
@@ -124,7 +127,7 @@ export class Stagehand {
     const foundElements = await parent.locator(elementsSelector).all();
 
     const results = await Promise.allSettled(
-      foundElements.map((el) => el.evaluate((el) => el.outerHTML)),
+      foundElements.map((el) => el.evaluate((el) => el.outerHTML))
     );
 
     console.log("\nFOUND ELEMENTS STRING");
@@ -132,7 +135,7 @@ export class Stagehand {
 
     const cleanedHtml = results
       .filter(
-        (r): r is PromiseFulfilledResult<string> => r.status === "fulfilled",
+        (r): r is PromiseFulfilledResult<string> => r.status === "fulfilled"
       )
       .map((r) => r.value)
       .join("\n");
@@ -159,7 +162,7 @@ export class Stagehand {
     });
 
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -239,21 +242,21 @@ export class Stagehand {
       }
 
       expect(
-        this.page.locator(selectorResponse.choices[0].message.content),
+        this.page.locator(selectorResponse.choices[0].message.content)
       ).toBeAttached();
 
       console.log(
-        this.page.locator(selectorResponse.choices[0].message.content),
+        this.page.locator(selectorResponse.choices[0].message.content)
       );
       const key = await this.cacheObservation(
         observation,
-        selectorResponse.choices[0].message.content,
+        selectorResponse.choices[0].message.content
       );
 
       return key;
     }
 
-    console.log("Found bodies", bodies)
+    console.log("Found bodies", bodies);
 
     throw new Error("fail");
   }
@@ -308,7 +311,7 @@ export class Stagehand {
         const args = command["args"];
 
         console.log(
-          `Cached action ${method} on ${locatorStr} with args ${args}`,
+          `Cached action ${method} on ${locatorStr} with args ${args}`
         );
         const locator = await this.page.locator(locatorStr).first();
         await locator[method](...args);
@@ -321,13 +324,13 @@ export class Stagehand {
     const area = await this.cleanDOM(
       observation
         ? this.page.locator(this.observations[observation].result)
-        : this.page.locator("body"),
+        : this.page.locator("body")
     );
 
     console.log(area);
 
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
