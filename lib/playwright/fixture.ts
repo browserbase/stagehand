@@ -1,6 +1,6 @@
-import { test as base, chromium } from "@playwright/test";
-import { Stagehand } from "./index";
-import { evictCache } from "../cache";
+import { test as base, chromium } from '@playwright/test';
+import { Stagehand } from './index';
+import { evictCache } from '../cache';
 
 type Fixture = {
   stagePage: Stagehand;
@@ -8,18 +8,18 @@ type Fixture = {
 
 export const stagehandFixture = base.extend<Fixture>({
   stagePage: async ({}, use) => {
-    if (process.env.BROWSERBASE_API_KEY && process.env.local !== "1") {
-      console.log("Browserbase key detected, connecting you to a browser...");
+    if (process.env.BROWSERBASE_API_KEY && process.env.local !== '1') {
+      console.log('Browserbase key detected, connecting you to a browser...');
       const browser = await chromium.connectOverCDP(
         `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
       );
 
-      console.log("connected, happy browsing!");
+      console.log('connected, happy browsing!');
       const bbPage = new Stagehand();
       await bbPage.init();
       await use(bbPage);
     } else {
-      console.log("running tests locally...");
+      console.log('running tests locally...');
       const bbPage = new Stagehand();
       await bbPage.init();
       await use(bbPage);
@@ -28,25 +28,25 @@ export const stagehandFixture = base.extend<Fixture>({
 });
 
 stagehandFixture.afterAll(async ({ browser }) => {
-  if (process.env.local !== "1") {
-    console.log("tests finished... disconnecting from Browserbase");
+  if (process.env.local !== '1') {
+    console.log('tests finished... disconnecting from Browserbase');
     await browser.close();
-    console.log("disconnected from Browserbase");
+    console.log('disconnected from Browserbase');
   }
 });
 
 stagehandFixture.afterEach(async ({ stagePage }) => {
-  console.log("test status: ", stagehandFixture.info().status);
-  if (stagehandFixture.info().status !== "passed") {
-    console.log("evicting cache key: ", stagePage.testKey);
+  console.log('test status: ', stagehandFixture.info().status);
+  if (stagehandFixture.info().status !== 'passed') {
+    console.log('evicting cache key: ', stagePage.testKey);
     evictCache(stagePage.testKey);
-    console.log("cache evicted");
+    console.log('cache evicted');
   }
 });
 
 stagehandFixture.beforeEach(
-  "capture test info",
+  'capture test info',
   async ({ stagePage }, info) => {
-    stagePage.setTestKey(info.titlePath.join(".").replace(/\s/g, "_"));
+    stagePage.setTestKey(info.titlePath.join('.').replace(/\s/g, '_'));
   }
 );
