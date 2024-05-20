@@ -6,14 +6,7 @@ import {
   Locator,
 } from '@playwright/test';
 import { expect } from '@playwright/test';
-import {
-  getCacheKey,
-  initCache,
-  readActions,
-  readObservations,
-  writeActions,
-  writeObservations,
-} from '../cache';
+import Cache from '../cache';
 import OpenAI from 'openai';
 
 require('dotenv').config({ path: '.env' });
@@ -90,16 +83,14 @@ export class Stagehand {
   public page: Page;
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
+  public cache: Cache;
 
   constructor(
     { env }: { env: 'LOCAL' | 'BROWSERBASE' } = { env: 'BROWSERBASE' }
   ) {
     this.openai = new OpenAI();
     this.env = env;
-    initCache();
-
-    this.observations = readObservations();
-    this.actions = readActions();
+    this.cache = new Cache();
   }
 
   async init() {
@@ -148,7 +139,7 @@ export class Stagehand {
   }
 
   async observe(observation: string): Promise<string | null> {
-    const key = getCacheKey(observation);
+    const key = this.cache.getCacheKey(observation);
     const observationLocatorStr = this.observations[key]?.result;
     if (observationLocatorStr) {
       console.log('cache hit!');
@@ -215,14 +206,14 @@ export class Stagehand {
   }
 
   async cacheObservation(observation: string, result: string): Promise<string> {
-    let cache = readObservations();
+    let cache = this.cache.readObservations();
 
-    const key = getCacheKey(observation);
+    const key = this.cache.getCacheKey(observation);
 
     cache[key] = { result, testKey: this.testKey };
     this.observations[key] = { result, testKey: this.testKey };
 
-    writeObservations(cache);
+    this.cache.writeObservations(cache);
     return key;
   }
 
