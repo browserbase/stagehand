@@ -7,7 +7,7 @@
     "example": "tsx examples/index.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "npx braintrust eval evals"
+    "evals": "npx braintrust eval"
   },
   "keywords": [],
   "author": "",

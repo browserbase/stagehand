@@ -8,13 +8,13 @@ const exactMatch = (args: { input; output; expected? }) => {
   };
 };
 
-Eval('Vanta', {
+Eval('Vanta hallucination check', {
   data: () => {
     return [
       {
         input: {
-          text: 'find the request demo button',
-          desired: `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`,
+          text: 'find the buy now button',
+          desired: null,
         },
       },
     ];
@@ -27,21 +27,12 @@ Eval('Vanta', {
     await stageHand.waitForSettledDom();
 
     const observation = await stageHand.observe(input.text);
-
-    if (!observation) return false;
-
-    const observationResult = await stageHand.page
-      .locator(stageHand.observations[observation].result)
-      .first()
-      .innerHTML();
-    const desiredResult = await stageHand.page
-      .locator(input.desired)
-      .first()
-      .innerHTML();
+    console.log(observation, 'observation');
 
     await stageHand.browser.close();
 
-    return observationResult == desiredResult;
+    // we should have no saved observation since the element shouldn't exist
+    return observation === null;
   },
   scores: [exactMatch],
 });
