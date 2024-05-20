@@ -8,12 +8,14 @@ const exactMatch = (args: { input; output; expected? }) => {
   };
 };
 
-
 Eval("Vanta", {
   data: () => {
     return [
       {
-        input: {text: "find the request demo button", desired: `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`},
+        input: {
+          text: "find the request demo button",
+          desired: `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`,
+        },
         expected: true,
       },
     ];
@@ -21,15 +23,23 @@ Eval("Vanta", {
   task: async (input) => {
     const stageHand = new Stagehand({ env: "LOCAL" });
     await stageHand.init();
-  
+
     await stageHand.page.goto("https://www.vanta.com/");
-  
+    await stageHand.waitForSettledDom();
+
     const observation = await stageHand.observe(input.text);
-    const observationResult = await stageHand.page.locator(stageHand.observations[observation].result).first().innerHTML();
-    const desiredResult = await stageHand.page.locator(input.desired).first().innerHTML();
+    const observationResult = await stageHand.page
+      .locator(stageHand.observations[observation].result)
+      .first()
+      .innerHTML();
+    const desiredResult = await stageHand.page
+      .locator(input.desired)
+      .first()
+      .innerHTML();
+
+    await stageHand.browser.close();
 
     return observationResult == desiredResult;
   },
   scores: [exactMatch],
-
 });

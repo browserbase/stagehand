@@ -1,6 +1,5 @@
 #!/usr/bin/env -S pnpm tsx
 import { Stagehand } from "../lib/playwright";
-import { expect } from "@playwright/test";
 
 async function example() {
   const stageHand = new Stagehand({ env: "LOCAL" });
