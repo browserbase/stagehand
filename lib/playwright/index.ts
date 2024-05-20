@@ -113,9 +113,10 @@ export class Stagehand {
       "../lib/playwright/preload.js"
     );
     await this.page.addInitScript({ path: currentPath });
-    await this.page.on("domcontentloaded", async () => {
-      return this.page.evaluate(() => window.waitForDomSettle());
-    });
+  }
+
+  async waitForSettledDom() {
+    return this.page.evaluate(() => window.waitForDomSettle());
   }
 
   async cleanDOM(parent: Locator) {
@@ -148,11 +149,19 @@ export class Stagehand {
 
   async observe(observation: string): Promise<string> {
     const key = getCacheKey(observation);
-    if (this.observations[key]) {
+    const observationLocatorStr = this.observations[key].result;
+    if (observationLocatorStr) {
       console.log("cache hit!");
       console.log(`using ${JSON.stringify(this.observations[key])}`);
 
-      expect(this.page.locator(this.observations[key].result)).toBeAttached();
+      // the locator string found by the LLM might resolve to multiple places in the DOM
+      const firstLocator = await this.page
+        .locator(observationLocatorStr)
+        .first();
+
+      await expect(firstLocator).toBeAttached();
+
+      console.log("done observing");
 
       return key;
     }
@@ -233,25 +242,21 @@ export class Stagehand {
         presence_penalty: 0,
       });
 
-      if (!selectorResponse.choices[0].message.content) {
+      const locatorStr = selectorResponse.choices[0].message.content;
+
+      if (!locatorStr) {
         throw new Error("no response when finding a selector");
       }
 
-      if (selectorResponse.choices[0].message.content === "NONE") {
+      if (locatorStr === "NONE") {
         continue;
       }
 
-      expect(
-        this.page.locator(selectorResponse.choices[0].message.content)
-      ).toBeAttached();
+      // the locator string found by the LLM might resolve to multiple places in the DOM
+      const firstLocator = this.page.locator(locatorStr).first();
 
-      console.log(
-        this.page.locator(selectorResponse.choices[0].message.content)
-      );
-      const key = await this.cacheObservation(
-        observation,
-        selectorResponse.choices[0].message.content
-      );
+      await expect(firstLocator).toBeAttached();
+      const key = await this.cacheObservation(observation, locatorStr);
 
       return key;
     }
