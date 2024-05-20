@@ -255,8 +255,7 @@ export class Stagehand {
       // the locator string found by the LLM might resolve to multiple places in the DOM
       const firstLocator = this.page.locator(locatorStr).first();
 
-      const res = expect(firstLocator).toBeAttached();
-      console.log("res");
+      await expect(firstLocator).toBeAttached();
       const key = await this.cacheObservation(observation, locatorStr);
 
       return key;
