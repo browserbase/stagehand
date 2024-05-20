@@ -4,8 +4,8 @@ import {
   type BrowserContext,
   chromium,
   Locator,
-} from "@playwright/test";
-import { expect } from "@playwright/test";
+} from '@playwright/test';
+import { expect } from '@playwright/test';
 import {
   getCacheKey,
   initCache,
@@ -13,14 +13,14 @@ import {
   readObservations,
   writeActions,
   writeObservations,
-} from "../cache";
-import OpenAI from "openai";
+} from '../cache';
+import OpenAI from 'openai';
 
-require("dotenv").config({ path: ".env" });
+require('dotenv').config({ path: '.env' });
 
-async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
-  if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
-    console.log("Connecting you to broswerbase...");
+async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
+  if (process.env.BROWSERBASE_API_KEY && env !== 'LOCAL') {
+    console.log('Connecting you to broswerbase...');
     const browser = await chromium.connectOverCDP(
       `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
     );
@@ -28,38 +28,38 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "BROWSERBASE") {
     return { browser, context };
   } else {
     if (!process.env.BROWSERBASE_API_KEY) {
-      console.log("No browserbase key detected");
-      console.log("Starting a local browser...");
+      console.log('No browserbase key detected');
+      console.log('Starting a local browser...');
     }
     const browser = await chromium.launch({ headless: false });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
     });
     const page = await context.newPage();
-    console.log("Local browser started successfully.");
+    console.log('Local browser started successfully.');
     return { browser, context, page };
   }
 }
 
 const interactiveElements = [
-  "a",
-  "button",
+  'a',
+  'button',
   "[role='button']",
   "[aria-role='button']",
-  "details",
-  "embed",
-  "input",
-  "label",
-  "menu",
+  'details',
+  'embed',
+  'input',
+  'label',
+  'menu',
   "[role='menu']",
   "[aria-role='menu']",
-  "menuitem",
+  'menuitem',
   "[role='menuitem']",
   "[aria-role='menuitem']",
-  "object",
-  "select",
-  "textarea",
-  "summary",
+  'object',
+  'select',
+  'textarea',
+  'summary',
   "[role='link']",
   "[role='checkbox']",
   "[role='radio']",
@@ -89,10 +89,10 @@ export class Stagehand {
   public browser: Browser;
   public page: Page;
   public context: BrowserContext;
-  public env: "LOCAL" | "BROWSERBASE";
+  public env: 'LOCAL' | 'BROWSERBASE';
 
   constructor(
-    { env }: { env: "LOCAL" | "BROWSERBASE" } = { env: "BROWSERBASE" }
+    { env }: { env: 'LOCAL' | 'BROWSERBASE' } = { env: 'BROWSERBASE' }
   ) {
     this.openai = new OpenAI();
     this.env = env;
@@ -108,9 +108,9 @@ export class Stagehand {
     this.context = context;
     this.page = this.context.pages()[0];
 
-    const currentPath = require("path").resolve(
+    const currentPath = require('path').resolve(
       __dirname,
-      "../lib/playwright/preload.js"
+      '../lib/playwright/preload.js'
     );
     await this.page.addInitScript({ path: currentPath });
   }
@@ -120,9 +120,9 @@ export class Stagehand {
   }
 
   async cleanDOM(parent: Locator) {
-    const elementsSelector = interactiveElements.join(", ");
+    const elementsSelector = interactiveElements.join(', ');
 
-    console.log("\nCLEAN DOM SELECTOR");
+    console.log('\nCLEAN DOM SELECTOR');
     console.log(elementsSelector);
 
     const foundElements = await parent.locator(elementsSelector).all();
@@ -131,17 +131,17 @@ export class Stagehand {
       foundElements.map((el) => el.evaluate((el) => el.outerHTML))
     );
 
-    console.log("\nFOUND ELEMENTS STRING");
+    console.log('\nFOUND ELEMENTS STRING');
     console.log(results);
 
     const cleanedHtml = results
       .filter(
-        (r): r is PromiseFulfilledResult<string> => r.status === "fulfilled"
+        (r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled'
       )
       .map((r) => r.value)
-      .join("\n");
+      .join('\n');
 
-    console.log("\nCLEANED HTML STRING");
+    console.log('\nCLEANED HTML STRING');
     console.log(cleanedHtml);
 
     return cleanedHtml;
@@ -151,7 +151,7 @@ export class Stagehand {
     const key = getCacheKey(observation);
     const observationLocatorStr = this.observations[key].result;
     if (observationLocatorStr) {
-      console.log("cache hit!");
+      console.log('cache hit!');
       console.log(`using ${JSON.stringify(this.observations[key])}`);
 
       // the locator string found by the LLM might resolve to multiple places in the DOM
@@ -161,7 +161,7 @@ export class Stagehand {
 
       await expect(firstLocator).toBeAttached();
 
-      console.log("done observing");
+      console.log('done observing');
 
       return key;
     }
@@ -171,26 +171,26 @@ export class Stagehand {
     });
 
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4o",
+      model: 'gpt-4o',
       messages: [
         {
-          role: "system",
+          role: 'system',
           content: `You are helping a user navigate a webpage, given a screenshot. Verify that the users request is possible, and if so, provide a simple description of the target element that would satisfy the request.
           respond ONLY with the element description
 
     `,
         },
         {
-          role: "user",
+          role: 'user',
           content: [
             {
-              type: "image_url",
+              type: 'image_url',
               image_url: {
-                url: `data:image/png;base64,${shot.toString("base64")}`,
+                url: `data:image/png;base64,${shot.toString('base64')}`,
               },
             },
             {
-              type: "text",
+              type: 'text',
               text: `
                 user request: ${observation}
                  `,
@@ -201,7 +201,7 @@ export class Stagehand {
     });
 
     if (!response.choices[0].message.content) {
-      throw new Error("no response when observing");
+      throw new Error('no response when observing');
     }
 
     const fullBody = await this.page.evaluate(() => document.body.outerHTML);
@@ -215,10 +215,10 @@ export class Stagehand {
 
     for (const body of bodies) {
       const selectorResponse = await this.openai.chat.completions.create({
-        model: "gpt-4o",
+        model: 'gpt-4o',
         messages: [
           {
-            role: "system",
+            role: 'system',
             content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a description of the element to find, and the DOM.
 
 
@@ -228,7 +228,7 @@ export class Stagehand {
                   `,
           },
           {
-            role: "user",
+            role: 'user',
             content: `
                     description: ${response.choices[0].message.content}
                     DOM: ${body}
@@ -245,10 +245,10 @@ export class Stagehand {
       const locatorStr = selectorResponse.choices[0].message.content;
 
       if (!locatorStr) {
-        throw new Error("no response when finding a selector");
+        throw new Error('no response when finding a selector');
       }
 
-      if (locatorStr === "NONE") {
+      if (locatorStr === 'NONE') {
         continue;
       }
 
@@ -261,9 +261,9 @@ export class Stagehand {
       return key;
     }
 
-    console.log("Found bodies", bodies);
+    console.log('Found bodies', bodies);
 
-    throw new Error("fail");
+    throw new Error('fail');
   }
   setTestKey(key: string) {
     this.testKey = key;
@@ -302,7 +302,7 @@ export class Stagehand {
     action: string;
     data?: object;
   }): Promise<void> {
-    console.log("taking action: ", action);
+    console.log('taking action: ', action);
     const key = getCacheKey(action);
     let cachedAction = this.actions[key];
     if (cachedAction) {
@@ -311,9 +311,9 @@ export class Stagehand {
       const res = JSON.parse(cachedAction.result);
       console.log(res);
       for (const command of res) {
-        const locatorStr = command["locator"];
-        const method = command["method"];
-        const args = command["args"];
+        const locatorStr = command['locator'];
+        const method = command['method'];
+        const args = command['args'];
 
         console.log(
           `Cached action ${method} on ${locatorStr} with args ${args}`
@@ -329,21 +329,21 @@ export class Stagehand {
     const area = await this.cleanDOM(
       observation
         ? this.page.locator(this.observations[observation].result)
-        : this.page.locator("body")
+        : this.page.locator('body')
     );
 
     console.log(area);
 
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4o",
+      model: 'gpt-4o',
       messages: [
         {
-          role: "system",
+          role: 'system',
           content:
-            "You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a DOM element, an overall goal, and data to use when taking actions.\n\nuse selectors that are least likely to change\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n",
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a DOM element, an overall goal, and data to use when taking actions.\n\nuse selectors that are least likely to change\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
         },
         {
-          role: "user",
+          role: 'user',
           content: `
             action: ${action},
             DOM: ${area}
@@ -359,14 +359,14 @@ export class Stagehand {
     });
 
     if (!response.choices[0].message.content) {
-      throw new Error("no response from action model");
+      throw new Error('no response from action model');
     }
 
     const res = JSON.parse(response.choices[0].message.content);
     for (const command of res) {
-      const locatorStr = command["locator"];
-      const method = command["method"];
-      const args = command["args"];
+      const locatorStr = command['locator'];
+      const method = command['method'];
+      const args = command['args'];
 
       console.log(`taking action ${method} on ${locatorStr} with args ${args}`);
       const locator = await this.page.locator(locatorStr).first();
@@ -377,7 +377,7 @@ export class Stagehand {
 
     await this.page.waitForTimeout(2000); //waitForNavigation and waitForLoadState do not work in this case
 
-    console.log("done acting");
+    console.log('done acting');
   }
   setPage(page: Page) {
     this.page = page;
