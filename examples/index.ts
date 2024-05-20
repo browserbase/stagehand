@@ -8,6 +8,7 @@ async function example() {
   await stageHand.page.goto('https://calendly.com/zerostep-test/test-calendly');
 
   const calendar = await stageHand.observe('find the calendar');
+  if (!calendar) return;
 
   await stageHand.act({
     observation: calendar,

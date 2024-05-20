@@ -147,9 +147,9 @@ export class Stagehand {
     return cleanedHtml;
   }
 
-  async observe(observation: string): Promise<string> {
+  async observe(observation: string): Promise<string | null> {
     const key = getCacheKey(observation);
-    const observationLocatorStr = this.observations[key].result;
+    const observationLocatorStr = this.observations[key]?.result;
     if (observationLocatorStr) {
       console.log('cache hit!');
       console.log(`using ${JSON.stringify(this.observations[key])}`);
@@ -166,104 +166,49 @@ export class Stagehand {
       return key;
     }
 
-    const shot = await this.page.screenshot({
-      fullPage: true,
-    });
+    const fullBody = await this.cleanDOM(this.page.locator('body'));
 
-    const response = await this.openai.chat.completions.create({
+    const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are helping a user navigate a webpage, given a screenshot. Verify that the users request is possible, and if so, provide a simple description of the target element that would satisfy the request.
-          respond ONLY with the element description
-
-    `,
+          content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a list of possible elements.
+            return only the string to pass to playwright, no markdown
+            if the element is not found, return NONE`,
         },
         {
           role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/png;base64,${shot.toString('base64')}`,
-              },
-            },
-            {
-              type: 'text',
-              text: `
-                user request: ${observation}
-                 `,
-            },
-          ],
+          content: `
+                    instruction: ${observation}
+                    DOM: ${fullBody}
+                    `,
         },
       ],
+
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
     });
 
-    if (!response.choices[0].message.content) {
-      throw new Error('no response when observing');
+    const locatorStr = selectorResponse.choices[0].message.content;
+
+    if (!locatorStr) {
+      throw new Error('no response when finding a selector');
     }
 
-    const fullBody = await this.page.evaluate(() => document.body.outerHTML);
-    const quarterLength = Math.floor(fullBody.length / 4);
-    const bodies = [
-      fullBody.substring(0, quarterLength),
-      fullBody.substring(quarterLength, quarterLength * 2),
-      fullBody.substring(quarterLength * 2, quarterLength * 3),
-      fullBody.substring(quarterLength * 3),
-    ];
-
-    for (const body of bodies) {
-      const selectorResponse = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a description of the element to find, and the DOM.
-
-
-            return only the string to pass to playwright, no markdown
-            if the element is not found, return NONE
-                  
-                  `,
-          },
-          {
-            role: 'user',
-            content: `
-                    description: ${response.choices[0].message.content}
-                    DOM: ${body}
-                    `,
-          },
-        ],
-
-        temperature: 0.1,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-      });
-
-      const locatorStr = selectorResponse.choices[0].message.content;
-
-      if (!locatorStr) {
-        throw new Error('no response when finding a selector');
-      }
-
-      if (locatorStr === 'NONE') {
-        continue;
-      }
-
-      // the locator string found by the LLM might resolve to multiple places in the DOM
-      const firstLocator = this.page.locator(locatorStr).first();
-
-      await expect(firstLocator).toBeAttached();
-      const key = await this.cacheObservation(observation, locatorStr);
-
-      return key;
+    if (locatorStr === 'NONE') {
+      return null;
     }
 
-    console.log('Found bodies', bodies);
+    // the locator string found by the LLM might resolve to multiple places in the DOM
+    const firstLocator = this.page.locator(locatorStr).first();
 
-    throw new Error('fail');
+    await expect(firstLocator).toBeAttached();
+    const cachedKey = await this.cacheObservation(observation, locatorStr);
+
+    return cachedKey;
   }
   setTestKey(key: string) {
     this.testKey = key;
