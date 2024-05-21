@@ -280,8 +280,6 @@ export class Stagehand {
         : this.page.locator('body')
     );
 
-    console.log(area);
-    console.log('starting inference');
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
