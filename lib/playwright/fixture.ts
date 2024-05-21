@@ -38,8 +38,8 @@ stagehandFixture.afterAll(async ({ browser }) => {
 stagehandFixture.afterEach(async ({ stagePage }) => {
   console.log('test status: ', stagehandFixture.info().status);
   if (stagehandFixture.info().status !== 'passed') {
-    console.log('evicting cache key: ', stagePage.testKey);
-    evictCache(stagePage.testKey);
+    console.log('evicting cache id: ', stagePage.id);
+    evictCache(stagePage.id);
     console.log('cache evicted');
   }
 });
@@ -47,6 +47,6 @@ stagehandFixture.afterEach(async ({ stagePage }) => {
 stagehandFixture.beforeEach(
   'capture test info',
   async ({ stagePage }, info) => {
-    stagePage.setTestKey(info.titlePath.join('.').replace(/\s/g, '_'));
+    stagePage.setId(info.titlePath.join('.').replace(/\s/g, '_'));
   }
 );

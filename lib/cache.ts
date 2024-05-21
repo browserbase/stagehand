@@ -3,17 +3,17 @@ const crypto = require('crypto');
 const observationsPath = './.cache/observations.json';
 const actionsPath = './.cache/actions.json';
 
+/**
+ * A file system cache to skip inference when repeating steps
+ * It also acts as the source of truth for identifying previously seen actions and observatiosn
+ */
 class Cache {
-  observations: Record<string, any>;
-  actions: Record<string, any>;
   disabled: boolean;
 
   constructor({ disabled = false } = {}) {
     this.disabled = disabled;
     if (!this.disabled) {
       this.initCache();
-      this.observations = this.readObservations();
-      this.actions = this.readActions();
     }
   }
 
@@ -41,44 +41,40 @@ class Cache {
     }
   }
 
-  // handle adding to the memory cache vs. writing to disk
-  writeObservations(cache: string) {
+  writeObservations({
+    key,
+    value,
+  }: {
+    key: string;
+    value: { id: string; result: string };
+  }) {
     if (this.disabled) {
       return;
     }
-    fs.writeFileSync(
-      observationsPath,
-      JSON.stringify(this.observations, null, 2)
-    );
+
+    const observations = this.readObservations();
+    observations[key] = value;
+    fs.writeFileSync(observationsPath, JSON.stringify(observations, null, 2));
   }
 
-  writeActions() {
+  writeActions({
+    key,
+    value,
+  }: {
+    key: string;
+    value: { id: string; result: string };
+  }) {
     if (this.disabled) {
       return;
     }
-    fs.writeFileSync(actionsPath, JSON.stringify(this.actions, null, 2));
+
+    const actions = this.readActions();
+    actions[key] = value;
+    fs.writeFileSync(actionsPath, JSON.stringify(actions, null, 2));
   }
 
-  getCacheKey(operation) {
-    return crypto.createHash('sha256').update(operation).digest('hex');
-  }
-
-  evictCache(key) {
-    // Filter out the entries with the matching testKey
-    this.observations = Object.fromEntries(
-      Object.entries(this.observations).filter(
-        ([cacheKey, value]) => value.testKey !== key
-      )
-    );
-
-    this.actions = Object.fromEntries(
-      Object.entries(this.actions).filter(
-        ([cacheKey, value]) => value.testKey !== key
-      )
-    );
-
-    this.writeObservations();
-    this.writeActions();
+  evictCache() {
+    throw new Error('implement me');
   }
 
   private initCache() {

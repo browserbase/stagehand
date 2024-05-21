@@ -15,7 +15,8 @@
   "devDependencies": {
     "@playwright/test": "^1.42.1",
     "@types/node": "^20.11.30",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "tsx": "^4.10.5"
   },
   "dependencies": {
     "autoevals": "^0.0.64",

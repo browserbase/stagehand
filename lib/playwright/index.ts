@@ -8,6 +8,7 @@ import {
 import { expect } from '@playwright/test';
 import Cache from '../cache';
 import OpenAI from 'openai';
+import crypto from 'crypto';
 
 require('dotenv').config({ path: '.env' });
 
@@ -76,9 +77,9 @@ const interactiveElements = [
 
 export class Stagehand {
   private openai: OpenAI;
-  public observations: { [key: string]: { result: string; testKey: string } };
-  private actions: { [key: string]: { result: string; testKey: string } };
-  testKey: string;
+  public observations: { [key: string]: { result: string; id: string } };
+  private actions: { [key: string]: { result: string; id: string } };
+  id: string;
   public browser: Browser;
   public page: Page;
   public context: BrowserContext;
@@ -86,11 +87,19 @@ export class Stagehand {
   public cache: Cache;
 
   constructor(
-    { env }: { env: 'LOCAL' | 'BROWSERBASE' } = { env: 'BROWSERBASE' }
+    {
+      env,
+      disableCache,
+    }: { env: 'LOCAL' | 'BROWSERBASE'; disableCache?: boolean } = {
+      env: 'BROWSERBASE',
+      disableCache: false,
+    }
   ) {
     this.openai = new OpenAI();
     this.env = env;
-    this.cache = new Cache();
+    this.cache = new Cache({ disabled: disableCache });
+    this.observations = this.cache.readObservations();
+    this.actions = this.cache.readActions();
   }
 
   async init() {
@@ -100,8 +109,8 @@ export class Stagehand {
     this.page = this.context.pages()[0];
 
     const currentPath = require('path').resolve(
-      __dirname,
-      '../lib/playwright/preload.js'
+      process.cwd(),
+      'lib/playwright/preload.js'
     );
     await this.page.addInitScript({ path: currentPath });
   }
@@ -117,7 +126,7 @@ export class Stagehand {
     console.log(elementsSelector);
 
     const foundElements = await parent.locator(elementsSelector).all();
-
+    console.log(foundElements);
     const results = await Promise.allSettled(
       foundElements.map((el) => el.evaluate((el) => el.outerHTML))
     );
@@ -138,8 +147,12 @@ export class Stagehand {
     return cleanedHtml;
   }
 
+  getKey(operation) {
+    return crypto.createHash('sha256').update(operation).digest('hex');
+  }
+
   async observe(observation: string): Promise<string | null> {
-    const key = this.cache.getCacheKey(observation);
+    const key = this.getKey(observation);
     const observationLocatorStr = this.observations[key]?.result;
     if (observationLocatorStr) {
       console.log('cache hit!');
@@ -197,35 +210,29 @@ export class Stagehand {
     const firstLocator = this.page.locator(locatorStr).first();
 
     await expect(firstLocator).toBeAttached();
-    const cachedKey = await this.cacheObservation(observation, locatorStr);
+    const cachedKey = await this.saveObservation(observation, locatorStr);
 
     return cachedKey;
   }
-  setTestKey(key: string) {
-    this.testKey = key;
+  setId(key: string) {
+    this.id = key;
   }
 
-  async cacheObservation(observation: string, result: string): Promise<string> {
-    let cache = this.cache.readObservations();
+  async saveObservation(observation: string, result: string): Promise<string> {
+    const key = this.getKey(observation);
 
-    const key = this.cache.getCacheKey(observation);
+    this.observations[key] = { result, id: this.id };
 
-    cache[key] = { result, testKey: this.testKey };
-    this.observations[key] = { result, testKey: this.testKey };
-
-    this.cache.writeObservations(cache);
+    this.cache.writeObservations({ key, value: { result, id: this.id } });
     return key;
   }
 
   async cacheAction(action: string, result: string): Promise<string> {
-    let cache = readActions();
+    const key = this.getKey(action);
 
-    const key = getCacheKey(action);
+    this.actions[key] = { result, id: this.id };
 
-    cache[key] = { result, testKey: this.testKey };
-    this.actions[key] = { result, testKey: this.testKey };
-
-    writeActions(cache);
+    this.cache.writeActions({ key, value: { result, id: this.id } });
     return key;
   }
 
@@ -239,7 +246,7 @@ export class Stagehand {
     data?: object;
   }): Promise<void> {
     console.log('taking action: ', action);
-    const key = getCacheKey(action);
+    const key = this.getKey(action);
     let cachedAction = this.actions[key];
     if (cachedAction) {
       console.log(`cache hit for action: ${action}`);
@@ -262,6 +269,10 @@ export class Stagehand {
       return;
     }
 
+    if (observation) {
+      console.log('observation', this.observations[observation].result);
+    }
+
     const area = await this.cleanDOM(
       observation
         ? this.page.locator(this.observations[observation].result)
@@ -269,7 +280,7 @@ export class Stagehand {
     );
 
     console.log(area);
-
+    console.log('starting inference');
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -288,18 +299,22 @@ export class Stagehand {
       ],
 
       temperature: 0.1,
+      response_format: { type: 'json_object' },
       max_tokens: 256,
       top_p: 1,
+
       frequency_penalty: 0,
       presence_penalty: 0,
     });
+    console.log('inference complete');
 
     if (!response.choices[0].message.content) {
       throw new Error('no response from action model');
     }
 
     const res = JSON.parse(response.choices[0].message.content);
-    for (const command of res) {
+    const commands = res.length ? res : [res];
+    for (const command of commands) {
       const locatorStr = command['locator'];
       const method = command['method'];
       const args = command['args'];
