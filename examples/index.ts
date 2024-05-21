@@ -2,7 +2,7 @@
 import { Stagehand } from '../lib/playwright';
 
 async function example() {
-  const stageHand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stageHand = new Stagehand({ env: 'LOCAL' });
   await stageHand.init();
 
   await stageHand.page.goto('https://calendly.com/zerostep-test/test-calendly');

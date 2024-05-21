@@ -252,8 +252,9 @@ export class Stagehand {
       console.log(`cache hit for action: ${action}`);
       console.log(cachedAction);
       const res = JSON.parse(cachedAction.result);
-      console.log(res);
-      for (const command of res) {
+      const commands = res.length ? res : [res];
+
+      for (const command of commands) {
         const locatorStr = command['locator'];
         const method = command['method'];
         const args = command['args'];
