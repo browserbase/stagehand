@@ -14,6 +14,7 @@
   "license": "ISC",
   "devDependencies": {
     "@playwright/test": "^1.42.1",
+    "@types/jsdom": "^21.1.6",
     "@types/node": "^20.11.30",
     "prettier": "^3.2.5",
     "tsx": "^4.10.5"
@@ -23,6 +24,7 @@
     "braintrust": "^0.0.127",
     "dotenv": "^16.4.5",
     "e": "^0.2.33",
+    "jsdom": "^24.0.0",
     "openai": "^4.29.2"
   }
 }

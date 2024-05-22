@@ -8,13 +8,13 @@ const exactMatch = (args: { input; output; expected? }) => {
   };
 };
 
-Eval('Vanta', {
+Eval('Peeler Simple', {
   data: () => {
     return [
       {
         input: {
           text: 'add the peeler to cart',
-          desired: `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`,
+          desired: null,
         },
       },
     ];
@@ -30,7 +30,15 @@ Eval('Vanta', {
 
     await stageHand.act({ action: input.text });
 
+    const successMessageLocator = stageHand.page.locator(
+      'text="Congratulations, you have 1 A in your cart"'
+    );
+    await successMessageLocator.waitFor({ state: 'visible', timeout: 5000 });
+    const isVisible = await successMessageLocator.isVisible();
+
     await stageHand.browser.close();
+
+    return isVisible;
 
     return false;
   },

@@ -3,12 +3,12 @@ import {
   type Browser,
   type BrowserContext,
   chromium,
-  Locator,
 } from '@playwright/test';
 import { expect } from '@playwright/test';
 import Cache from '../cache';
 import OpenAI from 'openai';
 import crypto from 'crypto';
+import { cleanDOM } from './dom';
 
 require('dotenv').config({ path: '.env' });
 
@@ -34,46 +34,6 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
     return { browser, context, page };
   }
 }
-
-const interactiveElements = [
-  'a',
-  'button',
-  "[role='button']",
-  "[aria-role='button']",
-  'details',
-  'embed',
-  'input',
-  'label',
-  'menu',
-  "[role='menu']",
-  "[aria-role='menu']",
-  'menuitem',
-  "[role='menuitem']",
-  "[aria-role='menuitem']",
-  'object',
-  'select',
-  'textarea',
-  'summary',
-  "[role='link']",
-  "[role='checkbox']",
-  "[role='radio']",
-  "[role='slider']",
-  "[role='tab']",
-  "[role='tabpanel']",
-  "[role='textbox']",
-  "[role='combobox']",
-  "[role='grid']",
-  "[role='listbox']",
-  "[role='option']",
-  "[role='progressbar']",
-  "[role='scrollbar']",
-  "[role='searchbox']",
-  "[role='switch']",
-  "[role='tree']",
-  "[role='treeitem']",
-  "[role='spinbutton']",
-  "[role='tooltip']",
-];
 
 export class Stagehand {
   private openai: OpenAI;
@@ -119,34 +79,6 @@ export class Stagehand {
     return this.page.evaluate(() => window.waitForDomSettle());
   }
 
-  async cleanDOM(parent: Locator) {
-    const elementsSelector = interactiveElements.join(', ');
-
-    console.log('\nCLEAN DOM SELECTOR');
-    console.log(elementsSelector);
-
-    const foundElements = await parent.locator(elementsSelector).all();
-    console.log(foundElements);
-    const results = await Promise.allSettled(
-      foundElements.map((el) => el.evaluate((el) => el.outerHTML))
-    );
-
-    console.log('\nFOUND ELEMENTS STRING');
-    console.log(results);
-
-    const cleanedHtml = results
-      .filter(
-        (r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled'
-      )
-      .map((r) => r.value)
-      .join('\n');
-
-    console.log('\nCLEANED HTML STRING');
-    console.log(cleanedHtml);
-
-    return cleanedHtml;
-  }
-
   getKey(operation) {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
@@ -170,7 +102,7 @@ export class Stagehand {
       return key;
     }
 
-    const fullBody = await this.cleanDOM(this.page.locator('body'));
+    const fullBody = await cleanDOM(this.page.locator('body'));
 
     const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -239,7 +171,6 @@ export class Stagehand {
   async act({
     observation,
     action,
-    data,
   }: {
     observation?: string;
     action: string;
@@ -274,7 +205,7 @@ export class Stagehand {
       console.log('observation', this.observations[observation].result);
     }
 
-    const area = await this.cleanDOM(
+    const area = await cleanDOM(
       observation
         ? this.page.locator(this.observations[observation].result)
         : this.page.locator('body')
@@ -286,14 +217,13 @@ export class Stagehand {
         {
           role: 'system',
           content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a DOM element, an overall goal, and data to use when taking actions.\n\nuse selectors that are least likely to change\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a list of potential DOM elements and a goal to accompplish.\n\nuse selectors that are least likely to change and directly select the element\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
         },
         {
           role: 'user',
           content: `
             action: ${action},
-            DOM: ${area}
-            data: ${JSON.stringify(data)}`,
+            DOM: ${area}`,
         },
       ],
 
