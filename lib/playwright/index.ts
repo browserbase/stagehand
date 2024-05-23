@@ -216,7 +216,7 @@ export class Stagehand {
         {
           role: 'system',
           content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a list of potential DOM elements and a goal to accomplish.\n\navoid xpaths when selecting items\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a simplified list of exracted DOM elements and a goal to accomplish.\n\nDo not use xpath to select items as you only see snippets of the full DOM.\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
         },
         {
           role: 'user',
