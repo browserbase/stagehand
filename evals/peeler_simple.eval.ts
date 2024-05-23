@@ -33,14 +33,11 @@ Eval('Peeler Simple', {
     const successMessageLocator = stageHand.page.locator(
       'text="Congratulations, you have 1 A in your cart"'
     );
-    await successMessageLocator.waitFor({ state: 'visible', timeout: 5000 });
     const isVisible = await successMessageLocator.isVisible();
 
     await stageHand.browser.close();
 
     return isVisible;
-
-    return false;
   },
   scores: [exactMatch],
 });

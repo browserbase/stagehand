@@ -20,7 +20,7 @@ Eval('Vanta', {
     ];
   },
   task: async (input) => {
-    const stageHand = new Stagehand({ env: 'LOCAL' });
+    const stageHand = new Stagehand({ env: 'LOCAL', disableCache: true });
     await stageHand.init();
 
     await stageHand.page.goto('https://www.vanta.com/');
