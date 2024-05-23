@@ -34,7 +34,6 @@ const vanta_h = async (input) => {
   await stageHand.waitForSettledDom();
 
   const observation = await stageHand.observe(input.text);
-  console.log(observation, 'observation');
 
   await stageHand.browser.close();
 
@@ -57,7 +56,6 @@ const peeler_simple = async (input) => {
   const isVisible = await successMessageLocator.isVisible();
 
   await stageHand.browser.close();
-
   return isVisible;
 };
 

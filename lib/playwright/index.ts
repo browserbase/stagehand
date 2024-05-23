@@ -102,22 +102,24 @@ export class Stagehand {
       return key;
     }
 
-    const fullBody = await cleanDOM(this.page.locator('body'));
+    const { outputString, selectorMap } = await cleanDOM(
+      this.page.locator('body')
+    );
 
     const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a list of possible elements.
-            return only the string to pass to playwright, no markdown
+          content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a numbered list of possible elements.
+            return only element id we are looking for
             if the element is not found, return NONE`,
         },
         {
           role: 'user',
           content: `
                     instruction: ${observation}
-                    DOM: ${fullBody}
+                    DOM: ${outputString}
                     `,
         },
       ],
@@ -128,21 +130,22 @@ export class Stagehand {
       presence_penalty: 0,
     });
 
-    const locatorStr = selectorResponse.choices[0].message.content;
+    const elementId = selectorResponse.choices[0].message.content;
 
-    if (!locatorStr) {
+    if (!elementId) {
       throw new Error('no response when finding a selector');
     }
 
-    if (locatorStr === 'NONE') {
+    if (elementId === 'NONE') {
       return null;
     }
 
+    const locatorString = `xpath=${selectorMap[elementId]}`;
     // the locator string found by the LLM might resolve to multiple places in the DOM
-    const firstLocator = this.page.locator(locatorStr).first();
+    const firstLocator = this.page.locator(locatorString).first();
 
     await expect(firstLocator).toBeAttached();
-    const cachedKey = await this.saveObservation(observation, locatorStr);
+    const cachedKey = await this.cacheObservation(observation, locatorString);
 
     return cachedKey;
   }
@@ -150,7 +153,7 @@ export class Stagehand {
     this.id = key;
   }
 
-  async saveObservation(observation: string, result: string): Promise<string> {
+  async cacheObservation(observation: string, result: string): Promise<string> {
     const key = this.getKey(observation);
 
     this.observations[key] = { result, id: this.id };
@@ -204,11 +207,12 @@ export class Stagehand {
       console.log('observation', this.observations[observation].result);
     }
 
-    const area = await cleanDOM(
+    const { outputString, selectorMap } = await cleanDOM(
       observation
         ? this.page.locator(this.observations[observation].result)
         : this.page.locator('body')
     );
+    console.log(outputString);
 
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -216,13 +220,13 @@ export class Stagehand {
         {
           role: 'system',
           content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a simplified list of exracted DOM elements and a goal to accomplish.\n\nDo not use xpath to select items as you only see snippets of the full DOM.\n\nfor each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n locator: string (the locator to find the element to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
         },
         {
           role: 'user',
           content: `
             action: ${action},
-            DOM: ${area}`,
+            DOM: ${outputString}`,
         },
       ],
 
@@ -243,16 +247,18 @@ export class Stagehand {
     const res = JSON.parse(response.choices[0].message.content);
     const commands = res.length ? res : [res];
     for (const command of commands) {
-      const locatorStr = command['locator'];
+      const element = command['element'];
+      const path = selectorMap[element];
       const method = command['method'];
       const args = command['args'];
 
-      console.log(`taking action ${method} on ${locatorStr} with args ${args}`);
-      const locator = await this.page.locator(locatorStr).first();
+      console.log(`taking action ${method} on ${path} with args ${args}`);
+      const locator = await this.page.locator(`xpath=${path}`).first();
       await locator[method](...args);
     }
 
-    this.cacheAction(action, response.choices[0].message.content);
+    // disable cache for now
+    // this.cacheAction(action, response.choices[0].message.content);
 
     await this.page.waitForTimeout(2000); //waitForNavigation and waitForLoadState do not work in this case
 

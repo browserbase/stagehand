@@ -2,6 +2,40 @@ import { Locator, type Page } from '@playwright/test';
 import jsdom from 'jsdom';
 const { JSDOM } = jsdom;
 
+function generateXPath(element: Element): string {
+  if (element.id) {
+    return `//*[@id="${element.id}"]`;
+  }
+
+  const parts: string[] = [];
+  while (element && element.nodeType === 1) {
+    let index = 0;
+    let hasSameTypeSiblings = false;
+    const siblings = element.parentNode ? element.parentNode.childNodes : [];
+
+    for (let i = 0; i < siblings.length; i++) {
+      const sibling = siblings[i];
+      if (sibling.nodeType === 1 && sibling.nodeName === element.nodeName) {
+        hasSameTypeSiblings = true;
+        if (sibling === element) {
+          index = index + 1;
+          break;
+        }
+        index = index + 1;
+      }
+    }
+
+    const tagName = element.nodeName.toLowerCase();
+    const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
+    parts.unshift(`${tagName}${pathIndex}`);
+    element = element.parentNode as Element;
+  }
+
+  return parts.length ? `/${parts.join('/')}` : '';
+}
+
+const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT'];
+
 const interactiveElementTypes = [
   'A',
   'BUTTON',
@@ -43,24 +77,34 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 
-const isInteractiveElement = (element: HTMLElement) => {
-  const elementType = element.tagName;
-  const elementRole = element.getAttribute('role');
-  const elementAriaRole = element.getAttribute('aria-role');
-
+const isActiveElement = (element: HTMLElement) => {
   if (
-    element.getAttribute('disabled') === 'true' ||
+    element.hasAttribute('disabled') ||
     element.hidden ||
     element.ariaDisabled
   ) {
     return false;
   }
 
+  return true;
+};
+const isInteractiveElement = (element: HTMLElement) => {
+  if (leafElementDenyList.includes(element.tagName)) {
+    return false;
+  }
+  const elementType = element.tagName;
+  const elementRole = element.getAttribute('role');
+  const elementAriaRole = element.getAttribute('aria-role');
+
   return (
     (elementType && interactiveElementTypes.includes(elementType)) ||
     (elementRole && interactiveRoles.includes(elementRole)) ||
     (elementAriaRole && interactiveAriaRoles.includes(elementAriaRole))
   );
+};
+
+const isLeafElement = (element: HTMLElement) => {
+  return !leafElementDenyList.includes(element.tagName);
 };
 
 async function cleanDOM(startingLocator: Locator) {
@@ -77,11 +121,13 @@ async function cleanDOM(startingLocator: Locator) {
     if (element) {
       const childrenCount = element.children.length;
       // if you have no children you are a leaf node
-      if (childrenCount === 0) {
+      if (childrenCount === 0 && isLeafElement(element)) {
         candidateElements.push(element);
         continue;
       } else if (isInteractiveElement(element)) {
-        candidateElements.push(element);
+        if (isActiveElement(element)) {
+          candidateElements.push(element);
+        }
         continue;
       }
       for (let i = childrenCount - 1; i >= 0; i--) {
@@ -92,20 +138,18 @@ async function cleanDOM(startingLocator: Locator) {
     }
   }
 
-  const cleanedHtml = candidateElements
+  let selectorMap = {};
+  let outputString = '';
+  candidateElements.forEach((element, index) => {
+    const xpath = generateXPath(element);
 
-    .map((r) =>
-      r.outerHTML
-        .split('\n')
-        .map((line) => line.trim())
-        .join(' ')
-    )
-    .join(',\n');
+    selectorMap[index] = xpath;
+    outputString += `${index}:${element.outerHTML.trim()}\n`;
+  });
 
   console.log('---DOM CLEANING--- CLEANED HTML STRING');
-  console.log(cleanedHtml);
 
-  return cleanedHtml;
+  return { outputString, selectorMap };
 }
 
 export { cleanDOM };

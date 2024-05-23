@@ -9,7 +9,7 @@ async function example() {
   await stageHand.waitForSettledDom();
 
   await stageHand.act({
-    action: 'click the next available date',
+    action: 'click the first available tuesday',
   });
 }
 
