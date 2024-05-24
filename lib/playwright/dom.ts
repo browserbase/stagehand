@@ -2,7 +2,7 @@ import { Locator, type Page } from '@playwright/test';
 import jsdom from 'jsdom';
 const { JSDOM } = jsdom;
 
-function generateXPath(element: Element): string {
+function generateXPath(element: HTMLElement): string {
   if (element.id) {
     return `//*[@id="${element.id}"]`;
   }
@@ -11,30 +11,32 @@ function generateXPath(element: Element): string {
   while (element && element.nodeType === 1) {
     let index = 0;
     let hasSameTypeSiblings = false;
-    const siblings = element.parentNode ? element.parentNode.childNodes : [];
+    const siblings = element.parentElement
+      ? element.parentElement.children
+      : [];
 
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[i];
+
       if (sibling.nodeType === 1 && sibling.nodeName === element.nodeName) {
         hasSameTypeSiblings = true;
-        if (sibling === element) {
-          index = index + 1;
+
+        if (sibling.isSameNode(element)) {
           break;
         }
-        index = index + 1;
       }
     }
 
     const tagName = element.nodeName.toLowerCase();
     const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
     parts.unshift(`${tagName}${pathIndex}`);
-    element = element.parentNode as Element;
+    element = element.parentElement as HTMLElement;
   }
 
   return parts.length ? `/${parts.join('/')}` : '';
 }
 
-const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT'];
+const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT', 'STYLE'];
 
 const interactiveElementTypes = [
   'A',
@@ -77,7 +79,45 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 
-const isActiveElement = (element: HTMLElement) => {
+const hasSize = (element: HTMLElement, styles: CSSStyleDeclaration) => {
+  if (element.tagName === 'TEXTAREA') {
+    console.log('textarea', element.tagName);
+    console.log(element.height);
+    console.log(element.width);
+    console.log(styles.height);
+    console.log(styles.width);
+  }
+  const noProperties =
+    (!element.clientHeight || !element.clientWidth) &&
+    (!styles.height || !styles.width);
+
+  // if we don't have at least one height or width in the styles or client properties, we can't have size
+  if (noProperties) {
+    return false;
+  }
+
+  const noStyleSize = styles.height === '0px' || styles.width === '0px';
+
+  const noClientSize = element.clientHeight === 0 || element.clientWidth === 0;
+  if (noClientSize && noStyleSize) {
+    return false;
+  }
+  return true;
+};
+
+const isActiveElement = async (element: HTMLElement, locator: Locator) => {
+  return true;
+  const isVisible = await locator.evaluate((el) =>
+    el.checkVisibility({
+      checkVisibilityCSS: true,
+      checkOpacity: true,
+    })
+  );
+
+  if (!isVisible) {
+    return false;
+  }
+
   if (
     element.hasAttribute('disabled') ||
     element.hidden ||
@@ -89,9 +129,6 @@ const isActiveElement = (element: HTMLElement) => {
   return true;
 };
 const isInteractiveElement = (element: HTMLElement) => {
-  if (leafElementDenyList.includes(element.tagName)) {
-    return false;
-  }
   const elementType = element.tagName;
   const elementRole = element.getAttribute('role');
   const elementAriaRole = element.getAttribute('aria-role');
@@ -104,6 +141,9 @@ const isInteractiveElement = (element: HTMLElement) => {
 };
 
 const isLeafElement = (element: HTMLElement) => {
+  if (element.textContent === '') {
+    return false;
+  }
   return !leafElementDenyList.includes(element.tagName);
 };
 
@@ -113,19 +153,27 @@ async function cleanDOM(startingLocator: Locator) {
   if (!domString) {
     throw new Error("error selecting DOM that doesn't exist");
   }
-  const { document } = new JSDOM(domString).window;
+  const window = new JSDOM(domString).window;
+  const { document } = window;
+
   const candidateElements: Array<HTMLElement> = [];
   const DOMQueue: Array<HTMLElement> = [document.body];
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
     if (element) {
       const childrenCount = element.children.length;
+      const currentElementLocator = startingLocator.locator(
+        `xpath=${generateXPath(element)}`
+      );
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
+        if (await isActiveElement(element, currentElementLocator)) {
+          candidateElements.push(element);
+        }
         candidateElements.push(element);
         continue;
       } else if (isInteractiveElement(element)) {
-        if (isActiveElement(element)) {
+        if (await isActiveElement(element, currentElementLocator)) {
           candidateElements.push(element);
         }
         continue;
@@ -148,6 +196,7 @@ async function cleanDOM(startingLocator: Locator) {
   });
 
   console.log('---DOM CLEANING--- CLEANED HTML STRING');
+  console.log(outputString);
 
   return { outputString, selectorMap };
 }

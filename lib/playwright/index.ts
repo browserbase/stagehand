@@ -83,6 +83,43 @@ export class Stagehand {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
 
+  async extract(observation: string): Promise<string | null> {
+    const { outputString } = await cleanDOM(this.page.locator('body'));
+
+    const selectorResponse = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are helping a user extract structured text from the DOM. you will be given an instruction of what to extract, and a numbered list of possible elements. return only the extracted text the user is looking for if no relevant text is found, return NONE`,
+        },
+        {
+          role: 'user',
+          content: `
+                    instruction: ${observation}
+                    DOM: ${outputString}
+                    `,
+        },
+      ],
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    });
+
+    const text = selectorResponse.choices[0].message.content;
+
+    if (!text) {
+      throw new Error('no response when finding a selector');
+    }
+
+    if (text === 'NONE') {
+      return null;
+    }
+
+    return text;
+  }
+
   async observe(observation: string): Promise<string | null> {
     const key = this.getKey(observation);
     const observationLocatorStr = this.observations[key]?.result;
@@ -212,7 +249,6 @@ export class Stagehand {
         ? this.page.locator(this.observations[observation].result)
         : this.page.locator('body')
     );
-    console.log(outputString);
 
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -220,7 +256,7 @@ export class Stagehand {
         {
           role: 'system',
           content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]',
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal, follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]',
         },
         {
           role: 'user',
@@ -245,6 +281,7 @@ export class Stagehand {
     }
 
     const res = JSON.parse(response.choices[0].message.content);
+    console.log(res);
     const commands = res.length ? res : [res];
     for (const command of commands) {
       const element = command['element'];

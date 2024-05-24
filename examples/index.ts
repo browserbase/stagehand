@@ -5,11 +5,15 @@ async function example() {
   const stageHand = new Stagehand({ env: 'LOCAL' });
   await stageHand.init();
 
-  await stageHand.page.goto('https://calendly.com/zerostep-test/test-calendly');
+  await stageHand.page.goto('https://google.com');
   await stageHand.waitForSettledDom();
 
   await stageHand.act({
-    action: 'click the first available tuesday',
+    action: 'search for "ai drones crs reports filetype:pdf"',
+  });
+  await stageHand.waitForSettledDom();
+  await stageHand.act({
+    action: 'submit the search from',
   });
 }
 
