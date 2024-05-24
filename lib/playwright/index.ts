@@ -220,7 +220,7 @@ export class Stagehand {
         {
           role: 'system',
           content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]\n\n\n\n',
+            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal,  follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]',
         },
         {
           role: 'user',
