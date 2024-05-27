@@ -11,10 +11,10 @@ async function example() {
   await stageHand.act({
     action: 'search for "ai drones crs reports filetype:pdf"',
   });
-  await stageHand.waitForSettledDom();
-  await stageHand.act({
-    action: 'submit the search from',
-  });
+  // await stageHand.waitForSettledDom();
+  // await stageHand.act({
+  //   action: 'submit the search from',
+  // });
 }
 
 (async () => {

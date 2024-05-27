@@ -8,7 +8,6 @@ import { expect } from '@playwright/test';
 import Cache from '../cache';
 import OpenAI from 'openai';
 import crypto from 'crypto';
-import { cleanDOM } from './dom';
 
 require('dotenv').config({ path: '.env' });
 
@@ -68,11 +67,17 @@ export class Stagehand {
     this.context = context;
     this.page = this.context.pages()[0];
 
-    const currentPath = require('path').resolve(
+    const utils = require('path').resolve(
       process.cwd(),
-      'lib/playwright/preload.js'
+      'lib/dom/build/utils.js'
     );
-    await this.page.addInitScript({ path: currentPath });
+
+    const processor = require('path').resolve(
+      process.cwd(),
+      'lib/dom/build/process.js'
+    );
+    await this.page.addInitScript({ path: utils });
+    await this.page.addInitScript({ path: processor });
   }
 
   async waitForSettledDom() {
@@ -84,7 +89,9 @@ export class Stagehand {
   }
 
   async extract(observation: string): Promise<string | null> {
-    const { outputString } = await cleanDOM(this.page.locator('body'));
+    const { outputString } = await this.page.evaluate(() =>
+      window.processElements()
+    );
 
     const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -139,8 +146,8 @@ export class Stagehand {
       return key;
     }
 
-    const { outputString, selectorMap } = await cleanDOM(
-      this.page.locator('body')
+    const { outputString, selectorMap } = await this.page.evaluate(() =>
+      window.processElements()
     );
 
     const selectorResponse = await this.openai.chat.completions.create({
@@ -244,10 +251,8 @@ export class Stagehand {
       console.log('observation', this.observations[observation].result);
     }
 
-    const { outputString, selectorMap } = await cleanDOM(
-      observation
-        ? this.page.locator(this.observations[observation].result)
-        : this.page.locator('body')
+    const { outputString, selectorMap } = await this.page.evaluate(() =>
+      window.processElements()
     );
 
     const response = await this.openai.chat.completions.create({

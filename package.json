@@ -7,7 +7,8 @@
     "example": "tsx examples/index.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "npx braintrust eval"
+    "evals": "npx braintrust eval",
+    "build-dom-scripts": "esbuild ./lib/dom/*.ts --bundle --outdir=./lib/dom/build"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +17,7 @@
     "@playwright/test": "^1.42.1",
     "@types/jsdom": "^21.1.6",
     "@types/node": "^20.11.30",
+    "esbuild": "^0.21.4",
     "prettier": "^3.2.5",
     "tsx": "^4.10.5"
   },
@@ -23,7 +25,6 @@
     "autoevals": "^0.0.64",
     "braintrust": "^0.0.127",
     "dotenv": "^16.4.5",
-    "e": "^0.2.33",
     "jsdom": "^24.0.0",
     "openai": "^4.29.2"
   }
