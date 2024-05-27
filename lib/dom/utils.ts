@@ -1,5 +1,5 @@
 async function waitForDomSettle() {
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     const createTimeout = () => {
       return setTimeout(() => {
         resolve();
@@ -13,3 +13,5 @@ async function waitForDomSettle() {
     observer.observe(document.body, { childList: true, subtree: true });
   });
 }
+
+window.waitForDomSettle = waitForDomSettle;

@@ -1,40 +1,40 @@
-import { Locator, type Page } from '@playwright/test';
-import jsdom from 'jsdom';
-const { JSDOM } = jsdom;
-
-function generateXPath(element: Element): string {
+function generateXPath(element: HTMLElement): string {
   if (element.id) {
-    return `//*[@id="${element.id}"]`;
+    return `//*[@id='${element.id}']`;
   }
 
   const parts: string[] = [];
   while (element && element.nodeType === 1) {
     let index = 0;
     let hasSameTypeSiblings = false;
-    const siblings = element.parentNode ? element.parentNode.childNodes : [];
+    const siblings = element.parentElement
+      ? element.parentElement.children
+      : [];
 
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[i];
+
       if (sibling.nodeType === 1 && sibling.nodeName === element.nodeName) {
+        index = index + 1;
+
         hasSameTypeSiblings = true;
-        if (sibling === element) {
-          index = index + 1;
+
+        if (sibling.isSameNode(element)) {
           break;
         }
-        index = index + 1;
       }
     }
 
     const tagName = element.nodeName.toLowerCase();
     const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
     parts.unshift(`${tagName}${pathIndex}`);
-    element = element.parentNode as Element;
+    element = element.parentElement as HTMLElement;
   }
 
   return parts.length ? `/${parts.join('/')}` : '';
 }
 
-const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT'];
+const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT', 'STYLE'];
 
 const interactiveElementTypes = [
   'A',
@@ -77,7 +77,28 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 
-const isActiveElement = (element: HTMLElement) => {
+/*
+ * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
+ * - size
+ * - display properties
+ * - opacity
+ * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
+ */
+const isVisible = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    return false;
+  }
+
+  const isVisible = element.checkVisibility({
+    checkOpacity: true,
+    checkVisibilityCSS: true,
+  });
+
+  return isVisible;
+};
+
+const isActive = async (element: HTMLElement) => {
   if (
     element.hasAttribute('disabled') ||
     element.hidden ||
@@ -89,9 +110,6 @@ const isActiveElement = (element: HTMLElement) => {
   return true;
 };
 const isInteractiveElement = (element: HTMLElement) => {
-  if (leafElementDenyList.includes(element.tagName)) {
-    return false;
-  }
   const elementType = element.tagName;
   const elementRole = element.getAttribute('role');
   const elementAriaRole = element.getAttribute('aria-role');
@@ -104,28 +122,35 @@ const isInteractiveElement = (element: HTMLElement) => {
 };
 
 const isLeafElement = (element: HTMLElement) => {
+  if (element.textContent === '') {
+    return false;
+  }
   return !leafElementDenyList.includes(element.tagName);
 };
 
-async function cleanDOM(startingLocator: Locator) {
+async function processElements() {
   console.log('---DOM CLEANING--- starting cleaning');
-  const domString = await startingLocator.evaluate((el) => el.outerHTML);
+  const domString = window.document.body.outerHTML;
   if (!domString) {
     throw new Error("error selecting DOM that doesn't exist");
   }
-  const { document } = new JSDOM(domString).window;
+
   const candidateElements: Array<HTMLElement> = [];
   const DOMQueue: Array<HTMLElement> = [document.body];
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
-    if (element) {
+    if (element && isVisible(element)) {
       const childrenCount = element.children.length;
+
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
+        if (await isActive(element)) {
+          candidateElements.push(element);
+        }
         candidateElements.push(element);
         continue;
       } else if (isInteractiveElement(element)) {
-        if (isActiveElement(element)) {
+        if (await isActive(element)) {
           candidateElements.push(element);
         }
         continue;
@@ -140,6 +165,7 @@ async function cleanDOM(startingLocator: Locator) {
 
   let selectorMap = {};
   let outputString = '';
+
   candidateElements.forEach((element, index) => {
     const xpath = generateXPath(element);
 
@@ -147,9 +173,7 @@ async function cleanDOM(startingLocator: Locator) {
     outputString += `${index}:${element.outerHTML.trim()}\n`;
   });
 
-  console.log('---DOM CLEANING--- CLEANED HTML STRING');
-
   return { outputString, selectorMap };
 }
 
-export { cleanDOM };
+window.processElements = processElements;
