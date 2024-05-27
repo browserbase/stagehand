@@ -8,6 +8,9 @@ import { expect } from '@playwright/test';
 import Cache from '../cache';
 import OpenAI from 'openai';
 import crypto from 'crypto';
+import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
+import { z } from 'zod';
+import fs from 'fs';
 
 require('dotenv').config({ path: '.env' });
 
@@ -24,22 +27,43 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
       console.log('No browserbase key detected');
       console.log('Starting a local browser...');
     }
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
+
+    const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
+    fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
+
+    const defaultPreferences = {
+      plugins: {
+        always_open_pdf_externally: true,
+      },
+    };
+
+    fs.writeFileSync(
+      `${tmpDir}/userdir/Default/Preferences`,
+      JSON.stringify(defaultPreferences)
+    );
+
+    const downloadsPath = `${process.cwd()}/downloads`;
+    fs.mkdirSync(downloadsPath, { recursive: true });
+
+    const context = await chromium.launchPersistentContext(
+      `${tmpDir}/userdir`,
+      {
+        acceptDownloads: true,
+        headless: false,
+      }
+    );
+
     console.log('Local browser started successfully.');
-    return { browser, context, page };
+    return { context };
   }
 }
 
 export class Stagehand {
   private openai: OpenAI;
+  private instructor: InstructorClient<OpenAI>;
   public observations: { [key: string]: { result: string; id: string } };
   private actions: { [key: string]: { result: string; id: string } };
   id: string;
-  public browser: Browser;
   public page: Page;
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
@@ -55,17 +79,29 @@ export class Stagehand {
     }
   ) {
     this.openai = new OpenAI();
+    this.instructor = Instructor({
+      client: this.openai,
+      mode: 'TOOLS',
+    });
     this.env = env;
     this.cache = new Cache({ disabled: disableCache });
     this.observations = this.cache.readObservations();
     this.actions = this.cache.readActions();
   }
 
+  async downloadPDF(url: string, title) {
+    const downloadPromise = this.page.waitForEvent('download');
+    await this.act({
+      action: `click on ${url}`,
+    });
+    const download = await downloadPromise;
+    await download.saveAs(`downloads/${title}.pdf`);
+    await download.delete();
+  }
+
   async init() {
-    const { browser, context } = await getBrowser(this.env);
-    this.browser = browser;
-    this.context = context;
-    this.page = this.context.pages()[0];
+    const { context } = await getBrowser(this.env);
+    this.page = context.pages()[0];
 
     const utils = require('path').resolve(
       process.cwd(),
@@ -81,50 +117,52 @@ export class Stagehand {
   }
 
   async waitForSettledDom() {
-    return this.page.evaluate(() => window.waitForDomSettle());
+    try {
+      await this.page.evaluate(() => window.waitForDomSettle());
+    } catch (e) {
+      console.log(e);
+    }
   }
 
   getKey(operation) {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
 
-  async extract(observation: string): Promise<string | null> {
+  async extract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+  }: {
+    instruction: string;
+    schema: T;
+  }): Promise<z.infer<T>> {
+    console.log('starting extraction', instruction);
+    await this.waitForSettledDom();
+
     const { outputString } = await this.page.evaluate(() =>
       window.processElements()
     );
 
-    const selectorResponse = await this.openai.chat.completions.create({
+    // think about chunking
+    const selectorResponse = await this.instructor.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
-          role: 'system',
-          content: `You are helping a user extract structured text from the DOM. you will be given an instruction of what to extract, and a numbered list of possible elements. return only the extracted text the user is looking for if no relevant text is found, return NONE`,
-        },
-        {
           role: 'user',
-          content: `
-                    instruction: ${observation}
-                    DOM: ${outputString}
-                    `,
+          content: `instruction: ${instruction}
+          DOM: ${outputString}`,
         },
       ],
+      response_model: {
+        schema: schema,
+        name: 'Extraction',
+      },
       temperature: 0.1,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
     });
 
-    const text = selectorResponse.choices[0].message.content;
-
-    if (!text) {
-      throw new Error('no response when finding a selector');
-    }
-
-    if (text === 'NONE') {
-      return null;
-    }
-
-    return text;
+    return selectorResponse;
   }
 
   async observe(observation: string): Promise<string | null> {
@@ -223,6 +261,8 @@ export class Stagehand {
     action: string;
     data?: object;
   }): Promise<void> {
+    await this.waitForSettledDom();
+
     console.log('taking action: ', action);
     const key = this.getKey(action);
     let cachedAction = this.actions[key];
@@ -302,9 +342,7 @@ export class Stagehand {
     // disable cache for now
     // this.cacheAction(action, response.choices[0].message.content);
 
-    await this.page.waitForTimeout(2000); //waitForNavigation and waitForLoadState do not work in this case
-
-    console.log('done acting');
+    await this.waitForSettledDom();
   }
   setPage(page: Page) {
     this.page = page;

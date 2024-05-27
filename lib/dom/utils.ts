@@ -10,7 +10,7 @@ async function waitForDomSettle() {
       clearTimeout(timeout);
       timeout = createTimeout();
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(window.document.body, { childList: true, subtree: true });
   });
 }
 
