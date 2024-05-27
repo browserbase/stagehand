@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "example": "tsx examples/index.ts",
+    "example": "pnpm build-dom-scripts && tsx examples/index.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "npx braintrust eval",
+    "evals": "pnpm build-dom-scripts && npx braintrust eval",
     "build-dom-scripts": "esbuild ./lib/dom/*.ts --bundle --outdir=./lib/dom/build"
   },
   "keywords": [],

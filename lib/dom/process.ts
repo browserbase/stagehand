@@ -1,6 +1,6 @@
 function generateXPath(element: HTMLElement): string {
   if (element.id) {
-    return `//*[@id="${element.id}"]`;
+    return `//*[@id='${element.id}']`;
   }
 
   const parts: string[] = [];
@@ -145,9 +145,6 @@ async function processElements() {
     const element = DOMQueue.pop();
     if (element) {
       const childrenCount = element.children.length;
-      const currentElementLocator = document.querySelector(
-        `[data-xpath="${generateXPath(element)}"]`
-      );
 
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
