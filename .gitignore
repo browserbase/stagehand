@@ -7,5 +7,5 @@ screenshot.png
 .DS_STORE
 .cache/
 .env
-
+downloads/
 lib/dom/build/

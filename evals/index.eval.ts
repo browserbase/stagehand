@@ -21,7 +21,7 @@ const vanta = async (input) => {
     .first()
     .innerHTML();
 
-  await stageHand.browser.close();
+  await stageHand.context.close();
 
   return observationResult == desiredResult;
 };
@@ -35,7 +35,7 @@ const vanta_h = async (input) => {
 
   const observation = await stageHand.observe(input.text);
 
-  await stageHand.browser.close();
+  await stageHand.context.close();
 
   // we should have no saved observation since the element shouldn't exist
   return observation === null;
@@ -55,7 +55,7 @@ const peeler_simple = async (input) => {
   );
   const isVisible = await successMessageLocator.isVisible();
 
-  await stageHand.browser.close();
+  await stageHand.context.close();
   return isVisible;
 };
 
