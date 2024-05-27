@@ -5,7 +5,7 @@ async function example() {
   const stageHand = new Stagehand({ env: 'LOCAL' });
   await stageHand.init();
 
-  await stageHand.page.goto('https://google.com');
+  await stageHand.page.goto('https://bing.com');
   await stageHand.waitForSettledDom();
 
   await stageHand.act({

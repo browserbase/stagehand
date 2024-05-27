@@ -13,9 +13,10 @@ function generateXPath(element: HTMLElement): string {
 
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[i];
-      index = index + 1;
 
       if (sibling.nodeType === 1 && sibling.nodeName === element.nodeName) {
+        index = index + 1;
+
         hasSameTypeSiblings = true;
 
         if (sibling.isSameNode(element)) {
