@@ -76,33 +76,28 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 
-// const hasSize = (element: HTMLElement, styles: CSSStyleDeclaration) => {
-//   if (element.tagName === 'TEXTAREA') {
-//     console.log('textarea', element.tagName);
-//     console.log(element.height);
-//     console.log(element.width);
-//     console.log(styles.height);
-//     console.log(styles.width);
-//   }
-//   const noProperties =
-//     (!element.clientHeight || !element.clientWidth) &&
-//     (!styles.height || !styles.width);
+/*
+ * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
+ * - size
+ * - display properties
+ * - opacity
+ * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
+ */
+const isVisible = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    return false;
+  }
 
-//   // if we don't have at least one height or width in the styles or client properties, we can't have size
-//   if (noProperties) {
-//     return false;
-//   }
+  const isVisible = element.checkVisibility({
+    checkOpacity: true,
+    checkVisibilityCSS: true,
+  });
 
-//   const noStyleSize = styles.height === '0px' || styles.width === '0px';
+  return isVisible;
+};
 
-//   const noClientSize = element.clientHeight === 0 || element.clientWidth === 0;
-//   if (noClientSize && noStyleSize) {
-//     return false;
-//   }
-//   return true;
-// };
-
-const isActiveElement = async (element: HTMLElement) => {
+const isActive = async (element: HTMLElement) => {
   if (
     element.hasAttribute('disabled') ||
     element.hidden ||
@@ -143,18 +138,18 @@ async function processElements() {
   const DOMQueue: Array<HTMLElement> = [document.body];
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
-    if (element) {
+    if (element && isVisible(element)) {
       const childrenCount = element.children.length;
 
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
-        if (await isActiveElement(element)) {
+        if (await isActive(element)) {
           candidateElements.push(element);
         }
         candidateElements.push(element);
         continue;
       } else if (isInteractiveElement(element)) {
-        if (await isActiveElement(element)) {
+        if (await isActive(element)) {
           candidateElements.push(element);
         }
         continue;
