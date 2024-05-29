@@ -3,7 +3,7 @@ import { Stagehand } from '../lib/playwright';
 import { z } from 'zod';
 
 async function example() {
-  const stagehand = new Stagehand({ env: 'LOCAL' });
+  const stagehand = new Stagehand({ env: 'LOCAL', verbose: true });
   await stagehand.init();
   await stagehand.page.goto('https://google.com');
   await stagehand.act({

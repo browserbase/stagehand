@@ -68,12 +68,18 @@ export class Stagehand {
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
   public cache: Cache;
+  public verbose: boolean;
 
   constructor(
     {
       env,
       disableCache,
-    }: { env: 'LOCAL' | 'BROWSERBASE'; disableCache?: boolean } = {
+      verbose = false,
+    }: {
+      env: 'LOCAL' | 'BROWSERBASE';
+      disableCache?: boolean;
+      verbose?: boolean;
+    } = {
       env: 'BROWSERBASE',
       disableCache: false,
     }
@@ -87,8 +93,15 @@ export class Stagehand {
     this.cache = new Cache({ disabled: disableCache });
     this.observations = this.cache.readObservations();
     this.actions = this.cache.readActions();
+    this.verbose = verbose;
   }
 
+  log({ category, message }: { category?: string; message: string }) {
+    if (this.verbose) {
+      const categoryString = category ? `:${category}` : '';
+      console.log(`[stagehand${categoryString}] ${message}`);
+    }
+  }
   async downloadPDF(url: string, title) {
     const downloadPromise = this.page.waitForEvent('download');
     await this.act({
@@ -136,12 +149,20 @@ export class Stagehand {
     instruction: string;
     schema: T;
   }): Promise<z.infer<T>> {
-    console.log('starting extraction', instruction);
+    this.log({
+      category: 'extraction',
+      message: `starting extraction ${instruction}`,
+    });
     await this.waitForSettledDom();
 
     const { outputString } = await this.page.evaluate(() =>
       window.processElements()
     );
+
+    this.log({
+      category: 'DOM',
+      message: `available elements:\n${outputString}`,
+    });
 
     // think about chunking
     const selectorResponse = await this.instructor.chat.completions.create({
@@ -163,6 +184,11 @@ export class Stagehand {
       presence_penalty: 0,
     });
 
+    this.log({
+      category: 'extraction',
+      message: `response: ${JSON.stringify(selectorResponse)}`,
+    });
+
     return selectorResponse;
   }
 
@@ -170,8 +196,10 @@ export class Stagehand {
     const key = this.getKey(observation);
     const observationLocatorStr = this.observations[key]?.result;
     if (observationLocatorStr) {
-      console.log('cache hit!');
-      console.log(`using ${JSON.stringify(this.observations[key])}`);
+      this.log({
+        category: 'observation',
+        message: `cache hit! using ${JSON.stringify(this.observations[key])}`,
+      });
 
       // the locator string found by the LLM might resolve to multiple places in the DOM
       const firstLocator = await this.page
@@ -180,8 +208,6 @@ export class Stagehand {
 
       await expect(firstLocator).toBeAttached();
 
-      console.log('done observing');
-
       return key;
     }
 
@@ -189,6 +215,10 @@ export class Stagehand {
       window.processElements()
     );
 
+    this.log({
+      category: 'DOM',
+      message: `available elements:\n${outputString}`,
+    });
     const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -220,10 +250,25 @@ export class Stagehand {
     }
 
     if (elementId === 'NONE') {
+      this.log({
+        category: 'observation',
+        message: `no element found for ${observation}`,
+      });
       return null;
     }
 
+    this.log({
+      category: 'observation',
+      message: `found element ${elementId}`,
+    });
+
     const locatorString = `xpath=${selectorMap[elementId]}`;
+
+    this.log({
+      category: 'observation',
+      message: `found locator ${locatorString}`,
+    });
+
     // the locator string found by the LLM might resolve to multiple places in the DOM
     const firstLocator = this.page.locator(locatorString).first();
 
@@ -264,12 +309,17 @@ export class Stagehand {
   }): Promise<void> {
     await this.waitForSettledDom();
 
-    console.log('taking action: ', action);
+    this.log({
+      category: 'Action',
+      message: `taking action: ${action}`,
+    });
     const key = this.getKey(action);
     let cachedAction = this.actions[key];
     if (cachedAction) {
-      console.log(`cache hit for action: ${action}`);
-      console.log(cachedAction);
+      this.log({
+        category: 'action',
+        message: `cache hit for action: ${action}`,
+      });
       const res = JSON.parse(cachedAction.result);
       const commands = res.length ? res : [res];
 
@@ -278,9 +328,10 @@ export class Stagehand {
         const method = command['method'];
         const args = command['args'];
 
-        console.log(
-          `Cached action ${method} on ${locatorStr} with args ${args}`
-        );
+        this.log({
+          category: 'action',
+          message: `Cached action ${method} on ${locatorStr} with args ${args}`,
+        });
         const locator = await this.page.locator(locatorStr).first();
         await locator[method](...args);
       }
@@ -288,13 +339,14 @@ export class Stagehand {
       return;
     }
 
-    if (observation) {
-      console.log('observation', this.observations[observation].result);
-    }
-
     const { outputString, selectorMap } = await this.page.evaluate(() =>
       window.processElements()
     );
+
+    this.log({
+      category: 'DOM',
+      message: `available elements:\n${outputString}`,
+    });
 
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o',
@@ -325,6 +377,10 @@ export class Stagehand {
     }
 
     const res = JSON.parse(response.choices[0].message.content);
+    this.log({
+      category: 'action',
+      message: `response: ${JSON.stringify(res)}`,
+    });
     const commands = res.length ? res : [res];
     for (const command of commands) {
       const element = command['element'];
@@ -332,7 +388,10 @@ export class Stagehand {
       const method = command['method'];
       const args = command['args'];
 
-      console.log(`taking action ${method} on ${path} with args ${args}`);
+      this.log({
+        category: 'action',
+        message: `taking action ${method} on ${path} with args ${args}`,
+      });
       const locator = await this.page.locator(`xpath=${path}`).first();
       await locator[method](...args);
     }
