@@ -101,6 +101,7 @@ export class Stagehand {
 
   async init() {
     const { context } = await getBrowser(this.env);
+    this.context = context;
     this.page = context.pages()[0];
 
     const utils = require('path').resolve(
@@ -319,14 +320,12 @@ export class Stagehand {
       frequency_penalty: 0,
       presence_penalty: 0,
     });
-    console.log('inference complete');
 
     if (!response.choices[0].message.content) {
       throw new Error('no response from action model');
     }
 
     const res = JSON.parse(response.choices[0].message.content);
-    console.log(res);
     const commands = res.length ? res : [res];
     for (const command of commands) {
       const element = command['element'];

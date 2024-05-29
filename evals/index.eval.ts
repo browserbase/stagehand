@@ -1,5 +1,6 @@
 import { Eval } from 'braintrust';
 import { Stagehand } from '../lib/playwright';
+import { z } from 'zod';
 
 const vanta = async (input) => {
   const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
@@ -59,7 +60,27 @@ const peeler_simple = async (input) => {
   return isVisible;
 };
 
-const tasks = { vanta, vanta_h, peeler_simple };
+const peeler_complex = async (input) => {
+  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  await stagehand.init();
+
+  await stagehand.page.goto(
+    `https://chefstoys.com/collections/fruit-vegetable-herb-knives-peelers`
+  );
+
+  await stagehand.act({
+    action: 'click "add to cart" for the first OXO peeler',
+  });
+  await stagehand.act({ action: 'visit the cart' });
+  const { price } = await stagehand.extract({
+    instruction: 'get the price of the peeler in cart',
+    schema: z.object({ price: z.number().nullable() }),
+  });
+
+  return price !== null;
+};
+
+const tasks = { vanta, vanta_h, peeler_simple, peeler_complex };
 
 const exactMatch = (args: { input; output; expected? }) => {
   return {
@@ -92,6 +113,7 @@ Eval('stagehand', {
           desired: null,
         },
       },
+      // { input: { name: 'peeler_complex', text: 'foo', desired: null } },
     ];
   },
   task: async (input) => {

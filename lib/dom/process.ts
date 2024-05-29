@@ -1,4 +1,4 @@
-function generateXPath(element: HTMLElement): string {
+function generateXPath(element: Element): string {
   if (element.id) {
     return `//*[@id='${element.id}']`;
   }
@@ -84,9 +84,14 @@ const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
  * - opacity
  * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
  */
-const isVisible = (element: HTMLElement) => {
+const isVisible = (element: Element) => {
   const rect = element.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) {
+    return false;
+  }
+
+  if (!isTopElement(element, rect)) {
+    console.log(element, rect, 'not top');
     return false;
   }
 
@@ -98,10 +103,36 @@ const isVisible = (element: HTMLElement) => {
   return isVisible;
 };
 
-const isActive = async (element: HTMLElement) => {
+function isTopElement(elem: Element, rect: DOMRect) {
+  console.log('elem', elem);
+  let topEl = document.elementFromPoint(
+    rect.left + Math.min(rect.width, window.innerWidth) / 2,
+    rect.top + Math.min(rect.height, window.innerHeight) / 2
+  );
+
+  console.log(rect.left + rect.width / 2);
+  console.log(rect.top + rect.height / 2);
+  console.log(topEl);
+
+  let found = false;
+  while (topEl && topEl !== document.body) {
+    console.log('topEl', topEl);
+
+    if (topEl.isSameNode(elem)) {
+      found = true;
+      break;
+    }
+    topEl = topEl.parentElement;
+  }
+
+  console.log('found', found);
+  return found;
+}
+
+const isActive = async (element: Element) => {
   if (
     element.hasAttribute('disabled') ||
-    element.hidden ||
+    element.hasAttribute('hidden') ||
     element.ariaDisabled
   ) {
     return false;
@@ -109,7 +140,7 @@ const isActive = async (element: HTMLElement) => {
 
   return true;
 };
-const isInteractiveElement = (element: HTMLElement) => {
+const isInteractiveElement = (element: Element) => {
   const elementType = element.tagName;
   const elementRole = element.getAttribute('role');
   const elementAriaRole = element.getAttribute('aria-role');
@@ -121,7 +152,7 @@ const isInteractiveElement = (element: HTMLElement) => {
   );
 };
 
-const isLeafElement = (element: HTMLElement) => {
+const isLeafElement = (element: Element) => {
   if (element.textContent === '') {
     return false;
   }
@@ -135,22 +166,21 @@ async function processElements() {
     throw new Error("error selecting DOM that doesn't exist");
   }
 
-  const candidateElements: Array<HTMLElement> = [];
-  const DOMQueue: Array<HTMLElement> = [document.body];
+  const candidateElements: Array<Element> = [];
+  const DOMQueue: Array<Element> = [...document.body.children];
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
-    if (element && isVisible(element)) {
+    if (element) {
       const childrenCount = element.children.length;
 
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
-        if (await isActive(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
           candidateElements.push(element);
         }
-        candidateElements.push(element);
         continue;
       } else if (isInteractiveElement(element)) {
-        if (await isActive(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
           candidateElements.push(element);
         }
         continue;
@@ -158,7 +188,7 @@ async function processElements() {
       for (let i = childrenCount - 1; i >= 0; i--) {
         const child = element.children[i];
 
-        DOMQueue.push(child as HTMLElement);
+        DOMQueue.push(child as Element);
       }
     }
   }
