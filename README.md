@@ -1,11 +1,11 @@
-# Stagehand
+# stagehand
 
-Stagehand is a web automation SDK that leverages LLMs and industry to achieve a low friection, cost effective, and resilient way to automate the browser.
+stagehand is a web automation SDK that leverages LLMs and industry to achieve a low friection, cost effective, and resilient way to automate the browser.
 We are currently in the process of adding more acronyms and buzzwords
 
 ## Setup
 
-The prototype version of the sdk relies on Browserbase (of course), Open AI, and Playwright. Here's how to get started:
+The prototype version of the sdk relies on Browserbase, Open AI, and Playwright. Here's how to get started:
 
 1. install dependencies
 
