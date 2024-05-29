@@ -2,60 +2,60 @@ import { Eval } from 'braintrust';
 import { Stagehand } from '../lib/playwright';
 
 const vanta = async (input) => {
-  const stageHand = new Stagehand({ env: 'LOCAL', disableCache: true });
-  await stageHand.init();
+  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  await stagehand.init();
 
-  await stageHand.page.goto('https://www.vanta.com/');
-  await stageHand.waitForSettledDom();
+  await stagehand.page.goto('https://www.vanta.com/');
+  await stagehand.waitForSettledDom();
 
-  const observation = await stageHand.observe(input.text);
+  const observation = await stagehand.observe(input.text);
 
   if (!observation) return false;
 
-  const observationResult = await stageHand.page
-    .locator(stageHand.observations[observation].result)
+  const observationResult = await stagehand.page
+    .locator(stagehand.observations[observation].result)
     .first()
     .innerHTML();
-  const desiredResult = await stageHand.page
+  const desiredResult = await stagehand.page
     .locator(input.desired)
     .first()
     .innerHTML();
 
-  await stageHand.context.close();
+  await stagehand.context.close();
 
   return observationResult == desiredResult;
 };
 
 const vanta_h = async (input) => {
-  const stageHand = new Stagehand({ env: 'LOCAL', disableCache: true });
-  await stageHand.init();
+  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  await stagehand.init();
 
-  await stageHand.page.goto('https://www.vanta.com/');
-  await stageHand.waitForSettledDom();
+  await stagehand.page.goto('https://www.vanta.com/');
+  await stagehand.waitForSettledDom();
 
-  const observation = await stageHand.observe(input.text);
+  const observation = await stagehand.observe(input.text);
 
-  await stageHand.context.close();
+  await stagehand.context.close();
 
   // we should have no saved observation since the element shouldn't exist
   return observation === null;
 };
 
 const peeler_simple = async (input) => {
-  const stageHand = new Stagehand({ env: 'LOCAL', disableCache: true });
-  await stageHand.init();
+  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  await stagehand.init();
 
-  await stageHand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
-  await stageHand.waitForSettledDom();
+  await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
+  await stagehand.waitForSettledDom();
 
-  await stageHand.act({ action: input.text });
+  await stagehand.act({ action: input.text });
 
-  const successMessageLocator = stageHand.page.locator(
+  const successMessageLocator = stagehand.page.locator(
     'text="Congratulations, you have 1 A in your cart"'
   );
   const isVisible = await successMessageLocator.isVisible();
 
-  await stageHand.context.close();
+  await stagehand.context.close();
   return isVisible;
 };
 
