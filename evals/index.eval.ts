@@ -9,7 +9,7 @@ const vanta = async (input) => {
   await stagehand.page.goto('https://www.vanta.com/');
   await stagehand.waitForSettledDom();
 
-  const observation = await stagehand.observe(input.text);
+  const observation = await stagehand.observe('find the request demo button');
 
   if (!observation) return false;
 
@@ -17,14 +17,17 @@ const vanta = async (input) => {
     .locator(stagehand.observations[observation].result)
     .first()
     .innerHTML();
-  const desiredResult = await stagehand.page
-    .locator(input.desired)
+
+  const expectedLocator = `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`;
+
+  const expectedResult = await stagehand.page
+    .locator(expectedLocator)
     .first()
     .innerHTML();
 
   await stagehand.context.close();
 
-  return observationResult == desiredResult;
+  return observationResult == expectedResult;
 };
 
 const vanta_h = async (input) => {
@@ -34,7 +37,7 @@ const vanta_h = async (input) => {
   await stagehand.page.goto('https://www.vanta.com/');
   await stagehand.waitForSettledDom();
 
-  const observation = await stagehand.observe(input.text);
+  const observation = await stagehand.observe('find the buy now button');
 
   await stagehand.context.close();
 
@@ -49,7 +52,7 @@ const peeler_simple = async (input) => {
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
   await stagehand.waitForSettledDom();
 
-  await stagehand.act({ action: input.text });
+  await stagehand.act({ action: 'add the peeler to cart' });
 
   const successMessageLocator = stagehand.page.locator(
     'text="Congratulations, you have 1 A in your cart"'
@@ -95,25 +98,19 @@ Eval('stagehand', {
       {
         input: {
           name: 'vanta',
-          text: 'find the request demo button',
-          desired: `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`,
         },
       },
       {
         input: {
           name: 'vanta_h',
-          text: 'find the buy now button',
-          desired: null,
         },
       },
       {
         input: {
           name: 'peeler_simple',
-          text: 'add the peeler to cart',
-          desired: null,
         },
       },
-      // { input: { name: 'peeler_complex', text: 'foo', desired: null } },
+      // { input: { name: 'peeler_complex' } },
     ];
   },
   task: async (input) => {
