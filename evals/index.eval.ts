@@ -1,5 +1,5 @@
 import { Eval } from 'braintrust';
-import { Stagehand } from '../lib/playwright';
+import { Stagehand } from '../lib';
 import { z } from 'zod';
 
 const vanta = async (input) => {

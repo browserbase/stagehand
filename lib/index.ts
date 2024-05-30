@@ -1,16 +1,12 @@
-import {
-  type Page,
-  type Browser,
-  type BrowserContext,
-  chromium,
-} from '@playwright/test';
+import { type Page, type BrowserContext, chromium } from '@playwright/test';
 import { expect } from '@playwright/test';
-import Cache from '../cache';
+import Cache from './cache';
 import OpenAI from 'openai';
 import crypto from 'crypto';
 import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
 import { z } from 'zod';
 import fs from 'fs';
+import { act } from './inference';
 
 require('dotenv').config({ path: '.env' });
 
@@ -299,14 +295,7 @@ export class Stagehand {
     return key;
   }
 
-  async act({
-    observation,
-    action,
-  }: {
-    observation?: string;
-    action: string;
-    data?: object;
-  }): Promise<void> {
+  async act({ action }: { action: string }): Promise<void> {
     await this.waitForSettledDom();
 
     this.log({
@@ -348,40 +337,16 @@ export class Stagehand {
       message: `available elements:\n${outputString}`,
     });
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are helping the user automate browser by finding one or more actions to take.\n\nyou will be given a numbered list of relevant DOM elements to consider and an action to accomplish. for each action required to complete the goal, follow this format in raw JSON, no markdown\n\n[{\n method: string (the required playwright function to call)\n element: number (the element number to act on),\nargs: Array<string | number> (the required arguments)\n}]',
-        },
-        {
-          role: 'user',
-          content: `
-            action: ${action},
-            DOM: ${outputString}`,
-        },
-      ],
-
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      max_tokens: 256,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
+    const response = await act({
+      action,
+      domElements: outputString,
+      client: this.openai,
     });
-
-    if (!response.choices[0].message.content) {
-      throw new Error('no response from action model');
-    }
-
-    const res = JSON.parse(response.choices[0].message.content);
     this.log({
       category: 'action',
-      message: `response: ${JSON.stringify(res)}`,
+      message: `response: ${JSON.stringify(response)}`,
     });
-    const commands = res.length ? res : [res];
+    const commands = response.length ? response : [response];
     for (const command of commands) {
       const element = command['element'];
       const path = selectorMap[element];

@@ -1,5 +1,5 @@
 #!/usr/bin/env -S pnpm tsx
-import { Stagehand } from '../lib/playwright';
+import { Stagehand } from '../lib';
 import { z } from 'zod';
 
 async function example() {
