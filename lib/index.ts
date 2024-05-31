@@ -152,7 +152,7 @@ export class Stagehand {
     await this.waitForSettledDom();
 
     const { outputString } = await this.page.evaluate(() =>
-      window.processElements()
+      window.processElements([])
     );
 
     this.log({
@@ -208,7 +208,7 @@ export class Stagehand {
     }
 
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processElements()
+      window.processElements([])
     );
 
     this.log({
@@ -295,7 +295,15 @@ export class Stagehand {
     return key;
   }
 
-  async act({ action }: { action: string }): Promise<void> {
+  async act({
+    action,
+    steps,
+    chunksSeen = [],
+  }: {
+    action: string;
+    steps?: string;
+    chunksSeen?: Array<number>;
+  }): Promise<void> {
     await this.waitForSettledDom();
 
     this.log({
@@ -328,9 +336,16 @@ export class Stagehand {
       return;
     }
 
-    const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processElements()
+    const domOutput = await this.page.evaluate(
+      (chunksSeen) => window.processElements(chunksSeen),
+      chunksSeen
     );
+
+    if (Object.keys(domOutput).length === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 300000)); // Sleep for 5 minutes (300000 milliseconds)
+    }
+
+    const { outputString, selectorMap, chunk, chunks } = domOutput;
 
     this.log({
       category: 'DOM',
@@ -340,31 +355,66 @@ export class Stagehand {
     const response = await act({
       action,
       domElements: outputString,
+      steps,
       client: this.openai,
     });
+
+    chunksSeen.push(chunk);
+    if (!response) {
+      if (chunksSeen.length < chunks.length) {
+        this.log({
+          category: 'action',
+          message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
+        });
+
+        return this.act({
+          action,
+          steps,
+          chunksSeen,
+        });
+      } else {
+        this.log({
+          category: 'action',
+          message: 'no response from act with no chunks left to check',
+        });
+        return;
+      }
+    }
+
     this.log({
       category: 'action',
       message: `response: ${JSON.stringify(response)}`,
     });
-    const commands = response.length ? response : [response];
-    for (const command of commands) {
-      const element = command['element'];
-      const path = selectorMap[element];
-      const method = command['method'];
-      const args = command['args'];
 
-      this.log({
-        category: 'action',
-        message: `taking action ${method} on ${path} with args ${args}`,
-      });
-      const locator = await this.page.locator(`xpath=${path}`).first();
-      await locator[method](...args);
-    }
+    const element = response['element'];
+    const path = selectorMap[element];
+    const method = response['method'];
+    const args = response['args'];
+
+    this.log({
+      category: 'action',
+      message: `
+      step: ${response.step}
+      ${method} on ${path} with args ${args}
+      `,
+    });
+    const locator = await this.page.locator(`xpath=${path}`).first();
+    await locator[method](...args);
 
     // disable cache for now
     // this.cacheAction(action, response.choices[0].message.content);
 
     await this.waitForSettledDom();
+    if (response.continue) {
+      this.log({
+        category: 'action',
+        message: 'continuing to next sub action',
+      });
+      return this.act({
+        action,
+        steps: response.step,
+      });
+    }
   }
   setPage(page: Page) {
     this.page = page;

@@ -7,11 +7,9 @@ async function example() {
   await stagehand.init();
   await stagehand.page.goto('https://google.com');
   await stagehand.act({
-    action: 'search for "ai drones crs reports filetype:pdf"',
+    action: 'run search for "ai drones crs reports filetype:pdf"',
   });
-  await stagehand.act({
-    action: 'submit the search from',
-  });
+
   const urlSchema = z.object({
     urls: z.array(
       z.object({

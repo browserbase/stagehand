@@ -2,7 +2,7 @@ import { Eval } from 'braintrust';
 import { Stagehand } from '../lib';
 import { z } from 'zod';
 
-const vanta = async (input) => {
+const vanta = async () => {
   const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
   await stagehand.init();
 
@@ -30,7 +30,7 @@ const vanta = async (input) => {
   return observationResult == expectedResult;
 };
 
-const vanta_h = async (input) => {
+const vanta_h = async () => {
   const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
   await stagehand.init();
 
@@ -45,7 +45,7 @@ const vanta_h = async (input) => {
   return observation === null;
 };
 
-const peeler_simple = async (input) => {
+const peeler_simple = async () => {
   const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
   await stagehand.init();
 
@@ -63,7 +63,7 @@ const peeler_simple = async (input) => {
   return isVisible;
 };
 
-const peeler_complex = async (input) => {
+const peeler_complex = async () => {
   const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
   await stagehand.init();
 
@@ -83,7 +83,22 @@ const peeler_complex = async (input) => {
   return price !== null;
 };
 
-const tasks = { vanta, vanta_h, peeler_simple, peeler_complex };
+const wikipedia = async () => {
+  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  await stagehand.init();
+
+  await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
+
+  await stagehand.act({
+    action: 'click on the "hit and run" link',
+  });
+
+  const url = 'https://en.wikipedia.org/wiki/Hit_and_run_(baseball)';
+  const currentUrl = await stagehand.page.url();
+  return currentUrl === url;
+};
+
+const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia };
 
 const exactMatch = (args: { input; output; expected? }) => {
   return {
@@ -95,20 +110,23 @@ const exactMatch = (args: { input; output; expected? }) => {
 Eval('stagehand', {
   data: () => {
     return [
+      // {
+      //   input: {
+      //     name: 'vanta',
+      //   },
+      // },
+      // {
+      //   input: {
+      //     name: 'vanta_h',
+      //   },
+      // },
+      // {
+      //   input: {
+      //     name: 'peeler_simple',
+      //   },
+      // },
       {
-        input: {
-          name: 'vanta',
-        },
-      },
-      {
-        input: {
-          name: 'vanta_h',
-        },
-      },
-      {
-        input: {
-          name: 'peeler_simple',
-        },
+        input: { name: 'wikipedia' },
       },
       // { input: { name: 'peeler_complex' } },
     ];

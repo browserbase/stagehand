@@ -1,28 +1,44 @@
-import { buildActSystemPrompt, buildActUserPrompt } from './prompt';
+import { actTools, buildActSystemPrompt, buildActUserPrompt } from './prompt';
 import OpenAI from 'openai';
 
 export async function act({
   action,
   domElements,
+  steps,
   client,
 }: {
   action: string;
+  steps?: string;
   domElements: string;
   client: OpenAI;
-}): Promise<Array<{ method: string; element: number; args: any[] }>> {
+}): Promise<{
+  method: string;
+  element: number;
+  args: any[];
+  continue: boolean;
+  step: string;
+} | null> {
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
-    messages: [buildActSystemPrompt(), buildActUserPrompt(action, domElements)],
+    messages: [
+      buildActSystemPrompt(),
+      buildActUserPrompt(action, steps, domElements),
+    ],
     temperature: 0.1,
-    response_format: { type: 'json_object' },
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    tool_choice: 'auto',
+    tools: actTools,
   });
 
-  if (!response.choices[0].message.content) {
-    throw new Error('no response from action model');
+  const toolCalls = response.choices[0].message.tool_calls;
+  if (toolCalls && toolCalls.length > 0) {
+    if (toolCalls[0].function.name === 'doNothing') {
+      return null;
+    }
+    return JSON.parse(toolCalls[0].function.arguments);
+  } else {
+    throw new Error('No tool calls found in response');
   }
-
-  return JSON.parse(response.choices[0].message.content);
 }
