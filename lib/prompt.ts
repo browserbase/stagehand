@@ -8,7 +8,7 @@ You are given:
 2. the steps that have been taken so far
 3. a list of relevant DOM elements in this chunk to consider to accompish the goal
 
-You have 2 tools that you can call: doAction, and doNothing
+You have 2 tools that you can call: doAction, and skipSection
 `;
 
 export function buildActSystemPrompt(): OpenAI.ChatCompletionMessageParam {
@@ -69,6 +69,11 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
             type: 'string',
             description: 'human readable description of the step that is taken',
           },
+          why: {
+            type: 'string',
+            description:
+              'why is this step taken? how does it advance the goal?',
+          },
           continue: {
             type: 'boolean',
             description:
@@ -81,9 +86,9 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
   {
     type: 'function',
     function: {
-      name: 'doNothing',
+      name: 'skipSection',
       description:
-        'indicates there is no relevant action to take to progress the goal',
+        'skips this area of the webpage because the current goal cannot be accomplished here',
       parameters: {
         type: 'object',
         properties: {

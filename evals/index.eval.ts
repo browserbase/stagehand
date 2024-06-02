@@ -84,13 +84,16 @@ const peeler_complex = async () => {
 };
 
 const wikipedia = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stagehand = new Stagehand({
+    env: 'LOCAL',
+    disableCache: true,
+    verbose: true,
+  });
   await stagehand.init();
 
   await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
-
   await stagehand.act({
-    action: 'click on the "hit and run" link',
+    action: 'click the "hit and run" link in this article',
   });
 
   const url = 'https://en.wikipedia.org/wiki/Hit_and_run_(baseball)';

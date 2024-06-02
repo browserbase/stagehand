@@ -17,6 +17,7 @@ export async function act({
   args: any[];
   continue: boolean;
   step: string;
+  why?: string;
 } | null> {
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
@@ -34,7 +35,7 @@ export async function act({
 
   const toolCalls = response.choices[0].message.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
-    if (toolCalls[0].function.name === 'doNothing') {
+    if (toolCalls[0].function.name === 'skipSection') {
       return null;
     }
     return JSON.parse(toolCalls[0].function.arguments);

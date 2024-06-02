@@ -28,6 +28,13 @@ async function example() {
   }
 }
 
+async function debug() {
+  const stagehand = new Stagehand({ env: 'LOCAL', verbose: true });
+  await stagehand.init();
+  await stagehand.page.goto('https://vanta.com');
+  await stagehand.debugDom();
+}
+
 (async () => {
-  await example();
+  await debug();
 })();

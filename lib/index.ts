@@ -134,6 +134,9 @@ export class Stagehand {
     }
   }
 
+  async debugDom() {
+    await this.page.evaluate(() => window.debugDom());
+  }
   getKey(operation) {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
@@ -152,13 +155,13 @@ export class Stagehand {
     await this.waitForSettledDom();
 
     const { outputString } = await this.page.evaluate(() =>
-      window.processElements([])
+      window.processDom([])
     );
 
-    this.log({
-      category: 'DOM',
-      message: `available elements:\n${outputString}`,
-    });
+    // this.log({
+    //   category: 'DOM',
+    //   message: `available elements:\n${outputString}`,
+    // });
 
     // think about chunking
     const selectorResponse = await this.instructor.chat.completions.create({
@@ -208,7 +211,7 @@ export class Stagehand {
     }
 
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processElements([])
+      window.processDom([])
     );
 
     this.log({
@@ -337,7 +340,7 @@ export class Stagehand {
     }
 
     const domOutput = await this.page.evaluate(
-      (chunksSeen) => window.processElements(chunksSeen),
+      (chunksSeen) => window.processDom(chunksSeen),
       chunksSeen
     );
 
@@ -396,6 +399,7 @@ export class Stagehand {
       message: `
       step: ${response.step}
       ${method} on ${path} with args ${args}
+      ${response.why}
       `,
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
