@@ -64,19 +64,25 @@ const peeler_simple = async () => {
 };
 
 const peeler_complex = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stagehand = new Stagehand({
+    env: 'LOCAL',
+    disableCache: true,
+    verbose: true,
+  });
   await stagehand.init();
 
-  await stagehand.page.goto(
-    `https://chefstoys.com/collections/fruit-vegetable-herb-knives-peelers`
-  );
+  await stagehand.page.goto(`https://chefstoys.com/`);
 
   await stagehand.act({
-    action: 'click "add to cart" for the first OXO peeler',
+    action: 'search for peelers',
   });
-  await stagehand.act({ action: 'visit the cart' });
+
+  await stagehand.act({
+    action: 'click on the first OXO peeler',
+  });
+
   const { price } = await stagehand.extract({
-    instruction: 'get the price of the peeler in cart',
+    instruction: 'get the price of the first OXO peeler',
     schema: z.object({ price: z.number().nullable() }),
   });
 

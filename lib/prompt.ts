@@ -6,7 +6,7 @@ You are a browser automation assistant.
 You are given:
 1. the user's overall goal
 2. the steps that have been taken so far
-3. a list of relevant DOM elements in this chunk to consider to accompish the goal
+3. a list of active DOM elements in this chunk to consider to accomplish the goal. 
 
 You have 2 tools that you can call: doAction, and skipSection
 `;
@@ -24,14 +24,15 @@ export function buildActUserPrompt(
   steps = 'None',
   domElements: string
 ): OpenAI.ChatCompletionMessageParam {
+  console.log('hi!');
+  console.log(steps);
   const actUserPrompt = `
     goal: ${action}, 
-    steps so far: ${steps},
+    steps completed so far: ${steps},
     elements: ${domElements}
     `;
   const content = actUserPrompt.replace(/\s+/g, ' ');
 
-  console.log('prompt', content);
   return {
     role: 'user',
     content,
@@ -44,10 +45,10 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
     function: {
       name: 'doAction',
       description:
-        'execute the next playwright step that accomplishes the goal',
+        'execute the next playwright step that directly accomplishes the goal',
       parameters: {
         type: 'object',
-        required: ['method', 'element', 'args', 'step', 'continue'],
+        required: ['method', 'element', 'args', 'step', 'completed'],
         properties: {
           method: {
             type: 'string',
@@ -67,17 +68,18 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
           },
           step: {
             type: 'string',
-            description: 'human readable description of the step that is taken',
+            description:
+              'human readable description of the step that is taken in the past tense',
           },
           why: {
             type: 'string',
             description:
               'why is this step taken? how does it advance the goal?',
           },
-          continue: {
+          completed: {
             type: 'boolean',
             description:
-              'true if this step does not complete the goal and more work is required',
+              'true if the goal should be accomplished after this step',
           },
         },
       },

@@ -1,22 +1,24 @@
-function generateXPath(element: Element): string {
-  if (element.id) {
+function generateXPath(element: ChildNode): string {
+  if (isElementNode(element) && element.id) {
     return `//*[@id='${element.id}']`;
   }
 
   const parts: string[] = [];
-  while (element && element.nodeType === 1) {
+  while (element && (isTextNode(element) || isElementNode(element))) {
     let index = 0;
     let hasSameTypeSiblings = false;
     const siblings = element.parentElement
-      ? element.parentElement.children
+      ? element.parentElement.childNodes
       : [];
 
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[i];
 
-      if (sibling.nodeType === 1 && sibling.nodeName === element.nodeName) {
+      if (
+        sibling.nodeType === element.nodeType &&
+        sibling.nodeName === element.nodeName
+      ) {
         index = index + 1;
-
         hasSameTypeSiblings = true;
 
         if (sibling.isSameNode(element)) {
@@ -25,9 +27,12 @@ function generateXPath(element: Element): string {
       }
     }
 
-    const tagName = element.nodeName.toLowerCase();
-    const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
-    parts.unshift(`${tagName}${pathIndex}`);
+    if (element.nodeName !== '#text') {
+      const tagName = element.nodeName.toLowerCase();
+      const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
+      parts.unshift(`${tagName}${pathIndex}`);
+    }
+
     element = element.parentElement as HTMLElement;
   }
 
@@ -77,6 +82,16 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 
+function isElementNode(node: Node): node is Element {
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+function isTextNode(node: Node): node is Text {
+  // trim all white space and make sure the text node is non empty to consider it legit
+  const trimmedText = node.textContent?.trim().replace(/\s/g, '');
+  return node.nodeType === Node.TEXT_NODE && trimmedText !== '';
+}
+
 /*
  * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
  * - size
@@ -87,7 +102,6 @@ const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
 const isVisible = (element: Element) => {
   const rect = element.getBoundingClientRect();
   // this number is relative to scroll, so we shouldn't be using an absolute offset, we can use the viewport height
-
   if (
     rect.width === 0 ||
     rect.height === 0 ||
@@ -109,7 +123,37 @@ const isVisible = (element: Element) => {
   return isVisible;
 };
 
-function isTopElement(elem: Element, rect: DOMRect) {
+const isTextVisible = (element: ChildNode) => {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  const rect = range.getBoundingClientRect();
+
+  if (
+    rect.width === 0 ||
+    rect.height === 0 ||
+    // we take elements by their starting top. so if you start before our offset, or after our offset, you don't count!
+    rect.top < 0 ||
+    rect.top > window.innerHeight
+  ) {
+    return false;
+  }
+  const parent = element.parentElement;
+  if (!parent) {
+    return false;
+  }
+  if (!isTopElement(parent, rect)) {
+    return false;
+  }
+
+  const isVisible = parent.checkVisibility({
+    checkOpacity: true,
+    checkVisibilityCSS: true,
+  });
+
+  return isVisible;
+};
+
+function isTopElement(elem: ChildNode, rect: DOMRect) {
   let topEl = document.elementFromPoint(
     rect.left + Math.min(rect.width, window.innerWidth - rect.left) / 2,
     rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2
@@ -117,7 +161,8 @@ function isTopElement(elem: Element, rect: DOMRect) {
 
   let found = false;
   while (topEl && topEl !== document.body) {
-    if (topEl.isSameNode(elem)) {
+    // consider checking hit targets in the corner and middle instead of containing
+    if (topEl.contains(elem)) {
       found = true;
       break;
     }
@@ -166,7 +211,8 @@ const _chunkColors = [
 ];
 
 function _drawChunk(chunk: number, selectorMap: Record<number, string>) {
-  Object.entries(selectorMap).forEach(([index, selector]) => {
+  cleanupMarkers();
+  Object.entries(selectorMap).forEach(([_index, selector]) => {
     const element = document.evaluate(
       selector as string,
       document,
@@ -176,14 +222,24 @@ function _drawChunk(chunk: number, selectorMap: Record<number, string>) {
     ).singleNodeValue as Element;
 
     if (element) {
-      const rect = element.getBoundingClientRect();
+      let rect;
+      let color;
+      if (isElementNode(element)) {
+        rect = element.getBoundingClientRect();
+        color = _chunkColors[chunk % _chunkColors.length];
+      } else {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        rect = range.getBoundingClientRect();
+        color = 'grey';
+      }
       const overlay = document.createElement('div');
       overlay.style.position = 'absolute';
       overlay.style.left = `${rect.left + window.scrollX}px`;
       overlay.style.top = `${rect.top + window.scrollY}px`;
       overlay.style.width = `${rect.width}px`;
       overlay.style.height = `${rect.height}px`;
-      overlay.style.backgroundColor = _chunkColors[chunk % _chunkColors.length];
+      overlay.style.backgroundColor = color;
       overlay.className = 'stagehand-marker';
       overlay.style.opacity = '0.7';
       overlay.style.zIndex = '10000000'; // Ensure it's above the element
@@ -224,6 +280,13 @@ async function pickChunk(chunksSeen: Array<number>) {
   };
 }
 
+function cleanupMarkers() {
+  const markers = document.querySelectorAll('.stagehand-marker');
+  markers.forEach((marker) => {
+    marker.remove();
+  });
+}
+
 function setupChunkNav() {
   const viewportHeight = window.innerHeight;
   const documentHeight = document.documentElement.scrollHeight;
@@ -241,10 +304,7 @@ function setupChunkNav() {
     prevChunkButton.style.transform = 'translateX(-50%)';
     prevChunkButton.style.zIndex = '1000';
     prevChunkButton.onclick = async () => {
-      const markers = document.querySelectorAll('.stagehand-marker');
-      markers.forEach((marker) => {
-        marker.remove();
-      });
+      cleanupMarkers();
       window.chunkNumber -= 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
@@ -269,10 +329,7 @@ function setupChunkNav() {
     nextChunkButton.style.transform = 'translateX(50%)';
     nextChunkButton.style.zIndex = '1000';
     nextChunkButton.onclick = async () => {
-      const markers = document.querySelectorAll('.stagehand-marker');
-      markers.forEach((marker) => {
-        marker.remove();
-      });
+      cleanupMarkers();
       window.chunkNumber += 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
@@ -296,7 +353,11 @@ async function debugDom() {
 
   await window.waitForDomSettle();
 
-  const { selectorMap } = await processElements(window.chunkNumber);
+  const { selectorMap, outputString } = await processElements(
+    window.chunkNumber
+  );
+  console.log('outputString', outputString);
+  console.log('selectorMap', selectorMap);
 
   _drawChunk(window.chunkNumber, selectorMap);
   setupChunkNav();
@@ -328,12 +389,13 @@ async function processElements(chunk: number) {
     throw new Error("error selecting DOM that doesn't exist");
   }
 
-  const candidateElements: Array<Element> = [];
-  const DOMQueue: Array<Element> = [...document.body.children];
+  const candidateElements: Array<ChildNode> = [];
+  const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
-    if (element) {
-      const childrenCount = element.children.length;
+
+    if (element && isElementNode(element)) {
+      const childrenCount = element.childNodes.length;
 
       // if you have no children you are a leaf node
       if (childrenCount === 0 && isLeafElement(element)) {
@@ -348,10 +410,11 @@ async function processElements(chunk: number) {
         continue;
       }
       for (let i = childrenCount - 1; i >= 0; i--) {
-        const child = element.children[i];
-
+        const child = element.childNodes[i];
         DOMQueue.push(child as Element);
       }
+    } else if (element && isTextNode(element) && isTextVisible(element)) {
+      candidateElements.push(element);
     }
   }
 
@@ -360,9 +423,13 @@ async function processElements(chunk: number) {
 
   candidateElements.forEach((element, index) => {
     const xpath = generateXPath(element);
+    if (isTextNode(element)) {
+      outputString += `${index}:${element.textContent}\n`;
+    } else if (isElementNode(element)) {
+      outputString += `${index}:${element.outerHTML.trim()}\n`;
+    }
 
     selectorMap[index] = xpath;
-    outputString += `${index}:${element.outerHTML.trim()}\n`;
   });
 
   return {

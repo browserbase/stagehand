@@ -158,11 +158,6 @@ export class Stagehand {
       window.processDom([])
     );
 
-    this.log({
-      category: 'DOM',
-      message: `available elements:\n${outputString}`,
-    });
-
     // think about chunking
     const selectorResponse = await this.instructor.chat.completions.create({
       model: 'gpt-4o',
@@ -214,10 +209,6 @@ export class Stagehand {
       window.processDom([])
     );
 
-    this.log({
-      category: 'DOM',
-      message: `available elements:\n${outputString}`,
-    });
     const selectorResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -300,7 +291,7 @@ export class Stagehand {
 
   async act({
     action,
-    steps,
+    steps = '',
     chunksSeen = [],
   }: {
     action: string;
@@ -310,7 +301,7 @@ export class Stagehand {
     await this.waitForSettledDom();
 
     this.log({
-      category: 'Action',
+      category: 'action',
       message: `taking action: ${action}`,
     });
     const key = this.getKey(action);
@@ -345,11 +336,6 @@ export class Stagehand {
         chunksSeen
       );
 
-    this.log({
-      category: 'DOM',
-      message: `available elements:\n${outputString}`,
-    });
-
     const response = await act({
       action,
       domElements: outputString,
@@ -367,7 +353,7 @@ export class Stagehand {
 
         return this.act({
           action,
-          steps,
+          steps: steps + 'Scrolled to another section, ',
           chunksSeen,
         });
       } else {
@@ -397,21 +383,26 @@ export class Stagehand {
       ${response.why}
       `,
     });
-    const locator = await this.page.locator(`xpath=${path}`).first();
-    await locator[method](...args);
+    try {
+      const locator = await this.page.locator(`xpath=${path}`).first();
+      await locator[method](...args);
+    } catch (e) {
+      console.log(e);
+    }
 
     // disable cache for now
     // this.cacheAction(action, response.choices[0].message.content);
 
     await this.waitForSettledDom();
-    if (response.continue) {
+    if (!response.completed) {
       this.log({
         category: 'action',
         message: 'continuing to next sub action',
       });
+      console.log('steps');
       return this.act({
         action,
-        steps: response.step,
+        steps: steps + response.step + ', ',
       });
     }
   }
