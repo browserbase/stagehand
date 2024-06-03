@@ -31,7 +31,9 @@ async function example() {
 async function debug() {
   const stagehand = new Stagehand({ env: 'LOCAL', verbose: true });
   await stagehand.init();
-  await stagehand.page.goto('https://vanta.com');
+  await stagehand.page.goto(
+    'https://chefstoys.com/collections/fruit-vegetable-herb-knives-peelers'
+  );
   await stagehand.debugDom();
 }
 
