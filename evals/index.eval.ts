@@ -113,21 +113,21 @@ const exactMatch = (args: { input; output; expected? }) => {
 Eval('stagehand', {
   data: () => {
     return [
-      // {
-      //   input: {
-      //     name: 'vanta',
-      //   },
-      // },
-      // {
-      //   input: {
-      //     name: 'vanta_h',
-      //   },
-      // },
-      // {
-      //   input: {
-      //     name: 'peeler_simple',
-      //   },
-      // },
+      {
+        input: {
+          name: 'vanta',
+        },
+      },
+      {
+        input: {
+          name: 'vanta_h',
+        },
+      },
+      {
+        input: {
+          name: 'peeler_simple',
+        },
+      },
       {
         input: { name: 'wikipedia' },
       },
