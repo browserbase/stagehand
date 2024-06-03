@@ -158,10 +158,10 @@ export class Stagehand {
       window.processDom([])
     );
 
-    // this.log({
-    //   category: 'DOM',
-    //   message: `available elements:\n${outputString}`,
-    // });
+    this.log({
+      category: 'DOM',
+      message: `available elements:\n${outputString}`,
+    });
 
     // think about chunking
     const selectorResponse = await this.instructor.chat.completions.create({
@@ -339,16 +339,11 @@ export class Stagehand {
       return;
     }
 
-    const domOutput = await this.page.evaluate(
-      (chunksSeen) => window.processDom(chunksSeen),
-      chunksSeen
-    );
-
-    if (Object.keys(domOutput).length === 0) {
-      await new Promise((resolve) => setTimeout(resolve, 300000)); // Sleep for 5 minutes (300000 milliseconds)
-    }
-
-    const { outputString, selectorMap, chunk, chunks } = domOutput;
+    const { outputString, selectorMap, chunk, chunks } =
+      await this.page.evaluate(
+        (chunksSeen) => window.processDom(chunksSeen),
+        chunksSeen
+      );
 
     this.log({
       category: 'DOM',

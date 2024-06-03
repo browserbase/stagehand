@@ -198,20 +198,11 @@ async function pickChunk(chunksSeen: Array<number>) {
   const documentHeight = document.documentElement.scrollHeight;
 
   const chunks = Math.ceil(documentHeight / viewportHeight);
-  console.log('num chunks', chunks);
-  console.log('chunksSeen', chunksSeen);
+
   const chunksArray = Array.from({ length: chunks }, (_, i) => i);
-  console.log('chunksArray', chunksArray);
   const chunksRemaining = chunksArray.filter((chunk) => {
-    console.log('chunk', chunk);
-    console.log('chunksSeen', chunksSeen);
-    console.log('!chunksSeen.includes(chunk)', !chunksSeen.includes(chunk));
     return !chunksSeen.includes(chunk);
   });
-
-  console.log('chunksRemaining', chunksRemaining);
-
-  console.log('chunksRemaining', chunksRemaining);
 
   const currentScrollPosition = window.scrollY;
   const closestChunk = chunksRemaining.reduce((closest, current) => {
@@ -268,8 +259,6 @@ function setupChunkNav() {
     document.body.appendChild(prevChunkButton);
   }
   if (totalChunks > window.chunkNumber) {
-    console.log('hi', totalChunks, window.chunkNumber);
-
     const nextChunkButton = document.createElement('button');
     nextChunkButton.className = 'stagehand-nav';
     nextChunkButton.textContent = 'Next';
@@ -376,7 +365,6 @@ async function processElements(chunk: number) {
     outputString += `${index}:${element.outerHTML.trim()}\n`;
   });
 
-  console.log(outputString);
   return {
     outputString,
     selectorMap,
