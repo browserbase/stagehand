@@ -15,7 +15,7 @@ export async function act({
   method: string;
   element: number;
   args: any[];
-  continue: boolean;
+  completed: boolean;
   step: string;
   why?: string;
 } | null> {
