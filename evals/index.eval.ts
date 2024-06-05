@@ -85,6 +85,8 @@ const peeler_complex = async () => {
     schema: z.object({ price: z.number().nullable() }),
   });
 
+  await stagehand.context.close();
+
   return price !== null;
 };
 
@@ -102,6 +104,8 @@ const wikipedia = async () => {
 
   const url = 'https://en.wikipedia.org/wiki/Hit_and_run_(baseball)';
   const currentUrl = await stagehand.page.url();
+  await stagehand.context.close();
+
   return currentUrl === url;
 };
 
