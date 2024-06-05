@@ -7,6 +7,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import { act } from './inference';
 const merge = require('deepmerge');
+import path from 'path';
 
 require('dotenv').config({ path: '.env' });
 
@@ -113,10 +114,15 @@ export class Stagehand {
     const { context } = await getBrowser(this.env);
     this.context = context;
     this.page = context.pages()[0];
-
-    await this.page.addInitScript({ path: `${__dirname}/dom/build/utils.js` });
+    // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
+    // be one level above our running directly across evals, example, and as a package
     await this.page.addInitScript({
-      path: `${__dirname}/dom/build/process.js`,
+      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'process.js'),
+    });
+
+    console.log(path.join(__dirname, '..', 'dist', 'dom', 'build', 'utils.js'));
+    await this.page.addInitScript({
+      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'utils.js'),
     });
   }
 

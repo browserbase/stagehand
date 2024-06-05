@@ -3,7 +3,7 @@ import { Stagehand } from '../lib';
 import { z } from 'zod';
 
 async function example() {
-  const stagehand = new Stagehand({ env: 'BROWSERBASE', verbose: true });
+  const stagehand = new Stagehand({ env: 'LOCAL', verbose: true });
   await stagehand.init();
   await stagehand.page.goto('https://www.nytimes.com/games/wordle/index.html');
   await stagehand.page.locator('html').dispatchEvent('mouseleave');

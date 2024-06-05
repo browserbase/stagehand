@@ -2,34 +2,39 @@
   "name": "stagehand",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "scripts": {
     "example": "pnpm build-dom-scripts && tsx examples/index.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "pnpm build-dom-scripts && npx braintrust eval",
-    "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./lib/dom/build && cp ./lib/dom/build/* ./dist/dom/build",
-    "build": "node build.js"
+    "evals": "pnpm build-dom-scripts && npx braintrust eval evals/index.eval.ts",
+    "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
+    "build": "pnpm build-dom-scripts && tsup lib/index.ts"
   },
+  "files": [
+    "dist/**",
+    "patches/**"
+  ],
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "autoevals": "^0.0.64",
+    "braintrust": "^0.0.127",
     "esbuild": "^0.21.4",
     "prettier": "^3.2.5",
-    "tsx": "^4.10.5",
-    "braintrust": "^0.0.127",
-    "autoevals": "^0.0.64"
+    "tsup": "^8.1.0",
+    "typescript": "^5.2.2",
+    "tsx": "^4.10.5"
   },
   "peerDependencies": {
     "@playwright/test": "^1.42.1",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
     "openai": "^4.29.2",
-    "zod": "^3.23.8"
-  },
-  "dependencies": {
+    "zod": "^3.23.8",
     "@instructor-ai/instructor": "^1.3.0"
   },
 
