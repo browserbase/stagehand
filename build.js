@@ -1,7 +1,9 @@
 const esbuild = require('esbuild');
-const { peerDependencies } = require('./package.json');
+const { peerDependencies, dependencies } = require('./package.json');
 
-const externals = Object.keys(peerDependencies);
+const externals = Object.keys(peerDependencies).concat(
+  Object.keys(dependencies)
+);
 
 esbuild
   .build({
@@ -10,7 +12,7 @@ esbuild
     platform: 'node',
     target: 'node18',
     outfile: 'dist/index.js',
-    sourcemap: true,
+    sourcemap: false,
     external: externals,
   })
   .catch(() => process.exit(1));
