@@ -176,7 +176,7 @@ const isActive = async (element: Element) => {
   if (
     element.hasAttribute('disabled') ||
     element.hasAttribute('hidden') ||
-    element.ariaDisabled
+    element.getAttribute('aria-disabled') === 'true'
   ) {
     return false;
   }
@@ -199,18 +199,19 @@ const isLeafElement = (element: Element) => {
   if (element.textContent === '') {
     return false;
   }
-  return !leafElementDenyList.includes(element.tagName);
+
+  if (element.childNodes.length === 0) {
+    return !leafElementDenyList.includes(element.tagName);
+  }
+
+  if (element.childNodes.length === 1 && isTextNode(element.childNodes[0])) {
+    return true;
+  }
+
+  return false;
 };
 
-const _chunkColors = [
-  'rgba(255, 0, 0)', // Red
-  'rgba(0, 255, 0)', // Green
-  'rgba(0, 0, 255)', // Blue
-  'rgba(255, 255, 0)', // Yellow
-  'rgba(128, 0, 128)', // Purple
-];
-
-function _drawChunk(chunk: number, selectorMap: Record<number, string>) {
+function _drawChunk(selectorMap: Record<number, string>) {
   cleanupMarkers();
   Object.entries(selectorMap).forEach(([_index, selector]) => {
     const element = document.evaluate(
@@ -223,25 +224,25 @@ function _drawChunk(chunk: number, selectorMap: Record<number, string>) {
 
     if (element) {
       let rect;
-      let color;
       if (isElementNode(element)) {
         rect = element.getBoundingClientRect();
-        color = _chunkColors[chunk % _chunkColors.length];
       } else {
         const range = document.createRange();
         range.selectNodeContents(element);
         rect = range.getBoundingClientRect();
-        color = 'grey';
       }
+      const color = 'grey';
       const overlay = document.createElement('div');
       overlay.style.position = 'absolute';
       overlay.style.left = `${rect.left + window.scrollX}px`;
       overlay.style.top = `${rect.top + window.scrollY}px`;
+      overlay.style.padding = '2px'; // Add 2px of padding to the overlay
+
       overlay.style.width = `${rect.width}px`;
       overlay.style.height = `${rect.height}px`;
       overlay.style.backgroundColor = color;
       overlay.className = 'stagehand-marker';
-      overlay.style.opacity = '0.7';
+      overlay.style.opacity = '0.3';
       overlay.style.zIndex = '10000000'; // Ensure it's above the element
       overlay.style.border = '1px solid'; // Add a 1px solid border to the overlay
       overlay.style.pointerEvents = 'none'; // Ensure the overlay does not capture mouse events
@@ -282,8 +283,16 @@ async function pickChunk(chunksSeen: Array<number>) {
 
 function cleanupMarkers() {
   const markers = document.querySelectorAll('.stagehand-marker');
+  console.log('markers', markers);
   markers.forEach((marker) => {
     marker.remove();
+  });
+}
+
+function cleanupNav() {
+  const stagehandNavElements = document.querySelectorAll('.stagehand-nav');
+  stagehandNavElements.forEach((element) => {
+    element.remove();
   });
 }
 
@@ -305,15 +314,12 @@ function setupChunkNav() {
     prevChunkButton.style.zIndex = '1000';
     prevChunkButton.onclick = async () => {
       cleanupMarkers();
+      cleanupNav();
       window.chunkNumber -= 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
-      const stagehandNavElements = document.querySelectorAll('.stagehand-nav');
-      stagehandNavElements.forEach((element) => {
-        element.remove();
-      });
       const { selectorMap } = await processElements(window.chunkNumber);
-      _drawChunk(window.chunkNumber, selectorMap);
+      _drawChunk(selectorMap);
       setupChunkNav();
     };
     document.body.appendChild(prevChunkButton);
@@ -330,16 +336,13 @@ function setupChunkNav() {
     nextChunkButton.style.zIndex = '1000';
     nextChunkButton.onclick = async () => {
       cleanupMarkers();
+      cleanupNav();
       window.chunkNumber += 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
-      const stagehandNavElements = document.querySelectorAll('.stagehand-nav');
-      stagehandNavElements.forEach((element) => {
-        element.remove();
-      });
 
       const { selectorMap } = await processElements(window.chunkNumber);
-      _drawChunk(window.chunkNumber, selectorMap);
+      _drawChunk(selectorMap);
       setupChunkNav();
     };
 
@@ -359,8 +362,15 @@ async function debugDom() {
   console.log('outputString', outputString);
   console.log('selectorMap', selectorMap);
 
-  _drawChunk(window.chunkNumber, selectorMap);
+  _drawChunk(selectorMap);
   setupChunkNav();
+}
+
+async function cleanupDebug() {
+  await window.waitForDomSettle();
+
+  cleanupMarkers();
+  cleanupNav();
 }
 
 async function processDom(chunksSeen: Array<number>) {
@@ -398,7 +408,7 @@ async function processElements(chunk: number) {
       const childrenCount = element.childNodes.length;
 
       // if you have no children you are a leaf node
-      if (childrenCount === 0 && isLeafElement(element)) {
+      if (isLeafElement(element)) {
         if ((await isActive(element)) && isVisible(element)) {
           candidateElements.push(element);
         }
@@ -440,6 +450,7 @@ async function processElements(chunk: number) {
 
 window.processDom = processDom;
 window.debugDom = debugDom;
+window.cleanupDebug = cleanupDebug;
 
 export {};
 declare global {
@@ -454,5 +465,6 @@ declare global {
       chunks: number[];
     }>;
     debugDom: () => Promise<void>;
+    cleanupDebug: () => void;
   }
 }

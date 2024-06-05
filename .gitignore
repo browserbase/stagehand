@@ -8,4 +8,5 @@ screenshot.png
 .cache/
 .env
 downloads/
+dist/
 lib/dom/build/

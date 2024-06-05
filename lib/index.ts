@@ -7,6 +7,7 @@ import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
 import { z } from 'zod';
 import fs from 'fs';
 import { act } from './inference';
+const merge = require('deepmerge');
 
 require('dotenv').config({ path: '.env' });
 
@@ -46,6 +47,10 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
       {
         acceptDownloads: true,
         headless: false,
+        viewport: {
+          width: 1250,
+          height: 800,
+        },
       }
     );
 
@@ -98,7 +103,7 @@ export class Stagehand {
       console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
-  async downloadPDF(url: string, title) {
+  async downloadPDF(url: string, title: string) {
     const downloadPromise = this.page.waitForEvent('download');
     await this.act({
       action: `click on ${url}`,
@@ -137,24 +142,40 @@ export class Stagehand {
   async debugDom() {
     await this.page.evaluate(() => window.debugDom());
   }
-  getKey(operation) {
+  async cleanupDebug() {
+    await this.page.evaluate(() => window.cleanupDebug());
+  }
+  getKey(operation: string) {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
 
   async extract<T extends z.AnyZodObject>({
     instruction,
     schema,
+    progress = '',
+    content = {},
+    chunksSeen = [],
   }: {
     instruction: string;
     schema: T;
+    progress?: string;
+    content?: z.infer<T>;
+    chunksSeen?: Array<number>;
   }): Promise<z.infer<T>> {
     this.log({
       category: 'extraction',
       message: `starting extraction ${instruction}`,
     });
+
+    const fullSchema = schema.extend({
+      progress: z
+        .string()
+        .describe('progress of what has been extracted so far'),
+      completed: z.boolean().describe('true if the goal is now accomplished'),
+    });
     await this.waitForSettledDom();
 
-    const { outputString } = await this.page.evaluate(() =>
+    const { outputString, chunk } = await this.page.evaluate(() =>
       window.processDom([])
     );
 
@@ -163,8 +184,14 @@ export class Stagehand {
       model: 'gpt-4o',
       messages: [
         {
+          role: 'system',
+          content:
+            'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from',
+        },
+        {
           role: 'user',
           content: `instruction: ${instruction}
+          progress: ${progress}
           DOM: ${outputString}`,
         },
       ],
@@ -178,12 +205,31 @@ export class Stagehand {
       presence_penalty: 0,
     });
 
-    this.log({
-      category: 'extraction',
-      message: `response: ${JSON.stringify(selectorResponse)}`,
-    });
+    await this.cleanupDebug();
 
-    return selectorResponse;
+    chunksSeen.push(chunk);
+    const { progress: newProgress, completed, ...output } = selectorResponse;
+
+    if (selectorResponse.completed || chunksSeen.length === chunks.length) {
+      this.log({
+        category: 'extraction',
+        message: `response: ${JSON.stringify(selectorResponse)}`,
+      });
+
+      return merge(content, output);
+    } else {
+      this.log({
+        category: 'extraction',
+        message: `continuing extraction, progress: ${progress + selectorResponse.progress + ', '}`,
+      });
+      return this.extract({
+        instruction,
+        schema,
+        progress: progress + selectorResponse.progress + ', ',
+        content: merge(content, output),
+        chunksSeen,
+      });
+    }
   }
 
   async observe(observation: string): Promise<string | null> {
@@ -267,6 +313,30 @@ export class Stagehand {
 
     return cachedKey;
   }
+  async ask(question: string): Promise<string | null> {
+    const selectorResponse = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `you are a simple question answering assistent givent the user's question. respond with only the answer`,
+        },
+        {
+          role: 'user',
+          content: `
+                    question: ${question}
+                    `,
+        },
+      ],
+
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    });
+
+    return selectorResponse.choices[0].message.content;
+  }
   setId(key: string) {
     this.id = key;
   }
@@ -299,6 +369,7 @@ export class Stagehand {
     chunksSeen?: Array<number>;
   }): Promise<void> {
     await this.waitForSettledDom();
+    await this.debugDom();
 
     this.log({
       category: 'action',
@@ -364,6 +435,7 @@ export class Stagehand {
         return;
       }
     }
+    await this.cleanupDebug();
 
     this.log({
       category: 'action',
@@ -399,7 +471,6 @@ export class Stagehand {
         category: 'action',
         message: 'continuing to next sub action',
       });
-      console.log('steps');
       return this.act({
         action,
         steps: steps + response.step + ', ',

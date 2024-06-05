@@ -24,8 +24,6 @@ export function buildActUserPrompt(
   steps = 'None',
   domElements: string
 ): OpenAI.ChatCompletionMessageParam {
-  console.log('hi!');
-  console.log(steps);
   const actUserPrompt = `
     goal: ${action}, 
     steps completed so far: ${steps},
