@@ -1,7 +1,7 @@
 const esbuild = require('esbuild');
-const { dependencies } = require('./package.json');
+const { peerDependencies } = require('./package.json');
 
-const externals = Object.keys(dependencies);
+const externals = Object.keys(peerDependencies);
 
 esbuild
   .build({
