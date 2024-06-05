@@ -3,7 +3,7 @@ import { Stagehand } from '../lib';
 import { z } from 'zod';
 
 const vanta = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stagehand = new Stagehand({ env: 'LOCAL' });
   await stagehand.init();
 
   await stagehand.page.goto('https://www.vanta.com/');
@@ -31,7 +31,7 @@ const vanta = async () => {
 };
 
 const vanta_h = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stagehand = new Stagehand({ env: 'LOCAL' });
   await stagehand.init();
 
   await stagehand.page.goto('https://www.vanta.com/');
@@ -46,7 +46,7 @@ const vanta_h = async () => {
 };
 
 const peeler_simple = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL', disableCache: true });
+  const stagehand = new Stagehand({ env: 'LOCAL' });
   await stagehand.init();
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
@@ -66,7 +66,6 @@ const peeler_simple = async () => {
 const peeler_complex = async () => {
   const stagehand = new Stagehand({
     env: 'LOCAL',
-    disableCache: true,
     verbose: true,
   });
   await stagehand.init();
@@ -92,7 +91,6 @@ const peeler_complex = async () => {
 const wikipedia = async () => {
   const stagehand = new Stagehand({
     env: 'LOCAL',
-    disableCache: true,
     verbose: true,
   });
   await stagehand.init();

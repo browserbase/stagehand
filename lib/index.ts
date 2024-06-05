@@ -1,6 +1,5 @@
 import { type Page, type BrowserContext, chromium } from '@playwright/test';
 import { expect } from '@playwright/test';
-import Cache from './cache';
 import OpenAI from 'openai';
 import crypto from 'crypto';
 import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
@@ -62,27 +61,25 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
 export class Stagehand {
   private openai: OpenAI;
   private instructor: InstructorClient<OpenAI>;
-  public observations: { [key: string]: { result: string; id: string } };
-  private actions: { [key: string]: { result: string; id: string } };
+  public observations: {
+    [key: string]: { result: string; observation: string };
+  };
+  private actions: { [key: string]: { result: string; action: string } };
   id: string;
   public page: Page;
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
-  public cache: Cache;
   public verbose: boolean;
 
   constructor(
     {
       env,
-      disableCache,
       verbose = false,
     }: {
       env: 'LOCAL' | 'BROWSERBASE';
-      disableCache?: boolean;
       verbose?: boolean;
     } = {
       env: 'BROWSERBASE',
-      disableCache: false,
     }
   ) {
     this.openai = new OpenAI();
@@ -91,9 +88,8 @@ export class Stagehand {
       mode: 'TOOLS',
     });
     this.env = env;
-    this.cache = new Cache({ disabled: disableCache });
-    this.observations = this.cache.readObservations();
-    this.actions = this.cache.readActions();
+    this.observations = {};
+    this.actions = {};
     this.verbose = verbose;
   }
 
@@ -138,7 +134,7 @@ export class Stagehand {
   async cleanupDebug() {
     await this.page.evaluate(() => window.cleanupDebug());
   }
-  getKey(operation: string) {
+  getId(operation: string) {
     return crypto.createHash('sha256').update(operation).digest('hex');
   }
 
@@ -225,24 +221,10 @@ export class Stagehand {
   }
 
   async observe(observation: string): Promise<string | null> {
-    const key = this.getKey(observation);
-    const observationLocatorStr = this.observations[key]?.result;
-    if (observationLocatorStr) {
-      this.log({
-        category: 'observation',
-        message: `cache hit! using ${JSON.stringify(this.observations[key])}`,
-      });
-
-      // the locator string found by the LLM might resolve to multiple places in the DOM
-      const firstLocator = await this.page
-        .locator(observationLocatorStr)
-        .first();
-
-      await expect(firstLocator).toBeAttached();
-
-      return key;
-    }
-
+    this.log({
+      category: 'observation',
+      message: `starting observation: ${observation}`,
+    });
     const { outputString, selectorMap } = await this.page.evaluate(() =>
       window.processDom([])
     );
@@ -290,7 +272,8 @@ export class Stagehand {
       message: `found element ${elementId}`,
     });
 
-    const locatorString = `xpath=${selectorMap[elementId]}`;
+    const selector = selectorMap[parseInt(elementId)];
+    const locatorString = `xpath=${selector}`;
 
     this.log({
       category: 'observation',
@@ -301,9 +284,12 @@ export class Stagehand {
     const firstLocator = this.page.locator(locatorString).first();
 
     await expect(firstLocator).toBeAttached();
-    const cachedKey = await this.cacheObservation(observation, locatorString);
+    const observationId = await this.recordObservation(
+      observation,
+      locatorString
+    );
 
-    return cachedKey;
+    return observationId;
   }
   async ask(question: string): Promise<string | null> {
     const selectorResponse = await this.openai.chat.completions.create({
@@ -329,26 +315,24 @@ export class Stagehand {
 
     return selectorResponse.choices[0].message.content;
   }
-  setId(key: string) {
-    this.id = key;
+
+  async recordObservation(
+    observation: string,
+    result: string
+  ): Promise<string> {
+    const id = this.getId(observation);
+
+    this.observations[id] = { result, observation };
+
+    return id;
   }
 
-  async cacheObservation(observation: string, result: string): Promise<string> {
-    const key = this.getKey(observation);
+  async recordAction(action: string, result: string): Promise<string> {
+    const id = this.getId(action);
 
-    this.observations[key] = { result, id: this.id };
+    this.actions[id] = { result, action };
 
-    this.cache.writeObservations({ key, value: { result, id: this.id } });
-    return key;
-  }
-
-  async cacheAction(action: string, result: string): Promise<string> {
-    const key = this.getKey(action);
-
-    this.actions[key] = { result, id: this.id };
-
-    this.cache.writeActions({ key, value: { result, id: this.id } });
-    return key;
+    return id;
   }
 
   async act({
@@ -367,31 +351,6 @@ export class Stagehand {
       category: 'action',
       message: `taking action: ${action}`,
     });
-    const key = this.getKey(action);
-    let cachedAction = this.actions[key];
-    if (cachedAction) {
-      this.log({
-        category: 'action',
-        message: `cache hit for action: ${action}`,
-      });
-      const res = JSON.parse(cachedAction.result);
-      const commands = res.length ? res : [res];
-
-      for (const command of commands) {
-        const locatorStr = command['locator'];
-        const method = command['method'];
-        const args = command['args'];
-
-        this.log({
-          category: 'action',
-          message: `Cached action ${method} on ${locatorStr} with args ${args}`,
-        });
-        const locator = await this.page.locator(locatorStr).first();
-        await locator[method](...args);
-      }
-
-      return;
-    }
 
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
@@ -425,6 +384,7 @@ export class Stagehand {
           category: 'action',
           message: 'no response from act with no chunks left to check',
         });
+        this.recordAction(action, null);
         return;
       }
     }
