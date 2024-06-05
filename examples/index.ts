@@ -3,7 +3,11 @@ import { Stagehand } from '../lib';
 import { z } from 'zod';
 
 async function example() {
-  const stagehand = new Stagehand({ env: 'LOCAL', verbose: true, debug: true });
+  const stagehand = new Stagehand({
+    env: 'LOCAL',
+    verbose: true,
+    debugDom: true,
+  });
   await stagehand.init();
   await stagehand.page.goto('https://www.nytimes.com/games/wordle/index.html');
   await stagehand.page.locator('html').dispatchEvent('mouseleave');
@@ -11,7 +15,7 @@ async function example() {
   await stagehand.act({ action: 'close tutorial popup' });
 
   let guesses: { guess: string | null; description: string | null }[] = [];
-  for (let i = 0; i <= 5; i++) {
+  for (let i = 0; i < 6; i++) {
     const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
           guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join('\n')}
         `;

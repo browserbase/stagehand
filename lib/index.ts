@@ -71,17 +71,17 @@ export class Stagehand {
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
   public verbose: boolean;
-  public debug: boolean;
+  public debugDom: boolean;
 
   constructor(
     {
       env,
       verbose = false,
-      debug = false,
+      debugDom = false,
     }: {
       env: 'LOCAL' | 'BROWSERBASE';
       verbose?: boolean;
-      debug?: boolean;
+      debugDom?: boolean;
     } = {
       env: 'BROWSERBASE',
     }
@@ -95,7 +95,7 @@ export class Stagehand {
     this.observations = {};
     this.actions = {};
     this.verbose = verbose;
-    this.debug = debug;
+    this.debugDom = debugDom;
   }
 
   log({ category, message }: { category?: string; message: string }) {
@@ -139,13 +139,13 @@ export class Stagehand {
     }
   }
 
-  async debugDom() {
-    if (this.debug) {
+  async startDomDebug() {
+    if (this.debugDom) {
       await this.page.evaluate(() => window.debugDom());
     }
   }
-  async cleanupDebug() {
-    if (this.debug) {
+  async cleanupDomDebug() {
+    if (this.debugDom) {
       await this.page.evaluate(() => window.cleanupDebug());
     }
   }
@@ -178,7 +178,7 @@ export class Stagehand {
       completed: z.boolean().describe('true if the goal is now accomplished'),
     });
     await this.waitForSettledDom();
-    await this.debugDom();
+    await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
       window.processDom([])
     );
@@ -207,7 +207,7 @@ export class Stagehand {
       frequency_penalty: 0,
       presence_penalty: 0,
     });
-    await this.cleanupDebug();
+    await this.cleanupDomDebug();
 
     chunksSeen.push(chunk);
     const { progress: newProgress, completed, ...output } = selectorResponse;
@@ -241,7 +241,7 @@ export class Stagehand {
     });
 
     await this.waitForSettledDom();
-    await this.debugDom();
+    await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
       window.processDom([])
     );
@@ -269,7 +269,7 @@ export class Stagehand {
       frequency_penalty: 0,
       presence_penalty: 0,
     });
-    await this.cleanupDebug();
+    await this.cleanupDomDebug();
 
     const elementId = selectorResponse.choices[0].message.content;
 
@@ -368,7 +368,7 @@ export class Stagehand {
     });
 
     await this.waitForSettledDom();
-    await this.debugDom();
+    await this.startDomDebug();
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
@@ -381,7 +381,7 @@ export class Stagehand {
       steps,
       client: this.openai,
     });
-    await this.cleanupDebug();
+    await this.cleanupDomDebug();
 
     chunksSeen.push(chunk);
     if (!response) {
