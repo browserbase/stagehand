@@ -173,13 +173,13 @@ export class Stagehand {
         .describe('progress of what has been extracted so far'),
       completed: z.boolean().describe('true if the goal is now accomplished'),
     });
+    await this.debugDom();
     await this.waitForSettledDom();
 
-    const { outputString, chunk } = await this.page.evaluate(() =>
+    const { outputString, chunk, chunks } = await this.page.evaluate(() =>
       window.processDom([])
     );
 
-    // think about chunking
     const selectorResponse = await this.instructor.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -196,7 +196,7 @@ export class Stagehand {
         },
       ],
       response_model: {
-        schema: schema,
+        schema: fullSchema,
         name: 'Extraction',
       },
       temperature: 0.1,
@@ -204,6 +204,7 @@ export class Stagehand {
       frequency_penalty: 0,
       presence_penalty: 0,
     });
+    await this.cleanupDebug();
 
     chunksSeen.push(chunk);
     const { progress: newProgress, completed, ...output } = selectorResponse;
@@ -367,6 +368,7 @@ export class Stagehand {
     chunksSeen?: Array<number>;
   }): Promise<void> {
     await this.waitForSettledDom();
+    await this.debugDom();
 
     this.log({
       category: 'action',
@@ -410,6 +412,7 @@ export class Stagehand {
       steps,
       client: this.openai,
     });
+    await this.cleanupDebug();
 
     chunksSeen.push(chunk);
     if (!response) {
@@ -457,9 +460,6 @@ export class Stagehand {
     } catch (e) {
       console.log(e);
     }
-
-    // disable cache for now
-    // this.cacheAction(action, response.choices[0].message.content);
 
     await this.waitForSettledDom();
     if (!response.completed) {

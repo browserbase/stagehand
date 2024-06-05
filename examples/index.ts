@@ -6,10 +6,23 @@ async function example() {
   const stagehand = new Stagehand({ env: 'BROWSERBASE', verbose: true });
   await stagehand.init();
   await stagehand.page.goto('https://www.nytimes.com/games/wordle/index.html');
+  await stagehand.page.locator('html').dispatchEvent('mouseleave');
   await stagehand.act({ action: 'start the game' });
   await stagehand.act({ action: 'close tutorial popup' });
+
   let guesses: { guess: string | null; description: string | null }[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i <= 5; i++) {
+    const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
+          guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join('\n')}
+        `;
+    const response = await stagehand.ask(prompt);
+    if (!response) {
+      throw new Error('no response when asking for a guess');
+    }
+
+    await stagehand.page.locator('body').pressSequentially(response);
+    await stagehand.page.keyboard.press('Enter');
+
     const guess = await stagehand.extract({
       instruction: 'extract the last guess',
       schema: z.object({
@@ -24,21 +37,11 @@ async function example() {
           .nullable(),
       }),
     });
+    guesses.push({ guess: guess.guess, description: guess.description });
 
     if (guess.isCorrect) {
       break;
     }
-    guesses.push({ guess: guess.guess, description: guess.description });
-    const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
-          guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join('\n')}
-        `;
-    const response = await stagehand.ask(prompt);
-    if (!response) {
-      throw new Error('no response when asking for a guess');
-    }
-
-    await stagehand.page.locator('body').pressSequentially(response);
-    await stagehand.page.keyboard.press('Enter');
   }
 }
 
@@ -53,5 +56,5 @@ async function debug() {
 }
 
 (async () => {
-  await debug();
+  await example();
 })();
