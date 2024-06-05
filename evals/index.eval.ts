@@ -78,11 +78,11 @@ const peeler_complex = async () => {
   });
 
   await stagehand.act({
-    action: 'click on the first OXO peeler',
+    action: 'click on the first "OXO" brand peeler',
   });
 
   const { price } = await stagehand.extract({
-    instruction: 'get the price of the first OXO peeler',
+    instruction: 'get the price of the peeler',
     schema: z.object({ price: z.number().nullable() }),
   });
 
@@ -137,7 +137,7 @@ Eval('stagehand', {
       {
         input: { name: 'wikipedia' },
       },
-      // { input: { name: 'peeler_complex' } },
+      { input: { name: 'peeler_complex' } },
     ];
   },
   task: async (input) => {
