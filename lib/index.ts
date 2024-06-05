@@ -205,8 +205,6 @@ export class Stagehand {
       presence_penalty: 0,
     });
 
-    await this.cleanupDebug();
-
     chunksSeen.push(chunk);
     const { progress: newProgress, completed, ...output } = selectorResponse;
 
@@ -369,7 +367,6 @@ export class Stagehand {
     chunksSeen?: Array<number>;
   }): Promise<void> {
     await this.waitForSettledDom();
-    await this.debugDom();
 
     this.log({
       category: 'action',
@@ -435,7 +432,6 @@ export class Stagehand {
         return;
       }
     }
-    await this.cleanupDebug();
 
     this.log({
       category: 'action',
