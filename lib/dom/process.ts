@@ -354,8 +354,6 @@ async function debugDom() {
   window.chunkNumber = 0;
   console.log('---DEBUG DOM--- Starting debug of all chunks');
 
-  await window.waitForDomSettle();
-
   const { selectorMap, outputString } = await processElements(
     window.chunkNumber
   );
@@ -367,8 +365,6 @@ async function debugDom() {
 }
 
 async function cleanupDebug() {
-  await window.waitForDomSettle();
-
   cleanupMarkers();
   cleanupNav();
 }

@@ -11,7 +11,7 @@ import path from 'path';
 
 require('dotenv').config({ path: '.env' });
 
-async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'BROWSERBASE') {
+async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'LOCAL') {
   if (process.env.BROWSERBASE_API_KEY && env !== 'LOCAL') {
     console.log('Connecting you to broswerbase...');
     const browser = await chromium.connectOverCDP(
@@ -71,14 +71,17 @@ export class Stagehand {
   public context: BrowserContext;
   public env: 'LOCAL' | 'BROWSERBASE';
   public verbose: boolean;
+  public debug: boolean;
 
   constructor(
     {
       env,
       verbose = false,
+      debug = false,
     }: {
       env: 'LOCAL' | 'BROWSERBASE';
       verbose?: boolean;
+      debug?: boolean;
     } = {
       env: 'BROWSERBASE',
     }
@@ -92,6 +95,7 @@ export class Stagehand {
     this.observations = {};
     this.actions = {};
     this.verbose = verbose;
+    this.debug = debug;
   }
 
   log({ category, message }: { category?: string; message: string }) {
@@ -128,6 +132,7 @@ export class Stagehand {
 
   async waitForSettledDom() {
     try {
+      await this.page.waitForSelector('body');
       await this.page.evaluate(() => window.waitForDomSettle());
     } catch (e) {
       console.log(e);
@@ -135,10 +140,14 @@ export class Stagehand {
   }
 
   async debugDom() {
-    await this.page.evaluate(() => window.debugDom());
+    if (this.debug) {
+      await this.page.evaluate(() => window.debugDom());
+    }
   }
   async cleanupDebug() {
-    await this.page.evaluate(() => window.cleanupDebug());
+    if (this.debug) {
+      await this.page.evaluate(() => window.cleanupDebug());
+    }
   }
   getId(operation: string) {
     return crypto.createHash('sha256').update(operation).digest('hex');
@@ -168,9 +177,8 @@ export class Stagehand {
         .describe('progress of what has been extracted so far'),
       completed: z.boolean().describe('true if the goal is now accomplished'),
     });
-    await this.debugDom();
     await this.waitForSettledDom();
-
+    await this.debugDom();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
       window.processDom([])
     );
@@ -231,6 +239,9 @@ export class Stagehand {
       category: 'observation',
       message: `starting observation: ${observation}`,
     });
+
+    await this.waitForSettledDom();
+    await this.debugDom();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
       window.processDom([])
     );
@@ -258,6 +269,7 @@ export class Stagehand {
       frequency_penalty: 0,
       presence_penalty: 0,
     });
+    await this.cleanupDebug();
 
     const elementId = selectorResponse.choices[0].message.content;
 
@@ -350,14 +362,13 @@ export class Stagehand {
     steps?: string;
     chunksSeen?: Array<number>;
   }): Promise<void> {
-    await this.waitForSettledDom();
-    await this.debugDom();
-
     this.log({
       category: 'action',
       message: `taking action: ${action}`,
     });
 
+    await this.waitForSettledDom();
+    await this.debugDom();
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
@@ -420,7 +431,6 @@ export class Stagehand {
       console.log(e);
     }
 
-    await this.waitForSettledDom();
     if (!response.completed) {
       this.log({
         category: 'action',
