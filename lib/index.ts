@@ -118,17 +118,10 @@ export class Stagehand {
     this.context = context;
     this.page = context.pages()[0];
 
-    const utils = require('path').resolve(
-      process.cwd(),
-      'lib/dom/build/utils.js'
-    );
-
-    const processor = require('path').resolve(
-      process.cwd(),
-      'lib/dom/build/process.js'
-    );
-    await this.page.addInitScript({ path: utils });
-    await this.page.addInitScript({ path: processor });
+    await this.page.addInitScript({ path: `${__dirname}/dom/build/utils.js` });
+    await this.page.addInitScript({
+      path: `${__dirname}/dom/build/process.js`,
+    });
   }
 
   async waitForSettledDom() {
