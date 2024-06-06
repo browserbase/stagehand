@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 
+// act
 const actSystemPrompt = `
 You are a browser automation assistant.
 
@@ -101,3 +102,78 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
     },
   },
 ];
+
+// extract
+const extractSystemPrompt = `
+'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from',
+
+`;
+
+export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+  const content = extractSystemPrompt.replace(/\s+/g, ' ');
+  return {
+    role: 'system',
+    content,
+  };
+}
+
+export function buildExtractUserPrompt(
+  instruction: string,
+  progress: string,
+  domElements: string
+): OpenAI.ChatCompletionMessageParam {
+  return {
+    role: 'user',
+    content: `instruction: ${instruction}
+    progress: ${progress}
+    DOM: ${domElements}`,
+  };
+}
+
+// observe
+const observeSystemPrompt = `
+You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a numbered list of possible elements.
+
+return only element id we are looking for.
+
+if the element is not found, return NONE.
+`;
+export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+  const content = observeSystemPrompt.replace(/\s+/g, ' ');
+
+  return {
+    role: 'system',
+    content,
+  };
+}
+
+export function buildObserveUserMessage(
+  observation: string,
+  domElements: string
+): OpenAI.ChatCompletionMessageParam {
+  return {
+    role: 'user',
+    content: `instruction: ${observation}
+    DOM: ${domElements}`,
+  };
+}
+
+// ask
+const askSystemPrompt = `
+you are a simple question answering assistent given the user's question. respond with only the answer.
+`;
+export function buildAskSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+  return {
+    role: 'system',
+    content: askSystemPrompt,
+  };
+}
+
+export function buildAskUserPrompt(
+  question: string
+): OpenAI.ChatCompletionMessageParam {
+  return {
+    role: 'user',
+    content: `question: ${question}`,
+  };
+}
