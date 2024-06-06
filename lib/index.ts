@@ -1,28 +1,28 @@
-import { type Page, type BrowserContext, chromium } from '@playwright/test';
-import { expect } from '@playwright/test';
-import OpenAI from 'openai';
-import crypto from 'crypto';
-import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
-import { z } from 'zod';
-import fs from 'fs';
-import { act, ask, extract, observe } from './inference';
-const merge = require('deepmerge');
-import path from 'path';
+import { type Page, type BrowserContext, chromium } from "@playwright/test";
+import { expect } from "@playwright/test";
+import OpenAI from "openai";
+import crypto from "crypto";
+import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
+import { z } from "zod";
+import fs from "fs";
+import { act, ask, extract, observe } from "./inference";
+const merge = require("deepmerge");
+import path from "path";
 
-require('dotenv').config({ path: '.env' });
+require("dotenv").config({ path: ".env" });
 
-async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'LOCAL') {
-  if (process.env.BROWSERBASE_API_KEY && env !== 'LOCAL') {
-    console.log('Connecting you to broswerbase...');
+async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
+  if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
+    console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
     );
     const context = browser.contexts()[0];
     return { browser, context };
   } else {
     if (!process.env.BROWSERBASE_API_KEY) {
-      console.log('No browserbase key detected');
-      console.log('Starting a local browser...');
+      console.log("No browserbase key detected");
+      console.log("Starting a local browser...");
     }
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
@@ -36,7 +36,7 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'LOCAL') {
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences)
+      JSON.stringify(defaultPreferences),
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -51,10 +51,10 @@ async function getBrowser(env: 'LOCAL' | 'BROWSERBASE' = 'LOCAL') {
           width: 1250,
           height: 800,
         },
-      }
+      },
     );
 
-    console.log('Local browser started successfully.');
+    console.log("Local browser started successfully.");
     return { context };
   }
 }
@@ -69,7 +69,7 @@ export class Stagehand {
   id: string;
   public page: Page;
   public context: BrowserContext;
-  public env: 'LOCAL' | 'BROWSERBASE';
+  public env: "LOCAL" | "BROWSERBASE";
   public verbose: boolean;
   public debugDom: boolean;
 
@@ -79,17 +79,17 @@ export class Stagehand {
       verbose = false,
       debugDom = false,
     }: {
-      env: 'LOCAL' | 'BROWSERBASE';
+      env: "LOCAL" | "BROWSERBASE";
       verbose?: boolean;
       debugDom?: boolean;
     } = {
-      env: 'BROWSERBASE',
-    }
+      env: "BROWSERBASE",
+    },
   ) {
     this.openai = new OpenAI();
     this.instructor = Instructor({
       client: this.openai,
-      mode: 'TOOLS',
+      mode: "TOOLS",
     });
     this.env = env;
     this.observations = {};
@@ -100,12 +100,12 @@ export class Stagehand {
 
   log({ category, message }: { category?: string; message: string }) {
     if (this.verbose) {
-      const categoryString = category ? `:${category}` : '';
+      const categoryString = category ? `:${category}` : "";
       console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
   async downloadPDF(url: string, title: string) {
-    const downloadPromise = this.page.waitForEvent('download');
+    const downloadPromise = this.page.waitForEvent("download");
     await this.act({
       action: `click on ${url}`,
     });
@@ -121,21 +121,21 @@ export class Stagehand {
     // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
     // be one level above our running directly across evals, example, and as a package
     await this.page.addInitScript({
-      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'process.js'),
+      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
     });
 
     await this.page.addInitScript({
-      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'utils.js'),
+      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
     });
 
     await this.page.addInitScript({
-      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'debug.js'),
+      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
     });
   }
 
   async waitForSettledDom() {
     try {
-      await this.page.waitForSelector('body');
+      await this.page.waitForSelector("body");
       await this.page.evaluate(() => window.waitForDomSettle());
     } catch (e) {
       console.log(e);
@@ -153,13 +153,13 @@ export class Stagehand {
     }
   }
   getId(operation: string) {
-    return crypto.createHash('sha256').update(operation).digest('hex');
+    return crypto.createHash("sha256").update(operation).digest("hex");
   }
 
   async extract<T extends z.AnyZodObject>({
     instruction,
     schema,
-    progress = '',
+    progress = "",
     content = {},
     chunksSeen = [],
   }: {
@@ -170,14 +170,14 @@ export class Stagehand {
     chunksSeen?: Array<number>;
   }): Promise<z.infer<T>> {
     this.log({
-      category: 'extraction',
+      category: "extraction",
       message: `starting extraction ${instruction}`,
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const extractionResponse = await extract({
@@ -194,20 +194,20 @@ export class Stagehand {
 
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
-        category: 'extraction',
+        category: "extraction",
         message: `response: ${JSON.stringify(extractionResponse)}`,
       });
 
       return merge(content, output);
     } else {
       this.log({
-        category: 'extraction',
-        message: `continuing extraction, progress: ${progress + newProgress + ', '}`,
+        category: "extraction",
+        message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
       });
       return this.extract({
         instruction,
         schema,
-        progress: progress + newProgress + ', ',
+        progress: progress + newProgress + ", ",
         content: merge(content, output),
         chunksSeen,
       });
@@ -216,14 +216,14 @@ export class Stagehand {
 
   async observe(observation: string): Promise<string | null> {
     this.log({
-      category: 'observation',
+      category: "observation",
       message: `starting observation: ${observation}`,
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const elementId = await observe({
@@ -233,16 +233,16 @@ export class Stagehand {
     });
     await this.cleanupDomDebug();
 
-    if (elementId === 'NONE') {
+    if (elementId === "NONE") {
       this.log({
-        category: 'observation',
+        category: "observation",
         message: `no element found for ${observation}`,
       });
       return null;
     }
 
     this.log({
-      category: 'observation',
+      category: "observation",
       message: `found element ${elementId}`,
     });
 
@@ -250,7 +250,7 @@ export class Stagehand {
     const locatorString = `xpath=${selector}`;
 
     this.log({
-      category: 'observation',
+      category: "observation",
       message: `found locator ${locatorString}`,
     });
 
@@ -260,7 +260,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString
+      locatorString,
     );
 
     return observationId;
@@ -274,7 +274,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string
+    result: string,
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -293,7 +293,7 @@ export class Stagehand {
 
   async act({
     action,
-    steps = '',
+    steps = "",
     chunksSeen = [],
   }: {
     action: string;
@@ -301,7 +301,7 @@ export class Stagehand {
     chunksSeen?: Array<number>;
   }): Promise<void> {
     this.log({
-      category: 'action',
+      category: "action",
       message: `taking action: ${action}`,
     });
 
@@ -310,7 +310,7 @@ export class Stagehand {
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
-        chunksSeen
+        chunksSeen,
       );
 
     const response = await act({
@@ -325,19 +325,19 @@ export class Stagehand {
     if (!response) {
       if (chunksSeen.length < chunks.length) {
         this.log({
-          category: 'action',
+          category: "action",
           message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
         });
 
         return this.act({
           action,
-          steps: steps + 'Scrolled to another section, ',
+          steps: steps + "Scrolled to another section, ",
           chunksSeen,
         });
       } else {
         this.log({
-          category: 'action',
-          message: 'no response from act with no chunks left to check',
+          category: "action",
+          message: "no response from act with no chunks left to check",
         });
         this.recordAction(action, null);
         return;
@@ -345,17 +345,17 @@ export class Stagehand {
     }
 
     this.log({
-      category: 'action',
+      category: "action",
       message: `response: ${JSON.stringify(response)}`,
     });
 
-    const element = response['element'];
+    const element = response["element"];
     const path = selectorMap[element];
-    const method = response['method'];
-    const args = response['args'];
+    const method = response["method"];
+    const args = response["args"];
 
     this.log({
-      category: 'action',
+      category: "action",
       message: `
       step: ${response.step}
       ${method} on ${path} with args ${args}
@@ -364,7 +364,7 @@ export class Stagehand {
     });
     try {
       const locator = await this.page.locator(`xpath=${path}`).first();
-      if (typeof locator[method as keyof typeof locator] === 'function') {
+      if (typeof locator[method as keyof typeof locator] === "function") {
         //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
         await locator[method](...args);
       } else {
@@ -376,12 +376,12 @@ export class Stagehand {
 
     if (!response.completed) {
       this.log({
-        category: 'action',
-        message: 'continuing to next sub action',
+        category: "action",
+        message: "continuing to next sub action",
       });
       return this.act({
         action,
-        steps: steps + response.step + ', ',
+        steps: steps + response.step + ", ",
       });
     }
   }

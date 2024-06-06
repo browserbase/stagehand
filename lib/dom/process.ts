@@ -28,60 +28,60 @@ function generateXPath(element: ChildNode): string {
     }
 
     // text "nodes" are selected differently than elements with xPaths
-    if (element.nodeName !== '#text') {
+    if (element.nodeName !== "#text") {
       const tagName = element.nodeName.toLowerCase();
-      const pathIndex = hasSameTypeSiblings ? `[${index}]` : '';
+      const pathIndex = hasSameTypeSiblings ? `[${index}]` : "";
       parts.unshift(`${tagName}${pathIndex}`);
     }
 
     element = element.parentElement as HTMLElement;
   }
 
-  return parts.length ? `/${parts.join('/')}` : '';
+  return parts.length ? `/${parts.join("/")}` : "";
 }
 
-const leafElementDenyList = ['SVG', 'IFRAME', 'SCRIPT', 'STYLE', 'LINK'];
+const leafElementDenyList = ["SVG", "IFRAME", "SCRIPT", "STYLE", "LINK"];
 
 const interactiveElementTypes = [
-  'A',
-  'BUTTON',
-  'DETAILS',
-  'EMBED',
-  'INPUT',
-  'LABEL',
-  'MENU',
-  'MENUITEM',
-  'OBJECT',
-  'SELECT',
-  'TEXTAREA',
-  'SUMMARY',
+  "A",
+  "BUTTON",
+  "DETAILS",
+  "EMBED",
+  "INPUT",
+  "LABEL",
+  "MENU",
+  "MENUITEM",
+  "OBJECT",
+  "SELECT",
+  "TEXTAREA",
+  "SUMMARY",
 ];
 
 const interactiveRoles = [
-  'button',
-  'menu',
-  'menuitem',
-  'link',
-  'checkbox',
-  'radio',
-  'slider',
-  'tab',
-  'tabpanel',
-  'textbox',
-  'combobox',
-  'grid',
-  'listbox',
-  'option',
-  'progressbar',
-  'scrollbar',
-  'searchbox',
-  'switch',
-  'tree',
-  'treeitem',
-  'spinbutton',
-  'tooltip',
+  "button",
+  "menu",
+  "menuitem",
+  "link",
+  "checkbox",
+  "radio",
+  "slider",
+  "tab",
+  "tabpanel",
+  "textbox",
+  "combobox",
+  "grid",
+  "listbox",
+  "option",
+  "progressbar",
+  "scrollbar",
+  "searchbox",
+  "switch",
+  "tree",
+  "treeitem",
+  "spinbutton",
+  "tooltip",
 ];
-const interactiveAriaRoles = ['menu', 'menuitem', 'button'];
+const interactiveAriaRoles = ["menu", "menuitem", "button"];
 
 function isElementNode(node: Node): node is Element {
   return node.nodeType === Node.ELEMENT_NODE;
@@ -89,8 +89,8 @@ function isElementNode(node: Node): node is Element {
 
 function isTextNode(node: Node): node is Text {
   // trim all white space and make sure the text node is non empty to consider it legit
-  const trimmedText = node.textContent?.trim().replace(/\s/g, '');
-  return node.nodeType === Node.TEXT_NODE && trimmedText !== '';
+  const trimmedText = node.textContent?.trim().replace(/\s/g, "");
+  return node.nodeType === Node.TEXT_NODE && trimmedText !== "";
 }
 
 /*
@@ -157,7 +157,7 @@ const isTextVisible = (element: ChildNode) => {
 function isTopElement(elem: ChildNode, rect: DOMRect) {
   let topEl = document.elementFromPoint(
     rect.left + Math.min(rect.width, window.innerWidth - rect.left) / 2,
-    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2
+    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2,
   );
 
   let found = false;
@@ -175,9 +175,9 @@ function isTopElement(elem: ChildNode, rect: DOMRect) {
 
 const isActive = async (element: Element) => {
   if (
-    element.hasAttribute('disabled') ||
-    element.hasAttribute('hidden') ||
-    element.getAttribute('aria-disabled') === 'true'
+    element.hasAttribute("disabled") ||
+    element.hasAttribute("hidden") ||
+    element.getAttribute("aria-disabled") === "true"
   ) {
     return false;
   }
@@ -186,8 +186,8 @@ const isActive = async (element: Element) => {
 };
 const isInteractiveElement = (element: Element) => {
   const elementType = element.tagName;
-  const elementRole = element.getAttribute('role');
-  const elementAriaRole = element.getAttribute('aria-role');
+  const elementRole = element.getAttribute("role");
+  const elementAriaRole = element.getAttribute("aria-role");
 
   return (
     (elementType && interactiveElementTypes.includes(elementType)) ||
@@ -197,7 +197,7 @@ const isInteractiveElement = (element: Element) => {
 };
 
 const isLeafElement = (element: Element) => {
-  if (element.textContent === '') {
+  if (element.textContent === "") {
     return false;
   }
 
@@ -299,7 +299,7 @@ async function processElements(chunk: number) {
   }
 
   let selectorMap: Record<number, string> = {};
-  let outputString = '';
+  let outputString = "";
 
   candidateElements.forEach((element, index) => {
     const xpath = generateXPath(element);
