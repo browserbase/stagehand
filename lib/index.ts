@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import Instructor, { type InstructorClient } from '@instructor-ai/instructor';
 import { z } from 'zod';
 import fs from 'fs';
-import { act } from './inference';
+import { act, ask, extract, observe } from './inference';
 const merge = require('deepmerge');
 import path from 'path';
 
@@ -171,63 +171,40 @@ export class Stagehand {
       message: `starting extraction ${instruction}`,
     });
 
-    const fullSchema = schema.extend({
-      progress: z
-        .string()
-        .describe('progress of what has been extracted so far'),
-      completed: z.boolean().describe('true if the goal is now accomplished'),
-    });
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
       window.processDom([])
     );
 
-    const selectorResponse = await this.instructor.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from',
-        },
-        {
-          role: 'user',
-          content: `instruction: ${instruction}
-          progress: ${progress}
-          DOM: ${outputString}`,
-        },
-      ],
-      response_model: {
-        schema: fullSchema,
-        name: 'Extraction',
-      },
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
+    const extractionResponse = await extract({
+      instruction,
+      progress,
+      domElements: outputString,
+      client: this.instructor,
+      schema,
     });
+    const { progress: newProgress, completed, ...output } = extractionResponse;
     await this.cleanupDomDebug();
 
     chunksSeen.push(chunk);
-    const { progress: newProgress, completed, ...output } = selectorResponse;
 
-    if (selectorResponse.completed || chunksSeen.length === chunks.length) {
+    if (completed || chunksSeen.length === chunks.length) {
       this.log({
         category: 'extraction',
-        message: `response: ${JSON.stringify(selectorResponse)}`,
+        message: `response: ${JSON.stringify(extractionResponse)}`,
       });
 
       return merge(content, output);
     } else {
       this.log({
         category: 'extraction',
-        message: `continuing extraction, progress: ${progress + selectorResponse.progress + ', '}`,
+        message: `continuing extraction, progress: ${progress + newProgress + ', '}`,
       });
       return this.extract({
         instruction,
         schema,
-        progress: progress + selectorResponse.progress + ', ',
+        progress: progress + newProgress + ', ',
         content: merge(content, output),
         chunksSeen,
       });
@@ -246,36 +223,12 @@ export class Stagehand {
       window.processDom([])
     );
 
-    const selectorResponse = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a numbered list of possible elements.
-            return only element id we are looking for
-            if the element is not found, return NONE`,
-        },
-        {
-          role: 'user',
-          content: `
-                    instruction: ${observation}
-                    DOM: ${outputString}
-                    `,
-        },
-      ],
-
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
+    const elementId = await observe({
+      observation,
+      domElements: outputString,
+      client: this.openai,
     });
     await this.cleanupDomDebug();
-
-    const elementId = selectorResponse.choices[0].message.content;
-
-    if (!elementId) {
-      throw new Error('no response when finding a selector');
-    }
 
     if (elementId === 'NONE') {
       this.log({
@@ -310,28 +263,10 @@ export class Stagehand {
     return observationId;
   }
   async ask(question: string): Promise<string | null> {
-    const selectorResponse = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `you are a simple question answering assistent givent the user's question. respond with only the answer`,
-        },
-        {
-          role: 'user',
-          content: `
-                    question: ${question}
-                    `,
-        },
-      ],
-
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
+    return ask({
+      question,
+      client: this.openai,
     });
-
-    return selectorResponse.choices[0].message.content;
   }
 
   async recordObservation(
