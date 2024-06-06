@@ -124,9 +124,12 @@ export class Stagehand {
       path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'process.js'),
     });
 
-    console.log(path.join(__dirname, '..', 'dist', 'dom', 'build', 'utils.js'));
     await this.page.addInitScript({
       path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'utils.js'),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, '..', 'dist', 'dom', 'build', 'debug.js'),
     });
   }
 
