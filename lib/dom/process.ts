@@ -257,7 +257,6 @@ async function processDom(chunksSeen: Array<number>) {
 }
 
 async function processElements(chunk: number) {
-  console.log('---DOM CLEANING--- starting cleaning');
   const viewportHeight = window.innerHeight;
 
   const chunkHeight = viewportHeight * chunk;
