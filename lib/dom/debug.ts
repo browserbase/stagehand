@@ -2,7 +2,7 @@ async function debugDom() {
   window.chunkNumber = 0;
 
   const { selectorMap, outputString } = await processElements(
-    window.chunkNumber,
+    window.chunkNumber
   );
   console.log("outputString:", outputString);
   console.log("selectorMap:", selectorMap);
@@ -19,7 +19,7 @@ function drawChunk(selectorMap: Record<number, string>) {
       document,
       null,
       XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
+      null
     ).singleNodeValue as Element;
 
     if (element) {
@@ -43,7 +43,7 @@ function drawChunk(selectorMap: Record<number, string>) {
       overlay.style.backgroundColor = color;
       overlay.className = "stagehand-marker";
       overlay.style.opacity = "0.3";
-      overlay.style.zIndex = "10000000"; // Ensure it's above the element
+      overlay.style.zIndex = "1000000000"; // Ensure it's above the element
       overlay.style.border = "1px solid"; // Add a 1px solid border to the overlay
       overlay.style.pointerEvents = "none"; // Ensure the overlay does not capture mouse events
       document.body.appendChild(overlay);
@@ -85,7 +85,7 @@ function setupChunkNav() {
     prevChunkButton.style.bottom = "10px";
     prevChunkButton.style.left = "50%";
     prevChunkButton.style.transform = "translateX(-50%)";
-    prevChunkButton.style.zIndex = "1000";
+    prevChunkButton.style.zIndex = "1000000000";
     prevChunkButton.onclick = async () => {
       cleanupMarkers();
       cleanupNav();
@@ -107,7 +107,7 @@ function setupChunkNav() {
     nextChunkButton.style.bottom = "10px";
     nextChunkButton.style.right = "50%";
     nextChunkButton.style.transform = "translateX(50%)";
-    nextChunkButton.style.zIndex = "1000";
+    nextChunkButton.style.zIndex = "1000000000";
     nextChunkButton.onclick = async () => {
       cleanupMarkers();
       cleanupNav();
