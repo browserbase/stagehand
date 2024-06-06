@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 // act
 const actSystemPrompt = `
@@ -13,89 +13,89 @@ You have 2 tools that you can call: doAction, and skipSection
 `;
 
 export function buildActSystemPrompt(): OpenAI.ChatCompletionMessageParam {
-  const content = actSystemPrompt.replace(/\s+/g, ' ');
+  const content = actSystemPrompt.replace(/\s+/g, " ");
   return {
-    role: 'system',
+    role: "system",
     content,
   };
 }
 
 export function buildActUserPrompt(
   action: string,
-  steps = 'None',
-  domElements: string
+  steps = "None",
+  domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   const actUserPrompt = `
     goal: ${action}, 
     steps completed so far: ${steps},
     elements: ${domElements}
     `;
-  const content = actUserPrompt.replace(/\s+/g, ' ');
+  const content = actUserPrompt.replace(/\s+/g, " ");
 
   return {
-    role: 'user',
+    role: "user",
     content,
   };
 }
 
 export const actTools: Array<OpenAI.ChatCompletionTool> = [
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'doAction',
+      name: "doAction",
       description:
-        'execute the next playwright step that directly accomplishes the goal',
+        "execute the next playwright step that directly accomplishes the goal",
       parameters: {
-        type: 'object',
-        required: ['method', 'element', 'args', 'step', 'completed'],
+        type: "object",
+        required: ["method", "element", "args", "step", "completed"],
         properties: {
           method: {
-            type: 'string',
-            description: 'The playwright function to call',
+            type: "string",
+            description: "The playwright function to call",
           },
           element: {
-            type: 'number',
-            description: 'The element number to act on',
+            type: "number",
+            description: "The element number to act on",
           },
           args: {
-            type: 'array',
-            description: 'The required arguments',
+            type: "array",
+            description: "The required arguments",
             items: {
-              type: 'string',
-              description: 'The argument to pass to the function',
+              type: "string",
+              description: "The argument to pass to the function",
             },
           },
           step: {
-            type: 'string',
+            type: "string",
             description:
-              'human readable description of the step that is taken in the past tense',
+              "human readable description of the step that is taken in the past tense",
           },
           why: {
-            type: 'string',
+            type: "string",
             description:
-              'why is this step taken? how does it advance the goal?',
+              "why is this step taken? how does it advance the goal?",
           },
           completed: {
-            type: 'boolean',
+            type: "boolean",
             description:
-              'true if the goal should be accomplished after this step',
+              "true if the goal should be accomplished after this step",
           },
         },
       },
     },
   },
   {
-    type: 'function',
+    type: "function",
     function: {
-      name: 'skipSection',
+      name: "skipSection",
       description:
-        'skips this area of the webpage because the current goal cannot be accomplished here',
+        "skips this area of the webpage because the current goal cannot be accomplished here",
       parameters: {
-        type: 'object',
+        type: "object",
         properties: {
           reason: {
-            type: 'string',
-            description: 'reason that no action is taken',
+            type: "string",
+            description: "reason that no action is taken",
           },
         },
       },
@@ -110,9 +110,9 @@ const extractSystemPrompt = `
 `;
 
 export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
-  const content = extractSystemPrompt.replace(/\s+/g, ' ');
+  const content = extractSystemPrompt.replace(/\s+/g, " ");
   return {
-    role: 'system',
+    role: "system",
     content,
   };
 }
@@ -120,10 +120,10 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 export function buildExtractUserPrompt(
   instruction: string,
   progress: string,
-  domElements: string
+  domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
-    role: 'user',
+    role: "user",
     content: `instruction: ${instruction}
     progress: ${progress}
     DOM: ${domElements}`,
@@ -139,20 +139,20 @@ return only element id we are looking for.
 if the element is not found, return NONE.
 `;
 export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
-  const content = observeSystemPrompt.replace(/\s+/g, ' ');
+  const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
-    role: 'system',
+    role: "system",
     content,
   };
 }
 
 export function buildObserveUserMessage(
   observation: string,
-  domElements: string
+  domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
-    role: 'user',
+    role: "user",
     content: `instruction: ${observation}
     DOM: ${domElements}`,
   };
@@ -164,16 +164,16 @@ you are a simple question answering assistent given the user's question. respond
 `;
 export function buildAskSystemPrompt(): OpenAI.ChatCompletionMessageParam {
   return {
-    role: 'system',
+    role: "system",
     content: askSystemPrompt,
   };
 }
 
 export function buildAskUserPrompt(
-  question: string
+  question: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
-    role: 'user',
+    role: "user",
     content: `question: ${question}`,
   };
 }

@@ -1,7 +1,7 @@
-const fs = require('fs');
-const crypto = require('crypto');
-const observationsPath = './.cache/observations.json';
-const actionsPath = './.cache/actions.json';
+const fs = require("fs");
+const crypto = require("crypto");
+const observationsPath = "./.cache/observations.json";
+const actionsPath = "./.cache/actions.json";
 
 /**
  * A file system cache to skip inference when repeating steps
@@ -22,9 +22,9 @@ class Cache {
       return {};
     }
     try {
-      return JSON.parse(fs.readFileSync(observationsPath, 'utf8'));
+      return JSON.parse(fs.readFileSync(observationsPath, "utf8"));
     } catch (error) {
-      console.error('Error reading from observations.json', error);
+      console.error("Error reading from observations.json", error);
       return {};
     }
   }
@@ -34,9 +34,9 @@ class Cache {
       return {};
     }
     try {
-      return JSON.parse(fs.readFileSync(actionsPath, 'utf8'));
+      return JSON.parse(fs.readFileSync(actionsPath, "utf8"));
     } catch (error) {
-      console.error('Error reading from actions.json', error);
+      console.error("Error reading from actions.json", error);
       return {};
     }
   }
@@ -74,14 +74,14 @@ class Cache {
   }
 
   evictCache() {
-    throw new Error('implement me');
+    throw new Error("implement me");
   }
 
   private initCache() {
     if (this.disabled) {
       return;
     }
-    const cacheDir = '.cache';
+    const cacheDir = ".cache";
 
     if (!fs.existsSync(cacheDir)) {
       fs.mkdirSync(cacheDir);

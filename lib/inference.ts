@@ -8,10 +8,10 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
-} from './prompt';
-import OpenAI from 'openai';
-import type { InstructorClient } from '@instructor-ai/instructor';
-import { z } from 'zod';
+} from "./prompt";
+import OpenAI from "openai";
+import type { InstructorClient } from "@instructor-ai/instructor";
+import { z } from "zod";
 
 export async function act({
   action,
@@ -32,7 +32,7 @@ export async function act({
   why?: string;
 } | null> {
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: [
       buildActSystemPrompt(),
       buildActUserPrompt(action, steps, domElements),
@@ -41,18 +41,18 @@ export async function act({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
-    tool_choice: 'auto',
+    tool_choice: "auto",
     tools: actTools,
   });
 
   const toolCalls = response.choices[0].message.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
-    if (toolCalls[0].function.name === 'skipSection') {
+    if (toolCalls[0].function.name === "skipSection") {
       return null;
     }
     return JSON.parse(toolCalls[0].function.arguments);
   } else {
-    throw new Error('No tool calls found in response');
+    throw new Error("No tool calls found in response");
   }
 }
 
@@ -70,19 +70,19 @@ export async function extract({
   client: InstructorClient<OpenAI>;
 }) {
   const fullSchema = schema.extend({
-    progress: z.string().describe('progress of what has been extracted so far'),
-    completed: z.boolean().describe('true if the goal is now accomplished'),
+    progress: z.string().describe("progress of what has been extracted so far"),
+    completed: z.boolean().describe("true if the goal is now accomplished"),
   });
 
   return client.chat.completions.create({
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: [
       buildExtractSystemPrompt(),
       buildExtractUserPrompt(instruction, progress, domElements),
     ],
     response_model: {
       schema: fullSchema,
-      name: 'Extraction',
+      name: "Extraction",
     },
     temperature: 0.1,
     top_p: 1,
@@ -101,7 +101,7 @@ export async function observe({
   client: OpenAI;
 }) {
   const observationResponse = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: [
       buildObserveSystemPrompt(),
       buildObserveUserMessage(observation, domElements),
@@ -115,7 +115,7 @@ export async function observe({
   const elementId = observationResponse.choices[0].message.content;
 
   if (!elementId) {
-    throw new Error('no response when finding a selector');
+    throw new Error("no response when finding a selector");
   }
 
   return elementId;
@@ -129,7 +129,7 @@ export async function ask({
   client: OpenAI;
 }) {
   const response = await client.chat.completions.create({
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
 
     temperature: 0.1,

@@ -1,15 +1,15 @@
-import { Eval } from 'braintrust';
-import { Stagehand } from '../lib';
-import { z } from 'zod';
+import { Eval } from "braintrust";
+import { Stagehand } from "../lib";
+import { z } from "zod";
 
 const vanta = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL' });
+  const stagehand = new Stagehand({ env: "LOCAL" });
   await stagehand.init();
 
-  await stagehand.page.goto('https://www.vanta.com/');
+  await stagehand.page.goto("https://www.vanta.com/");
   await stagehand.waitForSettledDom();
 
-  const observation = await stagehand.observe('find the request demo button');
+  const observation = await stagehand.observe("find the request demo button");
 
   if (!observation) return false;
 
@@ -31,13 +31,13 @@ const vanta = async () => {
 };
 
 const vanta_h = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL' });
+  const stagehand = new Stagehand({ env: "LOCAL" });
   await stagehand.init();
 
-  await stagehand.page.goto('https://www.vanta.com/');
+  await stagehand.page.goto("https://www.vanta.com/");
   await stagehand.waitForSettledDom();
 
-  const observation = await stagehand.observe('find the buy now button');
+  const observation = await stagehand.observe("find the buy now button");
 
   await stagehand.context.close();
 
@@ -46,16 +46,16 @@ const vanta_h = async () => {
 };
 
 const peeler_simple = async () => {
-  const stagehand = new Stagehand({ env: 'LOCAL' });
+  const stagehand = new Stagehand({ env: "LOCAL" });
   await stagehand.init();
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
   await stagehand.waitForSettledDom();
 
-  await stagehand.act({ action: 'add the peeler to cart' });
+  await stagehand.act({ action: "add the peeler to cart" });
 
   const successMessageLocator = stagehand.page.locator(
-    'text="Congratulations, you have 1 A in your cart"'
+    'text="Congratulations, you have 1 A in your cart"',
   );
   const isVisible = await successMessageLocator.isVisible();
 
@@ -65,7 +65,7 @@ const peeler_simple = async () => {
 
 const peeler_complex = async () => {
   const stagehand = new Stagehand({
-    env: 'LOCAL',
+    env: "LOCAL",
     verbose: true,
   });
   await stagehand.init();
@@ -73,7 +73,7 @@ const peeler_complex = async () => {
   await stagehand.page.goto(`https://chefstoys.com/`);
 
   await stagehand.act({
-    action: 'search for peelers',
+    action: "search for peelers",
   });
 
   await stagehand.act({
@@ -81,7 +81,7 @@ const peeler_complex = async () => {
   });
 
   const { price } = await stagehand.extract({
-    instruction: 'get the price of the peeler',
+    instruction: "get the price of the peeler",
     schema: z.object({ price: z.number().nullable() }),
   });
 
@@ -92,7 +92,7 @@ const peeler_complex = async () => {
 
 const wikipedia = async () => {
   const stagehand = new Stagehand({
-    env: 'LOCAL',
+    env: "LOCAL",
     verbose: true,
   });
   await stagehand.init();
@@ -102,7 +102,7 @@ const wikipedia = async () => {
     action: 'click the "hit and run" link in this article',
   });
 
-  const url = 'https://en.wikipedia.org/wiki/Hit_and_run_(baseball)';
+  const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
   const currentUrl = await stagehand.page.url();
   await stagehand.context.close();
 
@@ -113,33 +113,33 @@ const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia };
 
 const exactMatch = (args: { input; output; expected? }) => {
   return {
-    name: 'Exact match',
+    name: "Exact match",
     score: Boolean(args.output) ? 1 : 0,
   };
 };
 
-Eval('stagehand', {
+Eval("stagehand", {
   data: () => {
     return [
       {
         input: {
-          name: 'vanta',
+          name: "vanta",
         },
       },
       {
         input: {
-          name: 'vanta_h',
+          name: "vanta_h",
         },
       },
       {
         input: {
-          name: 'peeler_simple',
+          name: "peeler_simple",
         },
       },
       {
-        input: { name: 'wikipedia' },
+        input: { name: "wikipedia" },
       },
-      { input: { name: 'peeler_complex' } },
+      { input: { name: "peeler_complex" } },
     ];
   },
   task: async (input) => {
