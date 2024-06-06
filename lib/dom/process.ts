@@ -157,13 +157,12 @@ const isTextVisible = (element: ChildNode) => {
 function isTopElement(elem: ChildNode, rect: DOMRect) {
   let topEl = document.elementFromPoint(
     rect.left + Math.min(rect.width, window.innerWidth - rect.left) / 2,
-    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2,
+    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2
   );
-
   let found = false;
   while (topEl && topEl !== document.body) {
     // consider checking hit targets in the corner and middle instead of containing
-    if (topEl.contains(elem)) {
+    if (topEl.isSameNode(elem)) {
       found = true;
       break;
     }

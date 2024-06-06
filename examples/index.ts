@@ -50,15 +50,18 @@ async function example() {
 }
 
 async function debug() {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: true });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: true,
+    debugDom: true,
+  });
   await stagehand.init();
   await stagehand.page.goto("https://chefstoys.com/");
-  await stagehand.act({
-    action: "run a search for peelers",
-  });
-  await new Promise((resolve) => setTimeout(resolve, 30000));
+
+  await stagehand.waitForSettledDom();
+  await stagehand.startDomDebug();
 }
 
 (async () => {
-  await example();
+  await debug();
 })();
