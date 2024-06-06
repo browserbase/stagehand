@@ -1,0 +1,26 @@
+#!/usr/bin/env -S pnpm tsx
+import { Stagehand } from "../lib";
+
+async function debug(url: string) {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: true,
+    debugDom: true,
+  });
+  await stagehand.init();
+  await stagehand.page.goto(url);
+
+  await stagehand.waitForSettledDom();
+  await stagehand.startDomDebug();
+}
+
+(async () => {
+  const url = process.argv.find((arg) => arg.startsWith("--url="));
+  if (!url) {
+    console.error("No URL flag provided. Usage: --url=https://example.com");
+    process.exit(1);
+  }
+  const targetUrl = url.split("=")[1];
+  console.log(`Navigating to: ${targetUrl}`);
+  await debug(targetUrl);
+})();
