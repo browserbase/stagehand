@@ -157,7 +157,7 @@ const isTextVisible = (element: ChildNode) => {
 function isTopElement(elem: ChildNode, rect: DOMRect) {
   let topEl = document.elementFromPoint(
     rect.left + Math.min(rect.width, window.innerWidth - rect.left) / 2,
-    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2
+    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2,
   );
   let found = false;
   while (topEl && topEl !== document.body) {
