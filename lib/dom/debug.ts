@@ -2,7 +2,7 @@ async function debugDom() {
   window.chunkNumber = 0;
 
   const { selectorMap, outputString } = await processElements(
-    window.chunkNumber
+    window.chunkNumber,
   );
   console.log("outputString:", outputString);
   console.log("selectorMap:", selectorMap);
@@ -19,7 +19,7 @@ function drawChunk(selectorMap: Record<number, string>) {
       document,
       null,
       XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null
+      null,
     ).singleNodeValue as Element;
 
     if (element) {
