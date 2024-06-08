@@ -1,75 +1,170 @@
-# stagehand
+# Stagehand
 
-stagehand is a web automation SDK that leverages LLMs and industry to achieve a low friection, cost effective, and resilient way to automate the browser.
-We are currently in the process of adding more acronyms and buzzwords
+Stagehand is a web automation SDK that leverages LLMs, [Playwright](https://playwright.dev/), and browser techniques to achieve a low friction, cost effective, and resilient way to automate the browser.
 
-## Setup
+## Getting started
 
-The prototype version of the sdk relies on Browserbase, Open AI, and Playwright. Here's how to get started:
+Currently in order to run Stagehand you'll need to create a tarball via the build step. This will be provided by the Browserbase team, or can be generated following the steps below.
 
-1. install dependencies
+here's an example using npm to install a local tarball:
 
-```sh
-cd stagehand
-npm install
+```bash
+npm install {PATH_TO_PACKAGE}/{stagehand}-{VERSION}.tgz
 ```
 
-2. setup environment variables by copy `.env.example` as `.env`, and adding Browserbase and Open AI keys
-3. Run the example spec
+next, you'll need a `.env` file with the following providers
 
-```sh
-npx playwright test
+```
+OPENAI_API_KEY=""
+BROWSERBASE_API_KEY=""
 ```
 
-To run without Browserbase, set the `local` environment variable to 1
+If you are developing stagehand, you'll also need a Braintrust key to run evals
+
+```
+BRAINTRUST_API_KEY=""%
+```
+
+install dependencies, and you're ready to go! Here's a full example of initializing and running an automation.
+
+> [!NOTE]
+> You may need to follow additional playwright instructions to install chromium if you have not done so previously
+
+```typescript
+import { Stagehand } from "../lib";
+import { z } from "zod";
+
+async function example() {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: true,
+    debugDom: true,
+  });
+  await stagehand.init();
+  await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
+  await stagehand.act({ action: "start the game" });
+  await stagehand.act({ action: "close tutorial popup" });
+}
+```
+
+### Options
+
+- `env`: where the automation runs. either 'LOCAL' or 'BROWSERBASE' which requires a key in your `.env`
+- `verbose`: a boolean that enables more logging during automation
+- `debugDom`: a boolean that draws bounding boxes around elements presented to the LLM during automation.
+
+### Methods
+
+#### act
+
+act allows stage hand to do something on a page. provide an `action` like "search for 'x'", or "select the cheapest flight presented". While the SDK will attempt to accomplish substeps, small atomic goals perform the best.
+
+#### extract
+
+extract grabs structured text from the current page using [zod](https://github.com/colinhacks/zod) and [instructor](https://github.com/instructor-ai/instructor-js). given an `instruction` and `schema`, you will receive structured data back. Unlike some extraction libraries, stagehand can extract any information on a page, not just main article contents.
+
+#### observe
+
+observe is useful to assert a state about the current page without knowing exactly where it is, or how to select it. All you need to provide is an `observation` like "Find the calendar on the page", and the method will succeed with an element or throw an error if one cannot be found.
+
+> [!CAUTION]
+> observe currently does not support chunking, so at this time you can only observe the first section of the website. This should be fixed
+> or the method should be removed if no longer useful
+
+#### ask
+
+ask is a generic LLM call in case you don't want to bring your own agent infrastructure. You can ask any question and provide
+context from previous abstractions or actions and get an LLM powered response.
+
+For example:
+
+```typescript
+const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
+          guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join("\n")}
+        `;
+const response = await stagehand.ask(prompt);
+```
+
+You can use ask to build a simple wordle bot without additonal libraries or abstractions.
+
+#### downloadPDF
+
+Because PDFs are natively handled by the browser, stagehand provides a utility to make that easier.
+
+```typescript
+async function downloadPDF(url: string, title: string);
+```
+
+The SDK overrides the default behavior of opening the PDF, and instead creates a download on the file system running the SDK.
+
+## Development
+
+first, clone the repo
+
+`git clone git@github.com:browserbase/stagehand.git`
+
+then install dependencies
+
+`pnpm install`
+
+add the .env file as documented above in the getting started section
+
+run the example
+
+`pnpm example`
+
+run evals
+
+`pnpm evals`
+
+A good development loop is:
+
+1. try things in the example file
+2. use that to make changes to the SDK
+3. write evals that help validate your changes
+
+### Building the SDK
+
+for simplicity sake, stagehand uses [tsup](https://github.com/egoist/tsup) to build the sdk, and vanilla `esbuild` to build scripts that run in the DOM.
+
+1. run `pnpm build`
+2. run `npm pack` to get a tarball for distribution
+
+when stagehand is more broadly accessible, version management and an `npm publish` flow will be incorporated
 
 ## How it works
 
-Since this is a WIP, we'll go into details on how the SDK works.
+The SDK has 2 major phases. Processing the DOM to make LLM interactions feasible, and taking LLM powered actions based on the current state of the DOM
 
-1. Playwright
-   This version of the SDK is written as a custom [playwright fixture](https://playwright.dev/docs/test-fixtures#creating-a-fixture). While this works great for people using Browserbase with Playwright, this should either become one of the options, or this logic should be written generically so that developers can use the SDK without writing Playwright code
-2. LLM layer
-   The SDK exposes two functions, observe and act, that interact with LLMs to abstract what is normally tedius automation code.
+### DOM processing
 
-- observe: observe takes a screenshot of the current page, and asks a vision model to locate the element that the user is looking for based on their command. Then ask a text model for a Playwright locator given that description
-- act: Given a playwright locator and a goal, ask a text model for the Playwright command and arguements to make it happen
-  - This allows the SDK to work without unsafe evals, as we're running Playwright functionality directly
+Stagehand uses a combination of techniques to prepare the DOM. As of this version, Stagehand only uses text input, but with the release of gpt-4o incorporating vision is under serious consideration.
 
-3. Caching
-   Due to the cost of inference, it's infeasible to run the full versions of `observe` and `act` every time an automation runs. This is addressed with a simple JSON cache:
+Processing at a high level works like this
 
-- Each instuction is hashed based on it's string descriptor, and the resulting LLM response is saved alongside the test that used it
-- Before running inference, we check the cache to see if this step exists to use instead of calling out to the LLM
-- If a test fails, we clear the cache with any instruction that matches that test key, and let Playwright's retry logic try things again with a fresh slate
+- Via playwright, inject a script into the DOM accessible by the SDK that can run processing
+- Crawl the DOM, and create a list of candidate elements
+- Candidate elements are either leaf elements (DOM elements that contain actual user facing substance), or are interactive elements
+  - Interactive elements are determined by a combination of roles and HTML tags
+- Candidate elements that are not active, visible, or at the top of the DOM are discarded
+  - The LLM should only receive elements it can faithfully act on on behalf of the agent/user
+- For each candidate element, an xPath is generated. this guarnetees that if this element is picked by the LLM, we'l be able to reliably target it.
+- Return both the list of candidate elements, as well as the map of element to xPath selector across the browser back to the SDK, to be analyzed by the LLM
 
-## Future improvements
+#### Chunking
 
-There are both basic SDK things, as well as more ambitious improvements to make to polish the SDK and make it production read
+While LLMs will continue to get bigger context windows and improve latency, giving any reasoning system less stuff to think about will make it more accurate. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers an candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks
 
-- Basic tasks
+![](./images/chunks.png)
 
-  - Cleanup logs and move some to debug mode, add a debug flag
-  - Decide on whether to create clients for popular automation libraries (Selenium, Cypress, etc.) or make the API library agnostic
-    - The SDK will still use Playwright under the hood to run observe and act functionality
-  - Create a build step and make it publishable to NPM
-  - Run the SDK in the Playground?
+### LLM analysis
 
-- Improvements
-  - Build a caching layer on Browserbase to use instead of JSON files
-    - JSON files are cumbersome in production for a few reasons
-      - Environments might not have writeable file systems, or may clear on every run
-      - Writing to a file can create concurrency issues based on the automation behavior
-    - A caching layer on Browserbase will make things super seamless, and create a strong reason to use the platform if the SDK is compelling
-  - Determine if vision is necessary for high accuracy
-    - I annecdotally found that the vision step was really helpful in making the SDK accurate, but this assumption should be challenged
-  - Improve the prompts
-    - These prompts were built haphazardly, so there is probably a lot of room for improvement in accuracy and efficiency
-    - One thing I noticed was that GPT4 is much better at writing Playwright locator syntax than something like vanilla query selectors. While query selectors have been around for longer, they rely on much more nuanced specificity at the token layer (for example, escaping each "[" with "\\"), while Playwright locators use a much more gentle syntax
-      - Again, this is an observation that should be challenged
-  - Improve chunking logic
-    - To avoid overwhelming the LLM and cut down on costs, we naively chunk the DOM into 4 chunks to find the specific element to select. This can be improved by creating x chunks based on the overall size of the DOM, and adding overlap so that no key element is ever missed by the split
-      - Another advantage of this improvement is that small DOMs don't need any chunking
-  - Eval and testing
-    - Evals are by far the best way to prevent regressions and build confidence around prompts.
-    - One edge case that in particular that should be eval'ed is finding elements that are in different chunks in the DOM based on chunking logic
+Now that we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested at a high scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
+
+In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effectively used than relying on built in javascript APIs.
+
+Lastly, we use the LLM to write future instructions to itself to help manage it's progress and goals when operating across chunks.
+
+## Credits
+
+This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), and [fuji-web](https://github.com/normal-computing/fuji-web)

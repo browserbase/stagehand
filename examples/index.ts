@@ -10,7 +10,6 @@ async function example() {
   });
   await stagehand.init();
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.page.locator("html").dispatchEvent("mouseleave");
   await stagehand.act({ action: "start the game" });
   await stagehand.act({ action: "close tutorial popup" });
 
