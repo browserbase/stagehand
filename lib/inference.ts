@@ -5,6 +5,8 @@ import {
   buildAskSystemPrompt,
   buildExtractSystemPrompt,
   buildExtractUserPrompt,
+  buildChunkedExtractSystemPrompt,
+  buildChunkedExtractUserPrompt,
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
@@ -58,6 +60,34 @@ export async function act({
 
 export async function extract({
   instruction,
+  domElements,
+  schema,
+  client,
+}: {
+  instruction: string;
+  domElements: string;
+  schema: z.ZodObject<any>;
+  client: InstructorClient<OpenAI>;
+}) {
+  return client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      buildExtractSystemPrompt(),
+      buildExtractUserPrompt(instruction, domElements),
+    ],
+    response_model: {
+      schema,
+      name: "Extraction",
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+  });
+}
+
+export async function chunkedExtract({
+  instruction,
   progress,
   domElements,
   schema,
@@ -77,8 +107,8 @@ export async function extract({
   return client.chat.completions.create({
     model: "gpt-4o",
     messages: [
-      buildExtractSystemPrompt(),
-      buildExtractUserPrompt(instruction, progress, domElements),
+      buildChunkedExtractSystemPrompt(),
+      buildChunkedExtractUserPrompt(instruction, progress, domElements),
     ],
     response_model: {
       schema: fullSchema,

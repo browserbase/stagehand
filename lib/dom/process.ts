@@ -1,14 +1,67 @@
-async function processDom(chunksSeen: Array<number>) {
-  const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
+async function processDom({
+  chunksSeen = [],
+  chunk,
+}: {
+  chunksSeen?: Array<number>;
+  chunk?: number;
+}) {
+  const { chunk: nextChunk, chunksArray } = await pickChunk(chunksSeen);
+
+  // if we aren't provided a chunk, check the next one
+  let selectedChunk = chunk || nextChunk;
+
+  const { candidateElements } = await processElements(chunk);
+
+  const { outputString, selectorMap } = formatElements(candidateElements);
 
   return {
     outputString,
     selectorMap,
-    chunk,
+    chunk: selectedChunk,
     chunks: chunksArray,
   };
 }
+
+async function processFullDom() {
+  let scrollPosition = window.scrollY;
+  const { chunksArray } = await pickChunk([]);
+
+  const allElements: Array<ChildNode> = [];
+  for (const chunk of chunksArray) {
+    const { candidateElements } = await processElements(chunk);
+    allElements.push(...candidateElements);
+  }
+
+  const { outputString, selectorMap } = formatElements(allElements);
+
+  window.scrollTo(0, scrollPosition);
+
+  return {
+    outputString,
+    selectorMap,
+  };
+}
+
+const formatElements = (elements: Array<ChildNode>) => {
+  let outputString = "";
+  let selectorMap: Record<number, string> = {};
+
+  elements.forEach((element, index) => {
+    const xpath = generateXPath(element);
+    if (isTextNode(element)) {
+      outputString += `${index}:${element.textContent}\n`;
+    } else if (isElementNode(element)) {
+      outputString += `${index}:${element.outerHTML.trim()}\n`;
+    }
+
+    selectorMap[index] = xpath;
+  });
+
+  return {
+    outputString,
+    selectorMap,
+  };
+};
 
 async function processElements(chunk: number) {
   const viewportHeight = window.innerHeight;
@@ -52,28 +105,13 @@ async function processElements(chunk: number) {
     }
   }
 
-  let selectorMap: Record<number, string> = {};
-  let outputString = "";
-
-  candidateElements.forEach((element, index) => {
-    const xpath = generateXPath(element);
-    if (isTextNode(element)) {
-      outputString += `${index}:${element.textContent}\n`;
-    } else if (isElementNode(element)) {
-      outputString += `${index}:${element.outerHTML.trim()}\n`;
-    }
-
-    selectorMap[index] = xpath;
-  });
-
   return {
-    outputString,
-    selectorMap,
+    candidateElements,
   };
 }
 
 window.processDom = processDom;
-window.processElements = processElements;
+window.processFullDom = processFullDom;
 
 function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {

@@ -1,9 +1,9 @@
 async function debugDom() {
   window.chunkNumber = 0;
 
-  const { selectorMap, outputString } = await processElements(
-    window.chunkNumber,
-  );
+  const { selectorMap, outputString } = await window.processDom({
+    chunk: window.chunkNumber,
+  });
   console.log("outputString:", outputString);
   console.log("selectorMap:", selectorMap);
 
@@ -92,7 +92,9 @@ function setupChunkNav() {
       window.chunkNumber -= 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
-      const { selectorMap } = await processElements(window.chunkNumber);
+      const { selectorMap } = await window.processDom({
+        chunk: window.chunkNumber,
+      });
       drawChunk(selectorMap);
       setupChunkNav();
     };
@@ -115,7 +117,9 @@ function setupChunkNav() {
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
 
-      const { selectorMap } = await processElements(window.chunkNumber);
+      const { selectorMap } = await window.processDom({
+        chunk: window.chunkNumber,
+      });
       drawChunk(selectorMap);
       setupChunkNav();
     };

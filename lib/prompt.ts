@@ -103,10 +103,36 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
   },
 ];
 
-// extract
-const extractSystemPrompt = `
+// chunked extract
+const chunkedExtractSystemPrompt = `
 'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from',
 
+`;
+
+export function buildChunkedExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+  const content = chunkedExtractSystemPrompt.replace(/\s+/g, " ");
+  return {
+    role: "system",
+    content,
+  };
+}
+
+export function buildChunkedExtractUserPrompt(
+  instruction: string,
+  progress: string,
+  domElements: string,
+): OpenAI.ChatCompletionMessageParam {
+  return {
+    role: "user",
+    content: `instruction: ${instruction}
+    progress: ${progress}
+    DOM: ${domElements}`,
+  };
+}
+
+// extract
+const extractSystemPrompt = `
+you are extracting content on behalf of a user. You will be given an instruction and a list of DOM elements to extract from',
 `;
 
 export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
@@ -119,13 +145,11 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 
 export function buildExtractUserPrompt(
   instruction: string,
-  progress: string,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
     content: `instruction: ${instruction}
-    progress: ${progress}
     DOM: ${domElements}`,
   };
 }

@@ -5,7 +5,7 @@ import crypto from "crypto";
 import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
 import fs from "fs";
-import { act, ask, extract, observe } from "./inference";
+import { act, ask, chunkedExtract, extract, observe } from "./inference";
 const merge = require("deepmerge");
 import path from "path";
 
@@ -15,7 +15,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
     );
     const context = browser.contexts()[0];
     return { browser, context };
@@ -36,7 +36,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences)
+      JSON.stringify(defaultPreferences),
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -51,7 +51,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
           width: 1250,
           height: 800,
         },
-      }
+      },
     );
 
     console.log("Local browser started successfully.");
@@ -84,7 +84,7 @@ export class Stagehand {
       debugDom?: boolean;
     } = {
       env: "BROWSERBASE",
-    }
+    },
   ) {
     this.openai = new OpenAI();
     this.instructor = Instructor({
@@ -156,7 +156,7 @@ export class Stagehand {
     return crypto.createHash("sha256").update(operation).digest("hex");
   }
 
-  async extract<T extends z.AnyZodObject>({
+  async chunkedExtract<T extends z.AnyZodObject>({
     instruction,
     schema,
     progress = "",
@@ -177,10 +177,10 @@ export class Stagehand {
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom({}),
     );
 
-    const extractionResponse = await extract({
+    const extractionResponse = await chunkedExtract({
       instruction,
       progress,
       domElements: outputString,
@@ -204,7 +204,7 @@ export class Stagehand {
         category: "extraction",
         message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
       });
-      return this.extract({
+      return this.chunkedExtract({
         instruction,
         schema,
         progress: progress + newProgress + ", ",
@@ -212,6 +212,36 @@ export class Stagehand {
         chunksSeen,
       });
     }
+  }
+
+  async extract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+  }: {
+    instruction: string;
+    schema: T;
+  }): Promise<z.infer<T>> {
+    this.log({
+      category: "extraction",
+      message: `starting extraction ${instruction}`,
+    });
+
+    await this.waitForSettledDom();
+    await this.startDomDebug();
+    const { outputString } = await this.page.evaluate(() =>
+      window.processFullDom(),
+    );
+
+    const extractionResponse = await extract({
+      instruction,
+      domElements: outputString,
+      client: this.instructor,
+      schema,
+    });
+
+    await this.cleanupDomDebug();
+
+    return extractionResponse;
   }
 
   async observe(observation: string): Promise<string | null> {
@@ -223,7 +253,7 @@ export class Stagehand {
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom({ chunksSeen: [] }),
     );
 
     const elementId = await observe({
@@ -260,7 +290,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString
+      locatorString,
     );
 
     return observationId;
@@ -274,7 +304,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string
+    result: string,
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -310,7 +340,7 @@ export class Stagehand {
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
-        chunksSeen
+        chunksSeen,
       );
 
     const response = await act({
