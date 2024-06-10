@@ -1,3 +1,80 @@
+async function processDom(chunksSeen: Array<number>) {
+  const { chunk, chunksArray } = await pickChunk(chunksSeen);
+  const { outputString, selectorMap } = await processElements(chunk);
+
+  return {
+    outputString,
+    selectorMap,
+    chunk,
+    chunks: chunksArray,
+  };
+}
+
+async function processElements(chunk: number) {
+  const viewportHeight = window.innerHeight;
+
+  const chunkHeight = viewportHeight * chunk;
+  const offsetTop = chunkHeight;
+
+  window.scrollTo(0, offsetTop);
+
+  const domString = window.document.body.outerHTML;
+  if (!domString) {
+    throw new Error("error selecting DOM that doesn't exist");
+  }
+
+  const candidateElements: Array<ChildNode> = [];
+  const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
+  while (DOMQueue.length > 0) {
+    const element = DOMQueue.pop();
+
+    if (element && isElementNode(element)) {
+      const childrenCount = element.childNodes.length;
+
+      // if you have no children you are a leaf node
+      if (isLeafElement(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
+          candidateElements.push(element);
+        }
+        continue;
+      } else if (isInteractiveElement(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
+          candidateElements.push(element);
+        }
+        continue;
+      }
+      for (let i = childrenCount - 1; i >= 0; i--) {
+        const child = element.childNodes[i];
+        DOMQueue.push(child as Element);
+      }
+    } else if (element && isTextNode(element) && isTextVisible(element)) {
+      candidateElements.push(element);
+    }
+  }
+
+  let selectorMap: Record<number, string> = {};
+  let outputString = "";
+
+  candidateElements.forEach((element, index) => {
+    const xpath = generateXPath(element);
+    if (isTextNode(element)) {
+      outputString += `${index}:${element.textContent}\n`;
+    } else if (isElementNode(element)) {
+      outputString += `${index}:${element.outerHTML.trim()}\n`;
+    }
+
+    selectorMap[index] = xpath;
+  });
+
+  return {
+    outputString,
+    selectorMap,
+  };
+}
+
+window.processDom = processDom;
+window.processElements = processElements;
+
 function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {
     return `//*[@id='${element.id}']`;
@@ -242,80 +319,3 @@ async function pickChunk(chunksSeen: Array<number>) {
     chunksArray,
   };
 }
-
-async function processDom(chunksSeen: Array<number>) {
-  const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
-
-  return {
-    outputString,
-    selectorMap,
-    chunk,
-    chunks: chunksArray,
-  };
-}
-
-async function processElements(chunk: number) {
-  const viewportHeight = window.innerHeight;
-
-  const chunkHeight = viewportHeight * chunk;
-  const offsetTop = chunkHeight;
-
-  window.scrollTo(0, offsetTop);
-
-  const domString = window.document.body.outerHTML;
-  if (!domString) {
-    throw new Error("error selecting DOM that doesn't exist");
-  }
-
-  const candidateElements: Array<ChildNode> = [];
-  const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
-  while (DOMQueue.length > 0) {
-    const element = DOMQueue.pop();
-
-    if (element && isElementNode(element)) {
-      const childrenCount = element.childNodes.length;
-
-      // if you have no children you are a leaf node
-      if (isLeafElement(element)) {
-        if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
-        }
-        continue;
-      } else if (isInteractiveElement(element)) {
-        if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
-        }
-        continue;
-      }
-      for (let i = childrenCount - 1; i >= 0; i--) {
-        const child = element.childNodes[i];
-        DOMQueue.push(child as Element);
-      }
-    } else if (element && isTextNode(element) && isTextVisible(element)) {
-      candidateElements.push(element);
-    }
-  }
-
-  let selectorMap: Record<number, string> = {};
-  let outputString = "";
-
-  candidateElements.forEach((element, index) => {
-    const xpath = generateXPath(element);
-    if (isTextNode(element)) {
-      outputString += `${index}:${element.textContent}\n`;
-    } else if (isElementNode(element)) {
-      outputString += `${index}:${element.outerHTML.trim()}\n`;
-    }
-
-    selectorMap[index] = xpath;
-  });
-
-  return {
-    outputString,
-    selectorMap,
-  };
-}
-
-window.processDom = processDom;
-window.processElements = processElements;

@@ -1,10 +1,10 @@
 # Stagehand
 
-Stagehand is a web automation SDK that leverages LLMs, [Playwright](https://playwright.dev/), and browser techniques to achieve a low friction, cost effective, and resilient way to automate the browser.
+Stagehand is a web automation SDK that leverages LLMs, [Playwright](https://playwright.dev/), and browser techniques to achieve a low friction, cost effective, and resilient way to automate the browser. Currently, stagehand supports Node.js and Node like runtimes.
 
 ## Getting started
 
-Currently in order to run Stagehand you'll need to create a tarball via the build step. This will be provided by the Browserbase team, or can be generated following the steps below.
+In order to run stagehand you'll need to create a tarball via the build step. This will be provided by the Browserbase team, or can be generated following the steps below.
 
 here's an example using npm to install a local tarball:
 
@@ -19,20 +19,13 @@ OPENAI_API_KEY=""
 BROWSERBASE_API_KEY=""
 ```
 
-If you are developing stagehand, you'll also need a Braintrust key to run evals
-
-```
-BRAINTRUST_API_KEY=""%
-```
-
 install dependencies, and you're ready to go! Here's a full example of initializing and running an automation.
 
 > [!NOTE]
-> You may need to follow additional playwright instructions to install chromium if you have not done so previously
+> You may need to follow additional Playwright instructions to install chromium if you have not done so previously.
 
 ```typescript
 import { Stagehand } from "../lib";
-import { z } from "zod";
 
 async function example() {
   const stagehand = new Stagehand({
@@ -109,6 +102,12 @@ then install dependencies
 
 add the .env file as documented above in the getting started section
 
+If you are developing stagehand, you'll also need a Braintrust key to run evals
+
+```.env
+BRAINTRUST_API_KEY=""%
+```
+
 run the example
 
 `pnpm example`
@@ -134,37 +133,37 @@ when stagehand is more broadly accessible, version management and an `npm publis
 
 ## How it works
 
-The SDK has 2 major phases. Processing the DOM to make LLM interactions feasible, and taking LLM powered actions based on the current state of the DOM
+The SDK has 2 major phases. Processing the DOM to make LLM interactions feasible, and taking LLM powered actions based on the current state of the DOM.
 
 ### DOM processing
 
-Stagehand uses a combination of techniques to prepare the DOM. As of this version, Stagehand only uses text input, but with the release of gpt-4o incorporating vision is under serious consideration.
+Stagehand uses a combination of techniques to prepare the DOM. As of this version, Stagehand only uses text input, but with the release of gpt-4o incorporating vision is an attractive step to take.
 
-Processing at a high level works like this
+Processing at a high level works like this:
 
-- Via playwright, inject a script into the DOM accessible by the SDK that can run processing
-- Crawl the DOM, and create a list of candidate elements
-- Candidate elements are either leaf elements (DOM elements that contain actual user facing substance), or are interactive elements
-  - Interactive elements are determined by a combination of roles and HTML tags
-- Candidate elements that are not active, visible, or at the top of the DOM are discarded
-  - The LLM should only receive elements it can faithfully act on on behalf of the agent/user
-- For each candidate element, an xPath is generated. this guarnetees that if this element is picked by the LLM, we'l be able to reliably target it.
-- Return both the list of candidate elements, as well as the map of element to xPath selector across the browser back to the SDK, to be analyzed by the LLM
+- Via Playwright, inject a script into the DOM accessible by the SDK that can run processing.
+- Crawl the DOM, and create a list of candidate elements.
+  - Candidate elements are either leaf elements (DOM elements that contain actual user facing substance), or are interactive elements.
+  - Interactive elements are determined by a combination of roles and HTML tags.
+- Candidate elements that are not active, visible, or at the top of the DOM are discarded.
+  - The LLM should only receive elements it can faithfully act on on behalf of the agent/user.
+- For each candidate element, an xPath is generated. this guarentees that if this element is picked by the LLM, we'll be able to reliably target it.
+- Return both the list of candidate elements, as well as the map of elements to xPath selectors across the browser back to the SDK, to be analyzed by the LLM.
 
 #### Chunking
 
-While LLMs will continue to get bigger context windows and improve latency, giving any reasoning system less stuff to think about will make it more accurate. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers an candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks
+While LLMs will continue to get bigger context windows and improve latency, giving any reasoning system less stuff to think about should make it more accurate. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers a candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks:
 
 ![](./images/chunks.png)
 
 ### LLM analysis
 
-Now that we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested at a high scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
+Now that we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested at on a large scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
 
-In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effectively used than relying on built in javascript APIs.
+In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effective than relying on built in javascript APIs, possibly due to tokenization.
 
 Lastly, we use the LLM to write future instructions to itself to help manage it's progress and goals when operating across chunks.
 
 ## Credits
 
-This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), and [fuji-web](https://github.com/normal-computing/fuji-web)
+This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), and [fuji-web](https://github.com/normal-computing/fuji-web).

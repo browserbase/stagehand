@@ -5,7 +5,7 @@ The purpose of this doc is to discuss future directions and plans for stagehand.
 The main thing people ask about with regards to stagehand is the lack of vision. Vision would unlock 2 major wins
 
 1. the LLM will use the visual layout to improve context
-2. Instructions can reference visual positioning in instructions
+2. instructions can reference visual positioning in instructions
 
 The challenge is to create an effective map between elements, and the screenshots. Fuji-web does this by supplying a regular screenshot and an annotated one in order to access the element map correctly.
 
@@ -18,7 +18,7 @@ Stagehand currently depends on playwright. Is that a good thing? There are a cou
 1. LLMs can already write atomic playwright instructions really well
 2. Using playwright de-risks a lot of flakiness around interacting with the web
 
-Garrett brought up an interesting point, that if instead stagehand could work with sort of a "browser automation assembly" we might be able to do more interesting things when it comes to a interactive workflow. It would also give stagehand a lot more flexibility in interacting with other projets like Langchain. However, I think an advantage of stagehand is that it will focus on the reliability of these atomic actions and will allow higher level code to avoid thinking about these things.
+[Garret](https://github.com/GRVYDEV) brought up an interesting point, that if instead stagehand could work with sort of a "browser automation assembly" we might be able to do more interesting things when it comes to a interactive workflow. It would also give stagehand a lot more flexibility in interacting with other projets like Langchain. However, I think an advantage of stagehand is that it will focus on the reliability of these atomic actions and will allow higher level code to avoid thinking about these things.
 
 ## Caching
 
@@ -31,3 +31,7 @@ Also, the initial implementation of caching was pretty lax. if the instruction d
 ## Levels of abstraction
 
 One thing we still haven't nailed is what the right level of abstraction is for this library. The opportunity is we get to define it! By talking to devs who are relying on automation for their product to truly work, we can uncover what is valuable to them in terms of effort saved while still being reliable. TLDR, talk to customers and make the product better.
+
+## Environments
+
+Python is clearly the next best place to support stagehand. Is there any value to making this runnable in the browser?
