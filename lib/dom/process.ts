@@ -10,7 +10,7 @@ async function processDom({
   // if we aren't provided a chunk, check the next one
   let selectedChunk = chunk || nextChunk;
 
-  const { candidateElements } = await processElements(chunk);
+  const { candidateElements } = await processElements(selectedChunk);
 
   const { outputString, selectorMap } = formatElements(candidateElements);
 
@@ -64,6 +64,7 @@ const formatElements = (elements: Array<ChildNode>) => {
 };
 
 async function processElements(chunk: number) {
+  console.log(chunk);
   const viewportHeight = window.innerHeight;
 
   const chunkHeight = viewportHeight * chunk;

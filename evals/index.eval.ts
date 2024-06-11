@@ -80,7 +80,7 @@ const peeler_complex = async () => {
     action: 'click on the first "OXO" brand peeler',
   });
 
-  const { price } = await stagehand.extract({
+  const { price } = await stagehand.chunkedExtract({
     instruction: "get the price of the peeler",
     schema: z.object({ price: z.number().nullable() }),
   });

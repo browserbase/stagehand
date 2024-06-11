@@ -339,7 +339,7 @@ export class Stagehand {
     await this.startDomDebug();
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
-        (chunksSeen) => window.processDom(chunksSeen),
+        (chunksSeen) => window.processDom({ chunksSeen }),
         chunksSeen,
       );
 
