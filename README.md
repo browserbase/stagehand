@@ -1,42 +1,14 @@
 # Stagehand
 
-Stagehand is an AI Web Browser SDK that combines DOM preprocessing, Playwright, and LLMs to enable you to interact with any web page using high-level instructions.
+Stagehand is an AI Web Browser SDK enabling you to interact with any web page using high-level instructions.
 
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+![](./images/wordle.png)
 
-async function example() {
-  const stagehand = new Stagehand({ env: "LOCAL" });
-  await stagehand.init();
-  await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game" });
-  await stagehand.act({ action: "close tutorial popup" });
-}
-```
-
-<br/>
-
-- [Getting started](#getting-started)
-- [Example](#example)
-- [API Reference](#api-reference)
-  - [`Stagehand()`](#-stagehand---)
-  - [Methods](#methods)
-    - [`act()`](#-act---)
-    - [`extract()`](#-extract---)
-    - [`observe()`](#-observe---)
-    - [`ask()`](#-ask---)
-- [How it works](#how-it-works)
-  - [DOM processing](#dom-processing)
-  - [LLM analysis](#llm-analysis)
-- [Development](#development)
-  - [Run the example](#run-the-example)
-  - [Run evals](#run-evals)
-  - [Development tips](#development-tips)
-  - [Building the SDK](#building-the-sdk)
+_Stagehand combines DOM preprocessing with chunking, Playwright, and LLMs to complete a Wordle. Learn more in the "How it works" section._
 
 ## Getting started
 
-**0. Prerequisites**
+### 0. Prerequisites
 
 Stagehand is currently compatible with Node.js, Bun, and Deno.
 
@@ -55,7 +27,7 @@ OPENAI_API_KEY=""
 
 <br />
 
-**1. Install the dependencies**
+### 1. Install the dependencies
 
 Get started by installing the `@browserbasehq/stagehand` package:
 
@@ -65,11 +37,19 @@ npm install @browserbasehq/stagehand
 
 <br />
 
-**2. Configure a Browser**
+### 2. Configure a Browser
 
 Stagehand can be used with a local or remote Browser.
 
-To use a local Browser, configure `Stagehand()` as follows:
+**Use a local browser (_recommended for development_)**
+
+To use a local Browser, install Playwright on your local machine:
+
+```bash
+pnpm exec playwright install
+```
+
+and configure `Stagehand()` as follows:
 
 ```typescript
 const stagehand = new Stagehand({
@@ -79,6 +59,10 @@ const stagehand = new Stagehand({
 
 > [!NOTE]
 > You may need to follow additional Playwright instructions to install chromium if you have not done so previously.
+
+<br />
+
+**Use a remote browser (_recommended for deployment_)**
 
 To use a remote Browser, create an account on Browserbase to get an API Key and update your `.env` file as follows:
 
@@ -96,14 +80,16 @@ const stagehand = new Stagehand({
 
 <br />
 
-**3. Run your first Stagehand script**
+### 3. Run your first Stagehand script
 
 You are now all set!
 Start your first Stagehand script with the example featured below, attempting to solve the wordle of the day.
 
 ## Example
 
-The code below uses Stagehand to complete the wordle of the day:
+The code below uses Stagehand to complete the wordle of the day.
+
+_You can run this example by forking and configuring the repository, and running `pnpm example`._
 
 ```typescript
 import { Stagehand } from "../lib";
