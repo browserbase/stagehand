@@ -15,7 +15,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
     );
     const context = browser.contexts()[0];
     return { browser, context };
@@ -36,7 +36,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences)
+      JSON.stringify(defaultPreferences),
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -51,7 +51,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
           width: 1250,
           height: 800,
         },
-      }
+      },
     );
 
     console.log("Local browser started successfully.");
@@ -84,7 +84,7 @@ export class Stagehand {
       debugDom?: boolean;
     } = {
       env: "BROWSERBASE",
-    }
+    },
   ) {
     this.openai = new OpenAI();
     this.instructor = Instructor({
@@ -177,7 +177,7 @@ export class Stagehand {
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const extractionResponse = await extract({
@@ -223,7 +223,7 @@ export class Stagehand {
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const elementId = await observe({
@@ -260,7 +260,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString
+      locatorString,
     );
 
     return observationId;
@@ -274,7 +274,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string
+    result: string,
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -310,7 +310,7 @@ export class Stagehand {
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
-        chunksSeen
+        chunksSeen,
       );
 
     const response = await act({
