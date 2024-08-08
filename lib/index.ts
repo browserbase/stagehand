@@ -15,7 +15,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://api.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
     );
     const context = browser.contexts()[0];
     return { browser, context };
