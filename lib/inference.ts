@@ -128,22 +128,8 @@ export async function ask({
   question: string;
   client: OpenAI;
 }) {
-  console.log("asking question", question);
   const response = await client.chat.completions.create({
-    model: "o1-preview",
-    messages: [
-      {
-        role: "user", 
-        content: question
-      }
-    ]
-  });
-
-  console.log("response", response.choices[0].message.content);
-  return response.choices[0].message.content;
-  
-  /*const response = await client.chat.completions.create({
-    model: "o1-preview",
+    model: "gpt-4o",
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
 
     temperature: 0.1,
@@ -152,5 +138,5 @@ export async function ask({
     presence_penalty: 0,
   });
 
-  return response.choices[0].message.content;*/
+  return response.choices[0].message.content;
 }

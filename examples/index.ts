@@ -15,7 +15,7 @@ async function example() {
 
   let guesses: { guess: string | null; description: string | null }[] = [];
   for (let i = 0; i < 6; i++) {
-    const prompt = `I'm trying to win Wordle. What english word should I guess given the previous guesses? Do not repeat any previous guesses! Start your response with the new guess.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${g.guess}. ${g.description}`).join("\n")}`;
+    const prompt = `I'm trying to win Wordle. Here are my guesses so far.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${index}. ${g.guess}. ${g.description}`).join("\n")}\nWhat five letter english word should I guess given the previous guesses? Do not repeat any previous guesses! Return only the new 5 letter word guess you're making.`;
     const response = await stagehand.ask(prompt);
     if (!response) {
       throw new Error("no response when asking for a guess");
@@ -25,7 +25,7 @@ async function example() {
     await stagehand.page.keyboard.press("Enter");
 
     const guess = await stagehand.extract({
-      instruction: "extract the last guess",
+      instruction: "extract the five letter guess at the bottom",
       schema: z.object({
         guess: z.string().describe("the raw guess").nullable(),
         description: z
@@ -40,7 +40,8 @@ async function example() {
     const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description);
 
     if (correct.trimStart().split(" ").pop() === "TRUE") {
-      break;
+      console.log("I won Wordle!");
+      return;
     }
   }
 }

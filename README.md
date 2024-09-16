@@ -126,7 +126,7 @@ await stagehand.act({ action: "close tutorial popup" });
 // 6. we loop over the 5 available guesses to complete the game
 let guesses: { guess: string | null; description: string | null }[] = [];
 for (let i = 0; i < 6; i++) {
-  const prompt = `I'm trying to win Wordle. What english word should I guess given the previous guesses? Do not repeat any previous guesses! Start your response with the new guess.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${g.guess}. ${g.description}`).join("\n")}`;
+  const prompt = `I'm trying to win Wordle. Here are my guesses so far.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${index}. ${g.guess}. ${g.description}`).join("\n")}\nWhat five letter english word should I guess given the previous guesses? Do not repeat any previous guesses! Return only the new 5 letter word guess you're making.`;
   const response = await stagehand.ask(prompt);
   // Use the `ask()` method to directly prompt the model (OpenAI)
   const response = await stagehand.ask(prompt);
@@ -140,7 +140,7 @@ for (let i = 0; i < 6; i++) {
   // The `extract()` method allows to provide high level instructions
   //  to retrieve structured data (with a schema built with zod)
   const guess = await stagehand.extract({
-    instruction: "extract the last guess",
+    instruction: "extract the five letter guess at the bottom",
     schema: z.object({
       guess: z.string().describe("the raw guess").nullable(),
       description: z
