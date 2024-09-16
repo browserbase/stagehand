@@ -126,9 +126,8 @@ await stagehand.act({ action: "close tutorial popup" });
 // 6. we loop over the 5 available guesses to complete the game
 let guesses: { guess: string | null; description: string | null }[] = [];
 for (let i = 0; i < 6; i++) {
-  const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
-        guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join("\n")}
-      `;
+  const prompt = `I'm trying to win Wordle. Here are my guesses so far.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${index}. ${g.guess}. ${g.description}`).join("\n")}\nWhat five letter english word should I guess given the previous guesses? Do not repeat any previous guesses! Return only the new 5 letter word guess you're making.`;
+  const response = await stagehand.ask(prompt);
   // Use the `ask()` method to directly prompt the model (OpenAI)
   const response = await stagehand.ask(prompt);
   if (!response) {
@@ -141,22 +140,20 @@ for (let i = 0; i < 6; i++) {
   // The `extract()` method allows to provide high level instructions
   //  to retrieve structured data (with a schema built with zod)
   const guess = await stagehand.extract({
-    instruction: "extract the last guess",
+    instruction: "extract the five letter guess at the bottom",
     schema: z.object({
       guess: z.string().describe("the raw guess").nullable(),
       description: z
         .string()
-        .describe("what was wrong and right about the guess")
-        .nullable(),
-      isCorrect: z
-        .boolean()
-        .describe("true when all letters in a guess are correct")
+        .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
         .nullable(),
     }),
   });
   guesses.push({ guess: guess.guess, description: guess.description });
 
-  if (guess.isCorrect) {
+  const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description);
+
+  if (correct.trimStart().split(" ").pop() === "TRUE") {
     break;
   }
 }
