@@ -15,9 +15,7 @@ async function example() {
 
   let guesses: { guess: string | null; description: string | null }[] = [];
   for (let i = 0; i < 6; i++) {
-    const prompt = `I'm trying to win wordle. what english word should I guess given the following state? Don't repeat guesses
-          guesses: \n ${guesses.map((g, index) => `${index + 1}: ${g.guess} ${g.description}`).join("\n")}
-        `;
+    const prompt = `I'm trying to win Wordle. What english word should I guess given the previous guesses? Do not repeat any previous guesses! Please only return the new guess.\nPREVIOUS GUESSES:\n${guesses.map((g, index) => `${g.guess}. ${g.description}`).join("\n")}`;
     const response = await stagehand.ask(prompt);
     if (!response) {
       throw new Error("no response when asking for a guess");
@@ -32,7 +30,7 @@ async function example() {
         guess: z.string().describe("the raw guess").nullable(),
         description: z
           .string()
-          .describe("what was wrong and right about the guess")
+          .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
           .nullable(),
         isCorrect: z
           .boolean()
