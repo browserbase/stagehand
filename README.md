@@ -4,7 +4,7 @@ Stagehand is an AI Web Browser SDK enabling you to interact with any web page us
 
 ![](./images/wordle.png)
 
-_Stagehand combines DOM preprocessing with chunking, Playwright, and LLMs to complete a Wordle. Learn more in the "How it works" section._
+_Stagehand combines DOM preprocessing with chunking, Playwright, and LLMs to complete a Wordle. Learn more in the "How it works" section. Want to a quick demo? Clone this repo and run `export OPENAI_API_KEY="YOUR_KEY" && pnpm install && pnpm example`_
 
 ## Getting started
 
