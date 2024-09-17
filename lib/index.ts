@@ -6,6 +6,7 @@ import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
+import { LLMProvider } from "./LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 
@@ -60,8 +61,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
 }
 
 export class Stagehand {
-  private openai: OpenAI;
-  private instructor: InstructorClient<OpenAI>;
+  private llmProvider: LLMProvider;
   public observations: {
     [key: string]: { result: string; observation: string };
   };
@@ -78,19 +78,17 @@ export class Stagehand {
       env,
       verbose = false,
       debugDom = false,
+      llmProvider,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: boolean;
       debugDom?: boolean;
+      llmProvider?: LLMProvider;
     } = {
       env: "BROWSERBASE",
     }
   ) {
-    this.openai = new OpenAI();
-    this.instructor = Instructor({
-      client: this.openai,
-      mode: "TOOLS",
-    });
+    this.llmProvider = llmProvider || new LLMProvider();
     this.env = env;
     this.observations = {};
     this.actions = {};
@@ -162,6 +160,7 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
+    model_name = "gpt-4o",
   }: {
     instruction: string;
     schema: T;
@@ -184,8 +183,9 @@ export class Stagehand {
       instruction,
       progress,
       domElements: outputString,
-      client: this.instructor,
+      client: this.llmProvider.getInstructorClient(),
       schema,
+      model_name,
     });
     const { progress: newProgress, completed, ...output } = extractionResponse;
     await this.cleanupDomDebug();
@@ -214,7 +214,7 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string): Promise<string | null> {
+  async observe(observation: string, model_name: string = "gpt-4o"): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
@@ -229,7 +229,8 @@ export class Stagehand {
     const elementId = await observe({
       observation,
       domElements: outputString,
-      client: this.openai,
+      client: this.llmProvider.getOpenAIClient(),
+      model_name,
     });
     await this.cleanupDomDebug();
 
@@ -265,10 +266,11 @@ export class Stagehand {
 
     return observationId;
   }
-  async ask(question: string): Promise<string | null> {
+  async ask(question: string, model_name: string = "gpt-4o"): Promise<string | null> {
     return ask({
       question,
-      client: this.openai,
+      client: this.llmProvider.getOpenAIClient(),
+      model_name,
     });
   }
 
@@ -295,6 +297,7 @@ export class Stagehand {
     action,
     steps = "",
     chunksSeen = [],
+    model_name = "gpt-4o",
   }: {
     action: string;
     steps?: string;
@@ -317,7 +320,8 @@ export class Stagehand {
       action,
       domElements: outputString,
       steps,
-      client: this.openai,
+      client: this.llmProvider.getOpenAIClient(),
+      model_name,
     });
     await this.cleanupDomDebug();
 

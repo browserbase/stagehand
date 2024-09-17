@@ -18,11 +18,13 @@ export async function act({
   domElements,
   steps,
   client,
+  model_name,
 }: {
   action: string;
   steps?: string;
   domElements: string;
   client: OpenAI;
+  model_name: string;
 }): Promise<{
   method: string;
   element: number;
@@ -32,7 +34,7 @@ export async function act({
   why?: string;
 } | null> {
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: model_name,
     messages: [
       buildActSystemPrompt(),
       buildActUserPrompt(action, steps, domElements),
@@ -62,12 +64,14 @@ export async function extract({
   domElements,
   schema,
   client,
+  model_name,
 }: {
   instruction: string;
   progress: string;
   domElements: string;
   schema: z.ZodObject<any>;
   client: InstructorClient<OpenAI>;
+  model_name: string;
 }) {
   const fullSchema = schema.extend({
     progress: z.string().describe("progress of what has been extracted so far"),
@@ -75,7 +79,7 @@ export async function extract({
   });
 
   return client.chat.completions.create({
-    model: "gpt-4o",
+    model: model_name,
     messages: [
       buildExtractSystemPrompt(),
       buildExtractUserPrompt(instruction, progress, domElements),
@@ -95,13 +99,15 @@ export async function observe({
   observation,
   domElements,
   client,
+  model_name,
 }: {
   observation: string;
   domElements: string;
   client: OpenAI;
+  model_name: string;
 }) {
   const observationResponse = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: model_name,
     messages: [
       buildObserveSystemPrompt(),
       buildObserveUserMessage(observation, domElements),
@@ -124,12 +130,14 @@ export async function observe({
 export async function ask({
   question,
   client,
+  model_name,
 }: {
   question: string;
   client: OpenAI;
+  model_name: string;
 }) {
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: model_name,
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
 
     temperature: 0.1,
