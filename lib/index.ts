@@ -184,7 +184,7 @@ export class Stagehand {
       instruction,
       progress,
       domElements: outputString,
-      client: this.llmProvider.getInstructorClient(),
+      llmProvider: this.llmProvider,
       schema,
       model_name,
     });
@@ -230,7 +230,7 @@ export class Stagehand {
     const elementId = await observe({
       observation,
       domElements: outputString,
-      client: this.llmProvider.getOpenAIClient(),
+      llmProvider: this.llmProvider,
       model_name,
     });
     await this.cleanupDomDebug();
@@ -270,7 +270,7 @@ export class Stagehand {
   async ask(question: string, model_name: string = "gpt-4o"): Promise<string | null> {
     return ask({
       question,
-      client: this.llmProvider.getOpenAIClient(),
+      llmProvider: this.llmProvider,
       model_name,
     });
   }
@@ -322,7 +322,7 @@ export class Stagehand {
       action,
       domElements: outputString,
       steps,
-      client: this.llmProvider.getOpenAIClient(),
+      llmProvider: this.llmProvider,
       model_name,
     });
     await this.cleanupDomDebug();
