@@ -39,7 +39,7 @@ async function example() {
 
     const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description, 
       "gpt-4o-mini");
-    console.log("correct", correct);
+    
     if (correct.trimStart().split(" ").pop() === "TRUE") {
       console.log("I won Wordle!");
       return;
