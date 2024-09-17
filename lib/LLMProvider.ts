@@ -11,7 +11,7 @@ export class LLMProvider {
       mode: "TOOLS",
     });
   }
-
+  // TODO - based on model_name, return the appropriate client, e.g., Anthropic etc.
   getChatClient(model_name: string): OpenAI {
     return this.getOpenAIInstance(model_name);
   }
