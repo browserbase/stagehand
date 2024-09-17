@@ -10,8 +10,8 @@ async function example() {
   });
   await stagehand.init();
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game" });
-  await stagehand.act({ action: "close tutorial popup" });
+  await stagehand.act({ action: "start the game", model_name: "gpt-4o" }); // optionally specify model_name, defaults to "gpt-4o"
+  await stagehand.act({ action: "close tutorial popup"});
 
   let guesses: { guess: string | null; description: string | null }[] = [];
   for (let i = 0; i < 6; i++) {
@@ -37,8 +37,9 @@ async function example() {
 
     guesses.push({ guess: guess.guess, description: guess.description });
 
-    const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description);
-
+    const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description, 
+      "gpt-4o-mini");
+    console.log("correct", correct);
     if (correct.trimStart().split(" ").pop() === "TRUE") {
       console.log("I won Wordle!");
       return;

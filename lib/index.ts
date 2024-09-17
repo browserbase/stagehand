@@ -167,6 +167,7 @@ export class Stagehand {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
+    model_name?: string;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -302,6 +303,7 @@ export class Stagehand {
     action: string;
     steps?: string;
     chunksSeen?: Array<number>;
+    model_name?: string;
   }): Promise<void> {
     this.log({
       category: "action",
