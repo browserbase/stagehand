@@ -11,6 +11,7 @@ import {
 } from "./prompt";
 import { z } from "zod";
 import { LLMProvider } from "./llm/LLMProvider";
+import { ChatMessage } from "./llm/LLMClient";
 
 export async function act({
   action,
@@ -36,8 +37,8 @@ export async function act({
   const response = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildActSystemPrompt(),
-      buildActUserPrompt(action, steps, domElements),
+      buildActSystemPrompt() as ChatMessage,
+      buildActUserPrompt(action, steps, domElements) as ChatMessage,
     ],
     temperature: 0.1,
     top_p: 1,
@@ -46,7 +47,6 @@ export async function act({
     tool_choice: "auto",
     tools: actTools,
   });
-  console.log('LLM Response:', JSON.stringify(response, null, 2));
 
   const toolCalls = response.choices[0].message.tool_calls;
   if (toolCalls && toolCalls.length > 0) {
@@ -84,8 +84,8 @@ export async function extract({
   return llmClient.createExtraction({
     model: modelName,
     messages: [
-      buildExtractSystemPrompt(),
-      buildExtractUserPrompt(instruction, progress, domElements),
+      buildExtractSystemPrompt() as ChatMessage,
+      buildExtractUserPrompt(instruction, progress, domElements) as ChatMessage,
     ],
     response_model: {
       schema: fullSchema,
@@ -113,8 +113,8 @@ export async function observe({
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildObserveSystemPrompt(),
-      buildObserveUserMessage(observation, domElements),
+      buildObserveSystemPrompt() as ChatMessage,
+      buildObserveUserMessage(observation, domElements) as ChatMessage,
     ],
     temperature: 0.1,
     top_p: 1,
@@ -143,7 +143,7 @@ export async function ask({
   const llmClient = llmProvider.getClient(modelName);
   const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
+    messages: [buildAskSystemPrompt() as ChatMessage, buildAskUserPrompt(question) as ChatMessage],
 
     temperature: 0.1,
     top_p: 1,

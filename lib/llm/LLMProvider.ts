@@ -8,6 +8,7 @@ export class LLMProvider {
     "gpt-4o-mini": "openai",
     "o1-preview": "openai",
     "o1-mini": "openai",
+    "gpt-4o-2024-08-06": "openai",
     // Add Anthropic models here
   };
 

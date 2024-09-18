@@ -83,6 +83,7 @@ const peeler_complex = async () => {
   const { price } = await stagehand.extract({
     instruction: "get the price of the peeler",
     schema: z.object({ price: z.number().nullable() }),
+    modelName: "gpt-4o-2024-08-06",
   });
 
   await stagehand.context.close();

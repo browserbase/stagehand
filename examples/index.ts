@@ -8,9 +8,9 @@ async function example() {
     verbose: true,
     debugDom: true,
   });
-  await stagehand.init({ modelName: "gpt-4o" }); // optionally specify model_name, defaults to "gpt-4o"
+  await stagehand.init({ modelName: "gpt-4o-2024-08-06" }); // optionally specify model_name, defaults to "gpt-4o" (as of sept 18, 2024, we need to specify the model name with date, changing on 10/2/2024)
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game", modelName: "gpt-4o" }); 
+  await stagehand.act({ action: "start the game", modelName: "gpt-4o" }); // you can specify modelName for each action if you want, otherwise it uses the default modelName from init
   await stagehand.act({ action: "close tutorial popup"});
 
   let guesses: { guess: string | null; description: string | null }[] = [];
@@ -32,14 +32,16 @@ async function example() {
           .string()
           .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
           .nullable()
-      }),
+      })
     });
 
     guesses.push({ guess: guess.guess, description: guess.description });
+    console.log("guesses", guesses);
 
-    const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description, 
-      "gpt-4o-mini");
+    const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Only output TRUE or FALSE.\nGuess description: " + guess.description, 
+      "gpt-4o");
     
+    console.log("correct", correct);
     if (correct.trimStart().split(" ").pop() === "TRUE") {
       console.log("I won Wordle!");
       return;

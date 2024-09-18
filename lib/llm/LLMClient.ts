@@ -14,12 +14,14 @@ export interface ChatMessage {
   }
   
   export interface ExtractionOptions extends ChatCompletionOptions {
-    schema: any; // Schema for the structured output
+    response_model: {
+      name: string;
+      schema: any;
+    }; // Schema for the structured output
   }
   
   export interface LLMClient {
     createChatCompletion(options: ChatCompletionOptions): Promise<{
-      content: string;
       [key: string]: any; // Additional response properties
     }>;
   

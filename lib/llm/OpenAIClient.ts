@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
+import { zodResponseFormat } from "openai/helpers/zod";
 import {
   LLMClient,
   ChatCompletionOptions,
@@ -8,14 +8,9 @@ import {
 
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
-  private instructorClient: InstructorClient<OpenAI>;
 
   constructor() {
     this.client = new OpenAI();
-    this.instructorClient = Instructor({
-      client: this.client,
-      mode: "TOOLS",
-    });
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
@@ -27,12 +22,23 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createExtraction(options: ExtractionOptions) {
-    // Use Instructor for extraction
-    const response = await this.instructorClient.chat.completions.create({
-      ...options,
+    console.log("createExtraction", options);
+    const responseFormat = zodResponseFormat(options.response_model.schema, options.response_model.name);
+    console.log("responseFormat", responseFormat);
+    const completion = await this.client.chat.completions.create({
+      model: options.model,
       messages: options.messages,
-      response_model: options.response_model,
+      response_format: responseFormat,
     });
+
+    const extractedData = completion.choices[0].message.content;
+    
+    // Parse the extracted data to match the expected format
+    const parsedData = JSON.parse(extractedData);
+    
+    const response = {
+      ...parsedData,
+    };
 
     return response;
   }
