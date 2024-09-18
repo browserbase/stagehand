@@ -9,8 +9,6 @@ import {
   buildObserveUserMessage,
   buildAskUserPrompt,
 } from "./prompt";
-import OpenAI from "openai";
-import type { InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
 import { LLMProvider } from "./LLMProvider";
 

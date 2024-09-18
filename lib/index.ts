@@ -1,8 +1,6 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import { expect } from "@playwright/test";
-import OpenAI from "openai";
 import crypto from "crypto";
-import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
