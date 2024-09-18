@@ -1,11 +1,10 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import { expect } from "@playwright/test";
-import OpenAI from "openai";
 import crypto from "crypto";
-import Instructor, { type InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
+import { LLMProvider } from "./LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 
@@ -60,8 +59,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
 }
 
 export class Stagehand {
-  private openai: OpenAI;
-  private instructor: InstructorClient<OpenAI>;
+  private llmProvider: LLMProvider;
   public observations: {
     [key: string]: { result: string; observation: string };
   };
@@ -72,30 +70,30 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
   public verbose: boolean;
   public debugDom: boolean;
+  private defaultModelName: string;
 
   constructor(
     {
       env,
       verbose = false,
       debugDom = false,
+      llmProvider,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: boolean;
       debugDom?: boolean;
+      llmProvider?: LLMProvider;
     } = {
       env: "BROWSERBASE",
     }
   ) {
-    this.openai = new OpenAI();
-    this.instructor = Instructor({
-      client: this.openai,
-      mode: "TOOLS",
-    });
+    this.llmProvider = llmProvider || new LLMProvider();
     this.env = env;
     this.observations = {};
     this.actions = {};
     this.verbose = verbose;
     this.debugDom = debugDom;
+    this.defaultModelName = "gpt-4o";
   }
 
   log({ category, message }: { category?: string; message: string }) {
@@ -114,10 +112,11 @@ export class Stagehand {
     await download.delete();
   }
 
-  async init() {
+  async init({ modelName = "gpt-4o" }: { modelName?: string } = {}) {
     const { context } = await getBrowser(this.env);
     this.context = context;
     this.page = context.pages()[0];
+    this.defaultModelName = modelName;
     // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
     // be one level above our running directly across evals, example, and as a package
     await this.page.addInitScript({
@@ -162,12 +161,14 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
+    modelName,
   }: {
     instruction: string;
     schema: T;
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
+    modelName?: string;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -184,8 +185,9 @@ export class Stagehand {
       instruction,
       progress,
       domElements: outputString,
-      client: this.instructor,
+      llmProvider: this.llmProvider,
       schema,
+      modelName: modelName || this.defaultModelName,
     });
     const { progress: newProgress, completed, ...output } = extractionResponse;
     await this.cleanupDomDebug();
@@ -214,7 +216,7 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string): Promise<string | null> {
+  async observe(observation: string, modelName?: string): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
@@ -229,7 +231,8 @@ export class Stagehand {
     const elementId = await observe({
       observation,
       domElements: outputString,
-      client: this.openai,
+      llmProvider: this.llmProvider,
+      modelName: modelName || this.defaultModelName,
     });
     await this.cleanupDomDebug();
 
@@ -265,10 +268,11 @@ export class Stagehand {
 
     return observationId;
   }
-  async ask(question: string): Promise<string | null> {
+  async ask(question: string, modelName?: string): Promise<string | null> {
     return ask({
       question,
-      client: this.openai,
+      llmProvider: this.llmProvider,
+      modelName: modelName || this.defaultModelName,
     });
   }
 
@@ -295,10 +299,12 @@ export class Stagehand {
     action,
     steps = "",
     chunksSeen = [],
+    modelName,
   }: {
     action: string;
     steps?: string;
     chunksSeen?: Array<number>;
+    modelName?: string;
   }): Promise<void> {
     this.log({
       category: "action",
@@ -317,7 +323,8 @@ export class Stagehand {
       action,
       domElements: outputString,
       steps,
-      client: this.openai,
+      llmProvider: this.llmProvider,
+      modelName: modelName || this.defaultModelName,
     });
     await this.cleanupDomDebug();
 

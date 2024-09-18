@@ -9,20 +9,21 @@ import {
   buildObserveUserMessage,
   buildAskUserPrompt,
 } from "./prompt";
-import OpenAI from "openai";
-import type { InstructorClient } from "@instructor-ai/instructor";
 import { z } from "zod";
+import { LLMProvider } from "./LLMProvider";
 
 export async function act({
   action,
   domElements,
   steps,
-  client,
+  llmProvider,
+  modelName,
 }: {
   action: string;
   steps?: string;
   domElements: string;
-  client: OpenAI;
+  llmProvider: LLMProvider;
+  modelName: string;
 }): Promise<{
   method: string;
   element: number;
@@ -31,8 +32,9 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
+  const client = llmProvider.getChatClient(modelName);
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: modelName,
     messages: [
       buildActSystemPrompt(),
       buildActUserPrompt(action, steps, domElements),
@@ -61,21 +63,24 @@ export async function extract({
   progress,
   domElements,
   schema,
-  client,
+  llmProvider,
+  modelName,
 }: {
   instruction: string;
   progress: string;
   domElements: string;
   schema: z.ZodObject<any>;
-  client: InstructorClient<OpenAI>;
+  llmProvider: LLMProvider;
+  modelName: string;
 }) {
+  const client = llmProvider.getExtractionClient(modelName);
   const fullSchema = schema.extend({
     progress: z.string().describe("progress of what has been extracted so far"),
     completed: z.boolean().describe("true if the goal is now accomplished"),
   });
 
   return client.chat.completions.create({
-    model: "gpt-4o",
+    model: modelName,
     messages: [
       buildExtractSystemPrompt(),
       buildExtractUserPrompt(instruction, progress, domElements),
@@ -94,14 +99,17 @@ export async function extract({
 export async function observe({
   observation,
   domElements,
-  client,
+  llmProvider,
+  modelName,
 }: {
   observation: string;
   domElements: string;
-  client: OpenAI;
+  llmProvider: LLMProvider;
+  modelName: string;
 }) {
+  const client = llmProvider.getChatClient(modelName);
   const observationResponse = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: modelName,
     messages: [
       buildObserveSystemPrompt(),
       buildObserveUserMessage(observation, domElements),
@@ -123,13 +131,16 @@ export async function observe({
 
 export async function ask({
   question,
-  client,
+  llmProvider,
+  modelName,
 }: {
   question: string;
-  client: OpenAI;
+  llmProvider: LLMProvider;
+  modelName: string;
 }) {
+  const client = llmProvider.getChatClient(modelName);
   const response = await client.chat.completions.create({
-    model: "gpt-4o",
+    model: modelName,
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
 
     temperature: 0.1,
