@@ -31,21 +31,21 @@ async function processElements(chunk: number) {
     if (element && isElementNode(element)) {
       const childrenCount = element.childNodes.length;
 
-      // if you have no children you are a leaf node
-      if (isLeafElement(element)) {
-        if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
-        }
-        continue;
-      } else if (isInteractiveElement(element)) {
-        if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
-        }
-        continue;
-      }
+      // Always traverse child nodes
       for (let i = childrenCount - 1; i >= 0; i--) {
         const child = element.childNodes[i];
-        DOMQueue.push(child as Element);
+        DOMQueue.push(child as ChildNode);
+      }
+
+      // Check if element is interactive
+      if (isInteractiveElement(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
+          candidateElements.push(element);
+        }
+      } else if (isLeafElement(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
+          candidateElements.push(element);
+        }
       }
     } else if (element && isTextNode(element) && isTextVisible(element)) {
       candidateElements.push(element);
