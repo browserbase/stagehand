@@ -10,7 +10,7 @@ async function example() {
   });
   await stagehand.init({ modelName: "gpt-4o-2024-08-06" }); // optionally specify model_name, defaults to "gpt-4o" (as of sept 18, 2024, we need to specify the model name with date, changing on 10/2/2024)
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game", modelName: "gpt-4o" }); // you can specify modelName for each action if you want, otherwise it uses the default modelName from init
+  await stagehand.act({ action: "start the game", modelName: "claude-3-5-sonnet-20240620" }); // you can specify modelName for each action if you want, otherwise it uses the default modelName from init
   await stagehand.act({ action: "close tutorial popup"});
 
   let guesses: { guess: string | null; description: string | null }[] = [];

@@ -144,12 +144,12 @@ export async function ask({
   const response = await llmClient.createChatCompletion({
     model: modelName,
     messages: [buildAskSystemPrompt() as ChatMessage, buildAskUserPrompt(question) as ChatMessage],
-
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
   });
 
+  // The parsing is now handled in the LLM clients
   return response.choices[0].message.content;
 }

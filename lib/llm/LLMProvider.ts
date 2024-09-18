@@ -9,7 +9,7 @@ export class LLMProvider {
     "o1-preview": "openai",
     "o1-mini": "openai",
     "gpt-4o-2024-08-06": "openai",
-    // Add Anthropic models here
+    "claude-3-5-sonnet-20240620": "anthropic"
   };
 
   getClient(modelName: string): LLMClient {

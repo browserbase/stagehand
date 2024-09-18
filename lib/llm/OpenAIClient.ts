@@ -14,11 +14,13 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
-    return await this.client.chat.completions.create({
+    const response = await this.client.chat.completions.create({
       ...options,
       messages: options.messages,
-      // Map additional options as needed
     });
+
+    // The response is already in the correct format for OpenAI
+    return response;
   }
 
   async createExtraction(options: ExtractionOptions) {
