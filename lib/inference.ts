@@ -17,13 +17,13 @@ export async function act({
   domElements,
   steps,
   llmProvider,
-  model_name,
+  modelName,
 }: {
   action: string;
   steps?: string;
   domElements: string;
   llmProvider: LLMProvider;
-  model_name: string;
+  modelName: string;
 }): Promise<{
   method: string;
   element: number;
@@ -32,9 +32,9 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const client = llmProvider.getChatClient(model_name);
+  const client = llmProvider.getChatClient(modelName);
   const response = await client.chat.completions.create({
-    model: model_name,
+    model: modelName,
     messages: [
       buildActSystemPrompt(),
       buildActUserPrompt(action, steps, domElements),
@@ -64,23 +64,23 @@ export async function extract({
   domElements,
   schema,
   llmProvider,
-  model_name,
+  modelName,
 }: {
   instruction: string;
   progress: string;
   domElements: string;
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
-  model_name: string;
+  modelName: string;
 }) {
-  const client = llmProvider.getExtractionClient(model_name);
+  const client = llmProvider.getExtractionClient(modelName);
   const fullSchema = schema.extend({
     progress: z.string().describe("progress of what has been extracted so far"),
     completed: z.boolean().describe("true if the goal is now accomplished"),
   });
 
   return client.chat.completions.create({
-    model: model_name,
+    model: modelName,
     messages: [
       buildExtractSystemPrompt(),
       buildExtractUserPrompt(instruction, progress, domElements),
@@ -100,16 +100,16 @@ export async function observe({
   observation,
   domElements,
   llmProvider,
-  model_name,
+  modelName,
 }: {
   observation: string;
   domElements: string;
   llmProvider: LLMProvider;
-  model_name: string;
+  modelName: string;
 }) {
-  const client = llmProvider.getChatClient(model_name);
+  const client = llmProvider.getChatClient(modelName);
   const observationResponse = await client.chat.completions.create({
-    model: model_name,
+    model: modelName,
     messages: [
       buildObserveSystemPrompt(),
       buildObserveUserMessage(observation, domElements),
@@ -132,15 +132,15 @@ export async function observe({
 export async function ask({
   question,
   llmProvider,
-  model_name,
+  modelName,
 }: {
   question: string;
   llmProvider: LLMProvider;
-  model_name: string;
+  modelName: string;
 }) {
-  const client = llmProvider.getChatClient(model_name);
+  const client = llmProvider.getChatClient(modelName);
   const response = await client.chat.completions.create({
-    model: model_name,
+    model: modelName,
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
 
     temperature: 0.1,

@@ -70,6 +70,7 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
   public verbose: boolean;
   public debugDom: boolean;
+  private defaultModelName: string;
 
   constructor(
     {
@@ -92,6 +93,7 @@ export class Stagehand {
     this.actions = {};
     this.verbose = verbose;
     this.debugDom = debugDom;
+    this.defaultModelName = "gpt-4o";
   }
 
   log({ category, message }: { category?: string; message: string }) {
@@ -110,10 +112,11 @@ export class Stagehand {
     await download.delete();
   }
 
-  async init() {
+  async init({ modelName = "gpt-4o" }: { modelName?: string } = {}) {
     const { context } = await getBrowser(this.env);
     this.context = context;
     this.page = context.pages()[0];
+    this.defaultModelName = modelName;
     // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
     // be one level above our running directly across evals, example, and as a package
     await this.page.addInitScript({
@@ -158,14 +161,14 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
-    model_name = "gpt-4o",
+    modelName,
   }: {
     instruction: string;
     schema: T;
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
-    model_name?: string;
+    modelName?: string;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -184,7 +187,7 @@ export class Stagehand {
       domElements: outputString,
       llmProvider: this.llmProvider,
       schema,
-      model_name,
+      modelName: modelName || this.defaultModelName,
     });
     const { progress: newProgress, completed, ...output } = extractionResponse;
     await this.cleanupDomDebug();
@@ -213,7 +216,7 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string, model_name: string = "gpt-4o"): Promise<string | null> {
+  async observe(observation: string, modelName?: string): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
@@ -229,7 +232,7 @@ export class Stagehand {
       observation,
       domElements: outputString,
       llmProvider: this.llmProvider,
-      model_name,
+      modelName: modelName || this.defaultModelName,
     });
     await this.cleanupDomDebug();
 
@@ -265,11 +268,11 @@ export class Stagehand {
 
     return observationId;
   }
-  async ask(question: string, model_name: string = "gpt-4o"): Promise<string | null> {
+  async ask(question: string, modelName?: string): Promise<string | null> {
     return ask({
       question,
       llmProvider: this.llmProvider,
-      model_name,
+      modelName: modelName || this.defaultModelName,
     });
   }
 
@@ -296,12 +299,12 @@ export class Stagehand {
     action,
     steps = "",
     chunksSeen = [],
-    model_name = "gpt-4o",
+    modelName,
   }: {
     action: string;
     steps?: string;
     chunksSeen?: Array<number>;
-    model_name?: string;
+    modelName?: string;
   }): Promise<void> {
     this.log({
       category: "action",
@@ -321,7 +324,7 @@ export class Stagehand {
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
-      model_name,
+      modelName: modelName || this.defaultModelName,
     });
     await this.cleanupDomDebug();
 

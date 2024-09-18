@@ -8,9 +8,9 @@ async function example() {
     verbose: true,
     debugDom: true,
   });
-  await stagehand.init();
+  await stagehand.init({ modelName: "gpt-4o" }); // optionally specify model_name, defaults to "gpt-4o"
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game", model_name: "gpt-4o" }); // optionally specify model_name, defaults to "gpt-4o"
+  await stagehand.act({ action: "start the game", modelName: "gpt-4o" }); 
   await stagehand.act({ action: "close tutorial popup"});
 
   let guesses: { guess: string | null; description: string | null }[] = [];
