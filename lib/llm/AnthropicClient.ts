@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { LLMClient, ChatCompletionOptions, ExtractionOptions } from "./LLMClient";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
@@ -82,17 +83,20 @@ export class AnthropicClient implements LLMClient {
 
     console.log("createExtraction anthropic", options);
 
-    console.log("options.response_model.schema", JSON.stringify(options.response_model.schema));
-
+    const jsonSchema = zodToJsonSchema(options.response_model.schema);
+    console.log("zodToJsonSchema result:", jsonSchema);
+  
+    // Extract the actual schema properties
+    const schemaProperties = jsonSchema.definitions?.MySchema?.properties || jsonSchema.properties;
+    const schemaRequired = jsonSchema.definitions?.MySchema?.required || jsonSchema.required;
+  
     const toolDefinition = {
       name: "extract_data",
       description: "Extracts specific data from the given content based on the provided schema.",
       input_schema: {
         type: "object",
-        properties: {
-          schema: JSON.parse(JSON.stringify(options.response_model.schema))
-        },
-        required: ["schema"]
+        properties: schemaProperties,
+        required: schemaRequired
       }
     };
 

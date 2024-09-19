@@ -46,6 +46,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "anthropic": "^0.0.0",
-    "anthropic-ai": "^0.0.10"
+    "anthropic-ai": "^0.0.10",
+    "zod-to-json-schema": "^3.23.3"
   }
 }
