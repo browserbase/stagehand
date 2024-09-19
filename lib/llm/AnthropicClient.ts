@@ -15,22 +15,21 @@ export class AnthropicClient implements LLMClient {
     const systemMessage = options.messages.find(msg => msg.role === 'system');
     const userMessages = options.messages.filter(msg => msg.role !== 'system');
 
-    // console.log("createChatCompletion", options);
-    // Transform tools to Anthropic's format
-    const anthropicTools = options.tools?.map(tool => {
-      if (tool.type === 'function') {
-        return {
-          name: tool.function.name,
-          description: tool.function.description,
-          input_schema: {
-            type: "object",
-            properties: tool.function.parameters.properties,
-            required: tool.function.parameters.required,
-          },
-        };
-      }
-      return tool;
-    });
+      // Transform tools to Anthropic's format
+      const anthropicTools = options.tools?.map(tool => {
+        if (tool.type === 'function') {
+          return {
+            name: tool.function.name,
+            description: tool.function.description,
+            input_schema: {
+              type: "object",
+              properties: tool.function.parameters.properties,
+              required: tool.function.parameters.required,
+            },
+          };
+        }
+        return tool;
+      });
 
     const response = await this.client.messages.create({
       model: options.model,
@@ -45,7 +44,6 @@ export class AnthropicClient implements LLMClient {
     });
 
     // Parse the response here
-    // console.log("response from anthropic", response);
     const transformedResponse = {
       id: response.id,
       object: 'chat.completion',
@@ -75,7 +73,9 @@ export class AnthropicClient implements LLMClient {
         total_tokens: response.usage.input_tokens + response.usage.output_tokens
       }
     };
-    // console.log("transformedResponse", transformedResponse);
+
+    console.log("transformedResponse", transformedResponse);
+
     return transformedResponse;
   }
 
