@@ -10,7 +10,8 @@ import {
   buildAskUserPrompt,
 } from "./prompt";
 import { z } from "zod";
-import { LLMProvider } from "./LLMProvider";
+import { LLMProvider } from "./llm/LLMProvider";
+import { ChatMessage } from "./llm/LLMClient";
 
 export async function act({
   action,
@@ -32,12 +33,12 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const client = llmProvider.getChatClient(modelName);
-  const response = await client.chat.completions.create({
+  const llmClient = llmProvider.getClient(modelName);
+  const response = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildActSystemPrompt(),
-      buildActUserPrompt(action, steps, domElements),
+      buildActSystemPrompt() as ChatMessage,
+      buildActUserPrompt(action, steps, domElements) as ChatMessage,
     ],
     temperature: 0.1,
     top_p: 1,
@@ -73,17 +74,18 @@ export async function extract({
   llmProvider: LLMProvider;
   modelName: string;
 }) {
-  const client = llmProvider.getExtractionClient(modelName);
+  const llmClient = llmProvider.getClient(modelName);
+  
   const fullSchema = schema.extend({
     progress: z.string().describe("progress of what has been extracted so far"),
     completed: z.boolean().describe("true if the goal is now accomplished"),
   });
 
-  return client.chat.completions.create({
+  return llmClient.createExtraction({
     model: modelName,
     messages: [
-      buildExtractSystemPrompt(),
-      buildExtractUserPrompt(instruction, progress, domElements),
+      buildExtractSystemPrompt() as ChatMessage,
+      buildExtractUserPrompt(instruction, progress, domElements) as ChatMessage,
     ],
     response_model: {
       schema: fullSchema,
@@ -107,12 +109,12 @@ export async function observe({
   llmProvider: LLMProvider;
   modelName: string;
 }) {
-  const client = llmProvider.getChatClient(modelName);
-  const observationResponse = await client.chat.completions.create({
+  const llmClient = llmProvider.getClient(modelName);
+  const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildObserveSystemPrompt(),
-      buildObserveUserMessage(observation, domElements),
+      buildObserveSystemPrompt() as ChatMessage,
+      buildObserveUserMessage(observation, domElements) as ChatMessage,
     ],
     temperature: 0.1,
     top_p: 1,
@@ -138,16 +140,16 @@ export async function ask({
   llmProvider: LLMProvider;
   modelName: string;
 }) {
-  const client = llmProvider.getChatClient(modelName);
-  const response = await client.chat.completions.create({
+  const llmClient = llmProvider.getClient(modelName);
+  const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
-
+    messages: [buildAskSystemPrompt() as ChatMessage, buildAskUserPrompt(question) as ChatMessage],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
   });
 
+  // The parsing is now handled in the LLM clients
   return response.choices[0].message.content;
 }

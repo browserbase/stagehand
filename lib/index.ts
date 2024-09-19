@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
-import { LLMProvider } from "./LLMProvider";
+import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 
@@ -70,7 +70,7 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
   public verbose: boolean;
   public debugDom: boolean;
-  private defaultModelName: string;
+  public defaultModelName: string;
 
   constructor(
     {
