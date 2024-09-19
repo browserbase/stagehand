@@ -68,26 +68,28 @@ export class Stagehand {
   public page: Page;
   public context: BrowserContext;
   public env: "LOCAL" | "BROWSERBASE";
-  public verbose: boolean;
+  public verbose: 0 | 1 | 2;
   public debugDom: boolean;
   public defaultModelName: string;
+  private logger: (message: { category?: string; message: string }) => void;
 
   constructor(
     {
       env,
-      verbose = false,
+      verbose = 0,
       debugDom = false,
       llmProvider,
     }: {
       env: "LOCAL" | "BROWSERBASE";
-      verbose?: boolean;
+      verbose?: 0 | 1 | 2;
       debugDom?: boolean;
       llmProvider?: LLMProvider;
     } = {
       env: "BROWSERBASE",
     }
   ) {
-    this.llmProvider = llmProvider || new LLMProvider();
+    this.logger = this.log.bind(this);
+    this.llmProvider = llmProvider || new LLMProvider(this.logger);
     this.env = env;
     this.observations = {};
     this.actions = {};
@@ -96,8 +98,8 @@ export class Stagehand {
     this.defaultModelName = "gpt-4o";
   }
 
-  log({ category, message }: { category?: string; message: string }) {
-    if (this.verbose) {
+  log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
+    if (this.verbose >= level) {
       const categoryString = category ? `:${category}` : "";
       console.log(`[stagehand${categoryString}] ${message}`);
     }
@@ -173,6 +175,7 @@ export class Stagehand {
     this.log({
       category: "extraction",
       message: `starting extraction ${instruction}`,
+      level: 1
     });
 
     await this.waitForSettledDom();
@@ -198,6 +201,7 @@ export class Stagehand {
       this.log({
         category: "extraction",
         message: `response: ${JSON.stringify(extractionResponse)}`,
+        level: 1
       });
 
       return merge(content, output);
@@ -205,6 +209,7 @@ export class Stagehand {
       this.log({
         category: "extraction",
         message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
+        level: 1
       });
       return this.extract({
         instruction,
@@ -220,6 +225,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
+      level: 1
     });
 
     await this.waitForSettledDom();
@@ -240,6 +246,7 @@ export class Stagehand {
       this.log({
         category: "observation",
         message: `no element found for ${observation}`,
+        level: 1
       });
       return null;
     }
@@ -247,6 +254,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found element ${elementId}`,
+      level: 1
     });
 
     const selector = selectorMap[parseInt(elementId)];
@@ -255,6 +263,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found locator ${locatorString}`,
+      level: 1
     });
 
     // the locator string found by the LLM might resolve to multiple places in the DOM
@@ -309,6 +318,7 @@ export class Stagehand {
     this.log({
       category: "action",
       message: `taking action: ${action}`,
+      level: 1
     });
 
     await this.waitForSettledDom();
@@ -334,6 +344,7 @@ export class Stagehand {
         this.log({
           category: "action",
           message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
+          level: 1
         });
 
         return this.act({
@@ -345,6 +356,7 @@ export class Stagehand {
         this.log({
           category: "action",
           message: "no response from act with no chunks left to check",
+          level: 1
         });
         this.recordAction(action, null);
         return;
@@ -354,6 +366,7 @@ export class Stagehand {
     this.log({
       category: "action",
       message: `response: ${JSON.stringify(response)}`,
+      level: 1
     });
 
     const element = response["element"];
@@ -368,6 +381,7 @@ export class Stagehand {
       ${method} on ${path} with args ${args}
       ${response.why}
       `,
+      level: 1
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
     if (typeof locator[method as keyof typeof locator] === "function") {
@@ -381,6 +395,7 @@ export class Stagehand {
       this.log({
         category: "action",
         message: "continuing to next sub action",
+        level: 1
       });
       return this.act({
         action,
