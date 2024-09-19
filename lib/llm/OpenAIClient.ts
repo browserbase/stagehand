@@ -28,7 +28,7 @@ export class OpenAIClient implements LLMClient {
   async createExtraction(options: ExtractionOptions) {
     console.log("createExtraction", options);
     const responseFormat = zodResponseFormat(options.response_model.schema, options.response_model.name);
-    console.log("responseFormat", responseFormat);
+    // console.log("responseFormat", responseFormat);
     const completion = await this.client.chat.completions.create({
       model: options.model,
       messages: options.messages,

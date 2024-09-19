@@ -14,22 +14,22 @@ export class AnthropicClient implements LLMClient {
     const systemMessage = options.messages.find(msg => msg.role === 'system');
     const userMessages = options.messages.filter(msg => msg.role !== 'system');
 
-    console.log("createChatCompletion", options);
-      // Transform tools to Anthropic's format
-      const anthropicTools = options.tools?.map(tool => {
-        if (tool.type === 'function') {
-          return {
-            name: tool.function.name,
-            description: tool.function.description,
-            input_schema: {
-              type: "object",
-              properties: tool.function.parameters.properties,
-              required: tool.function.parameters.required,
-            },
-          };
-        }
-        return tool;
-      });
+    // console.log("createChatCompletion", options);
+    // Transform tools to Anthropic's format
+    const anthropicTools = options.tools?.map(tool => {
+      if (tool.type === 'function') {
+        return {
+          name: tool.function.name,
+          description: tool.function.description,
+          input_schema: {
+            type: "object",
+            properties: tool.function.parameters.properties,
+            required: tool.function.parameters.required,
+          },
+        };
+      }
+      return tool;
+    });
 
     const response = await this.client.messages.create({
       model: options.model,
@@ -44,7 +44,7 @@ export class AnthropicClient implements LLMClient {
     });
 
     // Parse the response here
-    console.log("response from anthropic", response);
+    // console.log("response from anthropic", response);
     const transformedResponse = {
       id: response.id,
       object: 'chat.completion',
@@ -74,47 +74,59 @@ export class AnthropicClient implements LLMClient {
         total_tokens: response.usage.input_tokens + response.usage.output_tokens
       }
     };
-    console.log("transformedResponse", transformedResponse);
+    // console.log("transformedResponse", transformedResponse);
     return transformedResponse;
   }
 
   async createExtraction(options: ExtractionOptions) {
+
+    console.log("createExtraction anthropic", options);
+
+    console.log("options.response_model.schema", JSON.stringify(options.response_model.schema));
+
     const toolDefinition = {
       name: "extract_data",
       description: "Extracts specific data from the given content based on the provided schema.",
       input_schema: {
         type: "object",
         properties: {
-          content: {
-            type: "string",
-            description: "The content to extract data from"
-          },
-          schema: {
-            type: "object",
-            description: "The schema defining the structure of the data to be extracted"
-          }
+          schema: JSON.parse(JSON.stringify(options.response_model.schema))
         },
-        required: ["content", "schema"]
+        required: ["schema"]
       }
     };
+
+    const systemMessage = options.messages.find(msg => msg.role === 'system');
+    const userMessages = options.messages.filter(msg => msg.role !== 'system');
+    
+
+  //   { role: "user", content: `Please extract the following information:\n${JSON.stringify(options.response_model.schema)}\n\nFrom this content:\n${options.messages[options.messages.length - 1].content}` }
+  // ],
+
+    console.log("systemMessage", systemMessage);
+    console.log("userMessages", userMessages);
 
     const response = await this.client.messages.create({
       model: options.model || 'claude-3-opus-20240229',
       max_tokens: options.max_tokens || 1000,
-      messages: [
-        { role: "system", content: "You are an AI assistant capable of extracting structured data from text." },
-        { role: "user", content: `Please extract the following information:\n${JSON.stringify(options.response_model.schema)}\n\nFrom this content:\n${options.messages[options.messages.length - 1].content}` }
-      ],
+      messages: userMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      system: systemMessage?.content || "You are an AI assistant capable of extracting structured data from text.",
       temperature: options.temperature || 0.1,
-      tools: [toolDefinition],
-      tool_choice: { type: "tool", name: "extract_data" }
+      tools: [toolDefinition]
     });
 
-    if (response.content[0].type === 'tool_call') {
-      const extractedData = JSON.parse(response.content[0].text);
+    console.log("response from anthropic", response);
+
+    const toolUse = response.content.find(c => c.type === 'tool_use');
+    if (toolUse && 'input' in toolUse) {
+      const extractedData = toolUse.input;
+      console.log("extractedData", extractedData);
       return extractedData;
     } else {
-      throw new Error("Extraction failed: No tool call in response");
+      throw new Error("Extraction failed: No tool use with input in response");
     }
   }
 }
