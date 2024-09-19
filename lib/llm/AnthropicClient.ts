@@ -15,6 +15,22 @@ export class AnthropicClient implements LLMClient {
     const userMessages = options.messages.filter(msg => msg.role !== 'system');
 
     console.log("createChatCompletion", options);
+      // Transform tools to Anthropic's format
+      const anthropicTools = options.tools?.map(tool => {
+        if (tool.type === 'function') {
+          return {
+            name: tool.function.name,
+            description: tool.function.description,
+            input_schema: {
+              type: "object",
+              properties: tool.function.parameters.properties,
+              required: tool.function.parameters.required,
+            },
+          };
+        }
+        return tool;
+      });
+
     const response = await this.client.messages.create({
       model: options.model,
       max_tokens: options.max_tokens || 1500,
@@ -22,20 +38,44 @@ export class AnthropicClient implements LLMClient {
         role: msg.role,
         content: msg.content,
       })),
+      tools: anthropicTools,
       system: systemMessage?.content,
       temperature: options.temperature,
     });
 
     // Parse the response here
-    return {
-      ...response,
+    console.log("response from anthropic", response);
+    const transformedResponse = {
+      id: response.id,
+      object: 'chat.completion',
+      created: Date.now(),
+      model: response.model,
       choices: [{
+        index: 0,
         message: {
-          content: response.content[0].text,
-          // Add other necessary fields here
-        }
-      }]
+          role: 'assistant',
+          content: response.content.find(c => c.type === 'text')?.text || null,
+          tool_calls: response.content
+            .filter(c => c.type === 'tool_use')
+            .map(toolUse => ({
+              id: toolUse.id,
+              type: 'function',
+              function: {
+                name: toolUse.name,
+                arguments: JSON.stringify(toolUse.input)
+              }
+            }))
+        },
+        finish_reason: response.stop_reason
+      }],
+      usage: {
+        prompt_tokens: response.usage.input_tokens,
+        completion_tokens: response.usage.output_tokens,
+        total_tokens: response.usage.input_tokens + response.usage.output_tokens
+      }
     };
+    console.log("transformedResponse", transformedResponse);
+    return transformedResponse;
   }
 
   async createExtraction(options: ExtractionOptions) {

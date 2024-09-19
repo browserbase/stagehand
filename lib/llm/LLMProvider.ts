@@ -22,7 +22,7 @@ export class LLMProvider {
       case "openai":
         return new OpenAIClient();
       case "anthropic":
-        return new AnthropicClient(/* Credentials */);
+        return new AnthropicClient();
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }
