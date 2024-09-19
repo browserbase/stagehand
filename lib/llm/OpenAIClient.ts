@@ -14,19 +14,19 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
-    console.log("createChatCompletion", options);
+    // console.log("createChatCompletion", options);
     const response = await this.client.chat.completions.create({
       ...options,
       messages: options.messages,
     });
 
-    console.log("response from openai", response);
+    // console.log("response from openai", response);
     // The response is already in the correct format for OpenAI
     return response;
   }
 
   async createExtraction(options: ExtractionOptions) {
-    console.log("createExtraction", options);
+    // console.log("createExtraction", options);
     const responseFormat = zodResponseFormat(options.response_model.schema, options.response_model.name);
     // console.log("responseFormat", responseFormat);
     const completion = await this.client.chat.completions.create({

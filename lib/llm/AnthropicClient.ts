@@ -81,10 +81,7 @@ export class AnthropicClient implements LLMClient {
 
   async createExtraction(options: ExtractionOptions) {
 
-    console.log("createExtraction anthropic", options);
-
     const jsonSchema = zodToJsonSchema(options.response_model.schema);
-    console.log("zodToJsonSchema result:", jsonSchema);
   
     // Extract the actual schema properties
     const schemaProperties = jsonSchema.definitions?.MySchema?.properties || jsonSchema.properties;
@@ -103,13 +100,6 @@ export class AnthropicClient implements LLMClient {
     const systemMessage = options.messages.find(msg => msg.role === 'system');
     const userMessages = options.messages.filter(msg => msg.role !== 'system');
     
-
-  //   { role: "user", content: `Please extract the following information:\n${JSON.stringify(options.response_model.schema)}\n\nFrom this content:\n${options.messages[options.messages.length - 1].content}` }
-  // ],
-
-    console.log("systemMessage", systemMessage);
-    console.log("userMessages", userMessages);
-
     const response = await this.client.messages.create({
       model: options.model || 'claude-3-opus-20240229',
       max_tokens: options.max_tokens || 1000,
