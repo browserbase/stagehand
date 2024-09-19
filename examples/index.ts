@@ -8,7 +8,8 @@ async function example() {
     verbose: true,
     debugDom: true,
   });
-  await stagehand.init({ modelName: "gpt-4o-2024-08-06" }); // optionally specify model_name, defaults to "gpt-4o" (as of sept 18, 2024, we need to specify the model name with date, changing on 10/2/2024)
+  
+  await stagehand.init({ modelName: "claude-3-5-sonnet-20240620" }); // optionally specify model_name, defaults to "gpt-4o" (as of sept 18, 2024, we need to specify the model name with date, changing on 10/2/2024)
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
   await stagehand.act({ action: "start the game", modelName: "claude-3-5-sonnet-20240620" }); // you can specify modelName for each action if you want, otherwise it uses the default modelName from init
   await stagehand.act({ action: "close tutorial popup", modelName: "claude-3-5-sonnet-20240620" });
@@ -24,6 +25,7 @@ async function example() {
     await stagehand.page.locator("body").pressSequentially(response);
     await stagehand.page.keyboard.press("Enter");
 
+    // TODO - inspect the behaviour where the model sometimes silently resets to its default model despite the modelName being passed in
     const guess = await stagehand.extract({
       instruction: "extract the five letter guess at the bottom",
       schema: z.object({
@@ -32,7 +34,8 @@ async function example() {
           .string()
           .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
           .nullable()
-      })
+      }),
+      modelName: "claude-3-5-sonnet-20240620"
     });
 
     guesses.push({ guess: guess.guess, description: guess.description });
