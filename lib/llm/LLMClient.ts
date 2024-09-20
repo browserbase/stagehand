@@ -21,9 +21,7 @@ export interface ChatMessage {
   }
   
   export interface LLMClient {
-    createChatCompletion(options: ChatCompletionOptions): Promise<{
-      [key: string]: any; // Additional response properties
-    }>;
-  
+    createChatCompletion(options: ChatCompletionOptions): Promise<any>;
     createExtraction(options: ExtractionOptions): Promise<any>;
+    logger: (message: { category?: string; message: string }) => void;
   }

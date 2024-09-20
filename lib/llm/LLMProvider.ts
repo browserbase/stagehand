@@ -12,6 +12,12 @@ export class LLMProvider {
     "claude-3-5-sonnet-20240620": "anthropic"
   };
 
+  private logger: (message: { category?: string; message: string }) => void;
+
+  constructor(logger: (message: { category?: string; message: string }) => void) {
+    this.logger = logger;
+  }
+
   getClient(modelName: string): LLMClient {
     const provider = this.supportedModels[modelName];
     if (!provider) {
@@ -20,9 +26,9 @@ export class LLMProvider {
 
     switch (provider) {
       case "openai":
-        return new OpenAIClient();
+        return new OpenAIClient(this.logger);
       case "anthropic":
-        return new AnthropicClient();
+        return new AnthropicClient(this.logger);
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }

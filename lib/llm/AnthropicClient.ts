@@ -4,16 +4,22 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
+  public logger: (message: { category?: string; message: string }) => void;
 
-  constructor() {
+  constructor(logger: (message: { category?: string; message: string }) => void) {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY, // Make sure to set this environment variable
     });
+    this.logger = logger;
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
     const systemMessage = options.messages.find(msg => msg.role === 'system');
     const userMessages = options.messages.filter(msg => msg.role !== 'system');
+    this.logger({ category: "Anthropic", 
+      message: "Creating chat completion with options: " + JSON.stringify(options), 
+      level: 2 
+    });
 
       // Transform tools to Anthropic's format
       const anthropicTools = options.tools?.map(tool => {
@@ -74,12 +80,19 @@ export class AnthropicClient implements LLMClient {
       }
     };
 
-    console.log("transformedResponse", transformedResponse);
+    this.logger({ category: "Anthropic", 
+      message: "Transformed response: " + JSON.stringify(transformedResponse), 
+      level: 2 
+    });
 
     return transformedResponse;
   }
 
   async createExtraction(options: ExtractionOptions) {
+    this.logger({ category: "Anthropic", 
+      message: "Creating extraction with options: " + JSON.stringify(options), 
+      level: 2 
+    });
 
     const jsonSchema = zodToJsonSchema(options.response_model.schema);
   
@@ -112,12 +125,18 @@ export class AnthropicClient implements LLMClient {
       tools: [toolDefinition]
     });
 
-    console.log("response from anthropic", response);
+    this.logger({ category: "Anthropic", 
+      message: "Response from Anthropic: " + JSON.stringify(response), 
+      level: 2 
+    });
 
     const toolUse = response.content.find(c => c.type === 'tool_use');
     if (toolUse && 'input' in toolUse) {
       const extractedData = toolUse.input;
-      console.log("extractedData", extractedData);
+      this.logger({ category: "Anthropic", 
+        message: "Extracted data: " + JSON.stringify(extractedData), 
+        level: 2 
+      });
       return extractedData;
     } else {
       throw new Error("Extraction failed: No tool use with input in response");
