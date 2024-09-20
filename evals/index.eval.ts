@@ -113,19 +113,21 @@ const wikipedia = async () => {
 };
 
 const costar = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: true });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
   await stagehand.init();
 
   await stagehand.page.goto("https://www.costar.com/");
   await stagehand.waitForSettledDom();
 
   await stagehand.act({ action: "click on the first article" });
+
+  await stagehand.act({ action: "find the footer of the page" });
   
   await stagehand.waitForSettledDom();
   const articleTitle = await stagehand.extract({
     instruction: "extract the title of the article",
     schema: z.object({
-      title: z.string().describe("the title of the article").nullable()
+      title: z.string().describe("the title of the article").nullable(),
     }),
     modelName: "gpt-4o-2024-08-06"
   });
@@ -140,7 +142,7 @@ const costar = async () => {
   return isTitleValid;
 };
 
-const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar };
+const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar};
 
 const exactMatch = (args: { input; output; expected? }) => {
   return {
@@ -171,7 +173,7 @@ Eval("stagehand", {
         input: { name: "wikipedia" },
       },
       { input: { name: "peeler_complex" } },
-      { input: { name: "zillow" } },
+      { input: { name: "costar" } },
     ];
   },
   task: async (input) => {

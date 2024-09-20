@@ -372,7 +372,10 @@ export class Stagehand {
       `,
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
-    console.log("locator found", locator);
+    console.log("locator", locator);
+    console.log("method", method);
+    console.log("args", args);
+    
     if (typeof locator[method as keyof typeof locator] === "function") {
       //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
       await locator[method](...args);
