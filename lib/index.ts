@@ -212,6 +212,7 @@ export class Stagehand {
         progress: progress + newProgress + ", ",
         content: merge(content, output),
         chunksSeen,
+        modelName,
       });
     }
   }
@@ -340,6 +341,7 @@ export class Stagehand {
           action,
           steps: steps + "Scrolled to another section, ",
           chunksSeen,
+          modelName,
         });
       } else {
         this.log({
@@ -370,6 +372,7 @@ export class Stagehand {
       `,
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
+    console.log("locator found", locator);
     if (typeof locator[method as keyof typeof locator] === "function") {
       //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
       await locator[method](...args);
@@ -385,6 +388,8 @@ export class Stagehand {
       return this.act({
         action,
         steps: steps + response.step + ", ",
+        chunksSeen,
+        modelName,
       });
     }
   }

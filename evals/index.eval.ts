@@ -112,7 +112,7 @@ const wikipedia = async () => {
   return currentUrl === url;
 };
 
-const zillow = async () => {
+const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: true });
   await stagehand.init();
 
@@ -140,7 +140,7 @@ const zillow = async () => {
   return isTitleValid;
 };
 
-const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, zillow };
+const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar };
 
 const exactMatch = (args: { input; output; expected? }) => {
   return {
