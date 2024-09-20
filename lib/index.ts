@@ -413,8 +413,6 @@ export class Stagehand {
           await this.page.goto(newUrl); // Navigate to the new URL in the current tab
           await this.page.waitForLoadState("domcontentloaded");
           await this.waitForSettledDom();
-        } else {
-          await this.page.waitForLoadState("networkidle");
         }
       }
     } else {
