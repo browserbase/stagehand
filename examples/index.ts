@@ -25,7 +25,6 @@ async function example() {
     await stagehand.page.locator("body").pressSequentially(response);
     await stagehand.page.keyboard.press("Enter");
 
-    // TODO - inspect the behaviour where the model sometimes silently resets to its default model despite the modelName being passed in
     const guess = await stagehand.extract({
       instruction: "extract the five letter guess at the bottom",
       schema: z.object({
