@@ -2,7 +2,7 @@ import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
-const playground = async () => {
+const google_jobs = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
   await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
 
@@ -20,7 +20,6 @@ const playground = async () => {
   await stagehand.act({ action: "click on the search button" });
 
   await stagehand.act({ action: "click on the learn more button for the first job" });
-
 
   const jobDetails = await stagehand.extract({
     instruction: "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
@@ -40,20 +39,32 @@ const playground = async () => {
 
   console.log("Job Details:", jobDetails);
 
-
-  const isJobDetailsValid = Object.keys(jobDetails).length > 0 && 
-    jobDetails.applicationDeadline && 
-    jobDetails.minimumQualifications && 
-    jobDetails.preferredQualifications;
+  const isJobDetailsValid = jobDetails && 
+  Object.values(jobDetails).every(value => 
+    value !== null && 
+    value !== undefined && 
+    value !== '' &&
+    (typeof value !== 'object' || Object.values(value).every(v => 
+      v !== null && 
+      v !== undefined && 
+      v !== '' && 
+      (typeof v === 'number' || typeof v === 'string')
+    ))
+  );
 
   await stagehand.context.close();
+
+  console.log("Job Details valid:", isJobDetailsValid);
 
   return isJobDetailsValid;
 };
 
 async function main() {
-  const result = await playground();
-  console.log("Task result:", result);
+  const [googleJobsResult] = await Promise.all([
+    google_jobs(),
+  ]);
+  
+  console.log("Google Jobs result:", googleJobsResult);
 }
 
 main().catch(console.error);

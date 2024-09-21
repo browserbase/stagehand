@@ -390,15 +390,15 @@ export class Stagehand {
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
 
-    if (typeof locator[method as keyof typeof locator] === "function") {
-      // Create a promise that resolves when a new page is created
-      const newPagePromise = Promise.race([
-        new Promise<Page | null>((resolve) => {
-          this.context.once('page', (page) => resolve(page));
-          setTimeout(() => resolve(null), 500); // 500ms timeout
-        })
-      ]);
-    
+    if (method === 'scrollIntoView') { // this is not a native playwright function
+      await locator.evaluate((element) => {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    } else if (typeof locator[method as keyof typeof locator] === "function") {
+      
+      const isLink = await locator.evaluate((element) => {
+        return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+      });
 
       // Perform the action
       //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
@@ -406,13 +406,23 @@ export class Stagehand {
 
       // Check if a new page was created, but only if the method is 'click'
       if (method === 'click') {
-        const newPage = await newPagePromise;
-        if (newPage) {
-          const newUrl = await newPage.url();
-          await newPage.close(); // Close the new page/tab
-          await this.page.goto(newUrl); // Navigate to the new URL in the current tab
-          await this.page.waitForLoadState("domcontentloaded");
-          await this.waitForSettledDom();
+        if (isLink) {
+          // Create a promise that resolves when a new page is created
+          console.log("clicking link");
+          const newPagePromise = Promise.race([
+            new Promise<Page | null>((resolve) => {
+              this.context.once('page', (page) => resolve(page));
+              setTimeout(() => resolve(null), 1500); // 1500ms timeout
+            })
+          ]);
+          const newPage = await newPagePromise;
+          if (newPage) {
+            const newUrl = await newPage.url();
+            await newPage.close(); // Close the new page/tab
+            await this.page.goto(newUrl); // Navigate to the new URL in the current tab
+            await this.page.waitForLoadState("domcontentloaded");
+            await this.waitForSettledDom();
+          }
         }
       }
     } else {

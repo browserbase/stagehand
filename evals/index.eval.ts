@@ -112,6 +112,7 @@ const wikipedia = async () => {
   return currentUrl === url;
 };
 
+
 const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
   await stagehand.init();
@@ -122,14 +123,14 @@ const costar = async () => {
   await stagehand.act({ action: "click on the first article" });
 
   await stagehand.act({ action: "find the footer of the page" });
-  
+
   await stagehand.waitForSettledDom();
   const articleTitle = await stagehand.extract({
-    instruction: "extract the title of the article",
-    schema: z.object({
+      instruction: "extract the title of the article",
+      schema: z.object({
       title: z.string().describe("the title of the article").nullable(),
-    }),
-    modelName: "gpt-4o-2024-08-06"
+      }),
+      modelName: "gpt-4o-2024-08-06"
   });
 
   console.log("articleTitle", articleTitle);
@@ -141,6 +142,7 @@ const costar = async () => {
 
   return isTitleValid;
 };
+
 
 const google_jobs = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
@@ -161,7 +163,6 @@ const google_jobs = async () => {
 
   await stagehand.act({ action: "click on the learn more button for the first job" });
 
-
   const jobDetails = await stagehand.extract({
     instruction: "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
     schema: z.object({
@@ -180,19 +181,31 @@ const google_jobs = async () => {
 
   console.log("Job Details:", jobDetails);
 
-
-  const isJobDetailsValid = Object.keys(jobDetails).length > 0 && 
-    jobDetails.applicationDeadline && 
-    jobDetails.minimumQualifications && 
-    jobDetails.preferredQualifications;
+  const isJobDetailsValid = jobDetails && 
+  Object.values(jobDetails).every(value => 
+    value !== null && 
+    value !== undefined && 
+    value !== '' &&
+    (typeof value !== 'object' || Object.values(value).every(v => 
+      v !== null && 
+      v !== undefined && 
+      v !== '' && 
+      (typeof v === 'number' || typeof v === 'string')
+    ))
+  );
 
   await stagehand.context.close();
 
+  console.log("Job Details valid:", isJobDetailsValid);
+
   return isJobDetailsValid;
 };
+
 const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar, google_jobs};
 
 const exactMatch = (args: { input; output; expected? }) => {
+  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+
   return {
     name: "Exact match",
     score: Boolean(args.output) ? 1 : 0,
@@ -226,7 +239,8 @@ Eval("stagehand", {
     ];
   },
   task: async (input) => {
-    return await tasks[input.name](input);
+    const result = await tasks[input.name](input);
+    return result;
   },
   scores: [exactMatch],
 });
