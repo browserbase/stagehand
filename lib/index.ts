@@ -217,6 +217,7 @@ export class Stagehand {
         progress: progress + newProgress + ", ",
         content: merge(content, output),
         chunksSeen,
+        modelName: modelName || this.defaultModelName,
       });
     }
   }
