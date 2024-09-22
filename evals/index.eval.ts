@@ -207,7 +207,7 @@ const twitter_signup = async () => {
 
       await stagehand.act({
         action:
-          'sign up with email "{random 12 digit number}@gmail.com", password "TEstTEst.1234". Use whatever else you want for all other fields.',
+          'sign up with email "{random 12 digit number}@gmail.com", password "TEstTEst.1234". Use whatever else you want for all other fields. You can only stop if you have reached the verification stage.',
       });
 
       await stagehand.waitForSettledDom();
