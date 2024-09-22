@@ -45,7 +45,7 @@ const vanta_h = async () => {
   return observation === null;
 };
 
-const simpleGoogleSearch = async () => {
+const simple_google_search = async () => {
   const stagehand = new Stagehand({ env: "LOCAL" });
   await stagehand.init();
 
@@ -107,6 +107,91 @@ const peeler_complex = async () => {
 
   return price !== null;
 };
+const extract_collaborators_from_github_repository = async () => {
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  await stagehand.init();
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Operation timed out")), 60000),
+  );
+
+  try {
+    const extractionPromise = (async () => {
+      await stagehand.page.goto("https://github.com/facebook/react");
+      await stagehand.act({
+        action: "find the contributors section",
+      });
+
+      await stagehand.waitForSettledDom();
+
+      const { contributors } = await stagehand.extract({
+        instruction: "Extract top 20 contributors of this repository",
+        schema: z.object({
+          contributors: z.array(
+            z.object({
+              github_username: z.string(),
+              information: z.string(),
+            }),
+          ),
+        }),
+        modelName: "gpt-4o-2024-08-06",
+      });
+
+      console.log("Extracted collaborators:", contributors);
+      return contributors.length === 20;
+    })();
+
+    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    await stagehand.context.close();
+    return result;
+  } catch (error) {
+    console.error("Error or timeout occurred:", error);
+    await stagehand.context.close();
+    return false;
+  }
+};
+
+const extract_last_twenty_github_commits = async () => {
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  await stagehand.init();
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Operation timed out")), 60000),
+  );
+
+  try {
+    const extractionPromise = (async () => {
+      await stagehand.page.goto("https://github.com/facebook/react");
+
+      await stagehand.waitForSettledDom();
+
+      const { commits } = await stagehand.extract({
+        instruction: "Extract last 20 commits",
+        schema: z.object({
+          commits: z.array(
+            z.object({
+              commit_message: z.string(),
+              commit_url: z.string(),
+              commit_hash: z.string(),
+            }),
+          ),
+        }),
+        modelName: "gpt-4o-2024-08-06",
+      });
+
+      console.log("Extracted commits:", commits);
+      return commits.length === 20;
+    })();
+
+    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    await stagehand.context.close();
+    return result;
+  } catch (error) {
+    console.error("Error or timeout occurred:", error);
+    await stagehand.context.close();
+    return false;
+  }
+};
 
 const wikipedia = async () => {
   const stagehand = new Stagehand({
@@ -133,7 +218,9 @@ const tasks = {
   peeler_simple,
   peeler_complex,
   wikipedia,
-  simpleGoogleSearch,
+  simple_google_search,
+  extract_collaborators_from_github_repository,
+  extract_last_twenty_github_commits,
 };
 
 const exactMatch = (args: { input; output; expected? }) => {
@@ -165,11 +252,24 @@ Eval("stagehand", {
         input: { name: "wikipedia" },
       },
       { input: { name: "peeler_complex" } },
-      { input: { name: "simpleGoogleSearch" } },
+      { input: { name: "simple_google_search" } },
+      { input: { name: "extract_collaborators_from_github_repository" } },
+      { input: { name: "extract_last_twenty_github_commits" } },
     ];
   },
   task: async (input) => {
-    return await tasks[input.name](input);
+    try {
+      const result = await tasks[input.name](input);
+      if (result) {
+        console.log(`✅ ${input.name}: Passed`);
+      } else {
+        console.log(`❌ ${input.name}: Failed`);
+      }
+      return result;
+    } catch (error) {
+      console.error(`❌ ${input.name}: Error - ${error}`);
+      return false;
+    }
   },
   scores: [exactMatch],
 });
