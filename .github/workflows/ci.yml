@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm install -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Run Evals
         run: pnpm evals
