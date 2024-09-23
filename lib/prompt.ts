@@ -51,7 +51,7 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
         properties: {
           method: {
             type: "string",
-            description: "The playwright function to call",
+            description: "The playwright function to call.",
           },
           element: {
             type: "number",

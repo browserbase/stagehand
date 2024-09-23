@@ -137,15 +137,32 @@ export class Stagehand {
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
-      await this.page.evaluate(() => window.waitForDomSettle());
+      await this.page.evaluate(() => {
+        return new Promise<void>((resolve) => {
+          if (typeof window.waitForDomSettle === 'function') {
+            window.waitForDomSettle().then(resolve);
+          } else {
+            console.warn('waitForDomSettle is not defined, resolving immediately');
+            resolve();
+          }
+        });
+      });
     } catch (e) {
-      console.log(e);
+      console.log("Error in waitForSettledDom:", e);
     }
   }
 
   async startDomDebug() {
-    if (this.debugDom) {
-      await this.page.evaluate(() => window.debugDom());
+    try {
+      await this.page.evaluate(() => {
+        if (typeof window.debugDom === 'function') {
+          window.debugDom();
+        } else {
+          console.warn('debugDom is not defined');
+        }
+      });
+    } catch (e) {
+      console.log("Error in startDomDebug:", e);
     }
   }
   async cleanupDomDebug() {
@@ -217,6 +234,7 @@ export class Stagehand {
         progress: progress + newProgress + ", ",
         content: merge(content, output),
         chunksSeen,
+        modelName,
       });
     }
   }
@@ -351,6 +369,7 @@ export class Stagehand {
           action,
           steps: steps + "Scrolled to another section, ",
           chunksSeen,
+          modelName,
         });
       } else {
         this.log({
@@ -384,9 +403,42 @@ export class Stagehand {
       level: 1
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
-    if (typeof locator[method as keyof typeof locator] === "function") {
+
+    if (method === 'scrollIntoView') { // this is not a native playwright function
+      await locator.evaluate((element) => {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    } else if (typeof locator[method as keyof typeof locator] === "function") {
+      
+      const isLink = await locator.evaluate((element) => {
+        return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+      });
+
+      // Perform the action
       //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
       await locator[method](...args);
+
+      // Check if a new page was created, but only if the method is 'click'
+      if (method === 'click') {
+        if (isLink) {
+          // Create a promise that resolves when a new page is created
+          console.log("clicking link");
+          const newPagePromise = Promise.race([
+            new Promise<Page | null>((resolve) => {
+              this.context.once('page', (page) => resolve(page));
+              setTimeout(() => resolve(null), 1500); // 1500ms timeout
+            })
+          ]);
+          const newPage = await newPagePromise;
+          if (newPage) {
+            const newUrl = await newPage.url();
+            await newPage.close(); // Close the new page/tab
+            await this.page.goto(newUrl); // Navigate to the new URL in the current tab
+            await this.page.waitForLoadState("domcontentloaded");
+            await this.waitForSettledDom();
+          }
+        }
+      }
     } else {
       throw new Error(`stagehand: chosen method ${method} is invalid`);
     }
@@ -400,6 +452,8 @@ export class Stagehand {
       return this.act({
         action,
         steps: steps + response.step + ", ",
+        chunksSeen,
+        modelName,
       });
     }
   }

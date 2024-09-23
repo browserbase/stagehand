@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
     "evals": "pnpm build-dom-scripts && npx braintrust eval evals/index.eval.ts",
+    "playground": "pnpm build-dom-scripts && tsx evals/playground.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "build": "pnpm build-dom-scripts && tsup lib/index.ts"
   },
