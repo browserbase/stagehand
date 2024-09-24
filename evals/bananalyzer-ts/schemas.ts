@@ -2,6 +2,9 @@ import { Stagehand } from "../../lib";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
+import { Server } from "http";
+import { parseMHTMLFile } from "./utils/mhtmlParser";
+import { createExpressServer } from "./server/expressServer";
 
 // Define types
 export const ExampleType = z.enum(["listing", "detail", "listing_detail"]);
@@ -155,8 +158,26 @@ export async function evaluateExample(example: Example): Promise<boolean> {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
   await stagehand.init();
 
+  let server: Server | null = null;
+  let localUrl: string = example.url; // Default to the original URL
+
   try {
-    await stagehand.page.goto(example.url);
+    if (example.source === "mhtml") {
+      // Handle MHTML Source
+      const mhtmlFilePath = path.resolve(
+        __dirname,
+        `../bananalyzer/static/${example.id}/index.mhtml`,
+      );
+      const parsedMHTML = await parseMHTMLFile(mhtmlFilePath);
+
+      // Create Express server to serve the parsed HTML and resources
+      const app = createExpressServer(parsedMHTML.html, parsedMHTML.resources);
+      server = app.listen(0); // Listen on a random available port
+      const port = (server.address() as any).port;
+      localUrl = `http://localhost:${port}/`;
+    }
+
+    await stagehand.page.goto(localUrl);
     await stagehand.waitForSettledDom();
 
     let schemaDefinition: z.ZodRawShape;
@@ -231,6 +252,9 @@ export async function evaluateExample(example: Example): Promise<boolean> {
     console.error("Error during evaluation:", error);
     return false;
   } finally {
+    if (server) {
+      server.close();
+    }
     await stagehand.context.close();
   }
 }
@@ -267,7 +291,7 @@ export async function evaluateExample(example: Example): Promise<boolean> {
 //         job_benefits:
 //           "\uead4Industry leading healthcare\ue7beEducational resources\ue8ecDiscounts on products and services\ueafdSavings and investments\uf862Maternity and paternity leave\uea17Generous time away\ueb51Giving programs\uefd4Opportunities to network and connect",
 //         qualifications:
-//           "Bachelor's Degree in Computer Science or related technical field AND 2+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python\nOR equivalent experience.\n2+ years of professional experience designing, developing, testing, and shipping software.  \n2+ years technical abilities around design, coding, rapid prototyping, debugging, and problem solving.",
+//           "Bachelor's Degree in Computer Science or related technical field AND 2+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python\nOR equivalent experience.\n2+ years of professional experience designing, developing, testing, and shipping software.  \n2+ years of technical abilities around design, coding, rapid prototyping, debugging, and problem solving.",
 //         preferred_qualifications:
 //           "Bachelor's Degree in Computer Science, or related technical discipline AND 4+ years technical engineering experience with coding in languages including, but not limited to, C, C++, C#, Java, JavaScript, or Python\n\nOR equivalent experience.\n\n2+ years of experience in building Android applications. \nExperience with continuous integration/continuous deployment tools, including but not limited to, Azure DevOps. \nCoding, debugging, and problem-solving skills. \nDemonstrated desire and passion for meeting customer needs. \nPassion for contributing to the team culture. \nTrack record of learning and growing.",
 //         role: "Join our supportive and collaborative team of engineers working on critical and strategic projects in Intune.\n\nWork on a global cloud security and compliance solution to manage and secure millions of devices.\nDevelop and deliver robust designs and code for both frontend experiences and backend services.\nDebug and optimize work across multiple clients, services and teams in a fast-paced agile environment.\nEmbrace a culture of collaboration, customer obsession, openness, curiosity, integrity, and innovation.\nBe a leader who brings clarity and technical direction to produce resilient engineering designs and drive them to execution.\nIncorporate feedback loops from customers, partners, and stakeholders across disciplines to every solution.\nOwn scenarios end-to-end that span beyond your own area to existing features.",

@@ -48,6 +48,9 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "anthropic": "^0.0.0",
     "anthropic-ai": "^0.0.10",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "playwright": "^1.47.2",
     "zod-to-json-schema": "^3.23.3"
   }
 }
