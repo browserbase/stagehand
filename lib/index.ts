@@ -107,12 +107,7 @@ export class Stagehand {
   log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
     if (this.verbose >= level) {
       const categoryString = category ? `:${category}` : "";
-      console.log(JSON.stringify({
-        type: "log",
-        category: `[stagehand${categoryString}]`,
-        message,
-        level
-      }));
+      console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
   async downloadPDF(url: string, title: string) {
