@@ -6,24 +6,58 @@ import path from "path";
 /**
  * Interface representing a parsed MHTML object.
  */
+interface Resource {
+  name: string;
+  content: Buffer;
+  contentType: string;
+  contentLocation: string; // Add this line
+}
+
 interface ParsedMHTML {
   html: string;
-  resources: { name: string; content: Buffer; contentType: string }[];
+  resources: Resource[];
 }
 
 /**
- * Decodes a quoted-printable encoded string.
+ * Decodes a quoted-printable encoded string into a UTF-8 string.
  * @param input - The quoted-printable encoded string.
- * @returns The decoded string.
+ * @returns The decoded UTF-8 string.
  */
 function decodeQuotedPrintable(input: string): string {
   // Replace soft line breaks (= followed by CRLF or LF)
   input = input.replace(/=\r?\n/g, "");
 
-  // Replace =XX with the corresponding character
-  const decoded = input.replace(/=([A-Fa-f0-9]{2})/g, (_, hex) => {
-    return String.fromCharCode(parseInt(hex, 16));
-  });
+  // Replace =XX with the corresponding byte
+  const byteArray: number[] = [];
+  const regex = /=([A-Fa-f0-9]{2})/g;
+  let match: RegExpExecArray | null;
+
+  let lastIndex = 0;
+  while ((match = regex.exec(input)) !== null) {
+    // Push the preceding characters as they are
+    if (match.index > lastIndex) {
+      const preceding = input.slice(lastIndex, match.index);
+      for (const char of preceding) {
+        byteArray.push(char.charCodeAt(0));
+      }
+    }
+
+    // Push the decoded byte
+    byteArray.push(parseInt(match[1], 16));
+    lastIndex = regex.lastIndex;
+  }
+
+  // Push any remaining characters after the last match
+  if (lastIndex < input.length) {
+    const remaining = input.slice(lastIndex);
+    for (const char of remaining) {
+      byteArray.push(char.charCodeAt(0));
+    }
+  }
+
+  // Convert the byte array to a Buffer and decode as UTF-8
+  const buffer = Buffer.from(byteArray);
+  const decoded = buffer.toString("utf-8");
 
   console.log("Decoded Quoted-Printable Content:", decoded);
   return decoded;
@@ -138,6 +172,7 @@ export function parseMHTML(mhtmlContent: string): ParsedMHTML {
         name,
         content: bufferContent,
         contentType,
+        contentLocation, // Add this line
       });
       console.log(`Resource part found: ${name}`);
     }
