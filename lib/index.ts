@@ -227,7 +227,7 @@ export class Stagehand {
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
         category: "extraction",
-        message: `response: ${JSON.stringify(extractionResponse)}`,
+        message: `response: ${JSON.stringify(extractionResponse, null, 2)}`,
         level: 1,
       });
 
@@ -397,7 +397,7 @@ export class Stagehand {
 
     this.log({
       category: "action",
-      message: `response: ${JSON.stringify(response)}`,
+      message: `response: ${JSON.stringify(response, null, 2)}`,
       level: 1,
     });
 

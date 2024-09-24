@@ -43,7 +43,16 @@ async function processElements(chunk: number) {
           candidateElements.push(element);
         }
       } else if (isLeafElement(element)) {
+        if (element.textContent?.trim() === "Email has already been taken.") {
+          console.log("Leaf element found", element.outerHTML);
+        }
         if ((await isActive(element)) && isVisible(element)) {
+          if (element.textContent?.trim() === "Email has already been taken.") {
+            console.log(
+              "Leaf element is active and visible",
+              element.outerHTML,
+            );
+          }
           candidateElements.push(element);
         }
       }
@@ -65,6 +74,9 @@ async function processElements(chunk: number) {
 
     selectorMap[index] = xpath;
   });
+
+  console.log("selectorMap", selectorMap);
+  console.log("outputString", outputString);
 
   return {
     outputString,
