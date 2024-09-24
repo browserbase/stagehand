@@ -24,6 +24,8 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
       console.log("Starting a local browser...");
     }
 
+    console.log(`Launching browser in ${headless ? 'headless' : 'headed'} mode`);
+
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
     fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
 

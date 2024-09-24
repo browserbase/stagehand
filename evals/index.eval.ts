@@ -3,7 +3,7 @@ import { Stagehand } from "../lib";
 import { z } from "zod";
 
 const vanta = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL" });
+  const stagehand = new Stagehand({ env: "LOCAL", headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
@@ -33,7 +33,7 @@ const vanta = async () => {
 
 
 const vanta_h = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL" });
+  const stagehand = new Stagehand({ env: "LOCAL", headless: process.env.HEADLESS !== 'false'});
   await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
@@ -48,7 +48,7 @@ const vanta_h = async () => {
 };
 
 const peeler_simple = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL" });
+  const stagehand = new Stagehand({ env: "LOCAL", headless: process.env.HEADLESS !== 'false'});
   await stagehand.init();
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
@@ -68,7 +68,8 @@ const peeler_simple = async () => {
 const peeler_complex = async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: true,
+    verbose: 1,
+    headless: process.env.HEADLESS !== 'false',
   });
   await stagehand.init();
 
@@ -96,7 +97,8 @@ const peeler_complex = async () => {
 const wikipedia = async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: true,
+    verbose: 2,
+    headless: process.env.HEADLESS !== 'false',
   });
   await stagehand.init();
 
@@ -114,7 +116,7 @@ const wikipedia = async () => {
 
 
 const costar = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();
 
   await stagehand.page.goto("https://www.costar.com/");
@@ -145,7 +147,7 @@ const costar = async () => {
 
 
 const google_jobs = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
 
   await stagehand.page.goto("https://www.google.com/");

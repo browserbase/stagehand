@@ -3,7 +3,7 @@ import { Stagehand } from "../lib";
 import { z } from "zod";
 
 const google_jobs = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: true, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
 
   await stagehand.page.goto("https://www.google.com/");
