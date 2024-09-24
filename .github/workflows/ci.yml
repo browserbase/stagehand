@@ -9,6 +9,9 @@ jobs:
   run-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      pull-requests: write
+      contents: read
 
     steps:
       - name: Check out repository code
@@ -33,9 +36,6 @@ jobs:
 
       - name: Run Evals
         uses: braintrustdata/eval-action@v1
-        permissions:
-          pull-requests: write
-          contents: read
         with:
           api_key: ${{ secrets.BRAINTRUST_API_KEY }}
           runtime: node
