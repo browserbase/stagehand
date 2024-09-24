@@ -222,10 +222,10 @@ Eval("stagehand", {
       { input: { name: "vanta" } },
       { input: { name: "vanta_h" } },
       { input: { name: "peeler_simple" } },
-      // { input: { name: "wikipedia" } },
-      // { input: { name: "peeler_complex" } },
-      // { input: { name: "costar" } },
-      // { input: { name: "google_jobs" } }
+      { input: { name: "wikipedia" } },
+      { input: { name: "peeler_complex" } },
+      { input: { name: "costar" } },
+      { input: { name: "google_jobs" } }
     ];
   },
   task: async (input) => {
