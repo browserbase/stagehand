@@ -224,7 +224,7 @@ Eval("stagehand", {
       { input: { name: "peeler_simple" } },
       { input: { name: "wikipedia" } },
       { input: { name: "peeler_complex" } },
-      // { input: { name: "costar" } },
+      { input: { name: "costar" } },
       { input: { name: "google_jobs" } }
     ];
   },
