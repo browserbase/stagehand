@@ -38,10 +38,7 @@ function validateEndUrlMatch(expected: string, actual: string): boolean {
 // Updated evaluateExample function
 export async function evaluateExample(exampleId: string): Promise<boolean> {
   const examples = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "../bananalyzer/static/examples.json"),
-      "utf-8",
-    ),
+    fs.readFileSync(path.join(__dirname, "./static/examples.json"), "utf-8"),
   );
   const example = examples.find((example: Example) => example.id === exampleId);
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
@@ -55,7 +52,7 @@ export async function evaluateExample(exampleId: string): Promise<boolean> {
       // Handle MHTML Source
       const mhtmlFilePath = path.resolve(
         __dirname,
-        `../bananalyzer/static/${example.id}/index.mhtml`,
+        `./static/${example.id}/index.mhtml`,
       );
       const parsedMHTML = await parseMHTMLFile(mhtmlFilePath);
 
