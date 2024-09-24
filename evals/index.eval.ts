@@ -115,26 +115,38 @@ const wikipedia = async () => {
   return currentUrl === url;
 };
 
-
 const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();
 
-  await stagehand.page.goto("https://www.costar.com/");
-  await stagehand.waitForSettledDom();
+  try {
+    await Promise.race([
+      stagehand.page.goto("https://www.costar.com/"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), 30000))
+    ]);
+    await stagehand.waitForSettledDom();
 
-  await stagehand.act({ action: "click on the first article" });
+    await stagehand.act({ action: "click on the first article" });
 
-  await stagehand.act({ action: "find the footer of the page" });
+    await stagehand.act({ action: "find the footer of the page" });
 
-  await stagehand.waitForSettledDom();
-  const articleTitle = await stagehand.extract({
+    await stagehand.waitForSettledDom();
+    const articleTitle = await stagehand.extract({
       instruction: "extract the title of the article",
       schema: z.object({
-      title: z.string().describe("the title of the article").nullable(),
+        title: z.string().describe("the title of the article").nullable(),
       }),
       modelName: "gpt-4o-2024-08-06"
-  });
+    });
+
+    return articleTitle;
+  } catch (error) {
+    console.error(`Error in costar function: ${error.message}`);
+    return { title: null };
+  } finally {
+    await stagehand.context.close();
+  }
+};
 
   console.log("articleTitle", articleTitle);
 
