@@ -215,12 +215,8 @@ const google_jobs = async () => {
 const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar, google_jobs};
 
 
-function logJsonl(message: any) {
-  console.log(JSON.stringify(message));
-}
-
 const exactMatch = (args: { input; output; expected? }) => {
-  logJsonl({ type: "result", task: args.input.name, output: args.output });
+  console.log(JSON.stringify({ type: "result", task: args.input.name, output: args.output }));
 
   return {
     name: "Exact match",
@@ -245,13 +241,13 @@ Eval("stagehand", {
     try {
       const result = await tasks[input.name](input);
       if (result) {
-        logJsonl({ type: "status", task: input.name, status: "Passed ✅" });
+        console.log(JSON.stringify({ type: "status", task: input.name, status: "Passed ✅" }) );
       } else {
-        logJsonl({ type: "status", task: input.name, status: "Failed ❌" });
+        console.log(JSON.stringify({ type: "status", task: input.name, status: "Failed ❌" }));
       }
       return result;
     } catch (error) {
-      logJsonl({ type: "error", task: input.name, error: `Error ❌ - ${error.message}` });
+      console.log(JSON.stringify({ type: "error", task: input.name, error: `Error ❌ - ${error.message}` }));
       return false;
     }
   },
