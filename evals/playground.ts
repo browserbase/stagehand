@@ -2,7 +2,6 @@ import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
-
 const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();

@@ -9,9 +9,6 @@ jobs:
   run-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    permissions:
-      pull-requests: write
-      contents: read
 
     steps:
       - name: Check out repository code
@@ -31,18 +28,11 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
-      - name: Build DOM scripts
-        run: pnpm build-dom-scripts
-
       - name: Run Evals
-        uses: braintrustdata/eval-action@v1
-        with:
-          api_key: ${{ secrets.BRAINTRUST_API_KEY }}
-          runtime: node
-          root: .
-          paths: evals/index.eval.ts
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           HEADLESS: true
+        run: pnpm evals
         timeout-minutes: 20
