@@ -8,7 +8,7 @@ on:
 jobs:
   run-evals:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository code
@@ -35,4 +35,4 @@ jobs:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           HEADLESS: true
         run: pnpm evals
-        timeout-minutes: 12
+        timeout-minutes: 20
