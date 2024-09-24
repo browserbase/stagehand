@@ -115,6 +115,7 @@ const wikipedia = async () => {
   return currentUrl === url;
 };
 
+
 const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();
@@ -139,7 +140,15 @@ const costar = async () => {
       modelName: "gpt-4o-2024-08-06"
     });
 
-    return articleTitle;
+    console.log("articleTitle", articleTitle);
+
+    // Check if the title is more than 5 characters
+    const isTitleValid = articleTitle.title !== null && articleTitle.title.length > 5;
+  
+    await stagehand.context.close();
+  
+    return isTitleValid;
+
   } catch (error) {
     console.error(`Error in costar function: ${error.message}`);
     return { title: null };
@@ -147,17 +156,6 @@ const costar = async () => {
     await stagehand.context.close();
   }
 };
-
-  console.log("articleTitle", articleTitle);
-
-  // Check if the title is more than 5 characters
-  const isTitleValid = articleTitle.title !== null && articleTitle.title.length > 5;
-
-  await stagehand.context.close();
-
-  return isTitleValid;
-};
-
 
 const google_jobs = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
