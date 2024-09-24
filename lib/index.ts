@@ -12,7 +12,7 @@ require("dotenv").config({ path: ".env" });
 
 async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: boolean = false) {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
-    console.log(JSON.stringify({ type: "log", message: "Connecting you to broswerbase..." }));
+    console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
       `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
     );
@@ -20,11 +20,11 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
     return { browser, context };
   } else {
     if (!process.env.BROWSERBASE_API_KEY) {
-      console.log(JSON.stringify({ type: "log", message: "No browserbase key detected" }));
-      console.log(JSON.stringify({ type: "log", message: "Starting a local browser..." }));
+      console.log("No browserbase key detected");
+      console.log("Starting a local browser...");
     }
 
-    console.log(JSON.stringify({ type: "log", message: `Launching browser in ${headless ? 'headless' : 'headed'} mode` }));
+    console.log(`Launching browser in ${headless ? 'headless' : 'headed'} mode`);
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
     fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
@@ -55,7 +55,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
       }
     );
 
-    console.log(JSON.stringify({ type: "log", message: "Local browser started successfully." }));
+    console.log("Local browser started successfully.");
     return { context };
   }
 }
@@ -159,13 +159,13 @@ export class Stagehand {
           if (typeof window.waitForDomSettle === 'function') {
             window.waitForDomSettle().then(resolve);
           } else {
-            console.log(JSON.stringify({ type: "log", message: 'waitForDomSettle is not defined, resolving immediately' }));
+            console.warn('waitForDomSettle is not defined, resolving immediately');
             resolve();
           }
         });
       });
     } catch (e) {
-      console.log(JSON.stringify({ type: "log", message: `Error in waitForSettledDom: ${e}` }));
+      console.log("Error in waitForSettledDom:", e);
     }
   }
 
@@ -175,11 +175,11 @@ export class Stagehand {
         if (typeof window.debugDom === 'function') {
           window.debugDom();
         } else {
-          console.log(JSON.stringify({ type: "log", message: 'debugDom is not defined' }));
+          console.warn('debugDom is not defined');
         }
       });
     } catch (e) {
-      console.log(JSON.stringify({ type: "log", message: `Error in startDomDebug: ${e}` }));
+      console.log("Error in startDomDebug:", e);
     }
   }
   async cleanupDomDebug() {
@@ -439,7 +439,7 @@ export class Stagehand {
       if (method === 'click') {
         if (isLink) {
           // Create a promise that resolves when a new page is created
-          console.log(JSON.stringify({ type: "log", message: "clicking link" }));
+          console.log("clicking link");
           const newPagePromise = Promise.race([
             new Promise<Page | null>((resolve) => {
               this.context.once('page', (page) => resolve(page));
