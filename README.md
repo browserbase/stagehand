@@ -12,9 +12,9 @@ _In this example, Stagehand combines DOM preprocessing with chunking, Playwright
 
 Stagehand is currently compatible with Node.js, Bun, and Deno.
 
-Stagehand requires OpenAI as a model.
+Stagehand requires OpenAI or Anthropic as a model.
 
-Ensure that an OpenAI API Key is accessible in your local environment. For example, with a `.env` file as follows:
+Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment. For example, with a `.env` file as follows:
 
 ```
 OPENAI_API_KEY=""
@@ -24,6 +24,7 @@ OPENAI_API_KEY=""
 
 > [!NOTE]
 > Get your OpenAI API Key from the [OpenAI Platform](https://platform.openai.com/api-keys).
+> Get your Anthropic API Key from the [Anthropic Platform](https://console.anthropic.com/settings/keys).
 
 <br />
 
@@ -271,6 +272,16 @@ BRAINTRUST_API_KEY=""%
 Then, run:
 
 `pnpm evals`
+
+### Develop new evals
+
+Running all evals can take some time. We have a convenience script `playground.ts` where you can develop your new single eval before adding it to the set of all evals.
+
+You can run:
+
+`pnpm playground`
+
+To execute and iterate on the eval you are currently developing.
 
 ### Development tips
 
