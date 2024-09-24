@@ -1,6 +1,7 @@
 import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
+import process from 'process';
 
 const vanta = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", headless: process.env.HEADLESS !== 'false' });
@@ -214,6 +215,7 @@ const exactMatch = (args: { input; output; expected? }) => {
   };
 };
 
+
 Eval("stagehand", {
   data: () => {
     return [
@@ -241,8 +243,18 @@ Eval("stagehand", {
     ];
   },
   task: async (input) => {
-    const result = await tasks[input.name](input);
-    return result;
+    try {
+      const result = await tasks[input.name](input);
+      if (result) {
+        console.log(`✅ ${input.name}: Passed`);
+      } else {
+        console.log(`❌ ${input.name}: Failed`);
+      }
+      return result;
+    } catch (error) {
+      console.error(`❌ ${input.name}: Error - ${error}`);
+      return false;
+    }
   },
   scores: [exactMatch],
 });
