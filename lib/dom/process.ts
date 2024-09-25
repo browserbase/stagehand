@@ -60,7 +60,31 @@ async function processElements(chunk: number) {
     if (isTextNode(element)) {
       outputString += `${index}:${element.textContent}\n`;
     } else if (isElementNode(element)) {
-      outputString += `${index}:${element.outerHTML.trim()}\n`;
+      const tagName = element.tagName.toLowerCase();
+
+      // Collect essential attributes
+      const attributes: string[] = [];
+      if (element.id) {
+        attributes.push(`id="${element.id}"`);
+      }
+      if (element.className) {
+        attributes.push(`class="${element.className}"`);
+      }
+      if (element.getAttribute('href')) {
+        attributes.push(`href="${element.getAttribute('href')}"`);
+      }
+      if (element.getAttribute('src')) {
+        attributes.push(`src="${element.getAttribute('src')}"`);
+      }
+
+      // Build the simplified element string
+      const openingTag = `<${tagName}${
+        attributes.length > 0 ? ' ' + attributes.join(' ') : ''
+      }>`;
+      const closingTag = `</${tagName}>`;
+      const textContent = element.textContent.trim();
+
+      outputString += `${index}:${openingTag}${textContent}${closingTag}\n`;
     }
 
     selectorMap[index] = xpath;
