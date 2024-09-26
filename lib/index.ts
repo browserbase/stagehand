@@ -251,7 +251,7 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string, modelName?: string): Promise<string | null> {
+  async observe(observation: string, modelName?: string): Promise<{ success: boolean; result?: string; error?: string }> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
@@ -278,7 +278,7 @@ export class Stagehand {
         message: `no element found for ${observation}`,
         level: 1
       });
-      return null;
+      return { success: false, error: `No element found for observation: ${observation}` };
     }
 
     this.log({
@@ -299,13 +299,18 @@ export class Stagehand {
     // the locator string found by the LLM might resolve to multiple places in the DOM
     const firstLocator = this.page.locator(locatorString).first();
 
-    await expect(firstLocator).toBeAttached();
+    try {
+      await expect(firstLocator).toBeAttached();
+    } catch (error) {
+      return { success: false, error: `Element found but not attached: ${error.message}` };
+    }
+
     const observationId = await this.recordObservation(
       observation,
       locatorString
     );
 
-    return observationId;
+    return { success: true, result: observationId };
   }
   async ask(question: string, modelName?: string): Promise<string | null> {
     return ask({
@@ -344,7 +349,7 @@ export class Stagehand {
     steps?: string;
     chunksSeen?: Array<number>;
     modelName?: string;
-  }): Promise<void> {
+  }): Promise<{ success: boolean; error?: string }> {
     this.log({
       category: "action",
       message: `taking action: ${action}`,
@@ -390,7 +395,7 @@ export class Stagehand {
           level: 1
         });
         this.recordAction(action, null);
-        return;
+        return { success: false, error: "Action could not be performed after checking all chunks" };
       }
     }
 
@@ -416,22 +421,24 @@ export class Stagehand {
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
 
-    if (method === 'scrollIntoView') { // this is not a native playwright function
+    if (method === 'scrollIntoView') {
       await locator.evaluate((element) => {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     } else if (typeof locator[method as keyof typeof locator] === "function") {
-      
-      const isLink = await locator.evaluate((element) => {
-        return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
-      });
-
-      // Perform the action
-      //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
-      await locator[method](...args);
+      try {
+        //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
+        await locator[method](...args);
+      } catch (error) {
+        return { success: false, error: `Failed to perform ${method} on element: ${error.message}` };
+      }
 
       // Check if a new page was created, but only if the method is 'click'
       if (method === 'click') {
+        const isLink = await locator.evaluate((element) => {
+          return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+        });
+
         if (isLink) {
           // Create a promise that resolves when a new page is created
           console.log("clicking link");
@@ -452,7 +459,7 @@ export class Stagehand {
         }
       }
     } else {
-      throw new Error(`stagehand: chosen method ${method} is invalid`);
+      return { success: false, error: `Invalid method: ${method}` };
     }
 
     if (!response.completed) {
@@ -468,6 +475,8 @@ export class Stagehand {
         modelName,
       });
     }
+
+    return { success: true };
   }
   setPage(page: Page) {
     this.page = page;

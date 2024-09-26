@@ -9,10 +9,20 @@ async function example() {
     debugDom: true,
   });
   
-  await stagehand.init({ modelName: "claude-3-5-sonnet-20240620" }); // optionally specify model_name, defaults to "gpt-4o" (as of sept 18, 2024, we need to specify the model name with date, changing on 10/2/2024)
+  await stagehand.init({ modelName: "claude-3-5-sonnet-20240620" });
   await stagehand.page.goto("https://www.nytimes.com/games/wordle/index.html");
-  await stagehand.act({ action: "start the game" }); 
-  await stagehand.act({ action: "close tutorial popup" });
+  
+  const startGameResult = await stagehand.act({ action: "start the game" });
+  if (!startGameResult.success) {
+    console.error("Failed to start the game:", startGameResult.error);
+    return;
+  }
+  
+  const closeTutorialResult = await stagehand.act({ action: "close tutorial popup" });
+  if (!closeTutorialResult.success) {
+    console.error("Failed to close tutorial:", closeTutorialResult.error);
+    // Decide whether to continue or return based on the importance of this action
+  }
 
   let guesses: { guess: string | null; description: string | null }[] = [];
   for (let i = 0; i < 6; i++) {
@@ -22,8 +32,13 @@ async function example() {
       throw new Error("no response when asking for a guess");
     }
 
-    await stagehand.page.locator("body").pressSequentially(response);
-    await stagehand.page.keyboard.press("Enter");
+    try {
+      await stagehand.page.locator("body").pressSequentially(response);
+      await stagehand.page.keyboard.press("Enter");
+    } catch (error) {
+      console.error("Failed to input guess:", error.message);
+      continue;
+    }
 
     const guess = await stagehand.extract({
       instruction: "extract the five letter guess at the bottom",
