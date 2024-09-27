@@ -2,7 +2,7 @@ import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
-const costar = async () => {
+const nonsense_action = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
   await stagehand.init();
   // TODO: fix this eval
@@ -13,7 +13,8 @@ const costar = async () => {
     ]);
     await stagehand.waitForSettledDom();
 
-    await stagehand.act({ action: "click on the first article" });
+    const result = await stagehand.act({ action: "click on the first banana" });
+    console.log("result", result);
 
     await stagehand.act({ action: "find the footer of the page" });
 
@@ -44,11 +45,11 @@ const costar = async () => {
 };
 
 async function main() {
-  const [costarResult] = await Promise.all([
-    costar(),
+  const [nonsenseResult] = await Promise.all([
+    nonsense_action(),
   ]);
   
-  console.log("Costar result:", costarResult);
+  console.log("Nonsense result:", nonsenseResult);
 }
 
 main().catch(console.error);
