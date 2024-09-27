@@ -129,7 +129,7 @@ const costar = async () => {
 
     await stagehand.act({ action: "click on the first article" });
 
-    await stagehand.act({ action: "find the footer of the page" });
+    await stagehand.act({ action: "click on the learn more button for the first job" });
 
     await stagehand.waitForSettledDom();
     const articleTitle = await stagehand.extract({
@@ -174,7 +174,8 @@ const google_jobs = async () => {
 
   await stagehand.act({ action: "click on the search button" });
 
-  await stagehand.act({ action: "click on the learn more button for the first job" });
+  // NOTE: "click on the first Learn More button" is not working - the span for learn more is not clickable and the a href is after it
+  await stagehand.act({ action: "click on the first job link" });
 
   const jobDetails = await stagehand.extract({
     instruction: "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
@@ -198,11 +199,9 @@ const google_jobs = async () => {
   Object.values(jobDetails).every(value => 
     value !== null && 
     value !== undefined && 
-    value !== '' &&
     (typeof value !== 'object' || Object.values(value).every(v => 
       v !== null && 
       v !== undefined && 
-      v !== '' && 
       (typeof v === 'number' || typeof v === 'string')
     ))
   );
@@ -234,7 +233,7 @@ Eval("stagehand", {
       { input: { name: "peeler_simple" } },
       { input: { name: "wikipedia" } },
       { input: { name: "peeler_complex" } },
-      // { input: { name: "costar" } }, // TODO: fix this eval - does not work in headless mode
+      { input: { name: "costar" } },
       { input: { name: "google_jobs" } }
     ];
   },

@@ -344,7 +344,7 @@ export class Stagehand {
     steps?: string;
     chunksSeen?: Array<number>;
     modelName?: string;
-  }): Promise<void> {
+  }): Promise<{ success: boolean; message: string; action: string }> {
     this.log({
       category: "action",
       message: `taking action: ${action}`,
@@ -390,7 +390,11 @@ export class Stagehand {
           level: 1
         });
         this.recordAction(action, null);
-        return;
+        return {
+          success: false,
+          message: "Action not found on the current page after checking all chunks.",
+          action: action
+        };
       }
     }
 
@@ -415,58 +419,71 @@ export class Stagehand {
       level: 1
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
+    try {
+      if (method === 'scrollIntoView') { // this is not a native playwright function
+        await locator.evaluate((element) => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      } else if (typeof locator[method as keyof typeof locator] === "function") {
+        
+        const isLink = await locator.evaluate((element) => {
+          return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+        });
 
-    if (method === 'scrollIntoView') { // this is not a native playwright function
-      await locator.evaluate((element) => {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-    } else if (typeof locator[method as keyof typeof locator] === "function") {
-      
-      const isLink = await locator.evaluate((element) => {
-        return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
-      });
+        // Perform the action
+        //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
+        await locator[method](...args);
 
-      // Perform the action
-      //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
-      await locator[method](...args);
-
-      // Check if a new page was created, but only if the method is 'click'
-      if (method === 'click') {
-        if (isLink) {
-          // Create a promise that resolves when a new page is created
-          console.log("clicking link");
-          const newPagePromise = Promise.race([
-            new Promise<Page | null>((resolve) => {
-              this.context.once('page', (page) => resolve(page));
-              setTimeout(() => resolve(null), 1500); // 1500ms timeout
-            })
-          ]);
-          const newPage = await newPagePromise;
-          if (newPage) {
-            const newUrl = await newPage.url();
-            await newPage.close(); // Close the new page/tab
-            await this.page.goto(newUrl); // Navigate to the new URL in the current tab
-            await this.page.waitForLoadState("domcontentloaded");
-            await this.waitForSettledDom();
+        // Check if a new page was created, but only if the method is 'click'
+        if (method === 'click') {
+          if (isLink) {
+            // Create a promise that resolves when a new page is created
+            console.log("clicking link");
+            const newPagePromise = Promise.race([
+              new Promise<Page | null>((resolve) => {
+                this.context.once('page', (page) => resolve(page));
+                setTimeout(() => resolve(null), 1500); // 1500ms timeout
+              })
+            ]);
+            const newPage = await newPagePromise;
+            if (newPage) {
+              const newUrl = await newPage.url();
+              await newPage.close(); // Close the new page/tab
+              await this.page.goto(newUrl); // Navigate to the new URL in the current tab
+              await this.page.waitForLoadState("domcontentloaded");
+              await this.waitForSettledDom();
+            }
           }
         }
+      } else {
+        throw new Error(`stagehand: chosen method ${method} is invalid`);
       }
-    } else {
-      throw new Error(`stagehand: chosen method ${method} is invalid`);
-    }
 
-    if (!response.completed) {
-      this.log({
-        category: "action",
-        message: "continuing to next sub action",
-        level: 1
-      });
-      return this.act({
-        action,
-        steps: steps + response.step + ", ",
-        chunksSeen,
-        modelName,
-      });
+      if (!response.completed) {
+        this.log({
+          category: "action",
+          message: "continuing to next sub action",
+          level: 1
+        });
+        const nextResult = await this.act({
+          action,
+          steps: steps + response.step + ", ",
+          chunksSeen,
+          modelName,
+        });
+        return nextResult;
+      }
+      return {
+        success: true,
+        message: `Action completed successfully: ${steps}${response.step}`,
+        action: action
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Error performing action: ${error.message}`,
+        action: action
+      };
     }
   }
   setPage(page: Page) {
