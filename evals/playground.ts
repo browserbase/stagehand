@@ -3,51 +3,37 @@ import { Stagehand } from "../lib";
 import { z } from "zod";
 
 const nonsense_action = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: true });
   await stagehand.init();
-  // TODO: fix this eval
+  
   try {
-    await Promise.race([
-      stagehand.page.goto("https://www.costar.com/"),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), 30000))
-    ]);
+    await stagehand.page.goto("https://www.homedepot.com/");
     await stagehand.waitForSettledDom();
 
     const result = await stagehand.act({ action: "click on the first banana" });
     console.log("result", result);
 
-    await stagehand.act({ action: "find the footer of the page" });
+    // Assert the output
+    const expectedResult = {
+      success: false,
+      message: 'Action not found on the current page after checking all chunks.',
+      action: 'click on the first banana'
+    };
 
-    await stagehand.waitForSettledDom();
-    const articleTitle = await stagehand.extract({
-      instruction: "extract the title of the article",
-      schema: z.object({
-        title: z.string().describe("the title of the article").nullable(),
-      }),
-      modelName: "gpt-4o-2024-08-06"
-    });
-
-    console.log("articleTitle", articleTitle);
-
-    // Check if the title is more than 5 characters
-    const isTitleValid = articleTitle.title !== null && articleTitle.title.length > 5;
-  
-    await stagehand.context.close();
-  
-    return isTitleValid;
+    const isResultCorrect = JSON.stringify(result) === JSON.stringify(expectedResult);
+    
+    return isResultCorrect;
 
   } catch (error) {
-    console.error(`Error in costar function: ${error.message}`);
-    return { title: null };
+    console.error(`Error in nonsense_action function: ${error.message}`);
+    return false;
   } finally {
     await stagehand.context.close();
   }
 };
 
 async function main() {
-  const [nonsenseResult] = await Promise.all([
-    nonsense_action(),
-  ]);
+  const nonsenseResult = await nonsense_action();
   
   console.log("Nonsense result:", nonsenseResult);
 }

@@ -31,8 +31,6 @@ const vanta = async () => {
   return observationResult == expectedResult;
 };
 
-
-
 const vanta_h = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", headless: process.env.HEADLESS !== 'false'});
   await stagehand.init();
@@ -115,6 +113,36 @@ const wikipedia = async () => {
   return currentUrl === url;
 };
 
+// Validate that the action is not found on the page
+const nonsense_action = async () => {
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: true });
+  await stagehand.init();
+  
+  try {
+    await stagehand.page.goto("https://www.homedepot.com/");
+    await stagehand.waitForSettledDom();
+
+    const result = await stagehand.act({ action: "click on the first banana" });
+    console.log("result", result);
+
+    // Assert the output
+    const expectedResult = {
+      success: false,
+      message: 'Action not found on the current page after checking all chunks.',
+      action: 'click on the first banana'
+    };
+
+    const isResultCorrect = JSON.stringify(result) === JSON.stringify(expectedResult);
+    
+    return isResultCorrect;
+
+  } catch (error) {
+    console.error(`Error in nonsense_action function: ${error.message}`);
+    return false;
+  } finally {
+    await stagehand.context.close();
+  }
+};
 
 const costar = async () => {
   const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== 'false' });
@@ -213,7 +241,7 @@ const google_jobs = async () => {
   return isJobDetailsValid;
 };
 
-const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar, google_jobs};
+const tasks = { vanta, vanta_h, peeler_simple, peeler_complex, wikipedia, costar, google_jobs, nonsense_action};
 
 const exactMatch = (args: { input; output; expected? }) => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
@@ -233,8 +261,9 @@ Eval("stagehand", {
       { input: { name: "peeler_simple" } },
       { input: { name: "wikipedia" } },
       { input: { name: "peeler_complex" } },
-      { input: { name: "costar" } },
-      { input: { name: "google_jobs" } }
+      // { input: { name: "costar" } }, // TODO: fix this eval - does not work in headless mode
+      { input: { name: "google_jobs" } },
+      { input: { name: "nonsense_action" } }
     ];
   },
   task: async (input) => {
