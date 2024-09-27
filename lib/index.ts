@@ -149,6 +149,13 @@ export class Stagehand {
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
+      // Wait for network idle
+      await this.page.waitForLoadState('domcontentloaded');
+
+      // Wait for network to be "mostly" idle (can be adjusted)
+      await this.page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {
+        console.log("Network didn't reach full idle state, but continuing...");
+      });
       await this.page.evaluate(() => {
         return new Promise<void>((resolve) => {
           if (typeof window.waitForDomSettle === 'function') {
@@ -240,6 +247,7 @@ export class Stagehand {
         message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
         level: 1
       });
+      await this.waitForSettledDom();
       return this.extract({
         instruction,
         schema,
@@ -376,7 +384,7 @@ export class Stagehand {
           message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
           level: 1
         });
-
+        await this.waitForSettledDom();
         return this.act({
           action,
           steps: steps + "Scrolled to another section, ",
@@ -465,6 +473,7 @@ export class Stagehand {
           message: "continuing to next sub action",
           level: 1
         });
+        await this.waitForSettledDom();
         const nextResult = await this.act({
           action,
           steps: steps + response.step + ", ",
