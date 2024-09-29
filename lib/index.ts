@@ -146,28 +146,31 @@ export class Stagehand {
     });
   }
 
+
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
-      // Wait for network idle
       await this.page.waitForLoadState('domcontentloaded');
 
-      // Wait for network to be "mostly" idle (can be adjusted)
-      await this.page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {
-        console.log("Network didn't reach full idle state, but continuing...");
-      });
       await this.page.evaluate(() => {
         return new Promise<void>((resolve) => {
           if (typeof window.waitForDomSettle === 'function') {
-            window.waitForDomSettle().then(resolve);
+            window.waitForDomSettle().then(() => {
+              resolve();
+            });
           } else {
-            console.warn('waitForDomSettle is not defined, resolving immediately');
+            console.warn('waitForDomSettle is not defined, considering DOM as settled');
             resolve();
           }
         });
       });
+
     } catch (e) {
-      console.log("Error in waitForSettledDom:", e);
+      this.log({
+        category: "dom",
+        message: `Error in waitForSettledDom: ${e.message}`,
+        level: 1,
+      });
     }
   }
 
@@ -219,6 +222,11 @@ export class Stagehand {
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
       window.processDom([])
     );
+    this.log({
+      category: "extraction",
+      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      level: 1,
+    });
 
     const extractionResponse = await extract({
       instruction,
@@ -230,6 +238,12 @@ export class Stagehand {
     });
     const { progress: newProgress, completed, ...output } = extractionResponse;
     await this.cleanupDomDebug();
+
+    this.log({
+      category: "extraction",
+      message: `Received extraction response: ${JSON.stringify(extractionResponse)}`,
+      level: 1,
+    });
 
     chunksSeen.push(chunk);
 
@@ -355,17 +369,29 @@ export class Stagehand {
   }): Promise<{ success: boolean; message: string; action: string }> {
     this.log({
       category: "action",
-      message: `taking action: ${action}`,
-      level: 1
+      message: `Starting action: ${action}`,
+      level: 1,
     });
 
     await this.waitForSettledDom();
+
     await this.startDomDebug();
+
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
-        (chunksSeen) => window.processDom(chunksSeen),
+        (chunksSeen) => {
+          return window.processDom(chunksSeen);
+        },
         chunksSeen
       );
+
+    this.log({
+      category: "action",
+      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      level: 1,
+    });
+
+    await this.waitForSettledDom();
 
     const response = await act({
       action,
@@ -374,6 +400,13 @@ export class Stagehand {
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
     });
+
+    this.log({
+      category: "action",
+      message: `Received response from LLM: ${JSON.stringify(response)}`,
+      level: 1,
+    });
+
     await this.cleanupDomDebug();
 
     chunksSeen.push(chunk);
@@ -381,8 +414,8 @@ export class Stagehand {
       if (chunksSeen.length < chunks.length) {
         this.log({
           category: "action",
-          message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
-          level: 1
+          message: `No response from act. Chunks seen: ${chunksSeen.length}, Total chunks: ${chunks.length}`,
+          level: 1,
         });
         await this.waitForSettledDom();
         return this.act({
@@ -394,23 +427,17 @@ export class Stagehand {
       } else {
         this.log({
           category: "action",
-          message: "no response from act with no chunks left to check",
-          level: 1
+          message: "No response from act with no chunks left to check",
+          level: 1,
         });
         this.recordAction(action, null);
         return {
           success: false,
           message: "Action not found on the current page after checking all chunks.",
-          action: action
+          action: action,
         };
       }
     }
-
-    this.log({
-      category: "action",
-      message: `response: ${JSON.stringify(response)}`,
-      level: 1
-    });
 
     const element = response["element"];
     const path = selectorMap[element];
@@ -419,34 +446,59 @@ export class Stagehand {
 
     this.log({
       category: "action",
-      message: `
-      step: ${response.step}
-      ${method} on ${path} with args ${args}
-      ${response.why}
-      `,
-      level: 1
+      message: `Executing method: ${method} on element: ${element} (path: ${path}) with args: ${JSON.stringify(args)}`,
+      level: 1,
     });
+
     const locator = await this.page.locator(`xpath=${path}`).first();
     try {
-      if (method === 'scrollIntoView') { // this is not a native playwright function
+      if (method === 'scrollIntoView') {
+        this.log({
+          category: "action",
+          message: `Scrolling element into view`,
+          level: 2,
+        });
         await locator.evaluate((element) => {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       } else if (typeof locator[method as keyof typeof locator] === "function") {
-        
+
         const isLink = await locator.evaluate((element) => {
           return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
         });
 
+        this.log({
+          category: "action",
+          message: `Element is a link: ${isLink}`,
+          level: 2,
+        });
+
+        // Log current URL before action
+        this.log({
+          category: "action",
+          message: `Current page URL before action: ${this.page.url()}`,
+          level: 2,
+        });
+
         // Perform the action
-        //@ts-ignore playwright's TS does not think this is valid, but we proved it with the check above
+        // @ts-ignore
         await locator[method](...args);
+
+        // Log current URL after action
+        this.log({
+          category: "action",
+          message: `Current page URL after action: ${this.page.url()}`,
+          level: 2,
+        });
 
         // Check if a new page was created, but only if the method is 'click'
         if (method === 'click') {
           if (isLink) {
-            // Create a promise that resolves when a new page is created
-            console.log("clicking link");
+            this.log({
+              category: "action",
+              message: `Clicking link, checking for new page`,
+              level: 1,
+            });
             const newPagePromise = Promise.race([
               new Promise<Page | null>((resolve) => {
                 this.context.once('page', (page) => resolve(page));
@@ -456,10 +508,21 @@ export class Stagehand {
             const newPage = await newPagePromise;
             if (newPage) {
               const newUrl = await newPage.url();
+              this.log({
+                category: "action",
+                message: `New page detected with URL: ${newUrl}`,
+                level: 1,
+              });
               await newPage.close(); // Close the new page/tab
               await this.page.goto(newUrl); // Navigate to the new URL in the current tab
               await this.page.waitForLoadState("domcontentloaded");
               await this.waitForSettledDom();
+            } else {
+              this.log({
+                category: "action",
+                message: `No new page opened after clicking link`,
+                level: 1,
+              });
             }
           }
         }
@@ -470,8 +533,8 @@ export class Stagehand {
       if (!response.completed) {
         this.log({
           category: "action",
-          message: "continuing to next sub action",
-          level: 1
+          message: "Continuing to next sub action",
+          level: 1,
         });
         await this.waitForSettledDom();
         const nextResult = await this.act({
@@ -485,13 +548,18 @@ export class Stagehand {
       return {
         success: true,
         message: `Action completed successfully: ${steps}${response.step}`,
-        action: action
+        action: action,
       };
     } catch (error) {
+      this.log({
+        category: "action",
+        message: `Error performing action: ${error.message}`,
+        level: 1,
+      });
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
-        action: action
+        action: action,
       };
     }
   }

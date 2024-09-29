@@ -242,33 +242,38 @@ const google_jobs = async () => {
 };
 
 const homedepot = async () => {
-  // this one is HARD since the page is slow to load
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== "false" });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: process.env.HEADLESS !== "false" });
   await stagehand.init();
   
   try {
-    await stagehand.page.goto("https://www.homedepot.com/");
+    // await stagehand.page.goto("https://www.homedepot.com/");
+    // await stagehand.waitForSettledDom();
+
+    // await stagehand.act({ action: "search for gas grills" });
+    // await stagehand.waitForSettledDom();
+
+    // await stagehand.act({ action: "click on the best selling gas grill" });
+    // await stagehand.waitForSettledDom();
+
+    await stagehand.page.goto("https://www.homedepot.com/p/Nexgrill-4-Burner-Propane-Gas-Grill-in-Black-with-Stainless-Steel-Main-Lid-720-0925PG/326294740");
     await stagehand.waitForSettledDom();
 
-    await stagehand.act({ action: "search for gas grills" });
-    await stagehand.waitForSettledDom();
-
-    await stagehand.act({ action: "click on the best selling gas grill" });
+    await stagehand.act({ action: "click on the Product Details" });
     await stagehand.waitForSettledDom();
     
-    await stagehand.act({ action: "click on the specifications" });
+    await stagehand.act({ action: "find the Primary Burner BTU" });
     await stagehand.waitForSettledDom();
 
     const productSpecs = await stagehand.extract({
-      instruction: "Extract the product specs of the grill",
+      instruction: "Extract the Primary Burner BTU of the product",
       schema: z.object({
         productSpecs: z.array(z.object({
-          burnerBTU: z.string().describe("The BTU of the burner"),
-        })).describe("The product specs")
+          burnerBTU: z.string().describe("Primary Burner BTU"),
+        })).describe("Gas grill Primary Burner BTU")
       }),
       modelName: "gpt-4o-2024-08-06"
     });
-    console.log("The product specs are:", productSpecs);
+    console.log("The gas grill primary burner BTU is:", productSpecs);
 
     if (!productSpecs || !productSpecs.productSpecs || productSpecs.productSpecs.length === 0) {
       return false;
@@ -277,7 +282,7 @@ const homedepot = async () => {
     return true;
 
   } catch (error) {
-    console.error(`Error in nonsense_action function: ${error.message}`);
+    console.error(`Error in homedepot function: ${error.message}`);
     return false;
   } finally {
     await stagehand.context.close();
