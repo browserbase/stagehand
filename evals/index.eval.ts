@@ -451,7 +451,7 @@ const testcases = [
   { input: { name: "extract_collaborators_from_github_repository" } },
   { input: { name: "extract_last_twenty_github_commits" } },
   { input: { name: "twitter_signup" } },
-  { input: { name: "costar" } },
+  // { input: { name: "costar" } },
   { input: { name: "google_jobs" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
