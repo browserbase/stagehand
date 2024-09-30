@@ -121,14 +121,12 @@ export function createExpressServer(): Express {
 
   // Endpoint to delete resources
   app.delete("/delete-resources", (req: Request, res: Response) => {
-    console.log("Received /delete-resources request");
     const { exampleId } = req.body;
     const exampleDir = path.join(publicDir, exampleId);
     if (fs.existsSync(exampleDir)) {
       fs.rmdirSync(exampleDir, { recursive: true });
       console.log(`Deleted directory: ${exampleDir}`);
     }
-    res.send("Resources deleted");
   });
 
   // Error handling middleware

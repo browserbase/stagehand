@@ -194,7 +194,6 @@ export async function evaluateExample(
     console.error("Error during evaluation:", error);
     return false;
   } finally {
-    console.log("[Navid] Resources:", resources, example);
     if (example.source === "mhtml") {
       try {
         const deleteResponse = await fetch(
