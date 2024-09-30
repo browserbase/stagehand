@@ -188,35 +188,37 @@ export async function evaluateExample(
     console.error("Error during evaluation:", error);
     return false;
   } finally {
-    if (example.source === "mhtml") {
-      try {
-        const deleteResponse = await fetch(
-          `http://localhost:${port}/delete-resources`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ exampleId }),
+    try {
+      const deleteResponse = await fetch(
+        `http://localhost:${port}/delete-resources`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({ exampleId }),
+        },
+      );
 
-        if (!deleteResponse.ok) {
-          console.error(
-            `Failed to delete resources: ${deleteResponse.statusText}`,
-          );
-        } else {
-          console.log("Resources deleted successfully.");
-        }
-      } catch (deleteError) {
-        console.error("Error deleting resources:", deleteError);
+      if (!deleteResponse.ok) {
+        console.error(
+          `Failed to delete resources: ${deleteResponse.statusText}`,
+        );
+      } else {
+        console.log("Resources deleted successfully.");
       }
+    } catch (deleteError) {
+      console.error("Error deleting resources:", deleteError);
     }
 
-    if (server) {
-      server.close(() => {
-        console.log("Express server closed.");
-      });
+    try {
+      if (server) {
+        server.close(() => {
+          console.log("Express server closed.");
+        });
+      }
+    } catch (closeError) {
+      console.error("Error closing server:", closeError);
     }
 
     await stagehand.context.close();

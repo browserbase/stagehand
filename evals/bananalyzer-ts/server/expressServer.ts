@@ -5,7 +5,7 @@ import { parseMHTMLFile } from "../utils/mhtmlParser";
 import * as cheerio from "cheerio";
 import { URL } from "url";
 
-const publicDir = path.join(__dirname, "bananalyzer-ts", "server", "public");
+const publicDir = path.join(__dirname, "public");
 
 // Ensure the public directory exists
 if (!fs.existsSync(publicDir)) {
@@ -105,10 +105,16 @@ export function createExpressServer(): Express {
 
   // Endpoint to delete resources
   app.delete("/delete-resources", (req: Request, res: Response) => {
-    const { exampleId } = req.body;
-    const exampleDir = path.join(publicDir, exampleId);
-    if (fs.existsSync(exampleDir)) {
-      fs.rmdirSync(exampleDir, { recursive: true });
+    try {
+      const { exampleId } = req.body;
+      const exampleDir = path.join(publicDir, exampleId);
+      if (fs.existsSync(exampleDir)) {
+        fs.rmdirSync(exampleDir, { recursive: true });
+      }
+      res.status(200).send("Resources deleted successfully");
+    } catch (error) {
+      console.error("Error deleting resources:", error);
+      res.status(500).send("Error deleting resources");
     }
   });
 
