@@ -15,10 +15,8 @@ if (!fs.existsSync(publicDir)) {
 export function createExpressServer(): Express {
   const app = express();
 
-  // Middleware to parse JSON bodies
   app.use(express.json());
 
-  // Serve static files from the public directory under the '/static' pathname
   app.use("/static", express.static(publicDir));
 
   // Endpoint to add MHTML content
@@ -30,23 +28,15 @@ export function createExpressServer(): Express {
     }
 
     try {
-      console.log(
-        "Received /add-mhtml request with mhtmlFilePath:",
-        mhtmlFilePath,
-      );
       const parsedMHTML = await parseMHTMLFile(mhtmlFilePath);
 
-      // Define exampleId and exampleDir
       const exampleId = path.basename(path.dirname(mhtmlFilePath));
       const exampleDir = path.join(publicDir, exampleId);
 
-      // Ensure the example directory exists
       if (!fs.existsSync(exampleDir)) {
         fs.mkdirSync(exampleDir, { recursive: true });
-        console.log(`Created directory: ${exampleDir}`);
       }
 
-      // Save resources to the example-specific directory
       parsedMHTML.resources.forEach((resource) => {
         try {
           // Use the correct property, e.g., 'contentLocation'
@@ -55,8 +45,6 @@ export function createExpressServer(): Express {
             ? resourceURL.pathname.slice(1) // Remove leading "/"
             : resourceURL.pathname;
 
-          console.log("Relative Path:", relativePath); // Debug log
-
           // Define the full path within the example directory
           const resourcePath = path.join(exampleDir, relativePath);
           const resourceDir = path.dirname(resourcePath);
@@ -64,12 +52,10 @@ export function createExpressServer(): Express {
           // Ensure the resource directory exists
           if (!fs.existsSync(resourceDir)) {
             fs.mkdirSync(resourceDir, { recursive: true });
-            console.log(`Created resource directory: ${resourceDir}`);
           }
 
           // Write the resource content to the specified path
           fs.writeFileSync(resourcePath, resource.content);
-          console.log(`Saved resource: ${resourcePath}`);
         } catch (resourceError) {
           console.error(
             `Failed to save resource ${resource.contentLocation}:`,
@@ -94,7 +80,6 @@ export function createExpressServer(): Express {
                 : resourceURL.pathname;
               const localPath = `/static/${exampleId}/${relativePath}`;
               $(elem).attr(attribute, localPath);
-              console.log(`Updated ${elem.name} ${attribute} to: ${localPath}`);
             } catch (urlError) {
               console.error(`Failed to process URL ${url}:`, urlError);
             }
@@ -107,7 +92,6 @@ export function createExpressServer(): Express {
       // Save the modified HTML
       const htmlPath = path.join(exampleDir, "index.html");
       fs.writeFileSync(htmlPath, modifiedHtml);
-      console.log(`Saved modified index.html to: ${htmlPath}`);
 
       res.json({
         htmlContent: modifiedHtml,
@@ -125,7 +109,6 @@ export function createExpressServer(): Express {
     const exampleDir = path.join(publicDir, exampleId);
     if (fs.existsSync(exampleDir)) {
       fs.rmdirSync(exampleDir, { recursive: true });
-      console.log(`Deleted directory: ${exampleDir}`);
     }
   });
 

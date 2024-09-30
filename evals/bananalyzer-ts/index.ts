@@ -100,7 +100,6 @@ export async function evaluateExample(
 
       // Set the local URL to the modified index.html
       localUrl = `http://localhost:${port}/static/${example.id}/index.html`;
-      console.log(`Local URL set to: ${localUrl}`);
     }
 
     await stagehand.page.goto(localUrl);
@@ -122,11 +121,6 @@ export async function evaluateExample(
     } else {
       throw new Error("Invalid schema definition");
     }
-
-    console.log(
-      "Schema definition:",
-      JSON.stringify(schemaDefinition, null, 2),
-    );
 
     // Fetch the goal from goals.json based on the subcategory
     const goals = getGoals();
