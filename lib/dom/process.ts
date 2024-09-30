@@ -12,16 +12,11 @@ async function processDom(chunksSeen: Array<number>) {
 
 async function processElements(chunk: number) {
   const viewportHeight = window.innerHeight;
-  const targetScrollPosition = viewportHeight * chunk;
-  const currentScrollPosition = 0//window.scrollY;
-  const scrollAmount = targetScrollPosition - currentScrollPosition;
 
-  window.scrollBy({
-    top: scrollAmount,
-    left: 0,
-    behavior: 'smooth', // Optional: adds smooth scrolling
-  });
+  const chunkHeight = viewportHeight * chunk;
+  const offsetTop = chunkHeight;
 
+  window.scrollTo(0, offsetTop);
   // Wait for the scroll to complete if necessary
   await new Promise((resolve) => {
     setTimeout(resolve, 500); // Adjust timeout based on expected scroll duration
