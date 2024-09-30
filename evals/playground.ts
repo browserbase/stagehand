@@ -2,22 +2,21 @@ import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
-// eval failing
 const homedepot = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: process.env.HEADLESS !== "false" });
+  const stagehand = new Stagehand({ env: "LOCAL", verbose: 2, debugDom: true, headless: process.env.HEADLESS !== "false" });
   await stagehand.init();
   
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
     await stagehand.waitForSettledDom();
 
-    await stagehand.act({ action: "search for gas grills" });
+    await stagehand.act({ action: "input gas grills into search" });
+    await stagehand.waitForSettledDom();
+
+    await stagehand.act({ action: "click on the search button" });
     await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the best selling gas grill" });
-    await stagehand.waitForSettledDom();
-
-    await stagehand.page.goto("https://www.homedepot.com/p/Nexgrill-4-Burner-Propane-Gas-Grill-in-Black-with-Stainless-Steel-Main-Lid-720-0925PG/326294740");
     await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the Product Details" });
