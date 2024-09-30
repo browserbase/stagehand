@@ -274,23 +274,21 @@ You'll also need a Braintrust key to run evals
 BRAINTRUST_API_KEY=""%
 ```
 
-Then, run:
-
-`pnpm evals`
-
-For running the bananalyzer eval, you'll need to run the init script first to download the static assets:
+and then run the init script for bananalyzer static files:
 
 `./evals/bananalyzer-ts/init.sh`
 
-Also make sure you've installed the dev dependencies using `pnpm install`
+After that, you can run the eval using:
+
+`pnpm evals`
 
 #### Adding more bananalyzer evals
 
-You can test out different evals using the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`.
+You can find all bananalyzer evals in `evals/bananalyzer-ts/static/examples.json`.
 
-To run the full set of evals, you can run `pnpm evals`. Just set the id to the eval you want to run (You can find the eval examples in `evals/bananalyzer-ts/static/examples.json`).
+To test out a specific eval use the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`. You'll need to set the eval id.
 
-After that if you'd like to add it to the global eval, you can add it to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts`.
+After that, add the example to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts` to add it to the global eval set.
 
 ### Develop new evals
 
