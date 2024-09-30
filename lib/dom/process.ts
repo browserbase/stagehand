@@ -12,11 +12,12 @@ async function processDom(chunksSeen: Array<number>) {
 
 async function processElements(chunk: number) {
   const viewportHeight = window.innerHeight;
+
   const chunkHeight = viewportHeight * chunk;
   const offsetTop = chunkHeight;
 
   window.scrollTo(0, offsetTop);
-  
+
   const domString = window.document.body.outerHTML;
   if (!domString) {
     throw new Error("error selecting DOM that doesn't exist");
