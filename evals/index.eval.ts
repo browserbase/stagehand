@@ -55,23 +55,6 @@ const vanta_h = async () => {
 };
 
 const simple_google_search = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL" });
-  await stagehand.init();
-
-  await stagehand.page.goto("https://www.google.com");
-
-  await stagehand.act({
-    action: 'Search for "OpenAI"',
-  });
-
-  const expectedUrl = "https://www.google.com/search?q=OpenAI";
-  const currentUrl = await stagehand.page.url();
-  await stagehand.context.close();
-
-  return currentUrl.startsWith(expectedUrl);
-};
-
-const simple_google_search = async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
     headless: process.env.HEADLESS !== "false",
