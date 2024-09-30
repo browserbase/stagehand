@@ -445,8 +445,7 @@ const testcases = [
   })),
 ];
 
-let finishedExperiments = 0;
-
+let finishedEvals = 0;
 let bananalyzerFileServer: any;
 const port = 6779;
 
@@ -490,8 +489,8 @@ Eval("stagehand", {
       console.error(`❌ ${input.name}: Error - ${error}`);
       return false;
     } finally {
-      finishedExperiments++;
-      if (finishedExperiments === testcases.length) {
+      finishedEvals++;
+      if (finishedEvals === testcases.length) {
         bananalyzerFileServer?.close();
       }
     }
