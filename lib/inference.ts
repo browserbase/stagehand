@@ -75,7 +75,7 @@ export async function extract({
   modelName: string;
 }) {
   const llmClient = llmProvider.getClient(modelName);
-
+  
   const fullSchema = schema.extend({
     progress: z.string().describe("progress of what has been extracted so far"),
     completed: z.boolean().describe("true if the goal is now accomplished"),
@@ -143,10 +143,7 @@ export async function ask({
   const llmClient = llmProvider.getClient(modelName);
   const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [
-      buildAskSystemPrompt() as ChatMessage,
-      buildAskUserPrompt(question) as ChatMessage,
-    ],
+    messages: [buildAskSystemPrompt() as ChatMessage, buildAskUserPrompt(question) as ChatMessage],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,

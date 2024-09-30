@@ -14,7 +14,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
-      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`,
+      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
     );
     const context = browser.contexts()[0];
     return { browser, context };
@@ -37,7 +37,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences),
+      JSON.stringify(defaultPreferences)
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -52,7 +52,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
           width: 1250,
           height: 800,
         },
-      },
+      }
     );
 
     console.log("Local browser started successfully.");
@@ -91,7 +91,7 @@ export class Stagehand {
       headless?: boolean;
     } = {
       env: "BROWSERBASE",
-    },
+    }
   ) {
     this.logger = this.log.bind(this);
     this.llmProvider = llmProvider || new LLMProvider(this.logger);
@@ -104,15 +104,7 @@ export class Stagehand {
     this.headless = headless;
   }
 
-  log({
-    category,
-    message,
-    level = 1,
-  }: {
-    category?: string;
-    message: string;
-    level?: 0 | 1 | 2;
-  }) {
+  log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
     if (this.verbose >= level) {
       const categoryString = category ? `:${category}` : "";
       console.log(`[stagehand${categoryString}] ${message}`);
@@ -159,12 +151,10 @@ export class Stagehand {
       await this.page.waitForSelector("body");
       await this.page.evaluate(() => {
         return new Promise<void>((resolve) => {
-          if (typeof window.waitForDomSettle === "function") {
+          if (typeof window.waitForDomSettle === 'function') {
             window.waitForDomSettle().then(resolve);
           } else {
-            console.warn(
-              "waitForDomSettle is not defined, resolving immediately",
-            );
+            console.warn('waitForDomSettle is not defined, resolving immediately');
             resolve();
           }
         });
@@ -177,10 +167,10 @@ export class Stagehand {
   async startDomDebug() {
     try {
       await this.page.evaluate(() => {
-        if (typeof window.debugDom === "function") {
+        if (typeof window.debugDom === 'function') {
           window.debugDom();
         } else {
-          console.warn("debugDom is not defined");
+          console.warn('debugDom is not defined');
         }
       });
     } catch (e) {
@@ -214,13 +204,13 @@ export class Stagehand {
     this.log({
       category: "extraction",
       message: `starting extraction ${instruction}`,
-      level: 1,
+      level: 1
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(() =>
-      window.processDom([]),
+      window.processDom([])
     );
 
     const extractionResponse = await extract({
@@ -239,8 +229,8 @@ export class Stagehand {
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
         category: "extraction",
-        message: `response: ${JSON.stringify(extractionResponse, null, 2)}`,
-        level: 1,
+        message: `response: ${JSON.stringify(extractionResponse)}`,
+        level: 1
       });
 
       return merge(content, output);
@@ -248,7 +238,7 @@ export class Stagehand {
       this.log({
         category: "extraction",
         message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
-        level: 1,
+        level: 1
       });
       return this.extract({
         instruction,
@@ -261,20 +251,17 @@ export class Stagehand {
     }
   }
 
-  async observe(
-    observation: string,
-    modelName?: string,
-  ): Promise<string | null> {
+  async observe(observation: string, modelName?: string): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
-      level: 1,
+      level: 1
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([]),
+      window.processDom([])
     );
 
     const elementId = await observe({
@@ -289,7 +276,7 @@ export class Stagehand {
       this.log({
         category: "observation",
         message: `no element found for ${observation}`,
-        level: 1,
+        level: 1
       });
       return null;
     }
@@ -297,7 +284,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found element ${elementId}`,
-      level: 1,
+      level: 1
     });
 
     const selector = selectorMap[parseInt(elementId)];
@@ -306,7 +293,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found locator ${locatorString}`,
-      level: 1,
+      level: 1
     });
 
     // the locator string found by the LLM might resolve to multiple places in the DOM
@@ -315,7 +302,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString,
+      locatorString
     );
 
     return observationId;
@@ -330,7 +317,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string,
+    result: string
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -361,7 +348,7 @@ export class Stagehand {
     this.log({
       category: "action",
       message: `taking action: ${action}`,
-      level: 1,
+      level: 1
     });
 
     await this.waitForSettledDom();
@@ -369,7 +356,7 @@ export class Stagehand {
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate(
         (chunksSeen) => window.processDom(chunksSeen),
-        chunksSeen,
+        chunksSeen
       );
 
     const response = await act({
@@ -387,7 +374,7 @@ export class Stagehand {
         this.log({
           category: "action",
           message: `no response from act with chunk ${JSON.stringify(chunks.length - chunksSeen.length)} remaining`,
-          level: 1,
+          level: 1
         });
 
         return this.act({
@@ -400,7 +387,7 @@ export class Stagehand {
         this.log({
           category: "action",
           message: "no response from act with no chunks left to check",
-          level: 1,
+          level: 1
         });
         this.recordAction(action, null);
         return;
@@ -409,8 +396,8 @@ export class Stagehand {
 
     this.log({
       category: "action",
-      message: `response: ${JSON.stringify(response, null, 2)}`,
-      level: 1,
+      message: `response: ${JSON.stringify(response)}`,
+      level: 1
     });
 
     const element = response["element"];
@@ -425,20 +412,18 @@ export class Stagehand {
       ${method} on ${path} with args ${args}
       ${response.why}
       `,
-      level: 1,
+      level: 1
     });
     const locator = await this.page.locator(`xpath=${path}`).first();
 
-    if (method === "scrollIntoView") {
-      // this is not a native playwright function
+    if (method === 'scrollIntoView') { // this is not a native playwright function
       await locator.evaluate((element) => {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     } else if (typeof locator[method as keyof typeof locator] === "function") {
+      
       const isLink = await locator.evaluate((element) => {
-        return (
-          element.tagName.toLowerCase() === "a" && element.hasAttribute("href")
-        );
+        return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
       });
 
       // Perform the action
@@ -446,15 +431,15 @@ export class Stagehand {
       await locator[method](...args);
 
       // Check if a new page was created, but only if the method is 'click'
-      if (method === "click") {
+      if (method === 'click') {
         if (isLink) {
           // Create a promise that resolves when a new page is created
           console.log("clicking link");
           const newPagePromise = Promise.race([
             new Promise<Page | null>((resolve) => {
-              this.context.once("page", (page) => resolve(page));
+              this.context.once('page', (page) => resolve(page));
               setTimeout(() => resolve(null), 1500); // 1500ms timeout
-            }),
+            })
           ]);
           const newPage = await newPagePromise;
           if (newPage) {
@@ -474,7 +459,7 @@ export class Stagehand {
       this.log({
         category: "action",
         message: "continuing to next sub action",
-        level: 1,
+        level: 1
       });
       return this.act({
         action,
