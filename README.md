@@ -274,7 +274,7 @@ You'll also need a Braintrust key to run evals
 BRAINTRUST_API_KEY=""%
 ```
 
-and then run the init script for bananalyzer static files:
+and then run the init script to fetch the eval examples from the bananalyzer repo:
 
 `./evals/bananalyzer-ts/init.sh`
 
@@ -284,9 +284,11 @@ After that, you can run the eval using:
 
 #### Adding more bananalyzer evals
 
+All bananalyzer evals are off by default. Follow these steps to turn one on.
+
 You can find all bananalyzer evals in `evals/bananalyzer-ts/static/examples.json`.
 
-To test out a specific eval use the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`. You'll need to set the eval id.
+To test out a specific eval use the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`. You'll need to set the eval id first.
 
 After that, add the example to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts` to add it to the global eval set.
 
