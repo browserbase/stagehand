@@ -260,8 +260,6 @@ Then install dependencies
 pnpm install
 ```
 
-**Warning**: You can not use `npm` to install the dependencies. If you do, you'll get an error about peer dependencies not being found.
-
 add the .env file as documented above in the getting started section
 
 ### Run the example
