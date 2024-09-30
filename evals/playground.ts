@@ -50,88 +50,73 @@ const costar = async () => {
   }
 };
 
-const get_last_20_commits = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
-  await stagehand.init();
-
-  await stagehand.page.goto("https://github.com/facebook/react");
-
-  //   await stagehand.ct({
-  //     action: "find the last 20 commits",
-  //   });
-
-  await stagehand.waitForSettledDom();
-
-  const { commits } = await stagehand.extract({
-    instruction: "Extract last 20 commits",
-    schema: z.object({
-      commits: z.array(
-        z.object({
-          commit_message: z.string(),
-          commit_url: z.string(),
-          commit_hash: z.string(),
-        }),
-      ),
-    }),
-    modelName: "gpt-4o-2024-08-06",
+const homedepot = async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+    // headless: process.env.HEADLESS !== "false",
   });
-
-  await stagehand.context.close();
-
-  console.log("Extracted commits:", commits);
-  return commits.length === 5;
-};
-
-const twitter_signup = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
   await stagehand.init();
 
-  await stagehand.page.goto("https://twitter.com");
+  try {
+    // await stagehand.page.goto("https://www.homedepot.com/");
+    // await stagehand.waitForSettledDom();
 
-  await stagehand.act({
-    action:
-      'sign up with email "{random 12 digit number}@gmail.com", password "TEstTEst.1234". Use whatever else you want for all other fields. You can only stop if you have reached the verification stage.',
-  });
+    // await stagehand.act({ action: "search for gas grills" });
+    // await stagehand.waitForSettledDom();
 
-  await stagehand.waitForSettledDom();
+    // await stagehand.act({ action: "click on the best selling gas grill" });
+    // await stagehand.waitForSettledDom();
 
-  console.log("Current URL:", await stagehand.page.url());
-  //   await stagehand.context.close();
-};
+    await stagehand.page.goto(
+      "https://www.homedepot.com/p/Nexgrill-4-Burner-Propane-Gas-Grill-in-Black-with-Stainless-Steel-Main-Lid-720-0925PG/326294740",
+    );
+    await stagehand.waitForSettledDom();
 
-const medium_article_extract = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
-  await stagehand.init();
+    await stagehand.act({ action: "click on the Product Details" });
+    await stagehand.waitForSettledDom();
 
-  await stagehand.page.goto(
-    "https://medium.com/@jeffpowell.dev/blueprint-for-a-full-stack-go-web-application-9633d25b9e2e",
-  );
+    await stagehand.act({ action: "find the Primary Burner BTU" });
+    await stagehand.waitForSettledDom();
 
-  await stagehand.waitForSettledDom();
-
-  const { article } = await stagehand.extract({
-    instruction: "Extract article",
-    schema: z.object({
-      article: z.object({
-        title: z.string(),
-        content: z.string(),
-        picture_urls: z.array(z.string()),
+    const productSpecs = await stagehand.extract({
+      instruction: "Extract the Primary Burner BTU of the product",
+      schema: z.object({
+        productSpecs: z
+          .array(
+            z.object({
+              burnerBTU: z.string().describe("Primary Burner BTU"),
+            }),
+          )
+          .describe("Gas grill Primary Burner BTU"),
       }),
-    }),
-    modelName: "gpt-4o-2024-08-06",
-  });
+      modelName: "gpt-4o-2024-08-06",
+    });
+    console.log("The gas grill primary burner BTU is:", productSpecs);
 
-  console.log("Extracted article:", article);
+    if (
+      !productSpecs ||
+      !productSpecs.productSpecs ||
+      productSpecs.productSpecs.length === 0
+    ) {
+      return false;
+    }
 
-  await stagehand.context.close();
-
-  return article.content.split("\n").length > 100;
+    return true;
+  } catch (error) {
+    console.error(`Error in homedepot function: ${error.message}`);
+    return false;
+  } finally {
+    await stagehand.context.close();
+  }
 };
 
 async function main() {
-  const [costarResult] = await Promise.all([costar()]);
+  // const [costarResult] = await Promise.all([costar()]);
+  const [homedepotResult] = await Promise.all([homedepot()]);
 
-  console.log("Costar result:", costarResult);
+  console.log("Homedepot result:", homedepotResult);
 }
 
 main().catch(console.error);

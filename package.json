@@ -13,7 +13,7 @@
     "playground": "pnpm build-dom-scripts && tsx evals/playground.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "build": "pnpm build-dom-scripts && tsup lib/index.ts",
-    "eval:bananalyzer": "pnpm build-dom-scripts && npx tsx evals/bananalyzer-ts/test.ts"
+    "eval:banalyzer:playground": "pnpm build-dom-scripts && npx tsx evals/bananalyzer-ts/playground.ts"
   },
   "files": [
     "dist/**",
@@ -45,8 +45,7 @@
     "zod": "^3.23.8"
   },
   "pnpm": {
-    "patchedDependencies": {
-    }
+    "patchedDependencies": {}
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",

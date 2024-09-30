@@ -260,6 +260,8 @@ Then install dependencies
 pnpm install
 ```
 
+**Warning**: You can not use `npm` to install the dependencies. If you do, you'll get an error about peer dependencies not being found.
+
 add the .env file as documented above in the getting started section
 
 ### Run the example
@@ -281,6 +283,16 @@ Then, run:
 For running the bananalyzer eval, you'll need to run the init script first to download the static assets:
 
 `./evals/bananalyzer-ts/init.sh`
+
+Also make sure you've installed the dev dependencies using `pnpm install`
+
+#### Adding more bananalyzer evals
+
+You can test out different evals using the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`.
+
+To run the full set of evals, you can run `pnpm evals`. Just set the id to the eval you want to run (You can find the eval examples in `evals/bananalyzer-ts/static/examples.json`).
+
+After that if you'd like to add it to the global eval, you can add it to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts`.
 
 ### Develop new evals
 
