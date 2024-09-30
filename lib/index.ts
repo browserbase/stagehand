@@ -10,7 +10,7 @@ import path from "path";
 
 require("dotenv").config({ path: ".env" });
 
-async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
+async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: boolean = false) {
   if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
     console.log("Connecting you to broswerbase...");
     const browser = await chromium.connectOverCDP(
@@ -23,6 +23,8 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
       console.log("No browserbase key detected");
       console.log("Starting a local browser...");
     }
+
+    console.log(`Launching browser in ${headless ? 'headless' : 'headed'} mode`);
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
     fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
@@ -45,7 +47,7 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
       `${tmpDir}/userdir`,
       {
         acceptDownloads: true,
-        headless: false,
+        headless: headless,
         viewport: {
           width: 1250,
           height: 800,
@@ -71,6 +73,7 @@ export class Stagehand {
   public verbose: 0 | 1 | 2;
   public debugDom: boolean;
   public defaultModelName: string;
+  public headless: boolean;
   private logger: (message: { category?: string; message: string }) => void;
 
   constructor(
@@ -79,11 +82,13 @@ export class Stagehand {
       verbose = 0,
       debugDom = false,
       llmProvider,
+      headless = false,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
       llmProvider?: LLMProvider;
+      headless?: boolean;
     } = {
       env: "BROWSERBASE",
     },
@@ -96,6 +101,7 @@ export class Stagehand {
     this.verbose = verbose;
     this.debugDom = debugDom;
     this.defaultModelName = "gpt-4o";
+    this.headless = headless;
   }
 
   log({
@@ -123,10 +129,16 @@ export class Stagehand {
   }
 
   async init({ modelName = "gpt-4o" }: { modelName?: string } = {}) {
-    const { context } = await getBrowser(this.env);
+    const { context } = await getBrowser(this.env, this.headless);
     this.context = context;
     this.page = context.pages()[0];
     this.defaultModelName = modelName;
+
+    // Set the browser to headless mode if specified
+    if (this.headless) {
+      await this.page.setViewportSize({ width: 1280, height: 720 });
+    }
+
     // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
     // be one level above our running directly across evals, example, and as a package
     await this.page.addInitScript({
