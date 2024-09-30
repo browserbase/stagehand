@@ -59,7 +59,7 @@ function decodeQuotedPrintable(input: string): string {
   const buffer = Buffer.from(byteArray);
   const decoded = buffer.toString("utf-8");
 
-  console.log("Decoded Quoted-Printable Content:", decoded);
+  // console.log("Decoded Quoted-Printable Content:", decoded);
   return decoded;
 }
 
@@ -70,7 +70,7 @@ function decodeQuotedPrintable(input: string): string {
  */
 export function parseMHTML(mhtmlContent: string): ParsedMHTML {
   console.log("Parsing MHTML Content...");
-  console.log(mhtmlContent);
+  // console.log(mhtmlContent);
 
   // Normalize line endings to \r\n
   const normalizedContent = mhtmlContent.replace(/\r?\n/g, "\r\n");
@@ -83,18 +83,17 @@ export function parseMHTML(mhtmlContent: string): ParsedMHTML {
   const boundary = boundaryMatch[1];
   const boundaryDelimiter = `--${boundary}`;
 
-  console.log("Extracted Boundary:", boundary);
-  console.log("Boundary Delimiter:", boundaryDelimiter);
+  // console.log("Extracted Boundary:", boundary);
+  // console.log("Boundary Delimiter:", boundaryDelimiter);
 
   // Split the content into parts
   const parts = normalizedContent.split(boundaryDelimiter).slice(1, -1); // Exclude the first empty and last '--'
 
-  console.log(`Number of MIME parts found: ${parts.length}`);
+  // console.log(`Number of MIME parts found: ${parts.length}`);
 
   // Initialize variables to hold HTML and resources
   let htmlParts: string[] = [];
-  const resources: { name: string; content: Buffer; contentType: string }[] =
-    [];
+  const resources: Resource[] = [];
 
   // Helper function to parse headers
   const parseHeaders = (headerPart: string) => {
@@ -124,10 +123,10 @@ export function parseMHTML(mhtmlContent: string): ParsedMHTML {
 
     const headers = parseHeaders(rawHeaders);
 
-    console.log(`\n--- Part ${index} Headers ---`);
-    console.log(headers);
-    console.log(`--- Part ${index} Body ---`);
-    console.log(body.substring(0, 100)); // Log first 100 chars
+    // console.log(`\n--- Part ${index} Headers ---`);
+    // console.log(headers);
+    // console.log(`--- Part ${index} Body ---`);
+    // console.log(body.substring(0, 100)); // Log first 100 chars
 
     // Get Content-Type
     const contentType = headers["content-type"] || "application/octet-stream";
@@ -172,7 +171,7 @@ export function parseMHTML(mhtmlContent: string): ParsedMHTML {
         name,
         content: bufferContent,
         contentType,
-        contentLocation, // Add this line
+        contentLocation,
       });
       console.log(`Resource part found: ${name}`);
     }
@@ -181,8 +180,8 @@ export function parseMHTML(mhtmlContent: string): ParsedMHTML {
   // Concatenate all HTML parts
   const html = htmlParts.join("\n").trim();
 
-  console.log(`\n--- Final HTML ---`);
-  console.log(html.substring(0, Math.min(500, html.length)) + "...");
+  // console.log(`\n--- Final HTML ---`);
+  // console.log(html.substring(0, Math.min(500, html.length)) + "...");
 
   console.log(`Final HTML Content Length: ${html.length}`);
 

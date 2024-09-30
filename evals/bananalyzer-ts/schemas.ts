@@ -2,9 +2,13 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 
+const basePath = __dirname.includes("bananalyzer-ts")
+  ? __dirname
+  : path.join(__dirname, "bananalyzer-ts");
+
 // Load examples
 const examples = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "./static/examples.json"), "utf-8"),
+  fs.readFileSync(path.join(basePath, "static/examples.json"), "utf-8"),
 );
 
 export const ExampleType = z.enum(["listing", "detail", "listing_detail"]);
@@ -70,7 +74,7 @@ export type Eval = z.infer<typeof EvalSchema>;
 
 // Separate function to get predefined schema by name
 export function getSchemaByName(schemaName: SchemaName): z.ZodRawShape {
-  const schemaPath = path.join(__dirname, "./static/schemas.json");
+  const schemaPath = path.join(basePath, "static/schemas.json");
   const schemasJson = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
 
   if (!(schemaName in schemasJson)) {
@@ -127,6 +131,6 @@ function zodTypeFromJsonSchema(jsonSchema: any): z.ZodTypeAny {
 
 // Function to read and parse the goals.json file
 export function getGoals(): Record<string, string> {
-  const goalsPath = path.join(__dirname, "./static/goals.json");
+  const goalsPath = path.join(basePath, "static/goals.json");
   return JSON.parse(fs.readFileSync(goalsPath, "utf-8"));
 }

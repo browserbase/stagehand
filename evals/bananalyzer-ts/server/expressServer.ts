@@ -1,67 +1,140 @@
-// server/expressServer.ts
-
 import express, { Express, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import { parseMHTMLFile } from "../utils/mhtmlParser";
+import * as cheerio from "cheerio";
+import { URL } from "url";
 
-export function createExpressServer(
-  htmlContent: string,
-  resources: {
-    name: string;
-    content: Buffer;
-    contentType: string;
-    contentLocation: string;
-  }[], // Update the type
-): Express {
+const publicDir = path.join(__dirname, "bananalyzer-ts", "server", "public");
+
+// Ensure the public directory exists
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+
+export function createExpressServer(): Express {
   const app = express();
-  const publicDir = path.join(__dirname, "public");
 
-  // Ensure the public directory exists
-  if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir);
-  }
+  // Middleware to parse JSON bodies
+  app.use(express.json());
 
-  // Save resources to the public directory
-  resources.forEach((resource) => {
-    const resourcePath = path.join(publicDir, resource.name);
-    fs.writeFileSync(resourcePath, resource.content);
-  });
-
-  // Serve static files
+  // Serve static files from the public directory under the '/static' pathname
   app.use("/static", express.static(publicDir));
 
-  // Serve the HTML content
-  app.get("/", (req: Request, res: Response) => {
-    let modifiedHtml = htmlContent;
+  // Endpoint to add MHTML content
+  app.post("/add-mhtml", async (req: Request, res: Response) => {
+    const { mhtmlFilePath } = req.body;
 
-    // Modify resource links to point to the local server
-    resources.forEach((resource) => {
-      const originalUrl = resource.contentLocation; // Use full URL
-      const localUrl = `/static/${resource.name}`;
-      modifiedHtml = modifiedHtml.replace(
-        new RegExp(originalUrl, "g"),
-        localUrl,
+    if (!mhtmlFilePath) {
+      return res.status(400).send("Missing mhtmlFilePath");
+    }
+
+    try {
+      console.log(
+        "Received /add-mhtml request with mhtmlFilePath:",
+        mhtmlFilePath,
       );
-    });
+      const parsedMHTML = await parseMHTMLFile(mhtmlFilePath);
 
-    res.send(modifiedHtml);
+      // Define exampleId and exampleDir
+      const exampleId = path.basename(path.dirname(mhtmlFilePath));
+      const exampleDir = path.join(publicDir, exampleId);
+
+      // Ensure the example directory exists
+      if (!fs.existsSync(exampleDir)) {
+        fs.mkdirSync(exampleDir, { recursive: true });
+        console.log(`Created directory: ${exampleDir}`);
+      }
+
+      // Save resources to the example-specific directory
+      parsedMHTML.resources.forEach((resource) => {
+        try {
+          // Use the correct property, e.g., 'contentLocation'
+          const resourceURL = new URL(resource.contentLocation);
+          const relativePath = resourceURL.pathname.startsWith("/")
+            ? resourceURL.pathname.slice(1) // Remove leading "/"
+            : resourceURL.pathname;
+
+          console.log("Relative Path:", relativePath); // Debug log
+
+          // Define the full path within the example directory
+          const resourcePath = path.join(exampleDir, relativePath);
+          const resourceDir = path.dirname(resourcePath);
+
+          // Ensure the resource directory exists
+          if (!fs.existsSync(resourceDir)) {
+            fs.mkdirSync(resourceDir, { recursive: true });
+            console.log(`Created resource directory: ${resourceDir}`);
+          }
+
+          // Write the resource content to the specified path
+          fs.writeFileSync(resourcePath, resource.content);
+          console.log(`Saved resource: ${resourcePath}`);
+        } catch (resourceError) {
+          console.error(
+            `Failed to save resource ${resource.contentLocation}:`,
+            resourceError,
+          );
+        }
+      });
+
+      // Modify HTML to point resource URLs to the local server
+      const $ = cheerio.load(parsedMHTML.html);
+
+      // Update all <link>, <script>, and <img> tags
+      ["link[href]", "script[src]", "img[src]"].forEach((selector) => {
+        $(selector).each((_, elem) => {
+          const attribute = selector.includes("href") ? "href" : "src";
+          const url = $(elem).attr(attribute);
+          if (url && url.startsWith("https://asim-shrestha.com/")) {
+            try {
+              const resourceURL = new URL(url);
+              const relativePath = resourceURL.pathname.startsWith("/")
+                ? resourceURL.pathname.slice(1) // Remove leading "/"
+                : resourceURL.pathname;
+              const localPath = `/static/${exampleId}/${relativePath}`;
+              $(elem).attr(attribute, localPath);
+              console.log(`Updated ${elem.name} ${attribute} to: ${localPath}`);
+            } catch (urlError) {
+              console.error(`Failed to process URL ${url}:`, urlError);
+            }
+          }
+        });
+      });
+
+      const modifiedHtml = $.html();
+
+      // Save the modified HTML
+      const htmlPath = path.join(exampleDir, "index.html");
+      fs.writeFileSync(htmlPath, modifiedHtml);
+      console.log(`Saved modified index.html to: ${htmlPath}`);
+
+      res.json({
+        htmlContent: modifiedHtml,
+        resources: parsedMHTML.resources,
+      });
+    } catch (error) {
+      console.error("Error parsing MHTML file:", error);
+      res.status(500).send("Error parsing MHTML file");
+    }
   });
 
-  // Cleanup function to delete files
-  const cleanup = () => {
-    resources.forEach((resource) => {
-      const resourcePath = path.join(publicDir, resource.name);
-      if (fs.existsSync(resourcePath)) {
-        fs.unlinkSync(resourcePath);
-      }
-    });
-  };
+  // Endpoint to delete resources
+  app.delete("/delete-resources", (req: Request, res: Response) => {
+    console.log("Received /delete-resources request");
+    const { exampleId } = req.body;
+    const exampleDir = path.join(publicDir, exampleId);
+    if (fs.existsSync(exampleDir)) {
+      fs.rmdirSync(exampleDir, { recursive: true });
+      console.log(`Deleted directory: ${exampleDir}`);
+    }
+    res.send("Resources deleted");
+  });
 
-  // Call cleanup when the server is closed
-  process.on("exit", cleanup);
-  process.on("SIGINT", () => {
-    cleanup();
-    process.exit();
+  // Error handling middleware
+  app.use((err: any, req: Request, res: Response, next: Function) => {
+    console.error(err.stack);
+    res.status(500).send("Something broke!");
   });
 
   return app;

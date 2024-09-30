@@ -1,6 +1,8 @@
 import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
+import { evaluateExample, chosenBananalyzerEvals } from "./bananalyzer-ts";
+import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 
 const vanta = async () => {
   const stagehand = new Stagehand({ env: "LOCAL" });
@@ -379,48 +381,90 @@ const exactMatch = (args: { input; output; expected? }) => {
   };
 };
 
+const testcases = [
+  {
+    input: {
+      name: "vanta",
+    },
+  },
+  {
+    input: {
+      name: "vanta_h",
+    },
+  },
+  {
+    input: {
+      name: "peeler_simple",
+    },
+  },
+  {
+    input: { name: "wikipedia" },
+  },
+  { input: { name: "peeler_complex" } },
+  { input: { name: "simple_google_search" } },
+  { input: { name: "extract_collaborators_from_github_repository" } },
+  { input: { name: "extract_last_twenty_github_commits" } },
+  { input: { name: "twitter_signup" } },
+  { input: { name: "costar" } },
+  { input: { name: "google_jobs" } },
+  ...chosenBananalyzerEvals.map((evalItem: any) => ({
+    input: {
+      name: evalItem.name,
+      id: evalItem.id,
+      source: "bananalyzer-ts",
+    },
+  })),
+];
+
+let finishedExperiments = 0;
+
+let bananalyzerFileServer: any;
+const port = 6779;
+
 Eval("stagehand", {
   data: () => {
-    return [
-      {
-        input: {
-          name: "vanta",
-        },
-      },
-      {
-        input: {
-          name: "vanta_h",
-        },
-      },
-      {
-        input: {
-          name: "peeler_simple",
-        },
-      },
-      {
-        input: { name: "wikipedia" },
-      },
-      { input: { name: "peeler_complex" } },
-      { input: { name: "simple_google_search" } },
-      { input: { name: "extract_collaborators_from_github_repository" } },
-      { input: { name: "extract_last_twenty_github_commits" } },
-      { input: { name: "twitter_signup" } },
-      { input: { name: "costar" } },
-      { input: { name: "google_jobs" } },
-    ];
+    return testcases;
   },
   task: async (input) => {
+    // console.log("input", input);
     try {
-      const result = await tasks[input.name](input);
-      if (result) {
-        console.log(`✅ ${input.name}: Passed`);
+      if ("source" in input && input.source === "bananalyzer-ts") {
+        if (!bananalyzerFileServer) {
+          const app = createExpressServer();
+          bananalyzerFileServer = app.listen(port, () => {
+            console.log(`Bananalyzer server listening on port ${port}`);
+          });
+        }
+        // Handle chosen evaluations
+
+        const result = await evaluateExample(input.id, {
+          launchServer: false,
+          serverPort: 6779,
+        });
+        if (result) {
+          console.log(`✅ ${input.name}: Passed`);
+        } else {
+          console.log(`❌ ${input.name}: Failed`);
+        }
+        return result;
       } else {
-        console.log(`❌ ${input.name}: Failed`);
+        // Handle predefined tasks
+        const result = await tasks[input.name](input);
+        if (result) {
+          console.log(`✅ ${input.name}: Passed`);
+        } else {
+          console.log(`❌ ${input.name}: Failed`);
+        }
+        return result;
       }
-      return result;
     } catch (error) {
       console.error(`❌ ${input.name}: Error - ${error}`);
       return false;
+    } finally {
+      finishedExperiments++;
+      if (finishedExperiments === testcases.length) {
+        bananalyzerFileServer?.close();
+      }
     }
   },
   scores: [exactMatch],

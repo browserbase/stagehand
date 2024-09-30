@@ -146,13 +146,18 @@ for (let i = 0; i < 6; i++) {
       guess: z.string().describe("the raw guess").nullable(),
       description: z
         .string()
-        .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
+        .describe(
+          "what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect",
+        )
         .nullable(),
     }),
   });
   guesses.push({ guess: guess.guess, description: guess.description });
 
-  const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description);
+  const correct = await stagehand.ask(
+    "Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " +
+      guess.description,
+  );
 
   if (correct.trimStart().split(" ").pop() === "TRUE") {
     break;
@@ -272,6 +277,10 @@ BRAINTRUST_API_KEY=""%
 Then, run:
 
 `pnpm evals`
+
+For running the bananalyzer eval, you'll need to run the init script first to download the static assets:
+
+`./evals/bananalyzer-ts/init.sh`
 
 ### Develop new evals
 
