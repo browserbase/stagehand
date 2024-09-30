@@ -8,16 +8,13 @@ const homedepot = async () => {
   await stagehand.init();
   
   try {
-    // await stagehand.page.goto("https://www.homedepot.com/");
-    // await stagehand.waitForSettledDom();
+    await stagehand.page.goto("https://www.homedepot.com/");
+    await stagehand.waitForSettledDom();
 
-    // await stagehand.act({ action: "search for gas grills" });
-    // await stagehand.waitForSettledDom();
+    await stagehand.act({ action: "search for gas grills" });
+    await stagehand.waitForSettledDom();
 
-    // await stagehand.act({ action: "click on the best selling gas grill" });
-    // await stagehand.waitForSettledDom();
-
-    await stagehand.page.goto("https://www.homedepot.com/p/Nexgrill-4-Burner-Propane-Gas-Grill-in-Black-with-Stainless-Steel-Main-Lid-720-0925PG/326294740");
+    await stagehand.act({ action: "click on the best selling gas grill" });
     await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the Product Details" });
