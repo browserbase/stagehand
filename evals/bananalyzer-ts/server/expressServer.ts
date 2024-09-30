@@ -137,5 +137,37 @@ export function createExpressServer(): Express {
     res.status(500).send("Something broke!");
   });
 
+  /**
+   * Cleanup function to remove the public directory.
+   */
+  const cleanup = () => {
+    try {
+      if (fs.existsSync(publicDir)) {
+        fs.rmdirSync(publicDir, { recursive: true });
+        console.log(`Cleaned up public directory: ${publicDir}`);
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error(`Error during cleanup:`, err);
+      process.exit(1);
+    }
+  };
+
+  // Listen for termination signals to perform cleanup
+  process.on("SIGINT", () => {
+    console.log("Received SIGINT. Cleaning up before shutdown...");
+    cleanup();
+  });
+
+  process.on("SIGTERM", () => {
+    console.log("Received SIGTERM. Cleaning up before shutdown...");
+    cleanup();
+  });
+
+  process.on("exit", () => {
+    console.log("Process exiting. Cleaning up public directory...");
+    cleanup();
+  });
+
   return app;
 }
