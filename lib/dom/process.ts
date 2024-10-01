@@ -256,21 +256,25 @@ const isTextVisible = (element: ChildNode) => {
 };
 
 function isTopElement(elem: ChildNode, rect: DOMRect) {
-  let topEl = document.elementFromPoint(
-    rect.left + Math.min(rect.width, window.innerWidth - rect.left) / 2,
-    rect.top + Math.min(rect.height, window.innerHeight - rect.top) / 2,
-  );
-  let found = false;
-  while (topEl && topEl !== document.body) {
-    // consider checking hit targets in the corner and middle instead of containing
-    if (topEl.isSameNode(elem)) {
-      found = true;
-      break;
-    }
-    topEl = topEl.parentElement;
-  }
+  const points = [
+    { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
+    { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
+    { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75 },
+    { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75 },
+    { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+  ];
 
-  return found;
+  return points.some((point) => {
+    const topEl = document.elementFromPoint(point.x, point.y);
+    let current = topEl;
+    while (current && current !== document.body) {
+      if (current.isSameNode(elem)) {
+        return true;
+      }
+      current = current.parentElement;
+  }
+    return false;
+  });
 }
 
 const isActive = async (element: Element) => {
