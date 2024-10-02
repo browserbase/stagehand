@@ -16,7 +16,7 @@ async function processElements(chunk: number) {
   const chunkHeight = viewportHeight * chunk;
   const offsetTop = chunkHeight;
 
-  window.scrollTo(0, offsetTop);
+  window.scrollTo({ top: offsetTop, left: 0, behavior: 'smooth' });
 
   const domString = window.document.body.outerHTML;
   if (!domString) {
