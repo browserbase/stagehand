@@ -146,13 +146,18 @@ for (let i = 0; i < 6; i++) {
       guess: z.string().describe("the raw guess").nullable(),
       description: z
         .string()
-        .describe("what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect")
+        .describe(
+          "what letters are correct and in the right place, and what letters are correct but in the wrong place, and what letters are incorrect",
+        )
         .nullable(),
     }),
   });
   guesses.push({ guess: guess.guess, description: guess.description });
 
-  const correct = await stagehand.ask("Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " + guess.description);
+  const correct = await stagehand.ask(
+    "Based on this description of the guess, is the guess correct? Every letter must be correct and in the right place. Start your response with word TRUE or FALSE.\nGuess description: " +
+      guess.description,
+  );
 
   if (correct.trimStart().split(" ").pop() === "TRUE") {
     break;
@@ -269,9 +274,23 @@ You'll also need a Braintrust key to run evals
 BRAINTRUST_API_KEY=""%
 ```
 
-Then, run:
+and then run the init script to fetch the eval examples from the bananalyzer repo:
+
+`./evals/bananalyzer-ts/init.sh`
+
+After that, you can run the eval using:
 
 `pnpm evals`
+
+#### Adding more bananalyzer evals
+
+All bananalyzer evals are off by default. Follow these steps to turn one on.
+
+You can find all bananalyzer evals in `evals/bananalyzer-ts/static/examples.json`.
+
+To test out a specific eval use the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`. You'll need to set the eval id first.
+
+After that, add the example to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts` to add it to the global eval set.
 
 ### Develop new evals
 
