@@ -172,7 +172,10 @@ See the API Reference below for more detail on the `act()`, `observe()`, and `ex
 ### `Stagehand()`
 
 - `env`: `'LOCAL'` or '`BROWSERBASE'`.
-- `verbose`: a `boolean` that enables more logging during automation
+- `verbose`: a `integer` that enables several levels of logging during automation:
+  - `0`: limited to no logging
+  - `1`: SDK-level logging
+  - `2` LLM-client level logging (most granular) 
 - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
 
 ### Methods
