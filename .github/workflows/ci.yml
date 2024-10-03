@@ -7,7 +7,7 @@ on:
 
 jobs:
   run-evals:
-    runs-on: ubuntu-latest-medium
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
