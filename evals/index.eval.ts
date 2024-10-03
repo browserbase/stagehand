@@ -148,6 +148,86 @@ const peeler_complex = async () => {
   };
 };
 
+const homedepot = async () => {
+  const stagehand = new Stagehand({
+    env,
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
+  await stagehand.init();
+
+  try {
+    // await stagehand.page.goto("https://www.homedepot.com/");
+    // await stagehand.waitForSettledDom();
+
+    // await stagehand.act({ action: "search for gas grills" });
+    // await stagehand.waitForSettledDom();
+
+    // await stagehand.act({ action: "click on the best selling gas grill" });
+    // await stagehand.waitForSettledDom();
+
+    await stagehand.page.goto(
+      "https://www.homedepot.com/p/Nexgrill-4-Burner-Propane-Gas-Grill-in-Black-with-Stainless-Steel-Main-Lid-720-0925PG/326294740",
+    );
+    await stagehand.waitForSettledDom();
+
+    await stagehand.act({ action: "click on the Product Details" });
+    await stagehand.waitForSettledDom();
+
+    await stagehand.act({ action: "find the Primary Burner BTU" });
+    await stagehand.waitForSettledDom();
+
+    const productSpecs = await stagehand.extract({
+      instruction: "Extract the Primary exact Burner BTU of the product",
+      schema: z.object({
+        productSpecs: z
+          .array(
+            z.object({
+              burnerBTU: z.string().describe("Primary Burner BTU exact value"),
+            }),
+          )
+          .describe("Gas grill Primary Burner BTU exact value"),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
+    console.log("The gas grill primary burner BTU is:", productSpecs);
+
+    if (
+      !productSpecs ||
+      !productSpecs.productSpecs ||
+      productSpecs.productSpecs.length === 0
+    ) {
+      return {
+        _success: false,
+        productSpecs,
+      };
+    }
+
+    if (
+      (productSpecs.productSpecs[0].burnerBTU.match(/0/g) || []).length == 4 &&
+      (productSpecs.productSpecs[0].burnerBTU.match(/4/g) || []).length === 1
+    ) {
+      return {
+        _success: true,
+        productSpecs,
+      };
+    } else {
+      return {
+        _success: false,
+        productSpecs,
+      };
+    }
+  } catch (error) {
+    console.error(`Error in homedepot function: ${error.message}`);
+    return {
+      _success: false,
+      error,
+    };
+  } finally {
+    await stagehand.context.close();
+  }
+};
+
 const extract_collaborators_from_github_repository = async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -388,6 +468,7 @@ const tasks = {
   extract_last_twenty_github_commits,
   costar,
   google_jobs,
+  homedepot,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
@@ -436,6 +517,7 @@ const testcases = [
   { input: { name: "extract_last_twenty_github_commits" } },
   // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
+  { input: { name: "homedepot" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
