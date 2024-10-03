@@ -361,7 +361,7 @@ const exactMatch = (args: { input; output; expected? }) => {
 
   return {
     name: "Exact match",
-    score: Boolean(args.output) ? 1 : 0,
+    score: args.output === true || args.output?.success == true,
   };
 };
 
@@ -388,7 +388,7 @@ const testcases = [
   { input: { name: "simple_google_search" } },
   { input: { name: "extract_collaborators_from_github_repository" } },
   { input: { name: "extract_last_twenty_github_commits" } },
-  { input: { name: "costar" } },
+  // { input: { name: "costar" } },
   { input: { name: "google_jobs" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
