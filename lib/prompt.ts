@@ -104,10 +104,7 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 ];
 
 // extract
-const extractSystemPrompt = `
-'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from. Where applicable, return the exact text from the DOM elements with all symbols, characters and endlines as is. Only extract new information that has not already been extracted. Make sure you include the extraction in your response. Return an empty string if no new information is found for a string variable.',
-
-`;
+const extractSystemPrompt = `you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from. Where applicable, return the exact text from the DOM elements with all symbols, characters and endlines as is. Only extract new information that has not already been extracted. Make sure you include the extraction in your response. Return null or an empty string if no new information is found for a string variable`;
 
 export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
   const content = extractSystemPrompt.replace(/\s+/g, " ");
