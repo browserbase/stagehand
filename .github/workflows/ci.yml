@@ -7,7 +7,7 @@ on:
 
 jobs:
   run-evals:
-    runs-on: ubuntu-latest-4-core
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -40,6 +40,6 @@ jobs:
         run: pnpm evals
         timeout-minutes: 20
 
-      # Uncomment the lines bellow to ssh into the container for debugging
+      # Uncomment the lines below to ssh into the container for debugging
       - name: Install sshx
         run: curl -sSf https://sshx.io/get | sh -s run
