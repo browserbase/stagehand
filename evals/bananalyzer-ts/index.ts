@@ -59,7 +59,11 @@ export async function evaluateExample(
     return false;
   }
 
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
   let server: Server | null = null;
