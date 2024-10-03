@@ -195,7 +195,7 @@ const homedepot = async () => {
     if (
       !productSpecs ||
       !productSpecs.productSpecs ||
-      productSpecs.productSpecs.length === 0
+      productSpecs.productSpecs.length !== 1
     ) {
       return {
         _success: false,
