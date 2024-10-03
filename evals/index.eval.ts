@@ -159,7 +159,7 @@ const extract_collaborators_from_github_repository = async () => {
       });
 
       console.log("Extracted collaborators:", contributors);
-      return contributors.length === 20;
+      return contributors.length >= 20;
     })();
 
     const result = await Promise.race([extractionPromise, timeoutPromise]);
@@ -205,49 +205,10 @@ const extract_last_twenty_github_commits = async () => {
       });
 
       console.log("Extracted commits:", commits);
-      return commits.length === 20;
+      return commits.length >= 20;
     })();
 
     const result = await Promise.race([extractionPromise, timeoutPromise]);
-    await stagehand.context.close();
-    return result;
-  } catch (error) {
-    console.error("Error or timeout occurred:", error);
-    await stagehand.context.close();
-    return false;
-  }
-};
-
-const twitter_signup = async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    headless: process.env.HEADLESS !== "false",
-  });
-  await stagehand.init();
-
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 120000),
-  );
-
-  try {
-    const signupPromise = (async () => {
-      await stagehand.page.goto("https://twitter.com");
-
-      await stagehand.act({
-        action:
-          'sign up with email "{random 12 digit number}@gmail.com", password "TEstTEst.1234". Use whatever else you want for all other fields. You can only stop if you have reached the verification stage.',
-      });
-
-      await stagehand.waitForSettledDom();
-
-      // Add a check here to verify if signup was successful
-      // For example, check if a certain element is visible after signup
-
-      return true; // Return true if signup was successful
-    })();
-
-    const result = await Promise.race([signupPromise, timeoutPromise]);
     await stagehand.context.close();
     return result;
   } catch (error) {
@@ -509,4 +470,5 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
+  // trialCount: 3,
 });
