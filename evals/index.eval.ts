@@ -22,7 +22,10 @@ const vanta = async () => {
 
   const observation = await stagehand.observe("find the request demo button");
 
-  if (!observation) return false;
+  if (!observation) {
+    await stagehand.context.close();
+    return false;
+  }
 
   const observationResult = await stagehand.page
     .locator(stagehand.observations[observation].result)
@@ -74,6 +77,7 @@ const simple_google_search = async () => {
 
   const expectedUrl = "https://www.google.com/search?q=OpenAI";
   const currentUrl = await stagehand.page.url();
+
   await stagehand.context.close();
 
   return currentUrl.startsWith(expectedUrl);
@@ -128,6 +132,7 @@ const peeler_complex = async () => {
 
   return price !== null;
 };
+
 const extract_collaborators_from_github_repository = async () => {
   const stagehand = new Stagehand({ env, verbose: 1 });
   await stagehand.init();
