@@ -221,7 +221,7 @@ const homedepot = async () => {
     console.error(`Error in homedepot function: ${error.message}`);
     return {
       _success: false,
-      error,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
     };
   } finally {
     await stagehand.context.close();
