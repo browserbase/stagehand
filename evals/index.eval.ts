@@ -352,7 +352,6 @@ const tasks = {
   simple_google_search,
   extract_collaborators_from_github_repository,
   extract_last_twenty_github_commits,
-  twitter_signup,
   costar,
   google_jobs,
 };
@@ -389,7 +388,6 @@ const testcases = [
   { input: { name: "simple_google_search" } },
   { input: { name: "extract_collaborators_from_github_repository" } },
   { input: { name: "extract_last_twenty_github_commits" } },
-  { input: { name: "twitter_signup" } },
   { input: { name: "costar" } },
   { input: { name: "google_jobs" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
