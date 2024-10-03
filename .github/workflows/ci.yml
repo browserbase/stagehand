@@ -36,9 +36,10 @@ jobs:
       - name: Initialize Banana Analyzer Evals
         run: ./evals/bananalyzer-ts/init.sh
 
-      - name: Install sshx
-        run: curl -sSf https://sshx.io/get | sh -s run
-
       - name: Run Evals
         run: pnpm evals
         timeout-minutes: 20
+
+      # Uncomment the lines bellow to ssh into the container for debugging
+      - name: Install sshx
+        run: curl -sSf https://sshx.io/get | sh -s run
