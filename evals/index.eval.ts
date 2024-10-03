@@ -132,39 +132,30 @@ const extract_collaborators_from_github_repository = async () => {
   });
   await stagehand.init();
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 60000),
-  );
-
   try {
-    const extractionPromise = (async () => {
-      await stagehand.page.goto("https://github.com/facebook/react");
-      await stagehand.act({
-        action: "find the contributors section",
-      });
+    await stagehand.page.goto("https://github.com/facebook/react");
+    await stagehand.act({
+      action: "find the contributors section",
+    });
 
-      await stagehand.waitForSettledDom();
+    await stagehand.waitForSettledDom();
 
-      const { contributors } = await stagehand.extract({
-        instruction: "Extract top 20 contributors of this repository",
-        schema: z.object({
-          contributors: z.array(
-            z.object({
-              github_username: z.string(),
-              information: z.string(),
-            }),
-          ),
-        }),
-        modelName: "gpt-4o-2024-08-06",
-      });
+    const { contributors } = await stagehand.extract({
+      instruction: "Extract top 20 contributors of this repository",
+      schema: z.object({
+        contributors: z.array(
+          z.object({
+            github_username: z.string(),
+            information: z.string(),
+          }),
+        ),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-      console.log("Extracted collaborators:", contributors);
-      return contributors.length >= 20;
-    })();
-
-    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    console.log("Extracted collaborators:", contributors);
     await stagehand.context.close();
-    return result;
+    return contributors.length >= 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -180,37 +171,28 @@ const extract_last_twenty_github_commits = async () => {
   });
   await stagehand.init();
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 60000),
-  );
-
   try {
-    const extractionPromise = (async () => {
-      await stagehand.page.goto("https://github.com/facebook/react");
+    await stagehand.page.goto("https://github.com/facebook/react");
 
-      await stagehand.waitForSettledDom();
+    await stagehand.waitForSettledDom();
 
-      const { commits } = await stagehand.extract({
-        instruction: "Extract last 20 commits",
-        schema: z.object({
-          commits: z.array(
-            z.object({
-              commit_message: z.string(),
-              commit_url: z.string(),
-              commit_hash: z.string(),
-            }),
-          ),
-        }),
-        modelName: "gpt-4o-2024-08-06",
-      });
+    const { commits } = await stagehand.extract({
+      instruction: "Extract last 20 commits",
+      schema: z.object({
+        commits: z.array(
+          z.object({
+            commit_message: z.string(),
+            commit_url: z.string(),
+            commit_hash: z.string(),
+          }),
+        ),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-      console.log("Extracted commits:", commits);
-      return commits.length >= 20;
-    })();
-
-    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    console.log("Extracted commits:", commits);
     await stagehand.context.close();
-    return result;
+    return commits.length >= 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
