@@ -5,9 +5,14 @@ import { evaluateExample, chosenBananalyzerEvals } from "./bananalyzer-ts";
 import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 import process from "process";
 
+const env =
+  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+    ? "BROWSERBASE"
+    : "LOCAL";
+
 const vanta = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -17,7 +22,10 @@ const vanta = async () => {
 
   const observation = await stagehand.observe("find the request demo button");
 
-  if (!observation) return false;
+  if (!observation) {
+    await stagehand.context.close();
+    return false;
+  }
 
   const observationResult = await stagehand.page
     .locator(stagehand.observations[observation].result)
@@ -38,7 +46,7 @@ const vanta = async () => {
 
 const vanta_h = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -56,7 +64,7 @@ const vanta_h = async () => {
 
 const simple_google_search = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -69,6 +77,7 @@ const simple_google_search = async () => {
 
   const expectedUrl = "https://www.google.com/search?q=OpenAI";
   const currentUrl = await stagehand.page.url();
+
   await stagehand.context.close();
 
   return currentUrl.startsWith(expectedUrl);
@@ -97,7 +106,7 @@ const peeler_simple = async () => {
 
 const peeler_complex = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
@@ -202,7 +211,7 @@ const extract_last_twenty_github_commits = async () => {
 
 const wikipedia = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
   });
@@ -222,7 +231,7 @@ const wikipedia = async () => {
 
 const costar = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
@@ -270,7 +279,7 @@ const costar = async () => {
 
 const google_jobs = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
