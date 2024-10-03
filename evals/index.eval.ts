@@ -85,7 +85,7 @@ const simple_google_search = async () => {
 
 const peeler_simple = async () => {
   const stagehand = new Stagehand({
-    env,
+    env: "LOCAL",
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
