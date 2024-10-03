@@ -223,7 +223,10 @@ export class Stagehand {
       schema,
       modelName: modelName || this.defaultModelName,
     });
-    const { progress: newProgress, completed, ...output } = extractionResponse;
+    const {
+      metadata: { progress: newProgress, completed },
+      ...output
+    } = extractionResponse;
     await this.cleanupDomDebug();
 
     chunksSeen.push(chunk);
