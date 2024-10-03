@@ -124,7 +124,11 @@ const peeler_complex = async () => {
   return price !== null;
 };
 const extract_collaborators_from_github_repository = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
   const timeoutPromise = new Promise((_, reject) =>
@@ -168,7 +172,11 @@ const extract_collaborators_from_github_repository = async () => {
 };
 
 const extract_last_twenty_github_commits = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
   const timeoutPromise = new Promise((_, reject) =>
@@ -210,7 +218,11 @@ const extract_last_twenty_github_commits = async () => {
 };
 
 const twitter_signup = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
   const timeoutPromise = new Promise((_, reject) =>
