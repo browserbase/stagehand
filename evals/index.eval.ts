@@ -450,5 +450,5 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
-  // trialCount: 3,
+  trialCount: 3,
 });
