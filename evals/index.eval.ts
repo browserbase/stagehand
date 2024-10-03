@@ -449,13 +449,13 @@ const testcases = [
   { input: { name: "twitter_signup" } },
   { input: { name: "costar" } },
   { input: { name: "google_jobs" } },
-  // ...chosenBananalyzerEvals.map((evalItem: any) => ({
-  //   input: {
-  //     name: evalItem.name,
-  //     id: evalItem.id,
-  //     source: "bananalyzer-ts",
-  //   },
-  // })),
+  ...chosenBananalyzerEvals.map((evalItem: any) => ({
+    input: {
+      name: evalItem.name,
+      id: evalItem.id,
+      source: "bananalyzer-ts",
+    },
+  })),
 ];
 
 let finishedEvals = 0;
