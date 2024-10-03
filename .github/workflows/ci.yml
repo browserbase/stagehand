@@ -9,6 +9,11 @@ jobs:
   run-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      HEADLESS: true
 
     steps:
       - name: Check out repository code
@@ -35,10 +40,5 @@ jobs:
         run: curl -sSf https://sshx.io/get | sh -s run
 
       - name: Run Evals
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-          HEADLESS: true
         run: pnpm evals
         timeout-minutes: 20
