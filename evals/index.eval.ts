@@ -5,9 +5,14 @@ import { evaluateExample, chosenBananalyzerEvals } from "./bananalyzer-ts";
 import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 import process from "process";
 
+const env =
+  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+    ? "BROWSERBASE"
+    : "LOCAL";
+
 const vanta = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -17,7 +22,10 @@ const vanta = async () => {
 
   const observation = await stagehand.observe("find the request demo button");
 
-  if (!observation) return false;
+  if (!observation) {
+    await stagehand.context.close();
+    return false;
+  }
 
   const observationResult = await stagehand.page
     .locator(stagehand.observations[observation].result)
@@ -38,7 +46,7 @@ const vanta = async () => {
 
 const vanta_h = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -56,7 +64,7 @@ const vanta_h = async () => {
 
 const simple_google_search = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     headless: process.env.HEADLESS !== "false",
   });
   await stagehand.init();
@@ -69,6 +77,7 @@ const simple_google_search = async () => {
 
   const expectedUrl = "https://www.google.com/search?q=OpenAI";
   const currentUrl = await stagehand.page.url();
+
   await stagehand.context.close();
 
   return currentUrl.startsWith(expectedUrl);
@@ -97,7 +106,7 @@ const peeler_simple = async () => {
 
 const peeler_complex = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
@@ -123,43 +132,39 @@ const peeler_complex = async () => {
 
   return price !== null;
 };
+
 const extract_collaborators_from_github_repository = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 60000),
-  );
-
   try {
-    const extractionPromise = (async () => {
-      await stagehand.page.goto("https://github.com/facebook/react");
-      await stagehand.act({
-        action: "find the contributors section",
-      });
+    await stagehand.page.goto("https://github.com/facebook/react");
+    await stagehand.act({
+      action: "find the contributors section",
+    });
 
-      await stagehand.waitForSettledDom();
+    await stagehand.waitForSettledDom();
 
-      const { contributors } = await stagehand.extract({
-        instruction: "Extract top 20 contributors of this repository",
-        schema: z.object({
-          contributors: z.array(
-            z.object({
-              github_username: z.string(),
-              information: z.string(),
-            }),
-          ),
-        }),
-        modelName: "gpt-4o-2024-08-06",
-      });
+    const { contributors } = await stagehand.extract({
+      instruction: "Extract top 20 contributors of this repository",
+      schema: z.object({
+        contributors: z.array(
+          z.object({
+            github_username: z.string(),
+            information: z.string(),
+          }),
+        ),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-      console.log("Extracted collaborators:", contributors);
-      return contributors.length === 20;
-    })();
-
-    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    console.log("Extracted collaborators:", contributors);
     await stagehand.context.close();
-    return result;
+    return contributors.length === 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -168,75 +173,35 @@ const extract_collaborators_from_github_repository = async () => {
 };
 
 const extract_last_twenty_github_commits = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 60000),
-  );
-
   try {
-    const extractionPromise = (async () => {
-      await stagehand.page.goto("https://github.com/facebook/react");
+    await stagehand.page.goto("https://github.com/facebook/react");
 
-      await stagehand.waitForSettledDom();
+    await stagehand.waitForSettledDom();
 
-      const { commits } = await stagehand.extract({
-        instruction: "Extract last 20 commits",
-        schema: z.object({
-          commits: z.array(
-            z.object({
-              commit_message: z.string(),
-              commit_url: z.string(),
-              commit_hash: z.string(),
-            }),
-          ),
-        }),
-        modelName: "gpt-4o-2024-08-06",
-      });
+    const { commits } = await stagehand.extract({
+      instruction: "Extract last 20 commits",
+      schema: z.object({
+        commits: z.array(
+          z.object({
+            commit_message: z.string(),
+            commit_url: z.string(),
+            commit_hash: z.string(),
+          }),
+        ),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-      console.log("Extracted commits:", commits);
-      return commits.length === 20;
-    })();
-
-    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    console.log("Extracted commits:", commits);
     await stagehand.context.close();
-    return result;
-  } catch (error) {
-    console.error("Error or timeout occurred:", error);
-    await stagehand.context.close();
-    return false;
-  }
-};
-
-const twitter_signup = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
-  await stagehand.init();
-
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Operation timed out")), 120000),
-  );
-
-  try {
-    const signupPromise = (async () => {
-      await stagehand.page.goto("https://twitter.com");
-
-      await stagehand.act({
-        action:
-          'sign up with email "{random 12 digit number}@gmail.com", password "TEstTEst.1234". Use whatever else you want for all other fields. You can only stop if you have reached the verification stage.',
-      });
-
-      await stagehand.waitForSettledDom();
-
-      // Add a check here to verify if signup was successful
-      // For example, check if a certain element is visible after signup
-
-      return true; // Return true if signup was successful
-    })();
-
-    const result = await Promise.race([signupPromise, timeoutPromise]);
-    await stagehand.context.close();
-    return result;
+    return commits.length === 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -246,7 +211,7 @@ const twitter_signup = async () => {
 
 const wikipedia = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
   });
@@ -266,7 +231,7 @@ const wikipedia = async () => {
 
 const costar = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
@@ -314,7 +279,7 @@ const costar = async () => {
 
 const google_jobs = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
@@ -396,7 +361,6 @@ const tasks = {
   simple_google_search,
   extract_collaborators_from_github_repository,
   extract_last_twenty_github_commits,
-  twitter_signup,
   costar,
   google_jobs,
 };
@@ -406,7 +370,7 @@ const exactMatch = (args: { input; output; expected? }) => {
 
   return {
     name: "Exact match",
-    score: Boolean(args.output) ? 1 : 0,
+    score: args.output === true || args.output?.success == true,
   };
 };
 
@@ -433,7 +397,6 @@ const testcases = [
   { input: { name: "simple_google_search" } },
   { input: { name: "extract_collaborators_from_github_repository" } },
   { input: { name: "extract_last_twenty_github_commits" } },
-  { input: { name: "twitter_signup" } },
   // { input: { name: "costar" } },
   { input: { name: "google_jobs" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
@@ -496,4 +459,5 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
+  // trialCount: 3,
 });
