@@ -52,12 +52,62 @@ async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: bool
           width: 1250,
           height: 800,
         },
-      }
+        locale: "en-US",
+        timezoneId: "America/New_York",
+        deviceScaleFactor: 1,
+        args: [
+          "--enable-webgl",
+          "--use-gl=swiftshader",
+          "--enable-accelerated-2d-canvas",
+        ],
+        excludeSwitches: "enable-automation",
+        userDataDir: "./user_data",
+      },
     );
 
     console.log("Local browser started successfully.");
+
+    await applyStealthScripts(context);
+
     return { context };
   }
+}
+
+async function applyStealthScripts(context: BrowserContext) {
+  await context.addInitScript(() => {
+    // Override the navigator.webdriver property
+    Object.defineProperty(navigator, "webdriver", {
+      get: () => undefined,
+    });
+
+    // Mock languages and plugins to mimic a real browser
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["en-US", "en"],
+    });
+
+    Object.defineProperty(navigator, "plugins", {
+      get: () => [1, 2, 3, 4, 5],
+    });
+
+    // Remove Playwright-specific properties
+    delete (window as any).__playwright;
+    delete (window as any).__pw_manual;
+    delete (window as any).__PW_inspect;
+
+    // Redefine the headless property
+    Object.defineProperty(navigator, "headless", {
+      get: () => false,
+    });
+
+    // Override the permissions API
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters: any) =>
+      parameters.name === "notifications"
+        ? Promise.resolve({
+            state: Notification.permission,
+          } as PermissionStatus)
+        : originalQuery(parameters);
+  });
 }
 
 export class Stagehand {
