@@ -209,13 +209,15 @@ export class Stagehand {
 
     await this.waitForSettledDom();
     await this.startDomDebug();
-    const { outputString, chunk, chunks } = await this.page.evaluate(() =>
-      window.processDom([])
+    const { outputString, chunk, chunks } = await this.page.evaluate(
+      (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
+      chunksSeen,
     );
 
     const extractionResponse = await extract({
       instruction,
       progress,
+      previouslyExtractedContent: content,
       domElements: outputString,
       llmProvider: this.llmProvider,
       schema,

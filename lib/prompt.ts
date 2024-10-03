@@ -105,7 +105,7 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 
 // extract
 const extractSystemPrompt = `
-'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from',
+'you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from. Where applicable, return the exact text from the DOM elements with all symbols, characters and endlines as is. Only extract new information that has not already been extracted.',
 
 `;
 
@@ -120,12 +120,18 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 export function buildExtractUserPrompt(
   instruction: string,
   progress: string,
+  previouslyExtractedContent: object,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
     content: `instruction: ${instruction}
     progress: ${progress}
+    Previously Extracted Content:\n${JSON.stringify(
+      previouslyExtractedContent,
+      null,
+      2,
+    )}
     DOM: ${domElements}`,
   };
 }
