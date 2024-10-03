@@ -35,5 +35,6 @@ jobs:
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           HEADLESS: true
+          EVAL_ENV: browserbase
         run: pnpm evals
         timeout-minutes: 20
