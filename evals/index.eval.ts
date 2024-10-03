@@ -155,7 +155,7 @@ const extract_collaborators_from_github_repository = async () => {
 
     console.log("Extracted collaborators:", contributors);
     await stagehand.context.close();
-    return contributors.length >= 20;
+    return contributors.length === 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -192,7 +192,7 @@ const extract_last_twenty_github_commits = async () => {
 
     console.log("Extracted commits:", commits);
     await stagehand.context.close();
-    return commits.length >= 20;
+    return commits.length === 20;
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
