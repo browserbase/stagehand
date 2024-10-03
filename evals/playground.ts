@@ -112,11 +112,58 @@ const homedepot = async () => {
   }
 };
 
+const extract_last_twenty_github_commits = async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
+  await stagehand.init();
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Operation timed out")), 60000),
+  );
+
+  try {
+    const extractionPromise = (async () => {
+      await stagehand.page.goto("https://github.com/facebook/react");
+
+      await stagehand.waitForSettledDom();
+
+      const { commits } = await stagehand.extract({
+        instruction: "Extract last 20 commits",
+        schema: z.object({
+          commits: z.array(
+            z.object({
+              commit_message: z.string(),
+              commit_url: z.string(),
+              commit_hash: z.string(),
+            }),
+          ),
+        }),
+        modelName: "gpt-4o-2024-08-06",
+      });
+
+      console.log("Extracted commits:", commits);
+      return commits.length === 20;
+    })();
+
+    const result = await Promise.race([extractionPromise, timeoutPromise]);
+    await stagehand.context.close();
+    return result;
+  } catch (error) {
+    console.error("Error or timeout occurred:", error);
+    await stagehand.context.close();
+    return false;
+  }
+};
+
 async function main() {
   // const [costarResult] = await Promise.all([costar()]);
-  const [homedepotResult] = await Promise.all([homedepot()]);
+  // const [homedepotResult] = await Promise.all([homedepot()]);
+  const result = await extract_last_twenty_github_commits();
 
-  console.log("Homedepot result:", homedepotResult);
+  console.log("Result:", result);
 }
 
 main().catch(console.error);
