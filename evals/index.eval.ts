@@ -41,7 +41,11 @@ const vanta = async () => {
 
   await stagehand.context.close();
 
-  return observationResult == expectedResult;
+  return {
+    _success: observationResult == expectedResult,
+    expected: expectedResult,
+    actual: observationResult,
+  };
 };
 
 const vanta_h = async () => {
@@ -59,7 +63,10 @@ const vanta_h = async () => {
   await stagehand.context.close();
 
   // we should have no saved observation since the element shouldn't exist
-  return observation === null;
+  return {
+    _success: observation === null,
+    observation,
+  };
 };
 
 const simple_google_search = async () => {
@@ -80,7 +87,10 @@ const simple_google_search = async () => {
 
   await stagehand.context.close();
 
-  return currentUrl.startsWith(expectedUrl);
+  return {
+    _success: currentUrl.startsWith(expectedUrl),
+    currentUrl,
+  };
 };
 
 const peeler_simple = async () => {
@@ -101,7 +111,9 @@ const peeler_simple = async () => {
   const isVisible = await successMessageLocator.isVisible();
 
   await stagehand.context.close();
-  return isVisible;
+  return {
+    _success: isVisible,
+  };
 };
 
 const peeler_complex = async () => {
@@ -130,7 +142,10 @@ const peeler_complex = async () => {
 
   await stagehand.context.close();
 
-  return price !== null;
+  return {
+    _success: price !== null,
+    price,
+  };
 };
 
 const extract_collaborators_from_github_repository = async () => {
@@ -164,7 +179,10 @@ const extract_collaborators_from_github_repository = async () => {
 
     console.log("Extracted collaborators:", contributors);
     await stagehand.context.close();
-    return contributors.length === 20;
+    return {
+      _success: contributors.length === 20,
+      contributors,
+    };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -201,7 +219,10 @@ const extract_last_twenty_github_commits = async () => {
 
     console.log("Extracted commits:", commits);
     await stagehand.context.close();
-    return commits.length === 20;
+    return {
+      _success: commits.length === 20,
+      commits,
+    };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
@@ -226,7 +247,11 @@ const wikipedia = async () => {
   const currentUrl = await stagehand.page.url();
   await stagehand.context.close();
 
-  return currentUrl === url;
+  return {
+    _success: currentUrl === url,
+    expected: url,
+    actual: currentUrl,
+  };
 };
 
 const costar = async () => {
@@ -268,10 +293,10 @@ const costar = async () => {
 
     await stagehand.context.close();
 
-    return isTitleValid;
+    return { title: articleTitle.title, _success: isTitleValid };
   } catch (error) {
     console.error(`Error in costar function: ${error.message}`);
-    return { title: null };
+    return { title: null, _success: false } as any;
   } finally {
     await stagehand.context.close();
   }
@@ -349,7 +374,7 @@ const google_jobs = async () => {
 
   console.log("Job Details valid:", isJobDetailsValid);
 
-  return isJobDetailsValid;
+  return { _success: isJobDetailsValid, jobDetails };
 };
 
 const tasks = {
@@ -365,12 +390,20 @@ const tasks = {
   google_jobs,
 };
 
-const exactMatch = (args: { input; output; expected? }) => {
+const exactMatch = (args: { input: any; output: any; expected?: any }) => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
+
+  const expected = args.expected ?? true;
+  if (expected === true) {
+    return {
+      name: "Exact match",
+      score: args.output === true || args.output?._success == true,
+    };
+  }
 
   return {
     name: "Exact match",
-    score: args.output === true || args.output?.success == true,
+    score: args.output === expected,
   };
 };
 
@@ -395,9 +428,13 @@ const testcases = [
   },
   { input: { name: "peeler_complex" } },
   { input: { name: "simple_google_search" } },
-  { input: { name: "extract_collaborators_from_github_repository" } },
+  {
+    input: {
+      name: "extract_collaborators_from_github_repository",
+    },
+  },
   { input: { name: "extract_last_twenty_github_commits" } },
-  // { input: { name: "costar" } },
+  // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
@@ -416,7 +453,7 @@ Eval("stagehand", {
   data: () => {
     return testcases;
   },
-  task: async (input) => {
+  task: async (input: any) => {
     // console.log("input", input);
     try {
       if ("source" in input && input.source === "bananalyzer-ts") {
@@ -440,7 +477,7 @@ Eval("stagehand", {
         return result;
       } else {
         // Handle predefined tasks
-        const result = await tasks[input.name](input);
+        const result = await (tasks as any)[input.name](input);
         if (result) {
           console.log(`✅ ${input.name}: Passed`);
         } else {
