@@ -329,12 +329,16 @@ const wikipedia = async () => {
   };
 };
 
-
 // Validate that the action is not found on the page
 const nonsense_action = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: true });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+    headless: true,
+  });
   await stagehand.init();
-  
+
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
     await stagehand.waitForSettledDom();
@@ -345,14 +349,15 @@ const nonsense_action = async () => {
     // Assert the output
     const expectedResult = {
       success: false,
-      message: 'Action not found on the current page after checking all chunks.',
-      action: 'click on the first banana'
+      message:
+        "Action not found on the current page after checking all chunks.",
+      action: "click on the first banana",
     };
 
-    const isResultCorrect = JSON.stringify(result) === JSON.stringify(expectedResult);
-    
-    return isResultCorrect;
+    const isResultCorrect =
+      JSON.stringify(result) === JSON.stringify(expectedResult);
 
+    return isResultCorrect;
   } catch (error) {
     console.error(`Error in nonsense_action function: ${error.message}`);
     return false;
@@ -381,7 +386,9 @@ const costar = async () => {
 
     await stagehand.act({ action: "click on the first article" });
 
-    await stagehand.act({ action: "click on the learn more button for the first job" });
+    await stagehand.act({
+      action: "click on the learn more button for the first job",
+    });
 
     await stagehand.waitForSettledDom();
     const articleTitle = await stagehand.extract({
@@ -459,68 +466,26 @@ const google_jobs = async () => {
 
   console.log("Job Details:", jobDetails);
 
-  const isJobDetailsValid = jobDetails && 
-  Object.values(jobDetails).every(value => 
-    value !== null && 
-    value !== undefined && 
-    (typeof value !== 'object' || Object.values(value).every(v => 
-      v !== null && 
-      v !== undefined && 
-      (typeof v === 'number' || typeof v === 'string')
-    ))
-  );
-
+  const isJobDetailsValid =
+    jobDetails &&
+    Object.values(jobDetails).every(
+      (value) =>
+        value !== null &&
+        value !== undefined &&
+        (typeof value !== "object" ||
+          Object.values(value).every(
+            (v) =>
+              v !== null &&
+              v !== undefined &&
+              (typeof v === "number" || typeof v === "string"),
+          )),
+    );
 
   await stagehand.context.close();
 
   console.log("Job Details valid:", isJobDetailsValid);
 
   return { _success: isJobDetailsValid, jobDetails };
-};
-
-const homedepot = async () => {
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1, debugDom: true, headless: process.env.HEADLESS !== "false" });
-  await stagehand.init();
-  
-  try {
-    await stagehand.page.goto("https://www.homedepot.com/");
-    await stagehand.waitForSettledDom();
-
-    await stagehand.act({ action: "search for gas grills" });
-    await stagehand.waitForSettledDom();
-
-    await stagehand.act({ action: "click on the best selling gas grill" });
-    await stagehand.waitForSettledDom();
-
-    await stagehand.act({ action: "click on the Product Details" });
-    await stagehand.waitForSettledDom();
-    
-    await stagehand.act({ action: "find the Primary Burner BTU" });
-    await stagehand.waitForSettledDom();
-
-    const productSpecs = await stagehand.extract({
-      instruction: "Extract the Primary Burner BTU of the product",
-      schema: z.object({
-        productSpecs: z.array(z.object({
-          burnerBTU: z.string().describe("Primary Burner BTU"),
-        })).describe("Gas grill Primary Burner BTU")
-      }),
-      modelName: "gpt-4o-2024-08-06"
-    });
-    console.log("The gas grill primary burner BTU is:", productSpecs);
-
-    if (!productSpecs || !productSpecs.productSpecs || productSpecs.productSpecs.length === 0) {
-      return false;
-    }
-
-    return true;
-
-  } catch (error) {
-    console.error(`Error in homedepot function: ${error.message}`);
-    return false;
-  } finally {
-    await stagehand.context.close();
-  }
 };
 
 const tasks = {
@@ -534,7 +499,7 @@ const tasks = {
   extract_last_twenty_github_commits,
   costar,
   google_jobs,
-  homedepot
+  homedepot,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
