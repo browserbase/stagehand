@@ -19,12 +19,14 @@ export async function act({
   steps,
   llmProvider,
   modelName,
+  retries = 0,
 }: {
   action: string;
   steps?: string;
   domElements: string;
   llmProvider: LLMProvider;
   modelName: string;
+  retries?: number;
 }): Promise<{
   method: string;
   element: number;
@@ -55,7 +57,19 @@ export async function act({
     }
     return JSON.parse(toolCalls[0].function.arguments);
   } else {
-    throw new Error("No tool calls found in response");
+    if (retries >= 2) {
+      console.error("No tool calls found in response");
+      return null;
+    }
+
+    return act({
+      action,
+      domElements,
+      steps,
+      llmProvider,
+      modelName,
+      retries: retries + 1,
+    });
   }
 }
 
