@@ -1,4 +1,3 @@
-import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
@@ -117,7 +116,7 @@ const homedepot = async () => {
 async function main() {
   const homedepotResult = await homedepot();
 
-  console.log("Homedepot result:", homedepotResult);
+  console.log("Result:", homedepotResult);
 }
 
 main().catch(console.error);

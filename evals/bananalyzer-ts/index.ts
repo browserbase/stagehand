@@ -47,7 +47,7 @@ export async function evaluateExample(
     launchServer: true,
     serverPort: 6778,
   },
-): Promise<boolean> {
+): Promise<any> {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   const examples = JSON.parse(
@@ -59,7 +59,11 @@ export async function evaluateExample(
     return false;
   }
 
-  const stagehand = new Stagehand({ env: "LOCAL", verbose: 1 });
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: process.env.HEADLESS !== "false",
+  });
   await stagehand.init();
 
   let server: Server | null = null;
@@ -158,7 +162,12 @@ export async function evaluateExample(
         if (evalItem.expected) {
           if (!validateJsonMatch(evalItem.expected, extractionResult)) {
             console.log("❌ JSON match failed");
-            return false;
+            return {
+              _success: false,
+              case: "json_mismatch_1",
+              expected: evalItem.expected,
+              actual: extractionResult,
+            };
           }
         } else if (evalItem.options) {
           const matchesAny = evalItem.options.some((option) =>
@@ -166,7 +175,12 @@ export async function evaluateExample(
           );
           if (!matchesAny) {
             console.log("❌ No JSON match found in options");
-            return false;
+            return {
+              _success: false,
+              case: "json_mismatch_2",
+              expected: evalItem.expected,
+              actual: extractionResult,
+            };
           }
         }
       } else if (
@@ -177,16 +191,28 @@ export async function evaluateExample(
           !validateEndUrlMatch(evalItem.expected, await stagehand.page.url())
         ) {
           console.log("❌ URL match failed");
-          return false;
+          return {
+            _success: false,
+            case: "url_mismatch",
+            expected: evalItem.expected,
+            actual: await stagehand.page.url(),
+          };
         }
       }
     }
 
     console.log("✅ All evaluations passed");
-    return true;
+    return {
+      _success: true,
+      expected: extractionResult,
+      actual: extractionResult,
+    };
   } catch (error) {
     console.error("Error during evaluation:", error);
-    return false;
+    return {
+      _success: false,
+      error: error,
+    };
   } finally {
     try {
       const deleteResponse = await fetch(
