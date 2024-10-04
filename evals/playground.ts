@@ -50,7 +50,6 @@ const homedepot = async () => {
   }
 };
 
-
 async function main() {
   const homedepotResult = await homedepot();
 

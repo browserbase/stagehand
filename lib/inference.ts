@@ -62,6 +62,7 @@ export async function act({
 export async function extract({
   instruction,
   progress,
+  previouslyExtractedContent,
   domElements,
   schema,
   llmProvider,
@@ -69,23 +70,33 @@ export async function extract({
 }: {
   instruction: string;
   progress: string;
+  previouslyExtractedContent: any;
   domElements: string;
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
   modelName: string;
 }) {
   const llmClient = llmProvider.getClient(modelName);
-  
+
   const fullSchema = schema.extend({
-    progress: z.string().describe("progress of what has been extracted so far"),
-    completed: z.boolean().describe("true if the goal is now accomplished"),
+    metadata: z.object({
+      progress: z
+        .string()
+        .describe("progress of what has been extracted so far"),
+      completed: z.boolean().describe("true if the goal is now accomplished"),
+    }),
   });
 
   return llmClient.createExtraction({
     model: modelName,
     messages: [
       buildExtractSystemPrompt() as ChatMessage,
-      buildExtractUserPrompt(instruction, progress, domElements) as ChatMessage,
+      buildExtractUserPrompt(
+        instruction,
+        progress,
+        previouslyExtractedContent,
+        domElements,
+      ) as ChatMessage,
     ],
     response_model: {
       schema: fullSchema,
@@ -143,7 +154,10 @@ export async function ask({
   const llmClient = llmProvider.getClient(modelName);
   const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [buildAskSystemPrompt() as ChatMessage, buildAskUserPrompt(question) as ChatMessage],
+    messages: [
+      buildAskSystemPrompt() as ChatMessage,
+      buildAskUserPrompt(question) as ChatMessage,
+    ],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
