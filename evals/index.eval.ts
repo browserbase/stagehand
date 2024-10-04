@@ -24,7 +24,10 @@ const vanta = async () => {
 
   if (!observation) {
     await stagehand.context.close();
-    return false;
+    return {
+      _success: false,
+      observation,
+    };
   }
 
   const observationResult = await stagehand.page
@@ -261,7 +264,10 @@ const extract_collaborators_from_github_repository = async () => {
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
-    return false;
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+    };
   }
 };
 
@@ -301,7 +307,10 @@ const extract_last_twenty_github_commits = async () => {
   } catch (error) {
     console.error("Error or timeout occurred:", error);
     await stagehand.context.close();
-    return false;
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+    };
   }
 };
 
@@ -360,7 +369,10 @@ const nonsense_action = async () => {
     return isResultCorrect;
   } catch (error) {
     console.error(`Error in nonsense_action function: ${error.message}`);
-    return false;
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+    };
   } finally {
     await stagehand.context.close();
   }
@@ -600,7 +612,10 @@ Eval("stagehand", {
       }
     } catch (error) {
       console.error(`❌ ${input.name}: Error - ${error}`);
-      return false;
+      return {
+        _success: false,
+        error: JSON.parse(JSON.stringify(error, null, 2)),
+      };
     } finally {
       finishedEvals++;
       if (finishedEvals === testcases.length) {
