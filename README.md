@@ -186,7 +186,7 @@ See the API Reference below for more detail on the `act()`, `observe()`, and `ex
 
 #### `extract()`
 
-`extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod) and [instructor](https://github.com/instructor-ai/instructor-js).
+`extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod).
 Given instructions and `schema`, you will receive structured data. Unlike some extraction libraries, stagehand can extract any information on a page, not just the main article contents.
 
 #### `observe()`
