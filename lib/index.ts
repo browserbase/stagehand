@@ -509,8 +509,12 @@ export class Stagehand {
   
     // Get the chunksSeen for the current frame
     const chunksSeen = chunksSeenPerFrame[frameId];
+<<<<<<< HEAD
     // TODO: start dom debug on each frame - right now we only do it on the main frame
     await this.startDomDebug();
+=======
+  
+>>>>>>> 3a1184e (support iframe from the top)
     // Process the current frame
     const domResult = await currentFrame.evaluate(
       ({ chunksSeen }) => {
@@ -539,9 +543,12 @@ export class Stagehand {
   
     // Add the current chunk to chunksSeen
     chunksSeen.push(chunk);
+<<<<<<< HEAD
 
     // TODO: cleanup dom debug on each frame - right now we only do it on the main frame
     await this.cleanupDomDebug();
+=======
+>>>>>>> 3a1184e (support iframe from the top)
     chunksSeenPerFrame[frameId] = chunksSeen;
   
     if (!response) {
@@ -554,11 +561,15 @@ export class Stagehand {
         await this.waitForSettledDom();
         return await this.act({
           action,
+<<<<<<< HEAD
 
         steps:
         steps +
         (!steps.endsWith("\n") ? "\n" : "") +
         "## Step: Scrolled to another section\n",
+=======
+          steps: steps + (!steps.endsWith("\n") ? "\n" : "") + "## Step: Scrolled to another section\n",
+>>>>>>> 3a1184e (support iframe from the top)
           frameIndex,
           frames,
           chunksSeenPerFrame,
@@ -595,6 +606,7 @@ export class Stagehand {
       elementLines
         .find((line) => line.startsWith(`${element}:`))
         ?.split(":")[1] || "Element not found";
+
 
     this.log({
       category: "action",
@@ -692,11 +704,19 @@ export class Stagehand {
         return await this.act({
           action,
           steps:
+<<<<<<< HEAD
             steps +
             (!steps.endsWith("\n") ? "\n" : "") +
             `## Step: ${response.step}\n` +
             `  Element: ${elementText}\n` +
             `  Action: ${response.method}\n\n`,
+=======
+          steps +
+        (!steps.endsWith("\n") ? "\n" : "") +
+        `## Step: ${response.step}\n` +
+        `  Element: ${elementText}\n` +
+          `  Action: ${response.method}\n\n`,
+>>>>>>> 3a1184e (support iframe from the top)
           frameIndex,
           frames,
           chunksSeenPerFrame,
@@ -711,7 +731,11 @@ export class Stagehand {
         await this.recordAction(action, response.step);
         return {
           success: true,
+<<<<<<< HEAD
           message: `Action completed successfully: ${steps}${response.step}`,
+=======
+          message: `Action completed successfully: ${steps}${response.step}\nElement: ${elementText}`,
+>>>>>>> 3a1184e (support iframe from the top)
           action: action,
         };
       }
