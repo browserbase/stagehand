@@ -481,8 +481,8 @@ export class Stagehand {
   
     // Get the chunksSeen for the current frame
     const chunksSeen = chunksSeenPerFrame[frameId];
-    // TODO: start dom debug on each frame
-    // await this.startDomDebug();
+    // TODO: start dom debug on each frame - right now we only do it on the main frame
+    await this.startDomDebug();
     // Process the current frame
     const domResult = await currentFrame.evaluate(
       ({ chunksSeen }) => {
@@ -512,8 +512,8 @@ export class Stagehand {
     // Add the current chunk to chunksSeen
     chunksSeen.push(chunk);
 
-    // TODO: cleanup dom debug on each frame
-    // await this.cleanupDomDebug();
+    // TODO: cleanup dom debug on each frame - right now we only do it on the main frame
+    await this.cleanupDomDebug();
     chunksSeenPerFrame[frameId] = chunksSeen;
   
     if (!response) {
