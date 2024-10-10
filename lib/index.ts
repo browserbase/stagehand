@@ -303,26 +303,28 @@ export class Stagehand {
 
     chunksSeen.push(chunk);
 
+    const mergedOutput = merge(content, output);
+
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
         category: "extraction",
         message: `response: ${JSON.stringify(extractionResponse)}`,
-        level: 1
+        level: 1,
       });
 
-      return merge(content, output);
+      return mergedOutput;
     } else {
       this.log({
         category: "extraction",
         message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
-        level: 1
+        level: 1,
       });
       await this.waitForSettledDom();
       return this.extract({
         instruction,
         schema,
         progress: progress + newProgress + ", ",
-        content: merge(content, output),
+        content: mergedOutput,
         chunksSeen,
         modelName,
       });
