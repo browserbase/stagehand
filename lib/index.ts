@@ -503,7 +503,10 @@ export class Stagehand {
         await this.waitForSettledDom();
         return this.act({
           action,
-          steps: steps + "Scrolled to another section, ",
+          steps:
+            steps +
+            (!steps.endsWith("\n") ? "\n" : "") +
+            "## Step: Scrolled to another section\n",
           chunksSeen,
           modelName,
         });
@@ -526,6 +529,13 @@ export class Stagehand {
     const path = selectorMap[element];
     const method = response["method"];
     const args = response["args"];
+
+    // Get the element text from the outputString
+    const elementLines = outputString.split("\n");
+    const elementText =
+      elementLines
+        .find((line) => line.startsWith(`${element}:`))
+        ?.split(":")[1] || "Element not found";
 
     this.log({
       category: "action",
@@ -622,15 +632,21 @@ export class Stagehand {
         await this.waitForSettledDom();
         const nextResult = await this.act({
           action,
-          steps: steps + response.step + ", ",
-          chunksSeen,
+          steps:
+            steps +
+            (!steps.endsWith("\n") ? "\n" : "") +
+            `## Step: ${response.step}\n` +
+            `  Element: ${elementText}\n` +
+            `  Action: ${response.method}\n\n`,
+          // chunksSeen,
           modelName,
         });
         return nextResult;
       }
+
       return {
         success: true,
-        message: `Action completed successfully: ${steps}${response.step}`,
+        message: `Action completed successfully: ${steps}${response.step}\nElement: ${elementText}`,
         action: action,
       };
     } catch (error) {

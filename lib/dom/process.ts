@@ -28,6 +28,8 @@ async function processElements(chunk: number) {
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
 
+    var shouldAddElement = false;
+
     if (element && isElementNode(element)) {
       const childrenCount = element.childNodes.length;
 
@@ -40,14 +42,22 @@ async function processElements(chunk: number) {
       // Check if element is interactive
       if (isInteractiveElement(element)) {
         if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
-        }
-      } else if (isLeafElement(element)) {
-        if ((await isActive(element)) && isVisible(element)) {
-          candidateElements.push(element);
+          shouldAddElement = true;
         }
       }
-    } else if (element && isTextNode(element) && isTextVisible(element)) {
+
+      if (isLeafElement(element)) {
+        if ((await isActive(element)) && isVisible(element)) {
+          shouldAddElement = true;
+        }
+      }
+    }
+
+    if (element && isTextNode(element) && isTextVisible(element)) {
+      shouldAddElement = true;
+    }
+
+    if (shouldAddElement) {
       candidateElements.push(element);
     }
   }
@@ -70,11 +80,41 @@ async function processElements(chunk: number) {
       if (element.className) {
         attributes.push(`class="${element.className}"`);
       }
-      if (element.getAttribute('href')) {
-        attributes.push(`href="${element.getAttribute('href')}"`);
+      if (element.getAttribute("href")) {
+        attributes.push(`href="${element.getAttribute("href")}"`);
       }
-      if (element.getAttribute('src')) {
-        attributes.push(`src="${element.getAttribute('src')}"`);
+      if (element.getAttribute("src")) {
+        attributes.push(`src="${element.getAttribute("src")}"`);
+      }
+      if (element.getAttribute("aria-label")) {
+        attributes.push(`aria-label="${element.getAttribute("aria-label")}"`);
+      }
+      if (element.getAttribute("aria-name")) {
+        attributes.push(`aria-name="${element.getAttribute("aria-name")}"`);
+      }
+      if (element.getAttribute("aria-role")) {
+        attributes.push(`aria-role="${element.getAttribute("aria-role")}"`);
+      }
+      if (element.getAttribute("aria-description")) {
+        attributes.push(
+          `aria-description="${element.getAttribute("aria-description")}"`,
+        );
+      }
+      if (element.getAttribute("aria-expanded")) {
+        attributes.push(
+          `aria-expanded="${element.getAttribute("aria-expanded")}"`,
+        );
+      }
+      if (element.getAttribute("aria-haspopup")) {
+        attributes.push(
+          `aria-haspopup="${element.getAttribute("aria-haspopup")}"`,
+        );
+      }
+
+      for (const attr of element.attributes) {
+        if (attr.name.startsWith("data-")) {
+          attributes.push(`${attr.name}="${attr.value}"`);
+        }
       }
 
       // Build the simplified element string

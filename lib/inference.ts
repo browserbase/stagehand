@@ -36,12 +36,14 @@ export async function act({
   why?: string;
 } | null> {
   const llmClient = llmProvider.getClient(modelName);
+  const messages = [
+    buildActSystemPrompt() as ChatMessage,
+    buildActUserPrompt(action, steps, domElements) as ChatMessage,
+  ];
+
   const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [
-      buildActSystemPrompt() as ChatMessage,
-      buildActUserPrompt(action, steps, domElements) as ChatMessage,
-    ],
+    messages,
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
@@ -97,7 +99,11 @@ export async function extract({
       progress: z
         .string()
         .describe("progress of what has been extracted so far"),
-      completed: z.boolean().describe("true if the goal is now accomplished"),
+      completed: z
+        .boolean()
+        .describe(
+          "true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.",
+        ),
     }),
   });
 
