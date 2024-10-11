@@ -8,6 +8,8 @@ import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
+import { ScreenshotAnnotator as ScreenshotService } from "./vision";
+import { modelsWithVision } from "./llm/LLMClient";
 
 require("dotenv").config({ path: ".env" });
 
@@ -63,7 +65,7 @@ async function getBrowser(
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences)
+      JSON.stringify(defaultPreferences),
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -444,12 +446,25 @@ export class Stagehand {
     steps = "",
     chunksSeen = [],
     modelName,
+    useVision = "fallback",
   }: {
     action: string;
     steps?: string;
     chunksSeen?: Array<number>;
     modelName?: string;
+    useVision?: boolean | "fallback";
   }): Promise<{ success: boolean; message: string; action: string }> {
+    useVision = useVision ?? "fallback";
+    const model = modelName ?? this.defaultModelName;
+
+    if (!modelsWithVision.includes(model) && useVision !== false) {
+      console.warn(
+        `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
+      );
+      useVision = false;
+    }
+
+    console.log("[BROWSERBASE] Starting action", action, chunksSeen, useVision);
     this.log({
       category: "action",
       message: `Starting action: ${action}`,
@@ -461,12 +476,16 @@ export class Stagehand {
     await this.startDomDebug();
 
     const { outputString, selectorMap, chunk, chunks } =
-      await this.page.evaluate(
-        (chunksSeen) => {
+      await this.page.evaluate((chunksSeen) => {
           return window.processDom(chunksSeen);
-        },
-        chunksSeen
-      );
+      }, chunksSeen);
+
+    // New code to add bounding boxes and element numbers
+    let annotatedScreenshot: Buffer | undefined = undefined;
+    if (useVision === true) {
+      const screenshotService = new ScreenshotService(this.page, selectorMap);
+      annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
+    }
 
     this.log({
       category: "action",
@@ -481,7 +500,8 @@ export class Stagehand {
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
+      modelName: model,
+      screenshot: annotatedScreenshot,
     });
 
     this.log({
@@ -508,7 +528,8 @@ export class Stagehand {
             (!steps.endsWith("\n") ? "\n" : "") +
             "## Step: Scrolled to another section\n",
           chunksSeen,
-          modelName,
+          modelName: model,
+          useVision,
         });
       } else {
         this.log({
@@ -516,10 +537,21 @@ export class Stagehand {
           message: "No response from act with no chunks left to check",
           level: 1,
         });
+
+        if (useVision === "fallback") {
+          return this.act({
+            action,
+            steps,
+            chunksSeen: [],
+            modelName: model,
+            useVision: true,
+          });
+        }
         this.recordAction(action, null);
         return {
           success: false,
-          message: "Action not found on the current page after checking all chunks.",
+          message:
+            "Action not found on the current page after checking all chunks.",
           action: action,
         };
       }
@@ -545,19 +577,33 @@ export class Stagehand {
 
     const locator = await this.page.locator(`xpath=${path}`).first();
     try {
-      if (method === 'scrollIntoView') {
+      if (method === "scrollIntoView") {
         this.log({
           category: "action",
           message: `Scrolling element into view`,
           level: 2,
         });
         await locator.evaluate((element) => {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
         });
-      } else if (typeof locator[method as keyof typeof locator] === "function") {
+      } else if (method === "fill" || method === "type") {
+        // Stimulate typing like a human (just in case)
+        await locator.click();
 
+        const text = args[0];
+        for (const char of text) {
+          await this.page.keyboard.type(char, {
+            delay: Math.random() * 50 + 25,
+          }); // Random delay between 25-75ms to simulate typing like a human
+        }
+      } else if (
+        typeof locator[method as keyof typeof locator] === "function"
+      ) {
         const isLink = await locator.evaluate((element) => {
-          return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+          return (
+            element.tagName.toLowerCase() === "a" &&
+            element.hasAttribute("href")
+          );
         });
 
         this.log({
@@ -639,7 +685,8 @@ export class Stagehand {
             `  Element: ${elementText}\n` +
             `  Action: ${response.method}\n\n`,
           // chunksSeen,
-          modelName,
+          modelName: model,
+          useVision,
         });
         return nextResult;
       }
