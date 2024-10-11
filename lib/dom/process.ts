@@ -28,7 +28,7 @@ async function processElements(chunk: number) {
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
 
-    var shouldAddElement = false;
+    let shouldAddElement = false;
 
     if (element && isElementNode(element)) {
       const childrenCount = element.childNodes.length;
