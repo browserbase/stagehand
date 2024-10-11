@@ -8,15 +8,41 @@ import { act as actLLM, ask, extract, observe } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
+import Browserbase from "./browserbase";
 
 require("dotenv").config({ path: ".env" });
 
-async function getBrowser(env: "LOCAL" | "BROWSERBASE" = "LOCAL", headless: boolean = false) {
-  if (process.env.BROWSERBASE_API_KEY && env !== "LOCAL") {
-    console.log("Connecting you to broswerbase...");
-    const browser = await chromium.connectOverCDP(
-      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}`
+async function getBrowser(
+  env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+  headless: boolean = false,
+) {
+  if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
+    console.error(
+      "BROWSERBASE_API_KEY is required to use browserbase env. Defaulting to local.",
     );
+    env = "LOCAL";
+  }
+
+  if (env === "BROWSERBASE" && !process.env.BROWSERBASE_PROJECT_ID) {
+    console.error(
+      "BROWSERBASE_PROJECT_ID is required to use browserbase env. Defaulting to local.",
+    );
+    env = "LOCAL";
+  }
+
+  if (env === "BROWSERBASE") {
+    console.log("Connecting you to broswerbase...");
+    const browserbase = new Browserbase();
+    const { sessionId } = await browserbase.createSession();
+    const browser = await chromium.connectOverCDP(
+      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`,
+    );
+
+    const debugUrl = await browserbase.retrieveDebugConnectionURL(sessionId);
+    console.log(
+      `Browserbase session started, live debug accessible here: ${debugUrl}.`,
+    );
+
     const context = browser.contexts()[0];
     return { browser, context };
   } else {
