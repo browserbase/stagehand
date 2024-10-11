@@ -16,7 +16,7 @@ async function processElements(chunk: number) {
   const chunkHeight = viewportHeight * chunk;
   const offsetTop = chunkHeight;
 
-  window.scrollTo({ top: offsetTop, left: 0, behavior: 'smooth' });
+  window.scrollTo({ top: offsetTop, left: 0, behavior: "smooth" });
 
   const domString = window.document.body.outerHTML;
   if (!domString) {
@@ -119,7 +119,7 @@ async function processElements(chunk: number) {
 
       // Build the simplified element string
       const openingTag = `<${tagName}${
-        attributes.length > 0 ? ' ' + attributes.join(' ') : ''
+        attributes.length > 0 ? " " + attributes.join(" ") : ""
       }>`;
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent.trim();
@@ -312,7 +312,7 @@ function isTopElement(elem: ChildNode, rect: DOMRect) {
         return true;
       }
       current = current.parentElement;
-  }
+    }
     return false;
   });
 }
