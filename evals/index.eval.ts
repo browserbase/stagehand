@@ -497,7 +497,8 @@ const extractPartners = async () => {
 
   await stagehand.init({ modelName: "gpt-4o" });
 
-  await stagehand.page.goto("https://ramp.com", { waitUntil: "networkidle" });
+  await stagehand.page.goto("https://ramp.com");
+  await stagehand.waitForSettledDom();
 
   await stagehand.act({
     action: "Close the popup.",
@@ -565,6 +566,67 @@ const extractPartners = async () => {
   return { _success: allExpectedPartnersFound, partners };
 };
 
+const LarocheForm = async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+  });
+
+  await stagehand.init({ modelName: "gpt-4o" });
+
+  await stagehand.page.goto("https://www.laroche.edu/apply/", { waitUntil: "networkidle" });
+
+  await stagehand.waitForSettledDom();
+
+  await stagehand.act({
+    action: "Fill out the form with the following information: First Name: John, Last Name: Doe, Email: john.doe@example.com, Phone: 1234567890, Zip Code: 12345",
+  });
+
+  await stagehand.act({
+    action: "Select 'Undergraduate' for 'I am interested in'",
+  });
+
+  await stagehand.act({
+    action: "Select 'Fall 2024' for 'Intended Start Term'",
+  });
+
+  await stagehand.act({
+    action: "Select 'Computer Science' for 'Program of Interest'",
+  });
+
+  const formData = await stagehand.extract({
+    instruction: "Extract the filled form data",
+    schema: z.object({
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string(),
+      phone: z.string(),
+      zipCode: z.string(),
+      interestedIn: z.string(),
+      startTerm: z.string(),
+      programOfInterest: z.string(),
+    }),
+    modelName: "gpt-4o",
+  });
+
+  console.log("Extracted form data:", formData);
+
+  const isFormDataValid = 
+    formData.firstName === "John" &&
+    formData.lastName === "Doe" &&
+    formData.email === "john.doe@example.com" &&
+    formData.phone === "1234567890" &&
+    formData.zipCode === "12345" &&
+    formData.interestedIn === "Undergraduate" &&
+    formData.startTerm === "Fall 2024" &&
+    formData.programOfInterest === "Computer Science";
+
+  await stagehand.context.close();
+
+  return { _success: isFormDataValid, formData };
+};
+
 const tasks = {
   vanta,
   vanta_h,
@@ -578,6 +640,7 @@ const tasks = {
   google_jobs,
   homedepot,
   extractPartners,
+  LarocheForm,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
@@ -628,6 +691,7 @@ const testcases = [
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
   { input: { name: "extractPartners" } },
+  { input: { name: "LarocheForm" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
