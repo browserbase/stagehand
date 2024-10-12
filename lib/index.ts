@@ -552,7 +552,7 @@ export class Stagehand {
           level: 1,
         });
         await this.waitForSettledDom();
-        return this.act({
+        return await this.act({
           action,
           steps: steps + (!steps.endsWith("\n") ? "\n" : "") + "## Step: Scrolled to another section\n",
           frameIndex,
@@ -588,7 +588,7 @@ export class Stagehand {
     const elementLines = outputString.split("\n");
     const elementText =	
       elementLines	
-        .find((line) => line.startsWith(`${element}:`))	
+        .find((line) => line.startsWith(`${elementId}:`))	
         ?.split(":")[1] || "Element not found";
   
     this.log({
