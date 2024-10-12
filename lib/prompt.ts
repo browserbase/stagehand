@@ -2,6 +2,7 @@ import OpenAI from "openai";
 
 // act
 const actSystemPrompt = `
+# Instructions
 You are a browser automation assistant.
 
 You are given:
@@ -13,10 +14,9 @@ You have 2 tools that you can call: doAction, and skipSection. Do action only pe
 `;
 
 export function buildActSystemPrompt(): OpenAI.ChatCompletionMessageParam {
-  const content = actSystemPrompt.replace(/\s+/g, " ");
   return {
     role: "system",
-    content,
+    content: actSystemPrompt,
   };
 }
 
@@ -26,15 +26,19 @@ export function buildActUserPrompt(
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   const actUserPrompt = `
-    goal: ${action}, 
-    steps completed so far: ${steps},
-    elements: ${domElements}
-    `;
-  const content = actUserPrompt.replace(/\s+/g, " ");
+# User's Goal
+${action}
+
+# Steps Completed So Far
+${steps}
+
+# Current Active Dom Elements
+${domElements}
+`;
 
   return {
     role: "user",
-    content,
+    content: actUserPrompt,
   };
 }
 
@@ -68,7 +72,7 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
           step: {
             type: "string",
             description:
-              "human readable description of the step that is taken in the past tense",
+              "human readable description of the step that is taken in the past tense. Please be very detailed.",
           },
           why: {
             type: "string",
