@@ -1,3 +1,4 @@
+#!/usr/bin/env -S pnpm tsx
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
