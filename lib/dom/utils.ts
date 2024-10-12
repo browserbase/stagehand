@@ -14,4 +14,14 @@ async function waitForDomSettle() {
   });
 }
 
+function isVisible(element: Element): boolean {
+  const style = window.getComputedStyle(element);
+  return (
+    style &&
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    element.getClientRects().length > 0
+  );
+}
+
 window.waitForDomSettle = waitForDomSettle;

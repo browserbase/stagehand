@@ -443,16 +443,14 @@ export class Stagehand {
   async act({
     action,
     steps = "",
-    frameIndex = 0,
     frames = [],
     chunksSeenPerFrame = {},
     modelName,
   }: {
     action: string;
     steps?: string;
-    frameIndex?: number;
     frames?: Frame[];
-    chunksSeenPerFrame?: { [frameId: number]: number[] };
+    chunksSeenPerFrame?: { [frameId: string]: number[] };
     modelName?: string;
   }): Promise<{ success: boolean; message: string; action: string }> {
     this.log({
@@ -460,102 +458,76 @@ export class Stagehand {
       message: `Starting action: ${action}`,
       level: 1,
     });
-  
+
     await this.waitForSettledDom();
-  
+
     // Initialize frames if not provided
     if (frames.length === 0) {
       // Prepare frames: main frame and relevant iframes
       const mainFrame = this.page.mainFrame();
       const iframeElements = await this.page.$$('iframe');
-  
-      // Start with the main frame
+
       frames = [mainFrame];
-  
+
       for (const iframeElement of iframeElements) {
-        const src = await iframeElement.getAttribute('src');
         const isVisible = await iframeElement.isVisible();
-        if (src && src.trim() !== '' && isVisible) {
+        if (isVisible) {
           const frame = await iframeElement.contentFrame();
           if (frame) {
             frames.push(frame);
           }
         }
       }
-  
+
       // Initialize chunksSeenPerFrame
       chunksSeenPerFrame = {};
-      frames.forEach((frame, index) => {
-        chunksSeenPerFrame[index] = [];
-      });
     }
-  
-    if (frameIndex >= frames.length) {
-      this.log({
-        category: "action",
-        message: `Action not found in any frame`,
-        level: 1,
-      });
-      await this.recordAction(action, '');
-      return {
-        success: false,
-        message: `Action not found in any frame`,
-        action: action,
-      };
+
+    // Ensure chunksSeenPerFrame has entries for all frames
+    for (const frame of frames) {
+      const frameId = frame._id.toString();
+      if (!chunksSeenPerFrame[frameId]) {
+        chunksSeenPerFrame[frameId] = [];
+      }
     }
-  
-    const currentFrame = frames[frameIndex];
-    const frameId = frameIndex; // Use frameIndex as the identifier
-  
-    // Get the chunksSeen for the current frame
-    const chunksSeen = chunksSeenPerFrame[frameId];
-    // TODO: start dom debug on each frame - right now we only do it on the main frame
-    await this.startDomDebug();
-    // Process the current frame
-    const domResult = await currentFrame.evaluate(
-      ({ chunksSeen }) => {
-        // @ts-ignore
-        return window.processDom(chunksSeen);
-      },
-      { chunksSeen }
-    );
-  
-    const { outputString, selectorMap, chunk, chunks } = domResult;
-  
-    this.log({
-      category: "action",
-      message: `Processing frame ${frameIndex} (chunk ${chunk}). Chunks left: ${chunks.length - chunksSeen.length}`,
-      level: 1,
-    });
-  
-    // Proceed with LLM interaction using outputString and selectorMap
+
+    // Process all frames and chunks
+    const {
+      combinedOutputString,
+      combinedSelectorMap,
+      chunksPerFrame,
+    } = await processDom(frames, chunksSeenPerFrame);
+
+    // Update chunksSeenPerFrame with the latest data
+    for (const frameId in chunksPerFrame) {
+      chunksSeenPerFrame[frameId] = chunksPerFrame[frameId].chunksSeen;
+    }
+
+    // Proceed with LLM interaction using combined output
     const response = await actLLM({
       action,
-      domElements: outputString,
+      domElements: combinedOutputString,
       steps,
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
     });
-  
-    // Add the current chunk to chunksSeen
-    chunksSeen.push(chunk);
 
-    // TODO: cleanup dom debug on each frame - right now we only do it on the main frame
-    await this.cleanupDomDebug();
-    chunksSeenPerFrame[frameId] = chunksSeen;
-  
     if (!response) {
-      if (chunksSeen.length < chunks.length) {
+      const moreChunksAvailable = Object.keys(chunksPerFrame).some(frameId => {
+        const { totalChunks, chunksSeen } = chunksPerFrame[frameId];
+        return chunksSeen.length < totalChunks;
+      });
+
+      if (moreChunksAvailable) {
         this.log({
           category: "action",
-          message: `No action found in current chunk. Chunks seen: ${chunksSeen.length}. Moving to next chunk in frame ${frameIndex}`,
+          message: `No action found in current chunks. Moving to next chunks.`,
           level: 1,
         });
         await this.waitForSettledDom();
         return await this.act({
           action,
           steps: steps + (!steps.endsWith("\n") ? "\n" : "") + "## Step: Scrolled to another section\n",
-          frameIndex,
           frames,
           chunksSeenPerFrame,
           modelName,
@@ -563,37 +535,37 @@ export class Stagehand {
       } else {
         this.log({
           category: "action",
-          message: `No action found in frame ${frameIndex} with no chunks left to check. Moving to next frame.`,
+          message: `Action not found after processing all frames and chunks.`,
           level: 1,
         });
-        await this.waitForSettledDom();
-        return await this.act({
-          action,
-          steps,
-          frameIndex: frameIndex + 1,
-          frames,
-          chunksSeenPerFrame,
-          modelName,
-        });
+        await this.recordAction(action, '');
+        return {
+          success: false,
+          message: `Action not found after processing all frames and chunks.`,
+          action: action,
+        };
       }
     }
-  
+
     // Action found, proceed to execute
-    const elementId = response["element"];
-    const xpath = selectorMap[elementId];
+    const [frameId, elementId] = response["element"].split('-');
+    const xpath = combinedSelectorMap[response["element"]];
     const method = response["method"];
     const args = response["args"];
 
-    // Get the element text from the outputString	
-    const elementLines = outputString.split("\n");
-    const elementText =	
-      elementLines	
-        .find((line) => line.startsWith(`${elementId}:`))	
-        ?.split(":")[1] || "Element not found";
-  
+    const currentFrame = frames.find(frame => frame._id.toString() === frameId);
+    if (!currentFrame) {
+      throw new Error(`Frame with ID ${frameId} not found`);
+    }
+
+    // Get the element text for logging
+    const elementLines = combinedOutputString.split("\n");
+    const elementText =
+      elementLines.find(line => line.startsWith(`${frameId}-${elementId}:`))?.split(":")[1] || "Element not found";
+
     this.log({
       category: "action",
-      message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(args)}`,
+      message: `Executing method: ${method} on element: ${response["element"]} (xpath: ${xpath}) with args: ${JSON.stringify(args)}`,
       level: 1,
     });
   
@@ -677,6 +649,7 @@ export class Stagehand {
         throw new Error(`stagehand: chosen method ${method} is invalid`);
       }
   
+
       if (!response["completed"]) {
         this.log({
           category: "action",
@@ -687,10 +660,7 @@ export class Stagehand {
         return await this.act({
           action,
           steps: steps + (!steps.endsWith("\n") ? "\n" : "") +
-            `## Step: ${response.step}\n` +	         
-            `  Element: ${elementText}\n` +	
-            `  Action: ${response.method}\n\n`,
-          frameIndex,
+            `## Step: ${response.step}\n  Element: ${elementText}\n  Action: ${response.method}\n\n`,
           frames,
           chunksSeenPerFrame,
           modelName,

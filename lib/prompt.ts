@@ -22,8 +22,8 @@ export function buildActSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 
 export function buildActUserPrompt(
   action: string,
-  steps = "None",
-  domElements: string,
+  steps: string,
+  domElements: string
 ): OpenAI.ChatCompletionMessageParam {
   const actUserPrompt = `
 # User's Goal
@@ -32,7 +32,9 @@ ${action}
 # Steps Completed So Far
 ${steps}
 
-# Current Active Dom Elements
+# Current Active DOM Elements
+Note: Element IDs are prefixed with their frame IDs (frameId-elementId).
+
 ${domElements}
 `;
 

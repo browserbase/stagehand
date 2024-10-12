@@ -1,13 +1,92 @@
-async function processDom(chunksSeen: Array<number>) {
-  const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
+async function processDom(
+  frames: Frame[],
+  chunksSeenPerFrame: { [frameId: string]: number[] }
+): Promise<{
+  combinedOutputString: string;
+  combinedSelectorMap: { [elementId: string]: string };
+  chunksPerFrame: { [frameId: string]: { totalChunks: number; chunksSeen: number[] } };
+}> {
+  const combinedOutputLines: string[] = [];
+  const combinedSelectorMap: { [elementId: string]: string } = {};
+  const chunksPerFrame: { [frameId: string]: { totalChunks: number; chunksSeen: number[] } } = {};
+
+  for (const frame of frames) {
+    const frameId = frame._id.toString();
+    let chunksSeen = chunksSeenPerFrame[frameId] || [];
+
+    const { outputLines, selectorMap, updatedChunksSeen, totalChunks } = await processFrameChunks(frame, frameId, chunksSeen);
+    
+    combinedOutputLines.push(...outputLines);
+    Object.assign(combinedSelectorMap, selectorMap);
+    chunksPerFrame[frameId] = { totalChunks, chunksSeen: updatedChunksSeen };
+  }
+
+  const combinedOutputString = combinedOutputLines.join('\n');
 
   return {
-    outputString,
-    selectorMap,
-    chunk,
-    chunks: chunksArray,
+    combinedOutputString,
+    combinedSelectorMap,
+    chunksPerFrame,
   };
+}
+
+async function processFrameChunks(
+  frame: Frame,
+  frameId: string,
+  chunksSeen: number[]
+): Promise<{
+  outputLines: string[];
+  selectorMap: { [elementId: string]: string };
+  updatedChunksSeen: number[];
+  totalChunks: number;
+}> {
+  const outputLines: string[] = [];
+  const selectorMap: { [elementId: string]: string } = {};
+  const totalChunks = await frame.evaluate(() => {
+    // Returns the total number of chunks for the frame
+    if (typeof window.getTotalChunks === 'function') {
+      return window.getTotalChunks();
+    } else {
+      return 1; // If chunking isn't implemented, assume single chunk
+    }
+  });
+
+  for (let chunk = 0; chunk < totalChunks; chunk++) {
+    if (chunksSeen.includes(chunk)) {
+      continue;
+    }
+
+    const domResult = await frame.evaluate(
+      ({ chunk }) => {
+        if (typeof window.processElements === 'function') {
+          return window.processElements(chunk);
+        } else {
+          // If processElements isn't defined, process the whole frame
+          return window.processDom([]);
+        }
+      },
+      { chunk }
+    );
+
+    const { outputString, selectorMap: frameSelectorMap } = domResult;
+
+    // Adjust element IDs to include frameId
+    const adjustedSelectorMap: { [elementId: string]: string } = {};
+    const adjustedOutputLines = outputString.split('\n').map(line => {
+      if (line.trim() === '') return '';
+      const [elementId, content] = line.split(':');
+      const newElementId = `${frameId}-${elementId}`;
+      adjustedSelectorMap[newElementId] = frameSelectorMap[elementId];
+      return `${newElementId}:${content}`;
+    });
+
+    outputLines.push(...adjustedOutputLines);
+    Object.assign(selectorMap, adjustedSelectorMap);
+
+    chunksSeen.push(chunk);
+  }
+
+  return { outputLines, selectorMap, updatedChunksSeen: chunksSeen, totalChunks };
 }
 
 async function processElements(chunk: number) {
