@@ -554,7 +554,11 @@ export class Stagehand {
         await this.waitForSettledDom();
         return await this.act({
           action,
-          steps,
+
+        steps:
+        steps +
+        (!steps.endsWith("\n") ? "\n" : "") +
+        "## Step: Scrolled to another section\n",
           frameIndex,
           frames,
           chunksSeenPerFrame,
@@ -583,7 +587,15 @@ export class Stagehand {
     const xpath = selectorMap[elementId];
     const method = response["method"];
     const args = response["args"];
-  
+
+
+    // Get the element text from the outputString
+    const elementLines = outputString.split("\n");
+    const elementText =
+      elementLines
+        .find((line) => line.startsWith(`${element}:`))
+        ?.split(":")[1] || "Element not found";
+
     this.log({
       category: "action",
       message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(args)}`,
@@ -679,7 +691,12 @@ export class Stagehand {
         await this.waitForSettledDom();
         return await this.act({
           action,
-          steps: steps + response.step + ", ",
+          steps:
+            steps +
+            (!steps.endsWith("\n") ? "\n" : "") +
+            `## Step: ${response.step}\n` +
+            `  Element: ${elementText}\n` +
+            `  Action: ${response.method}\n\n`,
           frameIndex,
           frames,
           chunksSeenPerFrame,
@@ -698,6 +715,7 @@ export class Stagehand {
           action: action,
         };
       }
+
     } catch (error) {
       this.log({
         category: "action",
