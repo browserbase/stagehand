@@ -626,7 +626,7 @@ const LarocheForm = async () => {
   //   formData.zipCode === "12345" &&
 
 
-  // await stagehand.context.close();
+  await stagehand.context.close();
 
   return { _success: true };
 };
