@@ -17,7 +17,7 @@ async function example() {
   await stagehand.act({ action: "fill address 1 field" });
   await stagehand.act({ action: "select a state" });
   await stagehand.act({ action: "select a skin type" });
-
+  await stagehand.context.close();
   return;
 }
 

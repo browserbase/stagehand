@@ -1,9 +1,10 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { Frame, Page } from 'playwright';
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
-import { act, ask, extract, observe } from "./inference";
+import { act as actLLM, ask, extract, observe } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
@@ -442,12 +443,16 @@ export class Stagehand {
   async act({
     action,
     steps = "",
-    chunksSeen = [],
+    frameIndex = 0,
+    frames = [],
+    chunksSeenPerFrame = {},
     modelName,
   }: {
     action: string;
     steps?: string;
-    chunksSeen?: Array<number>;
+    frameIndex?: number;
+    frames?: Frame[];
+    chunksSeenPerFrame?: { [frameId: number]: number[] };
     modelName?: string;
   }): Promise<{ success: boolean; message: string; action: string }> {
     this.log({
@@ -455,95 +460,137 @@ export class Stagehand {
       message: `Starting action: ${action}`,
       level: 1,
     });
-
+  
     await this.waitForSettledDom();
-
+  
+    // Initialize frames if not provided
+    if (frames.length === 0) {
+      // Prepare frames: main frame and relevant iframes
+      const mainFrame = this.page.mainFrame();
+      const iframeElements = await this.page.$$('iframe');
+  
+      // Start with the main frame
+      frames = [mainFrame];
+  
+      for (const iframeElement of iframeElements) {
+        const src = await iframeElement.getAttribute('src');
+        const isVisible = await iframeElement.isVisible();
+        if (src && src.trim() !== '' && isVisible) {
+          const frame = await iframeElement.contentFrame();
+          if (frame) {
+            frames.push(frame);
+          }
+        }
+      }
+  
+      // Initialize chunksSeenPerFrame
+      chunksSeenPerFrame = {};
+      frames.forEach((frame, index) => {
+        chunksSeenPerFrame[index] = [];
+      });
+    }
+  
+    if (frameIndex >= frames.length) {
+      this.log({
+        category: "action",
+        message: `Action not found in any frame`,
+        level: 1,
+      });
+      await this.recordAction(action, '');
+      return {
+        success: false,
+        message: `Action not found in any frame`,
+        action: action,
+      };
+    }
+  
+    const currentFrame = frames[frameIndex];
+    const frameId = frameIndex; // Use frameIndex as the identifier
+  
+    // Get the chunksSeen for the current frame
+    const chunksSeen = chunksSeenPerFrame[frameId];
+    // TODO: start dom debug on each frame - right now we only do it on the main frame
     await this.startDomDebug();
-
-    const { outputString, selectorMap, chunk, chunks } =
-      await this.page.evaluate(
-        (chunksSeen) => {
-          return window.processDom(chunksSeen);
-        },
-        chunksSeen
-      );
-
+    // Process the current frame
+    const domResult = await currentFrame.evaluate(
+      ({ chunksSeen }) => {
+        // @ts-ignore
+        return window.processDom(chunksSeen);
+      },
+      { chunksSeen }
+    );
+  
+    const { outputString, selectorMap, chunk, chunks } = domResult;
+  
     this.log({
       category: "action",
-      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      message: `Processing frame ${frameIndex} (chunk ${chunk})`,
       level: 1,
     });
-
-    await this.waitForSettledDom();
-
-    const response = await act({
+  
+    // Proceed with LLM interaction using outputString and selectorMap
+    const response = await actLLM({
       action,
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
     });
-
-    this.log({
-      category: "action",
-      message: `Received response from LLM: ${JSON.stringify(response)}`,
-      level: 1,
-    });
-
-    await this.cleanupDomDebug();
-
+  
+    // Add the current chunk to chunksSeen
     chunksSeen.push(chunk);
+
+    // TODO: cleanup dom debug on each frame - right now we only do it on the main frame
+    await this.cleanupDomDebug();
+    chunksSeenPerFrame[frameId] = chunksSeen;
+  
     if (!response) {
       if (chunksSeen.length < chunks.length) {
         this.log({
           category: "action",
-          message: `No response from act. Chunks seen: ${chunksSeen.length}, Total chunks: ${chunks.length}`,
+          message: `No action found in current chunk. Moving to next chunk in frame ${frameIndex}`,
           level: 1,
         });
         await this.waitForSettledDom();
-        return this.act({
+        return await this.act({
           action,
-          steps:
-            steps +
-            (!steps.endsWith("\n") ? "\n" : "") +
-            "## Step: Scrolled to another section\n",
-          chunksSeen,
+          steps,
+          frameIndex,
+          frames,
+          chunksSeenPerFrame,
           modelName,
         });
       } else {
         this.log({
           category: "action",
-          message: "No response from act with no chunks left to check",
+          message: `No action found in frame ${frameIndex}. Moving to next frame.`,
           level: 1,
         });
-        this.recordAction(action, null);
-        return {
-          success: false,
-          message: "Action not found on the current page after checking all chunks.",
-          action: action,
-        };
+        await this.waitForSettledDom();
+        return await this.act({
+          action,
+          steps,
+          frameIndex: frameIndex + 1,
+          frames,
+          chunksSeenPerFrame,
+          modelName,
+        });
       }
     }
-
-    const element = response["element"];
-    const path = selectorMap[element];
+  
+    // Action found, proceed to execute
+    const elementId = response["element"];
+    const xpath = selectorMap[elementId];
     const method = response["method"];
     const args = response["args"];
-
-    // Get the element text from the outputString
-    const elementLines = outputString.split("\n");
-    const elementText =
-      elementLines
-        .find((line) => line.startsWith(`${element}:`))
-        ?.split(":")[1] || "Element not found";
-
+  
     this.log({
       category: "action",
-      message: `Executing method: ${method} on element: ${element} (path: ${path}) with args: ${JSON.stringify(args)}`,
+      message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(args)}`,
       level: 1,
     });
-
-    const locator = await this.page.locator(`xpath=${path}`).first();
+  
+    const locator = currentFrame.locator(`xpath=${xpath}`).first();
     try {
       if (method === 'scrollIntoView') {
         this.log({
@@ -555,35 +602,35 @@ export class Stagehand {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       } else if (typeof locator[method as keyof typeof locator] === "function") {
-
+  
         const isLink = await locator.evaluate((element) => {
           return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
         });
-
+  
         this.log({
           category: "action",
           message: `Element is a link: ${isLink}`,
           level: 2,
         });
-
+  
         // Log current URL before action
         this.log({
           category: "action",
           message: `Current page URL before action: ${this.page.url()}`,
           level: 2,
         });
-
+  
         // Perform the action
         // @ts-ignore
         await locator[method](...args);
-
+  
         // Log current URL after action
         this.log({
           category: "action",
           message: `Current page URL after action: ${this.page.url()}`,
           level: 2,
         });
-
+  
         // Check if a new page was created, but only if the method is 'click'
         if (method === 'click') {
           if (isLink) {
@@ -622,39 +669,42 @@ export class Stagehand {
       } else {
         throw new Error(`stagehand: chosen method ${method} is invalid`);
       }
-
-      if (!response.completed) {
+  
+      if (!response["completed"]) {
         this.log({
           category: "action",
-          message: "Continuing to next sub action",
+          message: `Continuing to next action step`,
           level: 1,
         });
         await this.waitForSettledDom();
-        const nextResult = await this.act({
+        return await this.act({
           action,
-          steps:
-            steps +
-            (!steps.endsWith("\n") ? "\n" : "") +
-            `## Step: ${response.step}\n` +
-            `  Element: ${elementText}\n` +
-            `  Action: ${response.method}\n\n`,
-          // chunksSeen,
+          steps: steps + response.step + ", ",
+          frameIndex,
+          frames,
+          chunksSeenPerFrame,
           modelName,
         });
-        return nextResult;
+      } else {
+        this.log({
+          category: "action",
+          message: `Action completed successfully`,
+          level: 1,
+        });
+        await this.recordAction(action, response.step);
+        return {
+          success: true,
+          message: `Action completed successfully: ${steps}${response.step}`,
+          action: action,
+        };
       }
-
-      return {
-        success: true,
-        message: `Action completed successfully: ${steps}${response.step}\nElement: ${elementText}`,
-        action: action,
-      };
     } catch (error) {
       this.log({
         category: "action",
         message: `Error performing action: ${error.message}`,
         level: 1,
       });
+      await this.recordAction(action, '');
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
