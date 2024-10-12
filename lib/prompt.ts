@@ -60,8 +60,8 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
             description: "The playwright function to call.",
           },
           element: {
-            type: "number",
-            description: "The element number to act on",
+            type: "string",
+            description: "The element ID with frame prefix (e.g., 'frameId-elementId')",
           },
           args: {
             type: "array",

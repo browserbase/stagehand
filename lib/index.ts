@@ -9,6 +9,7 @@ import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
+import { processDom } from "./dom/process";
 
 require("dotenv").config({ path: ".env" });
 
@@ -484,12 +485,12 @@ export class Stagehand {
     }
 
     // Ensure chunksSeenPerFrame has entries for all frames
-    for (const frame of frames) {
-      const frameId = frame._id.toString();
+    frames.forEach((frame, index) => {
+      const frameId = `frame_${index}`;
       if (!chunksSeenPerFrame[frameId]) {
         chunksSeenPerFrame[frameId] = [];
       }
-    }
+    });
 
     // Process all frames and chunks
     const {
@@ -548,12 +549,14 @@ export class Stagehand {
     }
 
     // Action found, proceed to execute
+
     const [frameId, elementId] = response["element"].split('-');
+
     const xpath = combinedSelectorMap[response["element"]];
     const method = response["method"];
     const args = response["args"];
 
-    const currentFrame = frames.find(frame => frame._id.toString() === frameId);
+    const currentFrame = frames.find((frame, index) => `frame_${index}` === frameId);
     if (!currentFrame) {
       throw new Error(`Frame with ID ${frameId} not found`);
     }

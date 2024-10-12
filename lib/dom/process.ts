@@ -10,12 +10,11 @@ async function processDom(
   const combinedSelectorMap: { [elementId: string]: string } = {};
   const chunksPerFrame: { [frameId: string]: { totalChunks: number; chunksSeen: number[] } } = {};
 
-  for (const frame of frames) {
-    const frameId = frame._id.toString();
+  for (const [index, frame] of frames.entries()) {
+    const frameId = `frame_${index}`;
     let chunksSeen = chunksSeenPerFrame[frameId] || [];
 
     const { outputLines, selectorMap, updatedChunksSeen, totalChunks } = await processFrameChunks(frame, frameId, chunksSeen);
-    
     combinedOutputLines.push(...outputLines);
     Object.assign(combinedSelectorMap, selectorMap);
     chunksPerFrame[frameId] = { totalChunks, chunksSeen: updatedChunksSeen };
@@ -28,6 +27,11 @@ async function processDom(
     combinedSelectorMap,
     chunksPerFrame,
   };
+}
+
+// Export the function if in a Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { processDom };
 }
 
 async function processFrameChunks(
@@ -215,8 +219,11 @@ async function processElements(chunk: number) {
   };
 }
 
-window.processDom = processDom;
-window.processElements = processElements;
+// Assign to window only if in a browser environment
+if (typeof window !== 'undefined') {
+  window.processDom = processDom;
+  window.processElements = processElements;
+}
 
 function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {
