@@ -524,7 +524,7 @@ export class Stagehand {
   
     this.log({
       category: "action",
-      message: `Processing frame ${frameIndex} (chunk ${chunk})`,
+      message: `Processing frame ${frameIndex} (chunk ${chunk}). Chunks left: ${chunks.length - chunksSeen.length}`,
       level: 1,
     });
   
@@ -548,13 +548,13 @@ export class Stagehand {
       if (chunksSeen.length < chunks.length) {
         this.log({
           category: "action",
-          message: `No action found in current chunk. Moving to next chunk in frame ${frameIndex}`,
+          message: `No action found in current chunk. Chunks seen: ${chunksSeen.length}. Moving to next chunk in frame ${frameIndex}`,
           level: 1,
         });
         await this.waitForSettledDom();
-        return await this.act({
+        return this.act({
           action,
-          steps,
+          steps: steps + (!steps.endsWith("\n") ? "\n" : "") + "## Step: Scrolled to another section\n",
           frameIndex,
           frames,
           chunksSeenPerFrame,
@@ -563,7 +563,7 @@ export class Stagehand {
       } else {
         this.log({
           category: "action",
-          message: `No action found in frame ${frameIndex}. Moving to next frame.`,
+          message: `No action found in frame ${frameIndex} with no chunks left to check. Moving to next frame.`,
           level: 1,
         });
         await this.waitForSettledDom();
@@ -583,6 +583,13 @@ export class Stagehand {
     const xpath = selectorMap[elementId];
     const method = response["method"];
     const args = response["args"];
+
+    // Get the element text from the outputString	
+    const elementLines = outputString.split("\n");
+    const elementText =	
+      elementLines	
+        .find((line) => line.startsWith(`${element}:`))	
+        ?.split(":")[1] || "Element not found";
   
     this.log({
       category: "action",
@@ -679,7 +686,10 @@ export class Stagehand {
         await this.waitForSettledDom();
         return await this.act({
           action,
-          steps: steps + response.step + ", ",
+          steps: steps + (!steps.endsWith("\n") ? "\n" : "") +
+            `## Step: ${response.step}\n` +	         
+            `  Element: ${elementText}\n` +	
+            `  Action: ${response.method}\n\n`,
           frameIndex,
           frames,
           chunksSeenPerFrame,
