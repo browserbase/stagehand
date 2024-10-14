@@ -500,6 +500,98 @@ const google_jobs = async () => {
   return { _success: isJobDetailsValid, jobDetails };
 };
 
+const arxiv = async () => {
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+  });
+
+  await stagehand.init({ modelName: "gpt-4o-mini" });
+
+  interface Paper {
+    title: string;
+    link: string | null;
+    category: string | null;
+    problem: string | null;
+    methodology: string | null;
+    results: string | null;
+    conclusion: string | null;
+    code: string | null;
+  }
+
+  const papers: Paper[] = [];
+
+  try {
+    await stagehand.page.goto("https://arxiv.org/search/");
+    await stagehand.waitForSettledDom();
+
+    await stagehand.act({ action: "search for the recent papers about web agents with multimodal models" }); 
+    await stagehand.waitForSettledDom();
+
+    const paper_links = await stagehand.extract({
+        instruction: "extract the title and link of at most five papers, keeping track of number of papers extracted and marking completed when five are extracted",
+        schema: z.object({
+          papers: z.array(z.object({
+            title: z.string().describe("the title of the paper"),
+            link: z.string().describe("the link to the paper").nullable(),
+          })).describe("list of papers"),
+        }),
+        modelName: "gpt-4o-mini"
+    });
+
+    if (!paper_links || !paper_links.papers || paper_links.papers.length === 0) {
+      return { _success: false };
+    }
+
+    for (const paper of paper_links.papers) {
+        if (paper.link) {
+          await stagehand.page.goto(paper.link);
+          const abstract = await stagehand.extract({
+            instruction: "extract details of the paper from the abstract",
+            schema: z.object({
+              values: z.array(z.object({
+                category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Strategy', 'System', 'Other'}"),
+                problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
+                methodology: z.string().describe("summarize the methodology of the paper in one sentence").nullable(),
+                results: z.string().describe("summarize the results of the paper in one sentence").nullable(),
+                conclusion: z.string().describe("summarize the conclusion of the paper in one sentence").nullable(),
+                code: z.string().describe("if provided, extract only the link to the code repository, without additional text").nullable(),
+              })),
+            }),
+            modelName: "gpt-4o-mini"
+          });
+
+          const first_chunk = abstract.values[0];
+    
+          papers.push({
+            title: paper.title,
+            link: paper.link,
+            category: first_chunk.category,
+            problem: first_chunk.problem,
+            methodology: first_chunk.methodology,
+            results: first_chunk.results,
+            conclusion: first_chunk.conclusion,
+            code: first_chunk.code,
+          });
+        }
+    }
+
+    if (!papers || papers.length === 0) {
+      return { _success: false };
+    }
+
+    console.log(papers);
+    return { _success: true, papers };
+  } catch (error) {
+    console.error(`Error in arxiv function: ${error.message}`);
+    return { _success: false };
+  } finally {
+    await stagehand.context.close();
+  }
+}
+
 const tasks = {
   vanta,
   vanta_h,
@@ -512,6 +604,7 @@ const tasks = {
   costar,
   google_jobs,
   homedepot,
+  arxiv,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
@@ -561,6 +654,7 @@ const testcases = [
   // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
+  { input: { name: "arxiv" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
