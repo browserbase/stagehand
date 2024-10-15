@@ -508,7 +508,7 @@ const arxiv = async () => {
     headless: process.env.HEADLESS !== "false",
   });
 
-  await stagehand.init({ modelName: "gpt-4o-mini" });
+  await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
 
   interface Paper {
     title: string;
@@ -538,7 +538,7 @@ const arxiv = async () => {
             link: z.string().describe("the link to the paper").nullable(),
           })).describe("list of papers"),
         }),
-        modelName: "gpt-4o-mini"
+        modelName: "gpt-4o-2024-08-06"
     });
 
     if (!paper_links || !paper_links.papers || paper_links.papers.length === 0) {
@@ -560,7 +560,7 @@ const arxiv = async () => {
                 code: z.string().describe("if provided, extract only the link to the code repository, without additional text").nullable(),
               })),
             }),
-            modelName: "gpt-4o-mini"
+            modelName: "gpt-4o-2024-08-06"
           });
 
           const first_chunk = abstract.values[0];
