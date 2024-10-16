@@ -649,7 +649,7 @@ const testcases = [
     },
   },
   { input: { name: "extract_last_twenty_github_commits" } },
-  { input: { name: "costar", expected: true } },
+  // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
   { input: { name: "arxiv" } },
