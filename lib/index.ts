@@ -278,7 +278,6 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
-    completionCondition = "",
     modelName,
   }: {
     instruction: string;
@@ -286,7 +285,6 @@ export class Stagehand {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
-    completionCondition?: string;
     modelName?: string;
   }): Promise<z.infer<T>> {
     this.log({
@@ -294,10 +292,6 @@ export class Stagehand {
       message: `starting extraction ${instruction}`,
       level: 1
     });
-
-    if (!completionCondition) {
-      completionCondition = "Set complete to true if the goal of the instruction is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.";
-    }
 
     await this.waitForSettledDom();
     await this.startDomDebug();
@@ -313,7 +307,6 @@ export class Stagehand {
 
     const extractionResponse = await extract({
       instruction,
-      completionCondition,
       progress,
       previouslyExtractedContent: content,
       domElements: outputString,
@@ -357,7 +350,6 @@ export class Stagehand {
         schema,
         progress: newProgress,
         content: mergedOutput,
-        completionCondition,
         chunksSeen,
         modelName,
       });

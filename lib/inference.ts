@@ -82,7 +82,6 @@ export async function extract({
   progress,
   previouslyExtractedContent,
   domElements,
-  completionCondition,
   schema,
   llmProvider,
   modelName,
@@ -91,7 +90,6 @@ export async function extract({
   progress: string;
   previouslyExtractedContent: any;
   domElements: string;
-  completionCondition: string;
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
   modelName: string;
@@ -132,7 +130,6 @@ export async function extract({
         progress,
         instruction,
         extractionResponse,
-        completionCondition
       ) as ChatMessage
     ],
     response_model: {

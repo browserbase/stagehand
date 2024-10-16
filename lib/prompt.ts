@@ -148,7 +148,6 @@ export function buildMetadataPrompt(
   progress: string,
   instruction: string,
   extractionResponse: object,
-  completionCondition: string,
 ) {
   return {
     role: "user",
@@ -161,10 +160,7 @@ Progress until now, use this to update the progress:
 ${JSON.stringify(progress, null, 2)}
 
 Response from current extraction:
-${JSON.stringify(extractionResponse, null, 2)}
-
-Completion condition:
-${completionCondition}`
+${JSON.stringify(extractionResponse, null, 2)}`
   };
 }
 
