@@ -4,32 +4,12 @@ import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
+import { mergeOutput } from "./utils";
 import { LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
 
 require("dotenv").config({ path: ".env" });
-
-function mergeOutput(target: any, source: any) {
-  const output = Object.assign({}, target);
-  if (isObject(target) && isObject(source)) {
-    Object.keys(source).forEach(key => {
-      if (isObject(source[key])) {
-        if (!(key in target))
-          Object.assign(output, { [key]: source[key] });
-        else
-          output[key] = mergeOutput(target[key], source[key]);
-      } else {
-        Object.assign(output, { [key]: source[key] ? source[key] : target[key] });
-      }
-    });
-  }
-  return output;
-}
-
-function isObject(item: any) {
-  return (item && typeof item === 'object' && !Array.isArray(item));
-}
 
 async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
@@ -368,7 +348,7 @@ export class Stagehand {
     } else {
       this.log({
         category: "extraction",
-        message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
+        message: `continuing extraction, progress: ${newProgress}`,
         level: 1,
       });
       await this.waitForSettledDom();

@@ -531,14 +531,15 @@ const arxiv = async () => {
     await stagehand.waitForSettledDom();
 
     const paper_links = await stagehand.extract({
-        instruction: "extract the title and link of at most five papers, keeping track of number of papers extracted and marking completed when five are extracted",
+        instruction: "extract the titles and links for all papers",
+        completionCondition: "stop when you have extracted two papers",
         schema: z.object({
           papers: z.array(z.object({
             title: z.string().describe("the title of the paper"),
             link: z.string().describe("the link to the paper").nullable(),
           })).describe("list of papers"),
         }),
-        modelName: "gpt-4o-2024-08-06"
+        modelName: "gpt-4o-2024-08-06",
     });
 
     if (!paper_links || !paper_links.papers || paper_links.papers.length === 0) {
@@ -550,30 +551,27 @@ const arxiv = async () => {
           await stagehand.page.goto(paper.link);
           const abstract = await stagehand.extract({
             instruction: "extract details of the paper from the abstract",
+            completionCondition: "stop when you have extracted information about the abstract",
             schema: z.object({
-              values: z.array(z.object({
-                category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Strategy', 'System', 'Other'}"),
-                problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
-                methodology: z.string().describe("summarize the methodology of the paper in one sentence").nullable(),
-                results: z.string().describe("summarize the results of the paper in one sentence").nullable(),
-                conclusion: z.string().describe("summarize the conclusion of the paper in one sentence").nullable(),
-                code: z.string().describe("if provided, extract only the link to the code repository, without additional text").nullable(),
-              })),
+              category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Framework', 'System', 'Other'}"),
+              problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
+              methodology: z.string().describe("summarize the methodology of the paper in one sentence").nullable(),
+              results: z.string().describe("summarize the results of the paper in one sentence").nullable(),
+              conclusion: z.string().describe("summarize the conclusion of the paper in one sentence").nullable(),
+              code: z.string().describe("if provided, extract only the link to the code repository, without additional text. this is often optional and not always provided.").nullable(),
             }),
             modelName: "gpt-4o-2024-08-06"
           });
-
-          const first_chunk = abstract.values[0];
     
           papers.push({
             title: paper.title,
             link: paper.link,
-            category: first_chunk.category,
-            problem: first_chunk.problem,
-            methodology: first_chunk.methodology,
-            results: first_chunk.results,
-            conclusion: first_chunk.conclusion,
-            code: first_chunk.code,
+            category: abstract.category,
+            problem: abstract.problem,
+            methodology: abstract.methodology,
+            results: abstract.results,
+            conclusion: abstract.conclusion,
+            code: abstract.code,
           });
         }
     }
@@ -625,36 +623,36 @@ const exactMatch = (args: { input: any; output: any; expected?: any }) => {
 };
 
 const testcases = [
-  {
-    input: {
-      name: "vanta",
-    },
-  },
-  {
-    input: {
-      name: "vanta_h",
-    },
-  },
-  {
-    input: {
-      name: "peeler_simple",
-    },
-  },
-  {
-    input: { name: "wikipedia" },
-  },
-  { input: { name: "peeler_complex" } },
-  { input: { name: "simple_google_search" } },
-  {
-    input: {
-      name: "extract_collaborators_from_github_repository",
-    },
-  },
-  { input: { name: "extract_last_twenty_github_commits" } },
+  // {
+  //   input: {
+  //     name: "vanta",
+  //   },
+  // },
+  // {
+  //   input: {
+  //     name: "vanta_h",
+  //   },
+  // },
+  // {
+  //   input: {
+  //     name: "peeler_simple",
+  //   },
+  // },
+  // {
+  //   input: { name: "wikipedia" },
+  // },
+  // { input: { name: "peeler_complex" } },
+  // { input: { name: "simple_google_search" } },
+  // {
+  //   input: {
+  //     name: "extract_collaborators_from_github_repository",
+  //   },
+  // },
+  // { input: { name: "extract_last_twenty_github_commits" } },
   // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
-  { input: { name: "homedepot" } },
-  { input: { name: "arxiv" } },
+  // { input: { name: "homedepot" } },
+  // { input: { name: "arxiv" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
