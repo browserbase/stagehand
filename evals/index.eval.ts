@@ -623,36 +623,36 @@ const exactMatch = (args: { input: any; output: any; expected?: any }) => {
 };
 
 const testcases = [
-  // {
-  //   input: {
-  //     name: "vanta",
-  //   },
-  // },
-  // {
-  //   input: {
-  //     name: "vanta_h",
-  //   },
-  // },
-  // {
-  //   input: {
-  //     name: "peeler_simple",
-  //   },
-  // },
-  // {
-  //   input: { name: "wikipedia" },
-  // },
-  // { input: { name: "peeler_complex" } },
-  // { input: { name: "simple_google_search" } },
-  // {
-  //   input: {
-  //     name: "extract_collaborators_from_github_repository",
-  //   },
-  // },
-  // { input: { name: "extract_last_twenty_github_commits" } },
-  // { input: { name: "costar", expected: true } },
+  {
+    input: {
+      name: "vanta",
+    },
+  },
+  {
+    input: {
+      name: "vanta_h",
+    },
+  },
+  {
+    input: {
+      name: "peeler_simple",
+    },
+  },
+  {
+    input: { name: "wikipedia" },
+  },
+  { input: { name: "peeler_complex" } },
+  { input: { name: "simple_google_search" } },
+  {
+    input: {
+      name: "extract_collaborators_from_github_repository",
+    },
+  },
+  { input: { name: "extract_last_twenty_github_commits" } },
+  { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
-  // { input: { name: "homedepot" } },
-  // { input: { name: "arxiv" } },
+  { input: { name: "homedepot" } },
+  { input: { name: "arxiv" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
