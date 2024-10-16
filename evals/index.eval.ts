@@ -531,8 +531,7 @@ const arxiv = async () => {
     await stagehand.waitForSettledDom();
 
     const paper_links = await stagehand.extract({
-        instruction: "extract the titles and links for all papers",
-        completionCondition: "stop when you have extracted two papers",
+        instruction: "extract the titles and links for three papers",
         schema: z.object({
           papers: z.array(z.object({
             title: z.string().describe("the title of the paper"),
@@ -551,7 +550,6 @@ const arxiv = async () => {
           await stagehand.page.goto(paper.link);
           const abstract = await stagehand.extract({
             instruction: "extract details of the paper from the abstract",
-            completionCondition: "stop when you have extracted information about the abstract",
             schema: z.object({
               category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Framework', 'System', 'Other'}"),
               problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
