@@ -137,6 +137,37 @@ export function buildExtractUserPrompt(
   };
 }
 
+export function buildMetadataSystemPrompt() {
+  return {
+    role: "system",
+    content: "You are an AI assistant tasked with evaluating the progress and completion status of an extraction task. Analyze the extraction response and determine if the task is completed or if more information is needed."
+  };
+}
+
+export function buildMetadataPrompt(
+  progress: string,
+  instruction: string,
+  extractionResponse: object,
+  completionCondition: string,
+) {
+  return {
+    role: "user",
+    content: `Please evaluate the following extraction response and determine if the task is completed or if more information is needed. Respond with a JSON object containing 'progress' (a string describing the current progress) and 'completed' (a boolean indicating if the task is finished).
+
+Original instruction:
+${instruction}
+
+Progress until now, use this to update the progress:
+${JSON.stringify(progress, null, 2)}
+
+Response from current extraction:
+${JSON.stringify(extractionResponse, null, 2)}
+
+Completion condition:
+${completionCondition}`
+  };
+}
+
 // observe
 const observeSystemPrompt = `
 You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a numbered list of possible elements.

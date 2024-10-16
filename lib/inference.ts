@@ -8,6 +8,8 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
+  buildMetadataSystemPrompt,
+  buildMetadataPrompt,
 } from "./prompt";
 import { z } from "zod";
 import { LLMProvider } from "./llm/LLMProvider";
@@ -80,6 +82,7 @@ export async function extract({
   progress,
   previouslyExtractedContent,
   domElements,
+  completionCondition,
   schema,
   llmProvider,
   modelName,
@@ -88,26 +91,14 @@ export async function extract({
   progress: string;
   previouslyExtractedContent: any;
   domElements: string;
+  completionCondition: string;
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
   modelName: string;
 }) {
   const llmClient = llmProvider.getClient(modelName);
 
-  const fullSchema = schema.extend({
-    metadata: z.object({
-      progress: z
-        .string()
-        .describe("progress of what has been extracted so far"),
-      completed: z
-        .boolean()
-        .describe(
-          "true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.",
-        ),
-    }),
-  });
-
-  return llmClient.createExtraction({
+  const extractionResponse = await llmClient.createExtraction({
     model: modelName,
     messages: [
       buildExtractSystemPrompt() as ChatMessage,
@@ -119,7 +110,7 @@ export async function extract({
       ) as ChatMessage,
     ],
     response_model: {
-      schema: fullSchema,
+      schema: schema,
       name: "Extraction",
     },
     temperature: 0.1,
@@ -127,6 +118,36 @@ export async function extract({
     frequency_penalty: 0,
     presence_penalty: 0,
   });
+
+  const metadataSchema = z.object({
+    progress: z.string().describe("progress of what has been extracted so far, as concise as possible"),
+    completed: z.boolean().describe("true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.")
+  });
+
+  const metadataResponse = await llmClient.createExtraction({
+    model: modelName,
+    messages: [
+      buildMetadataSystemPrompt() as ChatMessage,
+      buildMetadataPrompt(
+        progress,
+        instruction,
+        extractionResponse,
+        completionCondition
+      ) as ChatMessage
+    ],
+    response_model: {
+      name: "Metadata",
+      schema: metadataSchema
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0
+  });
+
+  extractionResponse.metadata = metadataResponse;
+
+  return extractionResponse;
 }
 
 export async function observe({

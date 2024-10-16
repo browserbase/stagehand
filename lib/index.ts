@@ -5,11 +5,31 @@ import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
-const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
 
 require("dotenv").config({ path: ".env" });
+
+function mergeOutput(target: any, source: any) {
+  const output = Object.assign({}, target);
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target))
+          Object.assign(output, { [key]: source[key] });
+        else
+          output[key] = mergeOutput(target[key], source[key]);
+      } else {
+        Object.assign(output, { [key]: source[key] ? source[key] : target[key] });
+      }
+    });
+  }
+  return output;
+}
+
+function isObject(item: any) {
+  return (item && typeof item === 'object' && !Array.isArray(item));
+}
 
 async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
@@ -278,6 +298,7 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
+    completionCondition = "",
     modelName,
   }: {
     instruction: string;
@@ -285,6 +306,7 @@ export class Stagehand {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
+    completionCondition?: string;
     modelName?: string;
   }): Promise<z.infer<T>> {
     this.log({
@@ -292,6 +314,10 @@ export class Stagehand {
       message: `starting extraction ${instruction}`,
       level: 1
     });
+
+    if (!completionCondition) {
+      completionCondition = "Set complete to true if the goal of the instruction is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.";
+    }
 
     await this.waitForSettledDom();
     await this.startDomDebug();
@@ -307,6 +333,7 @@ export class Stagehand {
 
     const extractionResponse = await extract({
       instruction,
+      completionCondition,
       progress,
       previouslyExtractedContent: content,
       domElements: outputString,
@@ -328,7 +355,7 @@ export class Stagehand {
 
     chunksSeen.push(chunk);
 
-    const mergedOutput = merge(content, output);
+    const mergedOutput = mergeOutput(content, output);
 
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
@@ -348,8 +375,9 @@ export class Stagehand {
       return this.extract({
         instruction,
         schema,
-        progress: progress + newProgress + ", ",
+        progress: newProgress,
         content: mergedOutput,
+        completionCondition,
         chunksSeen,
         modelName,
       });
