@@ -8,7 +8,7 @@ import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
-import { ScreenshotAnnotator as ScreenshotService } from "./vision";
+import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
 
 require("dotenv").config({ path: ".env" });
@@ -52,7 +52,9 @@ async function getBrowser(
       console.log("Starting a local browser...");
     }
 
-    console.log(`Launching browser in ${headless ? 'headless' : 'headed'} mode`);
+    console.log(
+      `Launching browser in ${headless ? "headless" : "headed"} mode`,
+    );
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
     fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
@@ -169,7 +171,7 @@ export class Stagehand {
       headless?: boolean;
     } = {
       env: "BROWSERBASE",
-    }
+    },
   ) {
     this.logger = this.log.bind(this);
     this.llmProvider = llmProvider || new LLMProvider(this.logger);
@@ -182,12 +184,21 @@ export class Stagehand {
     this.headless = headless;
   }
 
-  log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
+  log({
+    category,
+    message,
+    level = 1,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }) {
     if (this.verbose >= level) {
       const categoryString = category ? `:${category}` : "";
       console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
+
   async downloadPDF(url: string, title: string) {
     const downloadPromise = this.page.waitForEvent("download");
     await this.act({
@@ -224,25 +235,25 @@ export class Stagehand {
     });
   }
 
-
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
-      await this.page.waitForLoadState('domcontentloaded');
+      await this.page.waitForLoadState("domcontentloaded");
 
       await this.page.evaluate(() => {
         return new Promise<void>((resolve) => {
-          if (typeof window.waitForDomSettle === 'function') {
+          if (typeof window.waitForDomSettle === "function") {
             window.waitForDomSettle().then(() => {
               resolve();
             });
           } else {
-            console.warn('waitForDomSettle is not defined, considering DOM as settled');
+            console.warn(
+              "waitForDomSettle is not defined, considering DOM as settled",
+            );
             resolve();
           }
         });
       });
-
     } catch (e) {
       this.log({
         category: "dom",
@@ -255,10 +266,10 @@ export class Stagehand {
   async startDomDebug() {
     try {
       await this.page.evaluate(() => {
-        if (typeof window.debugDom === 'function') {
+        if (typeof window.debugDom === "function") {
           window.debugDom();
         } else {
-          console.warn('debugDom is not defined');
+          console.warn("debugDom is not defined");
         }
       });
     } catch (e) {
@@ -292,7 +303,7 @@ export class Stagehand {
     this.log({
       category: "extraction",
       message: `starting extraction ${instruction}`,
-      level: 1
+      level: 1,
     });
 
     await this.waitForSettledDom();
@@ -358,17 +369,20 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string, modelName?: string): Promise<string | null> {
+  async observe(
+    observation: string,
+    modelName?: string,
+  ): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
-      level: 1
+      level: 1,
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const elementId = await observe({
@@ -383,7 +397,7 @@ export class Stagehand {
       this.log({
         category: "observation",
         message: `no element found for ${observation}`,
-        level: 1
+        level: 1,
       });
       return null;
     }
@@ -391,7 +405,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found element ${elementId}`,
-      level: 1
+      level: 1,
     });
 
     const selector = selectorMap[parseInt(elementId)];
@@ -400,7 +414,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found locator ${locatorString}`,
-      level: 1
+      level: 1,
     });
 
     // the locator string found by the LLM might resolve to multiple places in the DOM
@@ -409,7 +423,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString
+      locatorString,
     );
 
     return observationId;
@@ -424,7 +438,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string
+    result: string,
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -477,13 +491,18 @@ export class Stagehand {
 
     const { outputString, selectorMap, chunk, chunks } =
       await this.page.evaluate((chunksSeen) => {
-          return window.processDom(chunksSeen);
+        return window.processDom(chunksSeen);
       }, chunksSeen);
 
     // New code to add bounding boxes and element numbers
     let annotatedScreenshot: Buffer | undefined = undefined;
     if (useVision === true) {
-      const screenshotService = new ScreenshotService(this.page, selectorMap);
+      const screenshotService = new ScreenshotService(
+        this.page,
+        selectorMap,
+        this.verbose,
+      );
+
       annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
     }
 
@@ -631,7 +650,7 @@ export class Stagehand {
         });
 
         // Check if a new page was created, but only if the method is 'click'
-        if (method === 'click') {
+        if (method === "click") {
           if (isLink) {
             this.log({
               category: "action",
@@ -640,9 +659,9 @@ export class Stagehand {
             });
             const newPagePromise = Promise.race([
               new Promise<Page | null>((resolve) => {
-                this.context.once('page', (page) => resolve(page));
+                this.context.once("page", (page) => resolve(page));
                 setTimeout(() => resolve(null), 1500); // 1500ms timeout
-              })
+              }),
             ]);
             const newPage = await newPagePromise;
             if (newPage) {

@@ -4,34 +4,52 @@ import path from "path";
 import sharp from "sharp";
 import { exec } from "child_process";
 
-interface AnnotationBox {
+type AnnotationBox = {
   x: number;
   y: number;
   width: number;
   height: number;
   id: string;
-}
+};
 
-interface NumberPosition {
+type NumberPosition = {
   x: number;
   y: number;
-}
+};
 
-export class ScreenshotAnnotator {
+export class ScreenshotService {
   private page: Page;
   private selectorMap: Record<number, string>;
   private annotationBoxes: AnnotationBox[] = [];
   private numberPositions: NumberPosition[] = [];
   private isDebugEnabled: boolean;
+  private verbose: 0 | 1 | 2;
 
   constructor(
     page: Page,
     selectorMap: Record<number, string>,
+    verbose: 0 | 1 | 2,
     isDebugEnabled: boolean = false,
   ) {
     this.page = page;
     this.selectorMap = selectorMap;
     this.isDebugEnabled = isDebugEnabled;
+    this.verbose = verbose;
+  }
+
+  log({
+    category,
+    message,
+    level = 1,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }) {
+    if (this.verbose >= level) {
+      const categoryString = category ? `:${category}` : "";
+      console.log(`[stagehand${categoryString}] ${message}`);
+    }
   }
 
   async getScreenshot(): Promise<Buffer> {
@@ -46,10 +64,11 @@ export class ScreenshotAnnotator {
     const image = sharp(screenshot);
 
     const { width, height } = await image.metadata();
-    console.log(
-      "[BROWSERBASE] [Debug] Annotating screenshot",
-      this.selectorMap,
-    );
+    this.log({
+      category: "Debug",
+      message: `Annotating screenshot ${JSON.stringify(this.selectorMap)}`,
+      level: 2,
+    });
 
     const svgAnnotations = await Promise.all(
       Object.entries(this.selectorMap).map(async ([id, selector]) =>
@@ -75,7 +94,7 @@ export class ScreenshotAnnotator {
       .toBuffer();
 
     if (this.isDebugEnabled) {
-      await ScreenshotAnnotator.saveAndOpenScreenshot(annotatedScreenshot);
+      await ScreenshotService.saveAndOpenScreenshot(annotatedScreenshot);
     }
 
     return annotatedScreenshot;
@@ -90,7 +109,11 @@ export class ScreenshotAnnotator {
       const box = await element.boundingBox();
 
       if (!box) {
-        console.log(`[BROWSERBASE] [Debug] No bounding box for element ${id}`);
+        this.log({
+          category: "Debug",
+          message: `No bounding box for element ${id}`,
+          level: 2,
+        });
         return "";
       }
 
@@ -123,10 +146,11 @@ export class ScreenshotAnnotator {
         </text>
       `;
     } catch (error) {
-      console.error(
-        `[BROWSERBASE] [Error] Failed to create annotation for element ${id}:`,
-        error,
-      );
+      this.log({
+        category: "Error",
+        message: `Failed to create annotation for element ${id}: ${error}`,
+        level: 0,
+      });
       return "";
     }
   }
