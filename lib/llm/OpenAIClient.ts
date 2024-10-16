@@ -17,17 +17,43 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
-    this.logger({ category: "OpenAI", 
-      message: "Creating chat completion with options: " + JSON.stringify(options), 
-      level: 2 
+    this.logger({
+      category: "OpenAI",
+      message:
+        "Creating chat completion with options: " + JSON.stringify(options),
+      level: 2,
     });
-    const response = await this.client.chat.completions.create({
-      ...options,
-      messages: options.messages,
-    });
-    this.logger({ category: "OpenAI", 
+
+    if (options.image) {
+      const screenshotMessage: any = {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
+            },
+          },
+          ...(options.image.description
+            ? [{ type: "text", text: options.image.description }]
+            : []),
+        ],
+      };
+
+      options.messages = [...options.messages, screenshotMessage];
+    }
+
+    console.log("[DEBUG][Options][Image]", !!options.image);
+
+    const { image, ...optionsWithoutImage } = options;
+
+    const response =
+      await this.client.chat.completions.create(optionsWithoutImage);
+
+    this.logger({
+      category: "OpenAI",
       message: "Response from OpenAI: " + JSON.stringify(response), 
-      level: 2 
+      level: 2,
     });
     return response;
   }

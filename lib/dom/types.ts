@@ -14,5 +14,6 @@ declare global {
     }>;
     debugDom: () => Promise<void>;
     cleanupDebug: () => void;
+    scrollToHeight: (height: number) => Promise<void>;
   }
 }

@@ -527,55 +527,98 @@ const arxiv = async () => {
     await stagehand.page.goto("https://arxiv.org/search/");
     await stagehand.waitForSettledDom();
 
-    await stagehand.act({ action: "search for the recent papers about web agents with multimodal models" }); 
+    await stagehand.act({
+      action:
+        "search for the recent papers about web agents with multimodal models",
+    });
     await stagehand.waitForSettledDom();
 
     const paper_links = await stagehand.extract({
-        instruction: "extract the title and link of at most five papers, keeping track of number of papers extracted and marking completed when five are extracted",
-        schema: z.object({
-          papers: z.array(z.object({
-            title: z.string().describe("the title of the paper"),
-            link: z.string().describe("the link to the paper").nullable(),
-          })).describe("list of papers"),
-        }),
-        modelName: "gpt-4o-2024-08-06"
+      instruction:
+        "extract the title and link of at most five papers, keeping track of number of papers extracted and marking completed when five are extracted",
+      schema: z.object({
+        papers: z
+          .array(
+            z.object({
+              title: z.string().describe("the title of the paper"),
+              link: z.string().describe("the link to the paper").nullable(),
+            }),
+          )
+          .describe("list of papers"),
+      }),
+      modelName: "gpt-4o-2024-08-06",
     });
 
-    if (!paper_links || !paper_links.papers || paper_links.papers.length === 0) {
+    if (
+      !paper_links ||
+      !paper_links.papers ||
+      paper_links.papers.length === 0
+    ) {
       return { _success: false };
     }
 
     for (const paper of paper_links.papers) {
-        if (paper.link) {
-          await stagehand.page.goto(paper.link);
-          const abstract = await stagehand.extract({
-            instruction: "extract details of the paper from the abstract",
-            schema: z.object({
-              values: z.array(z.object({
-                category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Strategy', 'System', 'Other'}"),
-                problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
-                methodology: z.string().describe("summarize the methodology of the paper in one sentence").nullable(),
-                results: z.string().describe("summarize the results of the paper in one sentence").nullable(),
-                conclusion: z.string().describe("summarize the conclusion of the paper in one sentence").nullable(),
-                code: z.string().describe("if provided, extract only the link to the code repository, without additional text").nullable(),
-              })),
-            }),
-            modelName: "gpt-4o-2024-08-06"
-          });
+      if (paper.link) {
+        await stagehand.page.goto(paper.link);
+        const abstract = await stagehand.extract({
+          instruction: "extract details of the paper from the abstract",
+          schema: z.object({
+            values: z.array(
+              z.object({
+                category: z
+                  .string()
+                  .describe(
+                    "the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Strategy', 'System', 'Other'}",
+                  ),
+                problem: z
+                  .string()
+                  .describe(
+                    "summarize the problem that the paper is trying to solve in one sentence",
+                  )
+                  .nullable(),
+                methodology: z
+                  .string()
+                  .describe(
+                    "summarize the methodology of the paper in one sentence",
+                  )
+                  .nullable(),
+                results: z
+                  .string()
+                  .describe(
+                    "summarize the results of the paper in one sentence",
+                  )
+                  .nullable(),
+                conclusion: z
+                  .string()
+                  .describe(
+                    "summarize the conclusion of the paper in one sentence",
+                  )
+                  .nullable(),
+                code: z
+                  .string()
+                  .describe(
+                    "if provided, extract only the link to the code repository, without additional text",
+                  )
+                  .nullable(),
+              }),
+            ),
+          }),
+          modelName: "gpt-4o-2024-08-06",
+        });
 
-          const first_chunk = abstract.values[0];
-    
-          papers.push({
-            title: paper.title,
-            link: paper.link,
-            category: first_chunk.category,
-            problem: first_chunk.problem,
-            methodology: first_chunk.methodology,
-            results: first_chunk.results,
-            conclusion: first_chunk.conclusion,
-            code: first_chunk.code,
-          });
-        }
+        const first_chunk = abstract.values[0];
+
+        papers.push({
+          title: paper.title,
+          link: paper.link,
+          category: first_chunk.category,
+          problem: first_chunk.problem,
+          methodology: first_chunk.methodology,
+          results: first_chunk.results,
+          conclusion: first_chunk.conclusion,
+          code: first_chunk.code,
+        });
+      }
     }
 
     if (!papers || papers.length === 0) {
@@ -590,7 +633,67 @@ const arxiv = async () => {
   } finally {
     await stagehand.context.close();
   }
-}
+};
+
+const expedia = async () => {
+  const stagehand = new Stagehand({
+    // env: "BROWSERBASE",
+    env: "LOCAL",
+    headless: false,
+    debugDom: true,
+  });
+
+  await stagehand.init();
+
+  await stagehand.page.goto("https://www.expedia.com");
+  await stagehand.waitForSettledDom();
+
+  await stagehand.act({
+    action:
+      "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2024 (up to one to two weeks)",
+    useVision: true,
+    modelName: "claude-3-5-sonnet-20240620",
+  });
+
+  await stagehand.context.close();
+  console.log("Found flights");
+
+  // Wait for the page to settle after flight search
+  await stagehand.waitForSettledDom();
+
+  // Get the current URL
+  const finalUrl = await stagehand.page.url();
+  console.log("Final URL:", finalUrl);
+
+  // Check if the URL matches the expected format
+  const isUrlValid = (url: string) => {
+    const urlObj = new URL(url);
+    const searchParams = urlObj.searchParams;
+
+    // Check for correct airports
+    const hasCorrectAirports =
+      url.includes("SFO-San%20Francisco") &&
+      url.includes("YYZ-Pearson") &&
+      url.includes("Toronto,%20ON,%20Canada") &&
+      url.includes("San%20Francisco,%20CA,%20United%20States");
+
+    // Check for correct dates
+    const fromDate = searchParams.get("fromDate");
+    const toDate = searchParams.get("toDate");
+    const isFromDateValid = fromDate === "1/1/2025";
+    const isToDateValid =
+      toDate &&
+      new Date(toDate) >= new Date("2025-01-06") &&
+      new Date(toDate) <= new Date("2025-01-15");
+
+    return hasCorrectAirports && isFromDateValid && isToDateValid;
+  };
+
+  const urlValid = isUrlValid(finalUrl);
+  console.log("URL is valid:", urlValid);
+
+  return { _success: urlValid, finalUrl };
+};
 
 const tasks = {
   vanta,
@@ -605,6 +708,7 @@ const tasks = {
   google_jobs,
   homedepot,
   arxiv,
+  expedia,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
