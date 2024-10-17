@@ -583,6 +583,7 @@ const LarocheForm = async () => {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
+    iframeSupport: true, // Set to true to enable iframe scanning
   });
 
   await stagehand.init({ modelName: "gpt-4o" });
