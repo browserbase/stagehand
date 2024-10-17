@@ -8,6 +8,8 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
+  buildFilterSystemPrompt,
+  buildFilterUserPrompt,
   buildMetadataSystemPrompt,
   buildMetadataPrompt,
 } from "./prompt";
@@ -100,16 +102,27 @@ export async function extract({
     model: modelName,
     messages: [
       buildExtractSystemPrompt() as ChatMessage,
-      buildExtractUserPrompt(
-        instruction,
-        progress,
-        previouslyExtractedContent,
-        domElements,
-      ) as ChatMessage,
+      buildExtractUserPrompt(instruction, domElements) as ChatMessage,
     ],
     response_model: {
       schema: schema,
       name: "Extraction",
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+  });
+
+  const filteredResponse = await llmClient.createExtraction({
+    model: modelName,
+    messages: [
+      buildFilterSystemPrompt() as ChatMessage,
+      buildFilterUserPrompt(previouslyExtractedContent, extractionResponse) as ChatMessage,
+    ],
+    response_model: {
+      schema: schema,
+      name: "FilteredExtraction",
     },
     temperature: 0.1,
     top_p: 1,
@@ -129,7 +142,7 @@ export async function extract({
       buildMetadataPrompt(
         progress,
         instruction,
-        extractionResponse,
+        filteredResponse,
       ) as ChatMessage
     ],
     response_model: {
@@ -142,9 +155,10 @@ export async function extract({
     presence_penalty: 0
   });
 
-  extractionResponse.metadata = metadataResponse;
+  filteredResponse.metadata = metadataResponse;
+  console.log("metadataResponse", metadataResponse)
 
-  return extractionResponse;
+  return filteredResponse;
 }
 
 export async function observe({

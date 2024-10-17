@@ -247,8 +247,8 @@ const extract_collaborators_from_github_repository = async () => {
       schema: z.object({
         contributors: z.array(
           z.object({
-            github_username: z.string(),
-            information: z.string(),
+            github_username: z.string().describe("the github username of the contributor"),
+            information: z.string().describe("number of commits contributed"),
           }),
         ),
       }),
@@ -281,7 +281,9 @@ const extract_last_twenty_github_commits = async () => {
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
+    await stagehand.waitForSettledDom();
 
+    await stagehand.act({ action: "find commit history, generally described by the number of commits" });
     await stagehand.waitForSettledDom();
 
     const { commits } = await stagehand.extract({

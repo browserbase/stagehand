@@ -120,27 +120,48 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 
 export function buildExtractUserPrompt(
   instruction: string,
-  progress: string,
-  previouslyExtractedContent: object,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
     content: `instruction: ${instruction}
-    progress: ${progress}
-    Previously Extracted Content:\n${JSON.stringify(
-      previouslyExtractedContent,
-      null,
-      2,
-    )}
     DOM: ${domElements}`,
   };
 }
 
+const filterSystemPrompt = `You are tasked with filtering out duplicate information from newly extracted content based on previously extracted content. Return only the new, non-duplicate information.`;
+
+export function buildFilterSystemPrompt() {
+  return {
+    role: "system",
+    content: filterSystemPrompt,
+  };
+}
+
+export function buildFilterUserPrompt(
+  previouslyExtractedContent: object,
+  newlyExtractedContent: object,
+) {
+  return {
+    role: "user",
+    content: `Previously extracted content:
+${JSON.stringify(previouslyExtractedContent, null, 2)}
+
+Newly extracted content:
+${JSON.stringify(newlyExtractedContent, null, 2)}
+
+Please filter out any duplicate information from the newly extracted content and return only the new, non-duplicate information.`,
+  };
+}
+
+const metadataSystemPrompt = `
+You are an AI assistant tasked with evaluating the progress and completion status of an extraction task. Analyze the extraction response and determine if the task is completed or if more information is needed.
+`;
+
 export function buildMetadataSystemPrompt() {
   return {
     role: "system",
-    content: "You are an AI assistant tasked with evaluating the progress and completion status of an extraction task. Analyze the extraction response and determine if the task is completed or if more information is needed."
+    content: metadataSystemPrompt,
   };
 }
 
