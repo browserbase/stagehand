@@ -152,6 +152,7 @@ export class Stagehand {
   public defaultModelName: string;
   public headless: boolean;
   private logger: (message: { category?: string; message: string }) => void;
+  public iframeSupport: boolean;
 
   constructor(
     {
@@ -160,12 +161,14 @@ export class Stagehand {
       debugDom = false,
       llmProvider,
       headless = false,
+      iframeSupport = false,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
       llmProvider?: LLMProvider;
       headless?: boolean;
+      iframeSupport?: boolean;
     } = {
       env: "BROWSERBASE",
     }
@@ -179,6 +182,7 @@ export class Stagehand {
     this.debugDom = debugDom;
     this.defaultModelName = "gpt-4o";
     this.headless = headless;
+    this.iframeSupport = iframeSupport;
   }
 
   log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
@@ -467,18 +471,21 @@ export class Stagehand {
     if (frames.length === 0) {
       // Prepare frames: main frame and relevant iframes
       const mainFrame = this.page.mainFrame();
-      const iframeElements = await this.page.$$('iframe');
   
       // Start with the main frame
       frames = [mainFrame];
   
-      for (const iframeElement of iframeElements) {
-        const src = await iframeElement.getAttribute('src');
-        const isVisible = await iframeElement.isVisible();
-        if (src && src.trim() !== '' && isVisible) {
-          const frame = await iframeElement.contentFrame();
-          if (frame) {
-            frames.push(frame);
+      if (this.iframeSupport) {
+        const iframeElements = await this.page.$$('iframe');
+  
+        for (const iframeElement of iframeElements) {
+          const src = await iframeElement.getAttribute('src');
+          const isVisible = await iframeElement.isVisible();
+          if (src && src.trim() !== '' && isVisible) {
+            const frame = await iframeElement.contentFrame();
+            if (frame) {
+              frames.push(frame);
+            }
           }
         }
       }

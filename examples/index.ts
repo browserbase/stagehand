@@ -8,6 +8,7 @@ async function example() {
     verbose: 2,
     headless: false,
     debugDom: true,
+    iframeSupport: true, // Set to true to enable iframe scanning
   });
   
   await stagehand.init();
