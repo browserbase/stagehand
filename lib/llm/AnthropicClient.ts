@@ -14,12 +14,37 @@ export class AnthropicClient implements LLMClient {
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
-    const systemMessage = options.messages.find(msg => msg.role === 'system');
-    const userMessages = options.messages.filter(msg => msg.role !== 'system');
-    this.logger({ category: "Anthropic", 
-      message: "Creating chat completion with options: " + JSON.stringify(options), 
-      level: 2 
+    const systemMessage = options.messages.find((msg) => msg.role === "system");
+    const userMessages = options.messages.filter(
+      (msg) => msg.role !== "system",
+    );
+    this.logger({
+      category: "Anthropic",
+      message:
+        "Creating chat completion with options: " + JSON.stringify(options),
+      level: 2,
     });
+
+    if (options.image) {
+      const screenshotMessage: any = {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",
+              data: options.image.buffer.toString("base64"),
+            },
+          },
+          ...(options.image.description
+            ? [{ type: "text", text: options.image.description }]
+            : []),
+        ],
+      };
+
+      options.messages = [...options.messages, screenshotMessage];
+    }
 
       // Transform tools to Anthropic's format
       const anthropicTools = options.tools?.map(tool => {
