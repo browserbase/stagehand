@@ -1,12 +1,10 @@
-#!/usr/bin/env -S pnpm tsx
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
 async function example() {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: 2,
-    headless: false,
+    verbose: 1,
     debugDom: true,
     iframeSupport: true, // Set to true to enable iframe scanning
   });

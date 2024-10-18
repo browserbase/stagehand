@@ -9,6 +9,8 @@ import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
+import { ScreenshotService } from "./vision";
+import { modelsWithVision } from "./llm/LLMClient";
 
 require("dotenv").config({ path: ".env" });
 
@@ -51,7 +53,9 @@ async function getBrowser(
       console.log("Starting a local browser...");
     }
 
-    console.log(`Launching browser in ${headless ? 'headless' : 'headed'} mode`);
+    console.log(
+      `Launching browser in ${headless ? "headless" : "headed"} mode`,
+    );
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
     fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
@@ -64,7 +68,7 @@ async function getBrowser(
 
     fs.writeFileSync(
       `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences)
+      JSON.stringify(defaultPreferences),
     );
 
     const downloadsPath = `${process.cwd()}/downloads`;
@@ -171,7 +175,7 @@ export class Stagehand {
       iframeSupport?: boolean;
     } = {
       env: "BROWSERBASE",
-    }
+    },
   ) {
     this.logger = this.log.bind(this);
     this.llmProvider = llmProvider || new LLMProvider(this.logger);
@@ -185,12 +189,21 @@ export class Stagehand {
     this.iframeSupport = iframeSupport;
   }
 
-  log({ category, message, level = 1 }: { category?: string; message: string; level?: 0 | 1 | 2 }) {
+  log({
+    category,
+    message,
+    level = 1,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }) {
     if (this.verbose >= level) {
       const categoryString = category ? `:${category}` : "";
       console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
+
   async downloadPDF(url: string, title: string) {
     const downloadPromise = this.page.waitForEvent("download");
     await this.act({
@@ -227,25 +240,25 @@ export class Stagehand {
     });
   }
 
-
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
-      await this.page.waitForLoadState('domcontentloaded');
+      await this.page.waitForLoadState("domcontentloaded");
 
       await this.page.evaluate(() => {
         return new Promise<void>((resolve) => {
-          if (typeof window.waitForDomSettle === 'function') {
+          if (typeof window.waitForDomSettle === "function") {
             window.waitForDomSettle().then(() => {
               resolve();
             });
           } else {
-            console.warn('waitForDomSettle is not defined, considering DOM as settled');
+            console.warn(
+              "waitForDomSettle is not defined, considering DOM as settled",
+            );
             resolve();
           }
         });
       });
-
     } catch (e) {
       this.log({
         category: "dom",
@@ -258,10 +271,10 @@ export class Stagehand {
   async startDomDebug() {
     try {
       await this.page.evaluate(() => {
-        if (typeof window.debugDom === 'function') {
+        if (typeof window.debugDom === "function") {
           window.debugDom();
         } else {
-          console.warn('debugDom is not defined');
+          console.warn("debugDom is not defined");
         }
       });
     } catch (e) {
@@ -295,7 +308,7 @@ export class Stagehand {
     this.log({
       category: "extraction",
       message: `starting extraction ${instruction}`,
-      level: 1
+      level: 1,
     });
 
     await this.waitForSettledDom();
@@ -361,17 +374,20 @@ export class Stagehand {
     }
   }
 
-  async observe(observation: string, modelName?: string): Promise<string | null> {
+  async observe(
+    observation: string,
+    modelName?: string,
+  ): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
-      level: 1
+      level: 1,
     });
 
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([])
+      window.processDom([]),
     );
 
     const elementId = await observe({
@@ -386,7 +402,7 @@ export class Stagehand {
       this.log({
         category: "observation",
         message: `no element found for ${observation}`,
-        level: 1
+        level: 1,
       });
       return null;
     }
@@ -394,7 +410,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found element ${elementId}`,
-      level: 1
+      level: 1,
     });
 
     const selector = selectorMap[parseInt(elementId)];
@@ -403,7 +419,7 @@ export class Stagehand {
     this.log({
       category: "observation",
       message: `found locator ${locatorString}`,
-      level: 1
+      level: 1,
     });
 
     // the locator string found by the LLM might resolve to multiple places in the DOM
@@ -412,7 +428,7 @@ export class Stagehand {
     await expect(firstLocator).toBeAttached();
     const observationId = await this.recordObservation(
       observation,
-      locatorString
+      locatorString,
     );
 
     return observationId;
@@ -427,7 +443,7 @@ export class Stagehand {
 
   async recordObservation(
     observation: string,
-    result: string
+    result: string,
   ): Promise<string> {
     const id = this.getId(observation);
 
@@ -451,6 +467,7 @@ export class Stagehand {
     frames = [],
     chunksSeenPerFrame = {},
     modelName,
+    useVision = "fallback",
   }: {
     action: string;
     steps?: string;
@@ -458,7 +475,19 @@ export class Stagehand {
     frames?: Frame[];
     chunksSeenPerFrame?: { [frameId: number]: number[] };
     modelName?: string;
+    useVision?: boolean | "fallback";
   }): Promise<{ success: boolean; message: string; action: string }> {
+    useVision = useVision ?? "fallback";
+    const model = modelName ?? this.defaultModelName;
+
+    if (!modelsWithVision.includes(model) && useVision !== false) {
+      console.warn(
+        `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
+      );
+      useVision = false;
+    }
+
+    console.log("[BROWSERBASE] Starting action", action, chunksSeenPerFrame, useVision);
     this.log({
       category: "action",
       message: `Starting action: ${action}`,
@@ -518,7 +547,7 @@ export class Stagehand {
     const chunksSeen = chunksSeenPerFrame[frameId];
     // TODO: start dom debug on each frame - right now we only do it on the main frame
     await this.startDomDebug();
-    // Process the current frame
+
     const domResult = await currentFrame.evaluate(
       ({ chunksSeen }) => {
         // @ts-ignore
@@ -526,9 +555,20 @@ export class Stagehand {
       },
       { chunksSeen }
     );
-  
-    const { outputString, selectorMap, chunk, chunks } = domResult;
-  
+
+    const { outputString, selectorMap, chunk, chunks } = domResult
+
+    // New code to add bounding boxes and element numbers
+    let annotatedScreenshot: Buffer | undefined = undefined;
+    if (useVision === true) {
+      const screenshotService = new ScreenshotService(
+        currentFrame,
+        selectorMap,
+        this.verbose,
+      );
+
+      annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
+
     this.log({
       category: "action",
       message: `Processing frame ${frameIndex} (chunk ${chunk}). Chunks left: ${chunks.length - chunksSeen.length}`,
@@ -541,7 +581,8 @@ export class Stagehand {
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
+      modelName: model,
+      screenshot: annotatedScreenshot,
     });
   
     // Add the current chunk to chunksSeen
@@ -561,18 +602,33 @@ export class Stagehand {
         await this.waitForSettledDom();
         return await this.act({
           action,
-          steps: steps + (!steps.endsWith("\n") ? "\n" : "") + "## Step: Scrolled to another section\n",
-          frameIndex,
-          frames,
-          chunksSeenPerFrame,
-          modelName,
+          steps:
+            steps +
+            (!steps.endsWith("\n") ? "\n" : "") +
+            "## Step: Scrolled to another section\n",
+            frameIndex,
+            frames,
+            chunksSeenPerFrame,
+            modelName: model,
+            useVision
+
         });
       } else {
+        if (useVision === "fallback") {
+          return this.act({
+            action,
+            steps,
+            chunksSeen: [],
+            modelName: model,
+            useVision: true,
+          });
+        }
         this.log({
           category: "action",
           message: `No action found in frame ${frameIndex} with no chunks left to check. Moving to next frame.`,
           level: 1,
         });
+
         await this.waitForSettledDom();
         return await this.act({
           action,
@@ -580,7 +636,8 @@ export class Stagehand {
           frameIndex: frameIndex + 1,
           frames,
           chunksSeenPerFrame,
-          modelName,
+          modelName: model,
+          useVision
         });
       }
     }
@@ -606,19 +663,33 @@ export class Stagehand {
   
     const locator = currentFrame.locator(`xpath=${xpath}`).first();
     try {
-      if (method === 'scrollIntoView') {
+      if (method === "scrollIntoView") {
         this.log({
           category: "action",
           message: `Scrolling element into view`,
           level: 2,
         });
         await locator.evaluate((element) => {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
         });
-      } else if (typeof locator[method as keyof typeof locator] === "function") {
-  
+      } else if (method === "fill" || method === "type") {
+        // Stimulate typing like a human (just in case)
+        await locator.click();
+
+        const text = args[0];
+        for (const char of text) {
+          await this.page.keyboard.type(char, {
+            delay: Math.random() * 50 + 25,
+          }); // Random delay between 25-75ms to simulate typing like a human
+        }
+      } else if (
+        typeof locator[method as keyof typeof locator] === "function"
+      ) {
         const isLink = await locator.evaluate((element) => {
-          return element.tagName.toLowerCase() === 'a' && element.hasAttribute('href');
+          return (
+            element.tagName.toLowerCase() === "a" &&
+            element.hasAttribute("href")
+          );
         });
   
         this.log({
@@ -646,7 +717,7 @@ export class Stagehand {
         });
   
         // Check if a new page was created, but only if the method is 'click'
-        if (method === 'click') {
+        if (method === "click") {
           if (isLink) {
             this.log({
               category: "action",
@@ -655,9 +726,9 @@ export class Stagehand {
             });
             const newPagePromise = Promise.race([
               new Promise<Page | null>((resolve) => {
-                this.context.once('page', (page) => resolve(page));
+                this.context.once("page", (page) => resolve(page));
                 setTimeout(() => resolve(null), 1500); // 1500ms timeout
-              })
+              }),
             ]);
             const newPage = await newPagePromise;
             if (newPage) {
@@ -697,10 +768,11 @@ export class Stagehand {
             `## Step: ${response.step}\n` +	         
             `  Element: ${elementText}\n` +	
             `  Action: ${response.method}\n\n`,
-          frameIndex,
-          frames,
-          chunksSeenPerFrame,
-          modelName,
+            frameIndex,
+            frames,
+            chunksSeenPerFrame,
+            modelName: model,
+            useVision
         });
       } else {
         this.log({
@@ -729,6 +801,7 @@ export class Stagehand {
       };
     }
   }
+}
   setPage(page: Page) {
     this.page = page;
   }
