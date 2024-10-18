@@ -15,7 +15,7 @@ import {
 } from "./prompt";
 import { z } from "zod";
 import { LLMProvider } from "./llm/LLMProvider";
-import { ChatMessage } from "./llm/LLMClient";
+import { AnnotatedScreenshotText, ChatMessage } from "./llm/LLMClient";
 
 export async function act({
   action,
@@ -23,6 +23,7 @@ export async function act({
   steps,
   llmProvider,
   modelName,
+  screenshot,
   retries = 0,
 }: {
   action: string;
@@ -30,6 +31,7 @@ export async function act({
   domElements: string;
   llmProvider: LLMProvider;
   modelName: string;
+  screenshot?: Buffer;
   retries?: number;
 }): Promise<{
   method: string;
@@ -54,6 +56,9 @@ export async function act({
     presence_penalty: 0,
     tool_choice: "auto",
     tools: actTools,
+    image: screenshot
+      ? { buffer: screenshot, description: AnnotatedScreenshotText }
+      : undefined,
   });
 
   const toolCalls = response.choices[0].message.tool_calls;

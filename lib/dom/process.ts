@@ -10,13 +10,40 @@ async function processDom(chunksSeen: Array<number>) {
   };
 }
 
-async function processElements(chunk: number) {
+export async function scrollToHeight(height: number) {
+  window.scrollTo({ top: height, left: 0, behavior: "smooth" });
+
+  // Wait for scrolling to finish using the scrollend event
+  await new Promise<void>((resolve) => {
+    let scrollEndTimer: number;
+    const handleScrollEnd = () => {
+      clearTimeout(scrollEndTimer);
+      scrollEndTimer = window.setTimeout(() => {
+        window.removeEventListener("scroll", handleScrollEnd);
+        resolve();
+      }, 100); // Small delay to ensure scrolling has truly finished
+    };
+
+    window.addEventListener("scroll", handleScrollEnd, { passive: true });
+    handleScrollEnd(); // Call once in case the scroll doesn't actually occur
+  });
+
+  // Small additional delay to allow for any post-scroll animations or adjustments
+  await new Promise((resolve) => setTimeout(resolve, 200));
+}
+
+export async function processElements(chunk: number) {
   const viewportHeight = window.innerHeight;
-
   const chunkHeight = viewportHeight * chunk;
-  const offsetTop = chunkHeight;
 
-  window.scrollTo({ top: offsetTop, left: 0, behavior: 'smooth' });
+  // Calculate the maximum scrollable offset
+  const maxScrollTop =
+    document.documentElement.scrollHeight - window.innerHeight;
+
+  // Adjust the offsetTop to not exceed the maximum scrollable offset
+  const offsetTop = Math.min(chunkHeight, maxScrollTop);
+
+  await scrollToHeight(offsetTop);
 
   const domString = window.document.body.outerHTML;
   if (!domString) {
@@ -119,7 +146,7 @@ async function processElements(chunk: number) {
 
       // Build the simplified element string
       const openingTag = `<${tagName}${
-        attributes.length > 0 ? ' ' + attributes.join(' ') : ''
+        attributes.length > 0 ? " " + attributes.join(" ") : ""
       }>`;
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent.trim();
@@ -138,6 +165,7 @@ async function processElements(chunk: number) {
 
 window.processDom = processDom;
 window.processElements = processElements;
+window.scrollToHeight = scrollToHeight;
 
 function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {
@@ -312,7 +340,7 @@ function isTopElement(elem: ChildNode, rect: DOMRect) {
         return true;
       }
       current = current.parentElement;
-  }
+    }
     return false;
   });
 }
