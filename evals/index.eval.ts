@@ -461,18 +461,24 @@ const google_jobs = async () => {
     schema: z.object({
       applicationDeadline: z
         .string()
-        .describe("The date until which the application window will be open"),
+        .describe("The date until which the application window will be open")
+        .nullable(),
       minimumQualifications: z.object({
-        degree: z.string().describe("The minimum required degree"),
+        degree: z
+          .string()
+          .describe("The minimum required degree")
+          .nullable(),
         yearsOfExperience: z
           .number()
-          .describe("The minimum required years of experience"),
+          .describe("The minimum required years of experience")
+          .nullable(),
       }),
       preferredQualifications: z.object({
-        degree: z.string().describe("The preferred degree"),
+        degree: z.string().describe("The preferred degree").nullable(),
         yearsOfExperience: z
           .number()
-          .describe("The preferred years of experience"),
+          .describe("The preferred years of experience")
+          .nullable(),
       }),
     }),
     modelName: "gpt-4o-2024-08-06",
@@ -536,7 +542,7 @@ const arxiv = async () => {
     await stagehand.waitForSettledDom();
 
     const paper_links = await stagehand.extract({
-        instruction: "extract the titles and links for three papers",
+        instruction: "extract the titles and links for two papers",
         schema: z.object({
           papers: z.array(z.object({
             title: z.string().describe("the title of the paper"),
@@ -588,6 +594,21 @@ const arxiv = async () => {
     }
 
     console.log(papers);
+
+    // Assert that the length of papers is three
+    if (papers.length !== 2) {
+      console.error(`Expected 2 papers, but got ${papers.length}`);
+      return { _success: false, error: "Incorrect number of papers extracted" };
+    }
+
+    // Ensure that every paper has a problem and methodology
+    for (const paper of papers) {
+      if (!paper.problem || !paper.methodology) {
+        console.error(`Paper "${paper.title}" is missing problem or methodology`);
+        return { _success: false, error: "Incomplete paper information" };
+      }
+    }
+
     return { _success: true, papers };
   } catch (error) {
     console.error(`Error in arxiv function: ${error.message}`);
