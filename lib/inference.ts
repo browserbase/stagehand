@@ -156,7 +156,6 @@ export async function extract({
   });
 
   filteredResponse.metadata = metadataResponse;
-  console.log("metadataResponse", metadataResponse)
 
   return filteredResponse;
 }
