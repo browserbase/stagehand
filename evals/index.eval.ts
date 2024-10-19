@@ -505,6 +505,7 @@ const extractPartners = async () => {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
+    headless: process.env.HEADLESS !== "false",
   });
 
   await stagehand.init({ modelName: "gpt-4o" });
@@ -583,6 +584,7 @@ const LarocheForm = async () => {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
+    headless: process.env.HEADLESS !== "false",
     iframeSupport: true, // Set to true to enable iframe scanning
   });
 
