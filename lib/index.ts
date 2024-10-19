@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
-import { act, ask, extract, observe } from "./inference";
+import { act as actLLM, ask, extract, observe } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
 const merge = require("deepmerge");
 import path from "path";
@@ -154,6 +154,7 @@ export class Stagehand {
   public debugDom: boolean;
   public defaultModelName: string;
   public headless: boolean;
+  public iframeSupport: boolean;
   private logger: (message: { category?: string; message: string }) => void;
 
   constructor(
@@ -163,12 +164,14 @@ export class Stagehand {
       debugDom = false,
       llmProvider,
       headless = false,
+      iframeSupport = false,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
       llmProvider?: LLMProvider;
       headless?: boolean;
+      iframeSupport?: boolean;
     } = {
       env: "BROWSERBASE",
     },
@@ -182,6 +185,7 @@ export class Stagehand {
     this.debugDom = debugDom;
     this.defaultModelName = "gpt-4o";
     this.headless = headless;
+    this.iframeSupport = iframeSupport;
   }
 
   log({
@@ -458,143 +462,205 @@ export class Stagehand {
   async act({
     action,
     steps = "",
-    chunksSeen = [],
+    frameIndex = 0,
+    frames = [],
+    chunksSeenPerFrame = {},
+    visionAttemptedPerFrame = {},
     modelName,
     useVision = "fallback",
   }: {
     action: string;
     steps?: string;
-    chunksSeen?: Array<number>;
+    frameIndex?: number;
+    frames?: Frame[];
+    chunksSeenPerFrame?: { [frameId: number]: number[] };
+    visionAttemptedPerFrame?: { [frameId: number]: boolean };
     modelName?: string;
     useVision?: boolean | "fallback";
   }): Promise<{ success: boolean; message: string; action: string }> {
-    useVision = useVision ?? "fallback";
-    const model = modelName ?? this.defaultModelName;
-
-    if (!modelsWithVision.includes(model) && useVision !== false) {
-      console.warn(
-        `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
-      );
-      useVision = false;
-    }
-
-    console.log("[BROWSERBASE] Starting action", action, chunksSeen, useVision);
     this.log({
       category: "action",
       message: `Starting action: ${action}`,
       level: 1,
     });
-
+  
     await this.waitForSettledDom();
-
-    await this.startDomDebug();
-
-    const { outputString, selectorMap, chunk, chunks } =
-      await this.page.evaluate((chunksSeen) => {
-        return window.processDom(chunksSeen);
-      }, chunksSeen);
-
-    // New code to add bounding boxes and element numbers
-    let annotatedScreenshot: Buffer | undefined = undefined;
-    if (useVision === true) {
-      const screenshotService = new ScreenshotService(
-        this.page,
-        selectorMap,
-        this.verbose,
-      );
-
-      annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
+  
+    // Initialize frames if not provided
+    if (frames.length === 0) {
+      const mainFrame = this.page.mainFrame();
+      frames = [mainFrame];
+  
+      if (this.iframeSupport) {
+        const iframeElements = await this.page.$$('iframe');
+  
+        for (const iframeElement of iframeElements) {
+          const src = await iframeElement.getAttribute('src');
+          const isVisible = await iframeElement.isVisible();
+          if (src && src.trim() !== '' && isVisible) {
+            const frame = await iframeElement.contentFrame();
+            if (frame) {
+              frames.push(frame);
+            }
+          }
+        }
+      }
+  
+      // Initialize tracking objects for each frame
+      chunksSeenPerFrame = {};
+      visionAttemptedPerFrame = {};
+      frames.forEach((_, index) => {
+        chunksSeenPerFrame[index] = [];
+        visionAttemptedPerFrame[index] = false;
+      });
     }
-
+  
+    if (frameIndex >= frames.length) {
+      this.log({
+        category: "action",
+        message: `Action not found in any frame`,
+        level: 1,
+      });
+      await this.recordAction(action, '');
+      return {
+        success: false,
+        message: `Action not found in any frame`,
+        action: action,
+      };
+    }
+  
+    const currentFrame = frames[frameIndex];
+    const frameId = frameIndex;
+    const chunksSeen = chunksSeenPerFrame[frameId];
+    useVision = useVision ?? "fallback";
+  
+    await this.startDomDebug();
+  
+    // Process the current frame
+    const domResult = await currentFrame.evaluate(
+      ({ chunksSeen }) => {
+        // @ts-ignore
+        return window.processDom(chunksSeen);
+      },
+      { chunksSeen }
+    );
+  
+    const { outputString, selectorMap, chunk, chunks } = domResult;
+  
     this.log({
       category: "action",
-      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      message: `Processing frame ${frameIndex} (chunk ${chunk}). Chunks left: ${
+        chunks.length - chunksSeen.length
+      }`,
       level: 1,
     });
-
-    await this.waitForSettledDom();
-
-    const response = await act({
+  
+    // Optionally capture screenshot for vision-based models
+    let annotatedScreenshot: Buffer | undefined;
+    if (useVision === true) {
+      annotatedScreenshot = await this.captureAnnotatedScreenshot(currentFrame);
+    }
+  
+    // Call the LLM to get the action
+    const response = await actLLM({
       action,
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
-      modelName: model,
+      modelName: modelName || this.defaultModelName,
       screenshot: annotatedScreenshot,
     });
-
-    this.log({
-      category: "action",
-      message: `Received response from LLM: ${JSON.stringify(response)}`,
-      level: 1,
-    });
-
-    await this.cleanupDomDebug();
-
+  
+    // Add the current chunk to chunksSeen
     chunksSeen.push(chunk);
+    chunksSeenPerFrame[frameId] = chunksSeen;
+  
+    await this.cleanupDomDebug();
+  
     if (!response) {
       if (chunksSeen.length < chunks.length) {
+        // Recursively process the next chunk in the same frame
         this.log({
           category: "action",
-          message: `No response from act. Chunks seen: ${chunksSeen.length}, Total chunks: ${chunks.length}`,
+          message: `No action found in current chunk. Chunks seen: ${
+            chunksSeen.length
+          }. Moving to next chunk in frame ${frameIndex}`,
           level: 1,
         });
         await this.waitForSettledDom();
-        return this.act({
+        return await this.act({
           action,
           steps:
             steps +
             (!steps.endsWith("\n") ? "\n" : "") +
             "## Step: Scrolled to another section\n",
-          chunksSeen,
-          modelName: model,
+          frameIndex,
+          frames,
+          chunksSeenPerFrame,
+          visionAttemptedPerFrame,
           useVision,
         });
-      } else {
+      } else if (useVision === "fallback" && !visionAttemptedPerFrame[frameId]) {
+        // Switch to vision-based processing in the same frame
         this.log({
           category: "action",
-          message: "No response from act with no chunks left to check",
+          message: `Switching to vision-based processing in frame ${frameIndex}`,
           level: 1,
         });
-
-        if (useVision === "fallback") {
-          return this.act({
-            action,
-            steps,
-            chunksSeen: [],
-            modelName: model,
-            useVision: true,
-          });
-        }
-        this.recordAction(action, null);
-        return {
-          success: false,
-          message:
-            "Action not found on the current page after checking all chunks.",
-          action: action,
-        };
+        visionAttemptedPerFrame[frameId] = true;
+        return await this.act({
+          action,
+          steps,
+          frameIndex,
+          frames,
+          chunksSeenPerFrame,
+          visionAttemptedPerFrame,
+          useVision: true,
+          modelName,
+        });
+      } else {
+        // Move to the next frame
+        this.log({
+          category: "action",
+          message: `No action found in frame ${frameIndex}. Moving to next frame.`,
+          level: 1,
+        });
+        await this.waitForSettledDom();
+        return await this.act({
+          action,
+          steps,
+          frameIndex: frameIndex + 1,
+          frames,
+          chunksSeenPerFrame,
+          visionAttemptedPerFrame,
+          useVision: "fallback",
+          modelName,
+        });
       }
     }
-
-    const element = response["element"];
-    const path = selectorMap[element];
+  
+    // Action found, proceed to execute
+    const elementId = response["element"];
+    const xpath = selectorMap[elementId];
     const method = response["method"];
     const args = response["args"];
-
+  
     // Get the element text from the outputString
     const elementLines = outputString.split("\n");
     const elementText =
       elementLines
-        .find((line) => line.startsWith(`${element}:`))
+        .find((line) => line.startsWith(`${elementId}:`))
         ?.split(":")[1] || "Element not found";
-
+  
     this.log({
       category: "action",
-      message: `Executing method: ${method} on element: ${element} (path: ${path}) with args: ${JSON.stringify(args)}`,
+      message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(
+        args
+      )}`,
       level: 1,
     });
-
-    const locator = await this.page.locator(`xpath=${path}`).first();
+  
+    const locator = currentFrame.locator(`xpath=${xpath}`).first();
     try {
       if (method === "scrollIntoView") {
         this.log({
@@ -606,96 +672,91 @@ export class Stagehand {
           element.scrollIntoView({ behavior: "smooth", block: "center" });
         });
       } else if (method === "fill" || method === "type") {
-        // Stimulate typing like a human (just in case)
+        // Simulate typing like a human
         await locator.click();
-
         const text = args[0];
         for (const char of text) {
           await this.page.keyboard.type(char, {
             delay: Math.random() * 50 + 25,
-          }); // Random delay between 25-75ms to simulate typing like a human
+          });
         }
-      } else if (
-        typeof locator[method as keyof typeof locator] === "function"
-      ) {
+      } else if (typeof locator[method as keyof typeof locator] === "function") {
         const isLink = await locator.evaluate((element) => {
           return (
             element.tagName.toLowerCase() === "a" &&
             element.hasAttribute("href")
           );
         });
-
+  
         this.log({
           category: "action",
           message: `Element is a link: ${isLink}`,
           level: 2,
         });
-
+  
         // Log current URL before action
         this.log({
           category: "action",
           message: `Current page URL before action: ${this.page.url()}`,
           level: 2,
         });
-
+  
         // Perform the action
         // @ts-ignore
         await locator[method](...args);
-
+  
         // Log current URL after action
         this.log({
           category: "action",
           message: `Current page URL after action: ${this.page.url()}`,
           level: 2,
         });
-
-        // Check if a new page was created, but only if the method is 'click'
-        if (method === "click") {
-          if (isLink) {
+  
+        // Handle navigation if a new page is opened
+        if (method === "click" && isLink) {
+          this.log({
+            category: "action",
+            message: `Clicking link, checking for new page`,
+            level: 1,
+          });
+          const newPagePromise = Promise.race([
+            new Promise<Page | null>((resolve) => {
+              this.context.once("page", (page) => resolve(page));
+              setTimeout(() => resolve(null), 1500);
+            }),
+          ]);
+          const newPage = await newPagePromise;
+          if (newPage) {
+            const newUrl = await newPage.url();
             this.log({
               category: "action",
-              message: `Clicking link, checking for new page`,
+              message: `New page detected with URL: ${newUrl}`,
               level: 1,
             });
-            const newPagePromise = Promise.race([
-              new Promise<Page | null>((resolve) => {
-                this.context.once("page", (page) => resolve(page));
-                setTimeout(() => resolve(null), 1500); // 1500ms timeout
-              }),
-            ]);
-            const newPage = await newPagePromise;
-            if (newPage) {
-              const newUrl = await newPage.url();
-              this.log({
-                category: "action",
-                message: `New page detected with URL: ${newUrl}`,
-                level: 1,
-              });
-              await newPage.close(); // Close the new page/tab
-              await this.page.goto(newUrl); // Navigate to the new URL in the current tab
-              await this.page.waitForLoadState("domcontentloaded");
-              await this.waitForSettledDom();
-            } else {
-              this.log({
-                category: "action",
-                message: `No new page opened after clicking link`,
-                level: 1,
-              });
-            }
+            await newPage.close();
+            await this.page.goto(newUrl);
+            await this.page.waitForLoadState("domcontentloaded");
+            await this.waitForSettledDom();
+          } else {
+            this.log({
+              category: "action",
+              message: `No new page opened after clicking link`,
+              level: 1,
+            });
           }
         }
       } else {
-        throw new Error(`stagehand: chosen method ${method} is invalid`);
+        throw new Error(`Chosen method ${method} is invalid`);
       }
-
-      if (!response.completed) {
+  
+      if (!response["completed"]) {
         this.log({
           category: "action",
-          message: "Continuing to next sub action",
+          message: `Continuing to next action step`,
           level: 1,
         });
         await this.waitForSettledDom();
-        const nextResult = await this.act({
+        return await this.act({
           action,
           steps:
             steps +
@@ -703,24 +764,33 @@ export class Stagehand {
             `## Step: ${response.step}\n` +
             `  Element: ${elementText}\n` +
             `  Action: ${response.method}\n\n`,
-          // chunksSeen,
-          modelName: model,
+          frameIndex,
+          frames,
+          chunksSeenPerFrame,
+          visionAttemptedPerFrame,
+          modelName,
           useVision,
         });
-        return nextResult;
+      } else {
+        this.log({
+          category: "action",
+          message: `Action completed successfully`,
+          level: 1,
+        });
+        await this.recordAction(action, response.step);
+        return {
+          success: true,
+          message: `Action completed successfully: ${steps}${response.step}`,
+          action: action,
+        };
       }
-
-      return {
-        success: true,
-        message: `Action completed successfully: ${steps}${response.step}\nElement: ${elementText}`,
-        action: action,
-      };
     } catch (error) {
       this.log({
         category: "action",
         message: `Error performing action: ${error.message}`,
         level: 1,
       });
+      await this.recordAction(action, '');
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
