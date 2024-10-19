@@ -634,6 +634,8 @@ export class Stagehand {
           level: 1,
         });
         visionAttemptedPerFrame[frameId] = true;
+        // **Reset chunksSeen for the frame where vision is attempted**
+        chunksSeenPerFrame[frameId] = [];
         return await this.act({
           action,
           steps,
