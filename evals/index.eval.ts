@@ -127,28 +127,39 @@ const peeler_complex = async () => {
   });
   await stagehand.init();
 
-  await stagehand.page.goto(`https://chefstoys.com/`);
+  try {
+    await stagehand.page.goto('https://chefstoys.com/', { timeout: 60000 });
+    
+    // Add check for page load success
+    const response = await stagehand.page.waitForResponse((response) =>
+      response.url() === 'https://chefstoys.com/' && response.status() === 200
+    );
+    if (!response) throw new Error('Failed to load the page.');
 
-  await stagehand.act({
-    action: "search for peelers",
-  });
+    await stagehand.act({
+      action: "search for peelers",
+    });
 
-  await stagehand.act({
-    action: 'click on the first "OXO" brand peeler',
-  });
+    await stagehand.act({
+      action: 'click on the first "OXO" brand peeler',
+    });
 
-  const { price } = await stagehand.extract({
-    instruction: "get the price of the peeler",
-    schema: z.object({ price: z.number().nullable() }),
-    modelName: "gpt-4o-2024-08-06",
-  });
+    const { price } = await stagehand.extract({
+      instruction: "get the price of the peeler",
+      schema: z.object({ price: z.number().nullable() }),
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-  await stagehand.context.close();
-
-  return {
-    _success: price !== null,
-    price,
-  };
+    return {
+      _success: price !== null,
+      price,
+    };
+  } catch (error) {
+    console.error(`Error in peeler_complex function: ${error.message}`);
+    return { _success: false, error: error.message };
+  } finally {
+    await stagehand.context.close();
+  }
 };
 
 const homedepot = async () => {
@@ -590,17 +601,21 @@ const LarocheForm = async () => {
 
   await stagehand.init({ modelName: "gpt-4o" });
 
-  await stagehand.page.goto("https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html");
+  try {
+    await stagehand.page.goto(
+      "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html"
+    );
 
-  await stagehand.act({ action: "close the privacy policy popup" });
+    await stagehand.act({ action: "close the privacy policy popup" });
 
-  await stagehand.act({ action: "fill the last name field" });
+    // Wait for possible navigation
+    await stagehand.page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
 
-  await stagehand.act({ action: "fill address 1 field" });
+    await stagehand.act({ action: "fill the last name field" });
+    await stagehand.act({ action: "fill address 1 field" });
+    await stagehand.act({ action: "select a state" });
+    await stagehand.act({ action: "select a skin type" });
 
-  await stagehand.act({ action: "select a state" });
-
-  await stagehand.act({ action: "select a skin type" });
 
   // TODO - finish this eval once we have a way to extract form data from children iframes
 
@@ -629,7 +644,12 @@ const LarocheForm = async () => {
   //   formData.zipCode === "12345" &&
 
 
-  await stagehand.context.close();
+  } catch (error) {
+    console.error(`Error in LarocheForm function: ${error.message}`);
+    return { _success: false, error: error.message };
+} finally {
+    await stagehand.context.close();
+  }
 
   return { _success: true };
 };
