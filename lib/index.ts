@@ -615,10 +615,12 @@ export class Stagehand {
         });
       } else {
         if (useVision === "fallback") {
-          return this.act({
+          return await this.act({
             action,
             steps,
-            chunksSeen: [],
+            frameIndex: frameIndex + 1,
+            frames,
+            chunksSeenPerFrame,
             modelName: model,
             useVision: true,
           });
