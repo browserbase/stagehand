@@ -958,5 +958,6 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
+  maxConcurrency: 5,
   // trialCount: 3,
 });
