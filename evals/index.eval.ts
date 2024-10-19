@@ -500,6 +500,138 @@ const google_jobs = async () => {
   return { _success: isJobDetailsValid, jobDetails };
 };
 
+const extractPartners = async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+  });
+
+  await stagehand.init({ modelName: "gpt-4o" });
+
+  await stagehand.page.goto("https://ramp.com");
+  await stagehand.waitForSettledDom();
+
+  await stagehand.act({
+    action: "Close the popup.",
+  });
+
+  await stagehand.act({
+    action: "Scroll down to the bottom of the page.",
+  });
+
+  await stagehand.act({
+    action:
+      "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
+  });
+
+  await stagehand.waitForSettledDom();
+  await stagehand.page.waitForTimeout(2000);
+
+  const partners = await stagehand.extract({
+    instruction: `
+      Extract the names of all partner companies mentioned on this page.
+      These could be inside text, links, or images representing partner companies.
+      If no specific partner names are found, look for any sections or categories of partners mentioned.
+      Also, check for any text that explains why partner names might not be listed, if applicable.
+    `,
+    schema: z.object({
+      partners: z.array(
+        z.object({
+          name: z
+            .string()
+            .describe(
+              "The name of the partner company or category of partners",
+            ),
+        }),
+      ),
+      explanation: z
+        .string()
+        .optional()
+        .describe("Any explanation about partner listing or absence thereof"),
+    }),
+    modelName: "gpt-4o",
+  });
+
+  const expectedPartners = [
+    "accounting firms",
+    "private equity and venture capital",
+    "services providers",
+    "affiliates"
+  ];
+
+  if (partners.explanation) {
+    console.log("Explanation:", partners.explanation);
+  }
+
+  const foundPartners = partners.partners.map(partner => partner.name.toLowerCase());
+
+  const allExpectedPartnersFound = expectedPartners.every(partner => 
+    foundPartners.includes(partner)
+  );
+  await stagehand.context.close();
+
+  console.log("All expected partners found:", allExpectedPartnersFound);
+  console.log("Expected:", expectedPartners);
+  console.log("Found:", foundPartners);
+
+  return { _success: allExpectedPartnersFound, partners };
+};
+
+const LarocheForm = async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+    iframeSupport: true, // Set to true to enable iframe scanning
+  });
+
+  await stagehand.init({ modelName: "gpt-4o" });
+
+  await stagehand.page.goto("https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html");
+
+  await stagehand.act({ action: "close the privacy policy popup" });
+
+  await stagehand.act({ action: "fill the last name field" });
+
+  await stagehand.act({ action: "fill address 1 field" });
+
+  await stagehand.act({ action: "select a state" });
+
+  await stagehand.act({ action: "select a skin type" });
+
+  // TODO - finish this eval once we have a way to extract form data from children iframes
+
+  // const formData = await stagehand.extract({
+  //   instruction: "Extract the filled form data",
+  //   schema: z.object({
+  //     firstName: z.string(),
+  //     lastName: z.string(),
+  //     email: z.string(),
+  //     phone: z.string(),
+  //     zipCode: z.string(),
+  //     interestedIn: z.string(),
+  //     startTerm: z.string(),
+  //     programOfInterest: z.string(),
+  //   }),
+  //   modelName: "gpt-4o",
+  // });
+
+  // console.log("Extracted form data:", formData);
+
+  // const isFormDataValid = 
+  //   formData.firstName === "John" &&
+  //   formData.lastName === "Doe" &&
+  //   formData.email === "john.doe@example.com" &&
+  //   formData.phone === "1234567890" &&
+  //   formData.zipCode === "12345" &&
+
+
+  await stagehand.context.close();
+
+  return { _success: true };
+};
+
 const arxiv = async () => {
   const stagehand = new Stagehand({
     env,
@@ -635,138 +767,6 @@ const arxiv = async () => {
   }
 };
 
-const extractPartners = async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    debugDom: true,
-  });
-
-  await stagehand.init({ modelName: "gpt-4o" });
-
-  await stagehand.page.goto("https://ramp.com");
-  await stagehand.waitForSettledDom();
-
-  await stagehand.act({
-    action: "Close the popup.",
-  });
-
-  await stagehand.act({
-    action: "Scroll down to the bottom of the page.",
-  });
-
-  await stagehand.act({
-    action:
-      "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
-  });
-
-  await stagehand.waitForSettledDom();
-  await stagehand.page.waitForTimeout(2000);
-
-  const partners = await stagehand.extract({
-    instruction: `
-      Extract the names of all partner companies mentioned on this page.
-      These could be inside text, links, or images representing partner companies.
-      If no specific partner names are found, look for any sections or categories of partners mentioned.
-      Also, check for any text that explains why partner names might not be listed, if applicable.
-    `,
-    schema: z.object({
-      partners: z.array(
-        z.object({
-          name: z
-            .string()
-            .describe(
-              "The name of the partner company or category of partners",
-            ),
-        }),
-      ),
-      explanation: z
-        .string()
-        .optional()
-        .describe("Any explanation about partner listing or absence thereof"),
-    }),
-    modelName: "gpt-4o",
-  });
-
-  const expectedPartners = [
-    "accounting firms",
-    "private equity and venture capital",
-    "services providers",
-    "affiliates"
-  ];
-
-  if (partners.explanation) {
-    console.log("Explanation:", partners.explanation);
-  }
-
-  const foundPartners = partners.partners.map(partner => partner.name.toLowerCase());
-
-  const allExpectedPartnersFound = expectedPartners.every(partner => 
-    foundPartners.includes(partner)
-  );
-  await stagehand.context.close();
-
-  console.log("All expected partners found:", allExpectedPartnersFound);
-  console.log("Expected:", expectedPartners);
-  console.log("Found:", foundPartners);
-
-  return { _success: allExpectedPartnersFound, partners };
-};
-
-const LarocheForm = async () => {
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    debugDom: true,
-    iframeSupport: true, // Set to true to enable iframe scanning
-  });
-
-  await stagehand.init({ modelName: "gpt-4o" });
-
-  await stagehand.page.goto("https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html");
-
-  await stagehand.act({ action: "close the privacy policy popup" });
-
-  await stagehand.act({ action: "fill the last name field" });
-
-  await stagehand.act({ action: "fill address 1 field" });
-
-  await stagehand.act({ action: "select a state" });
-
-  await stagehand.act({ action: "select a skin type" });
-
-  // TODO - finish this eval once we have a way to extract form data from children iframes
-
-  // const formData = await stagehand.extract({
-  //   instruction: "Extract the filled form data",
-  //   schema: z.object({
-  //     firstName: z.string(),
-  //     lastName: z.string(),
-  //     email: z.string(),
-  //     phone: z.string(),
-  //     zipCode: z.string(),
-  //     interestedIn: z.string(),
-  //     startTerm: z.string(),
-  //     programOfInterest: z.string(),
-  //   }),
-  //   modelName: "gpt-4o",
-  // });
-
-  // console.log("Extracted form data:", formData);
-
-  // const isFormDataValid = 
-  //   formData.firstName === "John" &&
-  //   formData.lastName === "Doe" &&
-  //   formData.email === "john.doe@example.com" &&
-  //   formData.phone === "1234567890" &&
-  //   formData.zipCode === "12345" &&
-
-
-  await stagehand.context.close();
-
-  return { _success: true };
-};
-
 const expedia = async () => {
   const stagehand = new Stagehand({
     // env: "BROWSERBASE",
@@ -839,10 +839,10 @@ const tasks = {
   costar,
   google_jobs,
   homedepot,
-  arxiv,
-  expedia,
   extractPartners,
   LarocheForm,
+  arxiv,
+  expedia,
 };
 
 const exactMatch = (args: { input: any; output: any; expected?: any }) => {
@@ -892,9 +892,9 @@ const testcases = [
   // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
-  { input: { name: "arxiv" } },
   { input: { name: "extractPartners" } },
   { input: { name: "LarocheForm" } },
+  { input: { name: "arxiv" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,
