@@ -478,22 +478,33 @@ export class Stagehand {
     modelName?: string;
     useVision?: boolean | "fallback";
   }): Promise<{ success: boolean; message: string; action: string }> {
+    useVision = useVision ?? "fallback";
+    const model = modelName ?? this.defaultModelName;
+
+    if (!modelsWithVision.includes(model) && useVision !== false) {
+      console.warn(
+        `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
+      );
+      useVision = false;
+    }
+
     this.log({
       category: "action",
       message: `Starting action: ${action}`,
       level: 1,
     });
-  
+
     await this.waitForSettledDom();
-  
+
     // Initialize frames if not provided
     if (frames.length === 0) {
+      // Collect top-level frames
       const mainFrame = this.page.mainFrame();
       frames = [mainFrame];
-  
+
       if (this.iframeSupport) {
         const iframeElements = await this.page.$$('iframe');
-  
+
         for (const iframeElement of iframeElements) {
           const src = await iframeElement.getAttribute('src');
           const isVisible = await iframeElement.isVisible();
@@ -505,7 +516,7 @@ export class Stagehand {
           }
         }
       }
-  
+
       // Initialize tracking objects for each frame
       chunksSeenPerFrame = {};
       visionAttemptedPerFrame = {};
@@ -514,7 +525,7 @@ export class Stagehand {
         visionAttemptedPerFrame[index] = false;
       });
     }
-  
+
     if (frameIndex >= frames.length) {
       this.log({
         category: "action",
@@ -528,25 +539,21 @@ export class Stagehand {
         action: action,
       };
     }
-  
+
     const currentFrame = frames[frameIndex];
     const frameId = frameIndex;
     const chunksSeen = chunksSeenPerFrame[frameId];
-    useVision = useVision ?? "fallback";
-  
+
     await this.startDomDebug();
-  
-    // Process the current frame
-    const domResult = await currentFrame.evaluate(
+
+    const { outputString, selectorMap, chunk, chunks } = await currentFrame.evaluate(
       ({ chunksSeen }) => {
         // @ts-ignore
         return window.processDom(chunksSeen);
       },
       { chunksSeen }
     );
-  
-    const { outputString, selectorMap, chunk, chunks } = domResult;
-  
+
     this.log({
       category: "action",
       message: `Processing frame ${frameIndex} (chunk ${chunk}). Chunks left: ${
@@ -554,29 +561,47 @@ export class Stagehand {
       }`,
       level: 1,
     });
-  
-    // Optionally capture screenshot for vision-based models
+
+    // Prepare annotated screenshot if vision is enabled
     let annotatedScreenshot: Buffer | undefined;
     if (useVision === true) {
-      annotatedScreenshot = await this.captureAnnotatedScreenshot(currentFrame);
+      if (!modelsWithVision.includes(model)) {
+        this.log({
+          category: "action",
+          message: `${model} does not support vision. Skipping vision processing.`,
+          level: 1,
+        });
+      } else {
+        const screenshotService = new ScreenshotService(
+          currentFrame,
+          selectorMap,
+          this.verbose,
+        );
+
+        annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
+      }
     }
-  
-    // Call the LLM to get the action
+
     const response = await actLLM({
       action,
       domElements: outputString,
       steps,
       llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
+      modelName: model,
       screenshot: annotatedScreenshot,
     });
-  
-    // Add the current chunk to chunksSeen
+
+    this.log({
+      category: "action",
+      message: `Received response from LLM: ${JSON.stringify(response)}`,
+      level: 1,
+    });
+
+    await this.cleanupDomDebug();
+
     chunksSeen.push(chunk);
     chunksSeenPerFrame[frameId] = chunksSeen;
-  
-    await this.cleanupDomDebug();
-  
+
     if (!response) {
       if (chunksSeen.length < chunks.length) {
         // Recursively process the next chunk in the same frame
@@ -598,6 +623,7 @@ export class Stagehand {
           frames,
           chunksSeenPerFrame,
           visionAttemptedPerFrame,
+          modelName,
           useVision,
         });
       } else if (useVision === "fallback" && !visionAttemptedPerFrame[frameId]) {
@@ -615,8 +641,8 @@ export class Stagehand {
           frames,
           chunksSeenPerFrame,
           visionAttemptedPerFrame,
-          useVision: true,
           modelName,
+          useVision: true,
         });
       } else {
         // Move to the next frame
@@ -633,25 +659,25 @@ export class Stagehand {
           frames,
           chunksSeenPerFrame,
           visionAttemptedPerFrame,
-          useVision: "fallback",
           modelName,
+          useVision: "fallback",
         });
       }
     }
-  
+
     // Action found, proceed to execute
     const elementId = response["element"];
     const xpath = selectorMap[elementId];
     const method = response["method"];
     const args = response["args"];
-  
+
     // Get the element text from the outputString
     const elementLines = outputString.split("\n");
     const elementText =
       elementLines
         .find((line) => line.startsWith(`${elementId}:`))
         ?.split(":")[1] || "Element not found";
-  
+
     this.log({
       category: "action",
       message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(
@@ -659,7 +685,7 @@ export class Stagehand {
       )}`,
       level: 1,
     });
-  
+
     const locator = currentFrame.locator(`xpath=${xpath}`).first();
     try {
       if (method === "scrollIntoView") {
@@ -687,31 +713,31 @@ export class Stagehand {
             element.hasAttribute("href")
           );
         });
-  
+
         this.log({
           category: "action",
           message: `Element is a link: ${isLink}`,
           level: 2,
         });
-  
+
         // Log current URL before action
         this.log({
           category: "action",
           message: `Current page URL before action: ${this.page.url()}`,
           level: 2,
         });
-  
+
         // Perform the action
         // @ts-ignore
         await locator[method](...args);
-  
+
         // Log current URL after action
         this.log({
           category: "action",
           message: `Current page URL after action: ${this.page.url()}`,
           level: 2,
         });
-  
+
         // Handle navigation if a new page is opened
         if (method === "click" && isLink) {
           this.log({
@@ -748,7 +774,7 @@ export class Stagehand {
       } else {
         throw new Error(`Chosen method ${method} is invalid`);
       }
-  
+
       if (!response["completed"]) {
         this.log({
           category: "action",
