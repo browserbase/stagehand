@@ -9,12 +9,14 @@ export class LLMProvider {
     "o1-preview": "openai",
     "o1-mini": "openai",
     "gpt-4o-2024-08-06": "openai",
-    "claude-3-5-sonnet-20240620": "anthropic"
+    "claude-3-5-sonnet-20241022": "anthropic",
   };
 
   private logger: (message: { category?: string; message: string }) => void;
 
-  constructor(logger: (message: { category?: string; message: string }) => void) {
+  constructor(
+    logger: (message: { category?: string; message: string }) => void,
+  ) {
     this.logger = logger;
   }
 

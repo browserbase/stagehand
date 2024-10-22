@@ -128,13 +128,15 @@ const peeler_complex = async () => {
   await stagehand.init();
 
   try {
-    await stagehand.page.goto('https://chefstoys.com/', { timeout: 60000 });
-    
+    await stagehand.page.goto("https://chefstoys.com/", { timeout: 60000 });
+
     // Add check for page load success
-    const response = await stagehand.page.waitForResponse((response) =>
-      response.url() === 'https://chefstoys.com/' && response.status() === 200
+    const response = await stagehand.page.waitForResponse(
+      (response) =>
+        response.url() === "https://chefstoys.com/" &&
+        response.status() === 200,
     );
-    if (!response) throw new Error('Failed to load the page.');
+    if (!response) throw new Error("Failed to load the page.");
 
     await stagehand.act({
       action: "search for peelers",
@@ -569,17 +571,19 @@ const extractPartners = async () => {
     "accounting firms",
     "private equity and venture capital",
     "services providers",
-    "affiliates"
+    "affiliates",
   ];
 
   if (partners.explanation) {
     console.log("Explanation:", partners.explanation);
   }
 
-  const foundPartners = partners.partners.map(partner => partner.name.toLowerCase());
+  const foundPartners = partners.partners.map((partner) =>
+    partner.name.toLowerCase(),
+  );
 
-  const allExpectedPartnersFound = expectedPartners.every(partner => 
-    foundPartners.includes(partner)
+  const allExpectedPartnersFound = expectedPartners.every((partner) =>
+    foundPartners.includes(partner),
   );
   await stagehand.context.close();
 
@@ -603,51 +607,50 @@ const LarocheForm = async () => {
 
   try {
     await stagehand.page.goto(
-      "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html"
+      "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html",
     );
 
     await stagehand.act({ action: "close the privacy policy popup" });
 
     // Wait for possible navigation
-    await stagehand.page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
+    await stagehand.page
+      .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 })
+      .catch(() => {});
 
     await stagehand.act({ action: "fill the last name field" });
     await stagehand.act({ action: "fill address 1 field" });
     await stagehand.act({ action: "select a state" });
     await stagehand.act({ action: "select a skin type" });
 
+    // TODO - finish this eval once we have a way to extract form data from children iframes
 
-  // TODO - finish this eval once we have a way to extract form data from children iframes
+    // const formData = await stagehand.extract({
+    //   instruction: "Extract the filled form data",
+    //   schema: z.object({
+    //     firstName: z.string(),
+    //     lastName: z.string(),
+    //     email: z.string(),
+    //     phone: z.string(),
+    //     zipCode: z.string(),
+    //     interestedIn: z.string(),
+    //     startTerm: z.string(),
+    //     programOfInterest: z.string(),
+    //   }),
+    //   modelName: "gpt-4o",
+    // });
 
-  // const formData = await stagehand.extract({
-  //   instruction: "Extract the filled form data",
-  //   schema: z.object({
-  //     firstName: z.string(),
-  //     lastName: z.string(),
-  //     email: z.string(),
-  //     phone: z.string(),
-  //     zipCode: z.string(),
-  //     interestedIn: z.string(),
-  //     startTerm: z.string(),
-  //     programOfInterest: z.string(),
-  //   }),
-  //   modelName: "gpt-4o",
-  // });
+    // console.log("Extracted form data:", formData);
 
-  // console.log("Extracted form data:", formData);
-
-  // const isFormDataValid = 
-  //   formData.firstName === "John" &&
-  //   formData.lastName === "Doe" &&
-  //   formData.email === "john.doe@example.com" &&
-  //   formData.phone === "1234567890" &&
-  //   formData.zipCode === "12345" &&
-
-
+    // const isFormDataValid =
+    //   formData.firstName === "John" &&
+    //   formData.lastName === "Doe" &&
+    //   formData.email === "john.doe@example.com" &&
+    //   formData.phone === "1234567890" &&
+    //   formData.zipCode === "12345" &&
   } catch (error) {
     console.error(`Error in LarocheForm function: ${error.message}`);
     return { _success: false, error: error.message };
-} finally {
+  } finally {
     await stagehand.context.close();
   }
 
@@ -806,7 +809,7 @@ const expedia = async () => {
     action:
       "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2024 (up to one to two weeks)",
     useVision: true,
-    modelName: "claude-3-5-sonnet-20240620",
+    modelName: "claude-3-5-sonnet-20241022",
   });
 
   await stagehand.context.close();
