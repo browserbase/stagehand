@@ -40,8 +40,14 @@ export interface ExtractionOptions extends ChatCompletionOptions {
   }; // Schema for the structured output
 }
 
+export interface EmbeddingOptions {
+  model: string;
+  input: string;
+}
+
 export interface LLMClient {
   createChatCompletion(options: ChatCompletionOptions): Promise<any>;
   createExtraction(options: ExtractionOptions): Promise<any>;
+  createEmbedding(options: EmbeddingOptions): Promise<any>;
   logger: (message: { category?: string; message: string }) => void;
 }

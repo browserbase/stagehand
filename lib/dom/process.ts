@@ -1,5 +1,7 @@
-async function processDom(chunksSeen: Array<number>) {
-  const { chunk, chunksArray } = await pickChunk(chunksSeen);
+import { PageElementMap } from "./types";
+
+async function processDom(chunksSeen: Array<number>, chunkPriorities?: Array<number>) {
+  const { chunk, chunksArray } = await pickChunk(chunksSeen, chunkPriorities);
   const { outputString, selectorMap } = await processElements(chunk);
 
   return {
@@ -163,9 +165,158 @@ export async function processElements(chunk: number) {
   };
 }
 
+export async function getPageElementMap() {
+  const viewportHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+  const chunks = Math.ceil(documentHeight / viewportHeight);
+  const chunksArray = Array.from({ length: chunks }, (_, i) => i);
+
+  let outputMap: PageElementMap = {};
+
+  for (const chunk of chunksArray) {
+    const chunkHeight = viewportHeight * chunk;
+
+    // Calculate the maximum scrollable offset
+    const maxScrollTop =
+      document.documentElement.scrollHeight - window.innerHeight;
+
+    // Adjust the offsetTop to not exceed the maximum scrollable offset
+    const offsetTop = Math.min(chunkHeight, maxScrollTop);
+
+    await scrollToHeight(offsetTop);
+
+    const domString = window.document.body.outerHTML;
+    if (!domString) {
+      throw new Error("error selecting DOM that doesn't exist");
+    }
+
+    const candidateElements: Array<ChildNode> = [];
+    const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
+    while (DOMQueue.length > 0) {
+      const element = DOMQueue.pop();
+
+      let shouldAddElement = false;
+
+      if (element && isElementNode(element)) {
+        const childrenCount = element.childNodes.length;
+
+        // Always traverse child nodes
+        for (let i = childrenCount - 1; i >= 0; i--) {
+          const child = element.childNodes[i];
+          DOMQueue.push(child as ChildNode);
+        }
+
+        // Check if element is interactive
+        if (isInteractiveElement(element)) {
+          if ((await isActive(element)) && isVisible(element)) {
+            shouldAddElement = true;
+          }
+        }
+
+        if (isLeafElement(element)) {
+          if ((await isActive(element)) && isVisible(element)) {
+            shouldAddElement = true;
+          }
+        }
+      }
+
+      if (element && isTextNode(element) && isTextVisible(element)) {
+        shouldAddElement = true;
+      }
+
+      if (shouldAddElement) {
+        candidateElements.push(element);
+      }
+    }
+
+    candidateElements.forEach((element, index) => {
+      const xpath = generateXPath(element);
+      if (isTextNode(element)) {
+        outputMap[xpath] = { string: element.textContent, chunk: chunk, embedding: [] };
+      } else if (isElementNode(element)) {
+        const tagName = element.tagName.toLowerCase();
+
+        // Collect essential attributes
+        const attributes: string[] = [];
+        if (element.id) {
+          attributes.push(`id="${element.id}"`);
+        }
+        if (element.className) {
+          attributes.push(`class="${element.className}"`);
+        }
+        if (element.getAttribute("href")) {
+          attributes.push(`href="${element.getAttribute("href")}"`);
+        }
+        if (element.getAttribute("src")) {
+          attributes.push(`src="${element.getAttribute("src")}"`);
+        }
+        if (element.getAttribute("aria-label")) {
+          attributes.push(`aria-label="${element.getAttribute("aria-label")}"`);
+        }
+        if (element.getAttribute("aria-name")) {
+          attributes.push(`aria-name="${element.getAttribute("aria-name")}"`);
+        }
+        if (element.getAttribute("aria-role")) {
+          attributes.push(`aria-role="${element.getAttribute("aria-role")}"`);
+        }
+        if (element.getAttribute("aria-description")) {
+          attributes.push(
+            `aria-description="${element.getAttribute("aria-description")}"`,
+          );
+        }
+        if (element.getAttribute("aria-expanded")) {
+          attributes.push(
+            `aria-expanded="${element.getAttribute("aria-expanded")}"`,
+          );
+        }
+        if (element.getAttribute("aria-haspopup")) {
+          attributes.push(
+            `aria-haspopup="${element.getAttribute("aria-haspopup")}"`,
+          );
+        }
+
+        for (const attr of element.attributes) {
+          if (attr.name.startsWith("data-")) {
+            attributes.push(`${attr.name}="${attr.value}"`);
+          }
+        }
+
+        // Build the simplified element string
+        const openingTag = `<${tagName}${
+          attributes.length > 0 ? " " + attributes.join(" ") : ""
+        }>`;
+        const closingTag = `</${tagName}>`;
+        const textContent = element.textContent.trim();
+
+        outputMap[xpath] = { string: `${openingTag}${textContent}${closingTag}`, chunk: chunk, embedding: [] };
+      }
+    });
+  }
+
+  await scrollToHeight(0);
+
+  return outputMap;
+}
+
+export async function getPageChunkMap() {
+  const viewportHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+  const chunks = Math.ceil(documentHeight / viewportHeight);
+  const chunksArray = Array.from({ length: chunks }, (_, i) => i);
+
+  let outputMap: PageElementMap = {};
+  for (const chunk of chunksArray) {
+    const { outputString, selectorMap } = await processElements(chunk);
+    outputMap[chunk] = { string: outputString, chunk: chunk, embedding: [] };
+  }
+  return outputMap;
+}
+
+window.getPageElementMap = getPageElementMap;
 window.processDom = processDom;
 window.processElements = processElements;
 window.scrollToHeight = scrollToHeight;
+window.getPageChunkMap = getPageChunkMap;
 
 function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {
@@ -385,7 +536,7 @@ const isLeafElement = (element: Element) => {
   return false;
 };
 
-async function pickChunk(chunksSeen: Array<number>) {
+async function pickChunk(chunksSeen: Array<number>, chunkPriorities?: Array<number>) {
   const viewportHeight = window.innerHeight;
   const documentHeight = document.documentElement.scrollHeight;
 
@@ -396,22 +547,27 @@ async function pickChunk(chunksSeen: Array<number>) {
     return !chunksSeen.includes(chunk);
   });
 
-  const currentScrollPosition = window.scrollY;
-  const closestChunk = chunksRemaining.reduce((closest, current) => {
-    const currentChunkTop = viewportHeight * current;
-    const closestChunkTop = viewportHeight * closest;
-    return Math.abs(currentScrollPosition - currentChunkTop) <
-      Math.abs(currentScrollPosition - closestChunkTop)
-      ? current
-      : closest;
-  }, chunksRemaining[0]);
-  const chunk = closestChunk;
-
-  if (chunk === undefined) {
+  if (chunksRemaining.length === 0) {
     throw new Error(`no chunks remaining to check ${chunksRemaining}, `);
+  } else if (chunkPriorities.length > 0) {
+    const sortedChunks = chunksRemaining.sort((a, b) => chunkPriorities.indexOf(a) - chunkPriorities.indexOf(b));
+    return {
+      chunk: sortedChunks[0],
+      chunksArray,
+    };
+  } else {
+    const currentScrollPosition = window.scrollY;
+    const closestChunk = chunksRemaining.reduce((closest, current) => {
+      const currentChunkTop = viewportHeight * current;
+      const closestChunkTop = viewportHeight * closest;
+      return Math.abs(currentScrollPosition - currentChunkTop) <
+        Math.abs(currentScrollPosition - closestChunkTop)
+        ? current
+        : closest;
+    }, chunksRemaining[0]);
+    return {
+      chunk: closestChunk,
+      chunksArray,
+    };
   }
-  return {
-    chunk,
-    chunksArray,
-  };
 }

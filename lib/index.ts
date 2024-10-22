@@ -9,7 +9,9 @@ const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
 import { ScreenshotService } from "./vision";
-import { modelsWithVision } from "./llm/LLMClient";
+import { LLMClient, modelsWithVision } from "./llm/LLMClient";
+import { dot, norm } from 'mathjs';
+import { PageElementMap } from "./dom/types";
 
 require("dotenv").config({ path: ".env" });
 
@@ -156,6 +158,7 @@ export class Stagehand {
   public headless: boolean;
   public iframeSupport: boolean;
   private logger: (message: { category?: string; message: string }) => void;
+  private pageElementMap: PageElementMap;
 
   constructor(
     {
@@ -239,6 +242,17 @@ export class Stagehand {
     });
   }
 
+  async goto(url: string) {
+    await this.page.goto(url);
+    await this.waitForSettledDom();
+    this.pageElementMap = {};
+    this.computePageElementMap();
+  }
+
+  getLLMClient(modelName: string): LLMClient {
+    return this.llmProvider.getClient(modelName);
+  }
+
   async waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
@@ -280,14 +294,133 @@ export class Stagehand {
       console.log("Error in startDomDebug:", e);
     }
   }
+
   async cleanupDomDebug() {
     if (this.debugDom) {
       await this.page.evaluate(() => window.cleanupDebug());
     }
   }
+
   getId(operation: string) {
     return crypto.createHash("sha256").update(operation).digest("hex");
   }
+
+  // Add this utility function to calculate cosine similarity
+  private cosineSimilarity(embedding1: number[], embedding2: number[]): number {
+    return dot(embedding1, embedding2) / (norm(embedding1) * norm(embedding2));
+  }
+
+  // Add this method to find the most similar embedding
+  async findMostSimilarEmbedding(queryEmbedding: number[], allOutputMap: PageElementMap) {
+    const llmClient = this.llmProvider.getClient(this.defaultModelName);
+
+    let mostSimilarKey = '';
+    let highestSimilarity = -Infinity;
+
+    for (const key in allOutputMap) {
+      let embedding: number[];
+      if (!allOutputMap[key].embedding) {
+        embedding = await llmClient.createEmbedding({
+          model: "text-embedding-3-small",
+          input: allOutputMap[key].string,
+        }).then(res => res.data[0].embedding);
+        allOutputMap[key].embedding = embedding;
+      } else {
+        embedding = allOutputMap[key].embedding;
+      }
+
+      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      if (similarity > highestSimilarity) {
+        highestSimilarity = similarity;
+        mostSimilarKey = key;
+      }
+    }
+
+    return { key: mostSimilarKey, similarity: highestSimilarity };
+  }
+
+  async findSimilarChunks(queryEmbedding: number[], allOutputMap: PageElementMap) {
+    const llmClient = this.llmProvider.getClient(this.defaultModelName);
+
+    let similarities: { key: string; similarity: number; chunk: number }[] = [];
+
+    for (const key in allOutputMap) {
+      let embedding: number[];
+      if (!allOutputMap[key].embedding) {
+        embedding = await llmClient.createEmbedding({
+          model: "text-embedding-3-small",
+          input: allOutputMap[key].string,
+        }).then(res => res.data[0].embedding);
+        allOutputMap[key].embedding = embedding;
+      } else {
+        embedding = allOutputMap[key].embedding;
+      }
+
+      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      similarities.push({
+        key,
+        similarity,
+        chunk: allOutputMap[key].chunk
+      });
+    }
+
+    // Sort similarities in descending order
+    similarities.sort((a, b) => b.similarity - a.similarity);
+
+    // Group by chunk and keep the highest similarity for each chunk
+    const chunkMap = new Map<number, { similarity: number; elements: string[] }>();
+    for (const item of similarities) {
+      if (!chunkMap.has(item.chunk) || item.similarity > chunkMap.get(item.chunk)!.similarity) {
+        chunkMap.set(item.chunk, { similarity: item.similarity, elements: [item.key] });
+      } else if (item.similarity === chunkMap.get(item.chunk)!.similarity) {
+        chunkMap.get(item.chunk)!.elements.push(item.key);
+      }
+    }
+
+    // Convert map to array and sort by similarity
+    const orderedChunks = Array.from(chunkMap.entries())
+      .sort((a, b) => b[1].similarity - a[1].similarity)
+      .map(([chunk, { similarity }]) => ({ chunk, highestSimilarityElement: similarity }));
+
+    return orderedChunks;
+  }
+
+  async computePageElementMap() {
+    const llmClient = this.llmProvider.getClient(this.defaultModelName);
+    const allOutputMap = await this.page.evaluate(async () => {
+      return window.getPageElementMap();
+    });
+    const totalKeys = Object.keys(allOutputMap).length;
+    let processedKeys = 0;
+
+    const embeddingPromises = Object.entries(allOutputMap).map(async ([key, value]) => {
+      const embedding = await llmClient.createEmbedding({
+        model: "text-embedding-3-small",
+        input: value.string,
+      });
+      return { key, embedding };
+    });
+
+    const embeddings = await Promise.all(embeddingPromises);
+
+    embeddings.forEach(({ key, embedding }) => {
+      this.pageElementMap[key] = {
+        string: allOutputMap[key].string,
+        chunk: allOutputMap[key].chunk,
+        embedding: embedding,
+      };
+
+      processedKeys++;
+      const progress = (processedKeys / totalKeys) * 100;
+      // console.log(`Progress: ${progress.toFixed(2)}%`);
+    });
+    this.log({
+      category: "dom",
+      message: `Computed page element map with ${processedKeys} keys`,
+      level: 1,
+    });
+  }
+
 
   async extract<T extends z.AnyZodObject>({
     instruction,
@@ -310,12 +443,30 @@ export class Stagehand {
       level: 1,
     });
 
+    let chunkPriorities: Array<number> = [];
+
+    if (this.pageElementMap) {
+      const llmClient = this.getLLMClient(modelName || this.defaultModelName);
+      const targetEmbedding = await llmClient.createEmbedding({
+        model: "text-embedding-3-small",
+        input: instruction,
+      });
+
+      const sortedChunks = await this.findSimilarChunks(targetEmbedding, this.pageElementMap);
+      chunkPriorities = sortedChunks.map(chunk => chunk.chunk);
+      // console.log("chunkPriorities", chunkPriorities);
+    }
+
     await this.waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(
-      (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
-      chunksSeen,
+      (args: { chunksSeen: number[], chunkPriorities?: number[] }) => window.processDom(args.chunksSeen, args.chunkPriorities),
+      { chunksSeen, chunkPriorities }
     );
+    // console.log("chosen chunk", chunk);
+    // console.log("chunksSeen", chunksSeen);
+    // console.log("all chunks", chunks);
+
     this.log({
       category: "extraction",
       message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,

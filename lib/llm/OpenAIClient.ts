@@ -4,6 +4,7 @@ import {
   LLMClient,
   ChatCompletionOptions,
   ExtractionOptions,
+  EmbeddingOptions,
 } from "./LLMClient";
 
 export class OpenAIClient implements LLMClient {
@@ -84,5 +85,26 @@ export class OpenAIClient implements LLMClient {
     };
 
     return response;
+  }
+
+  async createEmbedding(options: EmbeddingOptions) {
+    this.logger({
+      category: "OpenAI",
+      message: "Creating embedding with options: " + JSON.stringify(options),
+      level: 2
+    });
+
+    const response = await this.client.embeddings.create({
+      model: options.model,
+      input: options.input,
+    });
+
+    this.logger({
+      category: "OpenAI",
+      message: "Embedding response: " + JSON.stringify(response),
+      level: 2
+    });
+
+    return response.data[0].embedding;
   }
 }
