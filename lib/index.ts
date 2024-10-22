@@ -326,6 +326,8 @@ export class Stagehand {
       llmProvider: this.llmProvider,
       schema,
       modelName: modelName || this.defaultModelName,
+      chunksSeen: chunksSeen.length,
+      chunksTotal: chunks.length,
     });
     const {
       metadata: { progress: newProgress, completed },
@@ -341,7 +343,7 @@ export class Stagehand {
 
     chunksSeen.push(chunk);
 
-    const mergedOutput = mergeOutput(content, output);
+    // const mergedOutput = mergeOutput(content, output);
 
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
@@ -350,7 +352,7 @@ export class Stagehand {
         level: 1,
       });
 
-      return mergedOutput;
+      return output;
     } else {
       this.log({
         category: "extraction",
@@ -362,7 +364,7 @@ export class Stagehand {
         instruction,
         schema,
         progress: newProgress,
-        content: mergedOutput,
+        content: output,
         chunksSeen,
         modelName,
       });

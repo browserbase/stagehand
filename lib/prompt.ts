@@ -129,28 +129,67 @@ export function buildExtractUserPrompt(
   };
 }
 
-const filterSystemPrompt = `You are tasked with filtering out duplicate information from newly extracted content based on previously extracted content. Return only the new, non-duplicate information.`;
+// const filterSystemPrompt = `You are tasked with filtering out duplicate information from newly extracted content based on previously extracted content. Return only the new, non-duplicate information.`;
 
-export function buildFilterSystemPrompt() {
+// export function buildFilterSystemPrompt() {
+//   return {
+//     role: "system",
+//     content: filterSystemPrompt,
+//   };
+// }
+
+// export function buildFilterUserPrompt(
+//   previouslyExtractedContent: object,
+//   newlyExtractedContent: object,
+// ) {
+//   return {
+//     role: "user",
+//     content: `Previously extracted content:
+// ${JSON.stringify(previouslyExtractedContent, null, 2)}
+
+// Newly extracted content:
+// ${JSON.stringify(newlyExtractedContent, null, 2)}
+
+// Please filter out any duplicate information from the newly extracted content and return only the new, non-duplicate information.`,
+//   };
+// }
+
+const refineSystemPrompt = `You are tasked with refining and filtering information for the final output based on newly extracted and previously extracted content. Your responsibilities are:
+
+1. Remove exact duplicates for elements in arrays and objects.
+2. For text fields, if the new content is an extension, replacement, or continuation of existing content, append or update relevant text to the existing field.
+3. For non-text fields (e.g., numbers, booleans), update with new values if they differ.
+4. Add any completely new fields or objects.
+
+Return the updated content that includes both the previous content and the new, non-duplicate, or extended information.`;
+
+export function buildRefineSystemPrompt() {
   return {
     role: "system",
-    content: filterSystemPrompt,
+    content: refineSystemPrompt,
   };
 }
 
-export function buildFilterUserPrompt(
+export function buildRefineUserPrompt(
+  instruction: string,
   previouslyExtractedContent: object,
   newlyExtractedContent: object,
 ) {
   return {
     role: "user",
-    content: `Previously extracted content:
+    content: `Refine the final output for the instruction. Please remove duplicates, append or update and only include relevant text information, update non-text fields, and add new fields or objects.
+Return the updated content that combines both previous and new information. For array elements, remove duplicates.
+
+Instruction:
+${instruction}
+
+Previously extracted content:
 ${JSON.stringify(previouslyExtractedContent, null, 2)}
 
 Newly extracted content:
 ${JSON.stringify(newlyExtractedContent, null, 2)}
 
-Please filter out any duplicate information from the newly extracted content and return only the new, non-duplicate information.`,
+Refined content:`,
   };
 }
 
@@ -166,22 +205,25 @@ export function buildMetadataSystemPrompt() {
 }
 
 export function buildMetadataPrompt(
-  progress: string,
   instruction: string,
   extractionResponse: object,
+  chunksSeen: number,
+  chunksTotal: number,
 ) {
   return {
     role: "user",
-    content: `Please evaluate the following extraction response and determine if the task is completed or if more information is needed. Respond with a JSON object containing 'progress' (a string describing the current progress) and 'completed' (a boolean indicating if the task is finished).
+    content: `Please evaluate the following extraction response and determine if the task is completed or if more information is needed.
+If there are still chunks left and there could be more information to extract or more useful information in the remaining chunks, set completed to false.
+If you are certain that the instruction is complete, set completed to true, even if there are still chunks left.
 
 Original instruction:
 ${instruction}
 
-Progress until now, use this to update the progress:
-${JSON.stringify(progress, null, 2)}
+Extracted content:
+${JSON.stringify(extractionResponse, null, 2)}
 
-Response from current extraction:
-${JSON.stringify(extractionResponse, null, 2)}`
+Chunks seen: ${chunksSeen}
+Chunks total: ${chunksTotal}`,
   };
 }
 

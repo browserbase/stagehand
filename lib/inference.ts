@@ -8,8 +8,8 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
-  buildFilterSystemPrompt,
-  buildFilterUserPrompt,
+  buildRefineSystemPrompt,
+  buildRefineUserPrompt,
   buildMetadataSystemPrompt,
   buildMetadataPrompt,
 } from "./prompt";
@@ -92,6 +92,8 @@ export async function extract({
   schema,
   llmProvider,
   modelName,
+  chunksSeen,
+  chunksTotal,
 }: {
   instruction: string;
   progress: string;
@@ -100,6 +102,8 @@ export async function extract({
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
   modelName: string;
+  chunksSeen: number;
+  chunksTotal: number;
 }) {
   const llmClient = llmProvider.getClient(modelName);
 
@@ -119,15 +123,15 @@ export async function extract({
     presence_penalty: 0,
   });
 
-  const filteredResponse = await llmClient.createExtraction({
+  const refinedResponse = await llmClient.createExtraction({
     model: modelName,
     messages: [
-      buildFilterSystemPrompt() as ChatMessage,
-      buildFilterUserPrompt(previouslyExtractedContent, extractionResponse) as ChatMessage,
+      buildRefineSystemPrompt() as ChatMessage,
+      buildRefineUserPrompt(instruction, previouslyExtractedContent, extractionResponse) as ChatMessage,
     ],
     response_model: {
       schema: schema,
-      name: "FilteredExtraction",
+      name: "RefinedExtraction",
     },
     temperature: 0.1,
     top_p: 1,
@@ -145,9 +149,10 @@ export async function extract({
     messages: [
       buildMetadataSystemPrompt() as ChatMessage,
       buildMetadataPrompt(
-        progress,
         instruction,
-        filteredResponse,
+        refinedResponse,
+        chunksSeen,
+        chunksTotal,
       ) as ChatMessage
     ],
     response_model: {
@@ -160,9 +165,9 @@ export async function extract({
     presence_penalty: 0
   });
 
-  filteredResponse.metadata = metadataResponse;
+  refinedResponse.metadata = metadataResponse;
 
-  return filteredResponse;
+  return refinedResponse;
 }
 
 export async function observe({
