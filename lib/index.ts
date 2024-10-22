@@ -4,7 +4,6 @@ import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe } from "./inference";
-import { mergeOutput } from "./utils";
 import { LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
@@ -342,8 +341,6 @@ export class Stagehand {
     });
 
     chunksSeen.push(chunk);
-
-    // const mergedOutput = mergeOutput(content, output);
 
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
