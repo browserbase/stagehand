@@ -281,7 +281,6 @@ const extract_last_twenty_github_commits = async () => {
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "find commit history, generally described by the number of commits" });
     await stagehand.waitForSettledDom();
