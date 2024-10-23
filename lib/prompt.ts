@@ -129,31 +129,6 @@ export function buildExtractUserPrompt(
   };
 }
 
-// const filterSystemPrompt = `You are tasked with filtering out duplicate information from newly extracted content based on previously extracted content. Return only the new, non-duplicate information.`;
-
-// export function buildFilterSystemPrompt() {
-//   return {
-//     role: "system",
-//     content: filterSystemPrompt,
-//   };
-// }
-
-// export function buildFilterUserPrompt(
-//   previouslyExtractedContent: object,
-//   newlyExtractedContent: object,
-// ) {
-//   return {
-//     role: "user",
-//     content: `Previously extracted content:
-// ${JSON.stringify(previouslyExtractedContent, null, 2)}
-
-// Newly extracted content:
-// ${JSON.stringify(newlyExtractedContent, null, 2)}
-
-// Please filter out any duplicate information from the newly extracted content and return only the new, non-duplicate information.`,
-//   };
-// }
-
 const refineSystemPrompt = `You are tasked with refining and filtering information for the final output based on newly extracted and previously extracted content. Your responsibilities are:
 
 1. Remove exact duplicates for elements in arrays and objects.
