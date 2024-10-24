@@ -5,7 +5,6 @@ import { z } from "zod";
 import fs from "fs";
 import { act as actLLM, ask, extract, observe } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
-const merge = require("deepmerge");
 import path from "path";
 import Browserbase from "./browserbase";
 import { ScreenshotService } from "./vision";
@@ -306,7 +305,7 @@ export class Stagehand {
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
-      message: `starting extraction ${instruction}`,
+      message: `starting extraction '${instruction}'`,
       level: 1,
     });
 
@@ -318,7 +317,7 @@ export class Stagehand {
     );
     this.log({
       category: "extraction",
-      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      message: `received output from processDom. Current chunk index: ${chunk}, Number of chunks left: ${chunks.length - chunksSeen.length}`,
       level: 1,
     });
 
@@ -330,6 +329,8 @@ export class Stagehand {
       llmProvider: this.llmProvider,
       schema,
       modelName: modelName || this.defaultModelName,
+      chunksSeen: chunksSeen.length,
+      chunksTotal: chunks.length,
     });
     const {
       metadata: { progress: newProgress, completed },
@@ -339,13 +340,11 @@ export class Stagehand {
 
     this.log({
       category: "extraction",
-      message: `Received extraction response: ${JSON.stringify(extractionResponse)}`,
+      message: `received extraction response: ${JSON.stringify(extractionResponse)}`,
       level: 1,
     });
 
     chunksSeen.push(chunk);
-
-    const mergedOutput = merge(content, output);
 
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
@@ -354,19 +353,19 @@ export class Stagehand {
         level: 1,
       });
 
-      return mergedOutput;
+      return output;
     } else {
       this.log({
         category: "extraction",
-        message: `continuing extraction, progress: ${progress + newProgress + ", "}`,
+        message: `continuing extraction, progress: '${newProgress}'`,
         level: 1,
       });
       await this.waitForSettledDom();
       return this.extract({
         instruction,
         schema,
-        progress: progress + newProgress + ", ",
-        content: mergedOutput,
+        progress: newProgress,
+        content: output,
         chunksSeen,
         modelName,
       });
