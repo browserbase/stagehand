@@ -743,7 +743,7 @@ export class Stagehand {
 
     let urlChangeString = "";
 
-    const locator = this.page.locator(`xpath=${path}`).first();
+    const locator = this.page.locator(`xpath=${xpath}`).first();
     try {
       const initialUrl = this.page.url();
       if (method === "scrollIntoView") {
@@ -1025,7 +1025,7 @@ export class Stagehand {
       action,
       modelName,
       useVision,
-      verifierUseVision: useVision === true,
+      verifierUseVision: useVision !== false,
     });
   }
 

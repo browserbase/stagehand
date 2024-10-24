@@ -164,14 +164,6 @@ const peeler_complex = async () => {
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
-    // Add check for page load success
-    const response = await stagehand.page.waitForResponse(
-      (response) =>
-        response.url() === "https://chefstoys.com/" &&
-        response.status() === 200,
-    );
-    if (!response) throw new Error("Failed to load the page.");
-
     await stagehand.act({
       action: "search for peelers",
     });
