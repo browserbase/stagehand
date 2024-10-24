@@ -24,21 +24,21 @@ async function getBrowser(
 ) {
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
     console.error(
-      "BROWSERBASE_API_KEY is required to use browserbase env. Defaulting to local.",
+      "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
     );
     env = "LOCAL";
   }
 
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_PROJECT_ID) {
     console.error(
-      "BROWSERBASE_PROJECT_ID is required to use browserbase env. Defaulting to local.",
+      "BROWSERBASE_PROJECT_ID is required to use BROWSERBASE env. Defaulting to LOCAL.",
     );
     env = "LOCAL";
   }
 
   let debugUrl: string | undefined = undefined;
   if (env === "BROWSERBASE") {
-    console.log("Connecting you to broswerbase...");
+    console.log("Connecting you to Browserbase...");
     const browserbase = new Browserbase();
     const { sessionId } = await browserbase.createSession();
     const browser = await chromium.connectOverCDP(
@@ -51,10 +51,11 @@ async function getBrowser(
     );
 
     const context = browser.contexts()[0];
-    return { browser, context };
+    // Include debugUrl in the returned object
+    return { browser, context, debugUrl };
   } else {
     if (!process.env.BROWSERBASE_API_KEY) {
-      console.log("No browserbase key detected");
+      console.log("No Browserbase key detected");
       console.log("Starting a local browser...");
     }
 
