@@ -301,7 +301,7 @@ export class Stagehand {
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
-      message: `starting extraction ${instruction}`,
+      message: `starting extraction '${instruction}'`,
       level: 1,
     });
 
@@ -313,7 +313,7 @@ export class Stagehand {
     );
     this.log({
       category: "extraction",
-      message: `Received output from processDom. Chunk: ${chunk}, Chunks left: ${chunks.length - chunksSeen.length}`,
+      message: `received output from processDom. Current chunk index: ${chunk}, Number of chunks left: ${chunks.length - chunksSeen.length}`,
       level: 1,
     });
 
@@ -336,7 +336,7 @@ export class Stagehand {
 
     this.log({
       category: "extraction",
-      message: `Received extraction response: ${JSON.stringify(extractionResponse)}`,
+      message: `received extraction response: ${JSON.stringify(extractionResponse)}`,
       level: 1,
     });
 
@@ -353,7 +353,7 @@ export class Stagehand {
     } else {
       this.log({
         category: "extraction",
-        message: `continuing extraction, progress: ${newProgress}`,
+        message: `continuing extraction, progress: '${newProgress}'`,
         level: 1,
       });
       await this.waitForSettledDom();
