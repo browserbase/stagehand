@@ -1,4 +1,4 @@
-import { type Page } from "@playwright/test";
+import { type Frame, type ElementHandle } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
@@ -18,7 +18,7 @@ type NumberPosition = {
 };
 
 export class ScreenshotService {
-  private page: Page;
+  private frame: Frame;
   private selectorMap: Record<number, string>;
   private annotationBoxes: AnnotationBox[] = [];
   private numberPositions: NumberPosition[] = [];
@@ -26,12 +26,12 @@ export class ScreenshotService {
   private verbose: 0 | 1 | 2;
 
   constructor(
-    page: Page,
+    frame: Frame,
     selectorMap: Record<number, string>,
     verbose: 0 | 1 | 2,
     isDebugEnabled: boolean = false,
   ) {
-    this.page = page;
+    this.frame = frame;
     this.selectorMap = selectorMap;
     this.isDebugEnabled = isDebugEnabled;
     this.verbose = verbose;
@@ -52,21 +52,32 @@ export class ScreenshotService {
     }
   }
 
-  async getScreenshot(fullpage: boolean, quality?: number): Promise<Buffer> {
+  async getScreenshot(
+    fullpage: boolean = true,
+    quality?: number,
+  ): Promise<Buffer> {
     if (quality && (quality < 0 || quality > 100)) {
       throw new Error("quality must be between 0 and 100");
     }
 
-    const screenshot = await this.page.screenshot({
-      fullPage: fullpage,
-      quality,
-      type: "jpeg",
-    });
-
-    // ScreenshotService.saveAndOpenScreenshot(screenshot);
-    // const pixelCount = await this.getScreenshotPixelCount(screenshot);
-    // console.log("pixelCount", pixelCount);
-    return screenshot;
+    if (this.frame === this.frame.page().mainFrame()) {
+      // If it's the main frame, take a screenshot of the entire page
+      return await this.frame.page().screenshot({
+        fullPage: fullpage,
+        quality,
+        type: "jpeg",
+      });
+    } else {
+      // For iframes
+      const frameElement = await this.frame.frameElement();
+      if (!frameElement) {
+        throw new Error("Unable to get frame element");
+      }
+      return await frameElement.screenshot({
+        quality,
+        type: "jpeg",
+      });
+    }
   }
 
   async getScreenshotPixelCount(screenshot: Buffer): Promise<number> {
@@ -111,7 +122,7 @@ export class ScreenshotService {
       ),
     );
 
-    const scrollPosition = await this.page.evaluate(() => {
+    const scrollPosition = await this.frame.evaluate(() => {
       return {
         scrollX: window.scrollX,
         scrollY: window.scrollY,
@@ -140,7 +151,7 @@ export class ScreenshotService {
     selector: string,
   ): Promise<string> {
     try {
-      const element = await this.page.locator(`xpath=${selector}`).first();
+      const element = await this.frame.locator(`xpath=${selector}`).first();
       const box = await element.boundingBox();
 
       if (!box) {
@@ -152,7 +163,7 @@ export class ScreenshotService {
         return "";
       }
 
-      const scrollPosition = await this.page.evaluate(() => ({
+      const scrollPosition = await this.frame.evaluate(() => ({
         scrollX: window.scrollX,
         scrollY: window.scrollY,
       }));
