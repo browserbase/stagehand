@@ -526,11 +526,15 @@ export class Stagehand {
   }): Promise<{ success: boolean; message: string; action: string }> {
     const model = modelName ?? this.defaultModelName;
 
-    if (!modelsWithVision.includes(model) && useVision !== false) {
+    if (
+      !modelsWithVision.includes(model) &&
+      (useVision !== false || verifierUseVision)
+    ) {
       console.warn(
         `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
       );
       useVision = false;
+      verifierUseVision = false;
     }
 
     this.log({
