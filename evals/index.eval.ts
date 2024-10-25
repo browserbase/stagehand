@@ -288,8 +288,10 @@ const extract_collaborators_from_github_repository = async () => {
       schema: z.object({
         contributors: z.array(
           z.object({
-            github_username: z.string(),
-            information: z.string(),
+            github_username: z
+              .string()
+              .describe("the github username of the contributor"),
+            information: z.string().describe("number of commits contributed"),
           }),
         ),
       }),
@@ -325,6 +327,10 @@ const extract_last_twenty_github_commits = async () => {
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
+    await stagehand.act({
+      action:
+        "find commit history, generally described by the number of commits",
+    });
     const { commits } = await stagehand.extract({
       instruction: "Extract last 20 commits",
       schema: z.object({
@@ -507,18 +513,21 @@ const google_jobs = async () => {
       schema: z.object({
         applicationDeadline: z
           .string()
-          .describe("The date until which the application window will be open"),
+          .describe("The date until which the application window will be open")
+          .nullable(),
         minimumQualifications: z.object({
-          degree: z.string().describe("The minimum required degree"),
+          degree: z.string().describe("The minimum required degree").nullable(),
           yearsOfExperience: z
             .number()
-            .describe("The minimum required years of experience"),
+            .describe("The minimum required years of experience")
+            .nullable(),
         }),
         preferredQualifications: z.object({
-          degree: z.string().describe("The preferred degree"),
+          degree: z.string().describe("The preferred degree").nullable(),
           yearsOfExperience: z
             .number()
-            .describe("The preferred years of experience"),
+            .describe("The preferred years of experience")
+            .nullable(),
         }),
       }),
       modelName: "gpt-4o-2024-08-06",
@@ -727,8 +736,7 @@ const arxiv = async () => {
     });
 
     const paper_links = await stagehand.extract({
-      instruction:
-        "extract the title and link of at most five papers, keeping track of number of papers extracted and marking completed when five are extracted",
+      instruction: "extract the titles and links for two papers",
       schema: z.object({
         papers: z
           .array(
@@ -756,60 +764,50 @@ const arxiv = async () => {
         const abstract = await stagehand.extract({
           instruction: "extract details of the paper from the abstract",
           schema: z.object({
-            values: z.array(
-              z.object({
-                category: z
-                  .string()
-                  .describe(
-                    "the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Strategy', 'System', 'Other'}",
-                  ),
-                problem: z
-                  .string()
-                  .describe(
-                    "summarize the problem that the paper is trying to solve in one sentence",
-                  )
-                  .nullable(),
-                methodology: z
-                  .string()
-                  .describe(
-                    "summarize the methodology of the paper in one sentence",
-                  )
-                  .nullable(),
-                results: z
-                  .string()
-                  .describe(
-                    "summarize the results of the paper in one sentence",
-                  )
-                  .nullable(),
-                conclusion: z
-                  .string()
-                  .describe(
-                    "summarize the conclusion of the paper in one sentence",
-                  )
-                  .nullable(),
-                code: z
-                  .string()
-                  .describe(
-                    "if provided, extract only the link to the code repository, without additional text",
-                  )
-                  .nullable(),
-              }),
-            ),
+            category: z
+              .string()
+              .describe(
+                "the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Framework', 'System', 'Other'}",
+              ),
+            problem: z
+              .string()
+              .describe(
+                "summarize the problem that the paper is trying to solve in one sentence",
+              )
+              .nullable(),
+            methodology: z
+              .string()
+              .describe(
+                "summarize the methodology of the paper in one sentence",
+              )
+              .nullable(),
+            results: z
+              .string()
+              .describe("summarize the results of the paper in one sentence")
+              .nullable(),
+            conclusion: z
+              .string()
+              .describe("summarize the conclusion of the paper in one sentence")
+              .nullable(),
+            code: z
+              .string()
+              .describe(
+                "if provided, extract only the link to the code repository, without additional text. this is often optional and not always provided.",
+              )
+              .nullable(),
           }),
           modelName: "gpt-4o-2024-08-06",
         });
 
-        const first_chunk = abstract.values[0];
-
         papers.push({
           title: paper.title,
           link: paper.link,
-          category: first_chunk.category,
-          problem: first_chunk.problem,
-          methodology: first_chunk.methodology,
-          results: first_chunk.results,
-          conclusion: first_chunk.conclusion,
-          code: first_chunk.code,
+          category: abstract.category,
+          problem: abstract.problem,
+          methodology: abstract.methodology,
+          results: abstract.results,
+          conclusion: abstract.conclusion,
+          code: abstract.code,
         });
       }
     }
@@ -819,6 +817,23 @@ const arxiv = async () => {
     }
 
     console.log(papers);
+
+    // Assert that the length of papers is three
+    if (papers.length !== 2) {
+      console.error(`Expected 2 papers, but got ${papers.length}`);
+      return { _success: false, error: "Incorrect number of papers extracted" };
+    }
+
+    // Ensure that every paper has a problem and methodology
+    for (const paper of papers) {
+      if (!paper.problem || !paper.methodology) {
+        console.error(
+          `Paper "${paper.title}" is missing problem or methodology`,
+        );
+        return { _success: false, error: "Incomplete paper information" };
+      }
+    }
+
     return { _success: true, papers };
   } catch (error) {
     console.error(`Error in arxiv function: ${error.message}`);

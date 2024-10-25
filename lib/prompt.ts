@@ -182,7 +182,12 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 ];
 
 // extract
-const extractSystemPrompt = `you are extracting content on behalf of a user. You will be given an instruction, progress so far, and a list of DOM elements to extract from. Where applicable, return the exact text from the DOM elements with all symbols, characters and endlines as is. Only extract new information that has not already been extracted. Make sure you include the extraction in your response. Return null or an empty string if no new information is found for a string variable`;
+const extractSystemPrompt = `You are extracting content on behalf of a user. You will be given:
+1. An instruction
+2. A list of DOM elements to extract from
+
+Return the exact text from the DOM elements with all symbols, characters, and endlines as is.
+Only extract new information that has not already been extracted. Return null or an empty string if no new information is found.`;
 
 export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
   const content = extractSystemPrompt.replace(/\s+/g, " ");
@@ -194,20 +199,71 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 
 export function buildExtractUserPrompt(
   instruction: string,
-  progress: string,
-  previouslyExtractedContent: object,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
-    content: `instruction: ${instruction}
-    progress: ${progress}
-    Previously Extracted Content:\n${JSON.stringify(
-      previouslyExtractedContent,
-      null,
-      2,
-    )}
-    DOM: ${domElements}`,
+    content: `Instruction: ${instruction}
+    DOM: ${domElements}
+    Extracted content:`,
+  };
+}
+
+const refineSystemPrompt = `You are tasked with refining and filtering information for the final output based on newly extracted and previously extracted content. Your responsibilities are:
+1. Remove exact duplicates for elements in arrays and objects.
+2. For text fields, append or update relevant text if the new content is an extension, replacement, or continuation.
+3. For non-text fields (e.g., numbers, booleans), update with new values if they differ.
+4. Add any completely new fields or objects.
+
+Return the updated content that includes both the previous content and the new, non-duplicate, or extended information.`;
+
+export function buildRefineSystemPrompt() {
+  return {
+    role: "system",
+    content: refineSystemPrompt,
+  };
+}
+
+export function buildRefineUserPrompt(
+  instruction: string,
+  previouslyExtractedContent: object,
+  newlyExtractedContent: object,
+) {
+  return {
+    role: "user",
+    content: `Instruction: ${instruction}
+Previously extracted content: ${JSON.stringify(previouslyExtractedContent, null, 2)}
+Newly extracted content: ${JSON.stringify(newlyExtractedContent, null, 2)}
+Refined content:`,
+  };
+}
+
+const metadataSystemPrompt = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
+Analyze the extraction response and determine if the task is completed or if more information is needed.
+
+Strictly abide by the following criteria:
+1. If you are certain that the instruction is completed, set the completion status to true, even if there are still chunks left.
+2. If there could still be more information to extract and there are still chunks left, set the completion status to false.`;
+
+export function buildMetadataSystemPrompt() {
+  return {
+    role: "system",
+    content: metadataSystemPrompt,
+  };
+}
+
+export function buildMetadataPrompt(
+  instruction: string,
+  extractionResponse: object,
+  chunksSeen: number,
+  chunksTotal: number,
+) {
+  return {
+    role: "user",
+    content: `Instruction: ${instruction}
+Extracted content: ${JSON.stringify(extractionResponse, null, 2)}
+Chunks seen: ${chunksSeen}
+Chunks total: ${chunksTotal}`,
   };
 }
 

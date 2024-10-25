@@ -10,6 +10,10 @@ import {
   buildAskUserPrompt,
   buildVerifyActCompletionSystemPrompt,
   buildVerifyActCompletionUserPrompt,
+  buildRefineSystemPrompt,
+  buildRefineUserPrompt,
+  buildMetadataSystemPrompt,
+  buildMetadataPrompt,
 } from "./prompt";
 import { z } from "zod";
 import { LLMProvider } from "./llm/LLMProvider";
@@ -157,6 +161,8 @@ export async function extract({
   schema,
   llmProvider,
   modelName,
+  chunksSeen,
+  chunksTotal,
 }: {
   instruction: string;
   progress: string;
@@ -165,35 +171,19 @@ export async function extract({
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
   modelName: string;
+  chunksSeen: number;
+  chunksTotal: number;
 }) {
   const llmClient = llmProvider.getClient(modelName);
 
-  const fullSchema = schema.extend({
-    metadata: z.object({
-      progress: z
-        .string()
-        .describe("progress of what has been extracted so far"),
-      completed: z
-        .boolean()
-        .describe(
-          "true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.",
-        ),
-    }),
-  });
-
-  return llmClient.createExtraction({
+  const extractionResponse = await llmClient.createExtraction({
     model: modelName,
     messages: [
       buildExtractSystemPrompt() as ChatMessage,
-      buildExtractUserPrompt(
-        instruction,
-        progress,
-        previouslyExtractedContent,
-        domElements,
-      ) as ChatMessage,
+      buildExtractUserPrompt(instruction, domElements) as ChatMessage,
     ],
     response_model: {
-      schema: fullSchema,
+      schema: schema,
       name: "Extraction",
     },
     temperature: 0.1,
@@ -201,6 +191,64 @@ export async function extract({
     frequency_penalty: 0,
     presence_penalty: 0,
   });
+
+  const refinedResponse = await llmClient.createExtraction({
+    model: modelName,
+    messages: [
+      buildRefineSystemPrompt() as ChatMessage,
+      buildRefineUserPrompt(
+        instruction,
+        previouslyExtractedContent,
+        extractionResponse,
+      ) as ChatMessage,
+    ],
+    response_model: {
+      schema: schema,
+      name: "RefinedExtraction",
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+  });
+
+  const metadataSchema = z.object({
+    progress: z
+      .string()
+      .describe(
+        "progress of what has been extracted so far, as concise as possible",
+      ),
+    completed: z
+      .boolean()
+      .describe(
+        "true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.",
+      ),
+  });
+
+  const metadataResponse = await llmClient.createExtraction({
+    model: modelName,
+    messages: [
+      buildMetadataSystemPrompt() as ChatMessage,
+      buildMetadataPrompt(
+        instruction,
+        refinedResponse,
+        chunksSeen,
+        chunksTotal,
+      ) as ChatMessage,
+    ],
+    response_model: {
+      name: "Metadata",
+      schema: metadataSchema,
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+  });
+
+  refinedResponse.metadata = metadataResponse;
+
+  return refinedResponse;
 }
 
 export async function observe({
