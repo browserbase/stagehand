@@ -179,7 +179,7 @@ const peeler_complex = async () => {
     });
 
     return {
-      _success: price !== null,
+      _success: price === 11.99,
       price,
       debugUrl,
     };
