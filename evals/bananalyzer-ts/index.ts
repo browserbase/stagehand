@@ -53,6 +53,7 @@ export async function evaluateExample(
   const examples = JSON.parse(
     fs.readFileSync(path.join(basePath, "static/examples.json"), "utf-8"),
   );
+
   const example = examples.find((example: Example) => example.id === exampleId);
   if (!example) {
     console.error(`Example with ID ${exampleId} not found.`);
@@ -107,7 +108,6 @@ export async function evaluateExample(
     }
 
     await stagehand.page.goto(localUrl);
-    await stagehand.waitForSettledDom();
 
     let schemaDefinition: z.ZodRawShape;
 

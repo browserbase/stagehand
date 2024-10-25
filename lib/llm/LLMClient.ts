@@ -31,6 +31,10 @@ export interface ChatCompletionOptions {
     description?: string;
   };
   [key: string]: any; // Additional provider-specific options
+  response_model?: {
+    name: string;
+    schema: any;
+  };
 }
 
 export interface ExtractionOptions extends ChatCompletionOptions {

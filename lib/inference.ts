@@ -8,6 +8,8 @@ import {
   buildObserveSystemPrompt,
   buildObserveUserMessage,
   buildAskUserPrompt,
+  buildVerifyActCompletionSystemPrompt,
+  buildVerifyActCompletionUserPrompt,
   buildRefineSystemPrompt,
   buildRefineUserPrompt,
   buildMetadataSystemPrompt,
@@ -16,6 +18,73 @@ import {
 import { z } from "zod";
 import { LLMProvider } from "./llm/LLMProvider";
 import { AnnotatedScreenshotText, ChatMessage } from "./llm/LLMClient";
+
+export async function verifyActCompletion({
+  goal,
+  steps,
+  llmProvider,
+  modelName,
+  screenshot,
+  domElements,
+}: {
+  goal: string;
+  steps: string;
+  llmProvider: LLMProvider;
+  modelName: string;
+  screenshot?: Buffer;
+  domElements?: string;
+}): Promise<boolean> {
+  const llmClient = llmProvider.getClient(modelName);
+  const messages = [
+    buildVerifyActCompletionSystemPrompt() as ChatMessage,
+    buildVerifyActCompletionUserPrompt(goal, steps, domElements) as ChatMessage,
+  ];
+
+  console.log(
+    "[VerifyAct] messages",
+    messages
+      .map((m) => `\n\n${m.role}:\n--------------\n ${m.content}`)
+      .join() + "\n\n\n",
+  );
+
+  const response = await llmClient.createChatCompletion({
+    model: modelName,
+    messages,
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+    image: screenshot
+      ? {
+          buffer: screenshot,
+          description: "This is a screenshot of the whole visible page.",
+        }
+      : undefined,
+    response_model: {
+      name: "Verification",
+      schema: z.object({
+        completed: z.boolean().describe("true if the goal is accomplished"),
+      }),
+    },
+  });
+
+  if (!response || typeof response !== "object") {
+    console.error("[VerifyAct] Unexpected response format:", response);
+    return false;
+  }
+
+  console.log(
+    "[VerifyAct] Action Completion Verification:",
+    response.completed,
+  );
+
+  if (response.completed === undefined) {
+    console.error('[VerifyAct] Missing "completed" field in response');
+    return false;
+  }
+
+  return response.completed;
+}
 
 export async function act({
   action,
@@ -127,7 +196,11 @@ export async function extract({
     model: modelName,
     messages: [
       buildRefineSystemPrompt() as ChatMessage,
-      buildRefineUserPrompt(instruction, previouslyExtractedContent, extractionResponse) as ChatMessage,
+      buildRefineUserPrompt(
+        instruction,
+        previouslyExtractedContent,
+        extractionResponse,
+      ) as ChatMessage,
     ],
     response_model: {
       schema: schema,
@@ -140,8 +213,16 @@ export async function extract({
   });
 
   const metadataSchema = z.object({
-    progress: z.string().describe("progress of what has been extracted so far, as concise as possible"),
-    completed: z.boolean().describe("true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.")
+    progress: z
+      .string()
+      .describe(
+        "progress of what has been extracted so far, as concise as possible",
+      ),
+    completed: z
+      .boolean()
+      .describe(
+        "true if the goal is now accomplished. Use this conservatively, only when you are sure that the goal has been completed.",
+      ),
   });
 
   const metadataResponse = await llmClient.createExtraction({
@@ -153,16 +234,16 @@ export async function extract({
         refinedResponse,
         chunksSeen,
         chunksTotal,
-      ) as ChatMessage
+      ) as ChatMessage,
     ],
     response_model: {
       name: "Metadata",
-      schema: metadataSchema
+      schema: metadataSchema,
     },
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
-    presence_penalty: 0
+    presence_penalty: 0,
   });
 
   refinedResponse.metadata = metadataResponse;

@@ -9,5 +9,6 @@ screenshot.png
 .env
 downloads/
 dist/
-evals/*/public
+evals/**/public
 lib/dom/bundle.js
+evals/public

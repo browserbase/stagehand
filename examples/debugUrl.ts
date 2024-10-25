@@ -4,13 +4,12 @@ import { Stagehand } from "../lib";
 async function debug(url: string) {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: true,
+    verbose: 2,
     debugDom: true,
   });
   await stagehand.init();
   await stagehand.page.goto(url);
 
-  await stagehand.waitForSettledDom();
   await stagehand.startDomDebug();
 }
 

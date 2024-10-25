@@ -10,23 +10,55 @@ const env =
     ? "BROWSERBASE"
     : "LOCAL";
 
+const expedia = async () => {
+  const stagehand = new Stagehand({
+    env,
+    headless: false,
+    debugDom: true,
+  });
+
+  await stagehand.init();
+
+  await stagehand.page.goto("https://www.expedia.com/flights");
+
+  await stagehand.act({
+    action:
+      "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",
+  });
+
+  await stagehand.act({ action: "Go to the first non-stop flight" });
+
+  await stagehand.act({ action: "select the cheapest flight" });
+
+  await stagehand.act({ action: "click on the first non-stop flight" });
+
+  await stagehand.act({
+    action: "Take me to the checkout page",
+  });
+
+  const url = await stagehand.page.url();
+  return url.startsWith("https://www.expedia.com/Checkout/");
+};
+
 const vanta = async () => {
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.waitForSettledDom();
 
-  const observation = await stagehand.observe("find the request demo button");
+  const observation = await stagehand.observe(
+    "find the text for the request demo button",
+  );
 
   if (!observation) {
     await stagehand.context.close();
     return {
       _success: false,
       observation,
+      debugUrl,
     };
   }
 
@@ -48,6 +80,7 @@ const vanta = async () => {
     _success: observationResult == expectedResult,
     expected: expectedResult,
     actual: observationResult,
+    debugUrl,
   };
 };
 
@@ -56,10 +89,9 @@ const vanta_h = async () => {
     env,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.waitForSettledDom();
 
   const observation = await stagehand.observe("find the buy now button");
 
@@ -69,6 +101,7 @@ const vanta_h = async () => {
   return {
     _success: observation === null,
     observation,
+    debugUrl,
   };
 };
 
@@ -77,7 +110,7 @@ const simple_google_search = async () => {
     env,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.google.com");
 
@@ -93,6 +126,7 @@ const simple_google_search = async () => {
   return {
     _success: currentUrl.startsWith(expectedUrl),
     currentUrl,
+    debugUrl,
   };
 };
 
@@ -101,10 +135,9 @@ const peeler_simple = async () => {
     env: "LOCAL",
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
-  await stagehand.waitForSettledDom();
 
   await stagehand.act({ action: "add the peeler to cart" });
 
@@ -116,6 +149,7 @@ const peeler_simple = async () => {
   await stagehand.context.close();
   return {
     _success: isVisible,
+    debugUrl,
   };
 };
 
@@ -125,16 +159,10 @@ const peeler_complex = async () => {
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   try {
-    await stagehand.page.goto('https://chefstoys.com/', { timeout: 60000 });
-    
-    // Add check for page load success
-    const response = await stagehand.page.waitForResponse((response) =>
-      response.url() === 'https://chefstoys.com/' && response.status() === 200
-    );
-    if (!response) throw new Error('Failed to load the page.');
+    await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
     await stagehand.act({
       action: "search for peelers",
@@ -153,10 +181,15 @@ const peeler_complex = async () => {
     return {
       _success: price !== null,
       price,
+      debugUrl,
     };
   } catch (error) {
     console.error(`Error in peeler_complex function: ${error.message}`);
-    return { _success: false, error: error.message };
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
+    };
   } finally {
     await stagehand.context.close();
   }
@@ -168,23 +201,18 @@ const homedepot = async () => {
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "search for gas grills" });
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the best selling gas grill" });
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the Product Details" });
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "find the Primary Burner BTU" });
-    await stagehand.waitForSettledDom();
 
     const productSpecs = await stagehand.extract({
       instruction: "Extract the Primary exact Burner BTU of the product",
@@ -209,6 +237,7 @@ const homedepot = async () => {
       return {
         _success: false,
         productSpecs,
+        debugUrl,
       };
     }
 
@@ -219,11 +248,13 @@ const homedepot = async () => {
       return {
         _success: true,
         productSpecs,
+        debugUrl,
       };
     } else {
       return {
         _success: false,
         productSpecs,
+        debugUrl,
       };
     }
   } catch (error) {
@@ -231,6 +262,7 @@ const homedepot = async () => {
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
     };
   } finally {
     await stagehand.context.close();
@@ -239,11 +271,11 @@ const homedepot = async () => {
 
 const extract_collaborators_from_github_repository = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -251,14 +283,14 @@ const extract_collaborators_from_github_repository = async () => {
       action: "find the contributors section",
     });
 
-    await stagehand.waitForSettledDom();
-
     const { contributors } = await stagehand.extract({
       instruction: "Extract top 20 contributors of this repository",
       schema: z.object({
         contributors: z.array(
           z.object({
-            github_username: z.string().describe("the github username of the contributor"),
+            github_username: z
+              .string()
+              .describe("the github username of the contributor"),
             information: z.string().describe("number of commits contributed"),
           }),
         ),
@@ -271,6 +303,7 @@ const extract_collaborators_from_github_repository = async () => {
     return {
       _success: contributors.length === 20,
       contributors,
+      debugUrl,
     };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
@@ -278,24 +311,26 @@ const extract_collaborators_from_github_repository = async () => {
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
     };
   }
 };
 
 const extract_last_twenty_github_commits = async () => {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env,
     verbose: 1,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
-    await stagehand.act({ action: "find commit history, generally described by the number of commits" });
-    await stagehand.waitForSettledDom();
-
+    await stagehand.act({
+      action:
+        "find commit history, generally described by the number of commits",
+    });
     const { commits } = await stagehand.extract({
       instruction: "Extract last 20 commits",
       schema: z.object({
@@ -315,6 +350,7 @@ const extract_last_twenty_github_commits = async () => {
     return {
       _success: commits.length === 20,
       commits,
+      debugUrl,
     };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
@@ -322,6 +358,7 @@ const extract_last_twenty_github_commits = async () => {
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
     };
   }
 };
@@ -332,7 +369,7 @@ const wikipedia = async () => {
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
   await stagehand.act({
@@ -347,6 +384,7 @@ const wikipedia = async () => {
     _success: currentUrl === url,
     expected: url,
     actual: currentUrl,
+    debugUrl,
   };
 };
 
@@ -358,13 +396,14 @@ const nonsense_action = async () => {
     debugDom: true,
     headless: true,
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
-    await stagehand.waitForSettledDom();
 
-    const result = await stagehand.act({ action: "click on the first banana" });
+    const result = await stagehand.act({
+      action: "click on the first banana",
+    });
     console.log("result", result);
 
     // Assert the output
@@ -378,12 +417,16 @@ const nonsense_action = async () => {
     const isResultCorrect =
       JSON.stringify(result) === JSON.stringify(expectedResult);
 
-    return isResultCorrect;
+    return {
+      _success: isResultCorrect,
+      debugUrl,
+    };
   } catch (error) {
     console.error(`Error in nonsense_action function: ${error.message}`);
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
     };
   } finally {
     await stagehand.context.close();
@@ -397,7 +440,7 @@ const costar = async () => {
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init();
+  const { debugUrl } = await stagehand.init();
   // TODO: fix this eval - does not work in headless mode
   try {
     await Promise.race([
@@ -406,7 +449,6 @@ const costar = async () => {
         setTimeout(() => reject(new Error("Navigation timeout")), 30000),
       ),
     ]);
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({ action: "click on the first article" });
 
@@ -414,7 +456,6 @@ const costar = async () => {
       action: "click on the learn more button for the first job",
     });
 
-    await stagehand.waitForSettledDom();
     const articleTitle = await stagehand.extract({
       instruction: "extract the title of the article",
       schema: z.object({
@@ -431,10 +472,10 @@ const costar = async () => {
 
     await stagehand.context.close();
 
-    return { title: articleTitle.title, _success: isTitleValid };
+    return { title: articleTitle.title, _success: isTitleValid, debugUrl };
   } catch (error) {
     console.error(`Error in costar function: ${error.message}`);
-    return { title: null, _success: false } as any;
+    return { title: null, _success: false, debugUrl } as any;
   } finally {
     await stagehand.context.close();
   }
@@ -447,75 +488,81 @@ const google_jobs = async () => {
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
   });
-  await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
 
-  await stagehand.page.goto("https://www.google.com/");
-  await stagehand.waitForSettledDom();
+  const { debugUrl } = await stagehand.init();
 
-  await stagehand.act({ action: "click on the about page" });
+  try {
+    await stagehand.page.goto("https://www.google.com/");
 
-  await stagehand.act({ action: "click on the careers page" });
+    await stagehand.act({ action: "click on the about page" });
 
-  await stagehand.act({ action: "input data scientist into role" });
+    await stagehand.act({ action: "click on the careers page" });
 
-  await stagehand.act({ action: "input new york city into location" });
+    await stagehand.act({ action: "input data scientist into role" });
 
-  await stagehand.act({ action: "click on the search button" });
+    await stagehand.act({ action: "input new york city into location" });
 
-  // NOTE: "click on the first Learn More button" is not working - the span for learn more is not clickable and the a href is after it
-  await stagehand.act({ action: "click on the first job link" });
+    await stagehand.act({ action: "click on the search button" });
 
-  const jobDetails = await stagehand.extract({
-    instruction:
-      "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
-    schema: z.object({
-      applicationDeadline: z
-        .string()
-        .describe("The date until which the application window will be open")
-        .nullable(),
-      minimumQualifications: z.object({
-        degree: z
+    // NOTE: "click on the first Learn More button" is not working - the span for learn more is not clickable and the a href is after it
+    await stagehand.act({ action: "click on the first job link" });
+
+    const jobDetails = await stagehand.extract({
+      instruction:
+        "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
+      schema: z.object({
+        applicationDeadline: z
           .string()
-          .describe("The minimum required degree")
+          .describe("The date until which the application window will be open")
           .nullable(),
-        yearsOfExperience: z
-          .number()
-          .describe("The minimum required years of experience")
-          .nullable(),
+        minimumQualifications: z.object({
+          degree: z.string().describe("The minimum required degree").nullable(),
+          yearsOfExperience: z
+            .number()
+            .describe("The minimum required years of experience")
+            .nullable(),
+        }),
+        preferredQualifications: z.object({
+          degree: z.string().describe("The preferred degree").nullable(),
+          yearsOfExperience: z
+            .number()
+            .describe("The preferred years of experience")
+            .nullable(),
+        }),
       }),
-      preferredQualifications: z.object({
-        degree: z.string().describe("The preferred degree").nullable(),
-        yearsOfExperience: z
-          .number()
-          .describe("The preferred years of experience")
-          .nullable(),
-      }),
-    }),
-    modelName: "gpt-4o-2024-08-06",
-  });
+      modelName: "gpt-4o-2024-08-06",
+    });
 
-  console.log("Job Details:", jobDetails);
+    console.log("Job Details:", jobDetails);
 
-  const isJobDetailsValid =
-    jobDetails &&
-    Object.values(jobDetails).every(
-      (value) =>
-        value !== null &&
-        value !== undefined &&
-        (typeof value !== "object" ||
-          Object.values(value).every(
-            (v) =>
-              v !== null &&
-              v !== undefined &&
-              (typeof v === "number" || typeof v === "string"),
-          )),
-    );
+    const isJobDetailsValid =
+      jobDetails &&
+      Object.values(jobDetails).every(
+        (value) =>
+          value !== null &&
+          value !== undefined &&
+          (typeof value !== "object" ||
+            Object.values(value).every(
+              (v) =>
+                v !== null &&
+                v !== undefined &&
+                (typeof v === "number" || typeof v === "string"),
+            )),
+      );
 
-  await stagehand.context.close();
+    console.log("Job Details valid:", isJobDetailsValid);
 
-  console.log("Job Details valid:", isJobDetailsValid);
-
-  return { _success: isJobDetailsValid, jobDetails };
+    return { _success: isJobDetailsValid, jobDetails, debugUrl };
+  } catch (error) {
+    console.error(`Error in google_jobs function: ${error.message}`);
+    return {
+      _success: false,
+      debugUrl,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+    };
+  } finally {
+    await stagehand.context.close();
+  }
 };
 
 const extractPartners = async () => {
@@ -529,7 +576,6 @@ const extractPartners = async () => {
   await stagehand.init({ modelName: "gpt-4o" });
 
   await stagehand.page.goto("https://ramp.com");
-  await stagehand.waitForSettledDom();
 
   await stagehand.act({
     action: "Close the popup.",
@@ -543,9 +589,6 @@ const extractPartners = async () => {
     action:
       "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
   });
-
-  await stagehand.waitForSettledDom();
-  await stagehand.page.waitForTimeout(2000);
 
   const partners = await stagehand.extract({
     instruction: `
@@ -569,24 +612,25 @@ const extractPartners = async () => {
         .optional()
         .describe("Any explanation about partner listing or absence thereof"),
     }),
-    modelName: "gpt-4o",
   });
 
   const expectedPartners = [
-    "accounting firms",
-    "private equity and venture capital",
-    "services providers",
-    "affiliates"
+    "Accounting Partners",
+    "Private Equity & Venture Capital Partners",
+    "Services Partners",
+    "Affiliates",
   ];
 
   if (partners.explanation) {
     console.log("Explanation:", partners.explanation);
   }
 
-  const foundPartners = partners.partners.map(partner => partner.name.toLowerCase());
+  const foundPartners = partners.partners.map((partner) =>
+    partner.name.toLowerCase(),
+  );
 
-  const allExpectedPartnersFound = expectedPartners.every(partner => 
-    foundPartners.includes(partner)
+  const allExpectedPartnersFound = expectedPartners.every((partner) =>
+    foundPartners.includes(partner.toLowerCase()),
   );
   await stagehand.context.close();
 
@@ -610,51 +654,50 @@ const LarocheForm = async () => {
 
   try {
     await stagehand.page.goto(
-      "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html"
+      "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html",
     );
 
     await stagehand.act({ action: "close the privacy policy popup" });
 
     // Wait for possible navigation
-    await stagehand.page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
+    await stagehand.page
+      .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 10000 })
+      .catch(() => {});
 
     await stagehand.act({ action: "fill the last name field" });
     await stagehand.act({ action: "fill address 1 field" });
     await stagehand.act({ action: "select a state" });
     await stagehand.act({ action: "select a skin type" });
 
+    // TODO - finish this eval once we have a way to extract form data from children iframes
 
-  // TODO - finish this eval once we have a way to extract form data from children iframes
+    // const formData = await stagehand.extract({
+    //   instruction: "Extract the filled form data",
+    //   schema: z.object({
+    //     firstName: z.string(),
+    //     lastName: z.string(),
+    //     email: z.string(),
+    //     phone: z.string(),
+    //     zipCode: z.string(),
+    //     interestedIn: z.string(),
+    //     startTerm: z.string(),
+    //     programOfInterest: z.string(),
+    //   }),
+    //   modelName: "gpt-4o",
+    // });
 
-  // const formData = await stagehand.extract({
-  //   instruction: "Extract the filled form data",
-  //   schema: z.object({
-  //     firstName: z.string(),
-  //     lastName: z.string(),
-  //     email: z.string(),
-  //     phone: z.string(),
-  //     zipCode: z.string(),
-  //     interestedIn: z.string(),
-  //     startTerm: z.string(),
-  //     programOfInterest: z.string(),
-  //   }),
-  //   modelName: "gpt-4o",
-  // });
+    // console.log("Extracted form data:", formData);
 
-  // console.log("Extracted form data:", formData);
-
-  // const isFormDataValid = 
-  //   formData.firstName === "John" &&
-  //   formData.lastName === "Doe" &&
-  //   formData.email === "john.doe@example.com" &&
-  //   formData.phone === "1234567890" &&
-  //   formData.zipCode === "12345" &&
-
-
+    // const isFormDataValid =
+    //   formData.firstName === "John" &&
+    //   formData.lastName === "Doe" &&
+    //   formData.email === "john.doe@example.com" &&
+    //   formData.phone === "1234567890" &&
+    //   formData.zipCode === "12345" &&
   } catch (error) {
     console.error(`Error in LarocheForm function: ${error.message}`);
     return { _success: false, error: error.message };
-} finally {
+  } finally {
     await stagehand.context.close();
   }
 
@@ -686,23 +729,25 @@ const arxiv = async () => {
 
   try {
     await stagehand.page.goto("https://arxiv.org/search/");
-    await stagehand.waitForSettledDom();
 
     await stagehand.act({
       action:
         "search for the recent papers about web agents with multimodal models",
     });
-    await stagehand.waitForSettledDom();
 
     const paper_links = await stagehand.extract({
-        instruction: "extract the titles and links for two papers",
-        schema: z.object({
-          papers: z.array(z.object({
-            title: z.string().describe("the title of the paper"),
-            link: z.string().describe("the link to the paper").nullable(),
-          })).describe("list of papers"),
-        }),
-        modelName: "gpt-4o-2024-08-06",
+      instruction: "extract the titles and links for two papers",
+      schema: z.object({
+        papers: z
+          .array(
+            z.object({
+              title: z.string().describe("the title of the paper"),
+              link: z.string().describe("the link to the paper").nullable(),
+            }),
+          )
+          .describe("list of papers"),
+      }),
+      modelName: "gpt-4o-2024-08-06",
     });
 
     if (
@@ -714,32 +759,57 @@ const arxiv = async () => {
     }
 
     for (const paper of paper_links.papers) {
-        if (paper.link) {
-          await stagehand.page.goto(paper.link);
-          const abstract = await stagehand.extract({
-            instruction: "extract details of the paper from the abstract",
-            schema: z.object({
-              category: z.string().describe("the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Framework', 'System', 'Other'}"),
-              problem: z.string().describe("summarize the problem that the paper is trying to solve in one sentence").nullable(),
-              methodology: z.string().describe("summarize the methodology of the paper in one sentence").nullable(),
-              results: z.string().describe("summarize the results of the paper in one sentence").nullable(),
-              conclusion: z.string().describe("summarize the conclusion of the paper in one sentence").nullable(),
-              code: z.string().describe("if provided, extract only the link to the code repository, without additional text. this is often optional and not always provided.").nullable(),
-            }),
-            modelName: "gpt-4o-2024-08-06"
-          });
-    
-          papers.push({
-            title: paper.title,
-            link: paper.link,
-            category: abstract.category,
-            problem: abstract.problem,
-            methodology: abstract.methodology,
-            results: abstract.results,
-            conclusion: abstract.conclusion,
-            code: abstract.code,
-          });
-        }
+      if (paper.link) {
+        await stagehand.page.goto(paper.link);
+        const abstract = await stagehand.extract({
+          instruction: "extract details of the paper from the abstract",
+          schema: z.object({
+            category: z
+              .string()
+              .describe(
+                "the category of the paper. one of {'Benchmark', 'Dataset', 'Model', 'Framework', 'System', 'Other'}",
+              ),
+            problem: z
+              .string()
+              .describe(
+                "summarize the problem that the paper is trying to solve in one sentence",
+              )
+              .nullable(),
+            methodology: z
+              .string()
+              .describe(
+                "summarize the methodology of the paper in one sentence",
+              )
+              .nullable(),
+            results: z
+              .string()
+              .describe("summarize the results of the paper in one sentence")
+              .nullable(),
+            conclusion: z
+              .string()
+              .describe("summarize the conclusion of the paper in one sentence")
+              .nullable(),
+            code: z
+              .string()
+              .describe(
+                "if provided, extract only the link to the code repository, without additional text. this is often optional and not always provided.",
+              )
+              .nullable(),
+          }),
+          modelName: "gpt-4o-2024-08-06",
+        });
+
+        papers.push({
+          title: paper.title,
+          link: paper.link,
+          category: abstract.category,
+          problem: abstract.problem,
+          methodology: abstract.methodology,
+          results: abstract.results,
+          conclusion: abstract.conclusion,
+          code: abstract.code,
+        });
+      }
     }
 
     if (!papers || papers.length === 0) {
@@ -757,7 +827,9 @@ const arxiv = async () => {
     // Ensure that every paper has a problem and methodology
     for (const paper of papers) {
       if (!paper.problem || !paper.methodology) {
-        console.error(`Paper "${paper.title}" is missing problem or methodology`);
+        console.error(
+          `Paper "${paper.title}" is missing problem or methodology`,
+        );
         return { _success: false, error: "Incomplete paper information" };
       }
     }
@@ -769,66 +841,6 @@ const arxiv = async () => {
   } finally {
     await stagehand.context.close();
   }
-};
-
-const expedia = async () => {
-  const stagehand = new Stagehand({
-    // env: "BROWSERBASE",
-    env: "LOCAL",
-    headless: false,
-    debugDom: true,
-  });
-
-  await stagehand.init();
-
-  await stagehand.page.goto("https://www.expedia.com");
-  await stagehand.waitForSettledDom();
-
-  await stagehand.act({
-    action:
-      "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2024 (up to one to two weeks)",
-    useVision: true,
-    modelName: "claude-3-5-sonnet-20240620",
-  });
-
-  await stagehand.context.close();
-  console.log("Found flights");
-
-  // Wait for the page to settle after flight search
-  await stagehand.waitForSettledDom();
-
-  // Get the current URL
-  const finalUrl = await stagehand.page.url();
-  console.log("Final URL:", finalUrl);
-
-  // Check if the URL matches the expected format
-  const isUrlValid = (url: string) => {
-    const urlObj = new URL(url);
-    const searchParams = urlObj.searchParams;
-
-    // Check for correct airports
-    const hasCorrectAirports =
-      url.includes("SFO-San%20Francisco") &&
-      url.includes("YYZ-Pearson") &&
-      url.includes("Toronto,%20ON,%20Canada") &&
-      url.includes("San%20Francisco,%20CA,%20United%20States");
-
-    // Check for correct dates
-    const fromDate = searchParams.get("fromDate");
-    const toDate = searchParams.get("toDate");
-    const isFromDateValid = fromDate === "1/1/2025";
-    const isToDateValid =
-      toDate &&
-      new Date(toDate) >= new Date("2025-01-06") &&
-      new Date(toDate) <= new Date("2025-01-15");
-
-    return hasCorrectAirports && isFromDateValid && isToDateValid;
-  };
-
-  const urlValid = isUrlValid(finalUrl);
-  console.log("URL is valid:", urlValid);
-
-  return { _success: urlValid, finalUrl };
 };
 
 const tasks = {
@@ -899,6 +911,7 @@ const testcases = [
   { input: { name: "extractPartners" } },
   { input: { name: "LarocheForm" } },
   { input: { name: "arxiv" } },
+  { input: { name: "expedia" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,

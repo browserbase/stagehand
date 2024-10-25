@@ -1,9 +1,14 @@
-import { type Page, type BrowserContext, chromium } from "@playwright/test";
+import {
+  type Page,
+  type BrowserContext,
+  chromium,
+  Frame,
+} from "@playwright/test";
 import { expect } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
-import { act as actLLM, ask, extract, observe } from "./inference";
+import { act, ask, extract, observe, verifyActCompletion } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
@@ -18,36 +23,38 @@ async function getBrowser(
 ) {
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
     console.error(
-      "BROWSERBASE_API_KEY is required to use browserbase env. Defaulting to local.",
+      "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
     );
     env = "LOCAL";
   }
 
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_PROJECT_ID) {
     console.error(
-      "BROWSERBASE_PROJECT_ID is required to use browserbase env. Defaulting to local.",
+      "BROWSERBASE_PROJECT_ID is required to use BROWSERBASE env. Defaulting to LOCAL.",
     );
     env = "LOCAL";
   }
 
+  let debugUrl: string | undefined = undefined;
   if (env === "BROWSERBASE") {
-    console.log("Connecting you to broswerbase...");
+    console.log("Connecting you to Browserbase...");
     const browserbase = new Browserbase();
     const { sessionId } = await browserbase.createSession();
     const browser = await chromium.connectOverCDP(
       `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`,
     );
 
-    const debugUrl = await browserbase.retrieveDebugConnectionURL(sessionId);
+    debugUrl = await browserbase.retrieveDebugConnectionURL(sessionId);
     console.log(
       `Browserbase session started, live debug accessible here: ${debugUrl}.`,
     );
 
     const context = browser.contexts()[0];
-    return { browser, context };
+    // Include debugUrl in the returned object
+    return { browser, context, debugUrl };
   } else {
     if (!process.env.BROWSERBASE_API_KEY) {
-      console.log("No browserbase key detected");
+      console.log("No Browserbase key detected");
       console.log("Starting a local browser...");
     }
 
@@ -88,8 +95,8 @@ async function getBrowser(
           "--enable-webgl",
           "--use-gl=swiftshader",
           "--enable-accelerated-2d-canvas",
+          "--disable-blink-features=AutomationControlled",
         ],
-        excludeSwitches: "enable-automation",
         userDataDir: "./user_data",
       },
     );
@@ -98,7 +105,11 @@ async function getBrowser(
 
     await applyStealthScripts(context);
 
-    return { context };
+    if (debugUrl) {
+      return { context, debugUrl };
+    } else {
+      return { context };
+    }
   }
 }
 
@@ -213,10 +224,19 @@ export class Stagehand {
   }
 
   async init({ modelName = "gpt-4o" }: { modelName?: string } = {}) {
-    const { context } = await getBrowser(this.env, this.headless);
+    const { context, debugUrl } = await getBrowser(this.env, this.headless);
     this.context = context;
     this.page = context.pages()[0];
     this.defaultModelName = modelName;
+
+    // Overload the page.goto method
+    const originalGoto = this.page.goto.bind(this.page);
+    this.page.goto = async (url: string, options?: any) => {
+      const result = await originalGoto(url, options);
+      await this.page.waitForLoadState("domcontentloaded");
+      await this.waitForSettledDom();
+      return result;
+    };
 
     // Set the browser to headless mode if specified
     if (this.headless) {
@@ -236,6 +256,8 @@ export class Stagehand {
     await this.page.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
     });
+
+    return { debugUrl };
   }
 
   async waitForSettledDom() {
@@ -288,7 +310,7 @@ export class Stagehand {
     return crypto.createHash("sha256").update(operation).digest("hex");
   }
 
-  async extract<T extends z.AnyZodObject>({
+  private async _extract<T extends z.AnyZodObject>({
     instruction,
     schema,
     progress = "",
@@ -332,6 +354,7 @@ export class Stagehand {
       chunksSeen: chunksSeen.length,
       chunksTotal: chunks.length,
     });
+
     const {
       metadata: { progress: newProgress, completed },
       ...output
@@ -361,7 +384,7 @@ export class Stagehand {
         level: 1,
       });
       await this.waitForSettledDom();
-      return this.extract({
+      return this._extract({
         instruction,
         schema,
         progress: newProgress,
@@ -370,6 +393,22 @@ export class Stagehand {
         modelName,
       });
     }
+  }
+
+  async extract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+    modelName,
+  }: {
+    instruction: string;
+    schema: T;
+    modelName?: string;
+  }): Promise<z.infer<T>> {
+    return this._extract({
+      instruction,
+      schema,
+      modelName,
+    });
   }
 
   async observe(
@@ -431,7 +470,10 @@ export class Stagehand {
 
     return observationId;
   }
+
   async ask(question: string, modelName?: string): Promise<string | null> {
+    await this.waitForSettledDom();
+
     return ask({
       question,
       llmProvider: this.llmProvider,
@@ -458,7 +500,7 @@ export class Stagehand {
     return id;
   }
 
-  async act({
+  private async _act({
     action,
     steps = "",
     frameIndex = 0,
@@ -466,7 +508,9 @@ export class Stagehand {
     chunksSeenPerFrame = {},
     visionAttemptedPerFrame = {},
     modelName,
-    useVision = "fallback",
+    useVision,
+    verifierUseVision,
+    retries = 0,
   }: {
     action: string;
     steps?: string;
@@ -475,22 +519,27 @@ export class Stagehand {
     chunksSeenPerFrame?: { [frameId: number]: number[] };
     visionAttemptedPerFrame?: { [frameId: number]: boolean };
     modelName?: string;
-    useVision?: boolean | "fallback";
+    useVision: boolean | "fallback";
+    verifierUseVision: boolean;
+    retries?: number;
   }): Promise<{ success: boolean; message: string; action: string }> {
-    useVision = useVision ?? "fallback";
     const model = modelName ?? this.defaultModelName;
 
-    if (!modelsWithVision.includes(model) && useVision !== false) {
+    if (
+      !modelsWithVision.includes(model) &&
+      (useVision !== false || verifierUseVision)
+    ) {
       console.warn(
         `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
       );
       useVision = false;
+      verifierUseVision = false;
     }
 
     this.log({
       category: "action",
       message: `Starting action: ${action}`,
-      level: 1,
+      level: 2,
     });
 
     await this.waitForSettledDom();
@@ -502,12 +551,12 @@ export class Stagehand {
       frames = [mainFrame];
 
       if (this.iframeSupport) {
-        const iframeElements = await this.page.$$('iframe');
+        const iframeElements = await this.page.$$("iframe");
 
         for (const iframeElement of iframeElements) {
-          const src = await iframeElement.getAttribute('src');
+          const src = await iframeElement.getAttribute("src");
           const isVisible = await iframeElement.isVisible();
-          if (src && src.trim() !== '' && isVisible) {
+          if (src && src.trim() !== "" && isVisible) {
             const frame = await iframeElement.contentFrame();
             if (frame) {
               frames.push(frame);
@@ -531,7 +580,7 @@ export class Stagehand {
         message: `Action not found in any frame`,
         level: 1,
       });
-      await this.recordAction(action, '');
+      await this.recordAction(action, "");
       return {
         success: false,
         message: `Action not found in any frame`,
@@ -545,13 +594,14 @@ export class Stagehand {
 
     await this.startDomDebug();
 
-    const { outputString, selectorMap, chunk, chunks } = await currentFrame.evaluate(
-      ({ chunksSeen }) => {
-        // @ts-ignore
-        return window.processDom(chunksSeen);
-      },
-      { chunksSeen }
-    );
+    const { outputString, selectorMap, chunk, chunks } =
+      await currentFrame.evaluate(
+        ({ chunksSeen }: { chunksSeen: number[] }) => {
+          // @ts-ignore
+          return window.processDom(chunksSeen);
+        },
+        { chunksSeen },
+      );
 
     this.log({
       category: "action",
@@ -577,11 +627,12 @@ export class Stagehand {
           this.verbose,
         );
 
-        annotatedScreenshot = await screenshotService.getAnnotatedScreenshot();
+        annotatedScreenshot =
+          await screenshotService.getAnnotatedScreenshot(false);
       }
     }
 
-    const response = await actLLM({
+    const response = await act({
       action,
       domElements: outputString,
       steps,
@@ -606,13 +657,10 @@ export class Stagehand {
         // Recursively process the next chunk in the same frame
         this.log({
           category: "action",
-          message: `No action found in current chunk. Chunks seen: ${
-            chunksSeen.length
-          }. Moving to next chunk in frame ${frameIndex}`,
+          message: `No action found in current chunk. Chunks seen: ${chunksSeen.length}. Moving to next chunk in frame ${frameIndex}`,
           level: 1,
         });
-        await this.waitForSettledDom();
-        return await this.act({
+        return this._act({
           action,
           steps:
             steps +
@@ -624,9 +672,17 @@ export class Stagehand {
           visionAttemptedPerFrame,
           modelName,
           useVision,
+          verifierUseVision,
         });
-      } else if (useVision === "fallback" && !visionAttemptedPerFrame[frameId]) {
+      } else if (
+        useVision === "fallback" &&
+        !visionAttemptedPerFrame[frameId]
+      ) {
         // Switch to vision-based processing in the same frame
+        if (frameIndex === 0) {
+          await this.page.evaluate(() => window.scrollToHeight(0));
+        }
+
         this.log({
           category: "action",
           message: `Switching to vision-based processing in frame ${frameIndex}`,
@@ -635,7 +691,8 @@ export class Stagehand {
         visionAttemptedPerFrame[frameId] = true;
         // **Reset chunksSeen for the frame where vision is attempted**
         chunksSeenPerFrame[frameId] = [];
-        return await this.act({
+        await this.page.evaluate(() => window.scrollToHeight(0));
+        return await this._act({
           action,
           steps,
           frameIndex,
@@ -644,6 +701,7 @@ export class Stagehand {
           visionAttemptedPerFrame,
           modelName,
           useVision: true,
+          verifierUseVision,
         });
       } else {
         // Move to the next frame
@@ -652,8 +710,7 @@ export class Stagehand {
           message: `No action found in frame ${frameIndex}. Moving to next frame.`,
           level: 1,
         });
-        await this.waitForSettledDom();
-        return await this.act({
+        return await this._act({
           action,
           steps,
           frameIndex: frameIndex + 1,
@@ -661,7 +718,8 @@ export class Stagehand {
           chunksSeenPerFrame,
           visionAttemptedPerFrame,
           modelName,
-          useVision: "fallback",
+          useVision,
+          verifierUseVision,
         });
       }
     }
@@ -682,24 +740,35 @@ export class Stagehand {
     this.log({
       category: "action",
       message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(
-        args
+        args,
       )}`,
       level: 1,
     });
 
-    const locator = currentFrame.locator(`xpath=${xpath}`).first();
+    let urlChangeString = "";
+
+    const locator = this.page.locator(`xpath=${xpath}`).first();
     try {
+      const initialUrl = this.page.url();
       if (method === "scrollIntoView") {
         this.log({
           category: "action",
           message: `Scrolling element into view`,
           level: 2,
         });
-        await locator.evaluate((element) => {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-        });
+        await locator
+          .evaluate((element) => {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          })
+          .catch(() => {
+            this.log({
+              category: "action",
+              message: `Error scrolling element into view`,
+              level: 1,
+            });
+          });
       } else if (method === "fill" || method === "type") {
-        // Simulate typing like a human
+        await locator.fill("");
         await locator.click();
         const text = args[0];
         for (const char of text) {
@@ -707,13 +776,24 @@ export class Stagehand {
             delay: Math.random() * 50 + 25,
           });
         }
-      } else if (typeof locator[method as keyof typeof locator] === "function") {
-        const isLink = await locator.evaluate((element) => {
-          return (
-            element.tagName.toLowerCase() === "a" &&
-            element.hasAttribute("href")
-          );
-        });
+      } else if (
+        typeof locator[method as keyof typeof locator] === "function"
+      ) {
+        const isLink = await locator
+          .evaluate((element) => {
+            return (
+              element.tagName.toLowerCase() === "a" &&
+              element.hasAttribute("href")
+            );
+          })
+          .catch(() => {
+            this.log({
+              category: "action",
+              message: `Error checking if element is a link`,
+              level: 1,
+            });
+            return false;
+          });
 
         this.log({
           category: "action",
@@ -731,6 +811,11 @@ export class Stagehand {
         // Perform the action
         // @ts-ignore
         await locator[method](...args);
+
+        const finalUrl = this.page.url();
+        if (finalUrl !== initialUrl) {
+          urlChangeString = `Page url changed to ${finalUrl} after this step`;
+        }
 
         // Log current URL after action
         this.log({
@@ -770,33 +855,131 @@ export class Stagehand {
               message: `No new page opened after clicking link`,
               level: 1,
             });
+            const newPagePromise = Promise.race([
+              new Promise<Page | null>((resolve) => {
+                this.context.once("page", (page) => resolve(page));
+                setTimeout(() => resolve(null), 1500); // 1500ms timeout
+              }),
+            ]);
+            const newPage = await newPagePromise;
+            if (newPage) {
+              const newUrl = await newPage.url();
+              this.log({
+                category: "action",
+                message: `New page detected with URL: ${newUrl}`,
+                level: 1,
+              });
+              await newPage.close();
+              await this.page.goto(newUrl);
+            } else {
+              this.log({
+                category: "action",
+                message: `Clicking element, waiting for network to be idle`,
+                level: 1,
+              });
+
+              // In case the click causes a navigation, wait for the network to be idle
+              await this.page
+                .waitForLoadState("networkidle", {
+                  timeout: 5_000,
+                })
+                .catch(() => {
+                  this.log({
+                    category: "action",
+                    message: `Network idle timeout`,
+                    level: 1,
+                  });
+                });
+            }
           }
+
+          this.log({
+            category: "action",
+            message: `Navigation detected to URL: ${this.page.url()}`,
+            level: 1,
+          });
         }
       } else {
-        throw new Error(`Chosen method ${method} is invalid`);
+        this.log({
+          category: "action",
+          message: `Internal error: Chosen method ${method} is invalid`,
+          level: 1,
+        });
+        if (retries < 2) {
+          return this._act({
+            action,
+            steps,
+            modelName: model,
+            useVision,
+            verifierUseVision,
+            retries: retries + 1,
+          });
+        } else {
+          return {
+            success: false,
+            message: `Internal error: Chosen method ${method} is invalid`,
+            action: action,
+          };
+        }
       }
 
-      if (!response["completed"]) {
+      let newSteps =
+        steps +
+        (!steps.endsWith("\n") ? "\n" : "") +
+        `## Step: ${response.step}\n` +
+        `  Element: ${elementText}\n` +
+        `  Action: ${response.method}\n` +
+        `  Reasoning: ${response.why}\n`;
+
+      if (urlChangeString) {
+        newSteps += `  Result (Important): ${urlChangeString}\n\n`;
+      }
+
+      let domElements: string | undefined = undefined;
+      let fullpageScreenshot: Buffer | undefined = undefined;
+
+      const frame = this.page.mainFrame() ?? this.page.frames()[0];
+      const screenshotService = new ScreenshotService(
+        frame,
+        selectorMap,
+        this.verbose,
+      );
+
+      if (verifierUseVision) {
+        fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
+      } else {
+        ({ outputString: domElements } = await this.page.evaluate(() => {
+          return window.processAllOfDom();
+        }));
+      }
+
+      const actionComplete = response.completed
+        ? await verifyActCompletion({
+            goal: action,
+            steps: newSteps,
+            llmProvider: this.llmProvider,
+            modelName: model,
+            screenshot: fullpageScreenshot,
+            domElements: domElements,
+          })
+        : false;
+
+      if (!actionComplete) {
         this.log({
           category: "action",
           message: `Continuing to next action step`,
           level: 1,
         });
-        await this.waitForSettledDom();
-        return await this.act({
+        return this._act({
           action,
-          steps:
-            steps +
-            (!steps.endsWith("\n") ? "\n" : "") +
-            `## Step: ${response.step}\n` +
-            `  Element: ${elementText}\n` +
-            `  Action: ${response.method}\n\n`,
+          steps: newSteps,
+          modelName,
           frameIndex,
           frames,
           chunksSeenPerFrame,
           visionAttemptedPerFrame,
-          modelName,
           useVision,
+          verifierUseVision,
         });
       } else {
         this.log({
@@ -812,12 +995,13 @@ export class Stagehand {
         };
       }
     } catch (error) {
+      console.trace(error);
       this.log({
         category: "action",
         message: `Error performing action: ${error.message}`,
         level: 1,
       });
-      await this.recordAction(action, '');
+      await this.recordAction(action, "");
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
@@ -825,9 +1009,34 @@ export class Stagehand {
       };
     }
   }
+
+  async act({
+    action,
+    modelName,
+    useVision = "fallback",
+  }: {
+    action: string;
+    modelName?: string;
+    useVision?: "fallback" | boolean;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    action: string;
+  }> {
+    useVision = useVision ?? "fallback";
+
+    return this._act({
+      action,
+      modelName,
+      useVision,
+      verifierUseVision: useVision !== false,
+    });
+  }
+
   setPage(page: Page) {
     this.page = page;
   }
+
   setContext(context: BrowserContext) {
     this.context = context;
   }
