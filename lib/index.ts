@@ -10,7 +10,7 @@ import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe, verifyActCompletion } from "./inference";
 import { LLMProvider } from "./llm/LLMProvider";
-const merge = require("deepmerge");
+import merge from "deepmerge";
 import path from "path";
 import Browserbase from "./browserbase";
 import { ScreenshotService } from "./vision";

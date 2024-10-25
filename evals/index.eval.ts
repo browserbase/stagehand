@@ -567,7 +567,6 @@ const extractPartners = async () => {
   await stagehand.init({ modelName: "gpt-4o" });
 
   await stagehand.page.goto("https://ramp.com");
-  await stagehand.waitForSettledDom();
 
   await stagehand.act({
     action: "Close the popup.",
@@ -581,9 +580,6 @@ const extractPartners = async () => {
     action:
       "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
   });
-
-  await stagehand.waitForSettledDom();
-  await stagehand.page.waitForTimeout(2000);
 
   const partners = await stagehand.extract({
     instruction: `
@@ -607,14 +603,13 @@ const extractPartners = async () => {
         .optional()
         .describe("Any explanation about partner listing or absence thereof"),
     }),
-    modelName: "gpt-4o",
   });
 
   const expectedPartners = [
-    "accounting firms",
-    "private equity and venture capital",
-    "services providers",
-    "affiliates",
+    "Accounting Partners",
+    "Private Equity & Venture Capital Partners",
+    "Services Partners",
+    "Affiliates",
   ];
 
   if (partners.explanation) {
@@ -626,7 +621,7 @@ const extractPartners = async () => {
   );
 
   const allExpectedPartnersFound = expectedPartners.every((partner) =>
-    foundPartners.includes(partner),
+    foundPartners.includes(partner.toLowerCase()),
   );
   await stagehand.context.close();
 
