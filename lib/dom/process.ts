@@ -298,9 +298,9 @@ export const isVisible = (element: Element) => {
   ) {
     return false;
   }
-  if (!isTopElement(element, rect)) {
-    return false;
-  }
+  // if (!isTopElement(element, rect)) {
+  //   return false;
+  // }
 
   const isVisible = element.checkVisibility({
     checkOpacity: true,
