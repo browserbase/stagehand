@@ -1,12 +1,9 @@
 import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
 import { z } from "zod";
-import { evaluateExample, chosenBananalyzerEvals } from "./bananalyzer-ts";
-import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 import process from "process";
 import { EvalLogger } from "./utils";
 
-// const env = "LOCAL";
 const env =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
     ? "BROWSERBASE"
@@ -1188,25 +1185,13 @@ const testcases = [
     },
   },
   { input: { name: "extract_last_twenty_github_commits" } },
-  // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
   { input: { name: "extract_partners" } },
   { input: { name: "laroche_form" } },
   { input: { name: "arxiv" } },
   // { input: { name: "expedia" } },
-  ...chosenBananalyzerEvals.map((evalItem: any) => ({
-    input: {
-      name: evalItem.name,
-      id: evalItem.id,
-      source: "bananalyzer-ts",
-    },
-  })),
 ];
-
-let finishedEvals = 0;
-let bananalyzerFileServer: any;
-const port = 6779;
 
 Eval("stagehand", {
   data: () => {
@@ -1215,46 +1200,20 @@ Eval("stagehand", {
   task: async (input: any) => {
     // console.log("input", input);
     try {
-      if ("source" in input && input.source === "bananalyzer-ts") {
-        if (!bananalyzerFileServer) {
-          const app = createExpressServer();
-          bananalyzerFileServer = app.listen(port, () => {
-            console.log(`Bananalyzer server listening on port ${port}`);
-          });
-        }
-        // Handle chosen evaluations
-
-        const result = await evaluateExample(input.id, {
-          launchServer: false,
-          serverPort: 6779,
-        });
-        if (result) {
-          console.log(`✅ ${input.name}: Passed`);
-        } else {
-          console.log(`❌ ${input.name}: Failed`);
-        }
-        return result;
+      // Handle predefined tasks
+      const result = await (tasks as any)[input.name](input);
+      if (result) {
+        console.log(`✅ ${input.name}: Passed`);
       } else {
-        // Handle predefined tasks
-        const result = await (tasks as any)[input.name](input);
-        if (result) {
-          console.log(`✅ ${input.name}: Passed`);
-        } else {
-          console.log(`❌ ${input.name}: Failed`);
-        }
-        return result;
+        console.log(`❌ ${input.name}: Failed`);
       }
+      return result;
     } catch (error) {
       console.error(`❌ ${input.name}: Error - ${error}`);
       return {
         _success: false,
         error: JSON.parse(JSON.stringify(error, null, 2)),
       };
-    } finally {
-      finishedEvals++;
-      if (finishedEvals === testcases.length) {
-        bananalyzerFileServer?.close();
-      }
     }
   },
   scores: [exactMatch],

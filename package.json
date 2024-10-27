@@ -5,7 +5,7 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "scripts": {
-    "example": "pnpm build-dom-scripts && tsx examples/index.ts",
+    "example": "pnpm build-dom-scripts && tsx examples/wordle.ts",
     "debug-url": "pnpm build-dom-scripts && tsx examples/debugUrl.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
