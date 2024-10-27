@@ -15,7 +15,7 @@ export async function processDom(chunksSeen: Array<number>) {
 }
 
 export async function processAllOfDom() {
-  console.log("[BROWSERBASE] Processing all of DOM");
+  console.log("Stagehand (Browser Process): Processing all of DOM");
 
   const viewportHeight = window.innerHeight;
   const documentHeight = document.documentElement.scrollHeight;
@@ -37,7 +37,10 @@ export async function processAllOfDom() {
     {},
   );
 
-  console.log("[BROWSERBASE] Processed all elements");
+  console.log(
+    `Stagehand (Browser Process): All dom elements: ${allOutputString}`,
+  );
+
   return {
     outputString: allOutputString,
     selectorMap: allSelectorMap,
