@@ -13,7 +13,6 @@
     "playground": "pnpm build-dom-scripts && tsx evals/playground.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "build": "pnpm build-dom-scripts && tsup lib/index.ts",
-    "eval:banalyzer:playground": "pnpm build-dom-scripts && npx tsx evals/bananalyzer-ts/playground.ts",
     "bundle-dom-scripts": "esbuild ./lib/dom/index.ts --bundle --outfile=./lib/dom/bundle.js --platform=browser --target=es2015 --minify"
   },
   "files": [
