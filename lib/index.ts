@@ -813,7 +813,7 @@ export class Stagehand {
         } catch (e) {
           this.log({
             category: "action",
-            message: `Error performing action: ${e.message}\nTrace: ${e.stack}`,
+            message: `Error scrolling element into view (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
             level: 1,
           });
 
@@ -842,7 +842,7 @@ export class Stagehand {
         } catch (e) {
           this.log({
             category: "action",
-            message: `Error performing action: ${e.message}\nTrace: ${e.stack}`,
+            message: `Error filling element (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
             level: 1,
           });
 
@@ -875,7 +875,7 @@ export class Stagehand {
         } catch (e) {
           this.log({
             category: "action",
-            message: `Error performing action: ${e.message}\nTrace: ${e.stack}`,
+            message: `Error performing method ${method} (Retries: ${retries}): ${e.message}\nTrace: ${e.stack}`,
             level: 1,
           });
 
@@ -1081,9 +1081,21 @@ export class Stagehand {
     } catch (error) {
       this.log({
         category: "action",
-        message: `Error performing action: ${error.message}\nTrace: ${error.stack}`,
+        message: `Error performing action (Retries: ${retries}): ${error.message}\nTrace: ${error.stack}`,
         level: 1,
       });
+      if (retries < 2) {
+        return this._act({
+          action,
+          steps,
+          modelName,
+          useVision,
+          verifierUseVision,
+          retries: retries + 1,
+          chunksSeen,
+        });
+      }
+
       await this.recordAction(action, "");
       return {
         success: false,
