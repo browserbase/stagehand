@@ -6,11 +6,11 @@ import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 import process from "process";
 import { EvalLogger } from "./utils";
 
-const env = "LOCAL";
-// const env =
-//   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-//     ? "BROWSERBASE"
-//     : "LOCAL";
+// const env = "LOCAL";
+const env =
+  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+    ? "BROWSERBASE"
+    : "LOCAL";
 
 const expedia = async () => {
   const logger = new EvalLogger();
