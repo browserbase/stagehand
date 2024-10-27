@@ -190,8 +190,12 @@ const extractSystemPrompt = `You are extracting content on behalf of a user. You
 1. An instruction
 2. A list of DOM elements to extract from
 
-Return the exact text from the DOM elements with all symbols, characters, and endlines as is.
-Only extract new information that has not already been extracted. Return null or an empty string if no new information is found.`;
+Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
+Print null or an empty string if no new information is found.
+
+ONLY print the content using the print_extracted_data tool provided.
+ONLY print the content using the print_extracted_data tool provided.
+`;
 
 export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
   const content = extractSystemPrompt.replace(/\s+/g, " ");
@@ -208,8 +212,10 @@ export function buildExtractUserPrompt(
   return {
     role: "user",
     content: `Instruction: ${instruction}
-    DOM: ${domElements}
-    Extracted content:`,
+DOM: ${domElements}
+
+ONLY print the content using the print_extracted_data tool provided.
+ONLY print the content using the print_extracted_data tool provided.`,
   };
 }
 
