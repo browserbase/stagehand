@@ -9,10 +9,11 @@ export type AvailableModel =
   | "o1-mini"
   | "gpt-4o-2024-08-06"
   | "claude-3-5-sonnet-latest"
+  | "claude-3-5-sonnet-20241022"
   | "claude-3-5-sonnet-20240620";
 
 export class LLMProvider {
-  private supportedModels: { [key in AvailableModel]: string } = {
+  private modelToProviderMap: { [key in AvailableModel]: string } = {
     "gpt-4o": "openai",
     "gpt-4o-mini": "openai",
     "o1-preview": "openai",
@@ -20,6 +21,7 @@ export class LLMProvider {
     "gpt-4o-2024-08-06": "openai",
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
+    "claude-3-5-sonnet-20241022": "anthropic",
   };
 
   private logger: (message: { category?: string; message: string }) => void;
@@ -31,7 +33,7 @@ export class LLMProvider {
   }
 
   getClient(modelName: AvailableModel): LLMClient {
-    const provider = this.supportedModels[modelName];
+    const provider = this.modelToProviderMap[modelName];
     if (!provider) {
       throw new Error(`Unsupported model: ${modelName}`);
     }

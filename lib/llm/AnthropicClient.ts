@@ -23,7 +23,9 @@ export class AnthropicClient implements LLMClient {
     this.logger = logger;
   }
 
-  async createChatCompletion(options: ChatCompletionOptions) {
+  async createChatCompletion(
+    options: ChatCompletionOptions & { retries?: number },
+  ) {
     const systemMessage = options.messages.find((msg) => msg.role === "system");
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
@@ -77,8 +79,8 @@ export class AnthropicClient implements LLMClient {
         jsonSchema.definitions?.MySchema?.required || jsonSchema.required;
 
       toolDefinition = {
-        name: "extract_data",
-        description: "Extracts specific data based on the provided schema.",
+        name: "print_extracted_data",
+        description: "Prints the extracted data based on the provided schema.",
         input_schema: {
           type: "object",
           properties: schemaProperties,
@@ -152,6 +154,12 @@ export class AnthropicClient implements LLMClient {
       if (toolUse && "input" in toolUse) {
         return toolUse.input;
       } else {
+        if (!options.retries || options.retries < 2) {
+          return this.createChatCompletion({
+            ...options,
+            retries: (options.retries ?? 0) + 1,
+          });
+        }
         throw new Error(
           "Extraction failed: No tool use with input in response",
         );
