@@ -35,9 +35,6 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
-      - name: Initialize Banana Analyzer Evals
-        run: ./evals/bananalyzer-ts/init.sh
-
       - name: Run Evals
         run: pnpm evals
         timeout-minutes: 20

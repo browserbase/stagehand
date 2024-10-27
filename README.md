@@ -175,7 +175,7 @@ See the API Reference below for more detail on the `act()`, `observe()`, and `ex
 - `verbose`: a `integer` that enables several levels of logging during automation:
   - `0`: limited to no logging
   - `1`: SDK-level logging
-  - `2` LLM-client level logging (most granular) 
+  - `2` LLM-client level logging (most granular)
 - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
 
 ### Methods
@@ -224,7 +224,7 @@ The SDK has two major phases:
 Stagehand uses a combination of techniques to prepare the DOM.
 Stagehand only uses text input as of this version, but the release of `gpt-4o` incorporating vision is attractive.
 
-**[update before release*]*
+\*_[update before release_]\*
 
 The DOM Processing steps look as follows:
 
@@ -279,23 +279,9 @@ You'll also need a Braintrust key to run evals
 BRAINTRUST_API_KEY=""%
 ```
 
-and then run the init script to fetch the eval examples from the bananalyzer repo:
-
-`./evals/bananalyzer-ts/init.sh`
-
 After that, you can run the eval using:
 
 `pnpm evals`
-
-#### Adding more bananalyzer evals
-
-All bananalyzer evals are off by default. Follow these steps to turn one on.
-
-You can find all bananalyzer evals in `evals/bananalyzer-ts/static/examples.json`.
-
-To test out a specific eval use the playground in `evals/playground.ts` or by running `pnpm eval:banalyzer:playground`. You'll need to set the eval id first.
-
-After that, add the example to `chosenBananalyzerEvals` in `evals/bananalyzer-ts/index.ts` to add it to the global eval set.
 
 ### Develop new evals
 
