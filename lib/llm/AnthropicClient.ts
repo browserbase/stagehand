@@ -8,10 +8,18 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
-  public logger: (message: { category?: string; message: string }) => void;
+  public logger: (message: {
+    category?: string;
+    message: string;
+    level?: number;
+  }) => void;
 
   constructor(
-    logger: (message: { category?: string; message: string }) => void,
+    logger: (message: {
+      category?: string;
+      message: string;
+      level?: number;
+    }) => void,
   ) {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY, // Make sure to set this environment variable
@@ -23,11 +31,11 @@ export class AnthropicClient implements LLMClient {
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
     );
-    this.logger({
-      category: "Anthropic",
-      message:
-        "Creating chat completion with options: " + JSON.stringify(options),
-    });
+    // this.logger({
+    //   category: "Anthropic",
+    //   message: `Creating chat completion with options: ${JSON.stringify(options)}`,
+    //   level: 2,
+    // });
 
     if (options.image) {
       const screenshotMessage: any = {
@@ -162,7 +170,7 @@ export class AnthropicClient implements LLMClient {
   async createExtraction(options: ExtractionOptions) {
     this.logger({
       category: "Anthropic",
-      message: "Creating extraction with options: " + JSON.stringify(options),
+      message: `Extracting more data (Anthropic)`,
       level: 2,
     });
 
@@ -206,7 +214,7 @@ export class AnthropicClient implements LLMClient {
 
     this.logger({
       category: "Anthropic",
-      message: "Response from Anthropic: " + JSON.stringify(response),
+      message: `Response from Anthropic: ${JSON.stringify(response)}`,
       level: 2,
     });
 

@@ -8,22 +8,30 @@ import {
 
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
-  public logger: (message: { category?: string; message: string }) => void;
+  public logger: (message: {
+    category?: string;
+    message: string;
+    level?: number;
+  }) => void;
 
   constructor(
-    logger: (message: { category?: string; message: string }) => void,
+    logger: (message: {
+      category?: string;
+      message: string;
+      level?: number;
+    }) => void,
   ) {
     this.client = new OpenAI();
     this.logger = logger;
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
-    this.logger({
-      category: "OpenAI",
-      message:
-        "Creating chat completion with options: " + JSON.stringify(options),
-      level: 1,
-    });
+    // this.logger({
+    //   category: "OpenAI",
+    //   message:
+    //     "Creating chat completion with options: " + JSON.stringify(options),
+    //   level: 1,
+    // });
 
     if (options.image) {
       const screenshotMessage: any = {
@@ -59,19 +67,19 @@ export class OpenAIClient implements LLMClient {
       response_format: responseFormat,
     });
 
-    this.logger({
-      category: "OpenAI",
-      message: "Response from OpenAI: " + JSON.stringify(response),
-      level: 2,
-    });
+    // this.logger({
+    //   category: "OpenAI",
+    //   message: "Response from OpenAI: " + JSON.stringify(response),
+    //   level: 2,
+    // });
 
     if (response_model) {
       const extractedData = response.choices[0].message.content;
-      this.logger({
-        category: "OpenAI",
-        message: "Extracted data: " + JSON.stringify(extractedData),
-        level: 2,
-      });
+      // this.logger({
+      //   category: "OpenAI",
+      //   message: "Extracted data: " + JSON.stringify(extractedData),
+      //   level: 2,
+      // });
 
       const parsedData = JSON.parse(extractedData);
 
@@ -84,11 +92,11 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createExtraction(options: ExtractionOptions) {
-    this.logger({
-      category: "OpenAI",
-      message: "Creating extraction with options: " + JSON.stringify(options),
-      level: 1,
-    });
+    // this.logger({
+    //   category: "OpenAI",
+    //   message: "Creating extraction with options: " + JSON.stringify(options),
+    //   level: 1,
+    // });
     const responseFormat = zodResponseFormat(
       options.response_model.schema,
       options.response_model.name,
@@ -103,7 +111,7 @@ export class OpenAIClient implements LLMClient {
     const extractedData = completion.choices[0].message.content;
     this.logger({
       category: "OpenAI",
-      message: "Extracted data: " + JSON.stringify(extractedData),
+      message: `Extracted data: ${JSON.stringify(extractedData)}`,
       level: 2,
     });
 

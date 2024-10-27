@@ -152,7 +152,7 @@ export function createExpressServer(): Express {
   });
 
   process.on("exit", () => {
-    console.log("Process exiting. Cleaning up public directory...");
+    console.log("Server exiting. Cleaning up public directory...");
     cleanup();
   });
 

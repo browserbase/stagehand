@@ -1,10 +1,10 @@
 export async function processDom(chunksSeen: Array<number>) {
-  console.log("[BROWSERBASE] Processing DOM");
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  console.log("[BROWSERBASE] Picked chunk", chunk, chunksArray);
-  console.log("[BROWSERBASE] Processing elements");
   const { outputString, selectorMap } = await processElements(chunk);
-  console.log("[BROWSERBASE] Processed elements", outputString);
+
+  console.log(
+    `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
+  );
 
   return {
     outputString,
@@ -15,7 +15,7 @@ export async function processDom(chunksSeen: Array<number>) {
 }
 
 export async function processAllOfDom() {
-  console.log("[BROWSERBASE] Processing all of DOM");
+  console.log("Stagehand (Browser Process): Processing all of DOM");
 
   const viewportHeight = window.innerHeight;
   const documentHeight = document.documentElement.scrollHeight;
@@ -27,15 +27,20 @@ export async function processAllOfDom() {
 
   const results = await Promise.all(chunkPromises);
 
-  const allOutputString = results.map((result) => result.outputString).join("");
+  const concatenatedOutputString = results
+    .map((result) => result.outputString)
+    .join("");
   const allSelectorMap = results.reduce(
     (acc, result) => ({ ...acc, ...result.selectorMap }),
     {},
   );
 
-  console.log("[BROWSERBASE] Processed all elements");
+  console.log(
+    `Stagehand (Browser Process): All dom elements: ${concatenatedOutputString}`,
+  );
+
   return {
-    outputString: allOutputString,
+    outputString: concatenatedOutputString,
     selectorMap: allSelectorMap,
   };
 }
@@ -58,11 +63,11 @@ export async function scrollToHeight(height: number) {
     handleScrollEnd();
   });
 }
-
 export async function processElements(
   chunk: number,
   scrollToChunk: boolean = true,
 ) {
+  console.time("processElements:total");
   const viewportHeight = window.innerHeight;
   const chunkHeight = viewportHeight * chunk;
 
@@ -74,41 +79,65 @@ export async function processElements(
   const offsetTop = Math.min(chunkHeight, maxScrollTop);
 
   if (scrollToChunk) {
-  await scrollToHeight(offsetTop);
+    console.time("processElements:scroll");
+    await scrollToHeight(offsetTop);
+    console.timeEnd("processElements:scroll");
   }
 
   const candidateElements: Array<ChildNode> = [];
+  const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
   const xpathCache: Map<Node, string> = new Map();
 
-  const treeWalker = document.createTreeWalker(
-    document.body,
-    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
-    {
-      acceptNode: (node) => {
-        if (isElementNode(node)) {
-          return (isInteractiveElement(node) || isLeafElement(node)) &&
-            isActive(node) &&
-            isVisible(node)
-            ? NodeFilter.FILTER_ACCEPT
-            : NodeFilter.FILTER_SKIP;
-        } else if (isTextNode(node)) {
-          return isTextVisible(node)
-            ? NodeFilter.FILTER_ACCEPT
-            : NodeFilter.FILTER_SKIP;
-        }
-        return NodeFilter.FILTER_SKIP;
-      },
-    },
-  );
+  console.log("Stagehand (Browser Process): Generating candidate elements");
+  console.time("processElements:findCandidates");
 
-  let currentNode: Node | null = treeWalker.currentNode;
-  while ((currentNode = treeWalker.nextNode())) {
-    candidateElements.push(currentNode as ChildNode);
+  while (DOMQueue.length > 0) {
+    const element = DOMQueue.pop();
+
+    let shouldAddElement = false;
+
+    if (element && isElementNode(element)) {
+      const childrenCount = element.childNodes.length;
+
+      // Always traverse child nodes
+      for (let i = childrenCount - 1; i >= 0; i--) {
+        const child = element.childNodes[i];
+        DOMQueue.push(child as ChildNode);
+      }
+
+      // Check if element is interactive
+      if (isInteractiveElement(element)) {
+        if (isActive(element) && isVisible(element)) {
+          shouldAddElement = true;
+        }
+      }
+
+      if (isLeafElement(element)) {
+        if (isActive(element) && isVisible(element)) {
+          shouldAddElement = true;
+        }
+      }
     }
 
-  const selectorMap: Record<number, string> = {};
-  const outputArray: string[] = [];
+    if (element && isTextNode(element) && isTextVisible(element)) {
+      shouldAddElement = true;
+    }
 
+    if (shouldAddElement) {
+      candidateElements.push(element);
+    }
+  }
+
+  console.timeEnd("processElements:findCandidates");
+
+  const selectorMap: Record<number, string> = {};
+  let outputString = "";
+
+  console.log(
+    `Stagehand (Browser Process): Processing candidate elements: ${candidateElements.length}`,
+  );
+
+  console.time("processElements:processCandidates");
   candidateElements.forEach((element, index) => {
     let xpath = xpathCache.get(element);
     if (!xpath) {
@@ -119,7 +148,7 @@ export async function processElements(
     if (isTextNode(element)) {
       const textContent = element.textContent?.trim();
       if (textContent) {
-        outputArray.push(`${index}:${textContent}`);
+        outputString += `${index}:${textContent}\n`;
       }
     } else if (isElementNode(element)) {
       const tagName = element.tagName.toLowerCase();
@@ -129,14 +158,14 @@ export async function processElements(
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent?.trim() || "";
 
-      outputArray.push(`${index}:${openingTag}${textContent}${closingTag}`);
+      outputString += `${index}:${openingTag}${textContent}${closingTag}\n`;
     }
 
     selectorMap[index] = xpath;
   });
+  console.timeEnd("processElements:processCandidates");
 
-  const outputString = outputArray.join("\n");
-
+  console.timeEnd("processElements:total");
   return {
     outputString,
     selectorMap,
@@ -184,7 +213,7 @@ window.processAllOfDom = processAllOfDom;
 window.processElements = processElements;
 window.scrollToHeight = scrollToHeight;
 
-export function generateXPath(element: ChildNode): string {
+function generateXPath(element: ChildNode): string {
   if (isElementNode(element) && element.id) {
     return `//*[@id='${element.id}']`;
   }
@@ -269,30 +298,29 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ["menu", "menuitem", "button"];
 
-export function isElementNode(node: Node): node is Element {
+function isElementNode(node: Node): node is Element {
   return node.nodeType === Node.ELEMENT_NODE;
 }
 
-export function isTextNode(node: Node): node is Text {
-  // trim all white space and make sure the text node is non empty to consider it legit
+function isTextNode(node: Node): node is Text {
+  // Trim all white space and ensure the text node is non-empty
   const trimmedText = node.textContent?.trim().replace(/\s/g, "");
   return node.nodeType === Node.TEXT_NODE && trimmedText !== "";
 }
 
 /*
  * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
- * - size
- * - display properties
- * - opacity
+ * - Size
+ * - Display properties
+ * - Opacity
  * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
  */
-export const isVisible = (element: Element) => {
+const isVisible = (element: Element) => {
   const rect = element.getBoundingClientRect();
-  // this number is relative to scroll, so we shouldn't be using an absolute offset, we can use the viewport height
+  // Ensure the element is within the viewport
   if (
     rect.width === 0 ||
     rect.height === 0 ||
-    // we take elements by their starting top. so if you start before our offset, or after our offset, you don't count!
     rect.top < 0 ||
     rect.top > window.innerHeight
   ) {
@@ -302,15 +330,15 @@ export const isVisible = (element: Element) => {
     return false;
   }
 
-  const isVisible = element.checkVisibility({
+  const visible = element.checkVisibility({
     checkOpacity: true,
     checkVisibilityCSS: true,
   });
 
-  return isVisible;
+  return visible;
 };
 
-export const isTextVisible = (element: ChildNode) => {
+const isTextVisible = (element: ChildNode) => {
   const range = document.createRange();
   range.selectNodeContents(element);
   const rect = range.getBoundingClientRect();
@@ -318,7 +346,6 @@ export const isTextVisible = (element: ChildNode) => {
   if (
     rect.width === 0 ||
     rect.height === 0 ||
-    // we take elements by their starting top. so if you start before our offset, or after our offset, you don't count!
     rect.top < 0 ||
     rect.top > window.innerHeight
   ) {
@@ -332,15 +359,15 @@ export const isTextVisible = (element: ChildNode) => {
     return false;
   }
 
-  const isVisible = parent.checkVisibility({
+  const visible = parent.checkVisibility({
     checkOpacity: true,
     checkVisibilityCSS: true,
   });
 
-  return isVisible;
+  return visible;
 };
 
-export function isTopElement(elem: ChildNode, rect: DOMRect) {
+function isTopElement(elem: ChildNode, rect: DOMRect) {
   const points = [
     { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
     { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
@@ -362,7 +389,7 @@ export function isTopElement(elem: ChildNode, rect: DOMRect) {
   });
 }
 
-export const isActive = (element: Element) => {
+const isActive = (element: Element) => {
   if (
     element.hasAttribute("disabled") ||
     element.hasAttribute("hidden") ||
@@ -373,7 +400,7 @@ export const isActive = (element: Element) => {
 
   return true;
 };
-export const isInteractiveElement = (element: Element) => {
+const isInteractiveElement = (element: Element) => {
   const elementType = element.tagName;
   const elementRole = element.getAttribute("role");
   const elementAriaRole = element.getAttribute("aria-role");
@@ -385,7 +412,7 @@ export const isInteractiveElement = (element: Element) => {
   );
 };
 
-export const isLeafElement = (element: Element) => {
+const isLeafElement = (element: Element) => {
   if (element.textContent === "") {
     return false;
   }
@@ -402,7 +429,7 @@ export const isLeafElement = (element: Element) => {
   return false;
 };
 
-export async function pickChunk(chunksSeen: Array<number>) {
+async function pickChunk(chunksSeen: Array<number>) {
   const viewportHeight = window.innerHeight;
   const documentHeight = document.documentElement.scrollHeight;
 
@@ -425,7 +452,7 @@ export async function pickChunk(chunksSeen: Array<number>) {
   const chunk = closestChunk;
 
   if (chunk === undefined) {
-    throw new Error(`no chunks remaining to check ${chunksRemaining}, `);
+    throw new Error(`No chunks remaining to check: ${chunksRemaining}`);
   }
   return {
     chunk,
