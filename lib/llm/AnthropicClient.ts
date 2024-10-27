@@ -194,9 +194,30 @@ export class AnthropicClient implements LLMClient {
     };
 
     const systemMessage = options.messages.find((msg) => msg.role === "system");
-    const userMessages = options.messages.filter(
+    let userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
     );
+
+    if (options.image) {
+      const screenshotMessage: any = {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/jpeg",
+              data: options.image.buffer.toString("base64"),
+            },
+          },
+          ...(options.image.description
+            ? [{ type: "text", text: options.image.description }]
+            : []),
+        ],
+      };
+
+      userMessages = [...userMessages, screenshotMessage];
+    }
 
     const response = await this.client.messages.create({
       model: options.model || "claude-3-opus-20240229",

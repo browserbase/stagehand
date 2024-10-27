@@ -102,6 +102,25 @@ export class OpenAIClient implements LLMClient {
       options.response_model.name,
     );
 
+    if (options.image) {
+      const screenshotMessage: any = {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
+            },
+          },
+          ...(options.image.description
+            ? [{ type: "text", text: options.image.description }]
+            : []),
+        ],
+      };
+
+      options.messages = [...options.messages, screenshotMessage];
+    }
+
     const completion = await this.client.chat.completions.create({
       model: options.model,
       messages: options.messages,

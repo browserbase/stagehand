@@ -258,32 +258,48 @@ export async function observe({
   domElements,
   llmProvider,
   modelName,
+  image,
 }: {
   observation: string;
   domElements: string;
   llmProvider: LLMProvider;
   modelName: string;
+  image?: Buffer;
 }) {
+  const observeSchema = z.object({
+    elements: z.array(
+      z.object({
+        id: z.number().describe("the number of the element"),
+        description: z.string().describe("a description of the element and what it is relevant for"),
+      }),
+    ).describe("an array of elements that match the instruction"),
+  });
+
   const llmClient = llmProvider.getClient(modelName);
-  const observationResponse = await llmClient.createChatCompletion({
+  const observationResponse = await llmClient.createExtraction({
     model: modelName,
     messages: [
       buildObserveSystemPrompt() as ChatMessage,
       buildObserveUserMessage(observation, domElements) as ChatMessage,
     ],
+    image: image
+      ? { buffer: image, description: AnnotatedScreenshotText }
+      : undefined,
+    response_model: {
+      schema: observeSchema,
+      name: "Observation",
+    },
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
   });
 
-  const elementId = observationResponse.choices[0].message.content;
-
-  if (!elementId) {
+  if (!observationResponse) {
     throw new Error("no response when finding a selector");
   }
 
-  return elementId;
+  return observationResponse;
 }
 
 export async function ask({

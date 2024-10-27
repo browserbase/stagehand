@@ -530,9 +530,18 @@ export class Stagehand {
   }
 
   async observe(
-    observation: string,
+    fullPage: boolean = true,
+    useVision: boolean = true,
+    observation?: string,
     modelName?: string,
   ): Promise<string | null> {
+    if (!observation) {
+      observation = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
+    }
+
+    useVision = useVision ?? false;
+    const model = modelName ?? this.defaultModelName;
+
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
@@ -541,52 +550,50 @@ export class Stagehand {
 
     await this.waitForSettledDom();
     await this.startDomDebug();
-    const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([]),
+    let { outputString, selectorMap } = await this.page.evaluate(
+      (fullPage: boolean) =>
+        fullPage ? window.processAllOfDom() : window.processDom([]),
+      fullPage,
     );
 
-    const elementId = await observe({
+    let annotatedScreenshot: Buffer | undefined;
+    if (useVision === true) {
+      if (!modelsWithVision.includes(model)) {
+        this.log({
+          category: "observation",
+          message: `${model} does not support vision. Skipping vision processing.`,
+          level: 1,
+        });
+      } else {
+        const screenshotService = new ScreenshotService(
+          this.page,
+          selectorMap,
+          this.verbose,
+        );
+
+        annotatedScreenshot = await screenshotService.getAnnotatedScreenshot(fullPage);
+        outputString = "n/a. use the image to find the elements.";
+      }
+    }
+
+    const observationResponse = await observe({
       observation,
       domElements: outputString,
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
+      image: annotatedScreenshot,
     });
+
+    observationResponse.elements.map((element: any) => {
+      element.locator = selectorMap[element.id];
+      delete element.id;
+    });
+
     await this.cleanupDomDebug();
 
-    if (elementId === "NONE") {
-      this.log({
-        category: "observation",
-        message: `no element found for ${observation}`,
-        level: 1,
-      });
-      return null;
-    }
+    this.recordObservations(observationResponse);
 
-    this.log({
-      category: "observation",
-      message: `found element ${elementId}`,
-      level: 1,
-    });
-
-    const selector = selectorMap[parseInt(elementId)];
-    const locatorString = `xpath=${selector}`;
-
-    this.log({
-      category: "observation",
-      message: `found locator ${locatorString}`,
-      level: 1,
-    });
-
-    // the locator string found by the LLM might resolve to multiple places in the DOM
-    const firstLocator = this.page.locator(locatorString).first();
-
-    await expect(firstLocator).toBeAttached();
-    const observationId = await this.recordObservation(
-      observation,
-      locatorString,
-    );
-
-    return observationId;
+    return observationResponse;
   }
 
   async ask(question: string, modelName?: string): Promise<string | null> {
@@ -599,15 +606,19 @@ export class Stagehand {
     });
   }
 
-  async recordObservation(
-    observation: string,
-    result: string,
-  ): Promise<string> {
-    const id = this.getId(observation);
+  async recordObservations(
+    result: { elements: { locator: string; description: string }[] },
+  ): Promise<string[]> {
+    const ids = result.elements.map((element) => {
+      const id = this.getId(element.locator);
+      this.observations[id] = {
+        result: element.locator,
+        observation: element.description,
+      };
+      return id;
+    });
 
-    this.observations[id] = { result, observation };
-
-    return id;
+    return ids;
   }
 
   async recordAction(action: string, result: string): Promise<string> {
