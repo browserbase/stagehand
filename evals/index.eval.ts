@@ -4,48 +4,87 @@ import { z } from "zod";
 import { evaluateExample, chosenBananalyzerEvals } from "./bananalyzer-ts";
 import { createExpressServer } from "./bananalyzer-ts/server/expressServer";
 import process from "process";
+import { EvalLogger } from "./utils";
 
-const env =
-  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-    ? "BROWSERBASE"
-    : "LOCAL";
+const env = "LOCAL";
+// const env =
+//   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+//     ? "BROWSERBASE"
+//     : "LOCAL";
 
 const expedia = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     headless: false,
+    verbose: 2,
     debugDom: true,
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
 
-  await stagehand.init();
+  logger.init(stagehand);
 
-  await stagehand.page.goto("https://www.expedia.com/flights");
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
-  await stagehand.act({
-    action:
-      "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",
-  });
+  try {
+    await stagehand.page.goto("https://www.expedia.com/flights");
 
-  await stagehand.act({ action: "Go to the first non-stop flight" });
+    await stagehand.act({
+      action:
+        "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",
+    });
 
-  await stagehand.act({ action: "select the cheapest flight" });
+    await stagehand.act({ action: "Go to the first non-stop flight" });
 
-  await stagehand.act({ action: "click on the first non-stop flight" });
+    await stagehand.act({ action: "select the cheapest flight" });
 
-  await stagehand.act({
-    action: "Take me to the checkout page",
-  });
+    await stagehand.act({ action: "click on the first non-stop flight" });
 
-  const url = await stagehand.page.url();
-  return url.startsWith("https://www.expedia.com/Checkout/");
+    await stagehand.act({
+      action: "Take me to the checkout page",
+    });
+
+    const url = await stagehand.page.url();
+    return {
+      _success: url.startsWith("https://www.expedia.com/Checkout/"),
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
+  } catch (error) {
+    logger.error(
+      `Error in expedia function: ${JSON.stringify(error, null, 2)}. Trace: ${error.stack}`,
+    );
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.context.close().catch(() => {});
+  }
 };
 
 const vanta = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: any) => {
+      logger.log(message);
+    },
+    verbose: 2,
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
 
@@ -59,6 +98,8 @@ const vanta = async () => {
       _success: false,
       observation,
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   }
 
@@ -81,15 +122,26 @@ const vanta = async () => {
     expected: expectedResult,
     actual: observationResult,
     debugUrl,
+    sessionUrl,
+    logs: logger.getLogs(),
   };
 };
 
 const vanta_h = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
+    verbose: 2,
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.vanta.com/");
 
@@ -102,15 +154,26 @@ const vanta_h = async () => {
     _success: observation === null,
     observation,
     debugUrl,
+    sessionUrl,
+    logs: logger.getLogs(),
   };
 };
 
 const simple_google_search = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
+    verbose: 2,
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   await stagehand.page.goto("https://www.google.com");
 
@@ -127,15 +190,26 @@ const simple_google_search = async () => {
     _success: currentUrl.startsWith(expectedUrl),
     currentUrl,
     debugUrl,
+    sessionUrl,
+    logs: logger.getLogs(),
   };
 };
 
 const peeler_simple = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env: "LOCAL",
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
+    verbose: 2,
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
 
@@ -150,16 +224,26 @@ const peeler_simple = async () => {
   return {
     _success: isVisible,
     debugUrl,
+    sessionUrl,
+    logs: logger.getLogs(),
   };
 };
 
 const peeler_complex = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
-    verbose: 1,
+    verbose: 2,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
@@ -182,13 +266,20 @@ const peeler_complex = async () => {
       _success: price === 11.99,
       price,
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error(`Error in peeler_complex function: ${error.message}`);
+    const errorMessage = JSON.parse(JSON.stringify(error, null, 2));
+    const errorStack = errorMessage.stack;
+    const fullError = `Error in peeler_complex function: ${errorMessage.message} Trace: ${errorStack}`;
+    logger.error(fullError);
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } finally {
     await stagehand.context.close();
@@ -196,12 +287,20 @@ const peeler_complex = async () => {
 };
 
 const homedepot = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
-    verbose: 1,
+    verbose: 2,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
@@ -227,7 +326,7 @@ const homedepot = async () => {
       }),
       modelName: "gpt-4o-2024-08-06",
     });
-    console.log("The gas grill primary burner BTU is:", productSpecs);
+    logger.log(`The gas grill primary burner BTU is: ${productSpecs}`);
 
     if (
       !productSpecs ||
@@ -238,6 +337,8 @@ const homedepot = async () => {
         _success: false,
         productSpecs,
         debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
       };
     }
 
@@ -249,33 +350,49 @@ const homedepot = async () => {
         _success: true,
         productSpecs,
         debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
       };
     } else {
       return {
         _success: false,
         productSpecs,
         debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
       };
     }
   } catch (error) {
-    console.error(`Error in homedepot function: ${error.message}`);
+    logger.error(
+      `Error in homedepot function: ${JSON.stringify(error, null, 2)}, Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
 const extract_collaborators_from_github_repository = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
-    verbose: 1,
+    verbose: 2,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -299,30 +416,42 @@ const extract_collaborators_from_github_repository = async () => {
     });
 
     console.log("Extracted collaborators:", contributors);
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
     return {
       _success: contributors.length === 20,
       contributors,
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   }
 };
 
 const extract_last_twenty_github_commits = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
-    verbose: 1,
+    verbose: 2,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -345,31 +474,43 @@ const extract_last_twenty_github_commits = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    console.log("Extracted commits:", commits);
-    await stagehand.context.close();
+    logger.log(`Extracted commits: ${commits}`);
+    await stagehand.context.close().catch(() => {});
     return {
       _success: commits.length === 20,
       commits,
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } catch (error) {
     console.error("Error or timeout occurred:", error);
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   }
 };
 
 const wikipedia = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
   await stagehand.act({
@@ -378,25 +519,35 @@ const wikipedia = async () => {
 
   const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
   const currentUrl = await stagehand.page.url();
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
 
   return {
     _success: currentUrl === url,
     expected: url,
     actual: currentUrl,
     debugUrl,
+    sessionUrl,
+    logs: logger.getLogs(),
   };
 };
 
 // Validate that the action is not found on the page
 const nonsense_action = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: 1,
+    verbose: 2,
     debugDom: true,
     headless: true,
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
@@ -420,6 +571,8 @@ const nonsense_action = async () => {
     return {
       _success: isResultCorrect,
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } catch (error) {
     console.error(`Error in nonsense_action function: ${error.message}`);
@@ -427,6 +580,8 @@ const nonsense_action = async () => {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
     };
   } finally {
     await stagehand.context.close();
@@ -434,13 +589,21 @@ const nonsense_action = async () => {
 };
 
 const costar = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
-  const { debugUrl } = await stagehand.init();
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
   // TODO: fix this eval - does not work in headless mode
   try {
     await Promise.race([
@@ -464,7 +627,7 @@ const costar = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    console.log("articleTitle", articleTitle);
+    logger.log(`articleTitle: ${articleTitle}`);
 
     // Check if the title is more than 5 characters
     const isTitleValid =
@@ -472,24 +635,43 @@ const costar = async () => {
 
     await stagehand.context.close();
 
-    return { title: articleTitle.title, _success: isTitleValid, debugUrl };
+    return {
+      title: articleTitle.title,
+      _success: isTitleValid,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
-    console.error(`Error in costar function: ${error.message}`);
-    return { title: null, _success: false, debugUrl } as any;
+    logger.error(`Error in costar function: ${error.message}`);
+    return {
+      title: null,
+      _success: false,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    } as any;
   } finally {
     await stagehand.context.close();
   }
 };
 
 const google_jobs = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
 
-  const { debugUrl } = await stagehand.init();
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://www.google.com/");
@@ -533,7 +715,7 @@ const google_jobs = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    console.log("Job Details:", jobDetails);
+    logger.log(`Job Details: ${jobDetails}`);
 
     const isJobDetailsValid =
       jobDetails &&
@@ -550,107 +732,154 @@ const google_jobs = async () => {
             )),
       );
 
-    console.log("Job Details valid:", isJobDetailsValid);
+    logger.log(`Job Details valid: ${isJobDetailsValid}`);
 
-    return { _success: isJobDetailsValid, jobDetails, debugUrl };
+    return {
+      _success: isJobDetailsValid,
+      jobDetails,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
-    console.error(`Error in google_jobs function: ${error.message}`);
+    logger.error(
+      `Error in google_jobs function: ${error.message}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       debugUrl,
+      sessionUrl,
       error: JSON.parse(JSON.stringify(error, null, 2)),
+      logs: logger.getLogs(),
     };
   } finally {
     await stagehand.context.close();
   }
 };
 
-const extractPartners = async () => {
+const extract_partners = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
+    env,
+    verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
 
-  await stagehand.init({ modelName: "gpt-4o" });
+  logger.init(stagehand);
 
-  await stagehand.page.goto("https://ramp.com");
-
-  await stagehand.act({
-    action: "Close the popup.",
+  const { debugUrl, sessionUrl } = await stagehand.init({
+    modelName: "gpt-4o",
   });
 
-  await stagehand.act({
-    action: "Scroll down to the bottom of the page.",
-  });
+  try {
+    await stagehand.page.goto("https://ramp.com");
 
-  await stagehand.act({
-    action:
-      "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
-  });
+    await stagehand.act({
+      action: "Close the popup.",
+    });
 
-  const partners = await stagehand.extract({
-    instruction: `
+    await stagehand.act({
+      action: "Scroll down to the bottom of the page.",
+    });
+
+    await stagehand.act({
+      action:
+        "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
+    });
+
+    const partners = await stagehand.extract({
+      instruction: `
       Extract the names of all partner companies mentioned on this page.
       These could be inside text, links, or images representing partner companies.
       If no specific partner names are found, look for any sections or categories of partners mentioned.
       Also, check for any text that explains why partner names might not be listed, if applicable.
     `,
-    schema: z.object({
-      partners: z.array(
-        z.object({
-          name: z
-            .string()
-            .describe(
-              "The name of the partner company or category of partners",
-            ),
-        }),
-      ),
-      explanation: z
-        .string()
-        .optional()
-        .describe("Any explanation about partner listing or absence thereof"),
-    }),
-  });
+      schema: z.object({
+        partners: z.array(
+          z.object({
+            name: z
+              .string()
+              .describe(
+                "The name of the partner company or category of partners",
+              ),
+          }),
+        ),
+        explanation: z
+          .string()
+          .optional()
+          .describe("Any explanation about partner listing or absence thereof"),
+      }),
+    });
 
-  const expectedPartners = [
-    "Accounting Partners",
-    "Private Equity & Venture Capital Partners",
-    "Services Partners",
-    "Affiliates",
-  ];
+    const expectedPartners = [
+      "Accounting Partners",
+      "Private Equity & Venture Capital Partners",
+      "Services Partners",
+      "Affiliates",
+    ];
 
-  if (partners.explanation) {
-    console.log("Explanation:", partners.explanation);
+    if (partners.explanation) {
+      logger.log(`Explanation: ${partners.explanation}`);
+    }
+
+    const foundPartners = partners.partners.map((partner) =>
+      partner.name.toLowerCase(),
+    );
+
+    const allExpectedPartnersFound = expectedPartners.every((partner) =>
+      foundPartners.includes(partner.toLowerCase()),
+    );
+
+    logger.log(`All expected partners found: ${allExpectedPartnersFound}`);
+    logger.log(`Expected: ${expectedPartners}`);
+    logger.log(`Found: ${foundPartners}`);
+
+    return {
+      _success: allExpectedPartnersFound,
+      partners,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    logger.error(
+      `Error in extractPartners function: ${error.message}. Trace: ${error.stack}`,
+    );
+    return {
+      _success: false,
+      debugUrl,
+      sessionUrl,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.context.close().catch(() => {});
   }
-
-  const foundPartners = partners.partners.map((partner) =>
-    partner.name.toLowerCase(),
-  );
-
-  const allExpectedPartnersFound = expectedPartners.every((partner) =>
-    foundPartners.includes(partner.toLowerCase()),
-  );
-  await stagehand.context.close();
-
-  console.log("All expected partners found:", allExpectedPartnersFound);
-  console.log("Expected:", expectedPartners);
-  console.log("Found:", foundPartners);
-
-  return { _success: allExpectedPartnersFound, partners };
 };
 
-const LarocheForm = async () => {
+const laroche_form = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
+    env,
+    verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    iframeSupport: true, // Set to true to enable iframe scanning
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
 
-  await stagehand.init({ modelName: "gpt-4o" });
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({
+    modelName: "gpt-4o",
+  });
 
   try {
     await stagehand.page.goto(
@@ -694,25 +923,46 @@ const LarocheForm = async () => {
     //   formData.email === "john.doe@example.com" &&
     //   formData.phone === "1234567890" &&
     //   formData.zipCode === "12345" &&
+    return {
+      _success: true,
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
   } catch (error) {
-    console.error(`Error in LarocheForm function: ${error.message}`);
-    return { _success: false, error: error.message };
+    logger.error(
+      `Error in LarocheForm function: ${error.message}. Trace: ${error.stack}`,
+    );
+    return {
+      _success: false,
+      error: error.message,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
-
-  return { _success: true };
 };
 
 const arxiv = async () => {
+  const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
     env,
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
   });
 
-  await stagehand.init({ modelName: "gpt-4o-2024-08-06" });
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({
+    modelName: "gpt-4o-2024-08-06",
+  });
 
   interface Paper {
     title: string;
@@ -755,7 +1005,12 @@ const arxiv = async () => {
       !paper_links.papers ||
       paper_links.papers.length === 0
     ) {
-      return { _success: false };
+      return {
+        _success: false,
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
     }
 
     for (const paper of paper_links.papers) {
@@ -813,33 +1068,61 @@ const arxiv = async () => {
     }
 
     if (!papers || papers.length === 0) {
-      return { _success: false };
+      return {
+        _success: false,
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
     }
 
-    console.log(papers);
+    logger.log(JSON.stringify(papers, null, 2));
 
     // Assert that the length of papers is three
     if (papers.length !== 2) {
-      console.error(`Expected 2 papers, but got ${papers.length}`);
-      return { _success: false, error: "Incorrect number of papers extracted" };
+      logger.log(`Expected 2 papers, but got ${papers.length}`);
+      return {
+        _success: false,
+        error: "Incorrect number of papers extracted",
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
     }
 
     // Ensure that every paper has a problem and methodology
     for (const paper of papers) {
       if (!paper.problem || !paper.methodology) {
-        console.error(
-          `Paper "${paper.title}" is missing problem or methodology`,
-        );
-        return { _success: false, error: "Incomplete paper information" };
+        logger.log(`Paper "${paper.title}" is missing problem or methodology`);
+        return {
+          _success: false,
+          error: "Incomplete paper information",
+          logs: logger.getLogs(),
+          debugUrl,
+          sessionUrl,
+        };
       }
     }
 
-    return { _success: true, papers };
+    return {
+      _success: true,
+      papers,
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
   } catch (error) {
-    console.error(`Error in arxiv function: ${error.message}`);
-    return { _success: false };
+    logger.error(
+      `Error in arxiv function: ${error.message}. Trace: ${error.stack}`,
+    );
+    return {
+      _success: false,
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
@@ -855,8 +1138,8 @@ const tasks = {
   costar,
   google_jobs,
   homedepot,
-  extractPartners,
-  LarocheForm,
+  extract_partners,
+  laroche_form,
   arxiv,
   expedia,
 };
@@ -908,10 +1191,10 @@ const testcases = [
   // { input: { name: "costar", expected: true } },
   { input: { name: "google_jobs" } },
   { input: { name: "homedepot" } },
-  { input: { name: "extractPartners" } },
-  { input: { name: "LarocheForm" } },
+  { input: { name: "extract_partners" } },
+  { input: { name: "laroche_form" } },
   { input: { name: "arxiv" } },
-  { input: { name: "expedia" } },
+  // { input: { name: "expedia" } },
   ...chosenBananalyzerEvals.map((evalItem: any) => ({
     input: {
       name: evalItem.name,

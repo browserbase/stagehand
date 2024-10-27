@@ -12,7 +12,11 @@ You are given:
 
 You have 2 tools that you can call: doAction, and skipSection. Do action only performs Playwright actions. Do not perform any other actions.
 
+Note: If there is a popup on the page for cookies or advertising that has nothing to do with the goal, try to close it first before proceeding. As this can block the goal from being completed.
+
 Also, verify if the goal has been accomplished already. Do this by checking if the goal has been accomplished based on the previous steps completed, the current page DOM elements and the current page URL / starting page URL. If it has, set completed to true and finish the task.
+
+Do exactly what the user's goal is. Do not exceed the scope of the goal.
 `;
 
 const verifyActCompletionSystemPrompt = `

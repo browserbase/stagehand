@@ -26,6 +26,7 @@ export async function verifyActCompletion({
   modelName,
   screenshot,
   domElements,
+  logger,
 }: {
   goal: string;
   steps: string;
@@ -33,19 +34,13 @@ export async function verifyActCompletion({
   modelName: string;
   screenshot?: Buffer;
   domElements?: string;
+  logger: (message: { category?: string; message: string }) => void;
 }): Promise<boolean> {
   const llmClient = llmProvider.getClient(modelName);
   const messages = [
     buildVerifyActCompletionSystemPrompt() as ChatMessage,
     buildVerifyActCompletionUserPrompt(goal, steps, domElements) as ChatMessage,
   ];
-
-  console.log(
-    "[VerifyAct] messages",
-    messages
-      .map((m) => `\n\n${m.role}:\n--------------\n ${m.content}`)
-      .join() + "\n\n\n",
-  );
 
   const response = await llmClient.createChatCompletion({
     model: modelName,
@@ -69,17 +64,18 @@ export async function verifyActCompletion({
   });
 
   if (!response || typeof response !== "object") {
-    console.error("[VerifyAct] Unexpected response format:", response);
+    logger({
+      category: "VerifyAct",
+      message: "Unexpected response format: " + JSON.stringify(response),
+    });
     return false;
   }
 
-  console.log(
-    "[VerifyAct] Action Completion Verification:",
-    response.completed,
-  );
-
   if (response.completed === undefined) {
-    console.error('[VerifyAct] Missing "completed" field in response');
+    logger({
+      category: "VerifyAct",
+      message: "Missing 'completed' field in response",
+    });
     return false;
   }
 
@@ -94,6 +90,7 @@ export async function act({
   modelName,
   screenshot,
   retries = 0,
+  logger,
 }: {
   action: string;
   steps?: string;
@@ -102,6 +99,7 @@ export async function act({
   modelName: string;
   screenshot?: Buffer;
   retries?: number;
+  logger: (message: { category?: string; message: string }) => void;
 }): Promise<{
   method: string;
   element: number;
@@ -138,7 +136,10 @@ export async function act({
     return JSON.parse(toolCalls[0].function.arguments);
   } else {
     if (retries >= 2) {
-      console.error("No tool calls found in response");
+      logger({
+        category: "Act",
+        message: "No tool calls found in response",
+      });
       return null;
     }
 
@@ -149,6 +150,7 @@ export async function act({
       llmProvider,
       modelName,
       retries: retries + 1,
+      logger,
     });
   }
 }

@@ -1,11 +1,9 @@
 async function debugDom() {
   window.chunkNumber = 0;
 
-  const { selectorMap, outputString } = await processElements(
+  const { selectorMap, outputString } = await window.processElements(
     window.chunkNumber,
   );
-  console.log("outputString:", outputString);
-  console.log("selectorMap:", selectorMap);
 
   drawChunk(selectorMap);
   setupChunkNav();
