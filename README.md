@@ -197,7 +197,7 @@ Given instructions and `schema`, you will receive structured data. Unlike some e
 > observe currently does not support chunking, so at this time you can only observe the first section of the website. This should be fixed
 > or the method should be removed if no longer useful
 
-#### `ask()`
+#### `ask()` [remove before release*]
 
 `ask()` is a generic LLM call in case you don't want to bring your own agent infrastructure. You can ask any question and provide context from previous abstractions or actions and get an LLM powered response.
 
@@ -223,6 +223,8 @@ The SDK has two major phases:
 
 Stagehand uses a combination of techniques to prepare the DOM.
 Stagehand only uses text input as of this version, but the release of `gpt-4o` incorporating vision is attractive.
+
+**[update before release*]*
 
 The DOM Processing steps look as follows:
 
