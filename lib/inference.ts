@@ -16,7 +16,7 @@ import {
   buildMetadataPrompt,
 } from "./prompt";
 import { z } from "zod";
-import { LLMProvider } from "./llm/LLMProvider";
+import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import { AnnotatedScreenshotText, ChatMessage } from "./llm/LLMClient";
 
 export async function verifyActCompletion({
@@ -31,7 +31,7 @@ export async function verifyActCompletion({
   goal: string;
   steps: string;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
   screenshot?: Buffer;
   domElements?: string;
   logger: (message: { category?: string; message: string }) => void;
@@ -96,7 +96,7 @@ export async function act({
   steps?: string;
   domElements: string;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
   screenshot?: Buffer;
   retries?: number;
   logger: (message: { category?: string; message: string }) => void;
@@ -172,13 +172,13 @@ export async function extract({
   domElements: string;
   schema: z.ZodObject<any>;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
   chunksSeen: number;
   chunksTotal: number;
 }) {
   const llmClient = llmProvider.getClient(modelName);
 
-  const extractionResponse = await llmClient.createExtraction({
+  const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
       buildExtractSystemPrompt() as ChatMessage,
@@ -194,7 +194,7 @@ export async function extract({
     presence_penalty: 0,
   });
 
-  const refinedResponse = await llmClient.createExtraction({
+  const refinedResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
       buildRefineSystemPrompt() as ChatMessage,
@@ -227,7 +227,7 @@ export async function extract({
       ),
   });
 
-  const metadataResponse = await llmClient.createExtraction({
+  const metadataResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
       buildMetadataSystemPrompt() as ChatMessage,
@@ -262,7 +262,7 @@ export async function observe({
   observation: string;
   domElements: string;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
 }) {
   const llmClient = llmProvider.getClient(modelName);
   const observationResponse = await llmClient.createChatCompletion({
@@ -293,7 +293,7 @@ export async function ask({
 }: {
   question: string;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
 }) {
   const llmClient = llmProvider.getClient(modelName);
   const response = await llmClient.createChatCompletion({

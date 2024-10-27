@@ -2,23 +2,35 @@ import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
 
+export type AvailableModel =
+  | "gpt-4o"
+  | "gpt-4o-mini"
+  | "o1-preview"
+  | "o1-mini"
+  | "gpt-4o-2024-08-06"
+  | "claude-3-5-sonnet-latest"
+  | "claude-3-5-sonnet-20240620";
+
 export class LLMProvider {
-  private supportedModels: { [key: string]: string } = {
+  private supportedModels: { [key in AvailableModel]: string } = {
     "gpt-4o": "openai",
     "gpt-4o-mini": "openai",
     "o1-preview": "openai",
     "o1-mini": "openai",
     "gpt-4o-2024-08-06": "openai",
-    "claude-3-5-sonnet-20240620": "anthropic"
+    "claude-3-5-sonnet-latest": "anthropic",
+    "claude-3-5-sonnet-20240620": "anthropic",
   };
 
   private logger: (message: { category?: string; message: string }) => void;
 
-  constructor(logger: (message: { category?: string; message: string }) => void) {
+  constructor(
+    logger: (message: { category?: string; message: string }) => void,
+  ) {
     this.logger = logger;
   }
 
-  getClient(modelName: string): LLMClient {
+  getClient(modelName: AvailableModel): LLMClient {
     const provider = this.supportedModels[modelName];
     if (!provider) {
       throw new Error(`Unsupported model: ${modelName}`);
