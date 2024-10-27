@@ -271,16 +271,17 @@ export class Stagehand {
 
     if (this.verbose >= logObj.level) {
       await this.page
-        .evaluate((message) => {
+        .evaluate((logObj) => {
+          const logMessage = `[stagehand${logObj.category ? `:${logObj.category}` : ""}] ${logObj.message}`;
           if (
-            message.toLowerCase().includes("trace") ||
-            message.toLowerCase().includes("error:")
+            logObj.message.toLowerCase().includes("trace") ||
+            logObj.message.toLowerCase().includes("error:")
           ) {
-            console.error("Stagehand:", message);
+            console.error(logMessage);
           } else {
-            console.log("Stagehand:", message);
+            console.log(logMessage);
           }
-        }, logObj.message)
+        }, logObj)
         .then(() => {
           this.pending_logs_to_send_to_browserbase =
             this.pending_logs_to_send_to_browserbase.filter(
@@ -875,7 +876,9 @@ export class Stagehand {
         } catch (e) {
           this.log({
             category: "action",
-            message: `Error performing method ${method} (Retries: ${retries}): ${e.message}\nTrace: ${e.stack}`,
+            message: `Error performing method ${method} with args ${JSON.stringify(
+              args,
+            )} (Retries: ${retries}): ${e.message}\nTrace: ${e.stack}`,
             level: 1,
           });
 
@@ -958,7 +961,7 @@ export class Stagehand {
       } else {
         this.log({
           category: "action",
-          message: `Internal error: Chosen method ${method} is invalid`,
+          message: `Chosen method ${method} is invalid`,
           level: 1,
         });
         if (retries < 2) {
