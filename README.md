@@ -1,6 +1,10 @@
-<h1 align="center">
-🤘 Stagehand
-</h1>
+<div id="toc" align="center">
+  <ul style="list-style: none">
+    <summary>
+      <h1> 🤘 Stagehand </h1>
+    </summary>
+  </ul>
+</div>
 
 <p align="center">
   A lightweight framework for building AI web browsing features.</em>
