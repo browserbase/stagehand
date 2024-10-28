@@ -51,10 +51,8 @@ async function getBrowser(
       level: 0,
     });
     const browserbase = new Browserbase();
-    const { sessionId } = await browserbase.createSession();
-    const browser = await chromium.connectOverCDP(
-      `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`,
-    );
+    const { sessionId, connectUrl } = await browserbase.createSession();
+    const browser = await chromium.connectOverCDP(connectUrl);
 
     debugUrl = await browserbase.retrieveDebugConnectionURL(sessionId);
     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
