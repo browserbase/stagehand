@@ -209,6 +209,8 @@ This constructor is used to create an instance of Stagehand.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
+You can also pass in an instruction to observe via: `observe({ instruction: "{your instruction}"})`.
+
 - **Arguments:**
 
   - `instruction`: a `string` providing instructions for the observation.
