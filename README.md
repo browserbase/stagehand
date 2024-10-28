@@ -237,6 +237,8 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 `log()` is used to print a message to the browser console. These messages will be persisted in the Browserbase session logs, and can be used to debug sessions after they've completed.
 
+Make sure the log level is above the verbose level you set when initializing the Stagehand instance.
+
 - **Example:**
   ```javascript
   stagehand.log("Hello, world!");
