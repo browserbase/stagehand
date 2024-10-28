@@ -1,11 +1,9 @@
-<p align="center">
-  <a href="https://stagehand.dev">
-    <img alt="Stagehand" src="./docs/media/stagehand-logo.png" width="308">
-  </a>
-</p>
+<div id="user-content-header"
+ align="center" style="font-size: 4em;">🤘 Stagehand</h1>
+</div>
 
 <p align="center">
-  <em>A lightweight framework for building AI-powered web agents.</em>
+  A lightweight framework for building AI web browsing features.</em>
 </p>
 
 <p align="center">
@@ -15,7 +13,7 @@
   <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://img.shields.io/badge/slack-Join%20our%20community-FEC89A.svg?logo=slack" /></a>
 </p>
 
-# 🤘 Stagehand
+---
 
 - [Intro](#intro)
 - [Getting Started](#getting-started)
@@ -32,8 +30,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
 
