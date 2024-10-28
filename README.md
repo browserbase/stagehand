@@ -1,6 +1,6 @@
-<div id="user-content-header" align="center" style="font-size: 2.5em;">
+<h1 align="center">
 🤘 Stagehand
-</div>
+</h1>
 
 <p align="center">
   A lightweight framework for building AI web browsing features.</em>
