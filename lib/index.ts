@@ -108,7 +108,9 @@ async function getBrowser(
           "--use-gl=swiftshader",
           "--enable-accelerated-2d-canvas",
           "--disable-blink-features=AutomationControlled",
+          "--disable-web-security",
         ],
+        bypassCSP: true,
         userDataDir: "./user_data",
       },
     );
@@ -163,18 +165,18 @@ async function applyStealthScripts(context: BrowserContext) {
 
 export class Stagehand {
   private llmProvider: LLMProvider;
-  public observations: {
+  private observations: {
     [key: string]: { result: string; observation: string };
   };
   private actions: { [key: string]: { result: string; action: string } };
-  id: string;
+  private id: string;
   public page: Page;
   public context: BrowserContext;
-  public env: "LOCAL" | "BROWSERBASE";
-  public verbose: 0 | 1 | 2;
-  public debugDom: boolean;
-  public defaultModelName: AvailableModel;
-  public headless: boolean;
+  private env: "LOCAL" | "BROWSERBASE";
+  private verbose: 0 | 1 | 2;
+  private debugDom: boolean;
+  private defaultModelName: AvailableModel;
+  private headless: boolean;
   private logger: (message: { category?: string; message: string }) => void;
   private externalLogger?: (message: {
     category?: string;
@@ -216,14 +218,64 @@ export class Stagehand {
     this.headless = headless;
   }
 
-  pending_logs_to_send_to_browserbase: {
+  async init({
+    modelName = "gpt-4o",
+  }: { modelName?: AvailableModel } = {}): Promise<{
+    debugUrl: string;
+    sessionUrl: string;
+  }> {
+    const { context, debugUrl, sessionUrl } = await getBrowser(
+      this.env,
+      this.headless,
+      this.logger,
+    ).catch((e) => {
+      console.error("Error in init:", e);
+      return { context: undefined, debugUrl: undefined, sessionUrl: undefined };
+    });
+    this.context = context;
+    this.page = context.pages()[0];
+    this.defaultModelName = modelName;
+
+    // Overload the page.goto method
+    const originalGoto = this.page.goto.bind(this.page);
+    this.page.goto = async (url: string, options?: any) => {
+      const result = await originalGoto(url, options);
+      await this.page.waitForLoadState("domcontentloaded");
+      await this._waitForSettledDom();
+      return result;
+    };
+
+    // Set the browser to headless mode if specified
+    if (this.headless) {
+      await this.page.setViewportSize({ width: 1280, height: 720 });
+    }
+
+    // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
+    // be one level above our running directly across evals, example, and as a package
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+    });
+
+    return { debugUrl, sessionUrl };
+  }
+
+  // Logging
+  private pending_logs_to_send_to_browserbase: {
     category?: string;
     message: string;
     level?: 0 | 1 | 2;
     id: string;
   }[] = [];
 
-  is_processing_browserbase_logs: boolean = false;
+  private is_processing_browserbase_logs: boolean = false;
 
   log(logObj: { category?: string; message: string; level?: 0 | 1 | 2 }): void {
     logObj.level = logObj.level || 1;
@@ -296,81 +348,7 @@ export class Stagehand {
     }
   }
 
-  // log({
-  //   category,
-  //   message,
-  //   level = 1,
-  // }: {
-  //   category?: string;
-  //   message: string;
-  //   level?: 0 | 1 | 2;
-  // }) {
-  //   if (this.verbose >= level) {
-  //     const categoryString = category ? `:${category}` : "";
-  //     console.log(`[stagehand${categoryString}] ${message}`);
-  //   }
-  // }
-
-  async downloadPDF(url: string, title: string) {
-    const downloadPromise = this.page.waitForEvent("download");
-    await this.act({
-      action: `click on ${url}`,
-    });
-    const download = await downloadPromise;
-    await download.saveAs(`downloads/${title}.pdf`);
-    await download.delete();
-  }
-
-  async init({
-    modelName = "gpt-4o",
-  }: { modelName?: AvailableModel } = {}): Promise<{
-    debugUrl: string;
-    sessionUrl: string;
-  }> {
-    const { context, debugUrl, sessionUrl } = await getBrowser(
-      this.env,
-      this.headless,
-      this.logger,
-    ).catch((e) => {
-      console.error("Error in init:", e);
-      return { context: undefined, debugUrl: undefined, sessionUrl: undefined };
-    });
-    this.context = context;
-    this.page = context.pages()[0];
-    this.defaultModelName = modelName;
-
-    // Overload the page.goto method
-    const originalGoto = this.page.goto.bind(this.page);
-    this.page.goto = async (url: string, options?: any) => {
-      const result = await originalGoto(url, options);
-      await this.page.waitForLoadState("domcontentloaded");
-      await this.waitForSettledDom();
-      return result;
-    };
-
-    // Set the browser to headless mode if specified
-    if (this.headless) {
-      await this.page.setViewportSize({ width: 1280, height: 720 });
-    }
-
-    // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
-    // be one level above our running directly across evals, example, and as a package
-    await this.page.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
-    });
-
-    await this.page.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
-    });
-
-    await this.page.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
-    });
-
-    return { debugUrl, sessionUrl };
-  }
-
-  async waitForSettledDom() {
+  private async _waitForSettledDom() {
     try {
       await this.page.waitForSelector("body");
       await this.page.waitForLoadState("domcontentloaded");
@@ -398,7 +376,7 @@ export class Stagehand {
     }
   }
 
-  async startDomDebug() {
+  private async startDomDebug() {
     try {
       await this.page
         .evaluate(() => {
@@ -421,14 +399,38 @@ export class Stagehand {
       });
     }
   }
-  async cleanupDomDebug() {
+
+  private async cleanupDomDebug() {
     if (this.debugDom) {
       await this.page.evaluate(() => window.cleanupDebug()).catch(() => {});
     }
   }
-  getId(operation: string) {
+
+  // Recording
+  private _generateId(operation: string) {
     return crypto.createHash("sha256").update(operation).digest("hex");
   }
+
+  private async _recordObservation(
+    observation: string,
+    result: string,
+  ): Promise<string> {
+    const id = this._generateId(observation);
+
+    this.observations[id] = { result, observation };
+
+    return id;
+  }
+
+  private async _recordAction(action: string, result: string): Promise<string> {
+    const id = this._generateId(action);
+
+    this.actions[id] = { result, action };
+
+    return id;
+  }
+
+  // Main methods
 
   private async _extract<T extends z.AnyZodObject>({
     instruction,
@@ -451,7 +453,7 @@ export class Stagehand {
       level: 1,
     });
 
-    await this.waitForSettledDom();
+    await this._waitForSettledDom();
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(
       (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
@@ -504,7 +506,7 @@ export class Stagehand {
         message: `continuing extraction, progress: '${newProgress}'`,
         level: 1,
       });
-      await this.waitForSettledDom();
+      await this._waitForSettledDom();
       return this._extract({
         instruction,
         schema,
@@ -516,33 +518,20 @@ export class Stagehand {
     }
   }
 
-  async extract<T extends z.AnyZodObject>({
-    instruction,
-    schema,
+  private async _observe({
+    observation,
     modelName,
   }: {
-    instruction: string;
-    schema: T;
+    observation: string;
     modelName?: AvailableModel;
-  }): Promise<z.infer<T>> {
-    return this._extract({
-      instruction,
-      schema,
-      modelName,
-    });
-  }
-
-  async observe(
-    observation: string,
-    modelName?: AvailableModel,
-  ): Promise<string | null> {
+  }): Promise<string | null> {
     this.log({
       category: "observation",
       message: `starting observation: ${observation}`,
       level: 1,
     });
 
-    await this.waitForSettledDom();
+    await this._waitForSettledDom();
     await this.startDomDebug();
     const { outputString, selectorMap } = await this.page.evaluate(() =>
       window.processDom([]),
@@ -585,44 +574,12 @@ export class Stagehand {
     const firstLocator = this.page.locator(locatorString).first();
 
     await expect(firstLocator).toBeAttached();
-    const observationId = await this.recordObservation(
+    const observationId = await this._recordObservation(
       observation,
       locatorString,
     );
 
     return observationId;
-  }
-
-  async ask(
-    question: string,
-    modelName?: AvailableModel,
-  ): Promise<string | null> {
-    await this.waitForSettledDom();
-
-    return ask({
-      question,
-      llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
-    });
-  }
-
-  async recordObservation(
-    observation: string,
-    result: string,
-  ): Promise<string> {
-    const id = this.getId(observation);
-
-    this.observations[id] = { result, observation };
-
-    return id;
-  }
-
-  async recordAction(action: string, result: string): Promise<string> {
-    const id = this.getId(action);
-
-    this.actions[id] = { result, action };
-
-    return id;
   }
 
   private async _act({
@@ -663,7 +620,7 @@ export class Stagehand {
       level: 2,
     });
 
-    await this.waitForSettledDom();
+    await this._waitForSettledDom();
 
     await this.startDomDebug();
 
@@ -935,7 +892,7 @@ export class Stagehand {
             await newOpenedTab.close();
             await this.page.goto(newOpenedTab.url());
             await this.page.waitForLoadState("domcontentloaded");
-            await this.waitForSettledDom();
+            await this._waitForSettledDom();
           }
 
           // Wait for the network to be idle with timeout of 5s (will only wait if loading a new page)
@@ -1027,6 +984,12 @@ export class Stagehand {
               15,
             );
           } catch (e) {
+            this.log({
+              category: "action",
+              message: `Error getting full page screenshot: ${e.message}\n. Trying again...`,
+              level: 1,
+            });
+
             const screenshotService = new ScreenshotService(
               this.page,
               selectorMap,
@@ -1081,7 +1044,7 @@ export class Stagehand {
           message: `Action completed successfully`,
           level: 1,
         });
-        await this.recordAction(action, response.step);
+        await this._recordAction(action, response.step);
         return {
           success: true,
           message: `Action completed successfully: ${steps}${response.step}`,
@@ -1106,7 +1069,7 @@ export class Stagehand {
         });
       }
 
-      await this.recordAction(action, "");
+      await this._recordAction(action, "");
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
@@ -1139,11 +1102,29 @@ export class Stagehand {
     });
   }
 
-  setPage(page: Page) {
-    this.page = page;
+  async extract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+    modelName,
+  }: {
+    instruction: string;
+    schema: T;
+    modelName?: AvailableModel;
+  }): Promise<z.infer<T>> {
+    return this._extract({
+      instruction,
+      schema,
+      modelName,
+    });
   }
 
-  setContext(context: BrowserContext) {
-    this.context = context;
+  async observe({
+    observation,
+    modelName,
+  }: {
+    observation: string;
+    modelName?: AvailableModel;
+  }): Promise<string | null> {
+    return this._observe({ observation, modelName });
   }
 }
