@@ -1,5 +1,5 @@
-<div id="user-content-header" align="center" style="font-size: 4em;">
-<h1>🤘 Stagehand</h1>
+<div id="user-content-header" align="center" style="font-size: 2.5em;">
+🤘 Stagehand
 </div>
 
 <p align="center">
