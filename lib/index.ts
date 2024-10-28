@@ -192,7 +192,7 @@ export class Stagehand {
       llmProvider,
       headless = false,
       logger,
-      domSettleTimeoutMs = 120000,
+      domSettleTimeoutMs = 60000,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
