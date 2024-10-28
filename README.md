@@ -209,6 +209,8 @@ This constructor is used to create an instance of Stagehand.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
+If you are looking for a specific element, you can also pass in an instruction to observe via: `observe({ instruction: "{your instruction}"})`.
+
 - **Arguments:**
 
   - `instruction`: a `string` providing instructions for the observation.
@@ -234,6 +236,8 @@ This constructor is used to create an instance of Stagehand.
 ### `log()`
 
 `log()` is used to print a message to the browser console. These messages will be persisted in the Browserbase session logs, and can be used to debug sessions after they've completed.
+
+Make sure the log level is above the verbose level you set when initializing the Stagehand instance.
 
 - **Example:**
   ```javascript

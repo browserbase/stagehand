@@ -279,11 +279,12 @@ Chunks total: ${chunksTotal}`,
 
 // observe
 const observeSystemPrompt = `
-You are helping the user automate the browser by finding a playwright locator string. You will be given a instruction of the element to find, and a numbered list of possible elements.
+You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
+You will be given:
+1. a instruction of elements to observe
+2. a numbered list of possible elements or an annotated image of the page
 
-return only element id we are looking for.
-
-if the element is not found, return NONE.
+Return an array of elements that match the instruction.
 `;
 export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
   const content = observeSystemPrompt.replace(/\s+/g, " ");
@@ -295,13 +296,13 @@ export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 }
 
 export function buildObserveUserMessage(
-  observation: string,
+  instruction: string,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
-    content: `instruction: ${observation}
-    DOM: ${domElements}`,
+    content: `instruction: ${instruction}
+DOM: ${domElements}`,
   };
 }
 

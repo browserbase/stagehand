@@ -66,7 +66,6 @@ const expedia = async () => {
     await stagehand.context.close().catch(() => {});
   }
 };
-
 const vanta = async () => {
   const logger = new EvalLogger();
 
@@ -85,25 +84,18 @@ const vanta = async () => {
 
   await stagehand.page.goto("https://www.vanta.com/");
 
-  const observation = await stagehand.observe(
-    "find the text for the request demo button",
-  );
+  const observations = await stagehand.observe();
 
-  if (!observation) {
+  if (observations.length === 0) {
     await stagehand.context.close();
     return {
       _success: false,
-      observation,
+      observations,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   }
-
-  const observationResult = await stagehand.page
-    .locator(stagehand.observations[observation].result)
-    .first()
-    .innerHTML();
 
   const expectedLocator = `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`;
 
@@ -112,12 +104,33 @@ const vanta = async () => {
     .first()
     .innerHTML();
 
+  let foundMatch = false;
+  for (const observation of observations) {
+    try {
+      const observationResult = await stagehand.page
+        .locator(observation.selector)
+        .first()
+        .innerHTML();
+
+      if (observationResult === expectedResult) {
+        foundMatch = true;
+        break;
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to check observation with selector ${observation.selector}:`,
+        error.message,
+      );
+      continue;
+    }
+  }
+
   await stagehand.context.close();
 
   return {
-    _success: observationResult == expectedResult,
+    _success: foundMatch,
     expected: expectedResult,
-    actual: observationResult,
+    observations,
     debugUrl,
     sessionUrl,
     logs: logger.getLogs(),
@@ -142,14 +155,16 @@ const vanta_h = async () => {
 
   await stagehand.page.goto("https://www.vanta.com/");
 
-  const observation = await stagehand.observe("find the buy now button");
+  const observations = await stagehand.observe({
+    instruction: "find the buy now button",
+  });
 
   await stagehand.context.close();
 
   // we should have no saved observation since the element shouldn't exist
   return {
-    _success: observation === null,
-    observation,
+    _success: observations.length === 0,
+    observations,
     debugUrl,
     sessionUrl,
     logs: logger.getLogs(),

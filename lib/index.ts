@@ -1,9 +1,8 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
-import { expect } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
-import { act, ask, extract, observe, verifyActCompletion } from "./inference";
+import { act, extract, observe, verifyActCompletion } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
@@ -164,7 +163,10 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private llmProvider: LLMProvider;
   private observations: {
-    [key: string]: { result: string; observation: string };
+    [key: string]: {
+      result: { selector: string; description: string }[];
+      instruction: string;
+    };
   };
   private actions: { [key: string]: { result: string; action: string } };
   private id: string;
@@ -275,7 +277,16 @@ export class Stagehand {
 
   private is_processing_browserbase_logs: boolean = false;
 
-  log(logObj: { category?: string; message: string; level?: 0 | 1 | 2 }): void {
+  log({
+    message,
+    category,
+    level,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }): void {
+    const logObj = { category, message, level };
     logObj.level = logObj.level || 1;
 
     // Normal Logging
@@ -410,12 +421,12 @@ export class Stagehand {
   }
 
   private async _recordObservation(
-    observation: string,
-    result: string,
+    instruction: string,
+    result: { selector: string; description: string }[],
   ): Promise<string> {
-    const id = this._generateId(observation);
+    const id = this._generateId(instruction);
 
-    this.observations[id] = { result, observation };
+    this.observations[id] = { result, instruction };
 
     return id;
   }
@@ -517,67 +528,88 @@ export class Stagehand {
   }
 
   private async _observe({
-    observation,
+    instruction,
+    useVision,
+    fullPage,
     modelName,
   }: {
-    observation: string;
+    instruction: string;
+    useVision: boolean;
+    fullPage: boolean;
     modelName?: AvailableModel;
-  }): Promise<string | null> {
+  }): Promise<{ selector: string; description: string }[]> {
+    if (!instruction) {
+      instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
+    }
+
+    const model = modelName ?? this.defaultModelName;
+
     this.log({
       category: "observation",
-      message: `starting observation: ${observation}`,
+      message: `starting observation: ${instruction}`,
       level: 1,
     });
 
     await this._waitForSettledDom();
     await this.startDomDebug();
-    const { outputString, selectorMap } = await this.page.evaluate(() =>
-      window.processDom([]),
+    let { outputString, selectorMap } = await this.page.evaluate(
+      (fullPage: boolean) =>
+        fullPage ? window.processAllOfDom() : window.processDom([]),
+      fullPage,
     );
 
-    const elementId = await observe({
-      observation,
+    let annotatedScreenshot: Buffer | undefined;
+    if (useVision === true) {
+      if (!modelsWithVision.includes(model)) {
+        this.log({
+          category: "observation",
+          message: `${model} does not support vision. Skipping vision processing.`,
+          level: 1,
+        });
+      } else {
+        const screenshotService = new ScreenshotService(
+          this.page,
+          selectorMap,
+          this.verbose,
+        );
+
+        annotatedScreenshot =
+          await screenshotService.getAnnotatedScreenshot(fullPage);
+        outputString = "n/a. use the image to find the elements.";
+      }
+    }
+
+    const observationResponse = await observe({
+      instruction,
       domElements: outputString,
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
+      image: annotatedScreenshot,
     });
+
+    const elementsWithSelectors = observationResponse.elements.map(
+      (element) => {
+        const { elementId, ...rest } = element;
+
+        return {
+          ...rest,
+          selector: `xpath=${selectorMap[elementId]}`,
+        };
+      },
+    );
 
     await this.cleanupDomDebug();
 
-    if (elementId === "NONE") {
-      this.log({
-        category: "observation",
-        message: `no element found for ${observation}`,
-        level: 1,
-      });
-      return null;
-    }
+    this._recordObservation(instruction, elementsWithSelectors);
 
     this.log({
       category: "observation",
-      message: `found element ${elementId}`,
+      message: `found element ${JSON.stringify(elementsWithSelectors)}`,
       level: 1,
     });
 
-    const selector = selectorMap[parseInt(elementId)];
-    const locatorString = `xpath=${selector}`;
-
-    this.log({
-      category: "observation",
-      message: `found locator ${locatorString}`,
-      level: 1,
-    });
-
-    // the locator string found by the LLM might resolve to multiple places in the DOM
-    const firstLocator = this.page.locator(locatorString).first();
-
-    await expect(firstLocator).toBeAttached();
-    const observationId = await this._recordObservation(
-      observation,
-      locatorString,
-    );
-
-    return observationId;
+    await this._recordObservation(instruction, elementsWithSelectors);
+    return elementsWithSelectors;
   }
 
   private async _act({
@@ -1116,13 +1148,18 @@ export class Stagehand {
     });
   }
 
-  async observe({
-    observation,
-    modelName,
-  }: {
-    observation: string;
+  async observe(options?: {
+    instruction?: string;
     modelName?: AvailableModel;
-  }): Promise<string | null> {
-    return this._observe({ observation, modelName });
+    useVision?: boolean;
+  }): Promise<{ selector: string; description: string }[]> {
+    return this._observe({
+      instruction:
+        options?.instruction ??
+        "Find actions that can be performed on this page.",
+      modelName: options?.modelName,
+      useVision: options?.useVision ?? false,
+      fullPage: false,
+    });
   }
 }

@@ -21,26 +21,28 @@ export async function processAllOfDom() {
   const documentHeight = document.documentElement.scrollHeight;
   const totalChunks = Math.ceil(documentHeight / viewportHeight);
 
-  const chunkPromises = Array.from({ length: totalChunks }, (_, chunk) =>
-    processElements(chunk, false),
-  );
+  let index = 0;
+  const results = [];
+  for (let chunk = 0; chunk < totalChunks; chunk++) {
+    const result = await processElements(chunk, true, index);
+    results.push(result);
+    index += Object.keys(result.selectorMap).length;
+  }
 
-  const results = await Promise.all(chunkPromises);
+  await scrollToHeight(0);
 
-  const concatenatedOutputString = results
-    .map((result) => result.outputString)
-    .join("");
+  const allOutputString = results.map((result) => result.outputString).join("");
   const allSelectorMap = results.reduce(
     (acc, result) => ({ ...acc, ...result.selectorMap }),
     {},
   );
 
   console.log(
-    `Stagehand (Browser Process): All dom elements: ${concatenatedOutputString}`,
+    `Stagehand (Browser Process): All dom elements: ${allOutputString}`,
   );
 
   return {
-    outputString: concatenatedOutputString,
+    outputString: allOutputString,
     selectorMap: allSelectorMap,
   };
 }
@@ -66,6 +68,7 @@ export async function scrollToHeight(height: number) {
 export async function processElements(
   chunk: number,
   scrollToChunk: boolean = true,
+  indexOffset: number = 0,
 ) {
   console.time("processElements:total");
   const viewportHeight = window.innerHeight;
@@ -148,7 +151,7 @@ export async function processElements(
     if (isTextNode(element)) {
       const textContent = element.textContent?.trim();
       if (textContent) {
-        outputString += `${index}:${textContent}\n`;
+        outputString += `${index + indexOffset}:${textContent}\n`;
       }
     } else if (isElementNode(element)) {
       const tagName = element.tagName.toLowerCase();
@@ -158,10 +161,10 @@ export async function processElements(
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent?.trim() || "";
 
-      outputString += `${index}:${openingTag}${textContent}${closingTag}\n`;
+      outputString += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
     }
 
-    selectorMap[index] = xpath;
+    selectorMap[index + indexOffset] = xpath;
   });
   console.timeEnd("processElements:processCandidates");
 
