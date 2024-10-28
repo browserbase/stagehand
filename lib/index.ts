@@ -1,9 +1,8 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
-import { expect } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
-import { act, ask, extract, observe, verifyActCompletion } from "./inference";
+import { act, extract, observe, verifyActCompletion } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
@@ -1140,19 +1139,17 @@ export class Stagehand {
     });
   }
 
-  async observe({
-    instruction,
-    modelName,
-    useVision = false,
-  }: {
-    instruction: string;
+  async observe(options?: {
+    instruction?: string;
     modelName?: AvailableModel;
     useVision?: boolean;
   }): Promise<{ selector: string; description: string }[]> {
     return this._observe({
-      instruction,
-      modelName,
-      useVision,
+      instruction:
+        options?.instruction ??
+        "Find actions that can be performed on this page.",
+      modelName: options?.modelName,
+      useVision: options?.useVision ?? false,
       fullPage: false,
     });
   }
