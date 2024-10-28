@@ -165,8 +165,8 @@ export class Stagehand {
   private llmProvider: LLMProvider;
   private observations: {
     [key: string]: {
-      result: { locator: string; description: string }[];
-      observation: string;
+      result: { selector: string; description: string }[];
+      instruction: string;
     };
   };
   private actions: { [key: string]: { result: string; action: string } };
@@ -413,12 +413,12 @@ export class Stagehand {
   }
 
   private async _recordObservation(
-    observation: string,
-    result: { locator: string; description: string }[],
+    instruction: string,
+    result: { selector: string; description: string }[],
   ): Promise<string> {
-    const id = this._generateId(observation);
+    const id = this._generateId(instruction);
 
-    this.observations[id] = { result, observation };
+    this.observations[id] = { result, instruction };
 
     return id;
   }
@@ -522,14 +522,14 @@ export class Stagehand {
   private async _observe({
     instruction,
     useVision,
+    fullPage,
     modelName,
-    fullPage = true,
   }: {
     instruction: string;
     useVision: boolean;
+    fullPage: boolean;
     modelName?: AvailableModel;
-    fullPage?: boolean;
-  }): Promise<{ locator: string; description: string }[]> {
+  }): Promise<{ selector: string; description: string }[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
@@ -572,34 +572,36 @@ export class Stagehand {
     }
 
     const observationResponse = await observe({
-      observation: instruction,
+      instruction,
       domElements: outputString,
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
       image: annotatedScreenshot,
     });
 
-    const elementsWithLocators = observationResponse.elements.map((element) => {
-      const { elementId, ...rest } = element;
+    const elementsWithSelectors = observationResponse.elements.map(
+      (element) => {
+        const { elementId, ...rest } = element;
 
-      return {
-        ...rest,
-        locator: selectorMap[elementId],
-      };
-    });
+        return {
+          ...rest,
+          selector: `xpath=${selectorMap[elementId]}`,
+        };
+      },
+    );
 
     await this.cleanupDomDebug();
 
-    this._recordObservation(instruction, elementsWithLocators);
+    this._recordObservation(instruction, elementsWithSelectors);
 
     this.log({
       category: "observation",
-      message: `found element ${JSON.stringify(elementsWithLocators)}`,
+      message: `found element ${JSON.stringify(elementsWithSelectors)}`,
       level: 1,
     });
 
-    await this._recordObservation(instruction, elementsWithLocators);
-    return elementsWithLocators;
+    await this._recordObservation(instruction, elementsWithSelectors);
+    return elementsWithSelectors;
   }
 
   private async _act({
@@ -1146,7 +1148,12 @@ export class Stagehand {
     instruction: string;
     modelName?: AvailableModel;
     useVision?: boolean;
-  }): Promise<{ locator: string; description: string }[]> {
-    return this._observe({ instruction, modelName, useVision });
+  }): Promise<{ selector: string; description: string }[]> {
+    return this._observe({
+      instruction,
+      modelName,
+      useVision,
+      fullPage: false,
+    });
   }
 }

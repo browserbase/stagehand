@@ -296,13 +296,13 @@ export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 }
 
 export function buildObserveUserMessage(
-  observation: string,
+  instruction: string,
   domElements: string,
 ): OpenAI.ChatCompletionMessageParam {
   return {
     role: "user",
-    content: `instruction: ${observation}
-    DOM: ${domElements}`,
+    content: `instruction: ${instruction}
+DOM: ${domElements}`,
   };
 }
 

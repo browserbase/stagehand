@@ -254,23 +254,25 @@ export async function extract({
 }
 
 export async function observe({
-  observation,
+  instruction,
   domElements,
   llmProvider,
   modelName,
   image,
 }: {
-  observation: string;
+  instruction: string;
   domElements: string;
   llmProvider: LLMProvider;
-  modelName: string;
+  modelName: AvailableModel;
   image?: Buffer;
-}) {
+}): Promise<{
+  elements: { elementId: number; description: string }[];
+}> {
   const observeSchema = z.object({
     elements: z
       .array(
         z.object({
-          id: z.number().describe("the number of the element"),
+          elementId: z.number().describe("the number of the element"),
           description: z
             .string()
             .describe(
@@ -282,11 +284,11 @@ export async function observe({
   });
 
   const llmClient = llmProvider.getClient(modelName);
-  const observationResponse = await llmClient.createExtraction({
+  const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
       buildObserveSystemPrompt() as ChatMessage,
-      buildObserveUserMessage(observation, domElements) as ChatMessage,
+      buildObserveUserMessage(instruction, domElements) as ChatMessage,
     ],
     image: image
       ? { buffer: image, description: AnnotatedScreenshotText }

@@ -85,15 +85,15 @@ const vanta = async () => {
 
   await stagehand.page.goto("https://www.vanta.com/");
 
-  const observation = await stagehand.observe(
-    "find the text for the request demo button",
-  );
+  const observations = await stagehand.observe({
+    instruction: "find the text for the request demo button",
+  });
 
-  if (!observation) {
+  if (observations.length === 0) {
     await stagehand.context.close();
     return {
       _success: false,
-      observation,
+      observations,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
@@ -101,7 +101,7 @@ const vanta = async () => {
   }
 
   const observationResult = await stagehand.page
-    .locator(stagehand.observations[observation].result)
+    .locator(observations[0].selector)
     .first()
     .innerHTML();
 
@@ -142,14 +142,16 @@ const vanta_h = async () => {
 
   await stagehand.page.goto("https://www.vanta.com/");
 
-  const observation = await stagehand.observe("find the buy now button");
+  const observations = await stagehand.observe({
+    instruction: "find the buy now button",
+  });
 
   await stagehand.context.close();
 
   // we should have no saved observation since the element shouldn't exist
   return {
-    _success: observation === null,
-    observation,
+    _success: observations.length === 0,
+    observations,
     debugUrl,
     sessionUrl,
     logs: logger.getLogs(),
