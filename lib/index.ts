@@ -853,6 +853,29 @@ export class Stagehand {
             });
           }
         }
+      } else if (method === "press") {
+        try {
+          const key = args[0];
+          await this.page.keyboard.press(key);
+        } catch (e) {
+          this.log({
+            category: "action",
+            message: `Error pressing key (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
+            level: 1,
+          });
+
+          if (retries < 2) {
+            return this._act({
+              action,
+              steps,
+              modelName,
+              useVision,
+              verifierUseVision,
+              retries: retries + 1,
+              chunksSeen,
+            });
+          }
+        }
       } else if (
         typeof locator[method as keyof typeof locator] === "function"
       ) {
