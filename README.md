@@ -45,14 +45,16 @@ Each Stagehand function takes in an atomic instruction, such as `act("click the 
 
 Instructions should be atomic to increase reliability, and step planning should be handled by the higher level agent. You can use `observe()` to get a suggested list of actions that can be taken on the current page, and then use those to ground your step planning prompts.
 
-Stagehand is [open source](#license) and maintained by [Browserbase](https://browserbase.com) team. We believe that by enabling more developers to build reliable web automations, we'll expand the market of developers who benefit from our headless browser infrastructure. This is the framework that we wished we had while tinkering on our own applications, and we're excited to share it with you.
+Stagehand is [open source](#license) and maintained by the [Browserbase](https://browserbase.com) team. We believe that by enabling more developers to build reliable web automations, we'll expand the market of developers who benefit from our headless browser infrastructure. This is the framework that we wished we had while tinkering on our own applications, and we're excited to share it with you.
 
 ## Getting Started
 
 ### 1. Install the Stagehand package
 
+We also install zod to power typed extraction
+
 ```bash
-npm install @browserbasehq/stagehand
+npm install @browserbasehq/stagehand zod
 ```
 
 ### 2. Configure your model provider
@@ -78,6 +80,7 @@ Then you can create a Stagehand instance like so:
 
 ```javascript
 import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -93,6 +96,7 @@ export BROWSERBASE_PROJECT_ID=...
 
 ```javascript
 import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
@@ -211,7 +215,8 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE]
+> `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
@@ -228,7 +233,7 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 - **Example:**
   ```javascript
-  const actions = await stagehand.observe();
+  const actions = await stagehand.observe("find the button to check out");
   ```
 
 #### `page` and `context`
@@ -272,17 +277,6 @@ Stagehand currently supports the following models from OpenAI and Anthropic:
 
 These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
 
-#### Adding a New Model
-
-To add a new model to Stagehand, follow these steps:
-
-1. **Define the Model**: Add the new model name to the `AvailableModel` type in the `LLMProvider.ts` file. This ensures that the model is recognized by the system.
-
-2. **Map the Model to a Provider**: Update the `modelToProviderMap` in the `LLMProvider` class to associate the new model with its corresponding provider. This mapping is crucial for determining which client to use.
-
-3. **Implement the Client**: If the new model requires a new client, implement a class that adheres to the `LLMClient` interface. This class should define all necessary methods, such as `createChatCompletion`.
-
-4. **Update the `getClient` Method**: Modify the `getClient` method in the `LLMProvider` class to return an instance of the new client when the new model is requested.
 
 ## How It Works
 
@@ -308,7 +302,7 @@ The DOM Processing steps look as follows:
 
 #### Chunking
 
-While LLMs will continue to get bigger context windows and improve latency, giving any reasoning system less stuff to think about should make it more accurate. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers a candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks:
+While LLMs will continue to increase context window length and reduce latency, giving any reasoning system less stuff to think about should make it more reliable. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers a candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks:
 
 ![](./docs/media/chunks.png)
 
@@ -318,7 +312,7 @@ The `act()` and `observe()` methods can take a `useVision` flag. If this is set 
 
 ### LLM analysis
 
-Now we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested at on a large scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
+Now we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested on a large scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
 
 In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effective than relying on built in javascript APIs, possibly due to tokenization.
 
@@ -376,6 +370,18 @@ After that, you can run the eval using `npm run evals`
 Running all evals can take some time. We have a convenience script `example.ts` where you can develop your new single eval before adding it to the set of all evals.
 
 You can run `npm run example` to execute and iterate on the eval you are currently developing.
+
+#### Adding a New Model
+
+To add a new model to Stagehand, follow these steps:
+
+1. **Define the Model**: Add the new model name to the `AvailableModel` type in the `LLMProvider.ts` file. This ensures that the model is recognized by the system.
+
+2. **Map the Model to a Provider**: Update the `modelToProviderMap` in the `LLMProvider` class to associate the new model with its corresponding provider. This mapping is crucial for determining which client to use.
+
+3. **Implement the Client**: If the new model requires a new client, implement a class that adheres to the `LLMClient` interface. This class should define all necessary methods, such as `createChatCompletion`.
+
+4. **Update the `getClient` Method**: Modify the `getClient` method in the `LLMProvider` class to return an instance of the new client when the new model is requested.
 
 ### Building the SDK
 
