@@ -90,7 +90,6 @@ export class AnthropicClient implements LLMClient {
     }
 
     if (toolDefinition) {
-      console.log("toolDefinition", toolDefinition);
       anthropicTools = anthropicTools ?? [];
       anthropicTools.push(toolDefinition);
     }

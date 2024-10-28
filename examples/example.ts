@@ -8,7 +8,7 @@ async function example() {
     debugDom: true,
   });
 
-  await stagehand.init({ modelName: "gpt-4o-mini" });
+  await stagehand.init({ modelName: "claude-3-5-sonnet-latest" });
   await stagehand.page.goto("https://github.com/vercel/next.js");
   await stagehand.act({ action: "click on the contributors" });
   const contributor = await stagehand.extract({

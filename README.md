@@ -32,6 +32,9 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
+> [!NOTE]
+> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+
 ## Intro
 
 Stagehand is the AI-powered successor to [Playwright](https://github.com/microsoft/playwright), offering three simple APIs (`act`, `extract`, and `observe`) that provide the building blocks for natural language driven web automation.
@@ -207,6 +210,8 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
+> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
+
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
 - **Arguments:**
@@ -252,8 +257,6 @@ Stagehand currently supports the following models from OpenAI and Anthropic:
 
   - `gpt-4o`
   - `gpt-4o-mini`
-  - `o1-preview`
-  - `o1-mini`
   - `gpt-4o-2024-08-06`
 
 - **Anthropic Models:**
