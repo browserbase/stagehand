@@ -28,6 +28,7 @@
   - [observe()](#observe)
   - [page and context](#page-and-context)
   - [log()](#log)
+- [Model Support](#model-support)
 - [How It Works](#how-it-works)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -251,7 +252,7 @@ Make sure the log level is above the verbose level you set when initializing the
   stagehand.log("Hello, world!");
   ```
 
-### Model Support
+## Model Support
 
 Stagehand leverages a generic LLM client architecture to support various language models from different providers. This design allows for flexibility, enabling the integration of new models with minimal changes to the core system. Different models work better for different tasks, so you can choose the model that best suits your needs.
 
