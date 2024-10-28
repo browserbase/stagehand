@@ -81,10 +81,11 @@ const stagehand = new Stagehand({
 });
 ```
 
-If you plan to run the browser remotely, you'll need to set a Browserbase API Key.
+If you plan to run the browser remotely, you'll need to set a Browserbase API Key and Project ID.
 
 ```bash
 export BROWSERBASE_API_KEY=...
+export BROWSERBASE_PROJECT_ID=...
 ```
 
 ```javascript
