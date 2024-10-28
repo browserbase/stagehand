@@ -173,7 +173,7 @@ This constructor is used to create an instance of Stagehand.
 
   - `action`: a `string` describing the action to perform, e.g., `"search for 'x'"`.
   - `modelName`: (optional) an `AvailableModel` string to specify the model to use.
-  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used.
+  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`.
 
 - **Returns:**
 
@@ -222,6 +222,7 @@ If you are looking for a specific element, you can also pass in an instruction t
 - **Arguments:**
 
   - `instruction`: a `string` providing instructions for the observation.
+  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`.
 
 - **Returns:**
 
@@ -295,9 +296,6 @@ The SDK has two major phases:
 ### DOM processing
 
 Stagehand uses a combination of techniques to prepare the DOM.
-Stagehand only uses text input as of this version, but the release of `gpt-4o` incorporating vision is attractive.
-
-\*_[update before release_]\*
 
 The DOM Processing steps look as follows:
 
@@ -315,6 +313,10 @@ The DOM Processing steps look as follows:
 While LLMs will continue to get bigger context windows and improve latency, giving any reasoning system less stuff to think about should make it more accurate. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers a candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks:
 
 ![](./docs/media/chunks.png)
+
+### Vision
+
+The `act()` and `observe()` methods can take a `useVision` flag. If this is set to `true`, the LLM will be provided with a annotated screenshot of the current page to identify which elements to act on. This is useful for complex DOMs that the LLM has a hard time reasoning about, even after processing and chunking. By default, this flag is set to `"fallback"`, which means that if the LLM fails to successfully identify a single element, Stagehand will retry the attempt using vision.
 
 ### LLM analysis
 
