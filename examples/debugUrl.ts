@@ -1,4 +1,3 @@
-#!/usr/bin/env -S pnpm tsx
 import { Stagehand } from "../lib";
 
 async function debug(url: string) {

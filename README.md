@@ -34,8 +34,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
 
@@ -213,8 +212,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE]
-> `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
@@ -345,12 +343,12 @@ git clone git@github.com:browserbase/stagehand.git
 Then install dependencies
 
 ```bash
-pnpm install
+npm install
 ```
 
 Ensure you have the `.env` file as documented above in the Getting Started section.
 
-Then, run the example script `pnpm example`.
+Then, run the example script `npm run example`.
 
 ### Development tips
 
@@ -370,19 +368,19 @@ You'll need a Braintrust API key to run evals
 BRAINTRUST_API_KEY=""
 ```
 
-After that, you can run the eval using `pnpm evals`
+After that, you can run the eval using `npm run evals`
 
 ### Adding new evals
 
 Running all evals can take some time. We have a convenience script `example.ts` where you can develop your new single eval before adding it to the set of all evals.
 
-You can run `pnpm example` to execute and iterate on the eval you are currently developing.
+You can run `npm run example` to execute and iterate on the eval you are currently developing.
 
 ### Building the SDK
 
 Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla `esbuild` to build scripts that run in the DOM.
 
-1. run `pnpm build`
+1. run `npm run build`
 2. run `npm pack` to get a tarball for distribution
 
 ## Acknowledgements

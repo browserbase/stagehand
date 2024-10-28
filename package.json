@@ -5,14 +5,14 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "scripts": {
-    "example": "pnpm build-dom-scripts && tsx examples/example.ts",
-    "debug-url": "pnpm build-dom-scripts && tsx examples/debugUrl.ts",
+    "example": "npm run build-dom-scripts && tsx examples/example.ts",
+    "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "pnpm build-dom-scripts && npx braintrust eval evals/index.eval.ts",
+    "evals": "npm run build-dom-scripts && npx braintrust eval evals/index.eval.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "bundle-dom-scripts": "esbuild ./lib/dom/index.ts --bundle --outfile=./lib/dom/bundle.js --platform=browser --target=es2015 --minify",
-    "build": "pnpm build-dom-scripts && tsup lib/index.ts"
+    "build": "npm run build-dom-scripts && tsup lib/index.ts"
   },
   "files": [
     "dist/**",
