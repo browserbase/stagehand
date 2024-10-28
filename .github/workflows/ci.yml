@@ -26,15 +26,12 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install pnpm
-        run: npm install -g pnpm
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: npm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
+        run: npm exec playwright install --with-deps
 
       - name: Run Evals
-        run: pnpm evals
+        run: npm run evals
         timeout-minutes: 20
