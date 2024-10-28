@@ -182,6 +182,7 @@ export class Stagehand {
     category?: string;
     message: string;
   }) => void;
+  private domSettleTimeoutMs: number;
 
   constructor(
     {
@@ -191,6 +192,7 @@ export class Stagehand {
       llmProvider,
       headless = false,
       logger,
+      domSettleTimeoutMs = 30000,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
@@ -202,6 +204,7 @@ export class Stagehand {
         message: string;
         level?: 0 | 1 | 2;
       }) => void;
+      domSettleTimeoutMs?: number;
     } = {
       env: "BROWSERBASE",
     },
@@ -216,6 +219,7 @@ export class Stagehand {
     this.debugDom = debugDom;
     this.defaultModelName = "gpt-4o";
     this.headless = headless;
+    this.domSettleTimeoutMs = domSettleTimeoutMs;
   }
 
   async init({
@@ -357,25 +361,45 @@ export class Stagehand {
     }
   }
 
-  private async _waitForSettledDom() {
+  private async _waitForSettledDom(timeoutMs?: number) {
     try {
-      await this.page.waitForSelector("body");
-      await this.page.waitForLoadState("domcontentloaded");
-
-      await this.page.evaluate(() => {
-        return new Promise<void>((resolve) => {
-          if (typeof window.waitForDomSettle === "function") {
-            window.waitForDomSettle().then(() => {
-              resolve();
-            });
-          } else {
-            console.warn(
-              "waitForDomSettle is not defined, considering DOM as settled",
-            );
-            resolve();
-          }
-        });
+      const timeout = timeoutMs ?? this.domSettleTimeoutMs;
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          console.warn(
+            `[stagehand:dom] DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
+          );
+          this.log({
+            category: "dom",
+            message: `DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
+            level: 1,
+          });
+          resolve();
+        }, timeout);
       });
+
+      await Promise.race([
+        (async () => {
+          await this.page.waitForSelector("body");
+          await this.page.waitForLoadState("domcontentloaded");
+
+          await this.page.evaluate(() => {
+            return new Promise<void>((resolve) => {
+              if (typeof window.waitForDomSettle === "function") {
+                window.waitForDomSettle().then(() => {
+                  resolve();
+                });
+              } else {
+                console.warn(
+                  "waitForDomSettle is not defined, considering DOM as settled",
+                );
+                resolve();
+              }
+            });
+          });
+        })(),
+        timeoutPromise,
+      ]);
     } catch (e) {
       this.log({
         category: "dom",

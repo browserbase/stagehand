@@ -34,7 +34,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE] 
+> [!NOTE]
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
@@ -133,6 +133,7 @@ This constructor is used to create an instance of Stagehand.
     - `1`: SDK-level logging
     - `2`: LLM-client level logging (most granular)
   - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
+  - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
 
 - **Returns:**
 
@@ -212,7 +213,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE] 
+> [!NOTE]
 > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
