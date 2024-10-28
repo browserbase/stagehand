@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
 import { act, ask, extract, observe, verifyActCompletion } from "./inference";
-import { LLMProvider } from "./llm/LLMProvider";
+import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import Browserbase from "./browserbase";
 import { ScreenshotService } from "./vision";
@@ -173,7 +173,7 @@ export class Stagehand {
   public env: "LOCAL" | "BROWSERBASE";
   public verbose: 0 | 1 | 2;
   public debugDom: boolean;
-  public defaultModelName: string;
+  public defaultModelName: AvailableModel;
   public headless: boolean;
   private logger: (message: { category?: string; message: string }) => void;
   private externalLogger?: (message: {
@@ -321,7 +321,9 @@ export class Stagehand {
     await download.delete();
   }
 
-  async init({ modelName = "gpt-4o" }: { modelName?: string } = {}): Promise<{
+  async init({
+    modelName = "gpt-4o",
+  }: { modelName?: AvailableModel } = {}): Promise<{
     debugUrl: string;
     sessionUrl: string;
   }> {
@@ -441,7 +443,7 @@ export class Stagehand {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
-    modelName?: string;
+    modelName?: AvailableModel;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -455,6 +457,7 @@ export class Stagehand {
       (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
       chunksSeen,
     );
+
     this.log({
       category: "extraction",
       message: `received output from processDom. Current chunk index: ${chunk}, Number of chunks left: ${chunks.length - chunksSeen.length}`,
@@ -520,7 +523,7 @@ export class Stagehand {
   }: {
     instruction: string;
     schema: T;
-    modelName?: string;
+    modelName?: AvailableModel;
   }): Promise<z.infer<T>> {
     return this._extract({
       instruction,
@@ -571,7 +574,8 @@ export class Stagehand {
           this.verbose,
         );
 
-        annotatedScreenshot = await screenshotService.getAnnotatedScreenshot(fullPage);
+        annotatedScreenshot =
+          await screenshotService.getAnnotatedScreenshot(fullPage);
         outputString = "n/a. use the image to find the elements.";
       }
     }
@@ -596,7 +600,10 @@ export class Stagehand {
     return observationResponse;
   }
 
-  async ask(question: string, modelName?: string): Promise<string | null> {
+  async ask(
+    question: string,
+    modelName?: AvailableModel,
+  ): Promise<string | null> {
     await this.waitForSettledDom();
 
     return ask({
@@ -606,9 +613,9 @@ export class Stagehand {
     });
   }
 
-  async recordObservations(
-    result: { elements: { locator: string; description: string }[] },
-  ): Promise<string[]> {
+  async recordObservations(result: {
+    elements: { locator: string; description: string }[];
+  }): Promise<string[]> {
     const ids = result.elements.map((element) => {
       const id = this.getId(element.locator);
       this.observations[id] = {
@@ -641,7 +648,7 @@ export class Stagehand {
     action: string;
     steps?: string;
     chunksSeen: number[];
-    modelName?: string;
+    modelName?: AvailableModel;
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
     retries?: number;
@@ -1125,7 +1132,7 @@ export class Stagehand {
     useVision = "fallback",
   }: {
     action: string;
-    modelName?: string;
+    modelName?: AvailableModel;
     useVision?: "fallback" | boolean;
   }): Promise<{
     success: boolean;

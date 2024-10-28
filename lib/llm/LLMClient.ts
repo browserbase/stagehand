@@ -1,3 +1,5 @@
+import { AvailableModel } from "./LLMProvider";
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content:
@@ -9,9 +11,10 @@ export interface ChatMessage {
       }[];
 }
 
-export const modelsWithVision = [
+export const modelsWithVision: AvailableModel[] = [
   "gpt-4o",
   "gpt-4o-mini",
+  "claude-3-5-sonnet-latest",
   "claude-3-5-sonnet-20240620",
   "gpt-4o-2024-08-06",
 ];
@@ -37,15 +40,7 @@ export interface ChatCompletionOptions {
   };
 }
 
-export interface ExtractionOptions extends ChatCompletionOptions {
-  response_model: {
-    name: string;
-    schema: any;
-  }; // Schema for the structured output
-}
-
 export interface LLMClient {
   createChatCompletion(options: ChatCompletionOptions): Promise<any>;
-  createExtraction(options: ExtractionOptions): Promise<any>;
   logger: (message: { category?: string; message: string }) => void;
 }

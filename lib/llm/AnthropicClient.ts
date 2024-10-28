@@ -1,9 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import {
-  LLMClient,
-  ChatCompletionOptions,
-  ExtractionOptions,
-} from "./LLMClient";
+import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 export class AnthropicClient implements LLMClient {
@@ -26,16 +22,14 @@ export class AnthropicClient implements LLMClient {
     });
     this.logger = logger;
   }
-  async createChatCompletion(options: ChatCompletionOptions) {
+
+  async createChatCompletion(
+    options: ChatCompletionOptions & { retries?: number },
+  ) {
     const systemMessage = options.messages.find((msg) => msg.role === "system");
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
     );
-    // this.logger({
-    //   category: "Anthropic",
-    //   message: `Creating chat completion with options: ${JSON.stringify(options)}`,
-    //   level: 2,
-    // });
 
     if (options.image) {
       const screenshotMessage: any = {
@@ -85,8 +79,8 @@ export class AnthropicClient implements LLMClient {
         jsonSchema.definitions?.MySchema?.required || jsonSchema.required;
 
       toolDefinition = {
-        name: "extract_data",
-        description: "Extracts specific data based on the provided schema.",
+        name: "print_extracted_data",
+        description: "Prints the extracted data based on the provided schema.",
         input_schema: {
           type: "object",
           properties: schemaProperties,
@@ -155,9 +149,17 @@ export class AnthropicClient implements LLMClient {
 
     if (options.response_model) {
       const toolUse = response.content.find((c) => c.type === "tool_use");
+      // console.log("[Debug][Response]", transformedResponse);
+      // console.log("[Response Model]", options.response_model);
       if (toolUse && "input" in toolUse) {
         return toolUse.input;
       } else {
+        if (!options.retries || options.retries < 2) {
+          return this.createChatCompletion({
+            ...options,
+            retries: (options.retries ?? 0) + 1,
+          });
+        }
         throw new Error(
           "Extraction failed: No tool use with input in response",
         );
@@ -165,91 +167,5 @@ export class AnthropicClient implements LLMClient {
     }
 
     return transformedResponse;
-  }
-
-  async createExtraction(options: ExtractionOptions) {
-    this.logger({
-      category: "Anthropic",
-      message: `Extracting more data (Anthropic)`,
-      level: 2,
-    });
-
-    const jsonSchema = zodToJsonSchema(options.response_model.schema);
-
-    // Extract the actual schema properties
-    const schemaProperties =
-      jsonSchema.definitions?.MySchema?.properties || jsonSchema.properties;
-    const schemaRequired =
-      jsonSchema.definitions?.MySchema?.required || jsonSchema.required;
-
-    const toolDefinition = {
-      name: "extract_data",
-      description:
-        "Extracts specific data from the given content based on the provided schema.",
-      input_schema: {
-        type: "object",
-        properties: schemaProperties,
-        required: schemaRequired,
-      },
-    };
-
-    const systemMessage = options.messages.find((msg) => msg.role === "system");
-    let userMessages = options.messages.filter(
-      (msg) => msg.role !== "system",
-    );
-
-    if (options.image) {
-      const screenshotMessage: any = {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: "image/jpeg",
-              data: options.image.buffer.toString("base64"),
-            },
-          },
-          ...(options.image.description
-            ? [{ type: "text", text: options.image.description }]
-            : []),
-        ],
-      };
-
-      userMessages = [...userMessages, screenshotMessage];
-    }
-
-    const response = await this.client.messages.create({
-      model: options.model || "claude-3-opus-20240229",
-      max_tokens: options.max_tokens || 1000,
-      messages: userMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      })),
-      system:
-        systemMessage?.content ||
-        "You are an AI assistant capable of extracting structured data from text.",
-      temperature: options.temperature || 0.1,
-      tools: [toolDefinition],
-    });
-
-    this.logger({
-      category: "Anthropic",
-      message: `Response from Anthropic: ${JSON.stringify(response)}`,
-      level: 2,
-    });
-
-    const toolUse = response.content.find((c) => c.type === "tool_use");
-    if (toolUse && "input" in toolUse) {
-      const extractedData = toolUse.input;
-      this.logger({
-        category: "Anthropic",
-        message: "Extracted data: " + JSON.stringify(extractedData),
-        level: 2,
-      });
-      return extractedData;
-    } else {
-      throw new Error("Extraction failed: No tool use with input in response");
-    }
   }
 }
