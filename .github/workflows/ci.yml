@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: Evals
 
 on:
   pull_request:
@@ -38,7 +38,3 @@ jobs:
       - name: Run Evals
         run: pnpm evals
         timeout-minutes: 20
-
-      # Uncomment the lines below to ssh into the container for debugging
-      # - name: Install sshx
-      #   run: curl -sSf https://sshx.io/get | sh -s run
