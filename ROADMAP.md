@@ -9,7 +9,7 @@ The purpose of this doc is to discuss future directions and plans for stagehand.
 
 ~~The challenge is to create an effective map between elements, and the screenshots. Fuji-web does this by supplying a regular screenshot and an annotated one in order to access the element map correctly.~~
 
-We have a baseline implementation of the vision mechanism done. 
+We have a baseline implementation of the vision mechanism done.
 
 Improvement suggestions:
 

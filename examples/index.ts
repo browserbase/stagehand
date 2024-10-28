@@ -6,20 +6,20 @@ async function example() {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
-    iframeSupport: true, // Set to true to enable iframe scanning
   });
-  
-  await stagehand.init();
-  await stagehand.page.goto("https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html");
-  await stagehand.act({ action: "close the privacy policy popup" });
-  await stagehand.act({ action: "fill the last name field" });
-  await stagehand.act({ action: "fill address 1 field" });
-  await stagehand.act({ action: "select a state" });
-  await stagehand.act({ action: "select a skin type" });
-  await stagehand.context.close();
-  return;
-}
 
+  await stagehand.init({ modelName: "gpt-4o-mini" });
+  await stagehand.page.goto("https://github.com/vercel/next.js");
+  await stagehand.act({ action: "click on the contributors" });
+  const contributor = await stagehand.extract({
+    instruction: "extract the top contributor",
+    schema: z.object({
+      username: z.string(),
+      url: z.string(),
+    }),
+  });
+  console.log(`Our favorite contributor is ${contributor.username}`);
+}
 (async () => {
   await example();
 })();
