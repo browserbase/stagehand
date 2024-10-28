@@ -277,7 +277,16 @@ export class Stagehand {
 
   private is_processing_browserbase_logs: boolean = false;
 
-  log(logObj: { category?: string; message: string; level?: 0 | 1 | 2 }): void {
+  log({
+    message,
+    category,
+    level,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }): void {
+    const logObj = { category, message, level };
     logObj.level = logObj.level || 1;
 
     // Normal Logging
