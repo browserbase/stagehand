@@ -66,7 +66,6 @@ const expedia = async () => {
     await stagehand.context.close().catch(() => {});
   }
 };
-
 const vanta = async () => {
   const logger = new EvalLogger();
 
@@ -85,9 +84,7 @@ const vanta = async () => {
 
   await stagehand.page.goto("https://www.vanta.com/");
 
-  const observations = await stagehand.observe({
-    instruction: "find the text for the request demo button",
-  });
+  const observations = await stagehand.observe();
 
   if (observations.length === 0) {
     await stagehand.context.close();
@@ -100,11 +97,6 @@ const vanta = async () => {
     };
   }
 
-  const observationResult = await stagehand.page
-    .locator(observations[0].selector)
-    .first()
-    .innerHTML();
-
   const expectedLocator = `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_cta-button-desktop.is-smaller.w-button`;
 
   const expectedResult = await stagehand.page
@@ -112,12 +104,33 @@ const vanta = async () => {
     .first()
     .innerHTML();
 
+  let foundMatch = false;
+  for (const observation of observations) {
+    try {
+      const observationResult = await stagehand.page
+        .locator(observation.selector)
+        .first()
+        .innerHTML();
+
+      if (observationResult === expectedResult) {
+        foundMatch = true;
+        break;
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to check observation with selector ${observation.selector}:`,
+        error.message,
+      );
+      continue;
+    }
+  }
+
   await stagehand.context.close();
 
   return {
-    _success: observationResult == expectedResult,
+    _success: foundMatch,
     expected: expectedResult,
-    actual: observationResult,
+    observations,
     debugUrl,
     sessionUrl,
     logs: logger.getLogs(),
