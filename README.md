@@ -27,6 +27,7 @@
   - [observe()](#observe)
 - [Model Support](#model-support)
 - [How It Works](#how-it-works)
+- [Prompting Tips](#prompting-tips)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [Acknowledgements](#acknowledgements)
