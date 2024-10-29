@@ -7,7 +7,7 @@
 </div>
 
 <p align="center">
-  A lightweight framework for building AI web browsing features.</em>
+  An AI web browsing framework focused on simplicity and extensibility.</em>
 </p>
 
 <p align="center">
