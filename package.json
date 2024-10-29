@@ -1,9 +1,10 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
@@ -13,7 +14,7 @@
     "evals": "npm run build-dom-scripts && npx braintrust eval evals/index.eval.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "bundle-dom-scripts": "esbuild ./lib/dom/index.ts --bundle --outfile=./lib/dom/bundle.js --platform=browser --target=es2015 --minify",
-    "build": "tsc && npm run build-dom-scripts && tsup lib/index.ts",
+    "build": "tsc && npm run build-dom-scripts && tsup lib/index.ts --dts",
     "release": "changeset publish"
   },
   "files": [
