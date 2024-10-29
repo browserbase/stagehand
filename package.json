@@ -1,13 +1,12 @@
 {
-  "name": "stagehand",
+  "name": "@browserbase/stagehand",
   "version": "1.0.0",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "scripts": {
-    "example": "npm run build-dom-scripts && tsx examples/example.ts",
+    "example": "npm run build-dom-scripts && tsx examples/2048.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
-    "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
     "evals": "npm run build-dom-scripts && npx braintrust eval evals/index.eval.ts",

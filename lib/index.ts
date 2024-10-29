@@ -1,7 +1,6 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
-import fs from "fs";
 import { act, extract, observe, verifyActCompletion } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
@@ -71,53 +70,35 @@ async function getBrowser(
       level: 0,
     });
 
-    const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
-    fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
-
-    const defaultPreferences = {
-      plugins: {
-        always_open_pdf_externally: true,
-      },
-    };
-
-    fs.writeFileSync(
-      `${tmpDir}/userdir/Default/Preferences`,
-      JSON.stringify(defaultPreferences),
-    );
-
-    const downloadsPath = `${process.cwd()}/downloads`;
-    fs.mkdirSync(downloadsPath, { recursive: true });
-
-    const context = await chromium.launchPersistentContext(
-      `${tmpDir}/userdir`,
-      {
-        acceptDownloads: true,
-        headless: headless,
-        viewport: {
-          width: 1250,
-          height: 800,
-        },
-        locale: "en-US",
-        timezoneId: "America/New_York",
-        deviceScaleFactor: 1,
-        args: [
-          "--enable-webgl",
-          "--use-gl=swiftshader",
-          "--enable-accelerated-2d-canvas",
-          "--disable-blink-features=AutomationControlled",
-          "--disable-web-security",
-        ],
-        bypassCSP: true,
-        userDataDir: "./user_data",
-      },
-    );
+    const browser = await chromium.launch({
+      headless: headless,
+      args: [
+        "--enable-webgl",
+        "--use-gl=swiftshader",
+        "--enable-accelerated-2d-canvas",
+        "--disable-blink-features=AutomationControlled",
+        "--disable-web-security",
+      ],
+    });
 
     logger({
       category: "Init",
       message: "Local browser started successfully.",
     });
 
+    const context = await browser.newContext({
+      viewport: {
+        width: 1250,
+        height: 800,
+      },
+      locale: "en-US",
+      deviceScaleFactor: 1,
+      bypassCSP: true,
+    });
+
     await applyStealthScripts(context);
+
+    const page = await context.newPage();
 
     return { context };
   }
