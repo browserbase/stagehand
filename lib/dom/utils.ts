@@ -1,4 +1,4 @@
-async function waitForDomSettle() {
+export async function waitForDomSettle() {
   return new Promise<void>((resolve) => {
     const createTimeout = () => {
       return setTimeout(() => {
@@ -12,6 +12,12 @@ async function waitForDomSettle() {
     });
     observer.observe(window.document.body, { childList: true, subtree: true });
   });
+}
+
+declare global {
+  interface Window {
+    waitForDomSettle: typeof waitForDomSettle;
+  }
 }
 
 window.waitForDomSettle = waitForDomSettle;

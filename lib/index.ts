@@ -108,7 +108,6 @@ async function getBrowser(
           "--disable-web-security",
         ],
         bypassCSP: true,
-        userDataDir: "./user_data",
       },
     );
 
@@ -409,7 +408,7 @@ export class Stagehand {
     }
   }
 
-  private async startDomDebug() {
+  async startDomDebug() {
     try {
       await this.page
         .evaluate(() => {

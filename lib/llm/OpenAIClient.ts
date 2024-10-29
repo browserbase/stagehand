@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { ChatCompletionMessageParam } from "openai/resources/chat";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 
 export class OpenAIClient implements LLMClient {
@@ -52,7 +53,15 @@ export class OpenAIClient implements LLMClient {
     }
 
     const response = await this.client.chat.completions.create({
-      ...openAiOptions,
+      ...openAiOptions as {
+        [key: string]: any;
+        model: string;
+        messages: ChatCompletionMessageParam[];
+        temperature?: number;
+        top_p?: number;
+        frequency_penalty?: number;
+        presence_penalty?: number;
+      },
       response_format: responseFormat,
     });
 
