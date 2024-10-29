@@ -233,7 +233,7 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 - **Example:**
   ```javascript
-  const actions = await stagehand.observe("find the button to check out");
+  const actions = await stagehand.observe();
   ```
 
 #### `page` and `context`
