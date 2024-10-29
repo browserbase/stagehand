@@ -22,7 +22,6 @@ jobs:
           access_token: ${{ secrets.GITHUB_TOKEN }}
       - run: "npm i"
       - run: "npm run build"
-        env:
       - name: "release / pull_request"
         id: "changesets"
         uses: "dotansimha/changesets-action@v1.5.2"
