@@ -1,0 +1,37 @@
+name: "release"
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  publish:
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: "actions/checkout@v3"
+        with:
+          fetch-depth: 0
+      - uses: "actions/setup-node@v3"
+        with:
+          node-version: 18
+          cache: "npm"
+      - name: "Cancel previous runs"
+        uses: "styfle/cancel-workflow-action@0.11.0"
+        continue-on-error: true
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: "npm i"
+      - run: "npm run build"
+        env:
+      - name: "release / pull_request"
+        id: "changesets"
+        uses: "dotansimha/changesets-action@v1.5.2"
+        with:
+          publish: "npm run release"
+          version: "npm exec changeset version"
+          commit: "Update stagehand version"
+          title: "Upcoming Release Changes"
+          createGithubReleases: "aggregate"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
