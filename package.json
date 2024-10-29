@@ -4,6 +4,7 @@
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
