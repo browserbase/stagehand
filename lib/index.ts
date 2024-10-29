@@ -108,7 +108,6 @@ async function getBrowser(
           "--disable-web-security",
         ],
         bypassCSP: true,
-        userDataDir: "./user_data",
       },
     );
 
