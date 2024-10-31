@@ -390,6 +390,65 @@ const homedepot = async () => {
   }
 };
 
+const extract_github_stars = async () => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
+    },
+  });
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
+
+  try {
+    await stagehand.page.goto("https://github.com/facebook/react");
+
+    const { stars } = await stagehand.extract({
+      instruction: "Extract the number of stars for the project",
+      schema: z.object({
+        stars: z.number().describe("the number of stars for the project"),
+      }),
+      modelName: "gpt-4o-2024-08-06",
+    });
+
+    const expectedStarsString = await stagehand.page
+      .locator("#repo-stars-counter-star")
+      .first()
+      .innerHTML();
+
+    const expectedStars = expectedStarsString.toLowerCase().endsWith('k') 
+      ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
+      : parseFloat(expectedStarsString);
+
+    const starsMatch = stars === expectedStarsString || stars === expectedStars;
+
+    await stagehand.context.close().catch(() => {});
+    return {
+      _success: starsMatch,
+      stars,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    console.error("Error or timeout occurred:", error);
+    await stagehand.context.close().catch(() => {});
+    return {
+      _success: false,
+      error: JSON.parse(JSON.stringify(error, null, 2)),
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  }
+};
+
 const extract_collaborators_from_github_repository = async () => {
   const logger = new EvalLogger();
 
@@ -1145,6 +1204,7 @@ const tasks = {
   peeler_complex,
   wikipedia,
   simple_google_search,
+  extract_github_stars,
   extract_collaborators_from_github_repository,
   extract_last_twenty_github_commits,
   costar,
@@ -1194,6 +1254,7 @@ const testcases = [
   },
   { input: { name: "peeler_complex" } },
   { input: { name: "simple_google_search" } },
+  { input: { name: "extract_github_stars" } },
   {
     input: {
       name: "extract_collaborators_from_github_repository",
