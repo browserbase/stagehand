@@ -426,11 +426,9 @@ const extract_github_stars = async () => {
       ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
       : parseFloat(expectedStarsString);
 
-    const starsMatch = stars === expectedStars;
-
     await stagehand.context.close().catch(() => {});
     return {
-      _success: starsMatch,
+      _success: stars === expectedStars,
       stars,
       debugUrl,
       sessionUrl,
