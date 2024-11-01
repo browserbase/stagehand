@@ -270,6 +270,19 @@ export class Stagehand {
     return { debugUrl, sessionUrl };
   }
 
+  async initFromPage(page: Page) {
+    this.page = page;
+    this.context = page.context();
+
+    const originalGoto = this.page.goto.bind(this.page);
+    this.page.goto = async (url: string, options?: any) => {
+      const result = await originalGoto(url, options);
+      await this.page.waitForLoadState("domcontentloaded");
+      await this._waitForSettledDom();
+      return result;
+    };
+  }
+
   // Logging
   private pending_logs_to_send_to_browserbase: {
     category?: string;
