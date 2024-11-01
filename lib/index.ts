@@ -270,9 +270,13 @@ export class Stagehand {
     return { debugUrl, sessionUrl };
   }
 
-  async initFromPage(page: Page) {
+  async initFromPage(
+    page: Page,
+    modelName?: AvailableModel,
+  ): Promise<{ context: BrowserContext }> {
     this.page = page;
     this.context = page.context();
+    this.defaultModelName = modelName || this.defaultModelName;
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: any) => {
@@ -300,7 +304,7 @@ export class Stagehand {
       path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
     });
 
-    return this;
+    return { context: this.context };
   }
 
   // Logging
