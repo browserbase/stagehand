@@ -270,6 +270,43 @@ export class Stagehand {
     return { debugUrl, sessionUrl };
   }
 
+  async initFromPage(
+    page: Page,
+    modelName?: AvailableModel,
+  ): Promise<{ context: BrowserContext }> {
+    this.page = page;
+    this.context = page.context();
+    this.defaultModelName = modelName || this.defaultModelName;
+
+    const originalGoto = this.page.goto.bind(this.page);
+    this.page.goto = async (url: string, options?: any) => {
+      const result = await originalGoto(url, options);
+      await this.page.waitForLoadState("domcontentloaded");
+      await this._waitForSettledDom();
+      return result;
+    };
+
+    // Set the browser to headless mode if specified
+    if (this.headless) {
+      await this.page.setViewportSize({ width: 1280, height: 720 });
+    }
+
+    // Add initialization scripts
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+    });
+
+    return { context: this.context };
+  }
+
   // Logging
   private pending_logs_to_send_to_browserbase: {
     category?: string;
