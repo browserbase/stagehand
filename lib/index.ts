@@ -281,6 +281,26 @@ export class Stagehand {
       await this._waitForSettledDom();
       return result;
     };
+
+    // Set the browser to headless mode if specified
+    if (this.headless) {
+      await this.page.setViewportSize({ width: 1280, height: 720 });
+    }
+
+    // Add initialization scripts
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+    });
+
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+    });
+
+    return this;
   }
 
   // Logging
