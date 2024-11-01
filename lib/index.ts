@@ -407,7 +407,7 @@ export class Stagehand {
           );
           this.log({
             category: "dom",
-            message: `DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
+            message: `DOM settle timeoutcx of ${timeout}ms exceeded, continuing anyway`,
             level: 1,
           });
           resolve();
@@ -417,8 +417,6 @@ export class Stagehand {
       await Promise.race([
         (async () => {
           await this.page.waitForSelector("body");
-          await this.page.waitForLoadState("domcontentloaded");
-
           await this.page.evaluate(() => {
             return new Promise<void>((resolve) => {
               if (typeof window.waitForDomSettle === "function") {
