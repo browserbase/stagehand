@@ -14,6 +14,7 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
 
