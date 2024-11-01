@@ -406,7 +406,7 @@ export class Stagehand {
         timeoutHandle = setTimeout(() => {
           this.log({
             category: "dom",
-            message: `DOM settle timeoutcx of ${timeout}ms exceeded, continuing anyway`,
+            message: `DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
             level: 1,
           });
           resolve();
