@@ -5,6 +5,7 @@
   "linked": [],
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
+  "access": "public",
   "changelog": [
     "@changesets/changelog-github",
     {
