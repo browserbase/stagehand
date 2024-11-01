@@ -400,29 +400,25 @@ export class Stagehand {
   private async _waitForSettledDom(timeoutMs?: number) {
     try {
       const timeout = timeoutMs ?? this.domSettleTimeoutMs;
-      const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          console.warn(
-            `[stagehand:dom] DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
-          );
+      let timeoutHandle: NodeJS.Timeout;
+
+      const timeoutPromise = new Promise<void>((resolve, reject) => {
+        timeoutHandle = setTimeout(() => {
           this.log({
             category: "dom",
-            message: `DOM settle timeoutcx of ${timeout}ms exceeded, continuing anyway`,
+            message: `DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
             level: 1,
           });
           resolve();
         }, timeout);
       });
 
-      await Promise.race([
-        (async () => {
-          await this.page.waitForSelector("body");
-          await this.page.evaluate(() => {
+      try {
+        await Promise.race([
+          this.page.evaluate(() => {
             return new Promise<void>((resolve) => {
               if (typeof window.waitForDomSettle === "function") {
-                window.waitForDomSettle().then(() => {
-                  resolve();
-                });
+                window.waitForDomSettle().then(resolve);
               } else {
                 console.warn(
                   "waitForDomSettle is not defined, considering DOM as settled",
@@ -430,10 +426,14 @@ export class Stagehand {
                 resolve();
               }
             });
-          });
-        })(),
-        timeoutPromise,
-      ]);
+          }),
+          this.page.waitForLoadState("domcontentloaded"),
+          this.page.waitForSelector("body"),
+          timeoutPromise,
+        ]);
+      } finally {
+        clearTimeout(timeoutHandle!);
+      }
     } catch (e) {
       this.log({
         category: "dom",
