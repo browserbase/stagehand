@@ -12,6 +12,7 @@ export class OpenAIClient implements LLMClient {
     level?: number;
   }) => void;
   private enableCaching: boolean;
+  private requestId: string;
 
   constructor(
     logger: (message: {
@@ -20,10 +21,13 @@ export class OpenAIClient implements LLMClient {
       level?: number;
     }) => void,
     enableCaching = false,
+    cache: LLMCache,
+    requestId: string,
   ) {
     this.client = new OpenAI();
     this.logger = logger;
-    this.cache = new LLMCache(logger);
+    this.requestId = requestId;
+    this.cache = cache;
     this.enableCaching = enableCaching;
   }
 
@@ -40,7 +44,7 @@ export class OpenAIClient implements LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = this.cache.get(cacheOptions);
+      const cachedResponse = await this.cache.get(cacheOptions);
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -85,9 +89,13 @@ export class OpenAIClient implements LLMClient {
       const parsedData = JSON.parse(extractedData);
 
       if (this.enableCaching) {
-        this.cache.set(cacheOptions, {
-          ...parsedData,
-        });
+        this.cache.set(
+          cacheOptions,
+          {
+            ...parsedData,
+          },
+          this.requestId,
+        );
       }
 
       return {
@@ -96,7 +104,7 @@ export class OpenAIClient implements LLMClient {
     }
 
     if (this.enableCaching) {
-      this.cache.set(cacheOptions, response);
+      this.cache.set(cacheOptions, response, this.requestId);
     }
 
     return response;

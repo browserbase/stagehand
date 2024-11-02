@@ -12,6 +12,7 @@ export class AnthropicClient implements LLMClient {
     level?: number;
   }) => void;
   private enableCaching: boolean;
+  private requestId: string;
 
   constructor(
     logger: (message: {
@@ -20,13 +21,16 @@ export class AnthropicClient implements LLMClient {
       level?: number;
     }) => void,
     enableCaching = false,
+    cache: LLMCache,
+    requestId: string,
   ) {
     this.client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     this.logger = logger;
-    this.cache = new LLMCache(logger);
+    this.cache = cache;
     this.enableCaching = enableCaching;
+    this.requestId = requestId;
   }
 
   async createChatCompletion(
@@ -44,7 +48,7 @@ export class AnthropicClient implements LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = this.cache.get(cacheOptions);
+      const cachedResponse = await this.cache.get(cacheOptions);
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -175,7 +179,7 @@ export class AnthropicClient implements LLMClient {
       if (toolUse && "input" in toolUse) {
         const result = toolUse.input;
         if (this.enableCaching) {
-          this.cache.set(cacheOptions, result);
+          this.cache.set(cacheOptions, result, this.requestId);
         }
 
         return result;
@@ -193,7 +197,7 @@ export class AnthropicClient implements LLMClient {
     }
 
     if (this.enableCaching) {
-      this.cache.set(cacheOptions, transformedResponse);
+      this.cache.set(cacheOptions, transformedResponse, this.requestId);
     }
 
     return transformedResponse;

@@ -4,7 +4,8 @@ import * as crypto from "crypto";
 
 interface CacheEntry {
   timestamp: number;
-  data: any;
+  response: any;
+  requestId: string;
 }
 
 interface CacheStore {
@@ -19,9 +20,13 @@ export class LLMCache {
     message: string;
     level?: number;
   }) => void;
+  private lockFile: string;
 
   private readonly CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
   private readonly CLEANUP_PROBABILITY = 0.01; // 1% chance
+  private readonly LOCK_TIMEOUT_MS = 1_000;
+  private lock_acquired = false;
+  private count_lock_acquire_failures = 0;
 
   constructor(
     logger: (message: {
@@ -35,7 +40,30 @@ export class LLMCache {
     this.logger = logger;
     this.cacheDir = cacheDir;
     this.cacheFile = path.join(cacheDir, cacheFile);
+    this.lockFile = path.join(cacheDir, "llm_cache.lock");
     this.ensureCacheDirectory();
+
+    // Handle process exit events (to make sure we release the lock)
+    this.setupProcessHandlers();
+  }
+
+  private setupProcessHandlers(): void {
+    const releaseLockAndExit = () => {
+      this.releaseLock();
+      process.exit();
+    };
+
+    process.on("exit", releaseLockAndExit);
+    process.on("SIGINT", releaseLockAndExit);
+    process.on("SIGTERM", releaseLockAndExit);
+    process.on("uncaughtException", (err) => {
+      this.logger({
+        category: "llm_cache",
+        message: `Uncaught exception: ${err}`,
+        level: 2,
+      });
+      releaseLockAndExit();
+    });
   }
 
   private ensureCacheDirectory(): void {
@@ -49,46 +77,147 @@ export class LLMCache {
     return hash.update(JSON.stringify(data)).digest("hex");
   }
 
-  private readCache(): CacheStore {
-    if (fs.existsSync(this.cacheFile)) {
-      return JSON.parse(fs.readFileSync(this.cacheFile, "utf-8"));
-    }
-    return {};
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private writeCache(cache: CacheStore): void {
-    if (Math.random() < this.CLEANUP_PROBABILITY) {
-      this.cleanupStaleEntries(cache);
-    }
-    fs.writeFileSync(this.cacheFile, JSON.stringify(cache, null, 2));
-  }
+  private async acquireLock(): Promise<boolean> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < this.LOCK_TIMEOUT_MS) {
+      try {
+        if (fs.existsSync(this.lockFile)) {
+          const lockAge = Date.now() - fs.statSync(this.lockFile).mtimeMs;
+          if (lockAge > this.LOCK_TIMEOUT_MS) {
+            fs.unlinkSync(this.lockFile);
+          }
+        }
 
-  private cleanupStaleEntries(cache: CacheStore): void {
-    const now = Date.now();
-    let entriesRemoved = 0;
-
-    for (const [hash, entry] of Object.entries(cache)) {
-      if (now - entry.timestamp > this.CACHE_MAX_AGE_MS) {
-        delete cache[hash];
-        entriesRemoved++;
+        fs.writeFileSync(this.lockFile, process.pid.toString(), { flag: "wx" });
+        this.lock_acquired = true;
+        return true;
+      } catch (error) {
+        await this.sleep(5);
       }
     }
-
-    if (entriesRemoved > 0) {
+    this.logger({
+      category: "llm_cache",
+      message: "Failed to acquire lock after timeout",
+      level: 2,
+    });
+    this.count_lock_acquire_failures++;
+    if (this.count_lock_acquire_failures >= 3) {
       this.logger({
         category: "llm_cache",
-        message: `Cleaned up ${entriesRemoved} stale cache entries`,
+        message:
+          "Failed to acquire lock 3 times in a row. Releasing lock manually.",
         level: 1,
+      });
+      this.releaseLock();
+    }
+    return false;
+  }
+
+  private releaseLock(): void {
+    try {
+      if (fs.existsSync(this.lockFile)) {
+        fs.unlinkSync(this.lockFile);
+      }
+      this.lock_acquired = false;
+    } catch (error) {
+      this.logger({
+        category: "llm_cache",
+        message: `Error releasing lock: ${error}`,
+        level: 2,
       });
     }
   }
 
-  private resetCache(): void {
-    this.ensureCacheDirectory();
-    fs.writeFileSync(this.cacheFile, "{}");
+  private readCache(): CacheStore {
+    if (fs.existsSync(this.cacheFile)) {
+      return JSON.parse(fs.readFileSync(this.cacheFile, "utf-8"));
+    }
+
+    return {};
   }
 
-  get(options: any): any | null {
+  private writeCache(cache: CacheStore): void {
+    try {
+      if (Math.random() < this.CLEANUP_PROBABILITY) {
+        this.cleanupStaleEntries(cache);
+      }
+      fs.writeFileSync(this.cacheFile, JSON.stringify(cache, null, 2));
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  private cleanupStaleEntries(cache: CacheStore): void {
+    if (!this.acquireLock()) {
+      this.logger({
+        category: "llm_cache",
+        message: "Failed to acquire lock for cleaning up cache",
+        level: 2,
+      });
+      return;
+    }
+
+    try {
+      const now = Date.now();
+      let entriesRemoved = 0;
+
+      for (const [hash, entry] of Object.entries(cache)) {
+        if (now - entry.timestamp > this.CACHE_MAX_AGE_MS) {
+          delete cache[hash];
+          entriesRemoved++;
+        }
+      }
+
+      if (entriesRemoved > 0) {
+        this.logger({
+          category: "llm_cache",
+          message: `Cleaned up ${entriesRemoved} stale cache entries`,
+          level: 1,
+        });
+      }
+    } catch (error) {
+      this.logger({
+        category: "llm_cache",
+        message: `Error cleaning up stale cache entries: ${error}`,
+        level: 1,
+      });
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  resetCache(): void {
+    if (!this.acquireLock()) {
+      this.logger({
+        category: "llm_cache",
+        message: "Failed to acquire lock for resetting cache",
+        level: 2,
+      });
+      return;
+    }
+
+    try {
+      this.ensureCacheDirectory();
+      fs.writeFileSync(this.cacheFile, "{}");
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  async get(options: any): Promise<any | null> {
+    if (!(await this.acquireLock())) {
+      this.logger({
+        category: "llm_cache",
+        message: "Failed to acquire lock for getting cache",
+        level: 2,
+      });
+      return null;
+    }
+
     try {
       const hash = this.createHash(options);
       const cache = this.readCache();
@@ -99,7 +228,7 @@ export class LLMCache {
           message: "Cache hit",
           level: 1,
         });
-        return cache[hash];
+        return cache[hash].response;
       }
       return null;
     } catch (error) {
@@ -110,16 +239,62 @@ export class LLMCache {
       });
 
       this.resetCache();
-
       return null;
+    } finally {
+      this.releaseLock();
     }
   }
 
-  set(options: any, response: any): void {
+  async deleteCacheForRequestId(requestId: string): Promise<void> {
+    if (!(await this.acquireLock())) {
+      this.logger({
+        category: "llm_cache",
+        message: "Failed to acquire lock for deleting cache",
+        level: 2,
+      });
+      return;
+    }
+
+    try {
+      const cache = this.readCache();
+
+      for (const [hash, entry] of Object.entries(cache)) {
+        if (entry.requestId === requestId) {
+          delete cache[hash];
+        }
+      }
+
+      this.writeCache(cache);
+    } catch (exception) {
+      this.logger({
+        category: "llm_cache",
+        message: `Error deleting cache for requestId ${requestId}: ${exception}`,
+        level: 1,
+      });
+    } finally {
+      this.releaseLock();
+    }
+  }
+
+  async set(options: any, response: any, requestId: string): Promise<void> {
+    if (!(await this.acquireLock())) {
+      this.logger({
+        category: "llm_cache",
+        message: "Failed to acquire lock for setting cache",
+        level: 2,
+      });
+      return;
+    }
+
     try {
       const hash = this.createHash(options);
       const cache = this.readCache();
-      cache[hash] = response;
+      cache[hash] = {
+        response: response,
+        timestamp: Date.now(),
+        requestId,
+      };
+
       this.writeCache(cache);
       this.logger({
         category: "llm_cache",
@@ -134,6 +309,8 @@ export class LLMCache {
       });
 
       this.resetCache();
+    } finally {
+      this.releaseLock();
     }
   }
 }

@@ -168,7 +168,6 @@ export class Stagehand {
     };
   };
   private actions: { [key: string]: { result: string; action: string } };
-  private id: string;
   public page: Page;
   public context: BrowserContext;
   private env: "LOCAL" | "BROWSERBASE";
@@ -512,6 +511,7 @@ export class Stagehand {
     content = {},
     chunksSeen = [],
     modelName,
+    requestId,
   }: {
     instruction: string;
     schema: T;
@@ -519,6 +519,7 @@ export class Stagehand {
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
     modelName?: AvailableModel;
+    requestId?: string;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -549,6 +550,7 @@ export class Stagehand {
       modelName: modelName || this.defaultModelName,
       chunksSeen: chunksSeen.length,
       chunksTotal: chunks.length,
+      requestId,
     });
 
     const {
@@ -596,11 +598,13 @@ export class Stagehand {
     useVision,
     fullPage,
     modelName,
+    requestId,
   }: {
     instruction: string;
     useVision: boolean;
     fullPage: boolean;
     modelName?: AvailableModel;
+    requestId?: string;
   }): Promise<{ selector: string; description: string }[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -649,6 +653,7 @@ export class Stagehand {
       llmProvider: this.llmProvider,
       modelName: modelName || this.defaultModelName,
       image: annotatedScreenshot,
+      requestId,
     });
 
     const elementsWithSelectors = observationResponse.elements.map(
@@ -684,6 +689,7 @@ export class Stagehand {
     useVision,
     verifierUseVision,
     retries = 0,
+    requestId,
   }: {
     action: string;
     steps?: string;
@@ -692,6 +698,7 @@ export class Stagehand {
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
     retries?: number;
+    requestId?: string;
   }): Promise<{ success: boolean; message: string; action: string }> {
     const model = modelName ?? this.defaultModelName;
 
@@ -770,6 +777,7 @@ export class Stagehand {
       modelName: model,
       screenshot: annotatedScreenshot,
       logger: this.logger,
+      requestId,
     });
 
     this.log({
@@ -800,6 +808,7 @@ export class Stagehand {
           modelName,
           useVision,
           verifierUseVision,
+          requestId,
         });
       } else if (useVision === "fallback") {
         this.log({
@@ -815,8 +824,11 @@ export class Stagehand {
           modelName,
           useVision: true,
           verifierUseVision,
+          requestId,
         });
       } else {
+        this.llmProvider.cleanRequestCache(requestId);
+
         return {
           success: false,
           message: `Action was not able to be completed.`,
@@ -885,6 +897,7 @@ export class Stagehand {
               verifierUseVision,
               retries: retries + 1,
               chunksSeen,
+              requestId,
             });
           }
         }
@@ -914,6 +927,7 @@ export class Stagehand {
               verifierUseVision,
               retries: retries + 1,
               chunksSeen,
+              requestId,
             });
           }
         }
@@ -937,6 +951,7 @@ export class Stagehand {
               verifierUseVision,
               retries: retries + 1,
               chunksSeen,
+              requestId,
             });
           }
         }
@@ -972,6 +987,7 @@ export class Stagehand {
               verifierUseVision,
               retries: retries + 1,
               chunksSeen,
+              requestId,
             });
           }
         }
@@ -1054,8 +1070,11 @@ export class Stagehand {
             verifierUseVision,
             retries: retries + 1,
             chunksSeen,
+            requestId,
           });
         } else {
+          this.llmProvider.cleanRequestCache(requestId);
+
           return {
             success: false,
             message: `Internal error: Chosen method ${method} is invalid`,
@@ -1132,6 +1151,7 @@ export class Stagehand {
           screenshot: fullpageScreenshot,
           domElements: domElements,
           logger: this.logger,
+          requestId,
         });
 
         this.log({
@@ -1154,6 +1174,7 @@ export class Stagehand {
           chunksSeen,
           useVision,
           verifierUseVision,
+          requestId,
         });
       } else {
         this.log({
@@ -1183,10 +1204,13 @@ export class Stagehand {
           verifierUseVision,
           retries: retries + 1,
           chunksSeen,
+          requestId,
         });
       }
 
       await this._recordAction(action, "");
+      this.llmProvider.cleanRequestCache(requestId);
+
       return {
         success: false,
         message: `Error performing action: ${error.message}`,
@@ -1210,12 +1234,15 @@ export class Stagehand {
   }> {
     useVision = useVision ?? "fallback";
 
+    const requestId = Math.random().toString(36).substring(2);
+
     return this._act({
       action,
       modelName,
       chunksSeen: [],
       useVision,
       verifierUseVision: useVision !== false,
+      requestId,
     });
   }
 
@@ -1228,10 +1255,13 @@ export class Stagehand {
     schema: T;
     modelName?: AvailableModel;
   }): Promise<z.infer<T>> {
+    const requestId = Math.random().toString(36).substring(2);
+
     return this._extract({
       instruction,
       schema,
       modelName,
+      requestId,
     });
   }
 
@@ -1240,6 +1270,8 @@ export class Stagehand {
     modelName?: AvailableModel;
     useVision?: boolean;
   }): Promise<{ selector: string; description: string }[]> {
+    const requestId = Math.random().toString(36).substring(2);
+
     return this._observe({
       instruction:
         options?.instruction ??
@@ -1247,6 +1279,7 @@ export class Stagehand {
       modelName: options?.modelName,
       useVision: options?.useVision ?? false,
       fullPage: false,
+      requestId,
     });
   }
 }
