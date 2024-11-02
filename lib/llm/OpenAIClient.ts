@@ -44,7 +44,7 @@ export class OpenAIClient implements LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get(cacheOptions);
+      const cachedResponse = await this.cache.get(cacheOptions, this.requestId);
       if (cachedResponse) {
         return cachedResponse;
       }
