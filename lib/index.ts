@@ -1254,6 +1254,21 @@ export class Stagehand {
       useVision,
       verifierUseVision: useVision !== false,
       requestId,
+    }).catch((e) => {
+      this.logger({
+        category: "act",
+        message: `Error acting: ${e.message}\nTrace: ${e.stack}`,
+      });
+
+      if (this.enableCaching) {
+        this.llmProvider.cleanRequestCache(requestId);
+      }
+
+      return {
+        success: false,
+        message: `Internal error: Error acting: ${e.message}`,
+        action: action,
+      };
     });
   }
 
@@ -1278,6 +1293,17 @@ export class Stagehand {
       schema,
       modelName,
       requestId,
+    }).catch((e) => {
+      this.logger({
+        category: "extract",
+        message: `Internal error: Error extracting: ${e.message}\nTrace: ${e.stack}`,
+      });
+
+      if (this.enableCaching) {
+        this.llmProvider.cleanRequestCache(requestId);
+      }
+
+      throw e;
     });
   }
 
@@ -1301,6 +1327,17 @@ export class Stagehand {
       useVision: options?.useVision ?? false,
       fullPage: false,
       requestId,
+    }).catch((e) => {
+      this.logger({
+        category: "observe",
+        message: `Error observing: ${e.message}\nTrace: ${e.stack}`,
+      });
+
+      if (this.enableCaching) {
+        this.llmProvider.cleanRequestCache(requestId);
+      }
+
+      throw e;
     });
   }
 }
