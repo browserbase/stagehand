@@ -35,6 +35,10 @@ export class LLMProvider {
   }
 
   cleanRequestCache(requestId: string): void {
+    this.logger({
+      category: "llm_cache",
+      message: `Cleaning up cache for requestId: ${requestId}`,
+    });
     this.cache.deleteCacheForRequestId(requestId);
   }
 

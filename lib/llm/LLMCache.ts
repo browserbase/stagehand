@@ -93,6 +93,7 @@ export class LLMCache {
         }
 
         fs.writeFileSync(this.lockFile, process.pid.toString(), { flag: "wx" });
+        this.count_lock_acquire_failures = 0;
         this.lock_acquired = true;
         return true;
       } catch (error) {
