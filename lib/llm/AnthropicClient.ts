@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { TextBlock, TextBlockParam, Tool } from "@anthropic-ai/sdk/resources/messages";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
@@ -25,7 +26,26 @@ export class AnthropicClient implements LLMClient {
 
   async createChatCompletion(
     options: ChatCompletionOptions & { retries?: number },
-  ) {
+  ): Promise<{
+    id: any;
+    object: string;
+    created: number;
+    model: any;
+    choices: {
+        index: number;
+        message: {
+            role: string;
+            content: string;
+            tool_calls: any;
+        };
+        finish_reason: any;
+      }[];
+      usage: {
+      prompt_tokens: any;
+      completion_tokens: any;
+      total_tokens: any;
+    };
+  } | unknown> {
     const systemMessage = options.messages.find((msg) => msg.role === "system");
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
@@ -70,7 +90,7 @@ export class AnthropicClient implements LLMClient {
 
     let toolDefinition;
     if (options.response_model) {
-      const jsonSchema = zodToJsonSchema(options.response_model.schema);
+      const jsonSchema: any = zodToJsonSchema(options.response_model.schema);
 
       // Extract the actual schema properties
       const schemaProperties =
@@ -98,11 +118,11 @@ export class AnthropicClient implements LLMClient {
       model: options.model,
       max_tokens: options.max_tokens || 1500,
       messages: userMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
+        role: msg.role as "user" | "assistant",
+        content: msg.content as TextBlockParam[],
       })),
       tools: anthropicTools,
-      system: systemMessage?.content,
+      system: systemMessage?.content as TextBlockParam[],
       temperature: options.temperature,
     });
 
@@ -118,7 +138,8 @@ export class AnthropicClient implements LLMClient {
           message: {
             role: "assistant",
             content:
-              response.content.find((c) => c.type === "text")?.text || null,
+              (response.content.find((c) => c.type === "text") as TextBlock)
+                ?.text || null,
             tool_calls: response.content
               .filter((c) => c.type === "tool_use")
               .map((toolUse: any) => ({

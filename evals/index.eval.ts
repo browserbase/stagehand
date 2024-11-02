@@ -1221,13 +1221,13 @@ const exactMatch = (args: { input: any; output: any; expected?: any }) => {
   if (expected === true) {
     return {
       name: "Exact match",
-      score: args.output === true || args.output?._success == true,
+      score: Number(args.output === true || args.output?._success == true),
     };
   }
 
   return {
     name: "Exact match",
-    score: args.output === expected,
+    score: Number(args.output === expected),
   };
 };
 

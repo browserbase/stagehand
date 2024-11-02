@@ -1,3 +1,5 @@
+import { processElements } from "./process";
+
 async function debugDom() {
   window.chunkNumber = 0;
 

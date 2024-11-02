@@ -14,7 +14,7 @@
     "evals": "npm run build-dom-scripts && npx braintrust eval evals/index.eval.ts",
     "build-dom-scripts": "mkdir -p ./lib/dom/build && mkdir -p ./dist/dom/build && esbuild ./lib/dom/*.ts --bundle --outdir=./dist/dom/build",
     "bundle-dom-scripts": "esbuild ./lib/dom/index.ts --bundle --outfile=./lib/dom/bundle.js --platform=browser --target=es2015 --minify",
-    "build": "npm run build-dom-scripts && tsup lib/index.ts --dts",
+    "build": "tsc && npm run build-dom-scripts && tsup lib/index.ts --dts",
     "release": "changeset publish"
   },
   "files": [
@@ -31,7 +31,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.30",
     "autoevals": "^0.0.64",
-    "braintrust": "^0.0.127",
+    "braintrust": "^0.0.167",
     "cheerio": "^1.0.0",
     "esbuild": "^0.21.4",
     "express": "^4.21.0",
