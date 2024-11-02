@@ -1236,6 +1236,11 @@ export class Stagehand {
 
     const requestId = Math.random().toString(36).substring(2);
 
+    this.logger({
+      category: "act",
+      message: `Running act with action: ${action}, requestId: ${requestId}`,
+    });
+
     return this._act({
       action,
       modelName,
@@ -1257,6 +1262,11 @@ export class Stagehand {
   }): Promise<z.infer<T>> {
     const requestId = Math.random().toString(36).substring(2);
 
+    this.logger({
+      category: "extract",
+      message: `Running extract with instruction: ${instruction}, requestId: ${requestId}`,
+    });
+
     return this._extract({
       instruction,
       schema,
@@ -1271,6 +1281,11 @@ export class Stagehand {
     useVision?: boolean;
   }): Promise<{ selector: string; description: string }[]> {
     const requestId = Math.random().toString(36).substring(2);
+
+    this.logger({
+      category: "observe",
+      message: `Running observe with instruction: ${options?.instruction}, requestId: ${requestId}`,
+    });
 
     return this._observe({
       instruction:
