@@ -137,7 +137,7 @@ This constructor is used to create an instance of Stagehand.
     - `2`: LLM-client level logging (most granular)
   - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
   - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
-  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM responses will be cached on disk and reused for identical requests. Defaults to `false`.
+  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`.
 
 - **Returns:**
 
