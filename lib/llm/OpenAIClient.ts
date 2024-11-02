@@ -80,17 +80,23 @@ export class OpenAIClient implements LLMClient {
       response_format: responseFormat,
     });
 
-    if (this.enableCaching) {
-      this.cache.set(cacheOptions, response);
-    }
-
     if (response_model) {
       const extractedData = response.choices[0].message.content;
       const parsedData = JSON.parse(extractedData);
 
+      if (this.enableCaching) {
+        this.cache.set(cacheOptions, {
+          ...parsedData,
+        });
+      }
+
       return {
         ...parsedData,
       };
+    }
+
+    if (this.enableCaching) {
+      this.cache.set(cacheOptions, response);
     }
 
     return response;

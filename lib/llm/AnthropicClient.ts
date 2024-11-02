@@ -174,17 +174,20 @@ export class AnthropicClient implements LLMClient {
       const toolUse = response.content.find((c) => c.type === "tool_use");
       if (toolUse && "input" in toolUse) {
         const result = toolUse.input;
-        this.cache.set(cacheOptions, result);
+        if (this.enableCaching) {
+          this.cache.set(cacheOptions, result);
+        }
+
         return result;
       } else {
-        if (!options.retries || options.retries < 2) {
+        if (!options.retries || options.retries < 5) {
           return this.createChatCompletion({
             ...options,
             retries: (options.retries ?? 0) + 1,
           });
         }
         throw new Error(
-          "Extraction failed: No tool use with input in response",
+          "Create Chat Completion Failed: No tool use with input in response",
         );
       }
     }

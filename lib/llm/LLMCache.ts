@@ -83,6 +83,11 @@ export class LLMCache {
     }
   }
 
+  private resetCache(): void {
+    this.ensureCacheDirectory();
+    fs.writeFileSync(this.cacheFile, "{}");
+  }
+
   get(options: any): any | null {
     try {
       const hash = this.createHash(options);
@@ -100,9 +105,12 @@ export class LLMCache {
     } catch (error) {
       this.logger({
         category: "llm_cache",
-        message: `Error getting cache: ${error}`,
+        message: `Error getting cache: ${error}. Resetting cache.`,
         level: 1,
       });
+
+      this.resetCache();
+
       return null;
     }
   }
@@ -121,9 +129,11 @@ export class LLMCache {
     } catch (error) {
       this.logger({
         category: "llm_cache",
-        message: `Error setting cache: ${error}`,
+        message: `Error setting cache: ${error}. Resetting cache.`,
         level: 1,
       });
+
+      this.resetCache();
     }
   }
 }
