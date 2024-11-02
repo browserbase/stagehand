@@ -827,7 +827,9 @@ export class Stagehand {
           requestId,
         });
       } else {
-        this.llmProvider.cleanRequestCache(requestId);
+        if (this.enableCaching) {
+          this.llmProvider.cleanRequestCache(requestId);
+        }
 
         return {
           success: false,
@@ -1073,7 +1075,9 @@ export class Stagehand {
             requestId,
           });
         } else {
-          this.llmProvider.cleanRequestCache(requestId);
+          if (this.enableCaching) {
+            this.llmProvider.cleanRequestCache(requestId);
+          }
 
           return {
             success: false,
@@ -1209,7 +1213,9 @@ export class Stagehand {
       }
 
       await this._recordAction(action, "");
-      this.llmProvider.cleanRequestCache(requestId);
+      if (this.enableCaching) {
+        this.llmProvider.cleanRequestCache(requestId);
+      }
 
       return {
         success: false,
