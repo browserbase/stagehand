@@ -27,6 +27,7 @@ export class LLMCache {
   private readonly LOCK_TIMEOUT_MS = 1_000;
   private lock_acquired = false;
   private count_lock_acquire_failures = 0;
+  private request_id_to_used_hashes: { [key: string]: string[] } = {};
 
   constructor(
     logger: (message: {
@@ -62,7 +63,9 @@ export class LLMCache {
         message: `Uncaught exception: ${err}`,
         level: 2,
       });
-      releaseLockAndExit();
+      if (this.lock_acquired) {
+        releaseLockAndExit();
+      }
     });
   }
 
@@ -209,7 +212,7 @@ export class LLMCache {
     }
   }
 
-  async get(options: any): Promise<any | null> {
+  async get(options: any, requestId: string): Promise<any | null> {
     if (!(await this.acquireLock())) {
       this.logger({
         category: "llm_cache",
@@ -229,6 +232,8 @@ export class LLMCache {
           message: "Cache hit",
           level: 1,
         });
+        this.request_id_to_used_hashes[requestId] ??= [];
+        this.request_id_to_used_hashes[requestId].push(hash);
         return cache[hash].response;
       }
       return null;
@@ -259,11 +264,19 @@ export class LLMCache {
     try {
       const cache = this.readCache();
 
-      for (const [hash, entry] of Object.entries(cache)) {
-        if (entry.requestId === requestId) {
+      let entriesRemoved = [];
+      for (const hash of this.request_id_to_used_hashes[requestId] ?? []) {
+        if (cache[hash]) {
+          entriesRemoved.push(cache[hash]);
           delete cache[hash];
         }
       }
+
+      this.logger({
+        category: "llm_cache",
+        message: `Deleted ${entriesRemoved.length} cache entries for requestId ${requestId}`,
+        level: 1,
+      });
 
       this.writeCache(cache);
     } catch (exception) {
@@ -297,6 +310,8 @@ export class LLMCache {
       };
 
       this.writeCache(cache);
+      this.request_id_to_used_hashes[requestId] ??= [];
+      this.request_id_to_used_hashes[requestId].push(hash);
       this.logger({
         category: "llm_cache",
         message: "Cache miss - saved new response",
