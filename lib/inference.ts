@@ -27,6 +27,7 @@ export async function verifyActCompletion({
   screenshot,
   domElements,
   logger,
+  requestId,
 }: {
   goal: string;
   steps: string;
@@ -35,8 +36,9 @@ export async function verifyActCompletion({
   screenshot?: Buffer;
   domElements?: string;
   logger: (message: { category?: string; message: string }) => void;
+  requestId: string;
 }): Promise<boolean> {
-  const llmClient = llmProvider.getClient(modelName);
+  const llmClient = llmProvider.getClient(modelName, requestId);
   const messages = [
     buildVerifyActCompletionSystemPrompt() as ChatMessage,
     buildVerifyActCompletionUserPrompt(goal, steps, domElements) as ChatMessage,
@@ -91,6 +93,7 @@ export async function act({
   screenshot,
   retries = 0,
   logger,
+  requestId,
 }: {
   action: string;
   steps?: string;
@@ -100,6 +103,7 @@ export async function act({
   screenshot?: Buffer;
   retries?: number;
   logger: (message: { category?: string; message: string }) => void;
+  requestId: string;
 }): Promise<{
   method: string;
   element: number;
@@ -108,7 +112,7 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const llmClient = llmProvider.getClient(modelName);
+  const llmClient = llmProvider.getClient(modelName, requestId);
   const messages = [
     buildActSystemPrompt() as ChatMessage,
     buildActUserPrompt(action, steps, domElements) as ChatMessage,
@@ -151,6 +155,7 @@ export async function act({
       modelName,
       retries: retries + 1,
       logger,
+      requestId,
     });
   }
 }
@@ -165,6 +170,7 @@ export async function extract({
   modelName,
   chunksSeen,
   chunksTotal,
+  requestId,
 }: {
   instruction: string;
   progress: string;
@@ -175,8 +181,9 @@ export async function extract({
   modelName: AvailableModel;
   chunksSeen: number;
   chunksTotal: number;
+  requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName);
+  const llmClient = llmProvider.getClient(modelName, requestId);
 
   const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -259,12 +266,14 @@ export async function observe({
   llmProvider,
   modelName,
   image,
+  requestId,
 }: {
   instruction: string;
   domElements: string;
   llmProvider: LLMProvider;
   modelName: AvailableModel;
   image?: Buffer;
+  requestId: string;
 }): Promise<{
   elements: { elementId: number; description: string }[];
 }> {
@@ -283,7 +292,7 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  const llmClient = llmProvider.getClient(modelName);
+  const llmClient = llmProvider.getClient(modelName, requestId);
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
@@ -314,12 +323,14 @@ export async function ask({
   question,
   llmProvider,
   modelName,
+  requestId,
 }: {
   question: string;
   llmProvider: LLMProvider;
   modelName: AvailableModel;
+  requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName);
+  const llmClient = llmProvider.getClient(modelName, requestId);
   const response = await llmClient.createChatCompletion({
     model: modelName,
     messages: [

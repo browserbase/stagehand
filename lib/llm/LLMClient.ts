@@ -16,6 +16,7 @@ export const modelsWithVision: AvailableModel[] = [
   "gpt-4o-mini",
   "claude-3-5-sonnet-latest",
   "claude-3-5-sonnet-20240620",
+  "claude-3-5-sonnet-20241022",
   "gpt-4o-2024-08-06",
 ];
 

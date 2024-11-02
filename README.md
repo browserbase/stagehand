@@ -33,8 +33,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
 
@@ -101,6 +100,7 @@ import { z } from "zod";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
+  enableCaching: true,
 });
 ```
 
@@ -137,6 +137,7 @@ This constructor is used to create an instance of Stagehand.
     - `2`: LLM-client level logging (most granular)
   - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
   - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
+  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM responses will be cached on disk and reused for identical requests. Defaults to `false`.
 
 - **Returns:**
 
@@ -216,8 +217,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE]
-> `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
@@ -277,7 +277,6 @@ Stagehand currently supports the following models from OpenAI and Anthropic:
   - `claude-3-5-sonnet-20241022`
 
 These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
-
 
 ## How It Works
 
@@ -342,12 +341,14 @@ const productInfo = await stagehand.extract({
 - **Break down complex tasks into smaller, atomic steps**
 
 Instead of combining actions:
+
 ```javascript
 // Avoid this
 await stagehand.act({ action: "log in and purchase the first item" });
 ```
 
 Split them into individual steps:
+
 ```javascript
 await stagehand.act({ action: "click the login button" });
 // ...additional steps to log in...
@@ -385,10 +386,9 @@ await stagehand.act({ action: "fill out the form and submit it" });
 await stagehand.act({ action: "book the cheapest flight available" });
 ```
 
-By following these guidelines, you'll increase the reliability and effectiveness of your web automations with Stagehand. Remember, Stagehand excels at executing precise, well-defined actions so keeping your instructions atomic will lead to the best outcomes. 
+By following these guidelines, you'll increase the reliability and effectiveness of your web automations with Stagehand. Remember, Stagehand excels at executing precise, well-defined actions so keeping your instructions atomic will lead to the best outcomes.
 
 We leave the agentic behaviour to higher-level agentic systems which can use Stagehand as a tool.
-
 
 ## Roadmap
 
