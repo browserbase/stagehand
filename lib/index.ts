@@ -2,10 +2,10 @@ import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
+import { Browserbase } from "@browserbasehq/sdk";
 import { act, extract, observe, verifyActCompletion } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
-import Browserbase from "./browserbase";
 import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
 
@@ -19,6 +19,7 @@ async function getBrowser(
     message: string;
     level?: 0 | 1 | 2;
   }) => void,
+  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
 ) {
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
     logger({
@@ -49,11 +50,21 @@ async function getBrowser(
       message: "Connecting you to Browserbase...",
       level: 0,
     });
-    const browserbase = new Browserbase();
-    const { sessionId, connectUrl } = await browserbase.createSession();
+    const browserbase = new Browserbase({
+      apiKey: process.env.BROWSERBASE_API_KEY,
+    });
+    const session = await browserbase.sessions.create({
+      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      ...browserbaseSessionCreateParams,
+    });
+
+    const sessionId = session.id;
+    const connectUrl = session.connectUrl;
     const browser = await chromium.connectOverCDP(connectUrl);
 
-    debugUrl = await browserbase.retrieveDebugConnectionURL(sessionId);
+    const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
+
+    debugUrl = debuggerUrl;
     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
     logger({
       category: "Init",
@@ -182,6 +193,7 @@ export class Stagehand {
     message: string;
   }) => void;
   private domSettleTimeoutMs: number;
+  private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
 
   constructor(
     {
@@ -191,6 +203,7 @@ export class Stagehand {
       llmProvider,
       headless = false,
       logger,
+      browserbaseSessionCreateParams,
       domSettleTimeoutMs = 60000,
     }: {
       env: "LOCAL" | "BROWSERBASE";
@@ -204,6 +217,7 @@ export class Stagehand {
         level?: 0 | 1 | 2;
       }) => void;
       domSettleTimeoutMs?: number;
+      browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
     } = {
       env: "BROWSERBASE",
     },
@@ -219,6 +233,7 @@ export class Stagehand {
     this.defaultModelName = "gpt-4o";
     this.headless = headless;
     this.domSettleTimeoutMs = domSettleTimeoutMs;
+    this.browserBaseSessionCreateParams = browserbaseSessionCreateParams;
   }
 
   async init({
@@ -231,6 +246,7 @@ export class Stagehand {
       this.env,
       this.headless,
       this.logger,
+      this.browserBaseSessionCreateParams,
     ).catch((e) => {
       console.error("Error in init:", e);
       return { context: undefined, debugUrl: undefined, sessionUrl: undefined };
