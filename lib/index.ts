@@ -182,16 +182,18 @@ export class Stagehand {
     message: string;
   }) => void;
   private domSettleTimeoutMs: number;
+  private enableCaching: boolean;
 
   constructor(
     {
       env,
-      verbose = 0,
-      debugDom = false,
+      verbose,
+      debugDom,
       llmProvider,
-      headless = false,
+      headless,
       logger,
-      domSettleTimeoutMs = 60000,
+      domSettleTimeoutMs,
+      enableCaching,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
@@ -204,21 +206,25 @@ export class Stagehand {
         level?: 0 | 1 | 2;
       }) => void;
       domSettleTimeoutMs?: number;
+      enableCaching?: boolean;
     } = {
       env: "BROWSERBASE",
     },
   ) {
     this.externalLogger = logger;
     this.logger = this.log.bind(this);
-    this.llmProvider = llmProvider || new LLMProvider(this.logger);
+    this.enableCaching = enableCaching ?? false;
+    this.llmProvider =
+      llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
     this.observations = {};
     this.actions = {};
-    this.verbose = verbose;
-    this.debugDom = debugDom;
+    this.verbose = verbose ?? 0;
+    this.debugDom = debugDom ?? false;
     this.defaultModelName = "gpt-4o";
     this.headless = headless;
-    this.domSettleTimeoutMs = domSettleTimeoutMs;
+    this.domSettleTimeoutMs = domSettleTimeoutMs ?? 60_000;
+    this.headless = headless ?? false;
   }
 
   async init({

@@ -21,11 +21,14 @@ export class LLMProvider {
   };
 
   private logger: (message: { category?: string; message: string }) => void;
+  private enableCaching: boolean;
 
   constructor(
     logger: (message: { category?: string; message: string }) => void,
+    enableCaching = false,
   ) {
     this.logger = logger;
+    this.enableCaching = enableCaching;
   }
 
   getClient(modelName: AvailableModel): LLMClient {
@@ -36,9 +39,9 @@ export class LLMProvider {
 
     switch (provider) {
       case "openai":
-        return new OpenAIClient(this.logger);
+        return new OpenAIClient(this.logger, this.enableCaching);
       case "anthropic":
-        return new AnthropicClient(this.logger);
+        return new AnthropicClient(this.logger, this.enableCaching);
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }

@@ -1,14 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { LLMCache } from "./LLMCache";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
+  private cache: LLMCache;
   public logger: (message: {
     category?: string;
     message: string;
     level?: number;
   }) => void;
+  private enableCaching: boolean;
 
   constructor(
     logger: (message: {
@@ -16,16 +19,37 @@ export class AnthropicClient implements LLMClient {
       message: string;
       level?: number;
     }) => void,
+    enableCaching = false,
   ) {
     this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY, // Make sure to set this environment variable
+      apiKey: process.env.ANTHROPIC_API_KEY,
     });
     this.logger = logger;
+    this.cache = new LLMCache(logger);
+    this.enableCaching = enableCaching;
   }
 
   async createChatCompletion(
     options: ChatCompletionOptions & { retries?: number },
   ) {
+    // Try to get cached response
+    const cacheOptions = {
+      model: options.model,
+      messages: options.messages,
+      temperature: options.temperature,
+      image: options.image,
+      response_model: options.response_model,
+      tools: options.tools,
+      retries: options.retries,
+    };
+
+    if (this.enableCaching) {
+      const cachedResponse = this.cache.get(cacheOptions);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+    }
+
     const systemMessage = options.messages.find((msg) => msg.role === "system");
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
@@ -148,10 +172,10 @@ export class AnthropicClient implements LLMClient {
 
     if (options.response_model) {
       const toolUse = response.content.find((c) => c.type === "tool_use");
-      // console.log("[Debug][Response]", transformedResponse);
-      // console.log("[Response Model]", options.response_model);
       if (toolUse && "input" in toolUse) {
-        return toolUse.input;
+        const result = toolUse.input;
+        this.cache.set(cacheOptions, result);
+        return result;
       } else {
         if (!options.retries || options.retries < 2) {
           return this.createChatCompletion({
@@ -163,6 +187,10 @@ export class AnthropicClient implements LLMClient {
           "Extraction failed: No tool use with input in response",
         );
       }
+    }
+
+    if (this.enableCaching) {
+      this.cache.set(cacheOptions, transformedResponse);
     }
 
     return transformedResponse;
