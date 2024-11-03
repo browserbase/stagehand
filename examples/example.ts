@@ -6,6 +6,7 @@ async function example() {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
+    enableCaching: true,
   });
 
   await stagehand.init({ modelName: "claude-3-5-sonnet-20241022" });
