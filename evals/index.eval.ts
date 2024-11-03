@@ -9,6 +9,8 @@ const env =
     ? "BROWSERBASE"
     : "LOCAL";
 
+const enableCaching = process.env.EVAL_ENABLE_CACHING?.toLowerCase() === "true";
+
 const expedia = async () => {
   const logger = new EvalLogger();
 
@@ -20,6 +22,7 @@ const expedia = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -76,6 +79,7 @@ const vanta = async () => {
       logger.log(message);
     },
     verbose: 2,
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -147,6 +151,7 @@ const vanta_h = async () => {
       logger.log(message.message);
     },
     verbose: 2,
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -181,6 +186,7 @@ const simple_google_search = async () => {
       logger.log(message.message);
     },
     verbose: 2,
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -217,6 +223,7 @@ const peeler_simple = async () => {
       logger.log(message.message);
     },
     verbose: 2,
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -251,6 +258,7 @@ const peeler_complex = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -308,6 +316,7 @@ const homedepot = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -400,6 +409,7 @@ const extract_github_stars = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -422,7 +432,7 @@ const extract_github_stars = async () => {
       .first()
       .innerHTML();
 
-    const expectedStars = expectedStarsString.toLowerCase().endsWith('k') 
+    const expectedStars = expectedStarsString.toLowerCase().endsWith("k")
       ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
       : parseFloat(expectedStarsString);
 
@@ -457,6 +467,7 @@ const extract_collaborators_from_github_repository = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -516,6 +527,7 @@ const extract_last_twenty_github_commits = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -575,6 +587,7 @@ const wikipedia = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -612,6 +625,7 @@ const nonsense_action = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -668,6 +682,7 @@ const costar = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -736,6 +751,7 @@ const google_jobs = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -837,6 +853,7 @@ const extract_partners = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -942,6 +959,7 @@ const laroche_form = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
@@ -1025,6 +1043,7 @@ const arxiv = async () => {
     logger: (message: { category?: string; message: string }) => {
       logger.log(message.message);
     },
+    enableCaching,
   });
 
   logger.init(stagehand);
