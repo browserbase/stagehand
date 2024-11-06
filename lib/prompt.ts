@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { ChatMessage } from "./llm/LLMClient";
 
 // act
 const actSystemPrompt = `
@@ -58,7 +59,7 @@ Return a boolean value:
 // Output: Will need to have click on the subscribe button as action. And completed set to false.
 // Reasoning: There might be an error when trying to submit the form and you need to make sure the goal is accomplished properly. So you set completed to false.
 
-export function buildVerifyActCompletionSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+export function buildVerifyActCompletionSystemPrompt(): ChatMessage {
   return {
     role: "system",
     content: verifyActCompletionSystemPrompt,
@@ -69,7 +70,7 @@ export function buildVerifyActCompletionUserPrompt(
   goal: string,
   steps = "None",
   domElements: string | undefined,
-): OpenAI.ChatCompletionMessageParam {
+): ChatMessage {
   let actUserPrompt = `
 # My Goal
 ${goal}
@@ -91,7 +92,7 @@ ${domElements}
   };
 }
 
-export function buildActSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+export function buildActSystemPrompt(): ChatMessage {
   return {
     role: "system",
     content: actSystemPrompt,
@@ -102,7 +103,7 @@ export function buildActUserPrompt(
   action: string,
   steps = "None",
   domElements: string,
-): OpenAI.ChatCompletionMessageParam {
+): ChatMessage {
   const actUserPrompt = `
 # My Goal
 ${action}
@@ -197,7 +198,7 @@ ONLY print the content using the print_extracted_data tool provided.
 ONLY print the content using the print_extracted_data tool provided.
 `;
 
-export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+export function buildExtractSystemPrompt(): ChatMessage {
   const content = extractSystemPrompt.replace(/\s+/g, " ");
   return {
     role: "system",
@@ -208,7 +209,7 @@ export function buildExtractSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 export function buildExtractUserPrompt(
   instruction: string,
   domElements: string,
-): OpenAI.ChatCompletionMessageParam {
+): ChatMessage {
   return {
     role: "user",
     content: `Instruction: ${instruction}
@@ -227,7 +228,7 @@ const refineSystemPrompt = `You are tasked with refining and filtering informati
 
 Return the updated content that includes both the previous content and the new, non-duplicate, or extended information.`;
 
-export function buildRefineSystemPrompt() {
+export function buildRefineSystemPrompt(): ChatMessage {
   return {
     role: "system",
     content: refineSystemPrompt,
@@ -238,7 +239,7 @@ export function buildRefineUserPrompt(
   instruction: string,
   previouslyExtractedContent: object,
   newlyExtractedContent: object,
-) {
+): ChatMessage {
   return {
     role: "user",
     content: `Instruction: ${instruction}
@@ -257,7 +258,7 @@ Strictly abide by the following criteria:
    - The instruction has not been satisfied yet
    - There are still chunks left to process (chunksTotal > chunksSeen)`;
 
-export function buildMetadataSystemPrompt() {
+export function buildMetadataSystemPrompt(): ChatMessage {
   return {
     role: "system",
     content: metadataSystemPrompt,
@@ -269,7 +270,7 @@ export function buildMetadataPrompt(
   extractionResponse: object,
   chunksSeen: number,
   chunksTotal: number,
-) {
+): ChatMessage {
   return {
     role: "user",
     content: `Instruction: ${instruction}
@@ -288,7 +289,7 @@ You will be given:
 
 Return an array of elements that match the instruction.
 `;
-export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+export function buildObserveSystemPrompt(): ChatMessage {
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
@@ -300,7 +301,7 @@ export function buildObserveSystemPrompt(): OpenAI.ChatCompletionMessageParam {
 export function buildObserveUserMessage(
   instruction: string,
   domElements: string,
-): OpenAI.ChatCompletionMessageParam {
+): ChatMessage {
   return {
     role: "user",
     content: `instruction: ${instruction}
@@ -312,16 +313,14 @@ DOM: ${domElements}`,
 const askSystemPrompt = `
 you are a simple question answering assistent given the user's question. respond with only the answer.
 `;
-export function buildAskSystemPrompt(): OpenAI.ChatCompletionMessageParam {
+export function buildAskSystemPrompt(): ChatMessage {
   return {
     role: "system",
     content: askSystemPrompt,
   };
 }
 
-export function buildAskUserPrompt(
-  question: string,
-): OpenAI.ChatCompletionMessageParam {
+export function buildAskUserPrompt(question: string): ChatMessage {
   return {
     role: "user",
     content: `question: ${question}`,
