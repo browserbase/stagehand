@@ -734,7 +734,7 @@ const costar = async () => {
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
-    } as any;
+    };
   } finally {
     await stagehand.context.close();
   }
@@ -1233,7 +1233,14 @@ const tasks = {
   expedia,
 };
 
-const exactMatch = (args: { input: any; output: any; expected?: any }) => {
+const exactMatch = (args: {
+  input: any;
+  output: any;
+  expected?: any;
+}): {
+  name: string;
+  score: boolean;
+} => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
   const expected = args.expected ?? true;

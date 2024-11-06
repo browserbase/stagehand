@@ -39,9 +39,9 @@ export async function verifyActCompletion({
   requestId: string;
 }): Promise<boolean> {
   const llmClient = llmProvider.getClient(modelName, requestId);
-  const messages = [
-    buildVerifyActCompletionSystemPrompt() as ChatMessage,
-    buildVerifyActCompletionUserPrompt(goal, steps, domElements) as ChatMessage,
+  const messages: ChatMessage[] = [
+    buildVerifyActCompletionSystemPrompt(),
+    buildVerifyActCompletionUserPrompt(goal, steps, domElements),
   ];
 
   const response = await llmClient.createChatCompletion({
@@ -113,9 +113,9 @@ export async function act({
   why?: string;
 } | null> {
   const llmClient = llmProvider.getClient(modelName, requestId);
-  const messages = [
-    buildActSystemPrompt() as ChatMessage,
-    buildActUserPrompt(action, steps, domElements) as ChatMessage,
+  const messages: ChatMessage[] = [
+    buildActSystemPrompt(),
+    buildActUserPrompt(action, steps, domElements),
   ];
 
   const response = await llmClient.createChatCompletion({
@@ -188,8 +188,8 @@ export async function extract({
   const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildExtractSystemPrompt() as ChatMessage,
-      buildExtractUserPrompt(instruction, domElements) as ChatMessage,
+      buildExtractSystemPrompt(),
+      buildExtractUserPrompt(instruction, domElements),
     ],
     response_model: {
       schema: schema,
@@ -204,12 +204,12 @@ export async function extract({
   const refinedResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildRefineSystemPrompt() as ChatMessage,
+      buildRefineSystemPrompt(),
       buildRefineUserPrompt(
         instruction,
         previouslyExtractedContent,
         extractionResponse,
-      ) as ChatMessage,
+      ),
     ],
     response_model: {
       schema: schema,
@@ -237,13 +237,13 @@ export async function extract({
   const metadataResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildMetadataSystemPrompt() as ChatMessage,
+      buildMetadataSystemPrompt(),
       buildMetadataPrompt(
         instruction,
         refinedResponse,
         chunksSeen,
         chunksTotal,
-      ) as ChatMessage,
+      ),
     ],
     response_model: {
       name: "Metadata",
@@ -296,8 +296,8 @@ export async function observe({
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
-      buildObserveSystemPrompt() as ChatMessage,
-      buildObserveUserMessage(instruction, domElements) as ChatMessage,
+      buildObserveSystemPrompt(),
+      buildObserveUserMessage(instruction, domElements),
     ],
     image: image
       ? { buffer: image, description: AnnotatedScreenshotText }
@@ -333,10 +333,7 @@ export async function ask({
   const llmClient = llmProvider.getClient(modelName, requestId);
   const response = await llmClient.createChatCompletion({
     model: modelName,
-    messages: [
-      buildAskSystemPrompt() as ChatMessage,
-      buildAskUserPrompt(question) as ChatMessage,
-    ],
+    messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
