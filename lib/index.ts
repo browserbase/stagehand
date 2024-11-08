@@ -20,6 +20,7 @@ async function getBrowser(
     level?: 0 | 1 | 2;
   }) => void,
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
+  browserbaseResumeSessionID?: string,
 ) {
   if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
     logger({
@@ -31,44 +32,67 @@ async function getBrowser(
     env = "LOCAL";
   }
 
-  if (env === "BROWSERBASE" && !process.env.BROWSERBASE_PROJECT_ID) {
-    logger({
-      category: "Init",
-      message:
-        "BROWSERBASE_PROJECT_ID is required to use BROWSERBASE env. Defaulting to LOCAL.",
-      level: 0,
-    });
-    env = "LOCAL";
-  }
-
   if (env === "BROWSERBASE") {
     let debugUrl: string | undefined = undefined;
     let sessionUrl: string | undefined = undefined;
+    let sessionId: string;
+    let connectUrl: string;
 
-    logger({
-      category: "Init",
-      message: "Connecting you to Browserbase...",
-      level: 0,
-    });
     const browserbase = new Browserbase({
       apiKey: process.env.BROWSERBASE_API_KEY,
     });
-    const session = await browserbase.sessions.create({
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
-      ...browserbaseSessionCreateParams,
-    });
 
-    const sessionId = session.id;
-    const connectUrl = session.connectUrl;
+    if (browserbaseResumeSessionID) {
+      // Validate the session status
+      try {
+        const sessionStatus = await browserbase.sessions.retrieve(browserbaseResumeSessionID);
+        
+        if (sessionStatus.status !== "RUNNING") {
+          throw new Error(`Session ${browserbaseResumeSessionID} is not running (status: ${sessionStatus.status})`);
+        }
+
+        sessionId = browserbaseResumeSessionID;
+        connectUrl = `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`;
+        
+        logger({
+          category: "Init",
+          message: "Resuming existing Browserbase session...",
+          level: 0,
+        });
+      } catch (error) {
+        logger({
+          category: "Init",
+          message: `Failed to resume session ${browserbaseResumeSessionID}: ${error.message}`,
+          level: 0,
+        });
+        throw error;
+      }
+    } else {
+      // Create new session (existing code)
+      logger({
+        category: "Init",
+        message: "Creating new Browserbase session...",
+        level: 0,
+      });
+      
+      const session = await browserbase.sessions.create({
+        projectId: process.env.BROWSERBASE_PROJECT_ID,
+        ...browserbaseSessionCreateParams,
+      });
+
+      sessionId = session.id;
+      connectUrl = session.connectUrl;
+    }
+
     const browser = await chromium.connectOverCDP(connectUrl);
-
     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
 
     debugUrl = debuggerUrl;
     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+    
     logger({
       category: "Init",
-      message: `Browserbase session started.\n\nSession Url: ${sessionUrl}\n\nLive debug accessible here: ${debugUrl}.`,
+      message: `Browserbase session ${browserbaseResumeSessionID ? 'resumed' : 'started'}.\n\nSession Url: ${sessionUrl}\n\nLive debug accessible here: ${debugUrl}.`,
       level: 0,
     });
 
@@ -194,6 +218,7 @@ export class Stagehand {
   private domSettleTimeoutMs: number;
   private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
+  private browserbaseResumeSessionID?: string;
 
   constructor(
     {
@@ -206,6 +231,7 @@ export class Stagehand {
       browserBaseSessionCreateParams,
       domSettleTimeoutMs,
       enableCaching,
+      browserbaseResumeSessionID,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       verbose?: 0 | 1 | 2;
@@ -220,6 +246,7 @@ export class Stagehand {
       domSettleTimeoutMs?: number;
       browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
       enableCaching?: boolean;
+      browserbaseResumeSessionID?: string;
     } = {
       env: "BROWSERBASE",
     },
@@ -238,6 +265,7 @@ export class Stagehand {
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 60_000;
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
+    this.browserbaseResumeSessionID = browserbaseResumeSessionID;
   }
 
   async init({
@@ -251,6 +279,7 @@ export class Stagehand {
       this.headless,
       this.logger,
       this.browserBaseSessionCreateParams,
+      this.browserbaseResumeSessionID,
     ).catch((e) => {
       console.error("Error in init:", e);
       return { context: undefined, debugUrl: undefined, sessionUrl: undefined };
