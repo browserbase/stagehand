@@ -321,7 +321,9 @@ const homedepot = async () => {
 
   logger.init(stagehand);
 
-  const { debugUrl, sessionUrl } = await stagehand.init();
+  const { debugUrl, sessionUrl } = await stagehand.init({
+    domSettleTimeoutMs: 60_000,
+  });
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
