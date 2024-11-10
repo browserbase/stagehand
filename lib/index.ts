@@ -235,7 +235,7 @@ export class Stagehand {
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
     this.defaultModelName = "gpt-4o";
-    this.domSettleTimeoutMs = domSettleTimeoutMs ?? 60_000;
+    this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
   }
