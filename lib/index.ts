@@ -12,6 +12,8 @@ import { modelsWithVision } from "./llm/LLMClient";
 require("dotenv").config({ path: ".env" });
 
 async function getBrowser(
+  apiKey: string | undefined,
+  projectId: string | undefined,
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
   logger: (message: {
@@ -22,9 +24,6 @@ async function getBrowser(
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseResumeSessionID?: string,
 ) {
-  let apiKey: string | undefined = process.env.BROWSERBASE_API_KEY;
-  let projectId: string | undefined = process.env.BROWSERBASE_PROJECT_ID;
-
   if (env === "BROWSERBASE") {
     if (!apiKey) {
       logger({
@@ -233,6 +232,8 @@ export class Stagehand {
   public page: Page;
   public context: BrowserContext;
   private env: "LOCAL" | "BROWSERBASE";
+  private apiKey: string | undefined;
+  private projectId: string | undefined;
   private verbose: 0 | 1 | 2;
   private debugDom: boolean;
   private defaultModelName: AvailableModel;
@@ -250,6 +251,8 @@ export class Stagehand {
   constructor(
     {
       env,
+      apiKey,
+      projectId,
       verbose,
       debugDom,
       llmProvider,
@@ -261,6 +264,8 @@ export class Stagehand {
       browserbaseResumeSessionID,
     }: {
       env: "LOCAL" | "BROWSERBASE";
+      apiKey?: string;
+      projectId?: string;
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
       llmProvider?: LLMProvider;
@@ -285,6 +290,8 @@ export class Stagehand {
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
     this.observations = {};
+    this.apiKey = apiKey;
+    this.projectId = projectId;
     this.actions = {};
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
@@ -302,6 +309,8 @@ export class Stagehand {
     sessionUrl: string;
   }> {
     const { context, debugUrl, sessionUrl } = await getBrowser(
+      this.apiKey,
+      this.projectId,
       this.env,
       this.headless,
       this.logger,
