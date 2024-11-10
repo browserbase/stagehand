@@ -22,38 +22,59 @@ async function getBrowser(
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseResumeSessionID?: string,
 ) {
-  if (env === "BROWSERBASE" && !process.env.BROWSERBASE_API_KEY) {
-    logger({
-      category: "Init",
-      message:
-        "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
-      level: 0,
-    });
-    env = "LOCAL";
+  let apiKey: string | undefined = process.env.BROWSERBASE_API_KEY;
+  let projectId: string | undefined = process.env.BROWSERBASE_PROJECT_ID;
+
+  if (env === "BROWSERBASE") {
+    if (!apiKey) {
+      logger({
+        category: "Init",
+        message:
+          "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
+        level: 0,
+      });
+      env = "LOCAL";
+    }
+    if (!projectId) {
+      logger({
+        category: "Init",
+        message:
+          "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
+        level: 1,
+      });
+    }
   }
 
   if (env === "BROWSERBASE") {
+    if (!apiKey) {
+      throw new Error("BROWSERBASE_API_KEY is required.");
+    }
+
     let debugUrl: string | undefined = undefined;
     let sessionUrl: string | undefined = undefined;
     let sessionId: string;
     let connectUrl: string;
 
     const browserbase = new Browserbase({
-      apiKey: process.env.BROWSERBASE_API_KEY,
+      apiKey,
     });
 
     if (browserbaseResumeSessionID) {
       // Validate the session status
       try {
-        const sessionStatus = await browserbase.sessions.retrieve(browserbaseResumeSessionID);
-        
+        const sessionStatus = await browserbase.sessions.retrieve(
+          browserbaseResumeSessionID,
+        );
+
         if (sessionStatus.status !== "RUNNING") {
-          throw new Error(`Session ${browserbaseResumeSessionID} is not running (status: ${sessionStatus.status})`);
+          throw new Error(
+            `Session ${browserbaseResumeSessionID} is not running (status: ${sessionStatus.status})`,
+          );
         }
 
         sessionId = browserbaseResumeSessionID;
-        connectUrl = `wss://connect.browserbase.com?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`;
-        
+        connectUrl = `wss://connect.browserbase.com?apiKey=${apiKey}&sessionId=${sessionId}`;
+
         logger({
           category: "Init",
           message: "Resuming existing Browserbase session...",
@@ -74,9 +95,15 @@ async function getBrowser(
         message: "Creating new Browserbase session...",
         level: 0,
       });
-      
+
+      if (!projectId) {
+        throw new Error(
+          "BROWSERBASE_PROJECT_ID is required for new Browserbase sessions.",
+        );
+      }
+
       const session = await browserbase.sessions.create({
-        projectId: process.env.BROWSERBASE_PROJECT_ID,
+        projectId,
         ...browserbaseSessionCreateParams,
       });
 
@@ -89,10 +116,10 @@ async function getBrowser(
 
     debugUrl = debuggerUrl;
     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-    
+
     logger({
       category: "Init",
-      message: `Browserbase session ${browserbaseResumeSessionID ? 'resumed' : 'started'}.\n\nSession Url: ${sessionUrl}\n\nLive debug accessible here: ${debugUrl}.`,
+      message: `Browserbase session ${browserbaseResumeSessionID ? "resumed" : "started"}.\n\nSession Url: ${sessionUrl}\n\nLive debug accessible here: ${debugUrl}.`,
       level: 0,
     });
 
