@@ -527,6 +527,7 @@ export class Stagehand {
     chunksSeen = [],
     modelName,
     requestId,
+    domSettleTimeoutMs,
   }: {
     instruction: string;
     schema: T;
@@ -535,6 +536,7 @@ export class Stagehand {
     chunksSeen?: Array<number>;
     modelName?: AvailableModel;
     requestId?: string;
+    domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
@@ -542,7 +544,7 @@ export class Stagehand {
       level: 1,
     });
 
-    await this._waitForSettledDom();
+    await this._waitForSettledDom(domSettleTimeoutMs);
     await this.startDomDebug();
     const { outputString, chunk, chunks } = await this.page.evaluate(
       (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
@@ -596,7 +598,7 @@ export class Stagehand {
         message: `continuing extraction, progress: '${newProgress}'`,
         level: 1,
       });
-      await this._waitForSettledDom();
+      await this._waitForSettledDom(domSettleTimeoutMs);
       return this._extract({
         instruction,
         schema,
@@ -604,6 +606,7 @@ export class Stagehand {
         content: output,
         chunksSeen,
         modelName,
+        domSettleTimeoutMs,
       });
     }
   }
@@ -614,12 +617,14 @@ export class Stagehand {
     fullPage,
     modelName,
     requestId,
+    domSettleTimeoutMs,
   }: {
     instruction: string;
     useVision: boolean;
     fullPage: boolean;
     modelName?: AvailableModel;
     requestId?: string;
+    domSettleTimeoutMs?: number;
   }): Promise<{ selector: string; description: string }[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -633,7 +638,7 @@ export class Stagehand {
       level: 1,
     });
 
-    await this._waitForSettledDom();
+    await this._waitForSettledDom(domSettleTimeoutMs);
     await this.startDomDebug();
     let { outputString, selectorMap } = await this.page.evaluate(
       (fullPage: boolean) =>
@@ -705,6 +710,7 @@ export class Stagehand {
     verifierUseVision,
     retries = 0,
     requestId,
+    domSettleTimeoutMs,
   }: {
     action: string;
     steps?: string;
@@ -714,6 +720,7 @@ export class Stagehand {
     verifierUseVision: boolean;
     retries?: number;
     requestId?: string;
+    domSettleTimeoutMs?: number;
   }): Promise<{ success: boolean; message: string; action: string }> {
     const model = modelName ?? this.defaultModelName;
 
@@ -736,7 +743,7 @@ export class Stagehand {
       level: 2,
     });
 
-    await this._waitForSettledDom();
+    await this._waitForSettledDom(domSettleTimeoutMs);
 
     await this.startDomDebug();
 
@@ -824,6 +831,7 @@ export class Stagehand {
           useVision,
           verifierUseVision,
           requestId,
+          domSettleTimeoutMs,
         });
       } else if (useVision === "fallback") {
         this.log({
@@ -840,6 +848,7 @@ export class Stagehand {
           useVision: true,
           verifierUseVision,
           requestId,
+          domSettleTimeoutMs,
         });
       } else {
         if (this.enableCaching) {
@@ -915,6 +924,7 @@ export class Stagehand {
               retries: retries + 1,
               chunksSeen,
               requestId,
+              domSettleTimeoutMs,
             });
           }
         }
@@ -945,6 +955,7 @@ export class Stagehand {
               retries: retries + 1,
               chunksSeen,
               requestId,
+              domSettleTimeoutMs,
             });
           }
         }
@@ -969,6 +980,7 @@ export class Stagehand {
               retries: retries + 1,
               chunksSeen,
               requestId,
+              domSettleTimeoutMs,
             });
           }
         }
@@ -1005,6 +1017,7 @@ export class Stagehand {
               retries: retries + 1,
               chunksSeen,
               requestId,
+              domSettleTimeoutMs,
             });
           }
         }
@@ -1042,7 +1055,7 @@ export class Stagehand {
             await newOpenedTab.close();
             await this.page.goto(newOpenedTab.url());
             await this.page.waitForLoadState("domcontentloaded");
-            await this._waitForSettledDom();
+            await this._waitForSettledDom(domSettleTimeoutMs);
           }
 
           // Wait for the network to be idle with timeout of 5s (will only wait if loading a new page)
@@ -1194,6 +1207,7 @@ export class Stagehand {
           useVision,
           verifierUseVision,
           requestId,
+          domSettleTimeoutMs,
         });
       } else {
         this.log({
@@ -1224,6 +1238,7 @@ export class Stagehand {
           retries: retries + 1,
           chunksSeen,
           requestId,
+          domSettleTimeoutMs,
         });
       }
 
@@ -1244,10 +1259,12 @@ export class Stagehand {
     action,
     modelName,
     useVision = "fallback",
+    domSettleTimeoutMs,
   }: {
     action: string;
     modelName?: AvailableModel;
     useVision?: "fallback" | boolean;
+    domSettleTimeoutMs?: number;
   }): Promise<{
     success: boolean;
     message: string;
@@ -1269,6 +1286,7 @@ export class Stagehand {
       useVision,
       verifierUseVision: useVision !== false,
       requestId,
+      domSettleTimeoutMs,
     }).catch((e) => {
       this.logger({
         category: "act",
@@ -1291,10 +1309,12 @@ export class Stagehand {
     instruction,
     schema,
     modelName,
+    domSettleTimeoutMs,
   }: {
     instruction: string;
     schema: T;
     modelName?: AvailableModel;
+    domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
     const requestId = Math.random().toString(36).substring(2);
 
@@ -1308,6 +1328,7 @@ export class Stagehand {
       schema,
       modelName,
       requestId,
+      domSettleTimeoutMs,
     }).catch((e) => {
       this.logger({
         category: "extract",
@@ -1326,6 +1347,7 @@ export class Stagehand {
     instruction?: string;
     modelName?: AvailableModel;
     useVision?: boolean;
+    domSettleTimeoutMs?: number;
   }): Promise<{ selector: string; description: string }[]> {
     const requestId = Math.random().toString(36).substring(2);
 
@@ -1342,6 +1364,7 @@ export class Stagehand {
       useVision: options?.useVision ?? false,
       fullPage: false,
       requestId,
+      domSettleTimeoutMs: options?.domSettleTimeoutMs,
     }).catch((e) => {
       this.logger({
         category: "observe",
