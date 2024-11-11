@@ -293,8 +293,8 @@ export class Stagehand {
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
     this.observations = {};
-    this.apiKey = apiKey || process.env.BROWSERBASE_API_KEY;
-    this.projectId = projectId || process.env.BROWSERBASE_PROJECT_ID;
+    this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
+    this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
     this.defaultModelName = "gpt-4o";
@@ -339,6 +339,9 @@ export class Stagehand {
     });
     this.context = context;
     this.page = context.pages()[0];
+    // Redundant but needed for users who are re-connecting to a previously-created session
+    await this.page.waitForLoadState("domcontentloaded");
+    await this._waitForSettledDom();
     this.defaultModelName = modelName;
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? this.domSettleTimeoutMs;
 
@@ -358,16 +361,36 @@ export class Stagehand {
 
     // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
     // be one level above our running directly across evals, example, and as a package
-    await this.page.addInitScript({
+    await this.context.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
+        "utf8",
+      ),
+    });
+
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+        "utf8",
+      ),
     });
 
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+        "utf8",
+      ),
     });
 
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+        "utf8",
+      ),
     });
 
     return { debugUrl, sessionUrl };
@@ -395,20 +418,36 @@ export class Stagehand {
     }
 
     // Add initialization scripts
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
+        "utf8",
+      ),
     });
 
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
+        "utf8",
+      ),
     });
 
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
+        "utf8",
+      ),
     });
 
-    await this.page.addInitScript({
+    await this.context.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+      content: fs.readFileSync(
+        path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
+        "utf8",
+      ),
     });
 
     return { context: this.context };
