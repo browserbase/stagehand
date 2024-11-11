@@ -84,6 +84,18 @@ export async function verifyActCompletion({
   return response.completed;
 }
 
+export function fillInVariables(
+  text: string,
+  variables: Record<string, string>,
+) {
+  let processedText = text;
+  Object.entries(variables).forEach(([key, value]) => {
+    const placeholder = `<|${key.toUpperCase()}|>`;
+    processedText = processedText.replace(placeholder, value);
+  });
+  return processedText;
+}
+
 export async function act({
   action,
   domElements,
@@ -94,6 +106,7 @@ export async function act({
   retries = 0,
   logger,
   requestId,
+  variables,
 }: {
   action: string;
   steps?: string;
@@ -104,6 +117,7 @@ export async function act({
   retries?: number;
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
+  variables?: Record<string, string>;
 }): Promise<{
   method: string;
   element: number;
@@ -115,7 +129,7 @@ export async function act({
   const llmClient = llmProvider.getClient(modelName, requestId);
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
-    buildActUserPrompt(action, steps, domElements),
+    buildActUserPrompt(action, steps, domElements, variables),
   ];
 
   const response = await llmClient.createChatCompletion({
@@ -133,10 +147,12 @@ export async function act({
   });
 
   const toolCalls = response.choices[0].message.tool_calls;
+
   if (toolCalls && toolCalls.length > 0) {
     if (toolCalls[0].function.name === "skipSection") {
       return null;
     }
+
     return JSON.parse(toolCalls[0].function.arguments);
   } else {
     if (retries >= 2) {

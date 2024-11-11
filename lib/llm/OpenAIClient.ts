@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
-import { LLMCache } from "./LLMCache";
+import { LLMCache } from "../cache/LLMCache";
 
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
@@ -46,7 +46,18 @@ export class OpenAIClient implements LLMClient {
     if (this.enableCaching) {
       const cachedResponse = await this.cache.get(cacheOptions, this.requestId);
       if (cachedResponse) {
+        this.logger({
+          category: "llm_cache",
+          message: `LLM Cache hit - returning cached response`,
+          level: 1,
+        });
         return cachedResponse;
+      } else {
+        this.logger({
+          category: "llm_cache",
+          message: `LLM Cache miss - no cached response found`,
+          level: 1,
+        });
       }
     }
 

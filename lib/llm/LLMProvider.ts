@@ -1,7 +1,7 @@
 import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
-import { LLMCache } from "./LLMCache";
+import { LLMCache } from "../cache/LLMCache";
 
 export type AvailableModel =
   | "gpt-4o"

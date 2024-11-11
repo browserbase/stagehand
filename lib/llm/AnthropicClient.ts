@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { LLMCache } from "./LLMCache";
+import { LLMCache } from "../cache/LLMCache";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
@@ -50,7 +50,18 @@ export class AnthropicClient implements LLMClient {
     if (this.enableCaching) {
       const cachedResponse = await this.cache.get(cacheOptions, this.requestId);
       if (cachedResponse) {
+        this.logger({
+          category: "llm_cache",
+          message: `LLM Cache hit - returning cached response`,
+          level: 1,
+        });
         return cachedResponse;
+      } else {
+        this.logger({
+          category: "llm_cache",
+          message: `LLM Cache miss - no cached response found`,
+          level: 1,
+        });
       }
     }
 

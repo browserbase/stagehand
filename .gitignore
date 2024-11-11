@@ -13,3 +13,4 @@ evals/**/public
 lib/dom/bundle.js
 evals/public
 *.tgz
+evals/playground.ts

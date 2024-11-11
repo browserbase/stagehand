@@ -4,17 +4,17 @@ declare global {
     chunkNumber: number;
     processDom: (chunksSeen: Array<number>) => Promise<{
       outputString: string;
-      selectorMap: Record<number, string>;
+      selectorMap: Record<number, string[]>;
       chunk: number;
       chunks: number[];
     }>;
     processAllOfDom: () => Promise<{
       outputString: string;
-      selectorMap: Record<number, string>;
+      selectorMap: Record<number, string[]>;
     }>;
     processElements: (chunk: number) => Promise<{
       outputString: string;
-      selectorMap: Record<number, string>;
+      selectorMap: Record<number, string[]>;
     }>;
     debugDom: () => Promise<void>;
     cleanupDebug: () => void;

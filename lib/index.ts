@@ -1,13 +1,15 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
-import crypto from "crypto";
 import { z } from "zod";
 import fs from "fs";
 import { Browserbase } from "@browserbasehq/sdk";
-import { act, extract, observe, verifyActCompletion } from "./inference";
+import { extract, observe } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
+import { ActionCache } from "./cache/ActionCache";
+import { StagehandActHandler } from "./handlers/actHandler";
+import { generateId } from "./utils";
 
 require("dotenv").config({ path: ".env" });
 
@@ -228,7 +230,6 @@ export class Stagehand {
       instruction: string;
     };
   };
-  private actions: { [key: string]: { result: string; action: string } };
   public page: Page;
   public context: BrowserContext;
   private env: "LOCAL" | "BROWSERBASE";
@@ -246,6 +247,8 @@ export class Stagehand {
   private domSettleTimeoutMs: number;
   private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
+  private variables: { [key: string]: any };
+  private actHandler: StagehandActHandler;
   private browserbaseResumeSessionID?: string;
 
   constructor(
@@ -290,21 +293,35 @@ export class Stagehand {
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
     this.observations = {};
-    this.apiKey = apiKey;
-    this.projectId = projectId;
-    this.actions = {};
+    this.apiKey = apiKey || process.env.BROWSERBASE_API_KEY;
+    this.projectId = projectId || process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
     this.defaultModelName = "gpt-4o";
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
+    this.actHandler = new StagehandActHandler({
+      stagehand: this,
+      verbose: this.verbose,
+      llmProvider: this.llmProvider,
+      enableCaching: this.enableCaching,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+    });
     this.browserbaseResumeSessionID = browserbaseResumeSessionID;
   }
 
   async init({
     modelName = "gpt-4o",
-  }: { modelName?: AvailableModel } = {}): Promise<{
+    domSettleTimeoutMs,
+  }: {
+    modelName?: AvailableModel;
+    domSettleTimeoutMs?: number;
+  } = {}): Promise<{
     debugUrl: string;
     sessionUrl: string;
   }> {
@@ -323,6 +340,7 @@ export class Stagehand {
     this.context = context;
     this.page = context.pages()[0];
     this.defaultModelName = modelName;
+    this.domSettleTimeoutMs = domSettleTimeoutMs ?? this.domSettleTimeoutMs;
 
     // Overload the page.goto method
     const originalGoto = this.page.goto.bind(this.page);
@@ -377,6 +395,10 @@ export class Stagehand {
     }
 
     // Add initialization scripts
+    await this.page.addInitScript({
+      path: path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
+    });
+
     await this.page.addInitScript({
       path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
     });
@@ -558,26 +580,13 @@ export class Stagehand {
     }
   }
 
-  // Recording
-  private _generateId(operation: string) {
-    return crypto.createHash("sha256").update(operation).digest("hex");
-  }
-
   private async _recordObservation(
     instruction: string,
     result: { selector: string; description: string }[],
   ): Promise<string> {
-    const id = this._generateId(instruction);
+    const id = generateId(instruction);
 
     this.observations[id] = { result, instruction };
-
-    return id;
-  }
-
-  private async _recordAction(action: string, result: string): Promise<string> {
-    const id = this._generateId(action);
-
-    this.actions[id] = { result, action };
 
     return id;
   }
@@ -747,7 +756,7 @@ export class Stagehand {
 
         return {
           ...rest,
-          selector: `xpath=${selectorMap[elementId]}`,
+          selector: `xpath=${selectorMap[elementId][0]}`,
         };
       },
     );
@@ -766,569 +775,17 @@ export class Stagehand {
     return elementsWithSelectors;
   }
 
-  private async _act({
-    action,
-    steps = "",
-    chunksSeen,
-    modelName,
-    useVision,
-    verifierUseVision,
-    retries = 0,
-    requestId,
-    domSettleTimeoutMs,
-  }: {
-    action: string;
-    steps?: string;
-    chunksSeen: number[];
-    modelName?: AvailableModel;
-    useVision: boolean | "fallback";
-    verifierUseVision: boolean;
-    retries?: number;
-    requestId?: string;
-    domSettleTimeoutMs?: number;
-  }): Promise<{ success: boolean; message: string; action: string }> {
-    const model = modelName ?? this.defaultModelName;
-
-    if (
-      !modelsWithVision.includes(model) &&
-      (useVision !== false || verifierUseVision)
-    ) {
-      this.log({
-        category: "action",
-        message: `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
-        level: 1,
-      });
-      useVision = false;
-      verifierUseVision = false;
-    }
-
-    this.log({
-      category: "action",
-      message: `Running / Continuing action: ${action} on page: ${this.page.url()}`,
-      level: 2,
-    });
-
-    await this._waitForSettledDom(domSettleTimeoutMs);
-
-    await this.startDomDebug();
-
-    this.log({
-      category: "action",
-      message: `Processing DOM...`,
-      level: 2,
-    });
-
-    const { outputString, selectorMap, chunk, chunks } =
-      await this.page.evaluate(
-        ({ chunksSeen }: { chunksSeen: number[] }) => {
-          // @ts-ignore
-          return window.processDom(chunksSeen);
-        },
-        { chunksSeen },
-      );
-
-    this.log({
-      category: "action",
-      message: `Looking at chunk ${chunk}. Chunks left: ${
-        chunks.length - chunksSeen.length
-      }`,
-      level: 1,
-    });
-
-    // Prepare annotated screenshot if vision is enabled
-    let annotatedScreenshot: Buffer | undefined;
-    if (useVision === true) {
-      if (!modelsWithVision.includes(model)) {
-        this.log({
-          category: "action",
-          message: `${model} does not support vision. Skipping vision processing.`,
-          level: 1,
-        });
-      } else {
-        const screenshotService = new ScreenshotService(
-          this.page,
-          selectorMap,
-          this.verbose,
-        );
-
-        annotatedScreenshot =
-          await screenshotService.getAnnotatedScreenshot(false);
-      }
-    }
-
-    const response = await act({
-      action,
-      domElements: outputString,
-      steps,
-      llmProvider: this.llmProvider,
-      modelName: model,
-      screenshot: annotatedScreenshot,
-      logger: this.logger,
-      requestId,
-    });
-
-    this.log({
-      category: "action",
-      message: `Received response from LLM: ${JSON.stringify(response)}`,
-      level: 1,
-    });
-
-    await this.cleanupDomDebug();
-
-    if (!response) {
-      if (chunksSeen.length + 1 < chunks.length) {
-        chunksSeen.push(chunk);
-
-        this.log({
-          category: "action",
-          message: `No action found in current chunk. Chunks seen: ${chunksSeen.length}.`,
-          level: 1,
-        });
-
-        return this._act({
-          action,
-          steps:
-            steps +
-            (!steps.endsWith("\n") ? "\n" : "") +
-            "## Step: Scrolled to another section\n",
-          chunksSeen,
-          modelName,
-          useVision,
-          verifierUseVision,
-          requestId,
-          domSettleTimeoutMs,
-        });
-      } else if (useVision === "fallback") {
-        this.log({
-          category: "action",
-          message: `Switching to vision-based processing`,
-          level: 1,
-        });
-        await this.page.evaluate(() => window.scrollToHeight(0));
-        return await this._act({
-          action,
-          steps,
-          chunksSeen,
-          modelName,
-          useVision: true,
-          verifierUseVision,
-          requestId,
-          domSettleTimeoutMs,
-        });
-      } else {
-        if (this.enableCaching) {
-          this.llmProvider.cleanRequestCache(requestId);
-        }
-
-        return {
-          success: false,
-          message: `Action was not able to be completed.`,
-          action: action,
-        };
-      }
-    }
-
-    // Action found, proceed to execute
-    const elementId = response["element"];
-    const xpath = selectorMap[elementId];
-    const method = response["method"];
-    const args = response["args"];
-
-    // Get the element text from the outputString
-    const elementLines = outputString.split("\n");
-    const elementText =
-      elementLines
-        .find((line) => line.startsWith(`${elementId}:`))
-        ?.split(":")[1] || "Element not found";
-
-    this.log({
-      category: "action",
-      message: `Executing method: ${method} on element: ${elementId} (xpath: ${xpath}) with args: ${JSON.stringify(
-        args,
-      )}`,
-      level: 1,
-    });
-
-    let urlChangeString = "";
-
-    const locator = this.page.locator(`xpath=${xpath}`).first();
-    try {
-      const initialUrl = this.page.url();
-      if (method === "scrollIntoView") {
-        this.log({
-          category: "action",
-          message: `Scrolling element into view`,
-          level: 2,
-        });
-        try {
-          await locator
-            .evaluate((element) => {
-              element.scrollIntoView({ behavior: "smooth", block: "center" });
-            })
-            .catch((e: Error) => {
-              this.log({
-                category: "action",
-                message: `Error scrolling element into view: ${e.message}\nTrace: ${e.stack}`,
-                level: 1,
-              });
-            });
-        } catch (e) {
-          this.log({
-            category: "action",
-            message: `Error scrolling element into view (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
-            level: 1,
-          });
-
-          if (retries < 2) {
-            return this._act({
-              action,
-              steps,
-              modelName,
-              useVision,
-              verifierUseVision,
-              retries: retries + 1,
-              chunksSeen,
-              requestId,
-              domSettleTimeoutMs,
-            });
-          }
-        }
-      } else if (method === "fill" || method === "type") {
-        try {
-          await locator.fill("");
-          await locator.click();
-          const text = args[0];
-          for (const char of text) {
-            await this.page.keyboard.type(char, {
-              delay: Math.random() * 50 + 25,
-            });
-          }
-        } catch (e) {
-          this.log({
-            category: "action",
-            message: `Error filling element (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
-            level: 1,
-          });
-
-          if (retries < 2) {
-            return this._act({
-              action,
-              steps,
-              modelName,
-              useVision,
-              verifierUseVision,
-              retries: retries + 1,
-              chunksSeen,
-              requestId,
-              domSettleTimeoutMs,
-            });
-          }
-        }
-      } else if (method === "press") {
-        try {
-          const key = args[0];
-          await this.page.keyboard.press(key);
-        } catch (e) {
-          this.log({
-            category: "action",
-            message: `Error pressing key (Retries ${retries}): ${e.message}\nTrace: ${e.stack}`,
-            level: 1,
-          });
-
-          if (retries < 2) {
-            return this._act({
-              action,
-              steps,
-              modelName,
-              useVision,
-              verifierUseVision,
-              retries: retries + 1,
-              chunksSeen,
-              requestId,
-              domSettleTimeoutMs,
-            });
-          }
-        }
-      } else if (
-        typeof locator[method as keyof typeof locator] === "function"
-      ) {
-        // Log current URL before action
-        this.log({
-          category: "action",
-          message: `Page URL before action: ${this.page.url()}`,
-          level: 2,
-        });
-
-        // Perform the action
-        try {
-          // @ts-ignore
-          await locator[method](...args);
-        } catch (e) {
-          this.log({
-            category: "action",
-            message: `Error performing method ${method} with args ${JSON.stringify(
-              args,
-            )} (Retries: ${retries}): ${e.message}\nTrace: ${e.stack}`,
-            level: 1,
-          });
-
-          if (retries < 2) {
-            return this._act({
-              action,
-              steps,
-              modelName,
-              useVision,
-              verifierUseVision,
-              retries: retries + 1,
-              chunksSeen,
-              requestId,
-              domSettleTimeoutMs,
-            });
-          }
-        }
-
-        // Handle navigation if a new page is opened
-        if (method === "click") {
-          this.log({
-            category: "action",
-            message: `Clicking element, checking for page navigation`,
-            level: 1,
-          });
-
-          // NAVIDNOTE: Should this happen before we wait for locator[method]?
-          const newOpenedTab = await Promise.race([
-            new Promise<Page | null>((resolve) => {
-              this.context.once("page", (page) => resolve(page));
-              setTimeout(() => resolve(null), 1_500);
-            }),
-          ]);
-
-          this.log({
-            category: "action",
-            message: `Clicked element, ${
-              newOpenedTab ? "opened a new tab" : "no new tabs opened"
-            }`,
-            level: 1,
-          });
-
-          if (newOpenedTab) {
-            this.log({
-              category: "action",
-              message: `New page detected (new tab) with URL: ${newOpenedTab.url()}`,
-              level: 1,
-            });
-            await newOpenedTab.close();
-            await this.page.goto(newOpenedTab.url());
-            await this.page.waitForLoadState("domcontentloaded");
-            await this._waitForSettledDom(domSettleTimeoutMs);
-          }
-
-          // Wait for the network to be idle with timeout of 5s (will only wait if loading a new page)
-          // await this.waitForSettledDom();
-          await Promise.race([
-            this.page.waitForLoadState("networkidle"),
-            new Promise((resolve) => setTimeout(resolve, 5_000)),
-          ]).catch((e: Error) => {
-            this.log({
-              category: "action",
-              message: `Network idle timeout hit`,
-              level: 1,
-            });
-          });
-
-          this.log({
-            category: "action",
-            message: `Finished waiting for (possible) page navigation`,
-            level: 1,
-          });
-
-          if (this.page.url() !== initialUrl) {
-            this.log({
-              category: "action",
-              message: `New page detected with URL: ${this.page.url()}`,
-              level: 1,
-            });
-          }
-        }
-      } else {
-        this.log({
-          category: "action",
-          message: `Chosen method ${method} is invalid`,
-          level: 1,
-        });
-        if (retries < 2) {
-          return this._act({
-            action,
-            steps,
-            modelName: model,
-            useVision,
-            verifierUseVision,
-            retries: retries + 1,
-            chunksSeen,
-            requestId,
-          });
-        } else {
-          if (this.enableCaching) {
-            this.llmProvider.cleanRequestCache(requestId);
-          }
-
-          return {
-            success: false,
-            message: `Internal error: Chosen method ${method} is invalid`,
-            action: action,
-          };
-        }
-      }
-
-      let newSteps =
-        steps +
-        (!steps.endsWith("\n") ? "\n" : "") +
-        `## Step: ${response.step}\n` +
-        `  Element: ${elementText}\n` +
-        `  Action: ${response.method}\n` +
-        `  Reasoning: ${response.why}\n`;
-
-      if (urlChangeString) {
-        newSteps += `  Result (Important): ${urlChangeString}\n\n`;
-      }
-
-      let actionComplete = false;
-      if (response.completed) {
-        // Run action completion verifier
-        this.log({
-          category: "action",
-          message: `Action marked as completed, Verifying if this is true...`,
-          level: 1,
-        });
-
-        let domElements: string | undefined = undefined;
-        let fullpageScreenshot: Buffer | undefined = undefined;
-
-        if (verifierUseVision) {
-          try {
-            const screenshotService = new ScreenshotService(
-              this.page,
-              selectorMap,
-              this.verbose,
-            );
-
-            fullpageScreenshot = await screenshotService.getScreenshot(
-              true,
-              15,
-            );
-          } catch (e) {
-            this.log({
-              category: "action",
-              message: `Error getting full page screenshot: ${e.message}\n. Trying again...`,
-              level: 1,
-            });
-
-            const screenshotService = new ScreenshotService(
-              this.page,
-              selectorMap,
-              this.verbose,
-            );
-
-            fullpageScreenshot = await screenshotService.getScreenshot(
-              true,
-              15,
-            );
-          }
-        } else {
-          ({ outputString: domElements } = await this.page.evaluate(() => {
-            return window.processAllOfDom();
-          }));
-        }
-
-        actionComplete = await verifyActCompletion({
-          goal: action,
-          steps: newSteps,
-          llmProvider: this.llmProvider,
-          modelName: model,
-          screenshot: fullpageScreenshot,
-          domElements: domElements,
-          logger: this.logger,
-          requestId,
-        });
-
-        this.log({
-          category: "action",
-          message: `Action completion verification result: ${actionComplete}`,
-          level: 1,
-        });
-      }
-
-      if (!actionComplete) {
-        this.log({
-          category: "action",
-          message: `Continuing to next action step`,
-          level: 1,
-        });
-        return this._act({
-          action,
-          steps: newSteps,
-          modelName,
-          chunksSeen,
-          useVision,
-          verifierUseVision,
-          requestId,
-          domSettleTimeoutMs,
-        });
-      } else {
-        this.log({
-          category: "action",
-          message: `Action completed successfully`,
-          level: 1,
-        });
-        await this._recordAction(action, response.step);
-        return {
-          success: true,
-          message: `Action completed successfully: ${steps}${response.step}`,
-          action: action,
-        };
-      }
-    } catch (error) {
-      this.log({
-        category: "action",
-        message: `Error performing action (Retries: ${retries}): ${error.message}\nTrace: ${error.stack}`,
-        level: 1,
-      });
-      if (retries < 2) {
-        return this._act({
-          action,
-          steps,
-          modelName,
-          useVision,
-          verifierUseVision,
-          retries: retries + 1,
-          chunksSeen,
-          requestId,
-          domSettleTimeoutMs,
-        });
-      }
-
-      await this._recordAction(action, "");
-      if (this.enableCaching) {
-        this.llmProvider.cleanRequestCache(requestId);
-      }
-
-      return {
-        success: false,
-        message: `Error performing action: ${error.message}`,
-        action: action,
-      };
-    }
-  }
-
   async act({
     action,
     modelName,
     useVision = "fallback",
+    variables = {},
     domSettleTimeoutMs,
   }: {
     action: string;
     modelName?: AvailableModel;
     useVision?: "fallback" | boolean;
+    variables?: Record<string, string>;
     domSettleTimeoutMs?: number;
   }): Promise<{
     success: boolean;
@@ -1344,30 +801,35 @@ export class Stagehand {
       message: `Running act with action: ${action}, requestId: ${requestId}`,
     });
 
-    return this._act({
-      action,
-      modelName,
-      chunksSeen: [],
-      useVision,
-      verifierUseVision: useVision !== false,
-      requestId,
-      domSettleTimeoutMs,
-    }).catch((e) => {
-      this.logger({
-        category: "act",
-        message: `Error acting: ${e.message}\nTrace: ${e.stack}`,
+    if (variables) {
+      this.variables = { ...this.variables, ...variables };
+    }
+
+    return this.actHandler
+      .act({
+        action,
+        modelName,
+        chunksSeen: [],
+        useVision,
+        verifierUseVision: useVision !== false,
+        requestId,
+        variables,
+        previousSelectors: [],
+        skipActionCacheForThisStep: false,
+        domSettleTimeoutMs,
+      })
+      .catch((e) => {
+        this.logger({
+          category: "act",
+          message: `Error acting: ${e.message}\nTrace: ${e.stack}`,
+        });
+
+        return {
+          success: false,
+          message: `Internal error: Error acting: ${e.message}`,
+          action: action,
+        };
       });
-
-      if (this.enableCaching) {
-        this.llmProvider.cleanRequestCache(requestId);
-      }
-
-      return {
-        success: false,
-        message: `Internal error: Error acting: ${e.message}`,
-        action: action,
-      };
-    });
   }
 
   async extract<T extends z.AnyZodObject>({

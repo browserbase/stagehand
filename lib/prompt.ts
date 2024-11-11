@@ -10,6 +10,7 @@ You are given:
 1. the user's overall goal
 2. the steps that you've taken so far
 3. a list of active DOM elements in this chunk to consider to get closer to the goal. 
+4. Optionally, a list of variable names that the user has provided that you may use to accomplish the goal. To use the variables, you must use the special <|VARIABLE_NAME|> syntax.
 
 You have 2 tools that you can call: doAction, and skipSection. Do action only performs Playwright actions. Do not perform any other actions.
 
@@ -103,8 +104,9 @@ export function buildActUserPrompt(
   action: string,
   steps = "None",
   domElements: string,
+  variables?: Record<string, string>,
 ): ChatMessage {
-  const actUserPrompt = `
+  let actUserPrompt = `
 # My Goal
 ${action}
 
@@ -114,6 +116,15 @@ ${steps}
 # Current Active Dom Elements
 ${domElements}
 `;
+
+  if (variables) {
+    actUserPrompt += `
+# Variables
+${Object.entries(variables)
+  .map(([key, value]) => `<|${key.toUpperCase()}|>`)
+  .join("\n")}
+`;
+  }
 
   return {
     role: "user",

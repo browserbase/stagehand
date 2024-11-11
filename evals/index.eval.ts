@@ -269,7 +269,10 @@ const peeler_complex = async () => {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
     await stagehand.act({
-      action: "search for peelers",
+      action: "search for %search_query%",
+      variables: {
+        search_query: "peeler",
+      },
     });
 
     await stagehand.act({

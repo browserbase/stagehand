@@ -1,6 +1,20 @@
+import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
+
+export function isElementNode(node: Node): node is Element {
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+export function isTextNode(node: Node): node is Text {
+  return node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim());
+}
+
 export async function processDom(chunksSeen: Array<number>) {
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
+  const { outputString, selectorMap } = await processElements(
+    chunk,
+    undefined,
+    undefined,
+  );
 
   console.log(
     `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
@@ -58,18 +72,24 @@ export async function scrollToHeight(height: number) {
       scrollEndTimer = window.setTimeout(() => {
         window.removeEventListener("scroll", handleScrollEnd);
         resolve();
-      }, 200);
+      }, 100);
     };
 
     window.addEventListener("scroll", handleScrollEnd, { passive: true });
     handleScrollEnd();
   });
 }
+
+const xpathCache: Map<Node, string[]> = new Map();
+
 export async function processElements(
   chunk: number,
   scrollToChunk: boolean = true,
   indexOffset: number = 0,
-) {
+): Promise<{
+  outputString: string;
+  selectorMap: Record<number, string[]>;
+}> {
   console.time("processElements:total");
   const viewportHeight = window.innerHeight;
   const chunkHeight = viewportHeight * chunk;
@@ -89,7 +109,6 @@ export async function processElements(
 
   const candidateElements: Array<ChildNode> = [];
   const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
-  const xpathCache: Map<Node, string> = new Map();
 
   console.log("Stagehand (Browser Process): Generating candidate elements");
   console.time("processElements:findCandidates");
@@ -133,7 +152,7 @@ export async function processElements(
 
   console.timeEnd("processElements:findCandidates");
 
-  const selectorMap: Record<number, string> = {};
+  const selectorMap: Record<number, string[]> = {};
   let outputString = "";
 
   console.log(
@@ -141,17 +160,28 @@ export async function processElements(
   );
 
   console.time("processElements:processCandidates");
+  console.time("processElements:generateXPaths");
+  const xpathLists = await Promise.all(
+    candidateElements.map(async (element) => {
+      if (xpathCache.has(element)) {
+        return xpathCache.get(element);
+      }
+
+      const xpaths = await generateXPaths(element);
+      xpathCache.set(element, xpaths);
+      return xpaths;
+    }),
+  );
+  console.timeEnd("processElements:generateXPaths");
+
   candidateElements.forEach((element, index) => {
-    let xpath = xpathCache.get(element);
-    if (!xpath) {
-      xpath = generateXPath(element);
-      xpathCache.set(element, xpath);
-    }
+    const xpaths = xpathLists[index];
+    let elementOutput = "";
 
     if (isTextNode(element)) {
       const textContent = element.textContent?.trim();
       if (textContent) {
-        outputString += `${index + indexOffset}:${textContent}\n`;
+        elementOutput += `${index + indexOffset}:${textContent}\n`;
       }
     } else if (isElementNode(element)) {
       const tagName = element.tagName.toLowerCase();
@@ -161,10 +191,11 @@ export async function processElements(
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent?.trim() || "";
 
-      outputString += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
+      elementOutput += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
     }
 
-    selectorMap[index + indexOffset] = xpath;
+    outputString += elementOutput;
+    selectorMap[index + indexOffset] = xpaths;
   });
   console.timeEnd("processElements:processCandidates");
 
@@ -216,48 +247,6 @@ window.processAllOfDom = processAllOfDom;
 window.processElements = processElements;
 window.scrollToHeight = scrollToHeight;
 
-function generateXPath(element: ChildNode): string {
-  if (isElementNode(element) && element.id) {
-    return `//*[@id='${element.id}']`;
-  }
-
-  const parts: string[] = [];
-  while (element && (isTextNode(element) || isElementNode(element))) {
-    let index = 0;
-    let hasSameTypeSiblings = false;
-    const siblings = element.parentElement
-      ? Array.from(element.parentElement.childNodes)
-      : [];
-
-    for (let i = 0; i < siblings.length; i++) {
-      const sibling = siblings[i];
-
-      if (
-        sibling.nodeType === element.nodeType &&
-        sibling.nodeName === element.nodeName
-      ) {
-        index = index + 1;
-        hasSameTypeSiblings = true;
-
-        if (sibling.isSameNode(element)) {
-          break;
-        }
-      }
-    }
-
-    // text "nodes" are selected differently than elements with xPaths
-    if (element.nodeName !== "#text") {
-      const tagName = element.nodeName.toLowerCase();
-      const pathIndex = hasSameTypeSiblings ? `[${index}]` : "";
-      parts.unshift(`${tagName}${pathIndex}`);
-    }
-
-    element = element.parentElement as HTMLElement;
-  }
-
-  return parts.length ? `/${parts.join("/")}` : "";
-}
-
 const leafElementDenyList = ["SVG", "IFRAME", "SCRIPT", "STYLE", "LINK"];
 
 const interactiveElementTypes = [
@@ -300,16 +289,6 @@ const interactiveRoles = [
   "tooltip",
 ];
 const interactiveAriaRoles = ["menu", "menuitem", "button"];
-
-function isElementNode(node: Node): node is Element {
-  return node.nodeType === Node.ELEMENT_NODE;
-}
-
-function isTextNode(node: Node): node is Text {
-  // Trim all white space and ensure the text node is non-empty
-  const trimmedText = node.textContent?.trim().replace(/\s/g, "");
-  return node.nodeType === Node.TEXT_NODE && trimmedText !== "";
-}
 
 /*
  * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
