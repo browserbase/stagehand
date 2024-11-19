@@ -1,12 +1,24 @@
 async function debugDom() {
   window.chunkNumber = 0;
 
-  const { selectorMap, outputString } = await window.processElements(
-    window.chunkNumber,
-  );
+  const { selectorMap: multiSelectorMap, outputString } =
+    await window.processElements(window.chunkNumber);
+
+  const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
 
   drawChunk(selectorMap);
   setupChunkNav();
+}
+
+function multiSelectorMapToSelectorMap(
+  multiSelectorMap: Record<number, string[]>,
+) {
+  return Object.fromEntries(
+    Object.entries(multiSelectorMap).map(([key, selectors]) => [
+      Number(key),
+      selectors[0],
+    ]),
+  );
 }
 
 function drawChunk(selectorMap: Record<number, string>) {
@@ -90,7 +102,12 @@ function setupChunkNav() {
       window.chunkNumber -= 1;
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
-      const { selectorMap } = await processElements(window.chunkNumber);
+      const { selectorMap: multiSelectorMap } = await window.processElements(
+        window.chunkNumber,
+      );
+
+      const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
+
       drawChunk(selectorMap);
       setupChunkNav();
     };
@@ -113,7 +130,10 @@ function setupChunkNav() {
       window.scrollTo(0, window.chunkNumber * window.innerHeight);
       await window.waitForDomSettle();
 
-      const { selectorMap } = await processElements(window.chunkNumber);
+      const { selectorMap: multiSelectorMap } = await window.processElements(
+        window.chunkNumber,
+      );
+      const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
       drawChunk(selectorMap);
       setupChunkNav();
     };

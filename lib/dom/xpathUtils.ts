@@ -114,7 +114,7 @@ export async function generateXPathsForElement(
   // This should return in order from most accurate on current page to most cachable.
   // Do not change the order if you are not sure what you are doing.
   // Contact Navid if you need help understanding it.
-  return [...(idBasedXPath ? [idBasedXPath] : []), standardXPath, complexXPath];
+  return [standardXPath, ...(idBasedXPath ? [idBasedXPath] : []), complexXPath];
 }
 
 async function generateComplexXPath(element: ChildNode): Promise<string> {
@@ -212,34 +212,28 @@ async function generateStandardXPath(element: ChildNode): Promise<string> {
     const siblings = element.parentElement
       ? Array.from(element.parentElement.childNodes)
       : [];
-
     for (let i = 0; i < siblings.length; i++) {
       const sibling = siblings[i];
-
       if (
         sibling.nodeType === element.nodeType &&
         sibling.nodeName === element.nodeName
       ) {
         index = index + 1;
         hasSameTypeSiblings = true;
-
         if (sibling.isSameNode(element)) {
           break;
         }
       }
     }
-
     // text "nodes" are selected differently than elements with xPaths
     if (element.nodeName !== "#text") {
       const tagName = element.nodeName.toLowerCase();
       const pathIndex = hasSameTypeSiblings ? `[${index}]` : "";
       parts.unshift(`${tagName}${pathIndex}`);
     }
-
     element = element.parentElement as HTMLElement;
   }
-
-  return parts.length ? `//${parts.join("//")}` : "";
+  return parts.length ? `/${parts.join("/")}` : "";
 }
 
 async function generatedIdBasedXPath(

@@ -10,11 +10,7 @@ export function isTextNode(node: Node): node is Text {
 
 export async function processDom(chunksSeen: Array<number>) {
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(
-    chunk,
-    undefined,
-    undefined,
-  );
+  const { outputString, selectorMap } = await processElements(chunk);
 
   console.log(
     `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,

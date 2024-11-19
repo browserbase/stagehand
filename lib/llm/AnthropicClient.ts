@@ -36,6 +36,16 @@ export class AnthropicClient implements LLMClient {
   async createChatCompletion(
     options: ChatCompletionOptions & { retries?: number },
   ) {
+    const { image: _, ...optionsWithoutImage } = options;
+    this.logger({
+      category: "Anthropic",
+      message: `Creating chat completion with options: ${JSON.stringify(
+        optionsWithoutImage,
+        null,
+        2,
+      )}`,
+      level: 1,
+    });
     // Try to get cached response
     const cacheOptions = {
       model: options.model,
@@ -143,6 +153,12 @@ export class AnthropicClient implements LLMClient {
       tools: anthropicTools,
       system: systemMessage?.content,
       temperature: options.temperature,
+    });
+
+    this.logger({
+      category: "Anthropic",
+      message: `Response: ${JSON.stringify(response, null, 2)}`,
+      level: 1,
     });
 
     // Parse the response here

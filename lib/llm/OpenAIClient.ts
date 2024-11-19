@@ -32,6 +32,16 @@ export class OpenAIClient implements LLMClient {
   }
 
   async createChatCompletion(options: ChatCompletionOptions) {
+    const { image: _, ...optionsWithoutImage } = options;
+    this.logger({
+      category: "OpenAI",
+      message: `Creating chat completion with options: ${JSON.stringify(
+        optionsWithoutImage,
+        null,
+        2,
+      )}`,
+      level: 1,
+    });
     const cacheOptions = {
       model: options.model,
       messages: options.messages,
@@ -93,6 +103,12 @@ export class OpenAIClient implements LLMClient {
     const response = await this.client.chat.completions.create({
       ...openAiOptions,
       response_format: responseFormat,
+    });
+
+    this.logger({
+      category: "OpenAI",
+      message: `Response: ${JSON.stringify(response, null, 2)}`,
+      level: 1,
     });
 
     if (response_model) {

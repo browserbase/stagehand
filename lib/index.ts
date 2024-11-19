@@ -7,7 +7,6 @@ import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
-import { ActionCache } from "./cache/ActionCache";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { generateId } from "./utils";
 
