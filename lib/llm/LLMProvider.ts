@@ -31,7 +31,7 @@ export class LLMProvider {
   ) {
     this.logger = logger;
     this.enableCaching = enableCaching;
-    this.cache = new LLMCache(logger);
+    this.cache = new LLMCache(logger, enableCaching);
   }
 
   cleanRequestCache(requestId: string): void {

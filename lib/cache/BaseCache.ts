@@ -16,6 +16,7 @@ export class BaseCache<T extends CacheEntry> {
   private readonly CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
   private readonly CLEANUP_PROBABILITY = 0.01; // 1% chance
 
+  protected enableCaching: boolean;
   protected cacheDir: string;
   protected cacheFile: string;
   protected lockFile: string;
@@ -38,10 +39,12 @@ export class BaseCache<T extends CacheEntry> {
       message: string;
       level?: number;
     }) => void,
+    enableCaching: boolean,
     cacheDir: string = path.join(process.cwd(), "tmp", ".cache"),
     cacheFile: string = "cache.json",
   ) {
     this.logger = logger;
+    this.enableCaching = enableCaching;
     this.cacheDir = cacheDir;
     this.cacheFile = path.join(cacheDir, cacheFile);
     this.lockFile = path.join(cacheDir, "cache.lock");
@@ -71,7 +74,7 @@ export class BaseCache<T extends CacheEntry> {
   }
 
   protected ensureCacheDirectory(): void {
-    if (!fs.existsSync(this.cacheDir)) {
+    if (this.enableCaching && !fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir, { recursive: true });
       this.logger({
         category: "base_cache",

@@ -61,7 +61,7 @@ export class StagehandActHandler {
     this.enableCaching = enableCaching;
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
-    this.actionCache = new ActionCache(this.logger);
+    this.actionCache = new ActionCache(this.logger, enableCaching);
     this.defaultModelName = defaultModelName;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
@@ -273,9 +273,8 @@ export class StagehandActHandler {
 
         this.logger({
           category: "action",
-          message: `Clicked element, ${
-            newOpenedTab ? "opened a new tab" : "no new tabs opened"
-          }`,
+          message: `Clicked element, ${newOpenedTab ? "opened a new tab" : "no new tabs opened"
+            }`,
           level: 1,
         });
 
@@ -782,9 +781,8 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Looking at chunk ${chunk}. Chunks left: ${
-          chunks.length - chunksSeen.length
-        }`,
+        message: `Looking at chunk ${chunk}. Chunks left: ${chunks.length - chunksSeen.length
+          }`,
         level: 1,
       });
 

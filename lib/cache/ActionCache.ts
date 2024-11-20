@@ -27,10 +27,11 @@ export class ActionCache extends BaseCache<ActionEntry> {
       message: string;
       level?: number;
     }) => void,
+    enableCaching: boolean,
     cacheDir?: string,
     cacheFile?: string,
   ) {
-    super(logger, cacheDir, cacheFile || "action_cache.json");
+    super(logger, enableCaching, cacheDir, cacheFile || "action_cache.json");
   }
 
   public async addActionStep({
