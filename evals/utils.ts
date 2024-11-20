@@ -1,7 +1,9 @@
+import { LogLine } from "../lib/types";
 import { Stagehand } from "../lib";
+import { logLineToString } from "../lib/utils";
 
 export class EvalLogger {
-  logs: string[] = [];
+  logs: LogLine[] = [];
   stagehand?: Stagehand;
 
   constructor() {}
@@ -10,43 +12,19 @@ export class EvalLogger {
     this.stagehand = stagehand;
   }
 
-  log(message: string) {
-    console.log(message);
-    this.logs.push(message);
-    // if (this.stagehand?.page && this.stagehand.context) {
-    //   this.stagehand.page
-    //     .evaluate((message: string) => {
-    //       if (
-    //         message.toLowerCase().includes("error:") ||
-    //         message.toLowerCase().includes("trace:")
-    //       ) {
-    //         console.error(message);
-    //       } else {
-    //         console.log(message);
-    //       }
-    //     }, message)
-    //     .catch(() => {});
-    // }
+  log(logLine: LogLine) {
+    console.log(logLineToString(logLine));
+    this.logs.push(logLine);
   }
 
-  error(message: string) {
-    console.error(message);
-    this.logs.push(`Error: ${message}`);
-    // if (this.stagehand) {
-    //   this.stagehand.page
-    //     .evaluate((message: string) => console.error(message), message)
-    //     .catch(() => {});
-    // }
+  error(logLine: LogLine) {
+    console.error(logLineToString(logLine));
+    this.logs.push(logLine);
   }
 
-  warn(message: string) {
-    console.warn(message);
-    this.logs.push(`Warning: ${message}`);
-    // if (this.stagehand) {
-    //   this.stagehand.page
-    //     .evaluate((message: string) => console.warn(message), message)
-    //     .catch(() => {});
-    // }
+  warn(logLine: LogLine) {
+    console.warn(logLineToString(logLine));
+    this.logs.push(logLine);
   }
 
   getLogs() {
