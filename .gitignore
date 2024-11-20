@@ -10,7 +10,7 @@ screenshot.png
 downloads/
 dist/
 evals/**/public
-lib/dom/bundle.js
+lib/dom/build/
 evals/public
 *.tgz
 evals/playground.ts

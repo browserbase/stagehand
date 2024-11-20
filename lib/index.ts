@@ -9,6 +9,8 @@ import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { generateId } from "./utils";
+// @ts-ignore we're using a built js file as a string here
+import { scriptContent } from "./dom/build/scriptContent";
 import { LogLine } from "./types";
 import { randomUUID } from "crypto";
 import { logLineToString } from "./utils";
@@ -399,38 +401,8 @@ export class Stagehand {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
 
-    // This can be greatly improved, but the tldr is we put our built web scripts in dist, which should always
-    // be one level above our running directly across evals, example, and as a package
     await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
-        "utf8",
-      ),
+      content: scriptContent,
     });
 
     return { debugUrl, sessionUrl };
@@ -459,35 +431,7 @@ export class Stagehand {
 
     // Add initialization scripts
     await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "xpathUtils.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "process.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "utils.js"),
-        "utf8",
-      ),
-    });
-
-    await this.context.addInitScript({
-      path: path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
-      content: fs.readFileSync(
-        path.join(__dirname, "..", "dist", "dom", "build", "debug.js"),
-        "utf8",
-      ),
+      content: scriptContent,
     });
 
     return { context: this.context };
