@@ -9,7 +9,7 @@ async function example() {
     enableCaching: true,
   });
 
-  await stagehand.init({ modelName: "claude-3-5-sonnet-20241022" });
+  await stagehand.init({ modelName: "llama-3.1-sonar-huge-128k-online" });
   await stagehand.page.goto("https://github.com/browserbase/stagehand");
   await stagehand.act({ action: "click on the contributors" });
   const contributor = await stagehand.extract({

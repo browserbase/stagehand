@@ -3,6 +3,7 @@ import { AvailableModel, LLMProvider } from "../llm/LLMProvider";
 import { ScreenshotService } from "../vision";
 import { verifyActCompletion, act, fillInVariables } from "../inference";
 import {
+  LogLine,
   PlaywrightCommandException,
   PlaywrightCommandMethodNotSupportedException,
 } from "../types";
@@ -16,11 +17,7 @@ export class StagehandActHandler {
   private readonly verbose: 0 | 1 | 2;
   private readonly llmProvider: LLMProvider;
   private readonly enableCaching: boolean;
-  private readonly logger: (log: {
-    category: string;
-    message: string;
-    level: 0 | 1 | 2;
-  }) => void;
+  private readonly logger: (logLine: LogLine) => void;
   private readonly waitForSettledDom: (
     domSettleTimeoutMs?: number,
   ) => Promise<void>;
@@ -45,11 +42,7 @@ export class StagehandActHandler {
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
     enableCaching: boolean;
-    logger: (log: {
-      category: string;
-      message: string;
-      level: 0 | 1 | 2;
-    }) => void;
+    logger: (logLine: LogLine) => void;
     waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
     defaultModelName: AvailableModel;
     startDomDebug: () => Promise<void>;
@@ -104,8 +97,14 @@ export class StagehandActHandler {
       // Run action completion verifier
       this.stagehand.log({
         category: "action",
-        message: `Action marked as completed, Verifying if this is true...`,
+        message: "action marked as completed, verifying if this is true...",
         level: 1,
+        auxiliary: {
+          action: {
+            value: action,
+            type: "string",
+          },
+        },
       });
 
       let domElements: string | undefined = undefined;
@@ -117,20 +116,32 @@ export class StagehandActHandler {
             this.stagehand.page,
             selectorMap,
             this.verbose,
+            this.logger,
           );
 
           fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
         } catch (e) {
           this.stagehand.log({
             category: "action",
-            message: `Error getting full page screenshot: ${e.message}\n. Trying again...`,
+            message: "error getting full page screenshot. trying again...",
             level: 1,
+            auxiliary: {
+              error: {
+                value: e.message,
+                type: "string",
+              },
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+            },
           });
 
           const screenshotService = new ScreenshotService(
             this.stagehand.page,
             selectorMap,
             this.verbose,
+            this.logger,
           );
 
           fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
@@ -156,8 +167,18 @@ export class StagehandActHandler {
 
       this.stagehand.log({
         category: "action",
-        message: `Action completion verification result: ${actionCompleted}`,
+        message: "action completion verification result",
         level: 1,
+        auxiliary: {
+          action: {
+            value: action,
+            type: "string",
+          },
+          result: {
+            value: actionCompleted.toString(),
+            type: "boolean",
+          },
+        },
       });
     }
 
@@ -175,8 +196,14 @@ export class StagehandActHandler {
     if (method === "scrollIntoView") {
       this.stagehand.log({
         category: "action",
-        message: `Scrolling element into view`,
+        message: "scrolling element into view",
         level: 2,
+        auxiliary: {
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
       });
       try {
         await locator
@@ -186,15 +213,43 @@ export class StagehandActHandler {
           .catch((e: Error) => {
             this.stagehand.log({
               category: "action",
-              message: `Error scrolling element into view: ${e.message}\nTrace: ${e.stack}`,
+              message: "error scrolling element into view",
               level: 1,
+              auxiliary: {
+                error: {
+                  value: e.message,
+                  type: "string",
+                },
+                trace: {
+                  value: e.stack,
+                  type: "string",
+                },
+                xpath: {
+                  value: xpath,
+                  type: "string",
+                },
+              },
             });
           });
       } catch (e) {
         this.stagehand.log({
           category: "action",
-          message: `Error scrolling element into view: ${e.message}\nTrace: ${e.stack}`,
+          message: "error scrolling element into view",
           level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+          },
         });
 
         throw new PlaywrightCommandException(e.message);
@@ -212,8 +267,22 @@ export class StagehandActHandler {
       } catch (e) {
         this.logger({
           category: "action",
-          message: `Error filling element: ${e.message}\nTrace: ${e.stack}`,
+          message: "error filling element",
           level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+          },
         });
 
         throw new PlaywrightCommandException(e.message);
@@ -225,8 +294,22 @@ export class StagehandActHandler {
       } catch (e) {
         this.logger({
           category: "action",
-          message: `Error pressing key: ${e.message}\nTrace: ${e.stack}`,
+          message: "error pressing key",
           level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            key: {
+              value: args[0]?.toString() ?? "unknown",
+              type: "string",
+            },
+          },
         });
 
         throw new PlaywrightCommandException(e.message);
@@ -235,8 +318,14 @@ export class StagehandActHandler {
       // Log current URL before action
       this.logger({
         category: "action",
-        message: `Page URL before action: ${this.stagehand.page.url()}`,
+        message: "page URL before action",
         level: 2,
+        auxiliary: {
+          url: {
+            value: this.stagehand.page.url(),
+            type: "string",
+          },
+        },
       });
 
       // Perform the action
@@ -246,10 +335,30 @@ export class StagehandActHandler {
       } catch (e) {
         this.logger({
           category: "action",
-          message: `Error performing method ${method} with args ${JSON.stringify(
-            args,
-          )}: ${e.message}\nTrace: ${e.stack}`,
+          message: "error performing method",
           level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+            method: {
+              value: method,
+              type: "string",
+            },
+            args: {
+              value: JSON.stringify(args),
+              type: "object",
+            },
+          },
         });
 
         throw new PlaywrightCommandException(e.message);
@@ -259,8 +368,14 @@ export class StagehandActHandler {
       if (method === "click") {
         this.logger({
           category: "action",
-          message: `Clicking element, checking for page navigation`,
+          message: "clicking element, checking for page navigation",
           level: 1,
+          auxiliary: {
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+          },
         });
 
         // NAVIDNOTE: Should this happen before we wait for locator[method]?
@@ -273,17 +388,27 @@ export class StagehandActHandler {
 
         this.logger({
           category: "action",
-          message: `Clicked element, ${
-            newOpenedTab ? "opened a new tab" : "no new tabs opened"
-          }`,
+          message: "clicked element",
           level: 1,
+          auxiliary: {
+            newOpenedTab: {
+              value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
+              type: "string",
+            },
+          },
         });
 
         if (newOpenedTab) {
           this.logger({
             category: "action",
-            message: `New page detected (new tab) with URL: ${newOpenedTab.url()}`,
+            message: "new page detected (new tab) with URL",
             level: 1,
+            auxiliary: {
+              url: {
+                value: newOpenedTab.url(),
+                type: "string",
+              },
+            },
           });
           await newOpenedTab.close();
           await this.stagehand.page.goto(newOpenedTab.url());
@@ -299,30 +424,42 @@ export class StagehandActHandler {
         ]).catch((e: Error) => {
           this.logger({
             category: "action",
-            message: `Network idle timeout hit`,
+            message: "network idle timeout hit",
             level: 1,
           });
         });
 
         this.logger({
           category: "action",
-          message: `Finished waiting for (possible) page navigation`,
+          message: "finished waiting for (possible) page navigation",
           level: 1,
         });
 
         if (this.stagehand.page.url() !== initialUrl) {
           this.logger({
             category: "action",
-            message: `New page detected with URL: ${this.stagehand.page.url()}`,
+            message: "new page detected with URL",
             level: 1,
+            auxiliary: {
+              url: {
+                value: this.stagehand.page.url(),
+                type: "string",
+              },
+            },
           });
         }
       }
     } else {
       this.logger({
         category: "action",
-        message: `Chosen method ${method} is invalid`,
+        message: "chosen method is invalid",
         level: 1,
+        auxiliary: {
+          method: {
+            value: method,
+            type: "string",
+          },
+        },
       });
 
       throw new PlaywrightCommandMethodNotSupportedException(
@@ -414,8 +551,18 @@ export class StagehandActHandler {
     } catch {
       this.logger({
         category: "action",
-        message: `Element with XPath ${xpath} not found within ${timeout}ms.`,
+        message: "element not found within timeout",
         level: 1,
+        auxiliary: {
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+          timeout_ms: {
+            value: timeout.toString(),
+            type: "integer",
+          },
+        },
       });
       return null;
     }
@@ -427,24 +574,46 @@ export class StagehandActHandler {
   }) {
     this.logger({
       category: "action",
-      message: `Checking if cached step is valid: ${cachedStep.xpath}, ${cachedStep.savedComponentString}`,
+      message: "checking if cached step is valid",
       level: 1,
+      auxiliary: {
+        xpath: {
+          value: cachedStep.xpath,
+          type: "string",
+        },
+        savedComponentString: {
+          value: cachedStep.savedComponentString,
+          type: "string",
+        },
+      },
     });
     try {
       const locator = await this.getElement(cachedStep.xpath);
       if (!locator) {
         this.logger({
           category: "action",
-          message: `Locator not found for xpath: ${cachedStep.xpath}`,
+          message: "locator not found for xpath",
           level: 1,
+          auxiliary: {
+            xpath: {
+              value: cachedStep.xpath,
+              type: "string",
+            },
+          },
         });
         return false;
       }
 
       this.logger({
         category: "action",
-        message: `locator element: ${await this._getComponentString(locator)}`,
+        message: "locator element",
         level: 1,
+        auxiliary: {
+          componentString: {
+            value: await this._getComponentString(locator),
+            type: "string",
+          },
+        },
       });
 
       // First try to get the value (for input/textarea elements)
@@ -452,14 +621,20 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Current text: ${currentComponent}`,
+        message: "current text",
         level: 1,
+        auxiliary: {
+          componentString: {
+            value: currentComponent,
+            type: "string",
+          },
+        },
       });
 
       if (!currentComponent || !cachedStep.savedComponentString) {
         this.logger({
           category: "action",
-          message: `Current text or cached text is undefined`,
+          message: "current text or cached text is undefined",
           level: 1,
         });
         return false;
@@ -476,8 +651,18 @@ export class StagehandActHandler {
       if (normalizedCurrentText !== normalizedCachedText) {
         this.logger({
           category: "action",
-          message: `Current text and cached text do not match: ${normalizedCurrentText} !== ${normalizedCachedText}`,
+          message: "current text and cached text do not match",
           level: 1,
+          auxiliary: {
+            currentText: {
+              value: normalizedCurrentText,
+              type: "string",
+            },
+            cachedText: {
+              value: normalizedCachedText,
+              type: "string",
+            },
+          },
         });
         return false;
       }
@@ -486,8 +671,18 @@ export class StagehandActHandler {
     } catch (e) {
       this.logger({
         category: "action",
-        message: `Error checking if cached step is valid: ${e.message}\nTrace: ${e.stack}`,
+        message: "error checking if cached step is valid",
         level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+        },
       });
       return false; // Added explicit return false for error cases
     }
@@ -547,8 +742,14 @@ export class StagehandActHandler {
 
     this.logger({
       category: "action",
-      message: `Checking action cache for: ${JSON.stringify(cacheObj)}`,
+      message: "checking action cache",
       level: 1,
+      auxiliary: {
+        cacheObj: {
+          value: JSON.stringify(cacheObj),
+          type: "object",
+        },
+      },
     });
 
     const cachedStep = await this.actionCache.getActionStep(cacheObj);
@@ -556,18 +757,28 @@ export class StagehandActHandler {
     if (!cachedStep) {
       this.logger({
         category: "action",
-        message: `Action cache miss: ${JSON.stringify(cacheObj)}`,
+        message: "action cache miss",
         level: 1,
+        auxiliary: {
+          cacheObj: {
+            value: JSON.stringify(cacheObj),
+            type: "object",
+          },
+        },
       });
       return null;
     }
 
     this.logger({
       category: "action",
-      message: `Action cache semi-hit: ${cachedStep.playwrightCommand.method} with args: ${JSON.stringify(
-        cachedStep.playwrightCommand.args,
-      )}`,
+      message: "action cache semi-hit",
       level: 1,
+      auxiliary: {
+        playwrightCommand: {
+          value: JSON.stringify(cachedStep.playwrightCommand),
+          type: "object",
+        },
+      },
     });
 
     try {
@@ -578,15 +789,27 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Cached action step is valid: ${validXpath !== null}`,
+        message: "cached action step is valid",
         level: 1,
+        auxiliary: {
+          validXpath: {
+            value: validXpath,
+            type: "string",
+          },
+        },
       });
 
       if (!validXpath) {
         this.logger({
           category: "action",
-          message: `Cached action step is invalid, removing...`,
+          message: "cached action step is invalid, removing...",
           level: 1,
+          auxiliary: {
+            cacheObj: {
+              value: JSON.stringify(cacheObj),
+              type: "object",
+            },
+          },
         });
 
         await this.actionCache.removeActionStep(cacheObj);
@@ -595,10 +818,14 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Action Cache Hit: ${cachedStep.playwrightCommand.method} with args: ${JSON.stringify(
-          cachedStep.playwrightCommand.args,
-        )}`,
+        message: "action cache hit",
         level: 1,
+        auxiliary: {
+          playwrightCommand: {
+            value: JSON.stringify(cachedStep.playwrightCommand),
+            type: "object",
+          },
+        },
       });
 
       cachedStep.playwrightCommand.args = cachedStep.playwrightCommand.args.map(
@@ -637,14 +864,20 @@ export class StagehandActHandler {
 
         this.logger({
           category: "action",
-          message: `Action completion verification result from cache: ${actionCompleted}`,
+          message: "action completion verification result from cache",
           level: 1,
+          auxiliary: {
+            actionCompleted: {
+              value: actionCompleted.toString(),
+              type: "boolean",
+            },
+          },
         });
 
         if (actionCompleted) {
           return {
             success: true,
-            message: "Action completed successfully using cached step",
+            message: "action completed successfully using cached step",
             action,
           };
         }
@@ -667,8 +900,18 @@ export class StagehandActHandler {
     } catch (exception) {
       this.logger({
         category: "action",
-        message: `Error performing cached action step: ${exception.message}\nTrace: ${exception.stack}`,
+        message: "error performing cached action step",
         level: 1,
+        auxiliary: {
+          error: {
+            value: exception.message,
+            type: "string",
+          },
+          trace: {
+            value: exception.stack,
+            type: "string",
+          },
+        },
       });
 
       await this.actionCache.removeActionStep(cacheObj);
@@ -752,8 +995,19 @@ export class StagehandActHandler {
       ) {
         this.logger({
           category: "action",
-          message: `${model} does not support vision, but useVision was set to ${useVision}. Defaulting to false.`,
+          message:
+            "model does not support vision but useVision was not false. defaulting to false.",
           level: 1,
+          auxiliary: {
+            model: {
+              value: model,
+              type: "string",
+            },
+            useVision: {
+              value: useVision.toString(),
+              type: "boolean",
+            },
+          },
         });
         useVision = false;
         verifierUseVision = false;
@@ -761,13 +1015,23 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Running / Continuing action: ${action} on page: ${this.stagehand.page.url()}`,
+        message: "running / continuing action",
         level: 2,
+        auxiliary: {
+          action: {
+            value: action,
+            type: "string",
+          },
+          pageUrl: {
+            value: this.stagehand.page.url(),
+            type: "string",
+          },
+        },
       });
 
       this.logger({
         category: "action",
-        message: `Processing DOM...`,
+        message: "processing DOM",
         level: 2,
       });
 
@@ -782,10 +1046,26 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Looking at chunk ${chunk}. Chunks left: ${
-          chunks.length - chunksSeen.length
-        }`,
+        message: "looking at chunk",
         level: 1,
+        auxiliary: {
+          chunk: {
+            value: chunk.toString(),
+            type: "integer",
+          },
+          chunks: {
+            value: chunks.length.toString(),
+            type: "integer",
+          },
+          chunksSeen: {
+            value: chunksSeen.length.toString(),
+            type: "integer",
+          },
+          chunksLeft: {
+            value: (chunks.length - chunksSeen.length).toString(),
+            type: "integer",
+          },
+        },
       });
 
       // Prepare annotated screenshot if vision is enabled
@@ -794,14 +1074,22 @@ export class StagehandActHandler {
         if (!modelsWithVision.includes(model)) {
           this.logger({
             category: "action",
-            message: `${model} does not support vision. Skipping vision processing.`,
+            message:
+              "model does not support vision. skipping vision processing.",
             level: 1,
+            auxiliary: {
+              model: {
+                value: model,
+                type: "string",
+              },
+            },
           });
         } else {
           const screenshotService = new ScreenshotService(
             this.stagehand.page,
             selectorMap,
             this.verbose,
+            this.logger,
           );
 
           annotatedScreenshot =
@@ -823,8 +1111,14 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Received response from LLM: ${JSON.stringify(response)}`,
+        message: "received response from LLM",
         level: 1,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(response),
+            type: "object",
+          },
+        },
       });
 
       await this.cleanupDomDebug();
@@ -835,8 +1129,14 @@ export class StagehandActHandler {
 
           this.logger({
             category: "action",
-            message: `No action found in current chunk. Chunks seen: ${chunksSeen.length}.`,
+            message: "no action found in current chunk",
             level: 1,
+            auxiliary: {
+              chunksSeen: {
+                value: chunksSeen.length.toString(),
+                type: "integer",
+              },
+            },
           });
 
           return this.act({
@@ -858,8 +1158,14 @@ export class StagehandActHandler {
         } else if (useVision === "fallback") {
           this.logger({
             category: "action",
-            message: `Switching to vision-based processing`,
+            message: "switching to vision-based processing",
             level: 1,
+            auxiliary: {
+              useVision: {
+                value: useVision.toString(),
+                type: "string",
+              },
+            },
           });
           await this.stagehand.page.evaluate(() => window.scrollToHeight(0));
           return await this.act({
@@ -904,10 +1210,26 @@ export class StagehandActHandler {
 
       this.logger({
         category: "action",
-        message: `Executing method: ${method} on element: ${elementId} (xpaths: ${xpaths.join(
-          ", ",
-        )}) with args: ${JSON.stringify(args)}`,
+        message: "executing method",
         level: 1,
+        auxiliary: {
+          method: {
+            value: method,
+            type: "string",
+          },
+          elementId: {
+            value: elementId.toString(),
+            type: "integer",
+          },
+          xpaths: {
+            value: JSON.stringify(xpaths),
+            type: "object",
+          },
+          args: {
+            value: JSON.stringify(args),
+            type: "object",
+          },
+        },
       });
 
       try {
@@ -960,8 +1282,18 @@ export class StagehandActHandler {
             .catch((e) => {
               this.logger({
                 category: "action",
-                message: `Error adding action step to cache: ${e.message}\nTrace: ${e.stack}`,
+                message: "error adding action step to cache",
                 level: 1,
+                auxiliary: {
+                  error: {
+                    value: e.message,
+                    type: "string",
+                  },
+                  trace: {
+                    value: e.stack,
+                    type: "string",
+                  },
+                },
               });
             });
         }
@@ -983,7 +1315,7 @@ export class StagehandActHandler {
         if (!actionCompleted) {
           this.logger({
             category: "action",
-            message: `Continuing to next action step`,
+            message: "continuing to next action step",
             level: 1,
           });
 
@@ -1003,7 +1335,7 @@ export class StagehandActHandler {
         } else {
           this.logger({
             category: "action",
-            message: `Action completed successfully`,
+            message: "action completed successfully",
             level: 1,
           });
           await this._recordAction(action, response.step);
@@ -1016,8 +1348,22 @@ export class StagehandActHandler {
       } catch (error) {
         this.logger({
           category: "action",
-          message: `Error performing action - D (Retries: ${retries}): ${error.message}\nTrace: ${error.stack}`,
+          message: "error performing action - d",
           level: 1,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            trace: {
+              value: error.stack,
+              type: "string",
+            },
+            retries: {
+              value: retries.toString(),
+              type: "integer",
+            },
+          },
         });
 
         if (retries < 2) {
@@ -1045,15 +1391,25 @@ export class StagehandActHandler {
 
         return {
           success: false,
-          message: `Error performing action - A: ${error.message}`,
+          message: "error performing action - a",
           action: action,
         };
       }
     } catch (error) {
       this.logger({
         category: "action",
-        message: `Error performing action - B: ${error.message}\nTrace: ${error.stack}`,
+        message: "error performing action - b",
         level: 1,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
 
       if (this.enableCaching) {
