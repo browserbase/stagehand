@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { zodResponseFormat } from "openai/helpers/zod";
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { LLMCache } from "../cache/LLMCache";
 
@@ -94,7 +94,7 @@ export class OpenAIClient implements LLMClient {
 
     let responseFormat = undefined;
     if (options.response_model) {
-      responseFormat = zodResponseFormat(
+      responseFormat = zodToJsonSchema(
         options.response_model.schema,
         options.response_model.name,
       );
