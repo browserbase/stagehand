@@ -2,17 +2,24 @@ import Anthropic from "@anthropic-ai/sdk";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LLMCache } from "../cache/LLMCache";
-import { LogLine } from "../types";
 
 export class AnthropicClient implements LLMClient {
   private client: Anthropic;
   private cache: LLMCache;
-  public logger: (message: LogLine) => void;
+  public logger: (message: {
+    category?: string;
+    message: string;
+    level?: number;
+  }) => void;
   private enableCaching: boolean;
   private requestId: string;
 
   constructor(
-    logger: (message: LogLine) => void,
+    logger: (message: {
+      category?: string;
+      message: string;
+      level?: number;
+    }) => void,
     enableCaching = false,
     cache: LLMCache,
     requestId: string,
@@ -31,15 +38,13 @@ export class AnthropicClient implements LLMClient {
   ) {
     const { image: _, ...optionsWithoutImage } = options;
     this.logger({
-      category: "anthropic",
-      message: "creating chat completion",
+      category: "Anthropic",
+      message: `Creating chat completion with options: ${JSON.stringify(
+        optionsWithoutImage,
+        null,
+        2,
+      )}`,
       level: 1,
-      auxiliary: {
-        options: {
-          value: JSON.stringify(optionsWithoutImage),
-          type: "object",
-        },
-      },
     });
     // Try to get cached response
     const cacheOptions = {
@@ -57,39 +62,15 @@ export class AnthropicClient implements LLMClient {
       if (cachedResponse) {
         this.logger({
           category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
+          message: `LLM Cache hit - returning cached response`,
           level: 1,
-          auxiliary: {
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-            requestId: {
-              value: this.requestId,
-              type: "string",
-            },
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-          },
         });
         return cachedResponse;
       } else {
         this.logger({
           category: "llm_cache",
-          message: "LLM cache miss - no cached response found",
+          message: `LLM Cache miss - no cached response found`,
           level: 1,
-          auxiliary: {
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-            requestId: {
-              value: this.requestId,
-              type: "string",
-            },
-          },
         });
       }
     }
@@ -175,19 +156,9 @@ export class AnthropicClient implements LLMClient {
     });
 
     this.logger({
-      category: "anthropic",
-      message: "response",
+      category: "Anthropic",
+      message: `Response: ${JSON.stringify(response, null, 2)}`,
       level: 1,
-      auxiliary: {
-        response: {
-          value: JSON.stringify(response),
-          type: "object",
-        },
-        requestId: {
-          value: this.requestId,
-          type: "string",
-        },
-      },
     });
 
     // Parse the response here
@@ -226,19 +197,8 @@ export class AnthropicClient implements LLMClient {
     };
 
     this.logger({
-      category: "anthropic",
-      message: "transformed response",
-      level: 1,
-      auxiliary: {
-        transformedResponse: {
-          value: JSON.stringify(transformedResponse),
-          type: "object",
-        },
-        requestId: {
-          value: this.requestId,
-          type: "string",
-        },
-      },
+      category: "Anthropic",
+      message: "Transformed response: " + JSON.stringify(transformedResponse),
     });
 
     if (options.response_model) {
@@ -257,17 +217,6 @@ export class AnthropicClient implements LLMClient {
             retries: (options.retries ?? 0) + 1,
           });
         }
-        this.logger({
-          category: "anthropic",
-          message: "error creating chat completion",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: this.requestId,
-              type: "string",
-            },
-          },
-        });
         throw new Error(
           "Create Chat Completion Failed: No tool use with input in response",
         );
@@ -276,25 +225,6 @@ export class AnthropicClient implements LLMClient {
 
     if (this.enableCaching) {
       this.cache.set(cacheOptions, transformedResponse, this.requestId);
-      this.logger({
-        category: "anthropic",
-        message: "cached response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: this.requestId,
-            type: "string",
-          },
-          transformedResponse: {
-            value: JSON.stringify(transformedResponse),
-            type: "object",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-        },
-      });
     }
 
     return transformedResponse;

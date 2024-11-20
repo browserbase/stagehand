@@ -1,4 +1,3 @@
-import { LogLine } from "../../lib/types";
 import { BaseCache, CacheEntry } from "./BaseCache";
 
 export interface PlaywrightCommand {
@@ -23,7 +22,11 @@ export interface ActionEntry extends CacheEntry {
  */
 export class ActionCache extends BaseCache<ActionEntry> {
   constructor(
-    logger: (message: LogLine) => void,
+    logger: (message: {
+      category?: string;
+      message: string;
+      level?: number;
+    }) => void,
     cacheDir?: string,
     cacheFile?: string,
   ) {
@@ -53,26 +56,8 @@ export class ActionCache extends BaseCache<ActionEntry> {
   }): Promise<void> {
     this.logger({
       category: "action_cache",
-      message: "adding action step to cache",
+      message: `Adding action step to cache: ${action}, requestId: ${requestId}, url: ${url}, previousSelectors: ${previousSelectors}`,
       level: 1,
-      auxiliary: {
-        action: {
-          value: action,
-          type: "string",
-        },
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-        url: {
-          value: url,
-          type: "string",
-        },
-        previousSelectors: {
-          value: JSON.stringify(previousSelectors),
-          type: "object",
-        },
-      },
     });
 
     await this.set(
@@ -133,14 +118,8 @@ export class ActionCache extends BaseCache<ActionEntry> {
     await super.deleteCacheForRequestId(requestId);
     this.logger({
       category: "action_cache",
-      message: "cleared action for ID",
+      message: `Cleared action for ID: ${requestId}`,
       level: 1,
-      auxiliary: {
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-      },
     });
   }
 

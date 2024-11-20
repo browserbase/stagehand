@@ -3,7 +3,6 @@ import { Stagehand } from "../lib";
 import { z } from "zod";
 import process from "process";
 import { EvalLogger } from "./utils";
-import { LogLine } from "../lib/types";
 
 const env =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
@@ -20,8 +19,8 @@ const expedia = async () => {
     headless: false,
     verbose: 2,
     debugDom: true,
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -48,7 +47,7 @@ const expedia = async () => {
       action: "Take me to the checkout page",
     });
 
-    const url = stagehand.page.url();
+    const url = await stagehand.page.url();
     return {
       _success: url.startsWith("https://www.expedia.com/Checkout/"),
       logs: logger.getLogs(),
@@ -56,20 +55,9 @@ const expedia = async () => {
       sessionUrl,
     };
   } catch (error) {
-    logger.error({
-      message: `error in expedia function`,
-      level: 0,
-      auxiliary: {
-        error: {
-          value: JSON.stringify(error, null, 2),
-          type: "object",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in expedia function: ${JSON.stringify(error, null, 2)}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -159,8 +147,8 @@ const vanta_h = async () => {
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     verbose: 2,
     enableCaching,
@@ -194,8 +182,8 @@ const simple_google_search = async () => {
   const stagehand = new Stagehand({
     env,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     verbose: 2,
     enableCaching,
@@ -212,7 +200,7 @@ const simple_google_search = async () => {
   });
 
   const expectedUrl = "https://www.google.com/search?q=OpenAI";
-  const currentUrl = stagehand.page.url();
+  const currentUrl = await stagehand.page.url();
 
   await stagehand.context.close();
 
@@ -231,8 +219,8 @@ const peeler_simple = async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     verbose: 2,
     enableCaching,
@@ -267,8 +255,8 @@ const peeler_complex = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -305,20 +293,10 @@ const peeler_complex = async () => {
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      message: "error in peeler_complex function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: JSON.stringify(error, null, 2),
-          type: "object",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    const errorMessage = JSON.parse(JSON.stringify(error, null, 2));
+    const errorStack = errorMessage.stack;
+    const fullError = `Error in peeler_complex function: ${errorMessage.message} Trace: ${errorStack}`;
+    logger.error(fullError);
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -338,8 +316,8 @@ const homedepot = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -374,16 +352,7 @@ const homedepot = async () => {
       }),
       modelName: "gpt-4o-2024-08-06",
     });
-    logger.log({
-      message: `gas grill primary burner BTU`,
-      level: 1,
-      auxiliary: {
-        productSpecs: {
-          value: JSON.stringify(productSpecs),
-          type: "object",
-        },
-      },
-    });
+    logger.log(`The gas grill primary burner BTU is: ${productSpecs}`);
 
     if (
       !productSpecs ||
@@ -420,20 +389,9 @@ const homedepot = async () => {
       };
     }
   } catch (error) {
-    logger.error({
-      message: "error in homedepot function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in homedepot function: ${JSON.stringify(error, null, 2)}, Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -453,8 +411,8 @@ const extract_github_stars = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -511,8 +469,8 @@ const extract_collaborators_from_github_repository = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -571,8 +529,8 @@ const extract_last_twenty_github_commits = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -602,16 +560,7 @@ const extract_last_twenty_github_commits = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    logger.log({
-      message: "Extracted commits",
-      level: 1,
-      auxiliary: {
-        commits: {
-          value: JSON.stringify(commits),
-          type: "object",
-        },
-      },
-    });
+    logger.log(`Extracted commits: ${commits}`);
     await stagehand.context.close().catch(() => {});
     return {
       _success: commits.length === 20,
@@ -640,8 +589,8 @@ const wikipedia = async () => {
     env,
     verbose: 2,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -656,7 +605,7 @@ const wikipedia = async () => {
   });
 
   const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
-  const currentUrl = stagehand.page.url();
+  const currentUrl = await stagehand.page.url();
   await stagehand.context.close().catch(() => {});
 
   return {
@@ -678,8 +627,8 @@ const nonsense_action = async () => {
     verbose: 2,
     debugDom: true,
     headless: true,
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -735,8 +684,8 @@ const costar = async () => {
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -767,16 +716,7 @@ const costar = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    logger.log({
-      message: "got article title",
-      level: 1,
-      auxiliary: {
-        articleTitle: {
-          value: JSON.stringify(articleTitle),
-          type: "object",
-        },
-      },
-    });
+    logger.log(`articleTitle: ${articleTitle}`);
 
     // Check if the title is more than 5 characters
     const isTitleValid =
@@ -792,20 +732,7 @@ const costar = async () => {
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      message: "error in costar function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(`Error in costar function: ${error.message}`);
     return {
       title: null,
       _success: false,
@@ -826,8 +753,8 @@ const google_jobs = async () => {
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -878,16 +805,7 @@ const google_jobs = async () => {
       modelName: "gpt-4o-2024-08-06",
     });
 
-    logger.log({
-      message: "got job details",
-      level: 1,
-      auxiliary: {
-        jobDetails: {
-          value: JSON.stringify(jobDetails),
-          type: "object",
-        },
-      },
-    });
+    logger.log(`Job Details: ${jobDetails}`);
 
     const isJobDetailsValid =
       jobDetails &&
@@ -904,16 +822,7 @@ const google_jobs = async () => {
             )),
       );
 
-    logger.log({
-      message: "job details valid",
-      level: 1,
-      auxiliary: {
-        isJobDetailsValid: {
-          value: isJobDetailsValid.toString(),
-          type: "boolean",
-        },
-      },
-    });
+    logger.log(`Job Details valid: ${isJobDetailsValid}`);
 
     return {
       _success: isJobDetailsValid,
@@ -923,20 +832,9 @@ const google_jobs = async () => {
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      message: "error in google_jobs function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in google_jobs function: ${error.message}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       debugUrl,
@@ -957,8 +855,8 @@ const extract_partners = async () => {
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -1009,17 +907,6 @@ const extract_partners = async () => {
       }),
     });
 
-    logger.log({
-      message: "got partners",
-      level: 1,
-      auxiliary: {
-        partners: {
-          value: JSON.stringify(partners),
-          type: "object",
-        },
-      },
-    });
-
     const expectedPartners = [
       "Accounting Partners",
       "Private Equity & Venture Capital Partners",
@@ -1028,16 +915,7 @@ const extract_partners = async () => {
     ];
 
     if (partners.explanation) {
-      logger.log({
-        message: "got explanation",
-        level: 1,
-        auxiliary: {
-          explanation: {
-            value: partners.explanation,
-            type: "string",
-          },
-        },
-      });
+      logger.log(`Explanation: ${partners.explanation}`);
     }
 
     const foundPartners = partners.partners.map((partner) =>
@@ -1048,24 +926,9 @@ const extract_partners = async () => {
       foundPartners.includes(partner.toLowerCase()),
     );
 
-    logger.log({
-      message: "all expected partners found",
-      level: 1,
-      auxiliary: {
-        allExpectedPartnersFound: {
-          value: allExpectedPartnersFound.toString(),
-          type: "boolean",
-        },
-        expectedPartners: {
-          value: JSON.stringify(expectedPartners),
-          type: "object",
-        },
-        foundPartners: {
-          value: JSON.stringify(foundPartners),
-          type: "object",
-        },
-      },
-    });
+    logger.log(`All expected partners found: ${allExpectedPartnersFound}`);
+    logger.log(`Expected: ${expectedPartners}`);
+    logger.log(`Found: ${foundPartners}`);
 
     return {
       _success: allExpectedPartnersFound,
@@ -1075,20 +938,9 @@ const extract_partners = async () => {
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      message: "error in extractPartners function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in extractPartners function: ${error.message}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       debugUrl,
@@ -1109,8 +961,8 @@ const laroche_form = async () => {
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -1170,20 +1022,9 @@ const laroche_form = async () => {
       sessionUrl,
     };
   } catch (error) {
-    logger.error({
-      message: "error in LarocheForm function",
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in LarocheForm function: ${error.message}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       error: error.message,
@@ -1204,8 +1045,8 @@ const arxiv = async () => {
     verbose: 2,
     debugDom: true,
     headless: process.env.HEADLESS !== "false",
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
+    logger: (message: { category?: string; message: string }) => {
+      logger.log(message.message);
     },
     enableCaching,
   });
@@ -1328,33 +1169,11 @@ const arxiv = async () => {
       };
     }
 
-    logger.log({
-      message: "papers",
-      level: 1,
-      auxiliary: {
-        papers: {
-          value: JSON.stringify(papers),
-          type: "object",
-        },
-      },
-    });
+    logger.log(JSON.stringify(papers, null, 2));
 
     // Assert that the length of papers is three
     if (papers.length !== 2) {
-      logger.error({
-        message: "incorrect number of papers extracted",
-        level: 0,
-        auxiliary: {
-          expected: {
-            value: "2",
-            type: "integer",
-          },
-          actual: {
-            value: papers.length.toString(),
-            type: "integer",
-          },
-        },
-      });
+      logger.log(`Expected 2 papers, but got ${papers.length}`);
       return {
         _success: false,
         error: "Incorrect number of papers extracted",
@@ -1367,16 +1186,7 @@ const arxiv = async () => {
     // Ensure that every paper has a problem and methodology
     for (const paper of papers) {
       if (!paper.problem || !paper.methodology) {
-        logger.error({
-          message: `paper missing problem or methodology`,
-          level: 0,
-          auxiliary: {
-            paper: {
-              value: JSON.stringify(paper),
-              type: "object",
-            },
-          },
-        });
+        logger.log(`Paper "${paper.title}" is missing problem or methodology`);
         return {
           _success: false,
           error: "Incomplete paper information",
@@ -1395,20 +1205,9 @@ const arxiv = async () => {
       sessionUrl,
     };
   } catch (error) {
-    logger.error({
-      message: `error in arxiv function`,
-      level: 0,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
+    logger.error(
+      `Error in arxiv function: ${error.message}. Trace: ${error.stack}`,
+    );
     return {
       _success: false,
       logs: logger.getLogs(),
@@ -1445,7 +1244,7 @@ const exactMatch = (args: {
   expected?: any;
 }): {
   name: string;
-  score: number;
+  score: boolean;
 } => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
@@ -1453,13 +1252,13 @@ const exactMatch = (args: {
   if (expected === true) {
     return {
       name: "Exact match",
-      score: args.output === true || args.output?._success == true ? 1 : 0,
+      score: args.output === true || args.output?._success == true,
     };
   }
 
   return {
     name: "Exact match",
-    score: args.output === expected ? 1 : 0,
+    score: args.output === expected,
   };
 };
 
@@ -1523,6 +1322,6 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
-  //   maxConcurrency: 5,
+  maxConcurrency: 5,
   // trialCount: 3,
 });
