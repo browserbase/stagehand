@@ -2,24 +2,17 @@ import OpenAI from "openai";
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { LLMCache } from "../cache/LLMCache";
+import { LogLine } from "lib/types";
 
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
   private cache: LLMCache;
-  public logger: (message: {
-    category?: string;
-    message: string;
-    level?: number;
-  }) => void;
+  public logger: (message: LogLine) => void;
   private enableCaching: boolean;
   private requestId: string;
 
   constructor(
-    logger: (message: {
-      category?: string;
-      message: string;
-      level?: number;
-    }) => void,
+    logger: (message: LogLine) => void,
     enableCaching = false,
     cache: LLMCache,
     requestId: string,
@@ -34,13 +27,15 @@ export class OpenAIClient implements LLMClient {
   async createChatCompletion(options: ChatCompletionOptions) {
     const { image: _, ...optionsWithoutImage } = options;
     this.logger({
-      category: "OpenAI",
-      message: `Creating chat completion with options: ${JSON.stringify(
-        optionsWithoutImage,
-        null,
-        2,
-      )}`,
+      category: "openai",
+      message: "creating chat completion",
       level: 1,
+      auxiliary: {
+        options: {
+          value: JSON.stringify(optionsWithoutImage),
+          type: "object",
+        },
+      },
     });
     const cacheOptions = {
       model: options.model,
@@ -58,15 +53,31 @@ export class OpenAIClient implements LLMClient {
       if (cachedResponse) {
         this.logger({
           category: "llm_cache",
-          message: `LLM Cache hit - returning cached response`,
+          message: "LLM cache hit - returning cached response",
           level: 1,
+          auxiliary: {
+            requestId: {
+              value: this.requestId,
+              type: "string",
+            },
+            cachedResponse: {
+              value: JSON.stringify(cachedResponse),
+              type: "object",
+            },
+          },
         });
         return cachedResponse;
       } else {
         this.logger({
           category: "llm_cache",
-          message: `LLM Cache miss - no cached response found`,
+          message: "LLM cache miss - no cached response found",
           level: 1,
+          auxiliary: {
+            requestId: {
+              value: this.requestId,
+              type: "string",
+            },
+          },
         });
       }
     }
@@ -106,9 +117,19 @@ export class OpenAIClient implements LLMClient {
     });
 
     this.logger({
-      category: "OpenAI",
-      message: `Response: ${JSON.stringify(response, null, 2)}`,
+      category: "openai",
+      message: "response",
       level: 1,
+      auxiliary: {
+        response: {
+          value: JSON.stringify(response),
+          type: "object",
+        },
+        requestId: {
+          value: this.requestId,
+          type: "string",
+        },
+      },
     });
 
     if (response_model) {
@@ -131,6 +152,25 @@ export class OpenAIClient implements LLMClient {
     }
 
     if (this.enableCaching) {
+      this.logger({
+        category: "llm_cache",
+        message: "caching response",
+        level: 1,
+        auxiliary: {
+          requestId: {
+            value: this.requestId,
+            type: "string",
+          },
+          cacheOptions: {
+            value: JSON.stringify(cacheOptions),
+            type: "object",
+          },
+          response: {
+            value: JSON.stringify(response),
+            type: "object",
+          },
+        },
+      });
       this.cache.set(cacheOptions, response, this.requestId);
     }
 

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
+import { LogLine } from "../../lib/types";
 
 export interface CacheEntry {
   timestamp: number;
@@ -19,11 +20,7 @@ export class BaseCache<T extends CacheEntry> {
   protected cacheDir: string;
   protected cacheFile: string;
   protected lockFile: string;
-  protected logger: (message: {
-    category?: string;
-    message: string;
-    level?: number;
-  }) => void;
+  protected logger: (message: LogLine) => void;
 
   private readonly LOCK_TIMEOUT_MS = 1_000;
   protected lockAcquired = false;
@@ -33,11 +30,7 @@ export class BaseCache<T extends CacheEntry> {
   protected requestIdToUsedHashes: { [key: string]: string[] } = {};
 
   constructor(
-    logger: (message: {
-      category?: string;
-      message: string;
-      level?: number;
-    }) => void,
+    logger: (message: LogLine) => void,
     cacheDir: string = path.join(process.cwd(), "tmp", ".cache"),
     cacheFile: string = "cache.json",
   ) {
@@ -61,8 +54,18 @@ export class BaseCache<T extends CacheEntry> {
     process.on("uncaughtException", (err) => {
       this.logger({
         category: "base_cache",
-        message: `Uncaught exception: ${err}`,
+        message: "uncaught exception",
         level: 2,
+        auxiliary: {
+          error: {
+            value: err.message,
+            type: "string",
+          },
+          trace: {
+            value: err.stack,
+            type: "string",
+          },
+        },
       });
       if (this.lockAcquired) {
         releaseLockAndExit();
@@ -75,8 +78,14 @@ export class BaseCache<T extends CacheEntry> {
       fs.mkdirSync(this.cacheDir, { recursive: true });
       this.logger({
         category: "base_cache",
-        message: `Created cache directory at ${this.cacheDir}`,
+        message: "created cache directory",
         level: 1,
+        auxiliary: {
+          cacheDir: {
+            value: this.cacheDir,
+            type: "string",
+          },
+        },
       });
     }
   }
@@ -151,8 +160,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error releasing lock: ${error}`,
+        message: "error releasing lock",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
     }
   }
@@ -164,7 +183,7 @@ export class BaseCache<T extends CacheEntry> {
     if (!(await this.acquireLock())) {
       this.logger({
         category: "llm_cache",
-        message: "Failed to acquire lock for cleanup",
+        message: "failed to acquire lock for cleanup",
         level: 2,
       });
       return;
@@ -186,15 +205,31 @@ export class BaseCache<T extends CacheEntry> {
         this.writeCache(cache);
         this.logger({
           category: "llm_cache",
-          message: `Cleaned up ${entriesRemoved} stale cache entries`,
+          message: "cleaned up stale cache entries",
           level: 1,
+          auxiliary: {
+            entriesRemoved: {
+              value: entriesRemoved.toString(),
+              type: "integer",
+            },
+          },
         });
       }
     } catch (error) {
       this.logger({
         category: "llm_cache",
-        message: `Error during cache cleanup: ${error}`,
+        message: "error during cache cleanup",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
     } finally {
       this.releaseLock();
@@ -209,8 +244,18 @@ export class BaseCache<T extends CacheEntry> {
       } catch (error) {
         this.logger({
           category: "base_cache",
-          message: `Error reading cache file: ${error}. Resetting cache.`,
+          message: "error reading cache file. resetting cache.",
           level: 1,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            trace: {
+              value: error.stack,
+              type: "string",
+            },
+          },
         });
         this.resetCache();
         return {};
@@ -230,8 +275,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error writing cache file: ${error}`,
+        message: "error writing cache file",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
     } finally {
       this.releaseLock();
@@ -269,8 +324,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error getting cache: ${error}. Resetting cache.`,
+        message: "error getting cache. resetting cache.",
         level: 1,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
 
       this.resetCache();
@@ -314,8 +379,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error setting cache: ${error}. Resetting cache.`,
+        message: "error setting cache. resetting cache.",
         level: 1,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
 
       this.resetCache();
@@ -355,8 +430,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error removing cache entry: ${error}`,
+        message: "error removing cache entry",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
     } finally {
       this.releaseLock();
@@ -401,8 +486,14 @@ export class BaseCache<T extends CacheEntry> {
       } else {
         this.logger({
           category: "base_cache",
-          message: `No cache entries found for requestId ${requestId}`,
+          message: "no cache entries found for requestId",
           level: 1,
+          auxiliary: {
+            requestId: {
+              value: requestId,
+              type: "string",
+            },
+          },
         });
       }
       // Remove the requestId from the mapping after deletion
@@ -410,8 +501,22 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error deleting cache for requestId ${requestId}: ${error}`,
+        message: "error deleting cache for requestId",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
       });
     } finally {
       this.releaseLock();
@@ -428,8 +533,18 @@ export class BaseCache<T extends CacheEntry> {
     } catch (error) {
       this.logger({
         category: "base_cache",
-        message: `Error resetting cache: ${error}`,
+        message: "error resetting cache",
         level: 2,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
+            type: "string",
+          },
+        },
       });
     } finally {
       this.releaseLock();

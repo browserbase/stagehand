@@ -9,6 +9,9 @@ import { ScreenshotService } from "./vision";
 import { modelsWithVision } from "./llm/LLMClient";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { generateId } from "./utils";
+import { LogLine } from "./types";
+import { randomUUID } from "crypto";
+import { logLineToString } from "./utils";
 
 require("dotenv").config({ path: ".env" });
 
@@ -17,18 +20,14 @@ async function getBrowser(
   projectId: string | undefined,
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
-  logger: (message: {
-    category?: string;
-    message: string;
-    level?: 0 | 1 | 2;
-  }) => void,
+  logger: (message: LogLine) => void,
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseResumeSessionID?: string,
 ) {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
       logger({
-        category: "Init",
+        category: "init",
         message:
           "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
         level: 0,
@@ -37,7 +36,7 @@ async function getBrowser(
     }
     if (!projectId) {
       logger({
-        category: "Init",
+        category: "init",
         message:
           "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
         level: 1,
@@ -76,23 +75,39 @@ async function getBrowser(
         connectUrl = `wss://connect.browserbase.com?apiKey=${apiKey}&sessionId=${sessionId}`;
 
         logger({
-          category: "Init",
-          message: "Resuming existing Browserbase session...",
-          level: 0,
+          category: "init",
+          message: "resuming existing browserbase session...",
+          level: 1,
+          auxiliary: {
+            sessionId: {
+              value: sessionId,
+              type: "string",
+            },
+          },
         });
       } catch (error) {
         logger({
-          category: "Init",
-          message: `Failed to resume session ${browserbaseResumeSessionID}: ${error.message}`,
-          level: 0,
+          category: "init",
+          message: "failed to resume session",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            trace: {
+              value: error.stack,
+              type: "string",
+            },
+          },
         });
         throw error;
       }
     } else {
       // Create new session (existing code)
       logger({
-        category: "Init",
-        message: "Creating new Browserbase session...",
+        category: "init",
+        message: "creating new browserbase session...",
         level: 0,
       });
 
@@ -109,6 +124,17 @@ async function getBrowser(
 
       sessionId = session.id;
       connectUrl = session.connectUrl;
+      logger({
+        category: "init",
+        message: "created new browserbase session",
+        level: 1,
+        auxiliary: {
+          sessionId: {
+            value: sessionId,
+            type: "string",
+          },
+        },
+      });
     }
 
     const browser = await chromium.connectOverCDP(connectUrl);
@@ -118,9 +144,25 @@ async function getBrowser(
     sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
 
     logger({
-      category: "Init",
-      message: `Browserbase session ${browserbaseResumeSessionID ? "resumed" : "started"}.\n\nSession Url: ${sessionUrl}\n\nLive debug accessible here: ${debugUrl}.`,
+      category: "init",
+      message: browserbaseResumeSessionID
+        ? "browserbase session resumed"
+        : "browserbase session started",
       level: 0,
+      auxiliary: {
+        sessionUrl: {
+          value: sessionUrl,
+          type: "string",
+        },
+        debugUrl: {
+          value: debugUrl,
+          type: "string",
+        },
+        sessionId: {
+          value: sessionId,
+          type: "string",
+        },
+      },
     });
 
     const context = browser.contexts()[0];
@@ -128,9 +170,15 @@ async function getBrowser(
     return { browser, context, debugUrl, sessionUrl };
   } else {
     logger({
-      category: "Init",
-      message: `Launching local browser in ${headless ? "headless" : "headed"} mode`,
+      category: "init",
+      message: "launching local browser",
       level: 0,
+      auxiliary: {
+        headless: {
+          value: headless.toString(),
+          type: "boolean",
+        },
+      },
     });
 
     const tmpDir = fs.mkdtempSync(`/tmp/pwtest`);
@@ -174,8 +222,8 @@ async function getBrowser(
     );
 
     logger({
-      category: "Init",
-      message: "Local browser started successfully.",
+      category: "init",
+      message: "local browser started successfully.",
     });
 
     await applyStealthScripts(context);
@@ -238,11 +286,8 @@ export class Stagehand {
   private debugDom: boolean;
   private defaultModelName: AvailableModel;
   private headless: boolean;
-  private logger: (message: { category?: string; message: string }) => void;
-  private externalLogger?: (message: {
-    category?: string;
-    message: string;
-  }) => void;
+  private logger: (logLine: LogLine) => void;
+  private externalLogger?: (logLine: LogLine) => void;
   private domSettleTimeoutMs: number;
   private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
@@ -272,11 +317,7 @@ export class Stagehand {
       debugDom?: boolean;
       llmProvider?: LLMProvider;
       headless?: boolean;
-      logger?: (message: {
-        category?: string;
-        message: string;
-        level?: 0 | 1 | 2;
-      }) => void;
+      logger?: (message: LogLine) => void;
       domSettleTimeoutMs?: number;
       browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
       enableCaching?: boolean;
@@ -453,40 +494,25 @@ export class Stagehand {
   }
 
   // Logging
-  private pending_logs_to_send_to_browserbase: {
-    category?: string;
-    message: string;
-    level?: 0 | 1 | 2;
-    id: string;
-  }[] = [];
+  private pending_logs_to_send_to_browserbase: LogLine[] = [];
 
   private is_processing_browserbase_logs: boolean = false;
 
-  log({
-    message,
-    category,
-    level,
-  }: {
-    category?: string;
-    message: string;
-    level?: 0 | 1 | 2;
-  }): void {
-    const logObj = { category, message, level };
+  log(logObj: LogLine): void {
     logObj.level = logObj.level || 1;
 
     // Normal Logging
     if (this.externalLogger) {
       this.externalLogger(logObj);
     } else {
-      const categoryString = logObj.category ? `:${logObj.category}` : "";
-      const logMessage = `[stagehand${categoryString}] ${logObj.message}`;
+      const logMessage = logLineToString(logObj);
       console.log(logMessage);
     }
 
     // Add the logs to the browserbase session
     this.pending_logs_to_send_to_browserbase.push({
       ...logObj,
-      id: Math.random().toString(36).substring(2, 15),
+      id: randomUUID(),
     });
     this._run_browserbase_log_processing_cycle();
   }
@@ -503,12 +529,7 @@ export class Stagehand {
     this.is_processing_browserbase_logs = false;
   }
 
-  private async _log_to_browserbase(logObj: {
-    category?: string;
-    message: string;
-    level?: 0 | 1 | 2;
-    id: string;
-  }) {
+  private async _log_to_browserbase(logObj: LogLine) {
     logObj.level = logObj.level || 1;
 
     if (!this.page) {
@@ -518,7 +539,7 @@ export class Stagehand {
     if (this.verbose >= logObj.level) {
       await this.page
         .evaluate((logObj) => {
-          const logMessage = `[stagehand${logObj.category ? `:${logObj.category}` : ""}] ${logObj.message}`;
+          const logMessage = logLineToString(logObj);
           if (
             logObj.message.toLowerCase().includes("trace") ||
             logObj.message.toLowerCase().includes("error:")
@@ -551,8 +572,14 @@ export class Stagehand {
         timeoutHandle = setTimeout(() => {
           this.log({
             category: "dom",
-            message: `DOM settle timeout of ${timeout}ms exceeded, continuing anyway`,
+            message: "DOM settle timeout exceeded, continuing anyway",
             level: 1,
+            auxiliary: {
+              timeout_ms: {
+                value: timeout.toString(),
+                type: "integer",
+              },
+            },
           });
           resolve();
         }, timeout);
@@ -582,8 +609,18 @@ export class Stagehand {
     } catch (e) {
       this.log({
         category: "dom",
-        message: `Error in waitForSettledDom: ${e.message}\nTrace: ${e.stack}`,
+        message: "Error in waitForSettledDom",
         level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+        },
       });
     }
   }
@@ -606,8 +643,18 @@ export class Stagehand {
     } catch (e) {
       this.log({
         category: "dom",
-        message: `Error in startDomDebug: ${e.message}\nTrace: ${e.stack}`,
+        message: "Error in startDomDebug",
         level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+        },
       });
     }
   }
@@ -652,8 +699,14 @@ export class Stagehand {
   }): Promise<z.infer<T>> {
     this.log({
       category: "extraction",
-      message: `starting extraction '${instruction}'`,
+      message: "starting extraction",
       level: 1,
+      auxiliary: {
+        instruction: {
+          value: instruction,
+          type: "string",
+        },
+      },
     });
 
     await this._waitForSettledDom(domSettleTimeoutMs);
@@ -665,8 +718,22 @@ export class Stagehand {
 
     this.log({
       category: "extraction",
-      message: `received output from processDom. Current chunk index: ${chunk}, Number of chunks left: ${chunks.length - chunksSeen.length}`,
+      message: "received output from processDom.",
       level: 1,
+      auxiliary: {
+        chunk: {
+          value: chunk.toString(),
+          type: "integer",
+        },
+        chunks_left: {
+          value: (chunks.length - chunksSeen.length).toString(),
+          type: "integer",
+        },
+        chunks_total: {
+          value: chunks.length.toString(),
+          type: "integer",
+        },
+      },
     });
 
     const extractionResponse = await extract({
@@ -690,8 +757,14 @@ export class Stagehand {
 
     this.log({
       category: "extraction",
-      message: `received extraction response: ${JSON.stringify(extractionResponse)}`,
+      message: "received extraction response",
       level: 1,
+      auxiliary: {
+        extraction_response: {
+          value: JSON.stringify(extractionResponse),
+          type: "object",
+        },
+      },
     });
 
     chunksSeen.push(chunk);
@@ -699,16 +772,28 @@ export class Stagehand {
     if (completed || chunksSeen.length === chunks.length) {
       this.log({
         category: "extraction",
-        message: `response: ${JSON.stringify(extractionResponse)}`,
+        message: "got response",
         level: 1,
+        auxiliary: {
+          extraction_response: {
+            value: JSON.stringify(extractionResponse),
+            type: "object",
+          },
+        },
       });
 
       return output;
     } else {
       this.log({
         category: "extraction",
-        message: `continuing extraction, progress: '${newProgress}'`,
+        message: "continuing extraction",
         level: 1,
+        auxiliary: {
+          extraction_response: {
+            value: JSON.stringify(extractionResponse),
+            type: "object",
+          },
+        },
       });
       await this._waitForSettledDom(domSettleTimeoutMs);
       return this._extract({
@@ -746,8 +831,14 @@ export class Stagehand {
 
     this.log({
       category: "observation",
-      message: `starting observation: ${instruction}`,
+      message: "starting observation",
       level: 1,
+      auxiliary: {
+        instruction: {
+          value: instruction,
+          type: "string",
+        },
+      },
     });
 
     await this._waitForSettledDom(domSettleTimeoutMs);
@@ -763,14 +854,21 @@ export class Stagehand {
       if (!modelsWithVision.includes(model)) {
         this.log({
           category: "observation",
-          message: `${model} does not support vision. Skipping vision processing.`,
+          message: "Model does not support vision. Skipping vision processing.",
           level: 1,
+          auxiliary: {
+            model: {
+              value: model,
+              type: "string",
+            },
+          },
         });
       } else {
         const screenshotService = new ScreenshotService(
           this.page,
           selectorMap,
           this.verbose,
+          this.externalLogger,
         );
 
         annotatedScreenshot =
@@ -805,8 +903,14 @@ export class Stagehand {
 
     this.log({
       category: "observation",
-      message: `found element ${JSON.stringify(elementsWithSelectors)}`,
+      message: "found elements",
       level: 1,
+      auxiliary: {
+        elements: {
+          value: JSON.stringify(elementsWithSelectors),
+          type: "object",
+        },
+      },
     });
 
     await this._recordObservation(instruction, elementsWithSelectors);
@@ -834,9 +938,20 @@ export class Stagehand {
 
     const requestId = Math.random().toString(36).substring(2);
 
-    this.logger({
+    this.log({
       category: "act",
-      message: `Running act with action: ${action}, requestId: ${requestId}`,
+      message: "running act",
+      level: 1,
+      auxiliary: {
+        action: {
+          value: action,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
     });
 
     if (variables) {
@@ -857,9 +972,20 @@ export class Stagehand {
         domSettleTimeoutMs,
       })
       .catch((e) => {
-        this.logger({
+        this.log({
           category: "act",
-          message: `Error acting: ${e.message}\nTrace: ${e.stack}`,
+          message: "error acting",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+          },
         });
 
         return {
@@ -885,7 +1011,18 @@ export class Stagehand {
 
     this.logger({
       category: "extract",
-      message: `Running extract with instruction: ${instruction}, requestId: ${requestId}`,
+      message: "running extract",
+      level: 1,
+      auxiliary: {
+        instruction: {
+          value: instruction,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
     });
 
     return this._extract({
@@ -897,7 +1034,18 @@ export class Stagehand {
     }).catch((e) => {
       this.logger({
         category: "extract",
-        message: `Internal error: Error extracting: ${e.message}\nTrace: ${e.stack}`,
+        message: "error extracting",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+        },
       });
 
       if (this.enableCaching) {
@@ -918,7 +1066,18 @@ export class Stagehand {
 
     this.logger({
       category: "observe",
-      message: `Running observe with instruction: ${options?.instruction}, requestId: ${requestId}`,
+      message: "running observe",
+      level: 1,
+      auxiliary: {
+        instruction: {
+          value: options?.instruction,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
     });
 
     return this._observe({
@@ -933,7 +1092,26 @@ export class Stagehand {
     }).catch((e) => {
       this.logger({
         category: "observe",
-        message: `Error observing: ${e.message}\nTrace: ${e.stack}`,
+        message: "error observing",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          instruction: {
+            value: options?.instruction,
+            type: "string",
+          },
+        },
       });
 
       if (this.enableCaching) {
