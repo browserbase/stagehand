@@ -3,8 +3,7 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { exec } from "child_process";
-import { LogLine } from "./types";
-import { logLineToString } from "./utils";
+
 type AnnotationBox = {
   x: number;
   y: number;
@@ -25,28 +24,31 @@ export class ScreenshotService {
   private numberPositions: NumberPosition[] = [];
   private isDebugEnabled: boolean;
   private verbose: 0 | 1 | 2;
-  private externalLogger?: (logLine: LogLine) => void;
 
   constructor(
     page: Page,
     selectorMap: Record<number, string[]>,
     verbose: 0 | 1 | 2,
-    externalLogger?: (logLine: LogLine) => void,
     isDebugEnabled: boolean = false,
   ) {
     this.page = page;
     this.selectorMap = selectorMap;
     this.isDebugEnabled = isDebugEnabled;
     this.verbose = verbose;
-    this.externalLogger = externalLogger;
   }
 
-  log(logLine: LogLine) {
-    if (this.verbose >= logLine.level) {
-      console.log(logLineToString(logLine));
-    }
-    if (this.externalLogger) {
-      this.externalLogger(logLine);
+  log({
+    category,
+    message,
+    level = 1,
+  }: {
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+  }) {
+    if (this.verbose >= level) {
+      const categoryString = category ? `:${category}` : "";
+      console.log(`[stagehand${categoryString}] ${message}`);
     }
   }
 
@@ -71,34 +73,18 @@ export class ScreenshotService {
 
     if (!metadata.width || !metadata.height) {
       this.log({
-        category: "screenshotService",
+        category: "Error",
         message: "Unable to determine image dimensions.",
         level: 0,
-        auxiliary: {
-          width: {
-            value: metadata.width?.toString() ?? "undefined",
-            type: "string", // might be undefined
-          },
-          height: {
-            value: metadata.height?.toString() ?? "undefined",
-            type: "string", // might be undefined
-          },
-        },
       });
       throw new Error("Unable to determine image dimensions.");
     }
 
     const pixelCount = metadata.width * metadata.height;
     this.log({
-      category: "screenshotService",
-      message: "got screenshot pixel count",
+      category: "Info",
+      message: `Screenshot pixel count: ${pixelCount}`,
       level: 1,
-      auxiliary: {
-        pixelCount: {
-          value: pixelCount.toString(),
-          type: "integer",
-        },
-      },
     });
     return pixelCount;
   }
@@ -111,17 +97,11 @@ export class ScreenshotService {
     const image = sharp(screenshot);
 
     const { width, height } = await image.metadata();
-    this.log({
-      category: "screenshotService",
-      message: "annotating screenshot",
-      level: 2,
-      auxiliary: {
-        selectorMap: {
-          value: JSON.stringify(this.selectorMap),
-          type: "object",
-        },
-      },
-    });
+    // this.log({
+    //   category: "Debug",
+    //   message: `Annotating screenshot ${JSON.stringify(this.selectorMap)}`,
+    //   level: 2,
+    // });
 
     const svgAnnotations = await Promise.all(
       Object.entries(this.selectorMap).map(async ([id, selectors]) =>
@@ -147,7 +127,7 @@ export class ScreenshotService {
       .toBuffer();
 
     if (this.isDebugEnabled) {
-      await this.saveAndOpenScreenshot(annotatedScreenshot);
+      await ScreenshotService.saveAndOpenScreenshot(annotatedScreenshot);
     }
 
     return annotatedScreenshot;
@@ -210,23 +190,9 @@ export class ScreenshotService {
       `;
     } catch (error) {
       this.log({
-        category: "screenshotService",
-        message: "warning: failed to create annotation for element",
-        level: 1,
-        auxiliary: {
-          element_id: {
-            value: id,
-            type: "string",
-          },
-          error: {
-            value: error.message,
-            type: "string",
-          },
-          trace: {
-            value: error.stack,
-            type: "string",
-          },
-        },
+        category: "Vision",
+        message: `Warning: Failed to create annotation for element ${id}: ${error}, trace: ${error.stack}`,
+        level: 0,
       });
       return "";
     }
@@ -264,7 +230,7 @@ export class ScreenshotService {
     );
   }
 
-  async saveAndOpenScreenshot(screenshot: Buffer): Promise<void> {
+  static async saveAndOpenScreenshot(screenshot: Buffer): Promise<void> {
     const screenshotDir = path.join(process.cwd(), "screenshots");
     if (!fs.existsSync(screenshotDir)) {
       fs.mkdirSync(screenshotDir);
@@ -274,17 +240,7 @@ export class ScreenshotService {
     const filename = path.join(screenshotDir, `screenshot-${timestamp}.png`);
 
     fs.writeFileSync(filename, screenshot);
-    this.log({
-      category: "screenshotService",
-      message: "screenshot saved",
-      level: 1,
-      auxiliary: {
-        filename: {
-          value: filename,
-          type: "string",
-        },
-      },
-    });
+    console.log(`Screenshot saved to: ${filename}`);
 
     // Open the screenshot with the default image viewer
     if (process.platform === "win32") {

@@ -2,7 +2,6 @@ import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
 import { LLMCache } from "../cache/LLMCache";
-import { LogLine } from "../types";
 
 export type AvailableModel =
   | "gpt-4o"
@@ -22,11 +21,14 @@ export class LLMProvider {
     "claude-3-5-sonnet-20241022": "anthropic",
   };
 
-  private logger: (message: LogLine) => void;
+  private logger: (message: { category?: string; message: string }) => void;
   private enableCaching: boolean;
   private cache: LLMCache;
 
-  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
+  constructor(
+    logger: (message: { category?: string; message: string }) => void,
+    enableCaching: boolean,
+  ) {
     this.logger = logger;
     this.enableCaching = enableCaching;
     this.cache = new LLMCache(logger);
@@ -35,14 +37,7 @@ export class LLMProvider {
   cleanRequestCache(requestId: string): void {
     this.logger({
       category: "llm_cache",
-      message: "cleaning up cache",
-      level: 1,
-      auxiliary: {
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-      },
+      message: `Cleaning up cache for requestId: ${requestId}`,
     });
     this.cache.deleteCacheForRequestId(requestId);
   }
