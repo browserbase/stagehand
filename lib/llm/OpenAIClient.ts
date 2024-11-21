@@ -6,7 +6,7 @@ import { LogLine } from "../types";
 
 export class OpenAIClient implements LLMClient {
   private client: OpenAI;
-  private cache: LLMCache;
+  private cache: LLMCache | undefined;
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
   private requestId: string;
@@ -14,7 +14,7 @@ export class OpenAIClient implements LLMClient {
   constructor(
     logger: (message: LogLine) => void,
     enableCaching = false,
-    cache: LLMCache,
+    cache: LLMCache | undefined,
     requestId: string,
   ) {
     this.client = new OpenAI();
