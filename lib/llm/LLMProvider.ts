@@ -24,15 +24,19 @@ export class LLMProvider {
 
   private logger: (message: LogLine) => void;
   private enableCaching: boolean;
-  private cache: LLMCache;
+  private cache: LLMCache | undefined;
 
   constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
     this.logger = logger;
     this.enableCaching = enableCaching;
-    this.cache = new LLMCache(logger);
+    this.cache = enableCaching ? new LLMCache(logger) : undefined;
   }
 
   cleanRequestCache(requestId: string): void {
+    if (!this.enableCaching) {
+      return;
+    }
+
     this.logger({
       category: "llm_cache",
       message: "cleaning up cache",

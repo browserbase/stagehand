@@ -6,7 +6,7 @@ async function example() {
     env: "LOCAL",
     verbose: 1,
     debugDom: true,
-    enableCaching: true,
+    enableCaching: false,
   });
 
   await stagehand.init();

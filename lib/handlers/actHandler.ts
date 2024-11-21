@@ -21,7 +21,7 @@ export class StagehandActHandler {
   private readonly waitForSettledDom: (
     domSettleTimeoutMs?: number,
   ) => Promise<void>;
-  private readonly actionCache: ActionCache;
+  private readonly actionCache: ActionCache | undefined;
   private readonly defaultModelName: AvailableModel;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
@@ -54,7 +54,7 @@ export class StagehandActHandler {
     this.enableCaching = enableCaching;
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
-    this.actionCache = new ActionCache(this.logger);
+    this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
     this.defaultModelName = defaultModelName;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
@@ -733,6 +733,10 @@ export class StagehandActHandler {
     model: AvailableModel;
     domSettleTimeoutMs?: number;
   }) {
+    if (!this.enableCaching) {
+      return null;
+    }
+
     const cacheObj = {
       url: this.stagehand.page.url(),
       action,
@@ -812,7 +816,7 @@ export class StagehandActHandler {
           },
         });
 
-        await this.actionCache.removeActionStep(cacheObj);
+        await this.actionCache?.removeActionStep(cacheObj);
         return null;
       }
 
@@ -914,7 +918,7 @@ export class StagehandActHandler {
         },
       });
 
-      await this.actionCache.removeActionStep(cacheObj);
+      await this.actionCache?.removeActionStep(cacheObj);
       return null;
     }
   }
@@ -1184,7 +1188,7 @@ export class StagehandActHandler {
         } else {
           if (this.enableCaching) {
             this.llmProvider.cleanRequestCache(requestId);
-            this.actionCache.deleteCacheForRequestId(requestId);
+            this.actionCache?.deleteCacheForRequestId(requestId);
           }
 
           return {

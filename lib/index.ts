@@ -330,7 +330,9 @@ export class Stagehand {
   ) {
     this.externalLogger = logger;
     this.logger = this.log.bind(this);
-    this.enableCaching = enableCaching ?? false;
+    this.enableCaching =
+      enableCaching ??
+      (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
