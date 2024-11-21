@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand
 
+## 1.4.0
+
+### Minor Changes
+
+- [#195](https://github.com/browserbase/stagehand/pull/195) [`87a6305`](https://github.com/browserbase/stagehand/commit/87a6305d9a2faf1ab5915965913bc14d5cc15772) Thanks [@kamath](https://github.com/kamath)! - - Adds structured and more standardized JSON logging
+  - Doesn't init cache if `enableCaching` is false, preventing `tmp/.cache` from being created
+  - Updates bundling for browser-side code to support NextJS and serverless
+
 ## 1.2.0
 
 ### Minor Changes
