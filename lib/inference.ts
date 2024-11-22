@@ -24,7 +24,7 @@ import { resolveLLMClient } from "./llm/LLMProvider";
 export async function verifyActCompletion({
   goal,
   steps,
-  initllmClient,
+  initllmClient: llmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -42,8 +42,8 @@ export async function verifyActCompletion({
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
 }): Promise<boolean> {
-  const llmClient =
-    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  llmClient =
+    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const messages: ChatMessage[] = [
     buildVerifyActCompletionSystemPrompt(),
@@ -106,7 +106,7 @@ export async function act({
   action,
   domElements,
   steps,
-  initllmClient,
+  initllmClient: llmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -134,8 +134,8 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const llmClient =
-    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  llmClient =
+    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
@@ -192,7 +192,7 @@ export async function extract({
   previouslyExtractedContent,
   domElements,
   schema,
-  initllmClient,
+  initllmClient: llmClient,
   llmProvider,
   modelName,
   chunksSeen,
@@ -211,8 +211,8 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
 }) {
-  const llmClient =
-    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  llmClient =
+    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -292,7 +292,7 @@ export async function extract({
 export async function observe({
   instruction,
   domElements,
-  initllmClient,
+  initllmClient: llmClient,
   llmProvider,
   modelName,
   image,
@@ -323,8 +323,8 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  const llmClient =
-    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  llmClient =
+    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -354,7 +354,7 @@ export async function observe({
 
 export async function ask({
   question,
-  initllmClient,
+  initllmClient: llmClient,
   llmProvider,
   modelName,
   requestId,
@@ -365,8 +365,8 @@ export async function ask({
   modelName?: AvailableModel;
   requestId: string;
 }) {
-  const llmClient =
-    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  llmClient =
+    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const response = await llmClient.createChatCompletion({
     model: modelName,
