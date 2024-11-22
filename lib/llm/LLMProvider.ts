@@ -78,19 +78,19 @@ export class LLMProvider {
   }
 }
 
-export const resolveLLMClient = (
-  llmClient?: LLMClient,
-  llmProvider?: LLMProvider,
-  modelName?: AvailableModel,
-  requestId?: string,
-) => {
-  if (!llmClient) {
-    if (!llmProvider || !modelName || !requestId) {
-      throw new Error(
-        "Either llmClient or llmProvider, modelName, and requestId must be provided",
-      );
-    }
-    return llmProvider.getClient(modelName, requestId);
+export const resolveLLMClient = ({
+  llmProvider,
+  modelName,
+  requestId,
+}: {
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
+  requestId?: string;
+}) => {
+  if (!llmProvider || !modelName || !requestId) {
+    throw new Error(
+      "Either llmProvider, modelName, and requestId must be provided",
+    );
   }
-  return llmClient;
+  return llmProvider.getClient(modelName, requestId);
 };
