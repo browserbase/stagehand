@@ -17,11 +17,14 @@ import {
 } from "./prompt";
 import { z } from "zod";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
+import { LLMClient } from "./llm/LLMClient";
 import { AnnotatedScreenshotText, ChatMessage } from "./llm/LLMClient";
+import { resolveLLMClient } from "./llm/LLMProvider";
 
 export async function verifyActCompletion({
   goal,
   steps,
+  llmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -31,14 +34,16 @@ export async function verifyActCompletion({
 }: {
   goal: string;
   steps: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
   screenshot?: Buffer;
   domElements?: string;
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
 }): Promise<boolean> {
-  const llmClient = llmProvider.getClient(modelName, requestId);
+  llmClient = resolveLLMClient(llmClient, llmProvider, modelName, requestId);
+
   const messages: ChatMessage[] = [
     buildVerifyActCompletionSystemPrompt(),
     buildVerifyActCompletionUserPrompt(goal, steps, domElements),
@@ -100,6 +105,7 @@ export async function act({
   action,
   domElements,
   steps,
+  llmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -111,8 +117,9 @@ export async function act({
   action: string;
   steps?: string;
   domElements: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
   screenshot?: Buffer;
   retries?: number;
   logger: (message: { category?: string; message: string }) => void;
@@ -126,7 +133,8 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const llmClient = llmProvider.getClient(modelName, requestId);
+  llmClient = resolveLLMClient(llmClient, llmProvider, modelName, requestId);
+
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
     buildActUserPrompt(action, steps, domElements, variables),
@@ -182,6 +190,7 @@ export async function extract({
   previouslyExtractedContent,
   domElements,
   schema,
+  llmClient,
   llmProvider,
   modelName,
   chunksSeen,
@@ -193,13 +202,14 @@ export async function extract({
   previouslyExtractedContent: any;
   domElements: string;
   schema: z.ZodObject<any>;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName, requestId);
+  llmClient = resolveLLMClient(llmClient, llmProvider, modelName, requestId);
 
   const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -279,6 +289,7 @@ export async function extract({
 export async function observe({
   instruction,
   domElements,
+  llmClient,
   llmProvider,
   modelName,
   image,
@@ -286,8 +297,9 @@ export async function observe({
 }: {
   instruction: string;
   domElements: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
   image?: Buffer;
   requestId: string;
 }): Promise<{
@@ -308,7 +320,8 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  const llmClient = llmProvider.getClient(modelName, requestId);
+  llmClient = resolveLLMClient(llmClient, llmProvider, modelName, requestId);
+
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
     messages: [
@@ -337,16 +350,19 @@ export async function observe({
 
 export async function ask({
   question,
+  llmClient,
   llmProvider,
   modelName,
   requestId,
 }: {
   question: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  llmProvider?: LLMProvider;
+  modelName?: AvailableModel;
   requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName, requestId);
+  llmClient = resolveLLMClient(llmClient, llmProvider, modelName, requestId);
+
   const response = await llmClient.createChatCompletion({
     model: modelName,
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],

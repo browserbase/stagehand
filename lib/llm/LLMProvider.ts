@@ -77,3 +77,20 @@ export class LLMProvider {
     }
   }
 }
+
+export const resolveLLMClient = (
+  llmClient?: LLMClient,
+  llmProvider?: LLMProvider,
+  modelName?: AvailableModel,
+  requestId?: string,
+) => {
+  if (!llmClient) {
+    if (!llmProvider || !modelName || !requestId) {
+      throw new Error(
+        "Either llmClient or llmProvider, modelName, and requestId must be provided",
+      );
+    }
+    return llmProvider.getClient(modelName, requestId);
+  }
+  return llmClient;
+};
