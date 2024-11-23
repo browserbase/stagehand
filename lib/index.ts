@@ -6,7 +6,7 @@ import { extract, observe } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
 import path from "path";
 import { ScreenshotService } from "./vision";
-import { modelsWithVision } from "./llm/LLMClient";
+import { LLMClient, modelsWithVision } from "./llm/LLMClient";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { generateId } from "./utils";
 // @ts-ignore we're using a built js file as a string here
@@ -14,6 +14,7 @@ import { scriptContent } from "./dom/build/scriptContent";
 import { LogLine } from "./types";
 import { randomUUID } from "crypto";
 import { logLineToString } from "./utils";
+import { resolveLLMClient } from "./llm/LLMProvider";
 
 require("dotenv").config({ path: ".env" });
 
@@ -272,6 +273,7 @@ async function applyStealthScripts(context: BrowserContext) {
 }
 
 export class Stagehand {
+  private llmClient?: LLMClient;
   private llmProvider: LLMProvider;
   private observations: {
     [key: string]: {
@@ -304,6 +306,7 @@ export class Stagehand {
       projectId,
       verbose,
       debugDom,
+      // initllmClient: llmClient,
       llmProvider,
       headless,
       logger,
@@ -317,6 +320,7 @@ export class Stagehand {
       projectId?: string;
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
+      // initllmClient?: LLMClient;
       llmProvider?: LLMProvider;
       headless?: boolean;
       logger?: (message: LogLine) => void;
@@ -386,7 +390,14 @@ export class Stagehand {
     // Redundant but needed for users who are re-connecting to a previously-created session
     await this.page.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
+
     this.defaultModelName = modelName;
+    // this.llmClient =
+    //   llmClient ||
+    //   resolveLLMClient({
+    //     llmProvider: this.llmProvider,
+    //     modelName,
+    //   });
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? this.domSettleTimeoutMs;
 
     // Overload the page.goto method
@@ -630,6 +641,7 @@ export class Stagehand {
     progress = "",
     content = {},
     chunksSeen = [],
+    llmClient,
     modelName,
     requestId,
     domSettleTimeoutMs,
@@ -639,6 +651,7 @@ export class Stagehand {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
+    llmClient?: LLMClient;
     modelName?: AvailableModel;
     requestId?: string;
     domSettleTimeoutMs?: number;
@@ -689,6 +702,7 @@ export class Stagehand {
       domElements: outputString,
       llmProvider: this.llmProvider,
       schema,
+      llmClient: llmClient,
       modelName: modelName || this.defaultModelName,
       chunksSeen: chunksSeen.length,
       chunksTotal: chunks.length,
@@ -748,7 +762,9 @@ export class Stagehand {
         progress: newProgress,
         content: output,
         chunksSeen,
+        llmClient,
         modelName,
+        requestId,
         domSettleTimeoutMs,
       });
     }
@@ -758,6 +774,7 @@ export class Stagehand {
     instruction,
     useVision,
     fullPage,
+    llmClient,
     modelName,
     requestId,
     domSettleTimeoutMs,
@@ -765,6 +782,7 @@ export class Stagehand {
     instruction: string;
     useVision: boolean;
     fullPage: boolean;
+    llmClient?: LLMClient;
     modelName?: AvailableModel;
     requestId?: string;
     domSettleTimeoutMs?: number;
@@ -827,6 +845,7 @@ export class Stagehand {
       instruction,
       domElements: outputString,
       llmProvider: this.llmProvider,
+      llmClient: llmClient,
       modelName: modelName || this.defaultModelName,
       image: annotatedScreenshot,
       requestId,
@@ -865,12 +884,14 @@ export class Stagehand {
 
   async act({
     action,
+    llmClient: initllmClient,
     modelName,
     useVision = "fallback",
     variables = {},
     domSettleTimeoutMs,
   }: {
     action: string;
+    llmClient?: LLMClient;
     modelName?: AvailableModel;
     useVision?: "fallback" | boolean;
     variables?: Record<string, string>;
@@ -904,9 +925,18 @@ export class Stagehand {
       this.variables = { ...this.variables, ...variables };
     }
 
+    const llmClient =
+      initllmClient ||
+      resolveLLMClient({
+        modelName: modelName || this.defaultModelName,
+        llmProvider: this.llmProvider,
+        requestId,
+      });
+
     return this.actHandler
       .act({
         action,
+        llmClient,
         modelName,
         chunksSeen: [],
         useVision,
@@ -945,11 +975,13 @@ export class Stagehand {
   async extract<T extends z.AnyZodObject>({
     instruction,
     schema,
+    llmClient: initllmClient,
     modelName,
     domSettleTimeoutMs,
   }: {
     instruction: string;
     schema: T;
+    llmClient?: LLMClient;
     modelName?: AvailableModel;
     domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
@@ -971,9 +1003,18 @@ export class Stagehand {
       },
     });
 
+    const llmClient =
+      initllmClient ||
+      resolveLLMClient({
+        modelName: modelName || this.defaultModelName,
+        llmProvider: this.llmProvider,
+        requestId,
+      });
+
     return this._extract({
       instruction,
       schema,
+      llmClient,
       modelName,
       requestId,
       domSettleTimeoutMs,
@@ -1002,12 +1043,19 @@ export class Stagehand {
     });
   }
 
-  async observe(options?: {
+  async observe({
+    instruction = "Find actions that can be performed on this page.",
+    llmClient: initllmClient,
+    modelName,
+    useVision = false,
+    domSettleTimeoutMs,
+  }: {
     instruction?: string;
+    llmClient?: LLMClient;
     modelName?: AvailableModel;
     useVision?: boolean;
     domSettleTimeoutMs?: number;
-  }): Promise<{ selector: string; description: string }[]> {
+  } = {}): Promise<{ selector: string; description: string }[]> {
     const requestId = Math.random().toString(36).substring(2);
 
     this.logger({
@@ -1016,7 +1064,7 @@ export class Stagehand {
       level: 1,
       auxiliary: {
         instruction: {
-          value: options?.instruction,
+          value: instruction,
           type: "string",
         },
         requestId: {
@@ -1026,15 +1074,22 @@ export class Stagehand {
       },
     });
 
+    const llmClient =
+      initllmClient ||
+      resolveLLMClient({
+        modelName: modelName || this.defaultModelName,
+        llmProvider: this.llmProvider,
+        requestId,
+      });
+
     return this._observe({
-      instruction:
-        options?.instruction ??
-        "Find actions that can be performed on this page.",
-      modelName: options?.modelName,
-      useVision: options?.useVision ?? false,
+      instruction,
+      llmClient,
+      modelName,
+      useVision,
       fullPage: false,
       requestId,
-      domSettleTimeoutMs: options?.domSettleTimeoutMs,
+      domSettleTimeoutMs,
     }).catch((e) => {
       this.logger({
         category: "observe",
@@ -1054,7 +1109,7 @@ export class Stagehand {
             type: "string",
           },
           instruction: {
-            value: options?.instruction,
+            value: instruction,
             type: "string",
           },
         },

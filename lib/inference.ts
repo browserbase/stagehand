@@ -24,7 +24,7 @@ import { resolveLLMClient } from "./llm/LLMProvider";
 export async function verifyActCompletion({
   goal,
   steps,
-  initllmClient: llmClient,
+  llmClient: initllmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -34,7 +34,7 @@ export async function verifyActCompletion({
 }: {
   goal: string;
   steps: string;
-  initllmClient?: LLMClient;
+  llmClient: LLMClient;
   llmProvider?: LLMProvider;
   modelName?: AvailableModel;
   screenshot?: Buffer;
@@ -42,8 +42,8 @@ export async function verifyActCompletion({
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
 }): Promise<boolean> {
-  llmClient =
-    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  const llmClient =
+    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const messages: ChatMessage[] = [
     buildVerifyActCompletionSystemPrompt(),
@@ -106,7 +106,7 @@ export async function act({
   action,
   domElements,
   steps,
-  initllmClient: llmClient,
+  llmClient: initllmClient,
   llmProvider,
   modelName,
   screenshot,
@@ -118,7 +118,7 @@ export async function act({
   action: string;
   steps?: string;
   domElements: string;
-  initllmClient?: LLMClient;
+  llmClient: LLMClient;
   llmProvider?: LLMProvider;
   modelName?: AvailableModel;
   screenshot?: Buffer;
@@ -134,8 +134,8 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  llmClient =
-    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  const llmClient =
+    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
@@ -177,6 +177,7 @@ export async function act({
       action,
       domElements,
       steps,
+      llmClient,
       llmProvider,
       modelName,
       retries: retries + 1,
@@ -192,7 +193,7 @@ export async function extract({
   previouslyExtractedContent,
   domElements,
   schema,
-  initllmClient: llmClient,
+  llmClient: initllmClient,
   llmProvider,
   modelName,
   chunksSeen,
@@ -204,15 +205,15 @@ export async function extract({
   previouslyExtractedContent: any;
   domElements: string;
   schema: z.ZodObject<any>;
-  initllmClient?: LLMClient;
+  llmClient: LLMClient;
   llmProvider?: LLMProvider;
   modelName?: AvailableModel;
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
 }) {
-  llmClient =
-    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  const llmClient =
+    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const extractionResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -292,7 +293,7 @@ export async function extract({
 export async function observe({
   instruction,
   domElements,
-  initllmClient: llmClient,
+  llmClient: initllmClient,
   llmProvider,
   modelName,
   image,
@@ -300,7 +301,7 @@ export async function observe({
 }: {
   instruction: string;
   domElements: string;
-  initllmClient?: LLMClient;
+  llmClient: LLMClient;
   llmProvider?: LLMProvider;
   modelName?: AvailableModel;
   image?: Buffer;
@@ -323,8 +324,8 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  llmClient =
-    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  const llmClient =
+    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const observationResponse = await llmClient.createChatCompletion({
     model: modelName,
@@ -354,19 +355,19 @@ export async function observe({
 
 export async function ask({
   question,
-  initllmClient: llmClient,
+  llmClient: initllmClient,
   llmProvider,
   modelName,
   requestId,
 }: {
   question: string;
-  initllmClient?: LLMClient;
+  llmClient: LLMClient;
   llmProvider?: LLMProvider;
   modelName?: AvailableModel;
   requestId: string;
 }) {
-  llmClient =
-    llmClient || resolveLLMClient({ llmProvider, modelName, requestId });
+  const llmClient =
+    initllmClient || resolveLLMClient({ llmProvider, modelName, requestId });
 
   const response = await llmClient.createChatCompletion({
     model: modelName,

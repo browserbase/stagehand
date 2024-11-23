@@ -9,7 +9,7 @@ import {
 } from "../types";
 import { Locator, Page } from "@playwright/test";
 import { ActionCache } from "../cache/ActionCache";
-import { modelsWithVision } from "../llm/LLMClient";
+import { LLMClient, modelsWithVision } from "../llm/LLMClient";
 import { generateId } from "../utils";
 
 export class StagehandActHandler {
@@ -75,6 +75,7 @@ export class StagehandActHandler {
     requestId,
     action,
     steps,
+    llmClient,
     model,
     domSettleTimeoutMs,
   }: {
@@ -83,6 +84,7 @@ export class StagehandActHandler {
     requestId: string;
     action: string;
     steps: string;
+    llmClient: LLMClient;
     model: AvailableModel;
     domSettleTimeoutMs?: number;
   }): Promise<boolean> {
@@ -157,6 +159,7 @@ export class StagehandActHandler {
       actionCompleted = await verifyActCompletion({
         goal: action,
         steps,
+        llmClient: llmClient,
         llmProvider: this.llmProvider,
         modelName: model,
         screenshot: fullpageScreenshot,
@@ -712,6 +715,7 @@ export class StagehandActHandler {
     requestId,
     steps,
     chunksSeen,
+    llmClient,
     modelName,
     useVision,
     verifierUseVision,
@@ -725,6 +729,7 @@ export class StagehandActHandler {
     requestId: string;
     steps: string;
     chunksSeen: number[];
+    llmClient: LLMClient;
     modelName: AvailableModel;
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
@@ -859,6 +864,7 @@ export class StagehandActHandler {
         let actionCompleted = await this._verifyActionCompletion({
           completed: true,
           verifierUseVision,
+          llmClient,
           model,
           steps,
           requestId,
@@ -891,6 +897,7 @@ export class StagehandActHandler {
         action,
         steps,
         chunksSeen,
+        llmClient,
         modelName,
         useVision,
         verifierUseVision,
@@ -927,6 +934,7 @@ export class StagehandActHandler {
     action,
     steps = "",
     chunksSeen,
+    llmClient,
     modelName,
     useVision,
     verifierUseVision,
@@ -940,6 +948,7 @@ export class StagehandActHandler {
     action: string;
     steps?: string;
     chunksSeen: number[];
+    llmClient: LLMClient;
     modelName?: AvailableModel;
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
@@ -964,6 +973,7 @@ export class StagehandActHandler {
           requestId,
           steps,
           chunksSeen,
+          llmClient,
           modelName: model,
           useVision,
           verifierUseVision,
@@ -980,6 +990,7 @@ export class StagehandActHandler {
             action,
             steps,
             chunksSeen,
+            llmClient,
             modelName,
             useVision,
             verifierUseVision,
@@ -1105,6 +1116,7 @@ export class StagehandActHandler {
         action,
         domElements: outputString,
         steps,
+        llmClient,
         llmProvider: this.llmProvider,
         modelName: model,
         screenshot: annotatedScreenshot,
@@ -1150,6 +1162,7 @@ export class StagehandActHandler {
               (!steps.endsWith("\n") ? "\n" : "") +
               "## Step: Scrolled to another section\n",
             chunksSeen,
+            llmClient,
             modelName,
             useVision,
             verifierUseVision,
@@ -1176,6 +1189,7 @@ export class StagehandActHandler {
             action,
             steps,
             chunksSeen,
+            llmClient,
             modelName,
             useVision: true,
             verifierUseVision,
@@ -1312,6 +1326,7 @@ export class StagehandActHandler {
           requestId,
           action,
           steps,
+          llmClient,
           model,
           domSettleTimeoutMs,
         });
@@ -1326,6 +1341,7 @@ export class StagehandActHandler {
           return this.act({
             action,
             steps,
+            llmClient,
             modelName,
             chunksSeen,
             useVision,
@@ -1374,6 +1390,7 @@ export class StagehandActHandler {
           return this.act({
             action,
             steps,
+            llmClient,
             modelName,
             useVision,
             verifierUseVision,
