@@ -306,7 +306,6 @@ export class Stagehand {
       projectId,
       verbose,
       debugDom,
-      // initllmClient: llmClient,
       llmProvider,
       headless,
       logger,
@@ -320,7 +319,6 @@ export class Stagehand {
       projectId?: string;
       verbose?: 0 | 1 | 2;
       debugDom?: boolean;
-      // initllmClient?: LLMClient;
       llmProvider?: LLMProvider;
       headless?: boolean;
       logger?: (message: LogLine) => void;
@@ -392,12 +390,6 @@ export class Stagehand {
     await this._waitForSettledDom();
 
     this.defaultModelName = modelName;
-    // this.llmClient =
-    //   llmClient ||
-    //   resolveLLMClient({
-    //     llmProvider: this.llmProvider,
-    //     modelName,
-    //   });
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? this.domSettleTimeoutMs;
 
     // Overload the page.goto method
