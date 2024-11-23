@@ -2,18 +2,15 @@ import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import { z } from "zod";
 import fs from "fs";
 import { Browserbase } from "@browserbasehq/sdk";
-import { extract, observe } from "./inference";
 import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
-import path from "path";
-import { ScreenshotService } from "./vision";
-import { modelsWithVision } from "./llm/LLMClient";
-import { StagehandActHandler } from "./handlers/actHandler";
-import { generateId } from "./utils";
 // @ts-ignore we're using a built js file as a string here
 import { scriptContent } from "./dom/build/scriptContent";
 import { LogLine } from "./types";
 import { randomUUID } from "crypto";
 import { logLineToString } from "./utils";
+import { StagehandExtractHandler } from "./handlers/extractHandler";
+import { StagehandObserveHandler } from "./handlers/observeHandler";
+import { StagehandActHandler } from "./handlers/actHandler";
 
 require("dotenv").config({ path: ".env" });
 
@@ -273,12 +270,6 @@ async function applyStealthScripts(context: BrowserContext) {
 
 export class Stagehand {
   private llmProvider: LLMProvider;
-  private observations: {
-    [key: string]: {
-      result: { selector: string; description: string }[];
-      instruction: string;
-    };
-  };
   public page: Page;
   public context: BrowserContext;
   private env: "LOCAL" | "BROWSERBASE";
@@ -294,8 +285,11 @@ export class Stagehand {
   private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
   private variables: { [key: string]: any };
-  private actHandler: StagehandActHandler;
   private browserbaseResumeSessionID?: string;
+
+  private actHandler: StagehandActHandler;
+  private extractHandler: StagehandExtractHandler;
+  private observeHandler: StagehandObserveHandler;
 
   constructor(
     {
@@ -336,7 +330,6 @@ export class Stagehand {
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
     this.env = env;
-    this.observations = {};
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
@@ -345,6 +338,8 @@ export class Stagehand {
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
+    this.browserbaseResumeSessionID = browserbaseResumeSessionID;
+
     this.actHandler = new StagehandActHandler({
       stagehand: this,
       verbose: this.verbose,
@@ -356,7 +351,28 @@ export class Stagehand {
       startDomDebug: this.startDomDebug.bind(this),
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
     });
-    this.browserbaseResumeSessionID = browserbaseResumeSessionID;
+
+    this.extractHandler = new StagehandExtractHandler({
+      stagehand: this,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+      llmProvider: this.llmProvider,
+      verbose: this.verbose,
+    });
+
+    this.observeHandler = new StagehandObserveHandler({
+      stagehand: this,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+      llmProvider: this.llmProvider,
+      verbose: this.verbose,
+    });
   }
 
   async init({
@@ -611,258 +627,6 @@ export class Stagehand {
     }
   }
 
-  private async _recordObservation(
-    instruction: string,
-    result: { selector: string; description: string }[],
-  ): Promise<string> {
-    const id = generateId(instruction);
-
-    this.observations[id] = { result, instruction };
-
-    return id;
-  }
-
-  // Main methods
-
-  private async _extract<T extends z.AnyZodObject>({
-    instruction,
-    schema,
-    progress = "",
-    content = {},
-    chunksSeen = [],
-    modelName,
-    requestId,
-    domSettleTimeoutMs,
-  }: {
-    instruction: string;
-    schema: T;
-    progress?: string;
-    content?: z.infer<T>;
-    chunksSeen?: Array<number>;
-    modelName?: AvailableModel;
-    requestId?: string;
-    domSettleTimeoutMs?: number;
-  }): Promise<z.infer<T>> {
-    this.log({
-      category: "extraction",
-      message: "starting extraction",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: instruction,
-          type: "string",
-        },
-      },
-    });
-
-    await this._waitForSettledDom(domSettleTimeoutMs);
-    await this.startDomDebug();
-    const { outputString, chunk, chunks } = await this.page.evaluate(
-      (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
-      chunksSeen,
-    );
-
-    this.log({
-      category: "extraction",
-      message: "received output from processDom.",
-      level: 1,
-      auxiliary: {
-        chunk: {
-          value: chunk.toString(),
-          type: "integer",
-        },
-        chunks_left: {
-          value: (chunks.length - chunksSeen.length).toString(),
-          type: "integer",
-        },
-        chunks_total: {
-          value: chunks.length.toString(),
-          type: "integer",
-        },
-      },
-    });
-
-    const extractionResponse = await extract({
-      instruction,
-      progress,
-      previouslyExtractedContent: content,
-      domElements: outputString,
-      llmProvider: this.llmProvider,
-      schema,
-      modelName: modelName || this.defaultModelName,
-      chunksSeen: chunksSeen.length,
-      chunksTotal: chunks.length,
-      requestId,
-    });
-
-    const {
-      metadata: { progress: newProgress, completed },
-      ...output
-    } = extractionResponse;
-    await this.cleanupDomDebug();
-
-    this.log({
-      category: "extraction",
-      message: "received extraction response",
-      level: 1,
-      auxiliary: {
-        extraction_response: {
-          value: JSON.stringify(extractionResponse),
-          type: "object",
-        },
-      },
-    });
-
-    chunksSeen.push(chunk);
-
-    if (completed || chunksSeen.length === chunks.length) {
-      this.log({
-        category: "extraction",
-        message: "got response",
-        level: 1,
-        auxiliary: {
-          extraction_response: {
-            value: JSON.stringify(extractionResponse),
-            type: "object",
-          },
-        },
-      });
-
-      return output;
-    } else {
-      this.log({
-        category: "extraction",
-        message: "continuing extraction",
-        level: 1,
-        auxiliary: {
-          extraction_response: {
-            value: JSON.stringify(extractionResponse),
-            type: "object",
-          },
-        },
-      });
-      await this._waitForSettledDom(domSettleTimeoutMs);
-      return this._extract({
-        instruction,
-        schema,
-        progress: newProgress,
-        content: output,
-        chunksSeen,
-        modelName,
-        domSettleTimeoutMs,
-      });
-    }
-  }
-
-  private async _observe({
-    instruction,
-    useVision,
-    fullPage,
-    modelName,
-    requestId,
-    domSettleTimeoutMs,
-  }: {
-    instruction: string;
-    useVision: boolean;
-    fullPage: boolean;
-    modelName?: AvailableModel;
-    requestId?: string;
-    domSettleTimeoutMs?: number;
-  }): Promise<{ selector: string; description: string }[]> {
-    if (!instruction) {
-      instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
-    }
-
-    const model = modelName ?? this.defaultModelName;
-
-    this.log({
-      category: "observation",
-      message: "starting observation",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: instruction,
-          type: "string",
-        },
-      },
-    });
-
-    await this._waitForSettledDom(domSettleTimeoutMs);
-    await this.startDomDebug();
-    let { outputString, selectorMap } = await this.page.evaluate(
-      (fullPage: boolean) =>
-        fullPage ? window.processAllOfDom() : window.processDom([]),
-      fullPage,
-    );
-
-    let annotatedScreenshot: Buffer | undefined;
-    if (useVision === true) {
-      if (!modelsWithVision.includes(model)) {
-        this.log({
-          category: "observation",
-          message: "Model does not support vision. Skipping vision processing.",
-          level: 1,
-          auxiliary: {
-            model: {
-              value: model,
-              type: "string",
-            },
-          },
-        });
-      } else {
-        const screenshotService = new ScreenshotService(
-          this.page,
-          selectorMap,
-          this.verbose,
-          this.externalLogger,
-        );
-
-        annotatedScreenshot =
-          await screenshotService.getAnnotatedScreenshot(fullPage);
-        outputString = "n/a. use the image to find the elements.";
-      }
-    }
-
-    const observationResponse = await observe({
-      instruction,
-      domElements: outputString,
-      llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
-      image: annotatedScreenshot,
-      requestId,
-    });
-
-    const elementsWithSelectors = observationResponse.elements.map(
-      (element) => {
-        const { elementId, ...rest } = element;
-
-        return {
-          ...rest,
-          selector: `xpath=${selectorMap[elementId][0]}`,
-        };
-      },
-    );
-
-    await this.cleanupDomDebug();
-
-    this._recordObservation(instruction, elementsWithSelectors);
-
-    this.log({
-      category: "observation",
-      message: "found elements",
-      level: 1,
-      auxiliary: {
-        elements: {
-          value: JSON.stringify(elementsWithSelectors),
-          type: "object",
-        },
-      },
-    });
-
-    await this._recordObservation(instruction, elementsWithSelectors);
-    return elementsWithSelectors;
-  }
-
   async act({
     action,
     modelName,
@@ -971,35 +735,37 @@ export class Stagehand {
       },
     });
 
-    return this._extract({
-      instruction,
-      schema,
-      modelName,
-      requestId,
-      domSettleTimeoutMs,
-    }).catch((e) => {
-      this.logger({
-        category: "extract",
-        message: "error extracting",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
+    return this.extractHandler
+      .extract({
+        instruction,
+        schema,
+        modelName,
+        requestId,
+        domSettleTimeoutMs,
+      })
+      .catch((e) => {
+        this.logger({
+          category: "extract",
+          message: "error extracting",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
           },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
+        });
+
+        if (this.enableCaching) {
+          this.llmProvider.cleanRequestCache(requestId);
+        }
+
+        throw e;
       });
-
-      if (this.enableCaching) {
-        this.llmProvider.cleanRequestCache(requestId);
-      }
-
-      throw e;
-    });
   }
 
   async observe(options?: {
@@ -1026,45 +792,47 @@ export class Stagehand {
       },
     });
 
-    return this._observe({
-      instruction:
-        options?.instruction ??
-        "Find actions that can be performed on this page.",
-      modelName: options?.modelName,
-      useVision: options?.useVision ?? false,
-      fullPage: false,
-      requestId,
-      domSettleTimeoutMs: options?.domSettleTimeoutMs,
-    }).catch((e) => {
-      this.logger({
-        category: "observe",
-        message: "error observing",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
+    return this.observeHandler
+      .observe({
+        instruction:
+          options?.instruction ??
+          "Find actions that can be performed on this page.",
+        modelName: options?.modelName,
+        useVision: options?.useVision ?? false,
+        fullPage: false,
+        requestId,
+        domSettleTimeoutMs: options?.domSettleTimeoutMs,
+      })
+      .catch((e) => {
+        this.logger({
+          category: "observe",
+          message: "error observing",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            requestId: {
+              value: requestId,
+              type: "string",
+            },
+            instruction: {
+              value: options?.instruction,
+              type: "string",
+            },
           },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
-          instruction: {
-            value: options?.instruction,
-            type: "string",
-          },
-        },
+        });
+
+        if (this.enableCaching) {
+          this.llmProvider.cleanRequestCache(requestId);
+        }
+
+        throw e;
       });
-
-      if (this.enableCaching) {
-        this.llmProvider.cleanRequestCache(requestId);
-      }
-
-      throw e;
-    });
   }
 }
