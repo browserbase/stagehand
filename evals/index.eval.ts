@@ -1362,6 +1362,10 @@ Eval("stagehand", {
         input: { name: test, modelName: model },
         name: test,
         tags: [model, test],
+        metadata: {
+          model,
+          test,
+        },
       })),
     );
   },
@@ -1386,6 +1390,6 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch, errorMatch],
-  //   maxConcurrency: 5,
+  maxConcurrency: 10,
   trialCount: 10,
 });
