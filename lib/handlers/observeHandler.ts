@@ -51,6 +51,7 @@ export class StagehandObserveHandler {
     this.cleanupDomDebug = cleanupDomDebug;
     this.llmProvider = llmProvider;
     this.verbose = verbose;
+    this.observations = {};
   }
 
   private async _recordObservation(
