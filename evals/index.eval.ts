@@ -5,18 +5,17 @@ import { z } from "zod";
 import process from "process";
 import { EvalLogger } from "./utils";
 import { LogLine } from "../lib/types";
-import { EvalResult } from "braintrust/dist/framework";
 
-// const env =
-//   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-//     ? "BROWSERBASE"
-//     : "LOCAL";
+const env: "BROWSERBASE" | "LOCAL" =
+  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+    ? "BROWSERBASE"
+    : "LOCAL";
 
 const enableCaching = process.env.EVAL_ENABLE_CACHING?.toLowerCase() === "true";
 const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-20241022"];
 
 const defaultStagehandOptions = {
-  env: "BROWSERBASE" as const,
+  env,
   headless: false,
   verbose: 2 as const,
   debugDom: true,
@@ -1278,7 +1277,7 @@ const arxiv: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const tasks = {
+const tasks: Record<string, EvalFunction> = {
   vanta,
   vanta_h,
   peeler_simple,
