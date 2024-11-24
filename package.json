@@ -30,7 +30,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.30",
     "autoevals": "^0.0.64",
-    "braintrust": "^0.0.127",
+    "braintrust": "^0.0.171",
     "cheerio": "^1.0.0",
     "esbuild": "^0.21.4",
     "express": "^4.21.0",

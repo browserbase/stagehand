@@ -1390,7 +1390,6 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch, errorMatch],
-  // @ts-expect-error (unsure why this is happening)
   maxConcurrency: 10,
   trialCount: 10,
 });
