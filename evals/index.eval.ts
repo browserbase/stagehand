@@ -1486,6 +1486,6 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch, errorMatch],
-  maxConcurrency: env === "BROWSERBASE" ? undefined : 10,
+  maxConcurrency: 10,
   trialCount: 10,
 });
