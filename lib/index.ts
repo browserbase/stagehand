@@ -287,9 +287,9 @@ export class Stagehand {
   private variables: { [key: string]: any };
   private browserbaseResumeSessionID?: string;
 
-  private actHandler: StagehandActHandler;
-  private extractHandler: StagehandExtractHandler;
-  private observeHandler: StagehandObserveHandler;
+  private actHandler?: StagehandActHandler;
+  private extractHandler?: StagehandExtractHandler;
+  private observeHandler?: StagehandObserveHandler;
 
   constructor(
     {
@@ -339,40 +339,6 @@ export class Stagehand {
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
     this.browserbaseResumeSessionID = browserbaseResumeSessionID;
-
-    this.actHandler = new StagehandActHandler({
-      stagehand: this,
-      verbose: this.verbose,
-      llmProvider: this.llmProvider,
-      enableCaching: this.enableCaching,
-      logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      defaultModelName: this.defaultModelName,
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
-    });
-
-    this.extractHandler = new StagehandExtractHandler({
-      stagehand: this,
-      logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      defaultModelName: this.defaultModelName,
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmProvider: this.llmProvider,
-      verbose: this.verbose,
-    });
-
-    this.observeHandler = new StagehandObserveHandler({
-      stagehand: this,
-      logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      defaultModelName: this.defaultModelName,
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmProvider: this.llmProvider,
-      verbose: this.verbose,
-    });
   }
 
   async init({
@@ -421,6 +387,40 @@ export class Stagehand {
 
     await this.context.addInitScript({
       content: scriptContent,
+    });
+
+    this.actHandler = new StagehandActHandler({
+      stagehand: this,
+      verbose: this.verbose,
+      llmProvider: this.llmProvider,
+      enableCaching: this.enableCaching,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+    });
+
+    this.extractHandler = new StagehandExtractHandler({
+      stagehand: this,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+      llmProvider: this.llmProvider,
+      verbose: this.verbose,
+    });
+
+    this.observeHandler = new StagehandObserveHandler({
+      stagehand: this,
+      logger: this.logger,
+      waitForSettledDom: this._waitForSettledDom.bind(this),
+      defaultModelName: this.defaultModelName,
+      startDomDebug: this.startDomDebug.bind(this),
+      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+      llmProvider: this.llmProvider,
+      verbose: this.verbose,
     });
 
     return { debugUrl, sessionUrl };
@@ -644,6 +644,10 @@ export class Stagehand {
     message: string;
     action: string;
   }> {
+    if (!this.actHandler) {
+      throw new Error("Act handler not initialized");
+    }
+
     useVision = useVision ?? "fallback";
 
     const requestId = Math.random().toString(36).substring(2);
@@ -717,6 +721,10 @@ export class Stagehand {
     modelName?: AvailableModel;
     domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
+    if (!this.extractHandler) {
+      throw new Error("Extract handler not initialized");
+    }
+
     const requestId = Math.random().toString(36).substring(2);
 
     this.logger({
@@ -774,6 +782,10 @@ export class Stagehand {
     useVision?: boolean;
     domSettleTimeoutMs?: number;
   }): Promise<{ selector: string; description: string }[]> {
+    if (!this.observeHandler) {
+      throw new Error("Observe handler not initialized");
+    }
+
     const requestId = Math.random().toString(36).substring(2);
 
     this.logger({

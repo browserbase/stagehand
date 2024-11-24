@@ -8,8 +8,6 @@ export type AvailableModel =
   | "gpt-4o"
   | "gpt-4o-mini"
   | "gpt-4o-2024-08-06"
-  | "o1-mini"
-  | "o1-preview"
   | "claude-3-5-sonnet-latest"
   | "claude-3-5-sonnet-20241022"
   | "claude-3-5-sonnet-20240620";
@@ -19,8 +17,6 @@ export class LLMProvider {
     "gpt-4o": "openai",
     "gpt-4o-mini": "openai",
     "gpt-4o-2024-08-06": "openai",
-    "o1-mini": "openai",
-    "o1-preview": "openai",
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
     "claude-3-5-sonnet-20241022": "anthropic",

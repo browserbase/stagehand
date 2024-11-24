@@ -1552,7 +1552,7 @@ const testcases = [
   "laroche_form",
   "arxiv",
   "amazon_add_to_cart",
-  //   "expedia"
+  // "expedia"
 ];
 
 Eval("stagehand", {
@@ -1569,7 +1569,9 @@ Eval("stagehand", {
   task: async (input: { name: string; modelName: AvailableModel }) => {
     try {
       // Handle predefined tasks
-      const result = await (tasks as any)[input.name](input.modelName);
+      const result = await (tasks as any)[input.name]({
+        modelName: input.modelName,
+      });
       if (result) {
         console.log(`✅ ${input.name}: Passed`);
       } else {
