@@ -1442,6 +1442,52 @@ const arxiv = async ({ modelName }: { modelName: AvailableModel }) => {
   }
 };
 
+const search_amazon = async ({ modelName }: { modelName: AvailableModel }) => {
+  // Initialize Stagehand with credentials from env
+  const stagehand = new Stagehand({
+    env,
+  });
+
+  // Initialize the browser with Claude 3.5 Sonnet
+  const { debugUrl, sessionUrl } = await stagehand.init({
+    modelName,
+  });
+
+  // Navigate directly to the product page
+  await stagehand.page.goto(
+    "https://www.amazon.com/Laptop-MacBook-Surface-Water-Resistant-Accessories/dp/B0D5M4H5CD",
+  );
+
+  await stagehand.page.waitForTimeout(5000);
+
+  // Add to cart
+  await stagehand.act({
+    action: "click the 'Add to Cart' button",
+  });
+
+  // Wait a moment for the cart to update
+  await stagehand.page.waitForTimeout(2000);
+
+  // Proceed to checkout
+  await stagehand.act({
+    action: "click the 'Proceed to checkout' button",
+  });
+
+  // Wait for page load and check URL
+  await stagehand.page.waitForTimeout(2000);
+  const currentUrl = stagehand.page.url();
+  const expectedUrlPrefix = "https://www.amazon.com/ap/signin";
+
+  await stagehand.context.close();
+
+  return {
+    _success: currentUrl.startsWith(expectedUrlPrefix),
+    currentUrl,
+    debugUrl,
+    sessionUrl,
+  };
+};
+
 const tasks = {
   vanta,
   vanta_h,
@@ -1459,6 +1505,7 @@ const tasks = {
   laroche_form,
   arxiv,
   expedia,
+  search_amazon,
 };
 
 const exactMatch = (args: {
@@ -1486,20 +1533,21 @@ const exactMatch = (args: {
 };
 
 const testcases = [
-  "vanta",
-  "vanta_h",
-  "peeler_simple",
-  "wikipedia",
-  "peeler_complex",
-  "simple_google_search",
-  "extract_github_stars",
-  "extract_collaborators_from_github_repository",
-  "extract_last_twenty_github_commits",
-  "google_jobs",
-  "homedepot",
-  "extract_partners",
-  "laroche_form",
-  "arxiv",
+  // "vanta",
+  // "vanta_h",
+  // "peeler_simple",
+  // "wikipedia",
+  // "peeler_complex",
+  // "simple_google_search",
+  // "extract_github_stars",
+  // "extract_collaborators_from_github_repository",
+  // "extract_last_twenty_github_commits",
+  // "google_jobs",
+  // "homedepot",
+  // "extract_partners",
+  // "laroche_form",
+  // "arxiv",
+  "search_amazon",
   //   "expedia"
 ];
 
@@ -1533,6 +1581,4 @@ Eval("stagehand", {
     }
   },
   scores: [exactMatch],
-  //   maxConcurrency: 5,
-  // trialCount: 3,
 });
