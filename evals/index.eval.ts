@@ -1277,7 +1277,7 @@ const arxiv: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const tasks: Record<string, EvalFunction> = {
+const tasks = {
   vanta,
   vanta_h,
   peeler_simple,
@@ -1361,7 +1361,7 @@ Eval("stagehand", {
       testcases.map((test) => ({
         input: { name: test, modelName: model },
         name: test,
-        tags: [model],
+        tags: [model, test],
       })),
     );
   },
