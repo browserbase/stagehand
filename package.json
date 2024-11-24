@@ -7,6 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
+    "start": "node server.js",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "format": "prettier --write .",
