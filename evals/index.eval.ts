@@ -1361,7 +1361,7 @@ Eval("stagehand", {
     return models.flatMap((model) =>
       testcases.map((test) => ({
         input: { name: test, modelName: model },
-        name: `${test}-${model}`,
+        name: test,
         tags: [model],
       })),
     );
@@ -1388,5 +1388,5 @@ Eval("stagehand", {
   },
   scores: [exactMatch, errorMatch],
   //   maxConcurrency: 5,
-  // trialCount: 3,
+  trialCount: 10,
 });
