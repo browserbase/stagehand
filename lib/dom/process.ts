@@ -219,6 +219,8 @@ function collectEssentialAttributes(element: Element): string {
     "aria-description",
     "aria-expanded",
     "aria-haspopup",
+    "type",
+    "value",
   ];
 
   const attrs: string[] = essentialAttributes
