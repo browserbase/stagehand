@@ -6,55 +6,32 @@ import process from "process";
 import { EvalLogger } from "./utils";
 import { LogLine } from "../lib/types";
 
-const env: "BROWSERBASE" | "LOCAL" =
+const env =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
     ? "BROWSERBASE"
     : "LOCAL";
 
 const enableCaching = process.env.EVAL_ENABLE_CACHING?.toLowerCase() === "true";
+
 const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-20241022"];
 
-const defaultStagehandOptions = {
-  env,
-  headless: false,
-  verbose: 2 as const,
-  debugDom: true,
-  enableCaching,
-};
-
-const initStagehand = async ({
-  modelName,
-  domSettleTimeoutMs,
-}: {
-  modelName: AvailableModel;
-  domSettleTimeoutMs?: number;
-}) => {
+const expedia = async (modelName: AvailableModel) => {
   const logger = new EvalLogger();
+
   const stagehand = new Stagehand({
-    ...defaultStagehandOptions,
+    env,
+    headless: false,
+    verbose: 2,
+    debugDom: true,
     logger: (logLine: LogLine) => {
       logger.log(logLine);
     },
+    enableCaching,
   });
+
   logger.init(stagehand);
-  const initResponse = await stagehand.init({ modelName, domSettleTimeoutMs });
-  return { stagehand, logger, initResponse };
-};
 
-type EvalFunction = (args: { modelName: AvailableModel }) => Promise<{
-  _success: boolean;
-  logs: LogLine[];
-  debugUrl: string;
-  sessionUrl: string;
-  error?: any;
-}>;
-
-const expedia: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto("https://www.expedia.com/flights");
@@ -107,12 +84,22 @@ const expedia: EvalFunction = async ({ modelName }) => {
     await stagehand.context.close().catch(() => {});
   }
 };
-const vanta: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const vanta = async (modelName: AvailableModel) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    headless: process.env.HEADLESS !== "false",
+    logger: (message: any) => {
+      logger.log(message);
+    },
+    verbose: 2,
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   await stagehand.page.goto("https://www.vanta.com/");
 
@@ -169,12 +156,22 @@ const vanta: EvalFunction = async ({ modelName }) => {
   };
 };
 
-const vanta_h: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const vanta_h = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    verbose: 2,
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   await stagehand.page.goto("https://www.vanta.com/");
 
@@ -194,12 +191,26 @@ const vanta_h: EvalFunction = async ({ modelName }) => {
   };
 };
 
-const simple_google_search: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const simple_google_search = async ({
+  modelName,
+}: {
+  modelName: AvailableModel;
+}) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    verbose: 2,
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   await stagehand.page.goto("https://www.google.com");
 
@@ -221,12 +232,22 @@ const simple_google_search: EvalFunction = async ({ modelName }) => {
   };
 };
 
-const peeler_simple: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const peeler_simple = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    verbose: 2,
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
 
@@ -246,12 +267,22 @@ const peeler_simple: EvalFunction = async ({ modelName }) => {
   };
 };
 
-const peeler_complex: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const peeler_complex = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
@@ -307,13 +338,25 @@ const peeler_complex: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const homedepot: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
+const homedepot = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
+  });
+
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({
     modelName,
     domSettleTimeoutMs: 60_000,
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
@@ -411,12 +454,26 @@ const homedepot: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const extract_github_stars: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const extract_github_stars = async ({
+  modelName,
+}: {
+  modelName: AvailableModel;
+}) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -459,14 +516,26 @@ const extract_github_stars: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const extract_collaborators_from_github_repository: EvalFunction = async ({
+const extract_collaborators_from_github_repository = async ({
   modelName,
+}: {
+  modelName: AvailableModel;
 }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -511,14 +580,26 @@ const extract_collaborators_from_github_repository: EvalFunction = async ({
   }
 };
 
-const extract_last_twenty_github_commits: EvalFunction = async ({
+const extract_last_twenty_github_commits = async ({
   modelName,
+}: {
+  modelName: AvailableModel;
 }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init();
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
@@ -572,12 +653,22 @@ const extract_last_twenty_github_commits: EvalFunction = async ({
   }
 };
 
-const wikipedia: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const wikipedia = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
   await stagehand.act({
@@ -599,12 +690,27 @@ const wikipedia: EvalFunction = async ({ modelName }) => {
 };
 
 // Validate that the action is not found on the page
-const nonsense_action: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const nonsense_action = async ({
+  modelName,
+}: {
+  modelName: AvailableModel;
+}) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 2,
+    debugDom: true,
+    headless: true,
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
@@ -645,12 +751,23 @@ const nonsense_action: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const costar: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const costar = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
   // TODO: fix this eval - does not work in headless mode
   try {
     await Promise.race([
@@ -725,12 +842,23 @@ const costar: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const google_jobs: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const google_jobs = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto("https://www.google.com/");
@@ -845,12 +973,27 @@ const google_jobs: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const extract_partners: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const extract_partners = async ({
+  modelName,
+}: {
+  modelName: AvailableModel;
+}) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto("https://ramp.com");
@@ -984,12 +1127,23 @@ const extract_partners: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const laroche_form: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const laroche_form = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   try {
     await stagehand.page.goto(
@@ -1066,12 +1220,23 @@ const laroche_form: EvalFunction = async ({ modelName }) => {
   }
 };
 
-const arxiv: EvalFunction = async ({ modelName }) => {
-  const { stagehand, logger, initResponse } = await initStagehand({
-    modelName,
+const arxiv = async ({ modelName }: { modelName: AvailableModel }) => {
+  const logger = new EvalLogger();
+
+  const stagehand = new Stagehand({
+    env,
+    verbose: 2,
+    debugDom: true,
+    headless: process.env.HEADLESS !== "false",
+    logger: (logLine: LogLine) => {
+      logger.log(logLine);
+    },
+    enableCaching,
   });
 
-  const { debugUrl, sessionUrl } = initResponse;
+  logger.init(stagehand);
+
+  const { debugUrl, sessionUrl } = await stagehand.init({ modelName });
 
   interface Paper {
     title: string;
@@ -1320,22 +1485,6 @@ const exactMatch = (args: {
   };
 };
 
-const errorMatch = (args: {
-  input: any;
-  output: any;
-  expected?: any;
-}): {
-  name: string;
-  score: number;
-} => {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
-
-  return {
-    name: "Error rate",
-    score: args.output?.error !== undefined ? 1 : 0,
-  };
-};
-
 const testcases = [
   "vanta",
   "vanta_h",
@@ -1360,21 +1509,15 @@ Eval("stagehand", {
     return models.flatMap((model) =>
       testcases.map((test) => ({
         input: { name: test, modelName: model },
-        name: test,
-        tags: [model, test],
-        metadata: {
-          model,
-          test,
-        },
+        name: `${test}-${model}`,
+        tags: [model],
       })),
     );
   },
   task: async (input: { name: string; modelName: AvailableModel }) => {
     try {
       // Handle predefined tasks
-      const result = await (tasks as any)[input.name]({
-        modelName: input.modelName,
-      });
+      const result = await (tasks as any)[input.name](input.modelName);
       if (result) {
         console.log(`✅ ${input.name}: Passed`);
       } else {
@@ -1389,7 +1532,7 @@ Eval("stagehand", {
       };
     }
   },
-  scores: [exactMatch, errorMatch],
-  maxConcurrency: 10,
-  trialCount: 10,
+  scores: [exactMatch],
+  //   maxConcurrency: 5,
+  // trialCount: 3,
 });
