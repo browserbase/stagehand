@@ -1,8 +1,9 @@
-import { AvailableModel, LLMProvider } from "../llm/LLMProvider";
+import { LLMProvider } from "../llm/LLMProvider";
 import { Stagehand } from "../index";
 import { z } from "zod";
-import { LogLine } from "../types";
+import { AvailableModel, LogLine } from "../types";
 import { extract } from "../inference";
+import { LLMClient } from "../llm/LLMClient";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -13,18 +14,18 @@ export class StagehandExtractHandler {
   ) => Promise<void>;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
-  private readonly defaultModelName: AvailableModel;
   private readonly llmProvider: LLMProvider;
+  private readonly llmClient: LLMClient;
   private readonly verbose: 0 | 1 | 2;
 
   constructor({
     stagehand,
     logger,
     waitForSettledDom,
-    defaultModelName,
     startDomDebug,
     cleanupDomDebug,
     llmProvider,
+    llmClient,
     verbose,
   }: {
     stagehand: Stagehand;
@@ -35,19 +36,20 @@ export class StagehandExtractHandler {
       auxiliary?: { [key: string]: { value: string; type: string } };
     }) => void;
     waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
-    defaultModelName: AvailableModel;
     startDomDebug: () => Promise<void>;
     cleanupDomDebug: () => Promise<void>;
     llmProvider: LLMProvider;
+    llmClient: LLMClient;
     verbose: 0 | 1 | 2;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
-    this.defaultModelName = defaultModelName;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
     this.llmProvider = llmProvider;
+    this.llmClient = llmClient;
+    this.verbose = verbose;
   }
 
   public async extract<T extends z.AnyZodObject>({
@@ -56,7 +58,7 @@ export class StagehandExtractHandler {
     progress = "",
     content = {},
     chunksSeen = [],
-    modelName,
+    llmClient,
     requestId,
     domSettleTimeoutMs,
   }: {
@@ -65,7 +67,7 @@ export class StagehandExtractHandler {
     progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
-    modelName?: AvailableModel;
+    llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
@@ -114,7 +116,7 @@ export class StagehandExtractHandler {
       domElements: outputString,
       llmProvider: this.llmProvider,
       schema,
-      modelName: modelName || this.defaultModelName,
+      llmClient,
       chunksSeen: chunksSeen.length,
       chunksTotal: chunks.length,
       requestId,
@@ -170,7 +172,7 @@ export class StagehandExtractHandler {
         progress: newProgress,
         content: output,
         chunksSeen,
-        modelName,
+        llmClient,
         domSettleTimeoutMs,
       });
     }

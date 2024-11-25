@@ -1,5 +1,5 @@
 import { Stagehand } from "../index";
-import { AvailableModel, LLMProvider } from "../llm/LLMProvider";
+import { LLMProvider } from "../llm/LLMProvider";
 import { ScreenshotService } from "../vision";
 import { verifyActCompletion, act, fillInVariables } from "../inference";
 import {
@@ -9,7 +9,7 @@ import {
 } from "../types";
 import { Locator, Page } from "@playwright/test";
 import { ActionCache } from "../cache/ActionCache";
-import { modelsWithVision } from "../llm/LLMClient";
+import { LLMClient, modelsWithVision } from "../llm/LLMClient";
 import { generateId } from "../utils";
 
 export class StagehandActHandler {
@@ -22,7 +22,7 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number,
   ) => Promise<void>;
   private readonly actionCache: ActionCache | undefined;
-  private readonly defaultModelName: AvailableModel;
+  private readonly llmClient: LLMClient;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
   private actions: { [key: string]: { result: string; action: string } };
@@ -34,7 +34,7 @@ export class StagehandActHandler {
     enableCaching,
     logger,
     waitForSettledDom,
-    defaultModelName,
+    llmClient,
     startDomDebug,
     cleanupDomDebug,
   }: {
@@ -44,7 +44,7 @@ export class StagehandActHandler {
     enableCaching: boolean;
     logger: (logLine: LogLine) => void;
     waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
-    defaultModelName: AvailableModel;
+    llmClient: LLMClient;
     startDomDebug: () => Promise<void>;
     cleanupDomDebug: () => Promise<void>;
   }) {
@@ -55,7 +55,7 @@ export class StagehandActHandler {
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
-    this.defaultModelName = defaultModelName;
+    this.llmClient = llmClient;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
     this.actions = {};
@@ -75,7 +75,7 @@ export class StagehandActHandler {
     requestId,
     action,
     steps,
-    model,
+    llmClient,
     domSettleTimeoutMs,
   }: {
     completed: boolean;
@@ -83,7 +83,7 @@ export class StagehandActHandler {
     requestId: string;
     action: string;
     steps: string;
-    model: AvailableModel;
+    llmClient: LLMClient;
     domSettleTimeoutMs?: number;
   }): Promise<boolean> {
     await this.waitForSettledDom(domSettleTimeoutMs);
@@ -158,7 +158,7 @@ export class StagehandActHandler {
         goal: action,
         steps,
         llmProvider: this.llmProvider,
-        modelName: model,
+        llmClient,
         screenshot: fullpageScreenshot,
         domElements,
         logger: this.logger,
@@ -712,12 +712,11 @@ export class StagehandActHandler {
     requestId,
     steps,
     chunksSeen,
-    modelName,
+    llmClient,
     useVision,
     verifierUseVision,
     retries,
     variables,
-    model,
     domSettleTimeoutMs,
   }: {
     action: string;
@@ -725,12 +724,11 @@ export class StagehandActHandler {
     requestId: string;
     steps: string;
     chunksSeen: number[];
-    modelName: AvailableModel;
+    llmClient: LLMClient;
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
     retries: number;
     variables: Record<string, string>;
-    model: AvailableModel;
     domSettleTimeoutMs?: number;
   }) {
     if (!this.enableCaching) {
@@ -859,7 +857,7 @@ export class StagehandActHandler {
         let actionCompleted = await this._verifyActionCompletion({
           completed: true,
           verifierUseVision,
-          model,
+          llmClient,
           steps,
           requestId,
           action,
@@ -891,7 +889,7 @@ export class StagehandActHandler {
         action,
         steps,
         chunksSeen,
-        modelName,
+        llmClient,
         useVision,
         verifierUseVision,
         retries,
@@ -927,7 +925,7 @@ export class StagehandActHandler {
     action,
     steps = "",
     chunksSeen,
-    modelName,
+    llmClient,
     useVision,
     verifierUseVision,
     retries = 0,
@@ -940,7 +938,7 @@ export class StagehandActHandler {
     action: string;
     steps?: string;
     chunksSeen: number[];
-    modelName?: AvailableModel;
+    llmClient: LLMClient;
     useVision: boolean | "fallback";
     verifierUseVision: boolean;
     retries?: number;
@@ -952,10 +950,7 @@ export class StagehandActHandler {
   }): Promise<{ success: boolean; message: string; action: string }> {
     try {
       await this.waitForSettledDom(domSettleTimeoutMs);
-
       await this.startDomDebug();
-
-      const model = modelName ?? this.defaultModelName;
 
       if (this.enableCaching && !skipActionCacheForThisStep) {
         const response = await this._runCachedActionIfAvailable({
@@ -964,12 +959,11 @@ export class StagehandActHandler {
           requestId,
           steps,
           chunksSeen,
-          modelName: model,
+          llmClient,
           useVision,
           verifierUseVision,
           retries,
           variables,
-          model,
           domSettleTimeoutMs,
         });
 
@@ -980,7 +974,7 @@ export class StagehandActHandler {
             action,
             steps,
             chunksSeen,
-            modelName,
+            llmClient,
             useVision,
             verifierUseVision,
             retries,
@@ -993,10 +987,7 @@ export class StagehandActHandler {
         }
       }
 
-      if (
-        !modelsWithVision.includes(model) &&
-        (useVision !== false || verifierUseVision)
-      ) {
+      if (!llmClient.hasVision && (useVision !== false || verifierUseVision)) {
         this.logger({
           category: "action",
           message:
@@ -1004,7 +995,7 @@ export class StagehandActHandler {
           level: 1,
           auxiliary: {
             model: {
-              value: model,
+              value: llmClient.modelName,
               type: "string",
             },
             useVision: {
@@ -1075,7 +1066,7 @@ export class StagehandActHandler {
       // Prepare annotated screenshot if vision is enabled
       let annotatedScreenshot: Buffer | undefined;
       if (useVision === true) {
-        if (!modelsWithVision.includes(model)) {
+        if (!llmClient.hasVision) {
           this.logger({
             category: "action",
             message:
@@ -1083,7 +1074,7 @@ export class StagehandActHandler {
             level: 1,
             auxiliary: {
               model: {
-                value: model,
+                value: llmClient.modelName,
                 type: "string",
               },
             },
@@ -1106,7 +1097,7 @@ export class StagehandActHandler {
         domElements: outputString,
         steps,
         llmProvider: this.llmProvider,
-        modelName: model,
+        llmClient,
         screenshot: annotatedScreenshot,
         logger: this.logger,
         requestId,
@@ -1150,7 +1141,7 @@ export class StagehandActHandler {
               (!steps.endsWith("\n") ? "\n" : "") +
               "## Step: Scrolled to another section\n",
             chunksSeen,
-            modelName,
+            llmClient,
             useVision,
             verifierUseVision,
             requestId,
@@ -1176,7 +1167,7 @@ export class StagehandActHandler {
             action,
             steps,
             chunksSeen,
-            modelName,
+            llmClient,
             useVision: true,
             verifierUseVision,
             requestId,
@@ -1312,7 +1303,7 @@ export class StagehandActHandler {
           requestId,
           action,
           steps,
-          model,
+          llmClient,
           domSettleTimeoutMs,
         });
 
@@ -1326,7 +1317,7 @@ export class StagehandActHandler {
           return this.act({
             action,
             steps,
-            modelName,
+            llmClient,
             chunksSeen,
             useVision,
             verifierUseVision,
@@ -1374,7 +1365,7 @@ export class StagehandActHandler {
           return this.act({
             action,
             steps,
-            modelName,
+            llmClient,
             useVision,
             verifierUseVision,
             retries: retries + 1,

@@ -2,18 +2,15 @@ import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
 import { LLMCache } from "../cache/LLMCache";
-import { LogLine } from "../types";
-
-export type AvailableModel =
-  | "gpt-4o"
-  | "gpt-4o-mini"
-  | "gpt-4o-2024-08-06"
-  | "claude-3-5-sonnet-latest"
-  | "claude-3-5-sonnet-20241022"
-  | "claude-3-5-sonnet-20240620";
+import {
+  LogLine,
+  AvailableModel,
+  ModelProvider,
+  ClientOptions,
+} from "../types";
 
 export class LLMProvider {
-  private modelToProviderMap: { [key in AvailableModel]: string } = {
+  private modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
     "gpt-4o": "openai",
     "gpt-4o-mini": "openai",
     "gpt-4o-2024-08-06": "openai",
@@ -51,7 +48,10 @@ export class LLMProvider {
     this.cache.deleteCacheForRequestId(requestId);
   }
 
-  getClient(modelName: AvailableModel, requestId: string): LLMClient {
+  getClient(
+    modelName: AvailableModel,
+    clientOptions?: ClientOptions,
+  ): LLMClient {
     const provider = this.modelToProviderMap[modelName];
     if (!provider) {
       throw new Error(`Unsupported model: ${modelName}`);
@@ -63,14 +63,16 @@ export class LLMProvider {
           this.logger,
           this.enableCaching,
           this.cache,
-          requestId,
+          modelName,
+          clientOptions,
         );
       case "anthropic":
         return new AnthropicClient(
           this.logger,
           this.enableCaching,
           this.cache,
-          requestId,
+          modelName,
+          clientOptions,
         );
       default:
         throw new Error(`Unsupported provider: ${provider}`);

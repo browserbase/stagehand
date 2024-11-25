@@ -1,34 +1,34 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
 import { LLMClient, ChatCompletionOptions } from "./LLMClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LLMCache } from "../cache/LLMCache";
-import { LogLine } from "../types";
+import { AvailableModel, LogLine } from "../types";
+import { Message, MessageCreateParams } from "@anthropic-ai/sdk/resources";
 
-export class AnthropicClient implements LLMClient {
+export class AnthropicClient extends LLMClient {
   private client: Anthropic;
   private cache: LLMCache | undefined;
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
-  private requestId: string;
 
   constructor(
     logger: (message: LogLine) => void,
     enableCaching = false,
     cache: LLMCache | undefined,
-    requestId: string,
+    modelName: AvailableModel,
+    clientOptions?: ClientOptions,
   ) {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    super(modelName);
+    this.client = new Anthropic(clientOptions);
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
-    this.requestId = requestId;
   }
 
   async createChatCompletion(
     options: ChatCompletionOptions & { retries?: number },
-  ) {
+  ): Promise<any> {
+    // TODO (kamath): remove this forced typecast
     const { image: _, ...optionsWithoutImage } = options;
     this.logger({
       category: "anthropic",
@@ -43,7 +43,7 @@ export class AnthropicClient implements LLMClient {
     });
     // Try to get cached response
     const cacheOptions = {
-      model: options.model,
+      model: this.modelName,
       messages: options.messages,
       temperature: options.temperature,
       image: options.image,
@@ -53,7 +53,10 @@ export class AnthropicClient implements LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get(cacheOptions, this.requestId);
+      const cachedResponse = await this.cache.get(
+        cacheOptions,
+        options.requestId,
+      );
       if (cachedResponse) {
         this.logger({
           category: "llm_cache",
@@ -65,7 +68,7 @@ export class AnthropicClient implements LLMClient {
               type: "object",
             },
             requestId: {
-              value: this.requestId,
+              value: options.requestId,
               type: "string",
             },
             cacheOptions: {
@@ -86,7 +89,7 @@ export class AnthropicClient implements LLMClient {
               type: "object",
             },
             requestId: {
-              value: this.requestId,
+              value: options.requestId,
               type: "string",
             },
           },
@@ -141,10 +144,17 @@ export class AnthropicClient implements LLMClient {
       const jsonSchema = zodToJsonSchema(options.response_model.schema);
 
       // Extract the actual schema properties
+      // TODO (kamath): fix this forced typecast
       const schemaProperties =
-        jsonSchema.definitions?.MySchema?.properties || jsonSchema.properties;
+        (
+          jsonSchema.definitions?.MySchema as {
+            properties?: Record<string, any>;
+          }
+        )?.properties ||
+        (jsonSchema as { properties?: Record<string, any> }).properties;
       const schemaRequired =
-        jsonSchema.definitions?.MySchema?.required || jsonSchema.required;
+        (jsonSchema.definitions?.MySchema as { required?: string[] })
+          ?.required || (jsonSchema as { required?: string[] }).required;
 
       toolDefinition = {
         name: "print_extracted_data",
@@ -162,9 +172,9 @@ export class AnthropicClient implements LLMClient {
       anthropicTools.push(toolDefinition);
     }
 
-    const response = await this.client.messages.create({
-      model: options.model,
-      max_tokens: options.max_tokens || 1500,
+    const response = (await this.client.messages.create({
+      model: this.modelName,
+      max_tokens: options.maxTokens || 1500,
       messages: userMessages.map((msg) => ({
         role: msg.role,
         content: msg.content,
@@ -172,7 +182,7 @@ export class AnthropicClient implements LLMClient {
       tools: anthropicTools,
       system: systemMessage?.content,
       temperature: options.temperature,
-    });
+    } as MessageCreateParams)) as Message; // TODO (kamath): remove this forced typecast
 
     this.logger({
       category: "anthropic",
@@ -184,7 +194,7 @@ export class AnthropicClient implements LLMClient {
           type: "object",
         },
         requestId: {
-          value: this.requestId,
+          value: options.requestId,
           type: "string",
         },
       },
@@ -235,7 +245,7 @@ export class AnthropicClient implements LLMClient {
           type: "object",
         },
         requestId: {
-          value: this.requestId,
+          value: options.requestId,
           type: "string",
         },
       },
@@ -246,7 +256,7 @@ export class AnthropicClient implements LLMClient {
       if (toolUse && "input" in toolUse) {
         const result = toolUse.input;
         if (this.enableCaching) {
-          this.cache.set(cacheOptions, result, this.requestId);
+          this.cache.set(cacheOptions, result, options.requestId);
         }
 
         return result;
@@ -263,7 +273,7 @@ export class AnthropicClient implements LLMClient {
           level: 1,
           auxiliary: {
             requestId: {
-              value: this.requestId,
+              value: options.requestId,
               type: "string",
             },
           },
@@ -275,14 +285,14 @@ export class AnthropicClient implements LLMClient {
     }
 
     if (this.enableCaching) {
-      this.cache.set(cacheOptions, transformedResponse, this.requestId);
+      this.cache.set(cacheOptions, transformedResponse, options.requestId);
       this.logger({
         category: "anthropic",
         message: "cached response",
         level: 1,
         auxiliary: {
           requestId: {
-            value: this.requestId,
+            value: options.requestId,
             type: "string",
           },
           transformedResponse: {
