@@ -21,7 +21,6 @@ import {
   ChatMessage,
   LLMClient,
 } from "./llm/LLMClient";
-import { AvailableModel } from "./types";
 
 export async function verifyActCompletion({
   goal,
