@@ -11,7 +11,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/browserbase/stagehand/actions/workflows/ci.yml"><img alt="Build Status" src="https://github.com/browserbase/stagehand/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://img.shields.io/npm/v/@browserbasehq/stagehand.svg" /></a>
   <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
   <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://img.shields.io/badge/slack-Join%20our%20community-FEC89A.svg?logo=slack" /></a>
@@ -33,8 +32,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
 
@@ -220,8 +218,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE]
-> `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
