@@ -1,8 +1,8 @@
-import { AvailableModel, LLMProvider } from "../llm/LLMProvider";
-import { LogLine } from "../types";
+import { LLMProvider } from "../llm/LLMProvider";
+import { LogLine, AvailableModel } from "../types";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
-import { modelsWithVision } from "../llm/LLMClient";
+import { LLMClient, modelsWithVision } from "../llm/LLMClient";
 import { ScreenshotService } from "../vision";
 import { generateId } from "../utils";
 
@@ -14,9 +14,9 @@ export class StagehandObserveHandler {
   ) => Promise<void>;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
-  private readonly defaultModelName: AvailableModel;
   private readonly llmProvider: LLMProvider;
   private readonly verbose: 0 | 1 | 2;
+  private readonly llmClient: LLMClient;
   private observations: {
     [key: string]: {
       result: { selector: string; description: string }[];
@@ -28,29 +28,29 @@ export class StagehandObserveHandler {
     stagehand,
     logger,
     waitForSettledDom,
-    defaultModelName,
     startDomDebug,
     cleanupDomDebug,
     llmProvider,
     verbose,
+    llmClient,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
-    defaultModelName: AvailableModel;
     startDomDebug: () => Promise<void>;
     cleanupDomDebug: () => Promise<void>;
     llmProvider: LLMProvider;
     verbose: 0 | 1 | 2;
+    llmClient: LLMClient;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
-    this.defaultModelName = defaultModelName;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
     this.llmProvider = llmProvider;
     this.verbose = verbose;
+    this.llmClient = llmClient;
     this.observations = {};
   }
 
@@ -69,23 +69,20 @@ export class StagehandObserveHandler {
     instruction,
     useVision,
     fullPage,
-    modelName,
+    llmClient,
     requestId,
     domSettleTimeoutMs,
   }: {
     instruction: string;
     useVision: boolean;
     fullPage: boolean;
-    modelName?: AvailableModel;
+    llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
   }): Promise<{ selector: string; description: string }[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
-
-    const model = modelName ?? this.defaultModelName;
-
     this.logger({
       category: "observation",
       message: "starting observation",
@@ -108,14 +105,14 @@ export class StagehandObserveHandler {
 
     let annotatedScreenshot: Buffer | undefined;
     if (useVision === true) {
-      if (!modelsWithVision.includes(model)) {
+      if (!llmClient.hasVision) {
         this.logger({
           category: "observation",
           message: "Model does not support vision. Skipping vision processing.",
           level: 1,
           auxiliary: {
             model: {
-              value: model,
+              value: llmClient.modelName,
               type: "string",
             },
           },
@@ -138,7 +135,7 @@ export class StagehandObserveHandler {
       instruction,
       domElements: outputString,
       llmProvider: this.llmProvider,
-      modelName: modelName || this.defaultModelName,
+      llmClient,
       image: annotatedScreenshot,
       requestId,
     });

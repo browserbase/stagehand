@@ -16,14 +16,16 @@ import {
   buildMetadataPrompt,
 } from "./prompt";
 import { z } from "zod";
-import { AvailableModel, LLMProvider } from "./llm/LLMProvider";
-import { AnnotatedScreenshotText, ChatMessage } from "./llm/LLMClient";
+import {
+  AnnotatedScreenshotText,
+  ChatMessage,
+  LLMClient,
+} from "./llm/LLMClient";
 
 export async function verifyActCompletion({
   goal,
   steps,
-  llmProvider,
-  modelName,
+  llmClient,
   screenshot,
   domElements,
   logger,
@@ -31,21 +33,18 @@ export async function verifyActCompletion({
 }: {
   goal: string;
   steps: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   screenshot?: Buffer;
   domElements?: string;
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
 }): Promise<boolean> {
-  const llmClient = llmProvider.getClient(modelName, requestId);
   const messages: ChatMessage[] = [
     buildVerifyActCompletionSystemPrompt(),
     buildVerifyActCompletionUserPrompt(goal, steps, domElements),
   ];
 
   const response = await llmClient.createChatCompletion({
-    model: modelName,
     messages,
     temperature: 0.1,
     top_p: 1,
@@ -63,6 +62,7 @@ export async function verifyActCompletion({
         completed: z.boolean().describe("true if the goal is accomplished"),
       }),
     },
+    requestId,
   });
 
   if (!response || typeof response !== "object") {
@@ -100,8 +100,7 @@ export async function act({
   action,
   domElements,
   steps,
-  llmProvider,
-  modelName,
+  llmClient,
   screenshot,
   retries = 0,
   logger,
@@ -111,8 +110,7 @@ export async function act({
   action: string;
   steps?: string;
   domElements: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   screenshot?: Buffer;
   retries?: number;
   logger: (message: { category?: string; message: string }) => void;
@@ -126,24 +124,23 @@ export async function act({
   step: string;
   why?: string;
 } | null> {
-  const llmClient = llmProvider.getClient(modelName, requestId);
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
     buildActUserPrompt(action, steps, domElements, variables),
   ];
 
   const response = await llmClient.createChatCompletion({
-    model: modelName,
     messages,
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
-    tool_choice: "auto",
+    tool_choice: "auto" as const,
     tools: actTools,
     image: screenshot
       ? { buffer: screenshot, description: AnnotatedScreenshotText }
       : undefined,
+    requestId,
   });
 
   const toolCalls = response.choices[0].message.tool_calls;
@@ -167,8 +164,7 @@ export async function act({
       action,
       domElements,
       steps,
-      llmProvider,
-      modelName,
+      llmClient,
       retries: retries + 1,
       logger,
       requestId,
@@ -182,8 +178,7 @@ export async function extract({
   previouslyExtractedContent,
   domElements,
   schema,
-  llmProvider,
-  modelName,
+  llmClient,
   chunksSeen,
   chunksTotal,
   requestId,
@@ -193,16 +188,12 @@ export async function extract({
   previouslyExtractedContent: any;
   domElements: string;
   schema: z.ZodObject<any>;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName, requestId);
-
   const extractionResponse = await llmClient.createChatCompletion({
-    model: modelName,
     messages: [
       buildExtractSystemPrompt(),
       buildExtractUserPrompt(instruction, domElements),
@@ -215,10 +206,10 @@ export async function extract({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    requestId,
   });
 
   const refinedResponse = await llmClient.createChatCompletion({
-    model: modelName,
     messages: [
       buildRefineSystemPrompt(),
       buildRefineUserPrompt(
@@ -235,6 +226,7 @@ export async function extract({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    requestId,
   });
 
   const metadataSchema = z.object({
@@ -251,7 +243,6 @@ export async function extract({
   });
 
   const metadataResponse = await llmClient.createChatCompletion({
-    model: modelName,
     messages: [
       buildMetadataSystemPrompt(),
       buildMetadataPrompt(
@@ -269,6 +260,7 @@ export async function extract({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    requestId,
   });
 
   refinedResponse.metadata = metadataResponse;
@@ -279,15 +271,13 @@ export async function extract({
 export async function observe({
   instruction,
   domElements,
-  llmProvider,
-  modelName,
+  llmClient,
   image,
   requestId,
 }: {
   instruction: string;
   domElements: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   image?: Buffer;
   requestId: string;
 }): Promise<{
@@ -308,9 +298,7 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  const llmClient = llmProvider.getClient(modelName, requestId);
   const observationResponse = await llmClient.createChatCompletion({
-    model: modelName,
     messages: [
       buildObserveSystemPrompt(),
       buildObserveUserMessage(instruction, domElements),
@@ -326,6 +314,7 @@ export async function observe({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    requestId,
   });
 
   if (!observationResponse) {
@@ -337,23 +326,20 @@ export async function observe({
 
 export async function ask({
   question,
-  llmProvider,
-  modelName,
+  llmClient,
   requestId,
 }: {
   question: string;
-  llmProvider: LLMProvider;
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   requestId: string;
 }) {
-  const llmClient = llmProvider.getClient(modelName, requestId);
   const response = await llmClient.createChatCompletion({
-    model: modelName,
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    requestId,
   });
 
   // The parsing is now handled in the LLM clients

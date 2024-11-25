@@ -1,10 +1,9 @@
 import { Eval } from "braintrust";
 import { Stagehand } from "../lib";
-import type { AvailableModel } from "../lib/llm/LLMProvider";
 import { z } from "zod";
 import process from "process";
 import { EvalLogger } from "./utils";
-import { LogLine } from "../lib/types";
+import { AvailableModel, LogLine } from "../lib/types";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
