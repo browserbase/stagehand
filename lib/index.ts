@@ -401,7 +401,7 @@ export class Stagehand {
       waitForSettledDom: this._waitForSettledDom.bind(this),
       startDomDebug: this.startDomDebug.bind(this),
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmClient: this.llmProvider.getClient(modelName),
+      llmClient: this.llmClient,
     });
 
     this.extractHandler = new StagehandExtractHandler({
@@ -412,7 +412,7 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient: this.llmProvider.getClient(modelName),
+      llmClient: this.llmClient,
     });
 
     this.observeHandler = new StagehandObserveHandler({
@@ -423,7 +423,7 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient: this.llmProvider.getClient(modelName),
+      llmClient: this.llmClient,
     });
 
     return { debugUrl, sessionUrl };
@@ -431,13 +431,11 @@ export class Stagehand {
 
   async initFromPage(
     page: Page,
-    modelName?: AvailableModel,
+    modelName: AvailableModel = DEFAULT_MODEL_NAME,
   ): Promise<{ context: BrowserContext }> {
     this.page = page;
     this.context = page.context();
-    this.llmClient = this.llmProvider.getClient(
-      modelName || DEFAULT_MODEL_NAME,
-    );
+    this.llmClient = this.llmProvider.getClient(modelName);
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: any) => {
@@ -655,7 +653,9 @@ export class Stagehand {
 
     useVision = useVision ?? "fallback";
     const requestId = Math.random().toString(36).substring(2);
-    const llmClient = this.llmProvider.getClient(modelName);
+    const llmClient: LLMClient = modelName
+      ? this.llmProvider.getClient(modelName)
+      : this.llmClient;
 
     this.log({
       category: "act",
@@ -731,7 +731,9 @@ export class Stagehand {
     }
 
     const requestId = Math.random().toString(36).substring(2);
-    const llmClient = this.llmProvider.getClient(modelName);
+    const llmClient = modelName
+      ? this.llmProvider.getClient(modelName)
+      : this.llmClient;
 
     this.logger({
       category: "extract",
@@ -793,9 +795,9 @@ export class Stagehand {
     }
 
     const requestId = Math.random().toString(36).substring(2);
-    const llmClient = this.llmProvider.getClient(
-      options?.modelName ?? DEFAULT_MODEL_NAME,
-    );
+    const llmClient = options?.modelName
+      ? this.llmProvider.getClient(options.modelName)
+      : this.llmClient;
 
     this.logger({
       category: "observe",

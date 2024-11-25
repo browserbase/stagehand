@@ -23,6 +23,7 @@ export class AnthropicClient extends LLMClient {
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
+    this.modelName = modelName;
   }
 
   async createChatCompletion(
