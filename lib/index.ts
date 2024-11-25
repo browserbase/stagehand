@@ -1,7 +1,7 @@
 import { type Page, type BrowserContext, chromium } from "@playwright/test";
 import { z } from "zod";
 import fs from "fs";
-import { Browserbase } from "@browserbasehq/sdk";
+import { Browserbase, ClientOptions } from "@browserbasehq/sdk";
 import { LLMProvider } from "./llm/LLMProvider";
 import { AvailableModel } from "./types";
 // @ts-ignore we're using a built js file as a string here
@@ -309,6 +309,8 @@ export class Stagehand {
       domSettleTimeoutMs,
       enableCaching,
       browserbaseResumeSessionID,
+      modelName,
+      modelClientOptions,
     }: {
       env: "LOCAL" | "BROWSERBASE";
       apiKey?: string;
@@ -322,6 +324,8 @@ export class Stagehand {
       browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
       enableCaching?: boolean;
       browserbaseResumeSessionID?: string;
+      modelName?: AvailableModel;
+      modelClientOptions?: ClientOptions;
     } = {
       env: "BROWSERBASE",
     },
@@ -338,7 +342,10 @@ export class Stagehand {
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
-    this.llmClient = this.llmProvider.getClient(DEFAULT_MODEL_NAME);
+    this.llmClient = this.llmProvider.getClient(
+      modelName ?? DEFAULT_MODEL_NAME,
+      modelClientOptions,
+    );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
@@ -346,15 +353,20 @@ export class Stagehand {
   }
 
   async init({
-    modelName = DEFAULT_MODEL_NAME,
+    modelName,
+    modelClientOptions,
     domSettleTimeoutMs,
   }: {
     modelName?: AvailableModel;
+    modelClientOptions?: ClientOptions;
     domSettleTimeoutMs?: number;
   } = {}): Promise<{
     debugUrl: string;
     sessionUrl: string;
   }> {
+    const llmClient = modelName
+      ? this.llmProvider.getClient(modelName, modelClientOptions)
+      : this.llmClient;
     const { context, debugUrl, sessionUrl } = await getBrowser(
       this.apiKey,
       this.projectId,
@@ -401,7 +413,7 @@ export class Stagehand {
       waitForSettledDom: this._waitForSettledDom.bind(this),
       startDomDebug: this.startDomDebug.bind(this),
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmClient: this.llmClient,
+      llmClient,
     });
 
     this.extractHandler = new StagehandExtractHandler({
@@ -412,7 +424,7 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient: this.llmClient,
+      llmClient,
     });
 
     this.observeHandler = new StagehandObserveHandler({
@@ -423,19 +435,23 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient: this.llmClient,
+      llmClient,
     });
 
+    this.llmClient = llmClient;
     return { debugUrl, sessionUrl };
   }
 
   async initFromPage(
     page: Page,
-    modelName: AvailableModel = DEFAULT_MODEL_NAME,
+    modelName?: AvailableModel,
+    modelClientOptions?: ClientOptions,
   ): Promise<{ context: BrowserContext }> {
     this.page = page;
     this.context = page.context();
-    this.llmClient = this.llmProvider.getClient(modelName);
+    this.llmClient = modelName
+      ? this.llmProvider.getClient(modelName, modelClientOptions)
+      : this.llmClient;
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: any) => {
@@ -633,12 +649,14 @@ export class Stagehand {
   async act({
     action,
     modelName,
+    modelClientOptions,
     useVision = "fallback",
     variables = {},
     domSettleTimeoutMs,
   }: {
     action: string;
     modelName?: AvailableModel;
+    modelClientOptions?: ClientOptions;
     useVision?: "fallback" | boolean;
     variables?: Record<string, string>;
     domSettleTimeoutMs?: number;
@@ -654,7 +672,7 @@ export class Stagehand {
     useVision = useVision ?? "fallback";
     const requestId = Math.random().toString(36).substring(2);
     const llmClient: LLMClient = modelName
-      ? this.llmProvider.getClient(modelName)
+      ? this.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
 
     this.log({
@@ -723,11 +741,13 @@ export class Stagehand {
     instruction,
     schema,
     modelName,
+    modelClientOptions,
     domSettleTimeoutMs,
   }: {
     instruction: string;
     schema: T;
     modelName?: AvailableModel;
+    modelClientOptions?: ClientOptions;
     domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
     if (!this.extractHandler) {
@@ -736,7 +756,7 @@ export class Stagehand {
 
     const requestId = Math.random().toString(36).substring(2);
     const llmClient = modelName
-      ? this.llmProvider.getClient(modelName)
+      ? this.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
 
     this.logger({
@@ -795,6 +815,7 @@ export class Stagehand {
   async observe(options?: {
     instruction?: string;
     modelName?: AvailableModel;
+    modelClientOptions?: ClientOptions;
     useVision?: boolean;
     domSettleTimeoutMs?: number;
   }): Promise<{ selector: string; description: string }[]> {
@@ -804,7 +825,10 @@ export class Stagehand {
 
     const requestId = Math.random().toString(36).substring(2);
     const llmClient = options?.modelName
-      ? this.llmProvider.getClient(options.modelName)
+      ? this.llmProvider.getClient(
+          options.modelName,
+          options.modelClientOptions,
+        )
       : this.llmClient;
 
     this.logger({
