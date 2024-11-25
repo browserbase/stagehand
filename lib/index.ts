@@ -670,6 +670,10 @@ export class Stagehand {
           value: requestId,
           type: "string",
         },
+        modelName: {
+          value: llmClient.modelName,
+          type: "string",
+        },
       },
     });
 
@@ -748,6 +752,10 @@ export class Stagehand {
           value: requestId,
           type: "string",
         },
+        modelName: {
+          value: llmClient.modelName,
+          type: "string",
+        },
       },
     });
 
@@ -810,6 +818,10 @@ export class Stagehand {
         },
         requestId: {
           value: requestId,
+          type: "string",
+        },
+        modelName: {
+          value: llmClient.modelName,
           type: "string",
         },
       },

@@ -111,7 +111,10 @@ export class OpenAIClient extends LLMClient {
       options.messages = [...options.messages, screenshotMessage];
     }
 
-    const { image, response_model, ...openAiOptions } = options;
+    const { image, response_model, requestId, ...openAiOptions } = {
+      ...options,
+      model: this.modelName,
+    };
 
     let responseFormat = undefined;
     if (options.response_model) {
