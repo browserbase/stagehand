@@ -1,5 +1,5 @@
 {
-  "name": "@browserbasehq/stagehand",
+  "name": "@akamath426/stagehand",
   "version": "1.3.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
