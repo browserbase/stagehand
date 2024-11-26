@@ -11,7 +11,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/browserbase/stagehand/actions/workflows/ci.yml"><img alt="Build Status" src="https://github.com/browserbase/stagehand/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://img.shields.io/npm/v/@browserbasehq/stagehand.svg" /></a>
   <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
   <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://img.shields.io/badge/slack-Join%20our%20community-FEC89A.svg?logo=slack" /></a>
@@ -131,22 +130,49 @@ This constructor is used to create an instance of Stagehand.
 
 - **Arguments:**
 
-  - `env`: `'LOCAL'` or `'BROWSERBASE'`.
+  - `env`: `'LOCAL'` or `'BROWSERBASE'`. Defaults to `'BROWSERBASE'`.
+  - `modelName`: (optional) an `AvailableModel` string to specify the default model to use.
+  - `modelClientOptions`: (optional) configuration options for the model client.
+  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`.
+  - `headless`: a `boolean` that determines if the browser runs in headless mode. Defaults to `false`. When the env is set to `BROWSERBASE`, this will be ignored.
+  - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
+  - `apiKey`: (optional) your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable.
+  - `projectId`: (optional) your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable.
+  - `browserBaseSessionCreateParams`: configuration options for creating new Browserbase sessions.
+  - `browserbaseResumeSessionID`: ID of an existing Browserbase session to resume.
+  - `logger`: a function that handles log messages. Useful for custom logging implementations.
   - `verbose`: an `integer` that enables several levels of logging during automation:
     - `0`: limited to no logging
     - `1`: SDK-level logging
     - `2`: LLM-client level logging (most granular)
   - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
-  - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. It can be overriden in individual function calls if needed. Defaults to 30000 (30 seconds).
-  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`.
 
 - **Returns:**
 
   - An instance of the `Stagehand` class configured with the specified options.
 
 - **Example:**
+
   ```javascript
+  // Basic usage
   const stagehand = new Stagehand();
+
+  // Custom configuration
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    headless: true,
+    enableCaching: true,
+    logger: (logLine) => {
+      console.log(`[${logLine.category}] ${logLine.message}`);
+    },
+  });
+
+  // Resume existing Browserbase session
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    browserbaseResumeSessionID: "existing-session-id",
+  });
   ```
 
 ### Methods
@@ -157,7 +183,9 @@ This constructor is used to create an instance of Stagehand.
 
 - **Arguments:**
 
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use. This will be used for all other methods unless overridden. Defaults to `"gpt-4o"`.
+  - `modelName`: (optional) an `AvailableModel` string to specify the model to use. This will be used for all other methods unless overridden.
+  - `modelClientOptions`: (optional) configuration options for the model client
+  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
 
 - **Returns:**
 
@@ -176,10 +204,12 @@ This constructor is used to create an instance of Stagehand.
 
 - **Arguments:**
 
-  - `action`: a `string` describing the action to perform, e.g., `"search for 'x'"`.
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use.
-  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`.
-  - `domSettleTimeoutMs`: (optional) an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. If not set, defaults to the timeout value specified during initialization.
+  - `action`: a `string` describing the action to perform
+  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
+  - `modelClientOptions`: (optional) configuration options for the model client
+  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`
+  - `variables`: (optional) a `Record<string, string>` of variables to use in the action. Variables in the action string are referenced using `%variable_name%`
+  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
 
 - **Returns:**
 
@@ -189,8 +219,27 @@ This constructor is used to create an instance of Stagehand.
     - `action`: a `string` describing the action performed.
 
 - **Example:**
+
   ```javascript
+  // Basic usage
   await stagehand.act({ action: "click on add to cart" });
+
+  // Using variables
+  await stagehand.act({
+    action: "enter %username% into the username field",
+    variables: {
+      username: "john.doe@example.com",
+    },
+  });
+
+  // Multiple variables
+  await stagehand.act({
+    action: "fill in the form with %username% and %password%",
+    variables: {
+      username: "john.doe",
+      password: "secretpass123",
+    },
+  });
   ```
 
 #### `extract()`
@@ -199,10 +248,11 @@ This constructor is used to create an instance of Stagehand.
 
 - **Arguments:**
 
-  - `instruction`: a `string` providing instructions for extraction.
-  - `schema`: a `z.AnyZodObject` defining the structure of the data to extract.
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use.
-  - `domSettleTimeoutMs`: (optional) an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. If not set, defaults to the timeout value specified during initialization.
+  - `instruction`: a `string` providing instructions for extraction
+  - `schema`: a `z.AnyZodObject` defining the structure of the data to extract
+  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
+  - `modelClientOptions`: (optional) configuration options for the model client
+  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
 
 - **Returns:**
 
@@ -229,13 +279,17 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 - **Arguments:**
 
-  - `instruction`: a `string` providing instructions for the observation.
-  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`.
-  - `domSettleTimeoutMs`: (optional) an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. If not set, defaults to the timeout value specified during initialization.
+  - `instruction`: (optional) a `string` providing instructions for the observation. Defaults to "Find actions that can be performed on this page."
+  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
+  - `modelClientOptions`: (optional) configuration options for the model client
+  - `useVision`: (optional) a `boolean` to determine if vision-based processing should be used. Defaults to `false`
+  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
 
 - **Returns:**
 
-  - A `Promise` that resolves to an array of `string`s representing the actions that can be taken on the current page.
+  - A `Promise` that resolves to an array of objects containing:
+    - `selector`: a `string` representing the element selector
+    - `description`: a `string` describing the possible action
 
 - **Example:**
   ```javascript
