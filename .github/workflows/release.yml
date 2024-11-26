@@ -1,42 +1,43 @@
-name: "release"
+name: Release
+
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  publish:
-    runs-on: "ubuntu-22.04"
-    permissions:
-      id-token: write
-      contents: write
-      packages: write
-      pull-requests: write
-      issues: read
+  release:
+    name: Release
+    runs-on: ubuntu-latest
     steps:
-      - uses: "actions/checkout@v3"
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js 18.x
+        uses: actions/setup-node@v3
         with:
-          fetch-depth: 0
-      - uses: "actions/setup-node@v3"
+          node-version: 18.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Create Release Pull Request or Publish to npm
+        id: changesets
+        uses: changesets/action@v1
         with:
-          node-version: 18
-          cache: "npm"
-      - name: "Cancel previous runs"
-        uses: "styfle/cancel-workflow-action@0.11.0"
-        continue-on-error: true
-        with:
-          access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: "npm i"
-      - run: "npm run build"
-      - name: "release / pull_request"
-        id: "changesets"
-        uses: "dotansimha/changesets-action@v1.5.2"
-        with:
-          publish: "npm run release"
-          version: "npm exec changeset version"
-          commit: "Update stagehand version"
-          title: "Upcoming Release Changes"
-          createGithubReleases: "aggregate"
+          publish: npm run release
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Canary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git checkout main
+          npm version prerelease --preid=canary.${GITHUB_SHA::8} --no-git-tag-version
+          npm publish --tag canary --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
