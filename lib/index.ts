@@ -390,6 +390,9 @@ export class Stagehand {
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: any) => {
       const result = await originalGoto(url, options);
+      if (this.debugDom) {
+        await this.page.evaluate(() => (window.showChunks = this.debugDom));
+      }
       await this.page.waitForLoadState("domcontentloaded");
       await this._waitForSettledDom();
       return result;
@@ -456,6 +459,9 @@ export class Stagehand {
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: any) => {
       const result = await originalGoto(url, options);
+      if (this.debugDom) {
+        await this.page.evaluate(() => (window.showChunks = this.debugDom));
+      }
       await this.page.waitForLoadState("domcontentloaded");
       await this._waitForSettledDom();
       return result;

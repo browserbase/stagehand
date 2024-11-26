@@ -2,6 +2,7 @@ export {};
 declare global {
   interface Window {
     chunkNumber: number;
+    showChunks?: boolean;
     processDom: (chunksSeen: Array<number>) => Promise<{
       outputString: string;
       selectorMap: Record<number, string[]>;
