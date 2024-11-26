@@ -1,9 +1,10 @@
 import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
-import { LLMClient, ChatCompletionOptions } from "./LLMClient";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { LLMCache } from "../cache/LLMCache";
-import { AvailableModel, LogLine } from "../types";
 import { Message, MessageCreateParams } from "@anthropic-ai/sdk/resources";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import { LogLine } from "../../types/log";
+import { AvailableModel } from "../../types/model";
+import { LLMCache } from "../cache/LLMCache";
+import { ChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AnthropicClient extends LLMClient {
   private client: Anthropic;

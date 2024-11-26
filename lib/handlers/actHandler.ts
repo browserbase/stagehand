@@ -2,15 +2,15 @@ import { Stagehand } from "../index";
 import { LLMProvider } from "../llm/LLMProvider";
 import { ScreenshotService } from "../vision";
 import { verifyActCompletion, act, fillInVariables } from "../inference";
-import {
-  LogLine,
-  PlaywrightCommandException,
-  PlaywrightCommandMethodNotSupportedException,
-} from "../types";
 import { Locator, Page } from "@playwright/test";
 import { ActionCache } from "../cache/ActionCache";
 import { LLMClient, modelsWithVision } from "../llm/LLMClient";
 import { generateId } from "../utils";
+import { LogLine } from "../../types/log";
+import {
+  PlaywrightCommandException,
+  PlaywrightCommandMethodNotSupportedException,
+} from "../../types/playwright";
 
 export class StagehandActHandler {
   private readonly stagehand: Stagehand;
@@ -1096,7 +1096,6 @@ export class StagehandActHandler {
         action,
         domElements: outputString,
         steps,
-        llmProvider: this.llmProvider,
         llmClient,
         screenshot: annotatedScreenshot,
         logger: this.logger,

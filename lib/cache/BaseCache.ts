@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import { LogLine } from "../../lib/types";
+import { LogLine } from "../../types/log";
 
 export interface CacheEntry {
   timestamp: number;

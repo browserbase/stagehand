@@ -3,7 +3,8 @@ import { Stagehand } from "../lib";
 import { z } from "zod";
 import process from "process";
 import { EvalLogger } from "./utils";
-import { AvailableModel, LogLine } from "../lib/types";
+import { AvailableModel } from "../types/model";
+import { LogLine } from "../types/log";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"

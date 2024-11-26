@@ -1,14 +1,23 @@
-import { AvailableModel, ToolCall } from "../types";
+import { AvailableModel, ToolCall } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content:
-    | string
-    | {
-        type: "image_url" | "text";
-        image_url?: { url: string };
-        text?: string;
-      }[];
+  content: ChatMessageContent;
+}
+
+export type ChatMessageContent =
+  | string
+  | (ChatMessageImageContent | ChatMessageTextContent)[];
+
+export interface ChatMessageImageContent {
+  type: "image_url";
+  image_url: { url: string };
+  text?: string;
+}
+
+export interface ChatMessageTextContent {
+  type: string;
+  text: string;
 }
 
 export const modelsWithVision: AvailableModel[] = [

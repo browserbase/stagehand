@@ -1,4 +1,4 @@
-async function waitForDomSettle() {
+export async function waitForDomSettle() {
   return new Promise<void>((resolve) => {
     const createTimeout = () => {
       return setTimeout(() => {

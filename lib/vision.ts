@@ -1,10 +1,11 @@
-import { type Frame, type ElementHandle, Page } from "@playwright/test";
+import { Page } from "@playwright/test";
+import { exec } from "child_process";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { exec } from "child_process";
-import { LogLine } from "./types";
+import { LogLine } from "../types/log";
 import { logLineToString } from "./utils";
+
 type AnnotationBox = {
   x: number;
   y: number;

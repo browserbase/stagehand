@@ -1,10 +1,10 @@
-import { LLMProvider } from "../llm/LLMProvider";
-import { LogLine, AvailableModel } from "../types";
+import { LogLine } from "../../types/log";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
-import { LLMClient, modelsWithVision } from "../llm/LLMClient";
-import { ScreenshotService } from "../vision";
+import { LLMClient } from "../llm/LLMClient";
+import { LLMProvider } from "../llm/LLMProvider";
 import { generateId } from "../utils";
+import { ScreenshotService } from "../vision";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -134,7 +134,6 @@ export class StagehandObserveHandler {
     const observationResponse = await observe({
       instruction,
       domElements: outputString,
-      llmProvider: this.llmProvider,
       llmClient,
       image: annotatedScreenshot,
       requestId,

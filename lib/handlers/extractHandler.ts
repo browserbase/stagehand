@@ -1,7 +1,7 @@
 import { LLMProvider } from "../llm/LLMProvider";
 import { Stagehand } from "../index";
 import { z } from "zod";
-import { AvailableModel, LogLine } from "../types";
+import { LogLine } from "../../types/log";
 import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 
@@ -114,7 +114,6 @@ export class StagehandExtractHandler {
       progress,
       previouslyExtractedContent: content,
       domElements: outputString,
-      llmProvider: this.llmProvider,
       schema,
       llmClient,
       chunksSeen: chunksSeen.length,

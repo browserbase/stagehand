@@ -11,8 +11,8 @@
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*", "lib/types/*"]
-    }
+    },
+    "skipLibCheck": true
   },
-
   "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
 }

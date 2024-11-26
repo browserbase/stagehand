@@ -1,4 +1,4 @@
-import { LogLine } from "../../lib/types";
+import { LogLine } from "../../types/log";
 import { BaseCache, CacheEntry } from "./BaseCache";
 
 export interface PlaywrightCommand {

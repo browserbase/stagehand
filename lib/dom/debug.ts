@@ -1,4 +1,4 @@
-async function debugDom() {
+export async function debugDom() {
   window.chunkNumber = 0;
 
   const { selectorMap: multiSelectorMap, outputString } =

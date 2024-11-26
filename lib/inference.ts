@@ -21,6 +21,8 @@ import {
   ChatMessage,
   LLMClient,
 } from "./llm/LLMClient";
+import { VerifyActCompletionParams } from "../types/inference";
+import { ActResult, ActParams } from "../types/act";
 
 export async function verifyActCompletion({
   goal,
@@ -30,15 +32,7 @@ export async function verifyActCompletion({
   domElements,
   logger,
   requestId,
-}: {
-  goal: string;
-  steps: string;
-  llmClient: LLMClient;
-  screenshot?: Buffer;
-  domElements?: string;
-  logger: (message: { category?: string; message: string }) => void;
-  requestId: string;
-}): Promise<boolean> {
+}: VerifyActCompletionParams): Promise<boolean> {
   const messages: ChatMessage[] = [
     buildVerifyActCompletionSystemPrompt(),
     buildVerifyActCompletionUserPrompt(goal, steps, domElements),
@@ -106,24 +100,7 @@ export async function act({
   logger,
   requestId,
   variables,
-}: {
-  action: string;
-  steps?: string;
-  domElements: string;
-  llmClient: LLMClient;
-  screenshot?: Buffer;
-  retries?: number;
-  logger: (message: { category?: string; message: string }) => void;
-  requestId: string;
-  variables?: Record<string, string>;
-}): Promise<{
-  method: string;
-  element: number;
-  args: any[];
-  completed: boolean;
-  step: string;
-  why?: string;
-} | null> {
+}: ActParams): Promise<ActResult | null> {
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
     buildActUserPrompt(action, steps, domElements, variables),

@@ -1,6 +1,6 @@
-import { LogLine } from "../lib/types";
 import { Stagehand } from "../lib";
 import { logLineToString } from "../lib/utils";
+import { LogLine } from "../types/log";
 
 type LogLineEval = LogLine & {
   parsedAuxiliary?: string | object;

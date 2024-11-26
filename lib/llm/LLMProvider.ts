@@ -2,12 +2,12 @@ import { OpenAIClient } from "./OpenAIClient";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
 import { LLMCache } from "../cache/LLMCache";
+import { LogLine } from "../../types/log";
 import {
-  LogLine,
   AvailableModel,
   ModelProvider,
   ClientOptions,
-} from "../types";
+} from "../../types/model";
 
 export class LLMProvider {
   private modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
