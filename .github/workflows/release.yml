@@ -1,34 +1,42 @@
-name: Release
-
+name: "release"
 on:
   push:
-    branches:
-      - main
-
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+    tags:
+      - "v*"
 
 jobs:
-  release:
-    name: Release
-    runs-on: ubuntu-latest
+  publish:
+    runs-on: "ubuntu-22.04"
+    permissions:
+      id-token: write
+      contents: write
+      packages: write
+      pull-requests: write
+      issues: read
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v3
+      - uses: "actions/checkout@v3"
         with:
-          node-version: 20.x
-
-      - name: Install Dependencies
-        run: yarn
-
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
-        uses: changesets/action@v1
+          fetch-depth: 0
+      - uses: "actions/setup-node@v3"
         with:
-          # This expects you to have a script called release which does a build for your packages and calls changeset publish
-          publish: yarn release
+          node-version: 18
+          cache: "npm"
+      - name: "Cancel previous runs"
+        uses: "styfle/cancel-workflow-action@0.11.0"
+        continue-on-error: true
+        with:
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: "npm i"
+      - run: "npm run build"
+      - name: "release / pull_request"
+        id: "changesets"
+        uses: "dotansimha/changesets-action@v1.5.2"
+        with:
+          publish: "npm run release"
+          version: "npm exec changeset version"
+          commit: "Update stagehand version"
+          title: "Upcoming Release Changes"
+          createGithubReleases: "aggregate"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
