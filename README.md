@@ -26,6 +26,7 @@
   - [observe()](#observe)
 - [Model Support](#model-support)
 - [How It Works](#how-it-works)
+- [Stagehand vs Playwright](#stagehand-vs-playwright)
 - [Prompting Tips](#prompting-tips)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -270,7 +271,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE]
+> [!NOTE] 
 > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
@@ -376,6 +377,12 @@ Now we have a list of candidate elements and a way to select them. We can presen
 In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effective than relying on built in javascript APIs, possibly due to tokenization.
 
 Lastly, we use the LLM to write future instructions to itself to help manage it's progress and goals when operating across chunks.
+
+### Stagehand vs Playwright
+
+Below is an example of how to extract a list of companies from the AI Grant website using both Stagehand and Playwright.
+
+![](./docs/media/stagehand-playwright.png)
 
 ## Prompting Tips
 
