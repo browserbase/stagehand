@@ -27,7 +27,7 @@ export async function processDom(chunksSeen: Array<number>) {
 export async function processAllOfDom() {
   console.log("Stagehand (Browser Process): Processing all of DOM");
 
-  const viewportHeight = window.innerHeight;
+  const viewportHeight = window.innerHeight * 0.75;
   const documentHeight = document.documentElement.scrollHeight;
   const totalChunks = Math.ceil(documentHeight / viewportHeight);
 
@@ -87,7 +87,7 @@ export async function processElements(
   selectorMap: Record<number, string[]>;
 }> {
   console.time("processElements:total");
-  const viewportHeight = window.innerHeight;
+  const viewportHeight = Math.ceil(window.innerHeight * 0.75);
   const chunkHeight = viewportHeight * chunk;
 
   // Calculate the maximum scrollable offset
@@ -410,7 +410,7 @@ const isLeafElement = (element: Element) => {
 };
 
 async function pickChunk(chunksSeen: Array<number>) {
-  const viewportHeight = window.innerHeight;
+  const viewportHeight = window.innerHeight * 0.75;
   const documentHeight = document.documentElement.scrollHeight;
 
   const chunks = Math.ceil(documentHeight / viewportHeight);
