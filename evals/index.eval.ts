@@ -1430,10 +1430,12 @@ const testcases = [
   // "expedia"
 ];
 
+const args = process.argv.slice(2);
+const filter = args[0];
+
 Eval("stagehand", {
   data: () => {
-    // create a testcase for each model
-    return models.flatMap((model) =>
+    let allTestcases = models.flatMap((model) =>
       testcases.flatMap((test) => ({
         input: { name: test, modelName: model },
         name: test,
@@ -1444,6 +1446,15 @@ Eval("stagehand", {
         },
       })),
     );
+
+    if (filter) {
+      allTestcases = allTestcases.filter(
+        (testcase) =>
+          testcase.name === filter || testcase.input.name === filter,
+      );
+    }
+
+    return allTestcases;
   },
   task: async (input: {
     name: keyof typeof tasks;

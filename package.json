@@ -11,7 +11,7 @@
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "format": "prettier --write .",
     "cache:clear": "rm -rf .cache",
-    "evals": "npm run build-dom-scripts && npx braintrust eval evals/index.eval.ts",
+    "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build": "npm run build-dom-scripts && tsup lib/index.ts --dts",
     "release": "changeset publish"
