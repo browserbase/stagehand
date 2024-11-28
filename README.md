@@ -382,7 +382,106 @@ Lastly, we use the LLM to write future instructions to itself to help manage it'
 
 Below is an example of how to extract a list of companies from the AI Grant website using both Stagehand and Playwright.
 
-![](./docs/media/stagehand-playwright.png)
+#### Using Stagehand
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+(async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 1,
+    debugDom: true,
+    enableCaching: false,
+  });
+
+  await stagehand.init({ modelName: "gpt-4" });
+  await stagehand.page.goto("https://aigrant.com/");
+  const companyList = await stagehand.extract({
+    instruction: "Extract all companies that received " +
+    "the AI grant and group them with their batch numbers " +
+    "as an array of objects. Each object should contain " +
+    "the company name and its corresponding batch number.",
+    schema: z.object({
+      companies: z.array(
+        z.object({
+          company: z.string(),
+          batch: z.string(),
+        })
+      ),
+    }),
+  });
+
+  console.log("The list of companies and their batch numbers are:");
+  console.log(JSON.stringify(companyList, null, 2));
+})();
+```
+
+#### Using Playwright
+
+```typescript
+const { chromium } = require('playwright');
+
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+
+  await page.goto('https://aigrant.com/');
+  await page.waitForLoadState('networkidle');
+
+  const companyList = await page.evaluate(() => {
+    const companies = [];
+    const contentDiv = document.querySelector('#maincontent');
+    const children = Array.from(contentDiv.childNodes);
+
+    let currentBatch = null;
+
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i];
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.trim();
+        const batchMatch = text.match(/AI Grant companies – batch (\d+)/);
+        if (batchMatch) {
+          currentBatch = `Batch ${batchMatch[1]}`;
+        }
+      }
+
+      if (node.nodeName === 'UL' && currentBatch) {
+        const listItems = node.querySelectorAll('li');
+        listItems.forEach(li => {
+          const companyAnchor = li.querySelector('a');
+          let companyName = '';
+
+          if (companyAnchor) {
+            companyName = companyAnchor.textContent.trim();
+          } else {
+            const liText = li.textContent.trim();
+            const parts = liText.split('-');
+            companyName = parts[0].trim();
+          }
+
+          companies.push({
+            company: companyName,
+            batch: currentBatch,
+          });
+        });
+
+        currentBatch = null;
+      }
+    }
+    return { companies };
+  });
+
+  console.log("The list of companies and their batch numbers are:");
+  console.log(JSON.stringify(companyList, null, 2));
+
+  await browser.close();
+})();
+```
+
+You can find the complete example [here](./examples/aigrant.ts).
 
 ## Prompting Tips
 
