@@ -16,6 +16,7 @@
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "esbuild lib/index.ts --bundle --platform=node --outdir=dist --format=esm --minify --tree-shaking=true --packages=external",
     "build": "npm run build-dom-scripts && npm run build-js && npm run build-types",
+    "postinstall": "npm run build",
     "release": "npm run build && changeset publish",
     "release-canary": "npm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
