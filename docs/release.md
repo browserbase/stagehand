@@ -18,8 +18,6 @@ For more information on how changesets work, see the [changesets docs](https://g
 > **Warning**
 > You should not need to manually release unless absolutely necessary. Our automated release workflow handles this for you when changes are merged to main.
 
-We use [Changesets](https://github.com/changesets/changesets) to version and release our packages.
-
 When you're ready to cut a release, start by versioning the packages:
 
 ```
