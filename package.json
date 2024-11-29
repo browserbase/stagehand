@@ -13,8 +13,11 @@
     "cache:clear": "rm -rf .cache",
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
-    "build": "npm run build-dom-scripts && tsup lib/index.ts --dts",
-    "release": "changeset publish"
+    "build-types": "tsc --emitDeclarationOnly --outDir dist",
+    "build-js": "esbuild lib/index.ts --bundle --platform=node --outdir=dist --format=esm",
+    "build": "npm run build-dom-scripts && npm run build-js && npm run build-types",
+    "release": "npm run build && changeset publish",
+    "release-canary": "npm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "files": [
     "dist/**",

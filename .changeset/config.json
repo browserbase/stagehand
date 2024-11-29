@@ -9,11 +9,12 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "browserbase/stagehand"
+      "repo": "kamath/stagehand"
     }
   ],
   "snapshot": {
     "useCalculatedVersion": true,
-    "prereleaseTemplate": "{tag}-{datetime}-{commit}"
+    "prereleaseTemplate": "alpha-{commit}",
+    "tag": "alpha"
   }
 }
