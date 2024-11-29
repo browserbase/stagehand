@@ -9,7 +9,7 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "kamath/stagehand"
+      "repo": "browserbase/stagehand"
     }
   ],
   "snapshot": {
