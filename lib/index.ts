@@ -878,3 +878,9 @@ export class Stagehand {
       });
   }
 }
+
+export * from "../types/browser";
+export * from "../types/log";
+export * from "../types/model";
+export * from "../types/playwright";
+export * from "../types/stagehand";
