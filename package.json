@@ -14,7 +14,7 @@
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
-    "build-js": "esbuild lib/index.ts --bundle --platform=node --outdir=dist --format=esm",
+    "build-js": "esbuild lib/index.ts --bundle --platform=node --outdir=dist --format=esm --minify --tree-shaking=true --packages=external",
     "build": "npm run build-dom-scripts && npm run build-js && npm run build-types",
     "release": "npm run build && changeset publish",
     "release-canary": "npm run build && changeset version --snapshot && changeset publish --tag alpha"
@@ -52,8 +52,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
-    "anthropic": "^0.0.0",
-    "anthropic-ai": "^0.0.10",
     "sharp": "^0.33.5",
     "zod-to-json-schema": "^3.23.3"
   },
