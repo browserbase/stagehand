@@ -33,8 +33,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
 
@@ -271,8 +270,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE] 
-> `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
@@ -525,7 +523,7 @@ To add a new model to Stagehand, follow these steps:
 
 ### Building the SDK
 
-Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla `esbuild` to build scripts that run in the DOM.
+Stagehand uses [esbuild](https://github.com/egoist/esbuild) to build the SDK and the scripts that run in the DOM.
 
 1. run `npm run build`
 2. run `npm pack` to get a tarball for distribution

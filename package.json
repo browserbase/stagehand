@@ -39,7 +39,6 @@
     "express": "^4.21.0",
     "multer": "^1.4.5-lts.1",
     "prettier": "^3.2.5",
-    "tsup": "^8.1.0",
     "tsx": "^4.10.5",
     "typescript": "^5.2.2"
   },
