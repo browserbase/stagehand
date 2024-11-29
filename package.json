@@ -20,8 +20,7 @@
     "release-canary": "npm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "files": [
-    "dist/**",
-    "patches/**"
+    "dist/**"
   ],
   "keywords": [],
   "author": "Paul Klein IV",
