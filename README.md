@@ -501,7 +501,9 @@ You'll need a Braintrust API key to run evals
 BRAINTRUST_API_KEY=""
 ```
 
-After that, you can run the eval using `npm run evals`
+After that, you can run all evals at once using `npm run evals`
+
+You can also run individual evals using `npm run evals -- your_eval_name`.
 
 ### Adding new evals
 
