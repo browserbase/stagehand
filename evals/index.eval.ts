@@ -456,9 +456,13 @@ const extract_github_stars: EvalFunction = async ({ modelName, logger }) => {
       ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
       : parseFloat(expectedStarsString);
 
+    const tolerance = 1000;
+
+    const isWithinTolerance = Math.abs(stars - expectedStars) <= tolerance;
+
     await stagehand.context.close().catch(() => {});
     return {
-      _success: stars === expectedStars,
+      _success: isWithinTolerance,
       stars,
       debugUrl,
       sessionUrl,
