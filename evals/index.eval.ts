@@ -5,6 +5,7 @@ import process from "process";
 import { EvalLogger } from "./utils";
 import { AvailableModel } from "../types/model";
 import { LogLine } from "../types/log";
+import fs from "fs";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
@@ -1588,73 +1589,120 @@ const testcases = [
   // "expedia"
 ];
 
+const generateSummary = async (summary: any, results: any[]) => {
+  const exactMatch = summary.scores?.["Exact match"] || { score: null };
+
+  const taskStatuses = results.map((result) => ({
+    name: result.input.name,
+    modelName: result.input.modelName,
+    success: result.output?._success || false,
+  }));
+
+  const totalTasks = taskStatuses.length;
+
+  const passedTasks = taskStatuses
+    .filter((task) => task.success)
+    .map((task) => ({ name: task.name, modelName: task.modelName }));
+  const failedTasks = taskStatuses
+    .filter((task) => !task.success)
+    .map((task) => ({ name: task.name, modelName: task.modelName }));
+
+  const formattedSummary = {
+    exactMatchScore: exactMatch.score !== null ? exactMatch.score * 100 : null,
+    totalTasks,
+    passedTasks,
+    failedTasks,
+  };
+
+  fs.writeFileSync("eval-summary.json", JSON.stringify(formattedSummary, null, 2));
+  console.log("Evaluation summary written to eval-summary.json");
+};
+
+const ciEvals = process.env.CI_EVALS?.split(",").map((e) => e.trim());
+
 const args = process.argv.slice(2);
 const filter = args[0];
 
-Eval("stagehand", {
-  data: () => {
-    let allTestcases = models.flatMap((model) =>
-      testcases.flatMap((test) => ({
-        input: { name: test, modelName: model },
-        name: test,
-        tags: [model, test],
-        metadata: {
-          model,
-          test,
-        },
-      })),
-    );
+(async () => {
+  try {
+    const evalResult = await Eval("stagehand", {
+      data: () => {
+        let allTestcases = models.flatMap((model) =>
+          testcases.flatMap((test) => ({
+            input: { name: test, modelName: model },
+            name: test,
+            tags: [model, test],
+            metadata: {
+              model,
+              test,
+            },
+          })),
+        );
 
-    if (filter) {
-      allTestcases = allTestcases.filter(
-        (testcase) =>
-          testcase.name === filter || testcase.input.name === filter,
-      );
-    }
+        if (ciEvals && ciEvals.length > 0) {
+          allTestcases = allTestcases.filter((testcase) =>
+            ciEvals.includes(testcase.name),
+          );
+        }
 
-    return allTestcases;
-  },
-  task: async (input: {
-    name: keyof typeof tasks;
-    modelName: AvailableModel;
-  }) => {
-    const logger = new EvalLogger();
-    try {
-      // Handle predefined tasks
-      const result = await tasks[input.name]({
-        modelName: input.modelName,
-        logger,
-      });
-      if (result) {
-        console.log(`✅ ${input.name}: Passed`);
-      } else {
-        console.log(`❌ ${input.name}: Failed`);
-      }
-      return result;
-    } catch (error) {
-      console.error(`❌ ${input.name}: Error - ${error}`);
-      logger.error({
-        message: `Error in task ${input.name}`,
-        level: 0,
-        auxiliary: {
-          error: {
-            value: error,
-            type: "object",
-          },
-          trace: {
-            value: error.stack,
-            type: "string",
-          },
-        },
-      });
-      return {
-        _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
-        logs: logger.getLogs(),
-      };
-    }
-  },
-  scores: [exactMatch, errorMatch],
-  maxConcurrency: 20,
-  trialCount: 5,
-});
+        if (filter) {
+          allTestcases = allTestcases.filter(
+            (testcase) =>
+              testcase.name === filter || testcase.input.name === filter,
+          );
+        }
+
+        return allTestcases;
+      },
+      task: async (input: {
+        name: keyof typeof tasks;
+        modelName: AvailableModel;
+      }) => {
+        const logger = new EvalLogger();
+        try {
+          // Handle predefined tasks
+          const result = await tasks[input.name]({
+            modelName: input.modelName,
+            logger,
+          });
+          if (result && result._success) {
+            console.log(`✅ ${input.name}: Passed`);
+          } else {
+            console.log(`❌ ${input.name}: Failed`);
+          }
+          return result;
+        } catch (error) {
+          console.error(`❌ ${input.name}: Error - ${error}`);
+          logger.error({
+            message: `Error in task ${input.name}`,
+            level: 0,
+            auxiliary: {
+              error: {
+                value: error,
+                type: "object",
+              },
+              trace: {
+                value: error.stack,
+                type: "string",
+              },
+            },
+          });
+          return {
+            _success: false,
+            error: JSON.parse(JSON.stringify(error, null, 2)),
+            logs: logger.getLogs(),
+          };
+        }
+      },
+      scores: [exactMatch, errorMatch],
+      maxConcurrency: 20,
+      trialCount: 5,
+    });
+
+    await generateSummary(evalResult.summary, evalResult.results);
+  } catch (error) {
+    console.error("Error during evaluation run:", error);
+    process.exit(1);
+  }
+})();
+
