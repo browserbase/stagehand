@@ -3,6 +3,7 @@ import { type BrowserContext, chromium, type Page } from "@playwright/test";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
@@ -197,8 +198,13 @@ async function getBrowser(
       },
     });
 
-    const tmpDir = fs.mkdtempSync("/tmp/pwtest");
-    fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
+    const tmpDirPath = path.join(os.tmpdir(), "ctx_");
+    if (!fs.existsSync(tmpDirPath)) {
+      fs.mkdirSync(tmpDirPath, { recursive: true });
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
+    fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
 
     const defaultPreferences = {
       plugins: {
@@ -207,15 +213,15 @@ async function getBrowser(
     };
 
     fs.writeFileSync(
-      `${tmpDir}/userdir/Default/Preferences`,
+      path.join(tmpDir, "userdir/Default/Preferences"),
       JSON.stringify(defaultPreferences),
     );
 
-    const downloadsPath = `${process.cwd()}/downloads`;
+    const downloadsPath = path.join(process.cwd(), "downloads");
     fs.mkdirSync(downloadsPath, { recursive: true });
 
     const context = await chromium.launchPersistentContext(
-      `${tmpDir}/userdir`,
+      path.join(tmpDir, "userdir"),
       {
         acceptDownloads: true,
         headless: headless,
