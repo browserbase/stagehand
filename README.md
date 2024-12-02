@@ -270,7 +270,8 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE] > `observe()` currently only evaluates the first chunk in the page.
+> [!NOTE]
+> `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
 
