@@ -14,7 +14,7 @@
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
-    "build-js": "esbuild lib/index.ts --bundle --platform=node --outdir=dist --format=esm --minify --tree-shaking=true --packages=external",
+    "build-js": "tsup lib/index.ts --dts",
     "build": "npm run build-dom-scripts && npm run build-js && npm run build-types",
     "postinstall": "npm run build",
     "release": "npm run build && changeset publish",
@@ -40,6 +40,7 @@
     "express": "^4.21.0",
     "multer": "^1.4.5-lts.1",
     "prettier": "^3.2.5",
+    "tsup": "^8.2.1",
     "tsx": "^4.10.5",
     "typescript": "^5.2.2"
   },
