@@ -15,6 +15,8 @@ jobs:
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       HEADLESS: true
       EVAL_ENV: browserbase
 
@@ -47,17 +49,14 @@ jobs:
             passed_tasks=$(jq '.passedTasks' eval-summary.json)
             failed_tasks=$(jq '.failedTasks' eval-summary.json)
             exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-          
             # Count passed and failed tasks
             num_passed=$(echo "$passed_tasks" | jq 'length')
             num_failed=$(echo "$failed_tasks" | jq 'length')
-          
             # Output summary
             echo "Total number of evals: $total_tasks"
             echo "Number of evals that passed: $num_passed"
             echo "Number of evals that failed: $num_failed"
             echo "Exact match score: $exact_match_score%"
-          
             # Output passing evals
             if [ "$num_passed" -gt 0 ]; then
               echo ""
@@ -70,7 +69,6 @@ jobs:
                 echo "model: $model"
               done
             fi
-          
             # Output failing evals
             if [ "$num_failed" -gt 0 ]; then
               echo ""
