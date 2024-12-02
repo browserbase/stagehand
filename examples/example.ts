@@ -9,7 +9,12 @@ async function example() {
     enableCaching: false,
   });
 
-  await stagehand.init();
+  await stagehand.init({
+    modelName: "gemini-1.5-flash",
+    modelClientOptions: {
+      apiKey: process.env.GEMINI_API_KEY,
+    },
+  });
   await stagehand.page.goto("https://github.com/browserbase/stagehand");
   await stagehand.act({ action: "click on the contributors" });
   const contributor = await stagehand.extract({

@@ -2,7 +2,10 @@ import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 import { ChatCompletionTool as OpenAITool } from "openai/resources";
-import {  RequestOptions as GoogleClientOptions, Tool as GoogleTool } from "@google/generative-ai";
+import {
+  RequestOptions as GoogleClientOptions,
+  Tool as GoogleTool,
+} from "@google/generative-ai";
 
 export type AvailableModel =
   | "gpt-4o"
@@ -11,11 +14,17 @@ export type AvailableModel =
   | "claude-3-5-sonnet-latest"
   | "claude-3-5-sonnet-20241022"
   | "claude-3-5-sonnet-20240620"
-  | "gemini-pro"
-  ;
+  | "gemini-1.5-pro"
+  | "gemini-1.5-flash"
+  | "gemini-1.5-flash-8b";
 
 export type ModelProvider = "openai" | "anthropic" | "google";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions | GoogleClientOptions;
+export type ClientOptions =
+  | OpenAIClientOptions
+  | AnthropicClientOptions
+  | (GoogleClientOptions & {
+      apiKey: string;
+    });
 
 export type ToolCall = AnthropicTool | OpenAITool | GoogleTool;

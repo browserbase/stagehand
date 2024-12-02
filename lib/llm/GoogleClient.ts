@@ -1,4 +1,9 @@
-import  { GenerativeModel, GenerationConfig, Content, GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GenerativeModel,
+  GenerationConfig,
+  Content,
+  GoogleGenerativeAI,
+} from "@google/generative-ai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
@@ -17,10 +22,11 @@ export class GoogleClient extends LLMClient {
     logger: (message: LogLine) => void,
     enableCaching = false,
     cache: LLMCache | undefined,
-    modelName: AvailableModel
+    modelName: AvailableModel,
   ) {
     super(modelName);
     this.client = new GoogleGenerativeAI(apiKey);
+
     this.model = this.client.getGenerativeModel({ model: modelName });
     this.logger = logger;
     this.cache = cache;
@@ -29,7 +35,7 @@ export class GoogleClient extends LLMClient {
   }
 
   async createChatCompletion(
-    options: ChatCompletionOptions & { retries?: number }
+    options: ChatCompletionOptions & { retries?: number },
   ): Promise<any> {
     // Remove image from options for logging
     const { image: _, ...optionsWithoutImage } = options;
@@ -60,7 +66,7 @@ export class GoogleClient extends LLMClient {
     if (this.enableCaching) {
       const cachedResponse = await this.cache.get(
         cacheOptions,
-        options.requestId
+        options.requestId,
       );
       if (cachedResponse) {
         this.logger({
@@ -80,12 +86,14 @@ export class GoogleClient extends LLMClient {
 
     // Prepare messages
     const systemMessage = options.messages.find((msg) => msg.role === "system");
-    const userMessages = options.messages.filter((msg) => msg.role !== "system");
+    const userMessages = options.messages.filter(
+      (msg) => msg.role !== "system",
+    );
 
     // Prepare content for Google AI
     const contents: Content[] = userMessages.map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
-      parts: [{ text: msg.content }]
+      parts: [{ text: msg.content as string }],
     }));
 
     // Handle image if present
@@ -96,13 +104,13 @@ export class GoogleClient extends LLMClient {
           {
             inlineData: {
               mimeType: "image/jpeg",
-              data: options.image.buffer.toString("base64")
-            }
+              data: options.image.buffer.toString("base64"),
+            },
           },
-          ...(options.image.description 
-            ? [{ text: options.image.description }] 
-            : [])
-        ]
+          ...(options.image.description
+            ? [{ text: options.image.description }]
+            : []),
+        ],
       };
       contents.push(imageMessage);
     }
@@ -110,7 +118,7 @@ export class GoogleClient extends LLMClient {
     // Prepare generation config
     const generationConfig: GenerationConfig = {
       temperature: options.temperature || 0.7,
-      maxOutputTokens: options.maxTokens || 3000
+      maxOutputTokens: options.maxTokens || 3000,
     };
 
     // Prepare tools/function calling
@@ -121,15 +129,17 @@ export class GoogleClient extends LLMClient {
       tools = options.tools.map((tool: any) => {
         if (tool.type === "function") {
           return {
-            functionDeclarations: [{
-              name: tool.function.name,
-              description: tool.function.description,
-              parameters: {
-                type: "OBJECT",
-                properties: tool.function.parameters.properties,
-                required: tool.function.parameters.required
-              }
-            }]
+            functionDeclarations: [
+              {
+                name: tool.function.name,
+                description: tool.function.description,
+                parameters: {
+                  type: "OBJECT",
+                  properties: tool.function.parameters.properties,
+                  required: tool.function.parameters.required,
+                },
+              },
+            ],
           };
         }
         return tool;
@@ -139,23 +149,30 @@ export class GoogleClient extends LLMClient {
     // Add response model as a tool if present
     if (options.response_model) {
       const jsonSchema = zodToJsonSchema(options.response_model.schema);
-      const schemaProperties = 
-        (jsonSchema.definitions?.MySchema as { properties?: Record<string, any> })?.properties ||
+      const schemaProperties =
+        (
+          jsonSchema.definitions?.MySchema as {
+            properties?: Record<string, any>;
+          }
+        )?.properties ||
         (jsonSchema as { properties?: Record<string, any> }).properties;
-      const schemaRequired = 
-        (jsonSchema.definitions?.MySchema as { required?: string[] })?.required ||
-        (jsonSchema as { required?: string[] }).required;
+      const schemaRequired =
+        (jsonSchema.definitions?.MySchema as { required?: string[] })
+          ?.required || (jsonSchema as { required?: string[] }).required;
 
       const responseModelTool = {
-        functionDeclarations: [{
-          name: "print_extracted_data",
-          description: "Prints the extracted data based on the provided schema.",
-          parameters: {
-            type: "OBJECT",
-            properties: schemaProperties,
-            required: schemaRequired
-          }
-        }]
+        functionDeclarations: [
+          {
+            name: "print_extracted_data",
+            description:
+              "Prints the extracted data based on the provided schema.",
+            parameters: {
+              type: "OBJECT",
+              properties: schemaProperties,
+              required: schemaRequired,
+            },
+          },
+        ],
       };
 
       tools.push(responseModelTool);
@@ -166,7 +183,8 @@ export class GoogleClient extends LLMClient {
       const response = await this.model.generateContent({
         contents,
         generationConfig,
-        tools
+        tools,
+        systemInstruction: systemMessage.content as string,
       });
 
       // Log response
@@ -194,24 +212,25 @@ export class GoogleClient extends LLMClient {
             message: {
               role: "assistant",
               content: response.response.text() || null,
-              tool_calls: response.response.functionCalls()?.map((call: any) => ({
-                id: call.name,
-                type: "function",
-                function: {
-                  name: call.name,
-                  arguments: JSON.stringify(call.args)
-                }
-              })) || [],
+              tool_calls:
+                response.response.functionCalls()?.map((call: any) => ({
+                  id: call.name,
+                  type: "function",
+                  function: {
+                    name: call.name,
+                    arguments: JSON.stringify(call.args),
+                  },
+                })) || [],
             },
-            finish_reason: "stop" // Google doesn't always provide specific finish reasons
-          }
+            finish_reason: "stop", // Google doesn't always provide specific finish reasons
+          },
         ],
         usage: {
           // Google doesn't provide exact token counts in the same way
           prompt_tokens: 0,
           completion_tokens: 0,
-          total_tokens: 0
-        }
+          total_tokens: 0,
+        },
       };
 
       // Handle response model extraction
@@ -230,7 +249,9 @@ export class GoogleClient extends LLMClient {
               retries: (options.retries ?? 0) + 1,
             });
           }
-          throw new Error("Create Chat Completion Failed: No function call in response");
+          throw new Error(
+            "Create Chat Completion Failed: No function call in response",
+          );
         }
       }
 
@@ -240,7 +261,6 @@ export class GoogleClient extends LLMClient {
       }
 
       return transformedResponse;
-
     } catch (error) {
       this.logger({
         category: "google",
@@ -253,6 +273,10 @@ export class GoogleClient extends LLMClient {
           },
           requestId: {
             value: options.requestId,
+            type: "string",
+          },
+          trace: {
+            value: error.stack,
             type: "string",
           },
         },

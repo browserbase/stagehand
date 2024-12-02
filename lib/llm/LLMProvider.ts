@@ -8,6 +8,7 @@ import {
   ModelProvider,
   ClientOptions,
 } from "../../types/model";
+import { GoogleClient } from "./GoogleClient";
 
 export class LLMProvider {
   private modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -17,7 +18,9 @@ export class LLMProvider {
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
     "claude-3-5-sonnet-20241022": "anthropic",
-    "gemini-pro": "google"
+    "gemini-1.5-pro": "google",
+    "gemini-1.5-flash": "google",
+    "gemini-1.5-flash-8b": "google",
   };
 
   private logger: (message: LogLine) => void;
@@ -74,6 +77,14 @@ export class LLMProvider {
           this.cache,
           modelName,
           clientOptions,
+        );
+      case "google":
+        return new GoogleClient(
+          clientOptions.apiKey,
+          this.logger,
+          this.enableCaching,
+          this.cache,
+          modelName,
         );
       default:
         throw new Error(`Unsupported provider: ${provider}`);
