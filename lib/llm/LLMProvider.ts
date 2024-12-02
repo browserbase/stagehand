@@ -17,6 +17,7 @@ export class LLMProvider {
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
     "claude-3-5-sonnet-20241022": "anthropic",
+    "gemini-pro": "google"
   };
 
   private logger: (message: LogLine) => void;
