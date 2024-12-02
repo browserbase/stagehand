@@ -8,8 +8,6 @@ async function debug(url: string) {
   });
   await stagehand.init();
   await stagehand.page.goto(url);
-
-  await stagehand.startDomDebug();
 }
 
 (async () => {

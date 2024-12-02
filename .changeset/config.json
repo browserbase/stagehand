@@ -14,6 +14,7 @@
   ],
   "snapshot": {
     "useCalculatedVersion": true,
-    "prereleaseTemplate": "{tag}-{datetime}-{commit}"
+    "prereleaseTemplate": "alpha-{commit}",
+    "tag": "alpha"
   }
 }
