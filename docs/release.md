@@ -7,7 +7,7 @@ When we merge to main, the release workflow will:
 1. Create a release pull request with:
    - A version bump for the package calculated by the changesets.
    - A changelog entry summarizing the changes in the release.
-1. Create an `alpha` version of the package on whatever is merged to main, and you can install it with `npm install @browserbasehq/stagehand@alpha`. This is useful for testing the release before it's published to the `latest` tag.
+1. Create an `alpha` version of the package with whatever is merged to main, and you can install it with `npm install @browserbasehq/stagehand@alpha`. This is useful for testing the release before it's published to the `latest` tag.
 
 When the pull request is merged, the release workflow will publish the package to npm with the version calculated by the changesets.
 
@@ -15,7 +15,7 @@ For more information on how changesets work, see the [changesets docs](https://g
 
 # Manually Releasing
 
-> **Warning**
+> [!WARNING]
 > You should not need to manually release unless absolutely necessary. Our automated release workflow handles this for you when changes are merged to main.
 
 When you're ready to cut a release, start by versioning the packages:
