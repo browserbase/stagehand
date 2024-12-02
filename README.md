@@ -523,7 +523,7 @@ To add a new model to Stagehand, follow these steps:
 
 ### Building the SDK
 
-Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and the scripts that run in the DOM.
+Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla [esbuild](https://github.com/egoist/esbuild) to build the scripts that run in the DOM.
 
 1. run `npm run build`
 2. run `npm pack` to get a tarball for distribution
