@@ -118,6 +118,7 @@ const contributor = await stagehand.extract({
     url: z.string(),
   }),
 });
+await stagehand.close();
 console.log(`Our favorite contributor is ${contributor.username}`);
 ```
 
@@ -295,6 +296,15 @@ If you are looking for a specific element, you can also pass in an instruction t
 - **Example:**
   ```javascript
   const actions = await stagehand.observe();
+  ```
+
+#### `close()`
+
+`close()` is a cleanup method to remove the temporary files created by Stagehand. It's highly recommended that you call this when you're done with your automation.
+
+- **Example:**
+  ```javascript
+  await stagehand.close();
   ```
 
 #### `page` and `context`
