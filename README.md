@@ -24,6 +24,7 @@
   - [act()](#act)
   - [extract()](#extract)
   - [observe()](#observe)
+  - [close()](#close)
 - [Model Support](#model-support)
 - [How It Works](#how-it-works)
 - [Stagehand vs Playwright](#stagehand-vs-playwright)

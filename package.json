@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -16,12 +16,12 @@
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "tsup lib/index.ts --dts",
     "build": "npm run build-dom-scripts && npm run build-js && npm run build-types",
-    "postinstall": "npm run build",
     "release": "npm run build && changeset publish",
     "release-canary": "npm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "files": [
-    "dist/**"
+    "dist/**",
+    "lib/**"
   ],
   "keywords": [],
   "author": "Paul Klein IV",
