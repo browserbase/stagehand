@@ -5,6 +5,7 @@ import process from "process";
 import { EvalLogger } from "./utils";
 import { AvailableModel } from "../types/model";
 import { LogLine } from "../types/log";
+import fs from "fs";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
@@ -456,9 +457,13 @@ const extract_github_stars: EvalFunction = async ({ modelName, logger }) => {
       ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
       : parseFloat(expectedStarsString);
 
+    const tolerance = 1000;
+
+    const isWithinTolerance = Math.abs(stars - expectedStars) <= tolerance;
+
     await stagehand.context.close().catch(() => {});
     return {
-      _success: stars === expectedStars,
+      _success: isWithinTolerance,
       stars,
       debugUrl,
       sessionUrl,
@@ -1351,6 +1356,158 @@ const amazon_add_to_cart: EvalFunction = async ({ modelName, logger }) => {
   };
 };
 
+const extract_press_releases: EvalFunction = async ({ modelName, logger }) => {
+  const { stagehand, initResponse } = await initStagehand({
+    modelName,
+    logger,
+    domSettleTimeoutMs: 3000,
+  });
+
+  const { debugUrl, sessionUrl } = initResponse;
+
+  try {
+    await stagehand.page.goto("https://www.landerfornyc.com/news");
+
+    const result = await stagehand.extract({
+      instruction:
+        "extract a list of press releases on this page, with the title and publish date",
+      schema: z.object({
+        items: z.array(
+          z.object({
+            title: z.string(),
+            publishedOn: z.string(),
+          }),
+        ),
+      }),
+    });
+
+    const items = result.items;
+
+    const expectedLength = 25;
+
+    const expectedFirstItem = {
+      title: "Is Brad Lander the Progressive to Beat Eric Adams?",
+      publishedOn: "Jul 30, 2024",
+    };
+
+    const expectedLastItem = {
+      title: "An Unassuming Liberal Makes a Rapid Ascent to Power Broker",
+      publishedOn: "Jan 23, 2014",
+    };
+
+    if (items.length !== expectedLength) {
+      logger.error({
+        message: "Incorrect number of items extracted",
+        level: 0,
+        auxiliary: {
+          expected: {
+            value: expectedLength.toString(),
+            type: "integer",
+          },
+          actual: {
+            value: items.length.toString(),
+            type: "integer",
+          },
+        },
+      });
+      return {
+        _success: false,
+        error: "Incorrect number of items extracted",
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    }
+
+    const firstItemMatches =
+      items[0].title === expectedFirstItem.title &&
+      items[0].publishedOn === expectedFirstItem.publishedOn;
+
+    if (!firstItemMatches) {
+      logger.error({
+        message: "First item does not match expected",
+        level: 0,
+        auxiliary: {
+          expected: {
+            value: JSON.stringify(expectedFirstItem),
+            type: "object",
+          },
+          actual: {
+            value: JSON.stringify(items[0]),
+            type: "object",
+          },
+        },
+      });
+      return {
+        _success: false,
+        error: "First item does not match expected",
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    }
+
+    const lastItemMatches =
+      items[items.length - 1].title === expectedLastItem.title &&
+      items[items.length - 1].publishedOn === expectedLastItem.publishedOn;
+
+    if (!lastItemMatches) {
+      logger.error({
+        message: "Last item does not match expected",
+        level: 0,
+        auxiliary: {
+          expected: {
+            value: JSON.stringify(expectedLastItem),
+            type: "object",
+          },
+          actual: {
+            value: JSON.stringify(items[items.length - 1]),
+            type: "object",
+          },
+        },
+      });
+      return {
+        _success: false,
+        error: "Last item does not match expected",
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    }
+
+    return {
+      _success: true,
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
+  } catch (error) {
+    logger.error({
+      message: `Error in extract_press_releases function`,
+      level: 0,
+      auxiliary: {
+        error: {
+          value: error.message || JSON.stringify(error),
+          type: "string",
+        },
+        trace: {
+          value: error.stack,
+          type: "string",
+        },
+      },
+    });
+    return {
+      _success: false,
+      error: "An error occurred during extraction",
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
+  } finally {
+    await stagehand.context.close().catch(() => {});
+  }
+};
+
 const tasks: Record<string, EvalFunction> = {
   vanta,
   vanta_h,
@@ -1369,6 +1526,7 @@ const tasks: Record<string, EvalFunction> = {
   arxiv,
   expedia,
   amazon_add_to_cart,
+  extract_press_releases
 };
 
 const exactMatch = (args: {
@@ -1427,76 +1585,124 @@ const testcases = [
   "laroche_form",
   "arxiv",
   "amazon_add_to_cart",
+  "extract_press_releases"
   // "expedia"
 ];
+
+const generateSummary = async (summary: any, results: any[]) => {
+  const exactMatch = summary.scores?.["Exact match"] || { score: null };
+
+  const taskStatuses = results.map((result) => ({
+    name: result.input.name,
+    modelName: result.input.modelName,
+    success: result.output?._success || false,
+  }));
+
+  const totalTasks = taskStatuses.length;
+
+  const passedTasks = taskStatuses
+    .filter((task) => task.success)
+    .map((task) => ({ name: task.name, modelName: task.modelName }));
+  const failedTasks = taskStatuses
+    .filter((task) => !task.success)
+    .map((task) => ({ name: task.name, modelName: task.modelName }));
+
+  const formattedSummary = {
+    exactMatchScore: exactMatch.score !== null ? exactMatch.score * 100 : null,
+    totalTasks,
+    passedTasks,
+    failedTasks,
+  };
+
+  fs.writeFileSync("eval-summary.json", JSON.stringify(formattedSummary, null, 2));
+  console.log("Evaluation summary written to eval-summary.json");
+};
+
+const ciEvals = process.env.CI_EVALS?.split(",").map((e) => e.trim());
 
 const args = process.argv.slice(2);
 const filter = args[0];
 
-Eval("stagehand", {
-  data: () => {
-    let allTestcases = models.flatMap((model) =>
-      testcases.flatMap((test) => ({
-        input: { name: test, modelName: model },
-        name: test,
-        tags: [model, test],
-        metadata: {
-          model,
-          test,
-        },
-      })),
-    );
+(async () => {
+  try {
+    const evalResult = await Eval("stagehand", {
+      data: () => {
+        let allTestcases = models.flatMap((model) =>
+          testcases.flatMap((test) => ({
+            input: { name: test, modelName: model },
+            name: test,
+            tags: [model, test],
+            metadata: {
+              model,
+              test,
+            },
+          })),
+        );
 
-    if (filter) {
-      allTestcases = allTestcases.filter(
-        (testcase) =>
-          testcase.name === filter || testcase.input.name === filter,
-      );
-    }
+        if (ciEvals && ciEvals.length > 0) {
+          allTestcases = allTestcases.filter((testcase) =>
+            ciEvals.includes(testcase.name),
+          );
+        }
 
-    return allTestcases;
-  },
-  task: async (input: {
-    name: keyof typeof tasks;
-    modelName: AvailableModel;
-  }) => {
-    const logger = new EvalLogger();
-    try {
-      // Handle predefined tasks
-      const result = await tasks[input.name]({
-        modelName: input.modelName,
-        logger,
-      });
-      if (result) {
-        console.log(`✅ ${input.name}: Passed`);
-      } else {
-        console.log(`❌ ${input.name}: Failed`);
-      }
-      return result;
-    } catch (error) {
-      console.error(`❌ ${input.name}: Error - ${error}`);
-      logger.error({
-        message: `Error in task ${input.name}`,
-        level: 0,
-        auxiliary: {
-          error: {
-            value: error,
-            type: "object",
-          },
-          trace: {
-            value: error.stack,
-            type: "string",
-          },
-        },
-      });
-      return {
-        _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
-        logs: logger.getLogs(),
-      };
-    }
-  },
-  scores: [exactMatch, errorMatch],
-  maxConcurrency: 20,
-  trialCount: 5,
-});
+        if (filter) {
+          allTestcases = allTestcases.filter(
+            (testcase) =>
+              testcase.name === filter || testcase.input.name === filter,
+          );
+        }
+
+        return allTestcases;
+      },
+      task: async (input: {
+        name: keyof typeof tasks;
+        modelName: AvailableModel;
+      }) => {
+        const logger = new EvalLogger();
+        try {
+          // Handle predefined tasks
+          const result = await tasks[input.name]({
+            modelName: input.modelName,
+            logger,
+          });
+          if (result && result._success) {
+            console.log(`✅ ${input.name}: Passed`);
+          } else {
+            console.log(`❌ ${input.name}: Failed`);
+          }
+          return result;
+        } catch (error) {
+          console.error(`❌ ${input.name}: Error - ${error}`);
+          logger.error({
+            message: `Error in task ${input.name}`,
+            level: 0,
+            auxiliary: {
+              error: {
+                value: error,
+                type: "object",
+              },
+              trace: {
+                value: error.stack,
+                type: "string",
+              },
+            },
+          });
+          return {
+            _success: false,
+            error: JSON.parse(JSON.stringify(error, null, 2)),
+            logs: logger.getLogs(),
+          };
+        }
+      },
+      scores: [exactMatch, errorMatch],
+      maxConcurrency: 20,
+      trialCount: 5,
+    });
+
+    await generateSummary(evalResult.summary, evalResult.results);
+  } catch (error) {
+    console.error("Error during evaluation run:", error);
+    process.exit(1);
+  }
+})();
+

@@ -3,6 +3,7 @@ import { type BrowserContext, chromium, type Page } from "@playwright/test";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
@@ -197,8 +198,13 @@ async function getBrowser(
       },
     });
 
-    const tmpDir = fs.mkdtempSync("/tmp/pwtest");
-    fs.mkdirSync(`${tmpDir}/userdir/Default`, { recursive: true });
+    const tmpDirPath = path.join(os.tmpdir(), "stagehand");
+    if (!fs.existsSync(tmpDirPath)) {
+      fs.mkdirSync(tmpDirPath, { recursive: true });
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
+    fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
 
     const defaultPreferences = {
       plugins: {
@@ -207,15 +213,15 @@ async function getBrowser(
     };
 
     fs.writeFileSync(
-      `${tmpDir}/userdir/Default/Preferences`,
+      path.join(tmpDir, "userdir/Default/Preferences"),
       JSON.stringify(defaultPreferences),
     );
 
-    const downloadsPath = `${process.cwd()}/downloads`;
+    const downloadsPath = path.join(process.cwd(), "downloads");
     fs.mkdirSync(downloadsPath, { recursive: true });
 
     const context = await chromium.launchPersistentContext(
-      `${tmpDir}/userdir`,
+      path.join(tmpDir, "userdir"),
       {
         acceptDownloads: true,
         headless: headless,
@@ -244,7 +250,7 @@ async function getBrowser(
 
     await applyStealthScripts(context);
 
-    return { context };
+    return { context, contextPath: tmpDir };
   }
 }
 
@@ -303,6 +309,7 @@ export class Stagehand {
   private enableCaching: boolean;
   private variables: { [key: string]: any };
   private browserbaseResumeSessionID?: string;
+  private contextPath?: string;
 
   private actHandler?: StagehandActHandler;
   private extractHandler?: StagehandExtractHandler;
@@ -358,7 +365,7 @@ export class Stagehand {
     const llmClient = modelName
       ? this.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
-    const { context, debugUrl, sessionUrl } = await getBrowser(
+    const { context, debugUrl, sessionUrl, contextPath } = await getBrowser(
       this.apiKey,
       this.projectId,
       this.env,
@@ -374,6 +381,7 @@ export class Stagehand {
         sessionUrl: undefined,
       } as BrowserResult;
     });
+    this.contextPath = contextPath;
     this.context = context;
     this.page = context.pages()[0];
     // Redundant but needed for users who are re-connecting to a previously-created session
@@ -871,4 +879,22 @@ export class Stagehand {
         throw e;
       });
   }
+
+  async close(): Promise<void> {
+    await this.context.close();
+
+    if (this.contextPath) {
+      try {
+        fs.rmSync(this.contextPath, { recursive: true, force: true });
+      } catch (e) {
+        console.error("Error deleting context directory:", e);
+      }
+    }
+  }
 }
+
+export * from "../types/browser";
+export * from "../types/log";
+export * from "../types/model";
+export * from "../types/playwright";
+export * from "../types/stagehand";

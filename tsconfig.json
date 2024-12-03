@@ -12,7 +12,8 @@
     "paths": {
       "*": ["node_modules/*", "lib/types/*"]
     },
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declaration": true
   },
   "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
 }

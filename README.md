@@ -33,7 +33,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]
+> [!NOTE] 
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
@@ -118,6 +118,7 @@ const contributor = await stagehand.extract({
     url: z.string(),
   }),
 });
+await stagehand.close();
 console.log(`Our favorite contributor is ${contributor.username}`);
 ```
 
@@ -271,7 +272,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE] 
+> [!NOTE]
 > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
@@ -295,6 +296,15 @@ If you are looking for a specific element, you can also pass in an instruction t
 - **Example:**
   ```javascript
   const actions = await stagehand.observe();
+  ```
+
+#### `close()`
+
+`close()` is a cleanup method to remove the temporary files created by Stagehand. It's highly recommended that you call this when you're done with your automation.
+
+- **Example:**
+  ```javascript
+  await stagehand.close();
   ```
 
 #### `page` and `context`
@@ -501,7 +511,9 @@ You'll need a Braintrust API key to run evals
 BRAINTRUST_API_KEY=""
 ```
 
-After that, you can run the eval using `npm run evals`
+After that, you can run all evals at once using `npm run evals`
+
+You can also run individual evals using `npm run evals -- your_eval_name`.
 
 ### Adding new evals
 
@@ -523,7 +535,7 @@ To add a new model to Stagehand, follow these steps:
 
 ### Building the SDK
 
-Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla `esbuild` to build scripts that run in the DOM.
+Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla [esbuild](https://esbuild.github.io/d) to build the scripts that run in the DOM.
 
 1. run `npm run build`
 2. run `npm pack` to get a tarball for distribution

@@ -19,7 +19,10 @@ async function example() {
       url: z.string(),
     }),
   });
+
   console.log(`Our favorite contributor is ${contributor.username}`);
+
+  await stagehand.close();
 }
 
 (async () => {

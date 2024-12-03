@@ -1,0 +1,48 @@
+{
+  "exactMatchScore": 70,
+  "totalTasks": 10,
+  "passedTasks": [
+    {
+      "name": "extract_github_stars",
+      "modelName": "gpt-4o"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "gpt-4o"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "gpt-4o"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "gpt-4o"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "gpt-4o"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "claude-3-5-sonnet-20241022"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "claude-3-5-sonnet-20241022"
+    }
+  ],
+  "failedTasks": [
+    {
+      "name": "extract_github_stars",
+      "modelName": "claude-3-5-sonnet-20241022"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "claude-3-5-sonnet-20241022"
+    },
+    {
+      "name": "extract_github_stars",
+      "modelName": "claude-3-5-sonnet-20241022"
+    }
+  ]
+}

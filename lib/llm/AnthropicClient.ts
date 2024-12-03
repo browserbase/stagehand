@@ -176,7 +176,7 @@ export class AnthropicClient extends LLMClient {
 
     const response = (await this.client.messages.create({
       model: this.modelName,
-      max_tokens: options.maxTokens || 1500,
+      max_tokens: options.maxTokens || 3000,
       messages: userMessages.map((msg) => ({
         role: msg.role,
         content: msg.content,
