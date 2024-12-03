@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - main
+
 permissions:
   contents: write
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
-permissions:
-  contents: write
 
 jobs:
   release:
@@ -19,38 +18,31 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
-      - name: Setup Node.js 18.x
+      - name: Setup Node.js 20.x
         uses: actions/setup-node@v3
         with:
-          node-version: 18.x
-          registry-url: "https://registry.npmjs.org"
+          node-version: 20.x
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Publish Canary
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git checkout main
-          npm version prerelease --preid=canary.${GITHUB_SHA::8} --no-git-tag-version
-          npm publish --tag canary --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish Canary
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git checkout main
-          npm version prerelease --preid=canary.${GITHUB_SHA::8} --no-git-tag-version
-          npm publish --tag canary --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build
+        run: npm run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
         with:
           publish: npm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Canary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git checkout main
+          npm run release-canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
