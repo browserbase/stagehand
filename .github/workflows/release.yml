@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+permissions:
+  contents: write
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -23,6 +25,15 @@ jobs:
 
       - name: Install Dependencies
         run: npm install
+
+      - name: Publish Canary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git checkout main
+          npm version prerelease --preid=canary.${GITHUB_SHA::8} --no-git-tag-version
+          npm publish --tag canary --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
