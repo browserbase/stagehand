@@ -8,6 +8,8 @@ permissions:
   contents: write
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
+permissions:
+  contents: write
 
 jobs:
   release:
