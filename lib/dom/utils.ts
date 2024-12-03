@@ -15,3 +15,7 @@ export async function waitForDomSettle() {
 }
 
 window.waitForDomSettle = waitForDomSettle;
+
+export function calculateViewportHeight() {
+  return Math.ceil(window.innerHeight * 0.75);
+}
