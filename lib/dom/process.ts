@@ -1,4 +1,5 @@
 import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
+import { calculateViewportHeight } from "./utils";
 
 export function isElementNode(node: Node): node is Element {
   return node.nodeType === Node.ELEMENT_NODE;
@@ -27,7 +28,7 @@ export async function processDom(chunksSeen: Array<number>) {
 export async function processAllOfDom() {
   console.log("Stagehand (Browser Process): Processing all of DOM");
 
-  const viewportHeight = window.innerHeight * 0.75;
+  const viewportHeight = calculateViewportHeight();
   const documentHeight = document.documentElement.scrollHeight;
   const totalChunks = Math.ceil(documentHeight / viewportHeight);
 
@@ -87,12 +88,12 @@ export async function processElements(
   selectorMap: Record<number, string[]>;
 }> {
   console.time("processElements:total");
-  const viewportHeight = Math.ceil(window.innerHeight * 0.75);
+  const viewportHeight = calculateViewportHeight();
   const chunkHeight = viewportHeight * chunk;
 
   // Calculate the maximum scrollable offset
   const maxScrollTop =
-    document.documentElement.scrollHeight - window.innerHeight;
+    document.documentElement.scrollHeight - viewportHeight;
 
   // Adjust the offsetTop to not exceed the maximum scrollable offset
   const offsetTop = Math.min(chunkHeight, maxScrollTop);
@@ -410,7 +411,7 @@ const isLeafElement = (element: Element) => {
 };
 
 async function pickChunk(chunksSeen: Array<number>) {
-  const viewportHeight = window.innerHeight * 0.75;
+  const viewportHeight = calculateViewportHeight();
   const documentHeight = document.documentElement.scrollHeight;
 
   const chunks = Math.ceil(documentHeight / viewportHeight);
