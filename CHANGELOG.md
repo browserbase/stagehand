@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 1.5.0
+
+### Minor Changes
+
+- [#266](https://github.com/browserbase/stagehand/pull/266) [`0e8f34f`](https://github.com/browserbase/stagehand/commit/0e8f34fc15aee91c548d09534deaccc8adca7c4d) Thanks [@kamath](https://github.com/kamath)! - Install wasn't working from NPM due to misconfigured build step. This attempts to fix that.
+
 ## 1.4.0
 
 ### Minor Changes
