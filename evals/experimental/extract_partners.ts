@@ -14,32 +14,29 @@ export const extract_partners: EvalFunction = async ({ modelName, logger }) => {
     await stagehand.page.goto("https://ramp.com");
 
     await stagehand.act({
+      action: "move down to the bottom of the page.",
+    });
+
+    await stagehand.act({
       action: "Close the popup.",
     });
 
     await stagehand.act({
-      action: "Scroll down to the bottom of the page.",
-    });
-
-    await stagehand.act({
       action:
-        "Click on the link or button that leads to the partners page. If it's in a dropdown or hidden section, first interact with the element to reveal it, then click the link.",
+        "Find and click on the link that leads to the partners page.",
     });
 
     const partners = await stagehand.extract({
       instruction: `
-      Extract the names of all partner companies mentioned on this page.
-      These could be inside text, links, or images representing partner companies.
-      If no specific partner names are found, look for any sections or categories of partners mentioned.
-      Also, check for any text that explains why partner names might not be listed, if applicable.
+      Extract all of the partner categories on the page.
     `,
       schema: z.object({
         partners: z.array(
           z.object({
-            name: z
+            partner_category: z
               .string()
               .describe(
-                "The name of the partner company or category of partners",
+                "The partner category",
               ),
           }),
         ),
@@ -58,7 +55,7 @@ export const extract_partners: EvalFunction = async ({ modelName, logger }) => {
     ];
 
     const foundPartners = partners.partners.map((partner) =>
-      partner.name.toLowerCase(),
+      partner.partner_category.toLowerCase(),
     );
 
     const allExpectedPartnersFound = expectedPartners.every((partner) =>
