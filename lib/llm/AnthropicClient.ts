@@ -1,5 +1,6 @@
 import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
 import {
+  ImageBlockParam,
   MessageParam,
   TextBlockParam,
   Tool,
@@ -107,13 +108,17 @@ export class AnthropicClient extends LLMClient {
       }
     }
 
-    const systemMessage = options.messages.find(
-      (msg) =>
-        msg.role === "system" &&
-        (typeof msg.content === "string" ||
-          (Array.isArray(msg.content) &&
-            msg.content.every((content) => content.type !== "image_url"))),
-    );
+    const systemMessage = options.messages.find((msg) => {
+      if (msg.role === "system") {
+        if (typeof msg.content === "string") {
+          return true;
+        } else if (Array.isArray(msg.content)) {
+          return msg.content.every((content) => content.type !== "image_url");
+        }
+      }
+      return false;
+    });
+
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
     );
@@ -128,11 +133,20 @@ export class AnthropicClient extends LLMClient {
         return {
           role: msg.role as "user" | "assistant",
           content: msg.content.map((content) => {
-            if (content.type === "text") {
+            if ("image_url" in content) {
+              const formattedContent: ImageBlockParam = {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: content.image_url.url,
+                },
+              };
+
+              return formattedContent;
+            } else {
               return { type: "text", text: content.text };
             }
-
-            // don't handle image content for now
           }),
         };
       }

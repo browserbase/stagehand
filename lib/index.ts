@@ -393,7 +393,7 @@ export class Stagehand {
 
     // Overload the page.goto method
     const originalGoto = this.page.goto.bind(this.page);
-    this.page.goto = async (url: string, options) => {
+    this.page.goto = async (url: string, options: GotoOptions) => {
       const result = await originalGoto(url, options);
       if (this.debugDom) {
         await this.page.evaluate(() => (window.showChunks = this.debugDom));
@@ -546,10 +546,25 @@ export class Stagehand {
               (log) => log.id !== logObj.id,
             );
         })
-        .catch(() => {
+        .catch((e) => {
           // NAVIDTODO: Rerun the log call on the new page
           // This is expected to happen when the user is changing pages
           // console.error("Logging Error:", e);
+          this.log({
+            category: "browserbase",
+            message: "error logging to browserbase",
+            level: 1,
+            auxiliary: {
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+              message: {
+                value: e.message,
+                type: "string",
+              },
+            },
+          });
         });
     }
   }

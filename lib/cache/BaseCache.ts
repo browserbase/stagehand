@@ -124,7 +124,22 @@ export class BaseCache<T extends CacheEntry> {
           level: 1,
         });
         return true;
-      } catch {
+      } catch (e) {
+        this.logger({
+          category: "base_cache",
+          message: "error acquiring lock",
+          level: 2,
+          auxiliary: {
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            message: {
+              value: e.message,
+              type: "string",
+            },
+          },
+        });
         await this.sleep(5);
       }
     }
