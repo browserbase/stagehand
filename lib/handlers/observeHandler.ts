@@ -97,13 +97,15 @@ export class StagehandObserveHandler {
 
     await this.waitForSettledDom(domSettleTimeoutMs);
     await this.startDomDebug();
-
-    // eslint-disable-next-line
-    const { selectorMap, outputString } = await this.stagehand.page.evaluate(
+    const evalResult = await this.stagehand.page.evaluate(
       (fullPage: boolean) =>
         fullPage ? window.processAllOfDom() : window.processDom([]),
       fullPage,
     );
+
+    const { selectorMap } = evalResult;
+    // has to be like this atm because of the re-assignment
+    let { outputString } = evalResult;
 
     let annotatedScreenshot: Buffer | undefined;
     if (useVision === true) {

@@ -88,7 +88,7 @@ export class AnthropicClient extends LLMClient {
             },
           },
         });
-        return cachedResponse;
+        return cachedResponse as T;
       } else {
         this.logger({
           category: "llm_cache",
