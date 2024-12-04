@@ -19,12 +19,12 @@ export class LLMCache extends BaseCache<CacheEntry> {
    * @param requestId - The identifier for the current request.
    * @returns The cached data if available, otherwise null.
    */
-  public async get(
+  public async get<T>(
     options: Record<string, unknown>,
     requestId: string,
-  ): Promise<unknown | null> {
+  ): Promise<T | null> {
     const data = await super.get(options, requestId);
-    return data;
+    return data as T | null; // TODO: remove this cast
   }
 
   /**

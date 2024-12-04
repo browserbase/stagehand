@@ -2,10 +2,14 @@ import OpenAI, { ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
   ChatCompletion,
+  ChatCompletionAssistantMessageParam,
   ChatCompletionContentPartImage,
+  ChatCompletionContentPartRefusal,
   ChatCompletionContentPartText,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
+  ChatCompletionSystemMessageParam,
+  ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
@@ -66,11 +70,10 @@ export class OpenAIClient extends LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get(
+      const cachedResponse = await this.cache.get<T>(
         cacheOptions,
         options.requestId,
       );
-
       if (cachedResponse) {
         this.logger({
           category: "llm_cache",
@@ -155,27 +158,58 @@ export class OpenAIClient extends LLMClient {
         if (Array.isArray(message.content)) {
           const contentParts = message.content.map((content) => {
             if ("image_url" in content) {
-              return {
+              const imageContent: ChatCompletionContentPartImage = {
                 image_url: {
                   url: content.image_url.url,
                 },
                 type: "image_url",
-              } as ChatCompletionContentPartImage;
+              };
+              return imageContent;
             } else {
-              return {
+              const textContent: ChatCompletionContentPartText = {
                 text: content.text,
                 type: "text",
-              } as ChatCompletionContentPartText;
+              };
+              return textContent;
             }
           });
 
-          return {
-            ...message,
-            content: contentParts,
-          } as ChatCompletionMessageParam;
+          if (message.role === "system") {
+            const formattedMessage: ChatCompletionSystemMessageParam = {
+              ...message,
+              role: "system",
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
+            };
+            return formattedMessage;
+          } else if (message.role === "user") {
+            const formattedMessage: ChatCompletionUserMessageParam = {
+              ...message,
+              role: "user",
+              content: contentParts,
+            };
+            return formattedMessage;
+          } else {
+            const formattedMessage: ChatCompletionAssistantMessageParam = {
+              ...message,
+              role: "assistant",
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
+            };
+            return formattedMessage;
+          }
         }
 
-        return message as ChatCompletionMessageParam;
+        const formattedMessage: ChatCompletionUserMessageParam = {
+          role: "user",
+          content: message.content,
+        };
+
+        return formattedMessage;
       });
 
     const body: ChatCompletionCreateParamsNonStreaming = {

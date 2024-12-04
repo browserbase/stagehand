@@ -63,7 +63,7 @@ export class AnthropicClient extends LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get(
+      const cachedResponse = await this.cache.get<T>(
         cacheOptions,
         options.requestId,
       );
@@ -87,7 +87,7 @@ export class AnthropicClient extends LLMClient {
             },
           },
         });
-        return cachedResponse as T;
+        return cachedResponse;
       } else {
         this.logger({
           category: "llm_cache",

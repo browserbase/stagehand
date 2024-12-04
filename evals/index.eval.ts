@@ -1613,10 +1613,10 @@ const testcases = [
 
 const generateSummary = async (
   summary: { scores?: Record<string, { score: number | null }> },
-  results: Array<{
+  results: {
     input: EvalInput;
     output?: boolean | { _success: boolean };
-  }>,
+  }[],
 ) => {
   const exactMatch = summary.scores?.["Exact match"] || { score: null };
 
