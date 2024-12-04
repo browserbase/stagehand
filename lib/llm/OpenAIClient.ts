@@ -253,9 +253,7 @@ export class OpenAIClient extends LLMClient {
         );
       }
 
-      return {
-        ...parsedData,
-      };
+      return parsedData;
     }
 
     if (this.enableCaching) {
@@ -281,6 +279,8 @@ export class OpenAIClient extends LLMClient {
       this.cache.set(cacheOptions, response, options.requestId);
     }
 
+    // if the function was called with a response model, it would have returned earlier
+    // so we can safely cast here to T, which defaults to ChatCompletion
     return response as T;
   }
 }

@@ -197,18 +197,8 @@ export class AnthropicClient extends LLMClient {
     let toolDefinition: Tool | undefined;
     if (options.response_model) {
       const jsonSchema = zodToJsonSchema(options.response_model.schema);
-      // Extract the actual schema properties
-      // TODO (kamath): fix this forced typecast
-      const schemaProperties =
-        (
-          jsonSchema.definitions?.MySchema as {
-            properties?: Record<string, unknown>;
-          }
-        )?.properties ||
-        (jsonSchema as { properties?: Record<string, unknown> }).properties;
-      const schemaRequired =
-        (jsonSchema.definitions?.MySchema as { required?: string[] })
-          ?.required || (jsonSchema as { required?: string[] }).required;
+      const { properties: schemaProperties, required: schemaRequired } =
+        extractSchemaProperties(jsonSchema);
 
       toolDefinition = {
         name: "print_extracted_data",
@@ -252,8 +242,6 @@ export class AnthropicClient extends LLMClient {
         },
       },
     });
-
-    // Parse the response here
 
     const transformedResponse: AnthropicTransformedResponse = {
       id: response.id,
@@ -313,7 +301,7 @@ export class AnthropicClient extends LLMClient {
           this.cache.set(cacheOptions, result, options.requestId);
         }
 
-        return result as T;
+        return result as T; // anthropic returns this as `unknown`, so we need to cast
       } else {
         if (!options.retries || options.retries < 5) {
           return this.createChatCompletion({
@@ -361,6 +349,17 @@ export class AnthropicClient extends LLMClient {
       });
     }
 
+    // if the function was called with a response model, it would have returned earlier
+    // so we can safely cast here to T, which defaults to AnthropicTransformedResponse
     return transformedResponse as T;
   }
 }
+
+const extractSchemaProperties = (jsonSchema: any) => {
+  const schemaRoot = jsonSchema.definitions?.MySchema || jsonSchema;
+
+  return {
+    properties: schemaRoot.properties,
+    required: schemaRoot.required,
+  };
+};
