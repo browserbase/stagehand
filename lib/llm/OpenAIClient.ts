@@ -41,15 +41,17 @@ export class OpenAIClient extends LLMClient {
   async createChatCompletion<T = ChatCompletion>(
     options: ChatCompletionOptions,
   ): Promise<T> {
-    const optionsWithoutImage = { ...options };
-    delete optionsWithoutImage.image;
+    const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
     this.logger({
       category: "openai",
       message: "creating chat completion",
       level: 1,
       auxiliary: {
         options: {
-          value: JSON.stringify(optionsWithoutImage),
+          value: JSON.stringify({
+            ...optionsWithoutImageAndRequestId,
+            requestId,
+          }),
           type: "object",
         },
         modelName: {
@@ -126,7 +128,7 @@ export class OpenAIClient extends LLMClient {
     }
 
     const { response_model, ...openAiOptions } = {
-      ...options,
+      ...optionsWithoutImageAndRequestId,
       model: this.modelName,
     };
 
@@ -149,9 +151,6 @@ export class OpenAIClient extends LLMClient {
         },
       },
     });
-
-    delete openAiOptions.requestId;
-    delete openAiOptions.image;
 
     const formattedMessages: ChatCompletionMessageParam[] =
       options.messages.map((message) => {
