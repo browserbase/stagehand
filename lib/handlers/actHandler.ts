@@ -424,11 +424,21 @@ export class StagehandActHandler {
         await Promise.race([
           this.stagehand.page.waitForLoadState("networkidle"),
           new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]).catch(() => {
+        ]).catch((e) => {
           this.logger({
             category: "action",
             message: "network idle timeout hit",
             level: 1,
+            auxiliary: {
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+              message: {
+                value: e.message,
+                type: "string",
+              },
+            },
           });
         });
 
