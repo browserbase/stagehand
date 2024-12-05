@@ -42,18 +42,24 @@ type LogLineEval = LogLine & {
 };
 
 function parseLogLine(logLine: LogLine): LogLineEval {
-  return {
-    ...logLine,
-    auxiliary: undefined,
-    parsedAuxiliary: logLine.auxiliary
-      ? Object.fromEntries(
-          Object.entries(logLine.auxiliary).map(([key, entry]) => [
-            key,
-            entry.type === "object" ? JSON.parse(entry.value) : entry.value,
-          ]),
-        )
-      : undefined,
-  } as LogLineEval;
+  try {
+    return {
+      ...logLine,
+      auxiliary: undefined,
+      parsedAuxiliary: logLine.auxiliary
+        ? Object.fromEntries(
+            Object.entries(logLine.auxiliary).map(([key, entry]) => [
+              key,
+              entry.type === "object" ? JSON.parse(entry.value) : entry.value,
+            ]),
+          )
+        : undefined,
+    } as LogLineEval;
+  } catch (e) {
+    console.log("Error parsing log line", logLine);
+    console.error(e);
+    return logLine;
+  }
 }
 
 export class EvalLogger {
