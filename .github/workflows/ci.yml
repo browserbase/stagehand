@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - main
-      - organize-evals
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   run-extract-evals:
