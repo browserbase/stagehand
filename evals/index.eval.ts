@@ -13,6 +13,30 @@ const env: "BROWSERBASE" | "LOCAL" =
 
 const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
 
+const generateTimestamp = (): string => {
+  const now = new Date();
+  return now.toISOString().replace(/[-:TZ]/g, "").slice(0, 14);
+};
+
+const generateExperimentName = (
+  { evalName,
+    category,
+    environment,
+  }: {
+  evalName?: string;
+  category?: string;
+  environment: string;
+}): string => {
+  const timestamp = generateTimestamp();
+  if (evalName) {
+    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  if (category) {
+    return `${category}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  return `all_${environment.toLowerCase()}_${timestamp}`;
+};
+
 const generateTasks = (): Record<string, EvalFunction> => {
   const tasks: Record<string, EvalFunction> = {};
   const categories = ["observe", "act", "combination", "extract"];
@@ -147,11 +171,7 @@ let filterByEvalName: string | null = null;
 
 if (args.length > 0) {
   if (args[0].toLowerCase() === "category") {
-    if (args[1] === "-") {
-      filterByCategory = args[2];
-    } else {
-      filterByCategory = args[1];
-    }
+    filterByCategory = args[1];
     if (!filterByCategory) {
       console.error("Error: Category name not specified.");
       process.exit(1);
@@ -165,7 +185,7 @@ if (args.length > 0) {
     }
   } else {
     filterByEvalName = args[0];
-    if (!testcases.includes(filterByEvalName)) {
+    if (!Object.keys(tasks).includes(filterByEvalName)) {
       console.error(`Error: Evaluation "${filterByEvalName}" does not exist.`);
       process.exit(1);
     }
@@ -176,7 +196,7 @@ const ciEvals = process.env.CI_EVALS?.split(",").map((e) => e.trim());
 
 const generateFilteredTestcases = () => {
   let allTestcases = models.flatMap((model) =>
-    testcases.map((test) => ({
+    Object.keys(tasks).map((test) => ({
       input: { name: test, modelName: model },
       name: test,
       tags: [model, test],
@@ -235,8 +255,15 @@ const generateTaskCategories = (): Record<string, string> => {
 const taskCategories = generateTaskCategories();
 
 (async () => {
+  const experimentName = generateExperimentName({
+    evalName: filterByEvalName || undefined,
+    category: filterByCategory || undefined,
+    environment: env,
+  });
+
   try {
     const evalResult = await Eval("stagehand", {
+      experimentName,
       data: generateFilteredTestcases,
       task: async (input: {
         name: keyof typeof tasks;
@@ -244,7 +271,6 @@ const taskCategories = generateTaskCategories();
       }) => {
         const logger = new EvalLogger();
         try {
-          // Execute the task
           const result = await tasks[input.name]({
             modelName: input.modelName,
             logger,
