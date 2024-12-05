@@ -52,3 +52,9 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Print Evaluation Summary
+        if: always()
+        run: |
+          echo "Evaluation Summary:"
+          cat eval-summary.json
