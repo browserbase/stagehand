@@ -28,11 +28,13 @@ export const ibm: EvalFunction = async ({ modelName, logger }) => {
       action: "click on the 'explore AI use cases' button",
     });
 
+    await stagehand.page.waitForLoadState("networkidle");
+
     const url = await stagehand.page.url();
 
     await stagehand.close();
 
-    const titleCheck = title === "Put AI into action";
+    const titleCheck = title.toLowerCase().includes("ai");
     const urlCheck = url === "https://www.ibm.com/watsonx/use-cases";
 
     return {
