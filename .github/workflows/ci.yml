@@ -33,63 +33,62 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run Evals
-        env:
-          CI_EVALS: "vanta,extract_github_stars,extract_collaborators_from_github_repository,wikipedia,peeler_complex,simple_google_search,extract_last_twenty_github_commits,laroche_form"
-        run: npm run evals
-        timeout-minutes: 20
-
-      - name: Check Eval Results
+      - name: Run Extract Evals
         run: |
+          npm run evals category extract
           if [ -f eval-summary.json ]; then
-            # Read data from eval-summary.json
-            total_tasks=$(jq '.totalTasks' eval-summary.json)
-            passed_tasks=$(jq '.passedTasks' eval-summary.json)
-            failed_tasks=$(jq '.failedTasks' eval-summary.json)
             exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-
-            # Count passed and failed tasks
-            num_passed=$(echo "$passed_tasks" | jq 'length')
-            num_failed=$(echo "$failed_tasks" | jq 'length')
-
-            # Output summary
-            echo "Total number of evals: $total_tasks"
-            echo "Number of evals that passed: $num_passed"
-            echo "Number of evals that failed: $num_failed"
-            echo "Exact match score: $exact_match_score%"
-
-            # Output passing evals
-            if [ "$num_passed" -gt 0 ]; then
-              echo ""
-              echo "Passing evals:"
-              echo "$passed_tasks" | jq -c '.[]' | while read -r task; do
-                name=$(echo "$task" | jq -r '.name')
-                model=$(echo "$task" | jq -r '.modelName')
-                echo ""
-                echo "name: $name"
-                echo "model: $model"
-              done
-            fi
-
-            # Output failing evals
-            if [ "$num_failed" -gt 0 ]; then
-              echo ""
-              echo "Failing evals:"
-              echo "$failed_tasks" | jq -c '.[]' | while read -r task; do
-                name=$(echo "$task" | jq -r '.name')
-                model=$(echo "$task" | jq -r '.modelName')
-                echo ""
-                echo "name: $name"
-                echo "model: $model"
-              done
-            fi
-
-            # fail if exact match score is below 85%
+            echo "Extract category score: $exact_match_score%"
             if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Exact match score is below 85%. Failing CI."
+              echo "Extract category score is below 85%. Failing CI."
               exit 1
             fi
           else
-            echo "Eval summary not found. Failing CI."
+            echo "Eval summary not found for extract category. Failing CI."
+            exit 1
+          fi
+
+      - name: Run Act Evals
+        run: |
+          npm run evals category act
+          if [ -f eval-summary.json ]; then
+            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
+            echo "Act category score: $exact_match_score%"
+            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
+              echo "Act category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for act category. Failing CI."
+            exit 1
+          fi
+
+      - name: Run Observe Evals
+        run: |
+          npm run evals category observe
+          if [ -f eval-summary.json ]; then
+            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
+            echo "Observe category score: $exact_match_score%"
+            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
+              echo "Observe category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for observe category. Failing CI."
+            exit 1
+          fi
+
+      - name: Run Combination Evals
+        run: |
+          npm run evals category combination
+          if [ -f eval-summary.json ]; then
+            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
+            echo "Combination category score: $exact_match_score%"
+            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
+              echo "Combination category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for combination category. Failing CI."
             exit 1
           fi
