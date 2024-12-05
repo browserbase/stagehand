@@ -39,7 +39,7 @@ const generateExperimentName = (
 
 const generateTasks = (): Record<string, EvalFunction> => {
   const tasks: Record<string, EvalFunction> = {};
-  const categories = ["observe", "act", "combination", "extract"];
+  const categories = ["observe", "act", "combination", "extract", "experimental"];
 
   categories.forEach((category) => {
     const categoryPath = path.join(__dirname, category);
@@ -176,7 +176,7 @@ if (args.length > 0) {
       console.error("Error: Category name not specified.");
       process.exit(1);
     }
-    const validCategories = ["extract", "observe", "act", "combination"];
+    const validCategories = ["extract", "observe", "act", "combination", "experimental"];
     if (!validCategories.includes(filterByCategory)) {
       console.error(
         `Error: Invalid category "${filterByCategory}". Valid categories are: ${validCategories.join(", ")}`,
@@ -231,7 +231,7 @@ const generateFilteredTestcases = () => {
 };
 
 const generateTaskCategories = (): Record<string, string> => {
-  const categories = ["observe", "act", "combination", "extract"];
+  const categories = ["observe", "act", "combination", "extract", "experimental"];
   const taskCategories: Record<string, string> = {};
 
   categories.forEach((category) => {
