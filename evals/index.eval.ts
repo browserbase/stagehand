@@ -4,12 +4,7 @@ import path from "path";
 import process from "process";
 import { EvalFunction } from "../types/evals";
 import { AvailableModel } from "../types/model";
-import { EvalLogger } from "./utils";
-
-const env: "BROWSERBASE" | "LOCAL" =
-  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-    ? "BROWSERBASE"
-    : "LOCAL";
+import { EvalLogger, env } from "./utils";
 
 const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
 

@@ -2,7 +2,7 @@ import { AvailableModel, Stagehand } from "../lib";
 import { logLineToString } from "../lib/utils";
 import { LogLine } from "../types/log";
 
-const env: "BROWSERBASE" | "LOCAL" =
+export const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
     ? "BROWSERBASE"
     : "LOCAL";
