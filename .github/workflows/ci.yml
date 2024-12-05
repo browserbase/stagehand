@@ -48,6 +48,7 @@ jobs:
             echo "Eval summary not found for extract category. Failing CI."
             exit 1
           fi
+          exit 0
 
   run-act-evals:
     runs-on: ubuntu-latest
@@ -90,6 +91,7 @@ jobs:
             echo "Eval summary not found for act category. Failing CI."
             exit 1
           fi
+          exit 0
 
   run-observe-evals:
     runs-on: ubuntu-latest
@@ -132,6 +134,7 @@ jobs:
             echo "Eval summary not found for observe category. Failing CI."
             exit 1
           fi
+          exit 0
 
   run-combination-evals:
     runs-on: ubuntu-latest
@@ -174,3 +177,4 @@ jobs:
             echo "Eval summary not found for combination category. Failing CI."
             exit 1
           fi
+          exit 0
