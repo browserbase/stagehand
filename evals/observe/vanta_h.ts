@@ -12,7 +12,7 @@ export const vanta_h: EvalFunction = async ({ modelName, logger }) => {
   await stagehand.page.goto("https://www.vanta.com/");
 
   const observations = await stagehand.observe({
-    instruction: "find the buy now button",
+    instruction: "find the buy now button if it is available",
   });
 
   await stagehand.close();
