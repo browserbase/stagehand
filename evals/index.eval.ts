@@ -11,7 +11,7 @@ const env: "BROWSERBASE" | "LOCAL" =
     ? "BROWSERBASE"
     : "LOCAL";
 
-const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-20241022"];
+const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
 
 const generateTasks = (): Record<string, EvalFunction> => {
   const tasks: Record<string, EvalFunction> = {};
@@ -82,36 +82,62 @@ const testcases = Object.keys(tasks).filter((name) =>
   env === "BROWSERBASE" ? name !== "peeler_simple" : true,
 );
 
-const generateSummary = async (summary: any, results: any[]) => {
-  const exactMatchScore = summary.scores?.["Exact match"] || { score: null };
+const generateSummary = async (results: any[]) => {
+  const passed = results
+    .filter((result) => result.output?._success)
+    .map((result) => ({
+      eval: result.input.name,
+      model: result.input.modelName,
+      category: taskCategories[result.input.name],
+    }));
 
-  const taskStatuses = results.map((result) => ({
-    name: result.input.name,
-    modelName: result.input.modelName,
-    success: result.output?._success || false,
-  }));
+  const failed = results
+    .filter((result) => !result.output?._success)
+    .map((result) => ({
+      eval: result.input.name,
+      model: result.input.modelName,
+      category: taskCategories[result.input.name],
+    }));
 
-  const totalTasks = taskStatuses.length;
+  const categories: Record<string, number> = {};
 
-  const passedTasks = taskStatuses
-    .filter((task) => task.success)
-    .map((task) => ({ name: task.name, modelName: task.modelName }));
-  const failedTasks = taskStatuses
-    .filter((task) => !task.success)
-    .map((task) => ({ name: task.name, modelName: task.modelName }));
+  Object.values(taskCategories).forEach((category) => {
+    const categoryResults = results.filter(
+      (r) => taskCategories[r.input.name] === category,
+    );
+    const successCount = categoryResults.filter(
+      (r) => r.output?._success,
+    ).length;
+    categories[category] = Math.round(
+      (successCount / categoryResults.length) * 100,
+    );
+  });
+
+  const models: Record<string, number> = {};
+
+  results.forEach((result) => {
+    const model = result.input.modelName;
+    if (!models[model]) {
+      const modelResults = results.filter((r) => r.input.modelName === model);
+      const successCount = modelResults.filter(
+        (r) => r.output?._success,
+      ).length;
+      models[model] = Math.round((successCount / modelResults.length) * 100);
+    }
+  });
 
   const formattedSummary = {
-    exactMatchScore:
-      exactMatchScore.score !== null ? exactMatchScore.score * 100 : null,
-    totalTasks,
-    passedTasks,
-    failedTasks,
+    passed,
+    failed,
+    categories,
+    models,
   };
 
   fs.writeFileSync(
     "eval-summary.json",
     JSON.stringify(formattedSummary, null, 2),
   );
+
   console.log("Evaluation summary written to eval-summary.json");
 };
 
@@ -257,7 +283,7 @@ const taskCategories = generateTaskCategories();
       trialCount: 5,
     });
 
-    await generateSummary(evalResult.summary, evalResult.results);
+    await generateSummary(evalResult.results);
   } catch (error) {
     console.error("Error during evaluation run:", error);
     process.exit(1);
