@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - organize-evals
 
 jobs:
   run-evals:
