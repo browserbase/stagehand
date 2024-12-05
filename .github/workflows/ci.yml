@@ -35,8 +35,10 @@ jobs:
         run: npm exec playwright install --with-deps
 
       - name: Run Extract Evals
+        run: npm run evals category extract
+
+      - name: Log Extract Evals Performance
         run: |
-          npm run evals category extract
           if [ -f eval-summary.json ]; then
             extract_score=$(jq '.categories.extract' eval-summary.json)
             echo "Extract category score: $extract_score%"
@@ -48,7 +50,6 @@ jobs:
             echo "Eval summary not found for extract category. Failing CI."
             exit 1
           fi
-          exit 0
 
   run-act-evals:
     runs-on: ubuntu-latest
@@ -78,8 +79,10 @@ jobs:
         run: npm exec playwright install --with-deps
 
       - name: Run Act Evals
+        run: npm run evals category act
+
+      - name: Log Act Evals Performance
         run: |
-          npm run evals category act
           if [ -f eval-summary.json ]; then
             act_score=$(jq '.categories.act' eval-summary.json)
             echo "Act category score: $act_score%"
@@ -91,7 +94,6 @@ jobs:
             echo "Eval summary not found for act category. Failing CI."
             exit 1
           fi
-          exit 0
 
   run-observe-evals:
     runs-on: ubuntu-latest
@@ -121,8 +123,10 @@ jobs:
         run: npm exec playwright install --with-deps
 
       - name: Run Observe Evals
+        run: npm run evals category observe
+
+      - name: Log Observe Evals Performance
         run: |
-          npm run evals category observe
           if [ -f eval-summary.json ]; then
             observe_score=$(jq '.categories.observe' eval-summary.json)
             echo "Observe category score: $observe_score%"
@@ -134,7 +138,6 @@ jobs:
             echo "Eval summary not found for observe category. Failing CI."
             exit 1
           fi
-          exit 0
 
   run-combination-evals:
     runs-on: ubuntu-latest
@@ -164,8 +167,10 @@ jobs:
         run: npm exec playwright install --with-deps
 
       - name: Run Combination Evals
+        run: npm run evals category combination
+
+      - name: Log Combination Evals Performance
         run: |
-          npm run evals category combination
           if [ -f eval-summary.json ]; then
             combination_score=$(jq '.categories.combination' eval-summary.json)
             echo "Combination category score: $combination_score%"
@@ -177,4 +182,3 @@ jobs:
             echo "Eval summary not found for combination category. Failing CI."
             exit 1
           fi
-          exit 0
