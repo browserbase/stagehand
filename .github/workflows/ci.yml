@@ -33,62 +33,21 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run Extract Evals
+      - name: Run All Evals
         run: |
-          npm run evals category extract
-          if [ -f eval-summary.json ]; then
-            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-            echo "Extract category score: $exact_match_score%"
-            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Extract category score is below 85%. Failing CI."
+          categories=("extract" "act" "observe" "combination")
+          for category in "${categories[@]}"; do
+            echo "Running $category evals..."
+            npm run evals category $category
+            if [ -f eval-summary.json ]; then
+              success_rate=$(jq ".categories[\"$category\"]" eval-summary.json)
+              echo "$category category success rate: $success_rate%"
+              if (( $(echo "$success_rate < 85" | bc -l) )); then
+                echo "$category category success rate is below 85%. Failing CI."
+                exit 1
+              fi
+            else
+              echo "Eval summary not found for $category category. Failing CI."
               exit 1
             fi
-          else
-            echo "Eval summary not found for extract category. Failing CI."
-            exit 1
-          fi
-
-      - name: Run Act Evals
-        run: |
-          npm run evals category act
-          if [ -f eval-summary.json ]; then
-            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-            echo "Act category score: $exact_match_score%"
-            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Act category score is below 85%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for act category. Failing CI."
-            exit 1
-          fi
-
-      - name: Run Observe Evals
-        run: |
-          npm run evals category observe
-          if [ -f eval-summary.json ]; then
-            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-            echo "Observe category score: $exact_match_score%"
-            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Observe category score is below 85%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for observe category. Failing CI."
-            exit 1
-          fi
-
-      - name: Run Combination Evals
-        run: |
-          npm run evals category combination
-          if [ -f eval-summary.json ]; then
-            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-            echo "Combination category score: $exact_match_score%"
-            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Combination category score is below 85%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for combination category. Failing CI."
-            exit 1
-          fi
+          done
