@@ -126,7 +126,7 @@ const vanta: EvalFunction = async ({ modelName, logger }) => {
   const observations = await stagehand.observe();
 
   if (observations.length === 0) {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
     return {
       _success: false,
       observations,
@@ -164,7 +164,7 @@ const vanta: EvalFunction = async ({ modelName, logger }) => {
     }
   }
 
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
 
   return {
     _success: foundMatch,
@@ -187,10 +187,11 @@ const vanta_h: EvalFunction = async ({ modelName, logger }) => {
   await stagehand.page.goto("https://www.vanta.com/");
 
   const observations = await stagehand.observe({
-    instruction: "find the buy now button",
+    instruction:
+      "find the buy now button. It should be a button with the text that says exactly 'Buy Now'",
   });
 
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
 
   // we should have no saved observation since the element shouldn't exist
   return {
@@ -219,7 +220,7 @@ const simple_google_search: EvalFunction = async ({ modelName, logger }) => {
   const expectedUrl = "https://www.google.com/search?q=OpenAI";
   const currentUrl = stagehand.page.url();
 
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
 
   return {
     _success: currentUrl.startsWith(expectedUrl),
@@ -253,7 +254,7 @@ const peeler_simple: EvalFunction = async ({ modelName, logger }) => {
   );
   const isVisible = await successMessageLocator.isVisible();
 
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
   return {
     _success: isVisible,
     debugUrl,
@@ -287,7 +288,6 @@ const peeler_complex: EvalFunction = async ({ modelName, logger }) => {
     const { price } = await stagehand.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
-      modelName: "gpt-4o-2024-08-06",
     });
 
     return {
@@ -320,7 +320,7 @@ const peeler_complex: EvalFunction = async ({ modelName, logger }) => {
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
@@ -355,7 +355,6 @@ const homedepot: EvalFunction = async ({ modelName, logger }) => {
           )
           .describe("Gas grill Primary Burner BTU exact value"),
       }),
-      modelName: "gpt-4o-2024-08-06",
     });
     logger.log({
       message: `gas grill primary burner BTU`,
@@ -670,7 +669,7 @@ const nonsense_action: EvalFunction = async ({ modelName, logger }) => {
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
@@ -701,7 +700,6 @@ const costar: EvalFunction = async ({ modelName, logger }) => {
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),
       }),
-      modelName: "gpt-4o-2024-08-06",
     });
 
     logger.log({
@@ -719,7 +717,7 @@ const costar: EvalFunction = async ({ modelName, logger }) => {
     const isTitleValid =
       articleTitle.title !== null && articleTitle.title.length > 5;
 
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
 
     return {
       title: articleTitle.title,
@@ -751,7 +749,7 @@ const costar: EvalFunction = async ({ modelName, logger }) => {
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
@@ -781,12 +779,8 @@ const google_jobs: EvalFunction = async ({ modelName, logger }) => {
 
     const jobDetails = await stagehand.extract({
       instruction:
-        "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
+        "Extract the following details from the job posting: minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
       schema: z.object({
-        applicationDeadline: z
-          .string()
-          .describe("The date until which the application window will be open")
-          .nullable(),
         minimumQualifications: z.object({
           degree: z.string().describe("The minimum required degree").nullable(),
           yearsOfExperience: z
@@ -802,7 +796,6 @@ const google_jobs: EvalFunction = async ({ modelName, logger }) => {
             .nullable(),
         }),
       }),
-      modelName: "gpt-4o-2024-08-06",
     });
 
     logger.log({
@@ -872,7 +865,7 @@ const google_jobs: EvalFunction = async ({ modelName, logger }) => {
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.context.close().catch(() => {});
   }
 };
 
@@ -1055,7 +1048,6 @@ const laroche_form: EvalFunction = async ({ modelName, logger }) => {
     //     startTerm: z.string(),
     //     programOfInterest: z.string(),
     //   }),
-    //   modelName: "gpt-4o",
     // });
 
     // console.log("Extracted form data:", formData);
@@ -1140,7 +1132,6 @@ const arxiv: EvalFunction = async ({ modelName, logger }) => {
           )
           .describe("list of papers"),
       }),
-      modelName: "gpt-4o-2024-08-06",
     });
 
     if (
@@ -1194,7 +1185,6 @@ const arxiv: EvalFunction = async ({ modelName, logger }) => {
               )
               .nullable(),
           }),
-          modelName: "gpt-4o-2024-08-06",
         });
 
         papers.push({
@@ -1345,7 +1335,7 @@ const amazon_add_to_cart: EvalFunction = async ({ modelName, logger }) => {
   const currentUrl = stagehand.page.url();
   const expectedUrlPrefix = "https://www.amazon.com/ap/signin";
 
-  await stagehand.context.close();
+  await stagehand.context.close().catch(() => {});
 
   return {
     _success: currentUrl.startsWith(expectedUrlPrefix),

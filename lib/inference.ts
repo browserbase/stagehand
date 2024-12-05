@@ -170,10 +170,12 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
 }) {
+  const isUsingAnthropic = llmClient.type === "anthropic";
+
   const extractionResponse = await llmClient.createChatCompletion({
     messages: [
-      buildExtractSystemPrompt(),
-      buildExtractUserPrompt(instruction, domElements),
+      buildExtractSystemPrompt(isUsingAnthropic),
+      buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
     ],
     response_model: {
       schema: schema,

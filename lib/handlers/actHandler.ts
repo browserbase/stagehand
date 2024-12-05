@@ -88,6 +88,19 @@ export class StagehandActHandler {
   }): Promise<boolean> {
     await this.waitForSettledDom(domSettleTimeoutMs);
 
+    // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
+    let verifyLLmClient = llmClient;
+    if (
+      llmClient.modelName === "o1-mini" ||
+      llmClient.modelName === "o1-preview" ||
+      llmClient.modelName.startsWith("o1-")
+    ) {
+      verifyLLmClient = this.llmProvider.getClient(
+        "gpt-4o",
+        llmClient.clientOptions,
+      );
+    }
+
     const { selectorMap } = await this.stagehand.page.evaluate(() => {
       return window.processAllOfDom();
     });
@@ -158,7 +171,7 @@ export class StagehandActHandler {
         goal: action,
         steps,
         llmProvider: this.llmProvider,
-        llmClient,
+        llmClient: verifyLLmClient,
         screenshot: fullpageScreenshot,
         domElements,
         logger: this.logger,
@@ -1304,6 +1317,21 @@ export class StagehandActHandler {
           steps,
           llmClient,
           domSettleTimeoutMs,
+        }).catch((error) => {
+          this.logger({
+            category: "action",
+            message:
+              "error verifying action completion. Assuming action completed.",
+            level: 1,
+            auxiliary: {
+              error: {
+                value: error.message,
+                type: "string",
+              },
+            },
+          });
+
+          return true;
         });
 
         if (!actionCompleted) {

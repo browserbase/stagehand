@@ -5,13 +5,16 @@ import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
+import { validateZodSchema } from "../utils";
+import zodToJsonSchema from "zod-to-json-schema";
 
 export class OpenAIClient extends LLMClient {
+  public type: "openai" = "openai";
   private client: OpenAI;
   private cache: LLMCache | undefined;
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
-  private clientOptions: ClientOptions;
+  public clientOptions: ClientOptions;
 
   constructor(
     logger: (message: LogLine) => void,
@@ -21,6 +24,7 @@ export class OpenAIClient extends LLMClient {
     clientOptions?: ClientOptions,
   ) {
     super(modelName);
+    this.clientOptions = clientOptions;
     this.client = new OpenAI(clientOptions);
     this.logger = logger;
     this.cache = cache;
@@ -28,8 +32,51 @@ export class OpenAIClient extends LLMClient {
     this.modelName = modelName;
   }
 
-  async createChatCompletion(options: ChatCompletionOptions) {
+  async createChatCompletion(
+    options: ChatCompletionOptions,
+    retries: number = 3,
+  ): Promise<any> {
     const { image: _, ...optionsWithoutImage } = options;
+
+    // O1 models do not support most of the options. So we override them.
+    // For schema and tools, we add them as user messages.
+    let isToolsOverridedForO1 = false;
+    if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+      options.messages = options.messages.map((message) => ({
+        ...message,
+        role: "user",
+      }));
+      options.temperature = undefined;
+      options.top_p = undefined;
+      options.frequency_penalty = undefined;
+      options.presence_penalty = undefined;
+      options.tool_choice = undefined;
+      if (options.tools && options.response_model) {
+        throw new Error(
+          "Cannot use both tool and response_model for o1 models",
+        );
+      }
+
+      if (options.tools) {
+        isToolsOverridedForO1 = true;
+        options.messages.push({
+          role: "user",
+          content: `You have the following tools available to you:\n${JSON.stringify(
+            options.tools,
+          )}
+
+          Respond with the following zod schema format to use a method: {
+            "name": "<tool_name>",
+            "arguments": <tool_args>
+          }
+          
+          Do not include any other text or formattings like \`\`\` in your response. Just the JSON object.`,
+        });
+
+        options.tools = undefined;
+      }
+    }
+
     this.logger({
       category: "openai",
       message: "creating chat completion",
@@ -120,10 +167,37 @@ export class OpenAIClient extends LLMClient {
 
     let responseFormat = undefined;
     if (options.response_model) {
-      responseFormat = zodResponseFormat(
-        options.response_model.schema,
-        options.response_model.name,
-      );
+      // For O1 models, we need to add the schema as a user message.
+      if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+        try {
+          const parsedSchema = JSON.stringify(
+            zodToJsonSchema(options.response_model.schema),
+          );
+          options.messages.push({
+            role: "user",
+            content: `Respond in this zod schema format:\n${parsedSchema}\n
+
+          Do not include any other text, formating or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+          });
+        } catch (error) {
+          this.logger({
+            category: "openai",
+            message: "Failed to parse response model schema",
+            level: 0,
+          });
+
+          if (retries > 0) {
+            return this.createChatCompletion(options, retries - 1);
+          }
+
+          throw error;
+        }
+      } else {
+        responseFormat = zodResponseFormat(
+          options.response_model.schema,
+          options.response_model.name,
+        );
+      }
     }
 
     this.logger({
@@ -143,6 +217,47 @@ export class OpenAIClient extends LLMClient {
       response_format: responseFormat,
     } as unknown as ChatCompletionCreateParamsNonStreaming); // TODO (kamath): remove this forced typecast
 
+    // For O1 models, we need to parse the tool call response manually and add it to the response.
+    if (isToolsOverridedForO1) {
+      try {
+        const parsedContent = JSON.parse(response.choices[0].message.content);
+
+        response.choices[0].message.tool_calls = [
+          {
+            function: {
+              name: parsedContent["name"],
+              arguments: JSON.stringify(parsedContent["arguments"]),
+            },
+            type: "function",
+            id: "-1",
+          },
+        ];
+        response.choices[0].message.content = null;
+      } catch (error) {
+        this.logger({
+          category: "openai",
+          message: "Failed to parse tool call response",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            content: {
+              value: response.choices[0].message.content,
+              type: "string",
+            },
+          },
+        });
+
+        if (retries > 0) {
+          return this.createChatCompletion(options, retries - 1);
+        }
+
+        throw error;
+      }
+    }
+
     this.logger({
       category: "openai",
       message: "response",
@@ -159,9 +274,17 @@ export class OpenAIClient extends LLMClient {
       },
     });
 
-    if (response_model) {
+    if (options.response_model) {
       const extractedData = response.choices[0].message.content;
       const parsedData = JSON.parse(extractedData);
+
+      if (!validateZodSchema(options.response_model.schema, parsedData)) {
+        if (retries > 0) {
+          return this.createChatCompletion(options, retries - 1);
+        }
+
+        throw new Error("Invalid response schema");
+      }
 
       if (this.enableCaching) {
         this.cache.set(

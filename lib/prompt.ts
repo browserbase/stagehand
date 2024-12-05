@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { ChatMessage } from "./llm/LLMClient";
+import { ChatMessage, LLMClient } from "./llm/LLMClient";
 
 // act
 const actSystemPrompt = `
@@ -206,13 +206,17 @@ const extractSystemPrompt = `You are extracting content on behalf of a user. You
 
 Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
 Print null or an empty string if no new information is found.
-
-ONLY print the content using the print_extracted_data tool provided.
-ONLY print the content using the print_extracted_data tool provided.
 `;
 
-export function buildExtractSystemPrompt(): ChatMessage {
-  const content = extractSystemPrompt.replace(/\s+/g, " ");
+export function buildExtractSystemPrompt(
+  isUsingPrintExtractedDataTool: boolean = false,
+): ChatMessage {
+  let content = extractSystemPrompt.replace(/\s+/g, " ");
+  if (isUsingPrintExtractedDataTool) {
+    content += `
+ONLY print the content using the print_extracted_data tool provided.
+ONLY print the content using the print_extracted_data tool provided.`;
+  }
   return {
     role: "system",
     content,
@@ -222,14 +226,20 @@ export function buildExtractSystemPrompt(): ChatMessage {
 export function buildExtractUserPrompt(
   instruction: string,
   domElements: string,
+  isUsingPrintExtractedDataTool: boolean = false,
 ): ChatMessage {
+  let content = `Instruction: ${instruction}
+DOM: ${domElements}`;
+
+  if (isUsingPrintExtractedDataTool) {
+    content += `
+ONLY print the content using the print_extracted_data tool provided.
+ONLY print the content using the print_extracted_data tool provided.`;
+  }
+
   return {
     role: "user",
-    content: `Instruction: ${instruction}
-DOM: ${domElements}
-
-ONLY print the content using the print_extracted_data tool provided.
-ONLY print the content using the print_extracted_data tool provided.`,
+    content,
   };
 }
 
