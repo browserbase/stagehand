@@ -1,7 +1,7 @@
 import { initStagehand } from "../utils";
 import { EvalFunction } from "../../types/evals";
 
-export const vanta: EvalFunction = async ({ modelName, logger }) => {
+export const shopify_homepage: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -9,8 +9,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.act({action: "close the cookies popup"});
+  await stagehand.page.goto("https://www.shopify.com/");
 
   const observations = await stagehand.observe();
 
@@ -25,12 +24,12 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
     };
   }
 
-  const expectedLocator = `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_link.is-tablet-margin-0.w-nav-link`;
+  const expectedLocator = `body > div.relative > header > div > div > div.ml-auto > ul.lg\\:flex.hidden.items-center > li.leading-\\[0\\] > a`;
 
   const expectedResult = await stagehand.page
     .locator(expectedLocator)
     .first()
-    .innerHTML();
+    .innerText();
 
   let foundMatch = false;
   for (const observation of observations) {
@@ -38,7 +37,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
       const observationResult = await stagehand.page
         .locator(observation.selector)
         .first()
-        .innerHTML();
+        .innerText();
 
       if (observationResult === expectedResult) {
         foundMatch = true;

@@ -65,7 +65,6 @@ export const ted_talk: EvalFunction = async ({ modelName, logger}) => {
     };
   }
 
-  // Validate extracted playlists against expected ones
   const missingPlaylists = expectedPlaylists.filter((expected) =>
     playlists.playlists.every(
       (extracted) =>
