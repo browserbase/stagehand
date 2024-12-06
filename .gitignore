@@ -15,3 +15,4 @@ evals/public
 *.tgz
 evals/playground.ts
 tmp/
+eval-summary.json

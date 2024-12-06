@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - main
+      - dev
+      - evals/**
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  run-evals:
+  run-extract-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -33,63 +41,200 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run Evals
-        env:
-          CI_EVALS: "vanta,extract_github_stars,extract_collaborators_from_github_repository,wikipedia,peeler_complex,simple_google_search,extract_last_twenty_github_commits,laroche_form"
-        run: npm run evals
-        timeout-minutes: 20
+      - name: Run Extract Evals
+        run: npm run evals category extract
 
-      - name: Check Eval Results
+      - name: Log Extract Evals Performance
         run: |
           if [ -f eval-summary.json ]; then
-            # Read data from eval-summary.json
-            total_tasks=$(jq '.totalTasks' eval-summary.json)
-            passed_tasks=$(jq '.passedTasks' eval-summary.json)
-            failed_tasks=$(jq '.failedTasks' eval-summary.json)
-            exact_match_score=$(jq '.exactMatchScore' eval-summary.json)
-
-            # Count passed and failed tasks
-            num_passed=$(echo "$passed_tasks" | jq 'length')
-            num_failed=$(echo "$failed_tasks" | jq 'length')
-
-            # Output summary
-            echo "Total number of evals: $total_tasks"
-            echo "Number of evals that passed: $num_passed"
-            echo "Number of evals that failed: $num_failed"
-            echo "Exact match score: $exact_match_score%"
-
-            # Output passing evals
-            if [ "$num_passed" -gt 0 ]; then
-              echo ""
-              echo "Passing evals:"
-              echo "$passed_tasks" | jq -c '.[]' | while read -r task; do
-                name=$(echo "$task" | jq -r '.name')
-                model=$(echo "$task" | jq -r '.modelName')
-                echo ""
-                echo "name: $name"
-                echo "model: $model"
-              done
-            fi
-
-            # Output failing evals
-            if [ "$num_failed" -gt 0 ]; then
-              echo ""
-              echo "Failing evals:"
-              echo "$failed_tasks" | jq -c '.[]' | while read -r task; do
-                name=$(echo "$task" | jq -r '.name')
-                model=$(echo "$task" | jq -r '.modelName')
-                echo ""
-                echo "name: $name"
-                echo "model: $model"
-              done
-            fi
-
-            # fail if exact match score is below 85%
-            if (( $(echo "$exact_match_score < 85" | bc -l) )); then
-              echo "Exact match score is below 85%. Failing CI."
+            extract_score=$(jq '.categories.extract' eval-summary.json)
+            echo "Extract category score: $extract_score%"
+            if (( $(echo "$extract_score < 85" | bc -l) )); then
+              echo "Extract category score is below 85%. Failing CI."
               exit 1
             fi
           else
-            echo "Eval summary not found. Failing CI."
+            echo "Eval summary not found for extract category. Failing CI."
+            exit 1
+          fi
+
+  run-act-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [run-extract-evals]
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Act Evals
+        run: npm run evals category act
+
+      - name: Log Act Evals Performance
+        run: |
+          if [ -f eval-summary.json ]; then
+            act_score=$(jq '.categories.act' eval-summary.json)
+            echo "Act category score: $act_score%"
+            if (( $(echo "$act_score < 85" | bc -l) )); then
+              echo "Act category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for act category. Failing CI."
+            exit 1
+          fi
+
+  run-observe-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [run-act-evals]
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Observe Evals
+        run: npm run evals category observe
+
+      - name: Log Observe Evals Performance
+        run: |
+          if [ -f eval-summary.json ]; then
+            observe_score=$(jq '.categories.observe' eval-summary.json)
+            echo "Observe category score: $observe_score%"
+            if (( $(echo "$observe_score < 85" | bc -l) )); then
+              echo "Observe category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for observe category. Failing CI."
+            exit 1
+          fi
+
+  run-combination-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [run-observe-evals]
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Combination Evals
+        run: npm run evals category combination
+
+      - name: Log Combination Evals Performance
+        run: |
+          if [ -f eval-summary.json ]; then
+            combination_score=$(jq '.categories.combination' eval-summary.json)
+            echo "Combination category score: $combination_score%"
+            if (( $(echo "$combination_score < 85" | bc -l) )); then
+              echo "Combination category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for combination category. Failing CI."
+            exit 1
+          fi
+
+  run-experimental-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [run-combination-evals]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Experimental Evals
+        run: npm run evals category experimental
+
+      - name: Log Experimental Evals Performance
+        run: |
+          if [ -f eval-summary.json ]; then
+            experimental_score=$(jq '.categories.experimental' eval-summary.json)
+            echo "Experimental category score: $experimental_score%"
+            if (( $(echo "$experimental_score < 85" | bc -l) )); then
+              echo "Experimental category score is below 85%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for experimental category. Failing CI."
             exit 1
           fi

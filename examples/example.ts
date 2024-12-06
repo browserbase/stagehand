@@ -7,22 +7,29 @@ async function example() {
     verbose: 1,
     debugDom: true,
     enableCaching: false,
+    modelName: "claude-3-5-sonnet-latest"
   });
 
-  await stagehand.init();
-  await stagehand.page.goto("https://github.com/browserbase/stagehand");
-  await stagehand.act({ action: "click on the contributors" });
-  const contributor = await stagehand.extract({
-    instruction: "extract the top contributor",
+
+  await stagehand.init({ domSettleTimeoutMs: 3000 });
+  await stagehand.page.goto("https://www.mycmh.org/locations/");
+
+  const result = await stagehand.extract({
+    instruction:
+      "extract a list of the health centers on this page with their name, phone number and full address",
     schema: z.object({
-      username: z.string(),
-      url: z.string(),
+      health_centers: z.array(
+        z.object({
+          name: z.string(),
+          phone_number: z.string(),
+          address: z.string(),
+        })
+      ),
     }),
   });
 
-  console.log(`Our favorite contributor is ${contributor.username}`);
+  console.log(`The healthcare centers are ${JSON.stringify(result.health_centers, null, 2)}`);
 
-  await stagehand.close();
 }
 
 (async () => {
