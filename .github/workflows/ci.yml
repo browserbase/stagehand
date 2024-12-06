@@ -7,7 +7,6 @@ on:
       - dev
       - organize-evals
       - evals/**
-
   schedule:
     - cron: "0 */6 * * *" # every 6 hours
 
@@ -63,6 +62,7 @@ jobs:
   run-act-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: [run-extract-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -107,6 +107,7 @@ jobs:
   run-observe-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: [run-act-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -151,6 +152,7 @@ jobs:
   run-combination-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: [run-observe-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -195,6 +197,7 @@ jobs:
   run-experimental-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: [run-combination-evals]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/organize-evals'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
