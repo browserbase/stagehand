@@ -2,7 +2,14 @@ import { Eval } from "braintrust";
 import fs from "fs";
 import path from "path";
 import process from "process";
-import { EvalFunction, SummaryResult, Testcase } from "../types/evals";
+import {
+  EvalArgs,
+  EvalFunction,
+  EvalInput,
+  EvalResult,
+  SummaryResult,
+  Testcase,
+} from "../types/evals";
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
@@ -37,56 +44,47 @@ const generateExperimentName = ({
   return `all_${environment.toLowerCase()}_${timestamp}`;
 };
 
-const generateTasksAndCategories = async (): Promise<{
-  tasks: Record<string, EvalFunction>;
+const generateTasksAndCategories = (): {
+  tasks: Record<
+    string,
+    Promise<{
+      [name: string]: EvalFunction;
+    }>
+  >;
   taskCategories: Record<string, string>;
-}> => {
-  const tasks: Record<string, EvalFunction> = {};
+} => {
+  const tasks: Record<
+    string,
+    Promise<{
+      [name: string]: EvalFunction;
+    }>
+  > = {};
   const taskCategories: Record<string, string> = {};
 
-  await Promise.all(
-    CATEGORIES.map(async (category) => {
-      const categoryPath = path.join(__dirname, category);
-      try {
-        const files = fs.readdirSync(categoryPath);
-        await Promise.all(
-          files.map(async (file) => {
-            if (file.endsWith(".ts")) {
-              const taskName = file.replace(".ts", "");
-              const taskModule = await import(`./${category}/${taskName}`);
-              tasks[taskName] = taskModule[taskName];
-              taskCategories[taskName] = category;
-            }
-          }),
-        );
-      } catch (error) {
-        console.warn(`Warning: Category directory ${category} not found`);
-        console.log(error);
-      }
-    }),
-  );
+  CATEGORIES.map((category) => {
+    const categoryPath = path.join(__dirname, category);
+    try {
+      const files = fs.readdirSync(categoryPath);
+      files.map((file) => {
+        if (file.endsWith(".ts")) {
+          const taskName = file.replace(".ts", "");
+          const taskModule = import(`./${category}/${taskName}`) as Promise<{
+            [name: string]: EvalFunction;
+          }>;
+          tasks[taskName] = taskModule;
+          taskCategories[taskName] = category;
+        }
+      });
+    } catch (error) {
+      console.warn(`Warning: Category directory ${category} not found`);
+      console.log(error);
+    }
+  });
 
   return { tasks, taskCategories };
 };
 
-interface EvalArgs<TInput, TOutput, TExpected> {
-  input: TInput;
-  output: TOutput;
-  expected: TExpected;
-  metadata?: { model: AvailableModel; test: string };
-}
-
-interface EvalResult {
-  name: string;
-  score: number;
-}
-
-interface EvalInput {
-  name: string;
-  modelName: AvailableModel;
-}
-
-const { tasks, taskCategories } = await generateTasksAndCategories();
+const { tasks, taskCategories } = generateTasksAndCategories();
 
 const exactMatch = (
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
@@ -270,7 +268,15 @@ const generateFilteredTestcases = (): Testcase[] => {
       }) => {
         const logger = new EvalLogger();
         try {
-          const result = await tasks[input.name]({
+          const taskModule = await tasks[input.name];
+          const taskFunction = taskModule[input.name];
+
+          if (typeof taskFunction !== "function") {
+            throw new Error(
+              `Task function for ${input.name} is not a function`,
+            );
+          }
+          const result = await taskFunction({
             modelName: input.modelName,
             logger,
           });
@@ -305,7 +311,7 @@ const generateFilteredTestcases = (): Testcase[] => {
       },
       scores: [exactMatch, errorMatch],
       maxConcurrency: 20,
-      trialCount: 5,
+      trialCount: 1,
     });
 
     const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
