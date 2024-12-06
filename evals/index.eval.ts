@@ -8,20 +8,24 @@ import { EvalLogger, env } from "./utils";
 
 const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
 
+const CATEGORIES = ["observe", "act", "combination", "extract", "experimental"];
+
 const generateTimestamp = (): string => {
   const now = new Date();
   return now.toISOString().replace(/[-:TZ]/g, "").slice(0, 14);
 };
 
 const generateExperimentName = (
-  { evalName,
+  {
+    evalName,
     category,
     environment,
   }: {
-  evalName?: string;
-  category?: string;
-  environment: string;
-}): string => {
+    evalName?: string;
+    category?: string;
+    environment: string;
+  }
+): string => {
   const timestamp = generateTimestamp();
   if (evalName) {
     return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
@@ -32,11 +36,15 @@ const generateExperimentName = (
   return `all_${environment.toLowerCase()}_${timestamp}`;
 };
 
-const generateTasks = (): Record<string, EvalFunction> => {
-  const tasks: Record<string, EvalFunction> = {};
-  const categories = ["observe", "act", "combination", "extract", "experimental"];
 
-  categories.forEach((category) => {
+const generateTasksAndCategories = (): {
+  tasks: Record<string, EvalFunction>;
+  taskCategories: Record<string, string>;
+} => {
+  const tasks: Record<string, EvalFunction> = {};
+  const taskCategories: Record<string, string> = {};
+
+  CATEGORIES.forEach((category) => {
     const categoryPath = path.join(__dirname, category);
     try {
       const files = fs.readdirSync(categoryPath);
@@ -45,6 +53,7 @@ const generateTasks = (): Record<string, EvalFunction> => {
           const taskName = file.replace(".ts", "");
           const taskModule = require(`./${category}/${taskName}`);
           tasks[taskName] = taskModule[taskName];
+          taskCategories[taskName] = category;
         }
       });
     } catch (error) {
@@ -52,10 +61,10 @@ const generateTasks = (): Record<string, EvalFunction> => {
     }
   });
 
-  return tasks;
+  return { tasks, taskCategories };
 };
 
-const tasks = generateTasks();
+const { tasks, taskCategories } = generateTasksAndCategories();
 
 const exactMatch = (args: {
   input: any;
@@ -97,9 +106,6 @@ const errorMatch = (args: {
   };
 };
 
-const testcases = Object.keys(tasks).filter((name) =>
-  env === "BROWSERBASE" ? name !== "peeler_simple" : true,
-);
 
 const generateSummary = async (results: any[]) => {
   const passed = results
@@ -122,13 +128,12 @@ const generateSummary = async (results: any[]) => {
 
   Object.values(taskCategories).forEach((category) => {
     const categoryResults = results.filter(
-      (r) => taskCategories[r.input.name] === category,
+      (r) => taskCategories[r.input.name] === category
     );
-    const successCount = categoryResults.filter(
-      (r) => r.output?._success,
-    ).length;
+    const successCount = categoryResults.filter((r) => r.output?._success)
+      .length;
     categories[category] = Math.round(
-      (successCount / categoryResults.length) * 100,
+      (successCount / categoryResults.length) * 100
     );
   });
 
@@ -138,9 +143,8 @@ const generateSummary = async (results: any[]) => {
     const model = result.input.modelName;
     if (!models[model]) {
       const modelResults = results.filter((r) => r.input.modelName === model);
-      const successCount = modelResults.filter(
-        (r) => r.output?._success,
-      ).length;
+      const successCount = modelResults.filter((r) => r.output?._success)
+        .length;
       models[model] = Math.round((successCount / modelResults.length) * 100);
     }
   });
@@ -152,11 +156,7 @@ const generateSummary = async (results: any[]) => {
     models,
   };
 
-  fs.writeFileSync(
-    "eval-summary.json",
-    JSON.stringify(formattedSummary, null, 2),
-  );
-
+  fs.writeFileSync("eval-summary.json", JSON.stringify(formattedSummary, null, 2));
   console.log("Evaluation summary written to eval-summary.json");
 };
 
@@ -171,10 +171,11 @@ if (args.length > 0) {
       console.error("Error: Category name not specified.");
       process.exit(1);
     }
-    const validCategories = ["extract", "observe", "act", "combination", "experimental"];
-    if (!validCategories.includes(filterByCategory)) {
+    if (!CATEGORIES.includes(filterByCategory)) {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${validCategories.join(", ")}`,
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
+          ", "
+        )}`
       );
       process.exit(1);
     }
@@ -187,7 +188,6 @@ if (args.length > 0) {
   }
 }
 
-const ciEvals = process.env.CI_EVALS?.split(",").map((e) => e.trim());
 
 const generateFilteredTestcases = () => {
   let allTestcases = models.flatMap((model) =>
@@ -199,18 +199,12 @@ const generateFilteredTestcases = () => {
         model,
         test,
       },
-    })),
+    }))
   );
-
-  if (ciEvals && ciEvals.length > 0) {
-    allTestcases = allTestcases.filter((testcase) =>
-      ciEvals.includes(testcase.name),
-    );
-  }
 
   if (filterByCategory) {
     allTestcases = allTestcases.filter(
-      (testcase) => taskCategories[testcase.name] === filterByCategory,
+      (testcase) => taskCategories[testcase.name] === filterByCategory
     );
   }
 
@@ -218,36 +212,16 @@ const generateFilteredTestcases = () => {
     allTestcases = allTestcases.filter(
       (testcase) =>
         testcase.name === filterByEvalName ||
-        testcase.input.name === filterByEvalName,
+        testcase.input.name === filterByEvalName
     );
+  }
+
+  if (env === "BROWSERBASE") {
+    allTestcases = allTestcases.filter((testcase) => testcase.name !== "peeler_simple");
   }
 
   return allTestcases;
 };
-
-const generateTaskCategories = (): Record<string, string> => {
-  const categories = ["observe", "act", "combination", "extract", "experimental"];
-  const taskCategories: Record<string, string> = {};
-
-  categories.forEach((category) => {
-    const categoryPath = path.join(__dirname, category);
-    try {
-      const files = fs.readdirSync(categoryPath);
-      files.forEach((file) => {
-        if (file.endsWith(".ts")) {
-          const taskName = file.replace(".ts", "");
-          taskCategories[taskName] = category;
-        }
-      });
-    } catch (error) {
-      console.warn(`Warning: Category directory ${category} not found`);
-    }
-  });
-
-  return taskCategories;
-};
-
-const taskCategories = generateTaskCategories();
 
 (async () => {
   const experimentName = generateExperimentName({
@@ -276,7 +250,7 @@ const taskCategories = generateTaskCategories();
             console.log(`❌ ${input.name}: Failed`);
           }
           return result;
-        } catch (error) {
+        } catch (error: any) {
           console.error(`❌ ${input.name}: Error - ${error}`);
           logger.error({
             message: `Error in task ${input.name}`,
