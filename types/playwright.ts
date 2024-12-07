@@ -11,3 +11,9 @@ export class PlaywrightCommandMethodNotSupportedException extends Error {
     this.name = "PlaywrightCommandMethodNotSupportedException";
   }
 }
+
+export interface GotoOptions {
+  timeout?: number;
+  waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
+  referer?: string;
+}

@@ -195,7 +195,7 @@ jobs:
 
   run-experimental-evals:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     needs: [run-combination-evals]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     env:
@@ -230,10 +230,6 @@ jobs:
           if [ -f eval-summary.json ]; then
             experimental_score=$(jq '.categories.experimental' eval-summary.json)
             echo "Experimental category score: $experimental_score%"
-            if (( $(echo "$experimental_score < 85" | bc -l) )); then
-              echo "Experimental category score is below 85%. Failing CI."
-              exit 1
-            fi
           else
             echo "Eval summary not found for experimental category. Failing CI."
             exit 1

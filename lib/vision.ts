@@ -124,11 +124,31 @@ export class ScreenshotService {
       },
     });
 
-    const svgAnnotations = await Promise.all(
-      Object.entries(this.selectorMap).map(async ([id, selectors]) =>
-        this.createElementAnnotation(id, selectors),
-      ),
-    );
+    const svgAnnotations = (
+      await Promise.all(
+        Object.entries(this.selectorMap).map(async ([id, selectors]) =>
+          this.createElementAnnotation(id, selectors).catch((error) => {
+            this.log({
+              category: "screenshotService",
+              message:
+                "warning: failed to create screenshot annotation for element",
+              level: 2,
+              auxiliary: {
+                message: {
+                  value: error.message,
+                  type: "string",
+                },
+                trace: {
+                  value: error.stack,
+                  type: "string",
+                },
+              },
+            });
+            return null;
+          }),
+        ),
+      )
+    ).filter((annotation) => annotation !== null);
 
     const scrollPosition = await this.page.evaluate(() => {
       return {
@@ -162,17 +182,16 @@ export class ScreenshotService {
       let element = null;
 
       // Try each selector until one works
-      const selectorPromises: Promise<any | null>[] = selectors.map(
-        async (selector) => {
+      const selectorPromises: Promise<Omit<AnnotationBox, "id"> | null>[] =
+        selectors.map(async (selector) => {
           try {
             element = await this.page.locator(`xpath=${selector}`).first();
             const box = await element.boundingBox({ timeout: 5_000 });
             return box;
-          } catch (e) {
+          } catch {
             return null;
           }
-        },
-      );
+        });
 
       const boxes = await Promise.all(selectorPromises);
       const box = boxes.find((b) => b !== null);
@@ -235,7 +254,7 @@ export class ScreenshotService {
 
   private findNonOverlappingNumberPosition(box: AnnotationBox): NumberPosition {
     const circleRadius = 12;
-    let position: NumberPosition = {
+    const position: NumberPosition = {
       x: box.x - circleRadius,
       y: box.y - circleRadius,
     };

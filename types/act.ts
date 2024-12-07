@@ -16,7 +16,7 @@ export interface ActParams {
 export interface ActResult {
   method: string;
   element: number;
-  args: any[];
+  args: unknown[];
   completed: boolean;
   step: string;
   why?: string;

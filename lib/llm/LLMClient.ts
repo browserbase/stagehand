@@ -1,4 +1,14 @@
-import { AvailableModel, ToolCall } from "../../types/model";
+import {
+  ChatCompletion,
+  ChatCompletionToolChoiceOption,
+} from "openai/resources";
+import { ZodType } from "zod";
+import {
+  AnthropicTransformedResponse,
+  AvailableModel,
+  ClientOptions,
+  ToolCall,
+} from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -44,23 +54,29 @@ export interface ChatCompletionOptions {
   };
   response_model?: {
     name: string;
-    schema: any;
+    schema: ZodType;
   };
   tools?: ToolCall[];
-  tool_choice?: string;
+  tool_choice?: "auto" | ChatCompletionToolChoiceOption;
   maxTokens?: number;
   requestId: string;
 }
 
+export type LLMResponse = AnthropicTransformedResponse | ChatCompletion;
+
 export abstract class LLMClient {
+  public type: "openai" | "anthropic";
   public modelName: AvailableModel;
   public hasVision: boolean;
+  public clientOptions: ClientOptions;
 
   constructor(modelName: AvailableModel) {
     this.modelName = modelName;
     this.hasVision = modelsWithVision.includes(modelName);
   }
 
-  abstract createChatCompletion(options: ChatCompletionOptions): Promise<any>;
+  abstract createChatCompletion<T = LLMResponse>(
+    options: ChatCompletionOptions,
+  ): Promise<T>;
   abstract logger: (message: { category?: string; message: string }) => void;
 }
