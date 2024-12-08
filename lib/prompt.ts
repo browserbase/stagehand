@@ -122,8 +122,8 @@ ${domElements}
   if (variables && Object.keys(variables).length > 0) {
     actUserPrompt += `
 # Variables
-${Object.entries(variables)
-  .map(([key, value]) => `<|${key.toUpperCase()}|>`)
+${Object.keys(variables)
+  .map((key) => `<|${key.toUpperCase()}|>`)
   .join("\n")}
 `;
   }

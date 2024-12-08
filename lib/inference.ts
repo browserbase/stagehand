@@ -33,13 +33,17 @@ export async function verifyActCompletion({
   logger,
   requestId,
 }: VerifyActCompletionParams): Promise<boolean> {
-  const messages: ChatMessage[] = [
-    buildVerifyActCompletionSystemPrompt(),
-    buildVerifyActCompletionUserPrompt(goal, steps, domElements),
-  ];
+  const verificationSchema = z.object({
+    completed: z.boolean().describe("true if the goal is accomplished"),
+  });
 
-  const response = await llmClient.createChatCompletion({
-    messages,
+  type VerificationResponse = z.infer<typeof verificationSchema>;
+
+  const response = await llmClient.createChatCompletion<VerificationResponse>({
+    messages: [
+      buildVerifyActCompletionSystemPrompt(),
+      buildVerifyActCompletionUserPrompt(goal, steps, domElements),
+    ],
     temperature: 0.1,
     top_p: 1,
     frequency_penalty: 0,
@@ -52,9 +56,7 @@ export async function verifyActCompletion({
       : undefined,
     response_model: {
       name: "Verification",
-      schema: z.object({
-        completed: z.boolean().describe("true if the goal is accomplished"),
-      }),
+      schema: verificationSchema,
     },
     requestId,
   });
@@ -151,7 +153,6 @@ export async function act({
 
 export async function extract({
   instruction,
-  progress,
   previouslyExtractedContent,
   domElements,
   schema,
@@ -161,50 +162,54 @@ export async function extract({
   requestId,
 }: {
   instruction: string;
-  progress: string;
-  previouslyExtractedContent: any;
+  previouslyExtractedContent: object;
   domElements: string;
-  schema: z.ZodObject<any>;
+  schema: z.ZodObject<z.ZodRawShape>;
   llmClient: LLMClient;
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
 }) {
-  const extractionResponse = await llmClient.createChatCompletion({
-    messages: [
-      buildExtractSystemPrompt(),
-      buildExtractUserPrompt(instruction, domElements),
-    ],
-    response_model: {
-      schema: schema,
-      name: "Extraction",
-    },
-    temperature: 0.1,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    requestId,
-  });
+  type ExtractionResponse = z.infer<typeof schema>;
+  type MetadataResponse = z.infer<typeof metadataSchema>;
 
-  const refinedResponse = await llmClient.createChatCompletion({
-    messages: [
-      buildRefineSystemPrompt(),
-      buildRefineUserPrompt(
-        instruction,
-        previouslyExtractedContent,
-        extractionResponse,
-      ),
-    ],
-    response_model: {
-      schema: schema,
-      name: "RefinedExtraction",
-    },
-    temperature: 0.1,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    requestId,
-  });
+  const extractionResponse =
+    await llmClient.createChatCompletion<ExtractionResponse>({
+      messages: [
+        buildExtractSystemPrompt(),
+        buildExtractUserPrompt(instruction, domElements),
+      ],
+      response_model: {
+        schema: schema,
+        name: "Extraction",
+      },
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      requestId,
+    });
+
+  const refinedResponse =
+    await llmClient.createChatCompletion<ExtractionResponse>({
+      messages: [
+        buildRefineSystemPrompt(),
+        buildRefineUserPrompt(
+          instruction,
+          previouslyExtractedContent,
+          extractionResponse,
+        ),
+      ],
+      response_model: {
+        schema: schema,
+        name: "RefinedExtraction",
+      },
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      requestId,
+    });
 
   const metadataSchema = z.object({
     progress: z
@@ -219,30 +224,32 @@ export async function extract({
       ),
   });
 
-  const metadataResponse = await llmClient.createChatCompletion({
-    messages: [
-      buildMetadataSystemPrompt(),
-      buildMetadataPrompt(
-        instruction,
-        refinedResponse,
-        chunksSeen,
-        chunksTotal,
-      ),
-    ],
-    response_model: {
-      name: "Metadata",
-      schema: metadataSchema,
-    },
-    temperature: 0.1,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    requestId,
-  });
+  const metadataResponse =
+    await llmClient.createChatCompletion<MetadataResponse>({
+      messages: [
+        buildMetadataSystemPrompt(),
+        buildMetadataPrompt(
+          instruction,
+          refinedResponse,
+          chunksSeen,
+          chunksTotal,
+        ),
+      ],
+      response_model: {
+        name: "Metadata",
+        schema: metadataSchema,
+      },
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      requestId,
+    });
 
-  refinedResponse.metadata = metadataResponse;
-
-  return refinedResponse;
+  return {
+    ...refinedResponse,
+    metadata: metadataResponse,
+  };
 }
 
 export async function observe({
@@ -275,28 +282,27 @@ export async function observe({
       .describe("an array of elements that match the instruction"),
   });
 
-  const observationResponse = await llmClient.createChatCompletion({
-    messages: [
-      buildObserveSystemPrompt(),
-      buildObserveUserMessage(instruction, domElements),
-    ],
-    image: image
-      ? { buffer: image, description: AnnotatedScreenshotText }
-      : undefined,
-    response_model: {
-      schema: observeSchema,
-      name: "Observation",
-    },
-    temperature: 0.1,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    requestId,
-  });
+  type ObserveResponse = z.infer<typeof observeSchema>;
 
-  if (!observationResponse) {
-    throw new Error("no response when finding a selector");
-  }
+  const observationResponse =
+    await llmClient.createChatCompletion<ObserveResponse>({
+      messages: [
+        buildObserveSystemPrompt(),
+        buildObserveUserMessage(instruction, domElements),
+      ],
+      image: image
+        ? { buffer: image, description: AnnotatedScreenshotText }
+        : undefined,
+      response_model: {
+        schema: observeSchema,
+        name: "Observation",
+      },
+      temperature: 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      requestId,
+    });
 
   return observationResponse;
 }

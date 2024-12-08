@@ -1,8 +1,17 @@
 import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
-import { Message, MessageCreateParams } from "@anthropic-ai/sdk/resources";
+import {
+  ImageBlockParam,
+  MessageParam,
+  TextBlockParam,
+  Tool,
+} from "@anthropic-ai/sdk/resources";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
-import { AvailableModel } from "../../types/model";
+import {
+  AnthropicJsonSchemaObject,
+  AnthropicTransformedResponse,
+  AvailableModel,
+} from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { ChatCompletionOptions, LLMClient } from "./LLMClient";
 
@@ -27,11 +36,12 @@ export class AnthropicClient extends LLMClient {
     this.modelName = modelName;
   }
 
-  async createChatCompletion(
+  async createChatCompletion<T = AnthropicTransformedResponse>(
     options: ChatCompletionOptions & { retries?: number },
-  ): Promise<any> {
-    // TODO (kamath): remove this forced typecast
-    const { image: _, ...optionsWithoutImage } = options;
+  ): Promise<T> {
+    const optionsWithoutImage = { ...options };
+    delete optionsWithoutImage.image;
+
     this.logger({
       category: "anthropic",
       message: "creating chat completion",
@@ -55,7 +65,7 @@ export class AnthropicClient extends LLMClient {
     };
 
     if (this.enableCaching) {
-      const cachedResponse = await this.cache.get(
+      const cachedResponse = await this.cache.get<T>(
         cacheOptions,
         options.requestId,
       );
@@ -79,7 +89,7 @@ export class AnthropicClient extends LLMClient {
             },
           },
         });
-        return cachedResponse;
+        return cachedResponse as T;
       } else {
         this.logger({
           category: "llm_cache",
@@ -99,13 +109,52 @@ export class AnthropicClient extends LLMClient {
       }
     }
 
-    const systemMessage = options.messages.find((msg) => msg.role === "system");
+    const systemMessage = options.messages.find((msg) => {
+      if (msg.role === "system") {
+        if (typeof msg.content === "string") {
+          return true;
+        } else if (Array.isArray(msg.content)) {
+          return msg.content.every((content) => content.type !== "image_url");
+        }
+      }
+      return false;
+    });
+
     const userMessages = options.messages.filter(
       (msg) => msg.role !== "system",
     );
 
+    const formattedMessages: MessageParam[] = userMessages.map((msg) => {
+      if (typeof msg.content === "string") {
+        return {
+          role: msg.role as "user" | "assistant", // ensure its not checking for system types
+          content: msg.content,
+        };
+      } else {
+        return {
+          role: msg.role as "user" | "assistant",
+          content: msg.content.map((content) => {
+            if ("image_url" in content) {
+              const formattedContent: ImageBlockParam = {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: content.image_url.url,
+                },
+              };
+
+              return formattedContent;
+            } else {
+              return { type: "text", text: content.text };
+            }
+          }),
+        };
+      }
+    });
+
     if (options.image) {
-      const screenshotMessage: any = {
+      const screenshotMessage: MessageParam = {
         role: "user",
         content: [
           {
@@ -116,17 +165,23 @@ export class AnthropicClient extends LLMClient {
               data: options.image.buffer.toString("base64"),
             },
           },
-          ...(options.image.description
-            ? [{ type: "text", text: options.image.description }]
-            : []),
         ],
       };
 
-      options.messages = [...options.messages, screenshotMessage];
+      if (
+        options.image.description &&
+        Array.isArray(screenshotMessage.content)
+      ) {
+        screenshotMessage.content.push({
+          type: "text",
+          text: options.image.description,
+        });
+      }
+
+      formattedMessages.push(screenshotMessage);
     }
 
-    // Transform tools to Anthropic's format
-    let anthropicTools = options.tools?.map((tool: any) => {
+    let anthropicTools: Tool[] = options.tools?.map((tool) => {
       if (tool.type === "function") {
         return {
           name: tool.function.name,
@@ -138,25 +193,13 @@ export class AnthropicClient extends LLMClient {
           },
         };
       }
-      return tool;
     });
 
-    let toolDefinition;
+    let toolDefinition: Tool | undefined;
     if (options.response_model) {
       const jsonSchema = zodToJsonSchema(options.response_model.schema);
-
-      // Extract the actual schema properties
-      // TODO (kamath): fix this forced typecast
-      const schemaProperties =
-        (
-          jsonSchema.definitions?.MySchema as {
-            properties?: Record<string, any>;
-          }
-        )?.properties ||
-        (jsonSchema as { properties?: Record<string, any> }).properties;
-      const schemaRequired =
-        (jsonSchema.definitions?.MySchema as { required?: string[] })
-          ?.required || (jsonSchema as { required?: string[] }).required;
+      const { properties: schemaProperties, required: schemaRequired } =
+        extractSchemaProperties(jsonSchema);
 
       toolDefinition = {
         name: "print_extracted_data",
@@ -174,17 +217,16 @@ export class AnthropicClient extends LLMClient {
       anthropicTools.push(toolDefinition);
     }
 
-    const response = (await this.client.messages.create({
+    const response = await this.client.messages.create({
       model: this.modelName,
-      max_tokens: options.maxTokens || 3000,
-      messages: userMessages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      })),
+      max_tokens: options.maxTokens || 1500,
+      messages: formattedMessages,
       tools: anthropicTools,
-      system: systemMessage?.content,
+      system: systemMessage
+        ? (systemMessage.content as string | TextBlockParam[]) // we can cast because we already filtered out image content
+        : undefined,
       temperature: options.temperature,
-    } as MessageCreateParams)) as Message; // TODO (kamath): remove this forced typecast
+    });
 
     this.logger({
       category: "anthropic",
@@ -202,8 +244,7 @@ export class AnthropicClient extends LLMClient {
       },
     });
 
-    // Parse the response here
-    const transformedResponse = {
+    const transformedResponse: AnthropicTransformedResponse = {
       id: response.id,
       object: "chat.completion",
       created: Date.now(),
@@ -217,7 +258,7 @@ export class AnthropicClient extends LLMClient {
               response.content.find((c) => c.type === "text")?.text || null,
             tool_calls: response.content
               .filter((c) => c.type === "tool_use")
-              .map((toolUse: any) => ({
+              .map((toolUse) => ({
                 id: toolUse.id,
                 type: "function",
                 function: {
@@ -261,7 +302,7 @@ export class AnthropicClient extends LLMClient {
           this.cache.set(cacheOptions, result, options.requestId);
         }
 
-        return result;
+        return result as T; // anthropic returns this as `unknown`, so we need to cast
       } else {
         if (!options.retries || options.retries < 5) {
           return this.createChatCompletion({
@@ -309,6 +350,17 @@ export class AnthropicClient extends LLMClient {
       });
     }
 
-    return transformedResponse;
+    // if the function was called with a response model, it would have returned earlier
+    // so we can safely cast here to T, which defaults to AnthropicTransformedResponse
+    return transformedResponse as T;
   }
 }
+
+const extractSchemaProperties = (jsonSchema: AnthropicJsonSchemaObject) => {
+  const schemaRoot = jsonSchema.definitions?.MySchema || jsonSchema;
+
+  return {
+    properties: schemaRoot.properties,
+    required: schemaRoot.required,
+  };
+};
