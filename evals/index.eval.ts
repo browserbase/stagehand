@@ -9,7 +9,7 @@ import { EvalLogger, env } from "./utils";
 const MODELS: AvailableModel[] = process.env.EVAL_MODELS.split(",").map(
   (model) => {
     if (!AvailableModel.safeParse(model).success) {
-      throw new Error(`Model ${model} is not in AvailableModel`);
+      throw new Error(`Model ${model} is not a supported model`);
     }
 
     return model as AvailableModel;
@@ -19,7 +19,7 @@ const MODELS: AvailableModel[] = process.env.EVAL_MODELS.split(",").map(
 const CATEGORIES: EvalCategory[] = process.env.EVAL_CATEGORIES.split(",").map(
   (category) => {
     if (!EvalCategory.safeParse(category).success) {
-      throw new Error(`Category ${category} is not in EvalCategory`);
+      throw new Error(`Category ${category} is not a valid category`);
     }
 
     return category as EvalCategory;
