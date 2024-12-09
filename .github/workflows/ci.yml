@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - main
-      - dev
-      - evals/**
+  pull_request:
+    types:
+      - opened
+      - synchronize
   schedule:
     - cron: "0 */6 * * *" # every 6 hours
 
