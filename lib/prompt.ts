@@ -202,9 +202,9 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 // extract
 const extractSystemPrompt = `You are extracting content on behalf of a user. You will be given:
 1. An instruction
-2. A list of DOM elements to extract from
+2. A text representation of a webpage to extract information from
 
-Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
+Print the exact text from the text-rendered webpage with all symbols, characters, and endlines as is.
 Print null or an empty string if no new information is found.
 
 ONLY print the content using the print_extracted_data tool provided.
