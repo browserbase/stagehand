@@ -4,6 +4,7 @@ import path from "path";
 import process from "process";
 import {
   EvalArgs,
+  EvalCategory,
   EvalFunction,
   EvalInput,
   EvalResult,
@@ -13,9 +14,29 @@ import {
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
-const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
+const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
+  ? process.env.EVAL_MODELS.split(",")
+  : ["gpt-4o", "claude-3-5-sonnet-latest"];
 
-const CATEGORIES = ["observe", "act", "combination", "extract", "experimental"];
+const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
+  ? process.env.EVAL_CATEGORIES.split(",")
+  : ["observe", "act", "combination", "extract", "experimental"];
+
+const MODELS: AvailableModel[] = DEFAULT_EVAL_MODELS.map((model) => {
+  if (!AvailableModel.safeParse(model).success) {
+    throw new Error(`Model ${model} is not a supported model`);
+  }
+
+  return model as AvailableModel;
+});
+
+const CATEGORIES: EvalCategory[] = DEFAULT_EVAL_CATEGORIES.map((category) => {
+  if (!EvalCategory.safeParse(category).success) {
+    throw new Error(`Category ${category} is not a valid category`);
+  }
+
+  return category as EvalCategory;
+});
 
 const generateTimestamp = (): string => {
   const now = new Date();
@@ -187,6 +208,7 @@ const generateSummary = async (results: SummaryResult[]) => {
 };
 
 const args = process.argv.slice(2);
+
 let filterByCategory: string | null = null;
 let filterByEvalName: string | null = null;
 
@@ -197,9 +219,11 @@ if (args.length > 0) {
       console.error("Error: Category name not specified.");
       process.exit(1);
     }
-    if (!CATEGORIES.includes(filterByCategory)) {
+    try {
+      EvalCategory.parse(filterByCategory);
+    } catch (e) {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${EvalCategory.options.join(
           ", ",
         )}`,
       );
@@ -215,7 +239,7 @@ if (args.length > 0) {
 }
 
 const generateFilteredTestcases = (): Testcase[] => {
-  let allTestcases = models.flatMap((model) =>
+  let allTestcases = MODELS.flatMap((model) =>
     Object.keys(tasks).map((test) => ({
       input: { name: test, modelName: model },
       name: test,
