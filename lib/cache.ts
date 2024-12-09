@@ -4,7 +4,7 @@ const actionsPath = "./.cache/actions.json";
 
 /**
  * A file system cache to skip inference when repeating steps
- * It also acts as the source of truth for identifying previously seen actions and observatiosn
+ * It also acts as the source of truth for identifying previously seen actions and observations
  */
 class Cache {
   disabled: boolean;
