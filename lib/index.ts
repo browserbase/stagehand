@@ -33,7 +33,7 @@ import { logLineToString } from "./utils";
 dotenv.config({ path: ".env" });
 
 const DEFAULT_MODEL_NAME = "gpt-4o";
-const BROWSERBASE_REGION_DOMEIN = {
+const BROWSERBASE_REGION_DOMAIN = {
   "us-west-2": "wss://connect.usw2.browserbase.com",
   "us-east-1": "wss://connect.use1.browserbase.com",
   "eu-central-1": "wss://connect.euc1.browserbase.com",
@@ -97,8 +97,10 @@ async function getBrowser(
         }
 
         sessionId = browserbaseResumeSessionID;
-        const browserBaseDomain = BROWSERBASE_REGION_DOMEIN[sessionStatus.region] || "wss://connect.browserbase.com";
-        connectUrl = `${browserBaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
+        const browserbaseDomain =
+          BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
+          "wss://connect.browserbase.com";
+        connectUrl = `${browserbaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
 
         logger({
           category: "init",
