@@ -88,11 +88,11 @@ export const ted_talk: EvalFunction = async ({ modelName, logger }) => {
       auxiliary: {
         missing: {
           value: JSON.stringify(missingPlaylists),
-          type: "array",
+          type: "object",
         },
         extracted: {
           value: JSON.stringify(playlists.playlists),
-          type: "array",
+          type: "object",
         },
       },
     });

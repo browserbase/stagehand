@@ -311,7 +311,7 @@ const generateFilteredTestcases = (): Testcase[] => {
       },
       scores: [exactMatch, errorMatch],
       maxConcurrency: 20,
-      trialCount: 1,
+      trialCount: 5,
     });
 
     const summaryResults: SummaryResult[] = evalResult.results.map((result) => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { initStagehand } from "../utils";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../../types/evals";
 import { normalizeString } from "../utils";
 
 export const extract_memorial_healthcare: EvalFunction = async ({
@@ -16,18 +16,18 @@ export const extract_memorial_healthcare: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto("https://www.mycmh.org/locations/");
+  const healthCenterSchema = z.object({
+    name: z.string(),
+    phone_number: z.string(),
+    address: z.string(),
+  });
+  type HealthCenterType = z.infer<typeof healthCenterSchema>;
 
   const result = await stagehand.extract({
     instruction:
       "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
     schema: z.object({
-      health_centers: z.array(
-        z.object({
-          name: z.string(),
-          phone_number: z.string(),
-          address: z.string(),
-        }),
-      ),
+      health_centers: z.array(healthCenterSchema),
     }),
   });
 
@@ -74,7 +74,10 @@ export const extract_memorial_healthcare: EvalFunction = async ({
     };
   }
 
-  const normalizeAndCompare = (actual, expected) =>
+  const normalizeAndCompare = (
+    actual: HealthCenterType,
+    expected: HealthCenterType,
+  ) =>
     normalizeString(actual.name) === normalizeString(expected.name) &&
     normalizeString(actual.phone_number) ===
       normalizeString(expected.phone_number) &&

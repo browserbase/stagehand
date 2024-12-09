@@ -377,11 +377,12 @@ export class Stagehand {
       this.browserbaseResumeSessionID,
     ).catch((e) => {
       console.error("Error in init:", e);
-      return {
+      const br: BrowserResult = {
         context: undefined,
         debugUrl: undefined,
         sessionUrl: undefined,
-      } as BrowserResult;
+      };
+      return br;
     });
     this.contextPath = contextPath;
     this.context = context;

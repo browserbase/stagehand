@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { initStagehand } from "../utils";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../../types/evals";
 
 export const extract_staff_members: EvalFunction = async ({
   modelName,
@@ -87,7 +87,7 @@ export const extract_staff_members: EvalFunction = async ({
         },
         actual: {
           value: JSON.stringify(staff_members),
-          type: "array",
+          type: "object",
         },
       },
     });
@@ -120,7 +120,7 @@ export const extract_staff_members: EvalFunction = async ({
         },
         actual: {
           value: JSON.stringify(staff_members),
-          type: "array",
+          type: "object",
         },
       },
     });

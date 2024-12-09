@@ -304,7 +304,15 @@ export async function observe({
       requestId,
     });
 
-  return observationResponse;
+  const parsedResponse = {
+    elements:
+      observationResponse.elements?.map((el) => ({
+        elementId: Number(el.elementId),
+        description: String(el.description),
+      })) ?? [],
+  } satisfies { elements: { elementId: number; description: string }[] };
+
+  return parsedResponse;
 }
 
 export async function ask({

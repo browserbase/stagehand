@@ -45,7 +45,7 @@ export const sciquest: EvalFunction = async ({ modelName, logger }) => {
       auxiliary: {
         expected: {
           value: `${expectedNumber} ± 1000`,
-          type: "range",
+          type: "string",
         },
         actual: {
           value: extractedNumber.toString(),

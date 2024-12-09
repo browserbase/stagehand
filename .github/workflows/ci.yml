@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - main
-      - dev
-      - evals/**
+  pull_request:
+    types:
+      - opened
+      - synchronize
   schedule:
     - cron: "0 */6 * * *" # every 6 hours
 
@@ -31,7 +33,25 @@ jobs:
       - name: Run Lint
         run: npm run lint
 
+  run-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Run Build
+        run: npm run build
+
   run-extract-evals:
+    needs: [run-lint, run-build]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
