@@ -49,6 +49,7 @@ jobs:
         run: npm run build
 
   run-extract-evals:
+    needs: [run-lint, run-build]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
