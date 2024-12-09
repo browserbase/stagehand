@@ -17,7 +17,6 @@ export const stock_x: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.act({
     action: "click on Jordan 3 Retro Crimson in the related products",
-    useVision: true,
   });
 
   await stagehand.page.waitForTimeout(2000);
