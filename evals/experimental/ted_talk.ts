@@ -3,7 +3,7 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const ted_talk: EvalFunction = async ({ modelName, logger}) => {
+export const ted_talk: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -12,20 +12,28 @@ export const ted_talk: EvalFunction = async ({ modelName, logger}) => {
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity", {
-    waitUntil: "domcontentloaded",
+    "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
+    {
+      waitUntil: "domcontentloaded",
+    },
+  );
+  await stagehand.act({
+    action:
+      "Click the link that takes you to the page about the 'Culture' topic",
   });
-  await stagehand.act({ action: "Click the link that takes you to the page about the 'Culture' topic" });
 
   const playlists = await stagehand.extract({
-    instruction: "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
+    instruction:
+      "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
     schema: z.object({
-      playlists: z.array(
-        z.object({
-          title: z.string().describe("Title of the playlist"),
-          num_talks: z.number().describe("Number of talks in the playlist"),
-        })
-      ).describe("List of culture video playlists"),
+      playlists: z
+        .array(
+          z.object({
+            title: z.string().describe("Title of the playlist"),
+            num_talks: z.number().describe("Number of talks in the playlist"),
+          }),
+        )
+        .describe("List of culture video playlists"),
     }),
     modelName,
   });
@@ -69,8 +77,8 @@ export const ted_talk: EvalFunction = async ({ modelName, logger}) => {
     playlists.playlists.every(
       (extracted) =>
         normalizeString(extracted.title) !== normalizeString(expected.title) ||
-        extracted.num_talks !== expected.num_talks
-    )
+        extracted.num_talks !== expected.num_talks,
+    ),
   );
 
   if (missingPlaylists.length > 0) {
@@ -80,11 +88,11 @@ export const ted_talk: EvalFunction = async ({ modelName, logger}) => {
       auxiliary: {
         missing: {
           value: JSON.stringify(missingPlaylists),
-          type: "array",
+          type: "object",
         },
         extracted: {
           value: JSON.stringify(playlists.playlists),
-          type: "array",
+          type: "object",
         },
       },
     });

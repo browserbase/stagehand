@@ -55,7 +55,6 @@ export class StagehandExtractHandler {
   public async extract<T extends z.AnyZodObject>({
     instruction,
     schema,
-    progress = "",
     content = {},
     chunksSeen = [],
     llmClient,
@@ -64,7 +63,6 @@ export class StagehandExtractHandler {
   }: {
     instruction: string;
     schema: T;
-    progress?: string;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
     llmClient: LLMClient;
@@ -111,7 +109,6 @@ export class StagehandExtractHandler {
 
     const extractionResponse = await extract({
       instruction,
-      progress,
       previouslyExtractedContent: content,
       domElements: outputString,
       schema,
@@ -122,7 +119,7 @@ export class StagehandExtractHandler {
     });
 
     const {
-      metadata: { progress: newProgress, completed },
+      metadata: { completed },
       ...output
     } = extractionResponse;
     await this.cleanupDomDebug();
@@ -168,7 +165,6 @@ export class StagehandExtractHandler {
       return this.extract({
         instruction,
         schema,
-        progress: newProgress,
         content: output,
         chunksSeen,
         llmClient,

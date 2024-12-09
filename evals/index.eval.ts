@@ -2,7 +2,15 @@ import { Eval } from "braintrust";
 import fs from "fs";
 import path from "path";
 import process from "process";
-import { EvalCategory, EvalFunction } from "../types/evals";
+import {
+  EvalArgs,
+  EvalCategory,
+  EvalFunction,
+  EvalInput,
+  EvalResult,
+  SummaryResult,
+  Testcase,
+} from "../types/evals";
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
@@ -58,26 +66,39 @@ const generateExperimentName = ({
 };
 
 const generateTasksAndCategories = (): {
-  tasks: Record<string, EvalFunction>;
+  tasks: Record<
+    string,
+    Promise<{
+      [name: string]: EvalFunction;
+    }>
+  >;
   taskCategories: Record<string, string>;
 } => {
-  const tasks: Record<string, EvalFunction> = {};
+  const tasks: Record<
+    string,
+    Promise<{
+      [name: string]: EvalFunction;
+    }>
+  > = {};
   const taskCategories: Record<string, string> = {};
 
-  CATEGORIES.forEach((category) => {
+  CATEGORIES.map((category) => {
     const categoryPath = path.join(__dirname, category);
     try {
       const files = fs.readdirSync(categoryPath);
-      files.forEach((file) => {
+      files.map((file) => {
         if (file.endsWith(".ts")) {
           const taskName = file.replace(".ts", "");
-          const taskModule = require(`./${category}/${taskName}`);
-          tasks[taskName] = taskModule[taskName];
+          const taskModule = import(`./${category}/${taskName}`) as Promise<{
+            [name: string]: EvalFunction;
+          }>;
+          tasks[taskName] = taskModule;
           taskCategories[taskName] = category;
         }
       });
     } catch (error) {
       console.warn(`Warning: Category directory ${category} not found`);
+      console.log(error);
     }
   });
 
@@ -86,21 +107,23 @@ const generateTasksAndCategories = (): {
 
 const { tasks, taskCategories } = generateTasksAndCategories();
 
-const exactMatch = (args: {
-  input: any;
-  output: any;
-  expected?: any;
-}): {
-  name: string;
-  score: number;
-} => {
+const exactMatch = (
+  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
+): EvalResult => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
   const expected = args.expected ?? true;
   if (expected === true) {
     return {
       name: "Exact match",
-      score: args.output === true || args.output?._success == true ? 1 : 0,
+      score:
+        typeof args.output === "boolean"
+          ? args.output
+            ? 1
+            : 0
+          : args.output._success
+            ? 1
+            : 0,
     };
   }
 
@@ -110,25 +133,27 @@ const exactMatch = (args: {
   };
 };
 
-const errorMatch = (args: {
-  input: any;
-  output: any;
-  expected?: any;
-}): {
-  name: string;
-  score: number;
-} => {
+const errorMatch = (
+  args: EvalArgs<
+    EvalInput,
+    boolean | { _success: boolean; error?: unknown },
+    unknown
+  >,
+): EvalResult => {
   console.log(`Task "${args.input.name}" returned: ${args.output}`);
 
   return {
     name: "Error rate",
-    score: args.output?.error !== undefined ? 1 : 0,
+    score:
+      typeof args.output === "object" && args.output.error !== undefined
+        ? 1
+        : 0,
   };
 };
 
-const generateSummary = async (results: any[]) => {
+const generateSummary = async (results: SummaryResult[]) => {
   const passed = results
-    .filter((result) => result.output?._success)
+    .filter((result) => result.output._success)
     .map((result) => ({
       eval: result.input.name,
       model: result.input.modelName,
@@ -136,7 +161,7 @@ const generateSummary = async (results: any[]) => {
     }));
 
   const failed = results
-    .filter((result) => !result.output?._success)
+    .filter((result) => !result.output._success)
     .map((result) => ({
       eval: result.input.name,
       model: result.input.modelName,
@@ -150,7 +175,7 @@ const generateSummary = async (results: any[]) => {
       (r) => taskCategories[r.input.name] === category,
     );
     const successCount = categoryResults.filter(
-      (r) => r.output?._success,
+      (r) => r.output._success,
     ).length;
     categories[category] = Math.round(
       (successCount / categoryResults.length) * 100,
@@ -163,9 +188,7 @@ const generateSummary = async (results: any[]) => {
     const model = result.input.modelName;
     if (!models[model]) {
       const modelResults = results.filter((r) => r.input.modelName === model);
-      const successCount = modelResults.filter(
-        (r) => r.output?._success,
-      ).length;
+      const successCount = modelResults.filter((r) => r.output._success).length;
       models[model] = Math.round((successCount / modelResults.length) * 100);
     }
   });
@@ -215,7 +238,7 @@ if (args.length > 0) {
   }
 }
 
-const generateFilteredTestcases = () => {
+const generateFilteredTestcases = (): Testcase[] => {
   let allTestcases = MODELS.flatMap((model) =>
     Object.keys(tasks).map((test) => ({
       input: { name: test, modelName: model },
@@ -225,6 +248,7 @@ const generateFilteredTestcases = () => {
         model,
         test,
       },
+      expected: true,
     })),
   );
 
@@ -268,7 +292,15 @@ const generateFilteredTestcases = () => {
       }) => {
         const logger = new EvalLogger();
         try {
-          const result = await tasks[input.name]({
+          const taskModule = await tasks[input.name];
+          const taskFunction = taskModule[input.name];
+
+          if (typeof taskFunction !== "function") {
+            throw new Error(
+              `Task function for ${input.name} is not a function`,
+            );
+          }
+          const result = await taskFunction({
             modelName: input.modelName,
             logger,
           });
@@ -278,14 +310,14 @@ const generateFilteredTestcases = () => {
             console.log(`❌ ${input.name}: Failed`);
           }
           return result;
-        } catch (error: any) {
+        } catch (error) {
           console.error(`❌ ${input.name}: Error - ${error}`);
           logger.error({
             message: `Error in task ${input.name}`,
             level: 0,
             auxiliary: {
               error: {
-                value: error,
+                value: error.message,
                 type: "object",
               },
               trace: {
@@ -306,7 +338,21 @@ const generateFilteredTestcases = () => {
       trialCount: 5,
     });
 
-    await generateSummary(evalResult.results);
+    const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
+      const output =
+        typeof result.output === "boolean"
+          ? { _success: result.output }
+          : result.output;
+
+      return {
+        input: result.input,
+        output,
+        name: result.input.name,
+        score: output._success ? 1 : 0,
+      };
+    });
+
+    await generateSummary(summaryResults);
   } catch (error) {
     console.error("Error during evaluation run:", error);
     process.exit(1);

@@ -3,8 +3,9 @@ import { calculateViewportHeight } from "./utils";
 export async function debugDom() {
   window.chunkNumber = 0;
 
-  const { selectorMap: multiSelectorMap, outputString } =
-    await window.processElements(window.chunkNumber);
+  const { selectorMap: multiSelectorMap } = await window.processElements(
+    window.chunkNumber,
+  );
 
   const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
 
@@ -26,7 +27,7 @@ function multiSelectorMapToSelectorMap(
 function drawChunk(selectorMap: Record<number, string>) {
   if (!window.showChunks) return;
   cleanupMarkers();
-  Object.entries(selectorMap).forEach(([_index, selector]) => {
+  Object.values(selectorMap).forEach((selector) => {
     const element = document.evaluate(
       selector as string,
       document,

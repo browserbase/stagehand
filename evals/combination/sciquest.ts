@@ -11,7 +11,7 @@ export const sciquest: EvalFunction = async ({ modelName, logger }) => {
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah"
+    "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
   );
 
   await stagehand.act({
@@ -19,7 +19,8 @@ export const sciquest: EvalFunction = async ({ modelName, logger }) => {
   });
 
   const result = await stagehand.extract({
-    instruction: "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
+    instruction:
+      "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
     schema: z.object({
       total_results: z.string(),
     }),
@@ -44,7 +45,7 @@ export const sciquest: EvalFunction = async ({ modelName, logger }) => {
       auxiliary: {
         expected: {
           value: `${expectedNumber} ± 1000`,
-          type: "range",
+          type: "string",
         },
         actual: {
           value: extractedNumber.toString(),

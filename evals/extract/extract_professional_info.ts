@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_professional_info: EvalFunction = async ({ modelName, logger }) => {
+export const extract_professional_info: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -11,10 +14,13 @@ export const extract_professional_info: EvalFunction = async ({ modelName, logge
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.paulweiss.com/professionals/partners-and-counsel/brian-bolin");
+  await stagehand.page.goto(
+    "https://www.paulweiss.com/professionals/partners-and-counsel/brian-bolin",
+  );
 
   const result = await stagehand.extract({
-    instruction: "Extract the list of Practices, phone number, and fax number of the professional.",
+    instruction:
+      "Extract the list of Practices, phone number, and fax number of the professional.",
     schema: z.object({
       practices: z.array(z.string()),
       phone: z.string(),
@@ -47,11 +53,11 @@ export const extract_professional_info: EvalFunction = async ({ modelName, logge
       auxiliary: {
         expected: {
           value: JSON.stringify(expected.practices),
-          type: "array",
+          type: "object",
         },
         actual: {
           value: JSON.stringify(practices),
-          type: "array",
+          type: "object",
         },
       },
     });

@@ -2,7 +2,10 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const extract_regulations: EvalFunction = async ({ modelName, logger }) => {
+export const extract_regulations: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -13,13 +16,14 @@ export const extract_regulations: EvalFunction = async ({ modelName, logger }) =
   await stagehand.page.goto("https://www.jsc.gov.jo/Links2/en/Regulations");
 
   const result = await stagehand.extract({
-    instruction: "Extract the list of regulations with their descriptions and issue dates",
+    instruction:
+      "Extract the list of regulations with their descriptions and issue dates",
     schema: z.object({
       regulations: z.array(
         z.object({
           description: z.string(),
           issue_date: z.string(),
-        })
+        }),
       ),
     }),
     modelName,
@@ -31,7 +35,8 @@ export const extract_regulations: EvalFunction = async ({ modelName, logger }) =
   const expectedLength = 4;
 
   const expectedFirstItem = {
-    description: "The Regulation of Investors Protection Fund in Securities No. (47) for the Year 2018 Amended Pursuant to Regulation No. (24) for the Year 2019",
+    description:
+      "The Regulation of Investors Protection Fund in Securities No. (47) for the Year 2018 Amended Pursuant to Regulation No. (24) for the Year 2019",
     issue_date: "2019",
   };
 
@@ -92,8 +97,10 @@ export const extract_regulations: EvalFunction = async ({ modelName, logger }) =
   }
 
   const lastItemMatches =
-    regulations[regulations.length - 1].description === expectedLastItem.description &&
-    regulations[regulations.length - 1].issue_date === expectedLastItem.issue_date;
+    regulations[regulations.length - 1].description ===
+      expectedLastItem.description &&
+    regulations[regulations.length - 1].issue_date ===
+      expectedLastItem.issue_date;
 
   if (!lastItemMatches) {
     logger.error({

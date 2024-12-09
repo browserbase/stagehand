@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_capacitor_info: EvalFunction = async ({ modelName, logger }) => {
+export const extract_capacitor_info: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -11,10 +14,13 @@ export const extract_capacitor_info: EvalFunction = async ({ modelName, logger }
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.tti.com/content/ttiinc/en/apps/part-detail.html?partsNumber=C320C104K5R5TA&mfgShortname=KEM&productId=6335148");
+  await stagehand.page.goto(
+    "https://www.tti.com/content/ttiinc/en/apps/part-detail.html?partsNumber=C320C104K5R5TA&mfgShortname=KEM&productId=6335148",
+  );
 
   const result = await stagehand.extract({
-    instruction: "Extract the TTI Part Number, Product Category, and minimum operating temperature of the capacitor.",
+    instruction:
+      "Extract the TTI Part Number, Product Category, and minimum operating temperature of the capacitor.",
     schema: z.object({
       tti_part_number: z.string(),
       product_category: z.string(),
@@ -33,7 +39,10 @@ export const extract_capacitor_info: EvalFunction = async ({ modelName, logger }
     min_operating_temp: "- 55 C",
   };
 
-  if (normalizeString(tti_part_number) !== normalizeString(expected.tti_part_number)) {
+  if (
+    normalizeString(tti_part_number) !==
+    normalizeString(expected.tti_part_number)
+  ) {
     logger.error({
       message: "TTI Part Number extracted does not match expected",
       level: 0,
@@ -57,7 +66,10 @@ export const extract_capacitor_info: EvalFunction = async ({ modelName, logger }
     };
   }
 
-  if (normalizeString(product_category) !== normalizeString(expected.product_category)) {
+  if (
+    normalizeString(product_category) !==
+    normalizeString(expected.product_category)
+  ) {
     logger.error({
       message: "Product Category extracted does not match expected",
       level: 0,
@@ -81,9 +93,13 @@ export const extract_capacitor_info: EvalFunction = async ({ modelName, logger }
     };
   }
 
-  if (normalizeString(min_operating_temp) !== normalizeString(expected.min_operating_temp)) {
+  if (
+    normalizeString(min_operating_temp) !==
+    normalizeString(expected.min_operating_temp)
+  ) {
     logger.error({
-      message: "Minimum operating temperature extracted does not match expected",
+      message:
+        "Minimum operating temperature extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {

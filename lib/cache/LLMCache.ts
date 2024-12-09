@@ -19,12 +19,12 @@ export class LLMCache extends BaseCache<CacheEntry> {
    * @param requestId - The identifier for the current request.
    * @returns The cached data if available, otherwise null.
    */
-  public async get(
-    options: Record<string, any>,
+  public async get<T>(
+    options: Record<string, unknown>,
     requestId: string,
-  ): Promise<any | null> {
+  ): Promise<T | null> {
     const data = await super.get(options, requestId);
-    return data;
+    return data as T | null; // TODO: remove this cast
   }
 
   /**
@@ -34,8 +34,8 @@ export class LLMCache extends BaseCache<CacheEntry> {
    * @param requestId - The identifier for the current request.
    */
   public async set(
-    options: Record<string, any>,
-    data: any,
+    options: Record<string, unknown>,
+    data: unknown,
     requestId: string,
   ): Promise<void> {
     await super.set(options, data, requestId);

@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { initStagehand } from "../utils";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../../types/evals";
 
-export const extract_aigrant_companies: EvalFunction = async ({ modelName, logger }) => {
+export const extract_aigrant_companies: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -13,18 +16,19 @@ export const extract_aigrant_companies: EvalFunction = async ({ modelName, logge
 
   await stagehand.page.goto("https://aigrant.com/");
   const companyList = await stagehand.extract({
-    instruction: "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
+    instruction:
+      "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
     schema: z.object({
       companies: z.array(
         z.object({
           company: z.string(),
           batch: z.string(),
-        })
+        }),
       ),
     }),
   });
 
-  await stagehand.close()
+  await stagehand.close();
   const companies = companyList.companies;
   const expectedLength = 91;
 

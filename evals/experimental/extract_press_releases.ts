@@ -30,7 +30,7 @@ export const extract_press_releases: EvalFunction = async ({
       }),
     });
 
-    await stagehand.close()
+    await stagehand.close();
     const items = result.items;
     const expectedLength = 25;
     const expectedFirstItem = {

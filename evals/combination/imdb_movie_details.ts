@@ -2,8 +2,10 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const imdb_movie_details: EvalFunction = async ({ modelName,
-                                                         logger, }) => {
+export const imdb_movie_details: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -21,7 +23,9 @@ export const imdb_movie_details: EvalFunction = async ({ modelName,
   const movieDetails = await stagehand.extract({
     instruction: "Extract the list of countries with the most ratings.",
     schema: z.object({
-      countries: z.array(z.string()).describe("List of countries with the most ratings"),
+      countries: z
+        .array(z.string())
+        .describe("List of countries with the most ratings"),
     }),
     modelName,
   });
@@ -43,11 +47,11 @@ export const imdb_movie_details: EvalFunction = async ({ modelName,
       auxiliary: {
         expected: {
           value: JSON.stringify(expectedCountries),
-          type: "array",
+          type: "object",
         },
         actual: {
           value: JSON.stringify(movieDetails.countries || []),
-          type: "array",
+          type: "object",
         },
       },
     });
@@ -62,7 +66,7 @@ export const imdb_movie_details: EvalFunction = async ({ modelName,
   }
 
   const missingCountries = expectedCountries.filter(
-    (country) => !movieDetails.countries.includes(country)
+    (country) => !movieDetails.countries.includes(country),
   );
 
   if (missingCountries.length > 0) {
@@ -72,11 +76,11 @@ export const imdb_movie_details: EvalFunction = async ({ modelName,
       auxiliary: {
         missing: {
           value: JSON.stringify(missingCountries),
-          type: "array",
+          type: "object",
         },
         extracted: {
           value: JSON.stringify(movieDetails.countries),
-          type: "array",
+          type: "object",
         },
       },
     });

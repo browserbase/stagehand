@@ -23,7 +23,9 @@ export const allrecipes: EvalFunction = async ({ modelName, logger }) => {
       "Extract the title of the first recipe and the total number of ratings it has received.",
     schema: z.object({
       title: z.string().describe("Title of the recipe"),
-      total_ratings: z.string().describe("Total number of ratings for the recipe"),
+      total_ratings: z
+        .string()
+        .describe("Total number of ratings for the recipe"),
     }),
     modelName,
   });
@@ -59,7 +61,12 @@ export const allrecipes: EvalFunction = async ({ modelName, logger }) => {
     logger.error({
       message: "Failed to extract correct recipe details",
       level: 0,
-      auxiliary: errors,
+      auxiliary: {
+        errors: {
+          value: JSON.stringify(errors),
+          type: "object",
+        },
+      },
     });
 
     return {

@@ -1,16 +1,16 @@
-import { Stagehand } from "../index";
-import { LLMProvider } from "../llm/LLMProvider";
-import { ScreenshotService } from "../vision";
-import { verifyActCompletion, act, fillInVariables } from "../inference";
 import { Locator, Page } from "@playwright/test";
-import { ActionCache } from "../cache/ActionCache";
-import { LLMClient, modelsWithVision } from "../llm/LLMClient";
-import { generateId } from "../utils";
 import { LogLine } from "../../types/log";
 import {
   PlaywrightCommandException,
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
+import { ActionCache } from "../cache/ActionCache";
+import { Stagehand } from "../index";
+import { act, fillInVariables, verifyActCompletion } from "../inference";
+import { LLMClient } from "../llm/LLMClient";
+import { LLMProvider } from "../llm/LLMProvider";
+import { generateId } from "../utils";
+import { ScreenshotService } from "../vision";
 
 export class StagehandActHandler {
   private readonly stagehand: Stagehand;
@@ -22,7 +22,6 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number,
   ) => Promise<void>;
   private readonly actionCache: ActionCache | undefined;
-  private readonly llmClient: LLMClient;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
   private actions: { [key: string]: { result: string; action: string } };
@@ -34,7 +33,6 @@ export class StagehandActHandler {
     enableCaching,
     logger,
     waitForSettledDom,
-    llmClient,
     startDomDebug,
     cleanupDomDebug,
   }: {
@@ -55,7 +53,6 @@ export class StagehandActHandler {
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
-    this.llmClient = llmClient;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
     this.actions = {};
@@ -187,7 +184,7 @@ export class StagehandActHandler {
 
   private async _performPlaywrightMethod(
     method: string,
-    args: string[],
+    args: unknown[],
     xpath: string,
     domSettleTimeoutMs?: number,
   ) {
@@ -207,7 +204,7 @@ export class StagehandActHandler {
       });
       try {
         await locator
-          .evaluate((element: any) => {
+          .evaluate((element: HTMLElement) => {
             element.scrollIntoView({ behavior: "smooth", block: "center" });
           })
           .catch((e: Error) => {
@@ -258,7 +255,7 @@ export class StagehandActHandler {
       try {
         await locator.fill("");
         await locator.click();
-        const text = args[0];
+        const text = args[0]?.toString();
         for (const char of text) {
           await this.stagehand.page.keyboard.type(char, {
             delay: Math.random() * 50 + 25,
@@ -289,7 +286,7 @@ export class StagehandActHandler {
       }
     } else if (method === "press") {
       try {
-        const key = args[0];
+        const key = args[0]?.toString();
         await this.stagehand.page.keyboard.press(key);
       } catch (e) {
         this.logger({
@@ -330,8 +327,11 @@ export class StagehandActHandler {
 
       // Perform the action
       try {
-        // @ts-ignore
-        await locator[method](...args);
+        await (
+          locator[method as keyof Locator] as unknown as (
+            ...args: string[]
+          ) => Promise<void>
+        )(...args.map((arg) => arg?.toString() || ""));
       } catch (e) {
         this.logger({
           category: "action",
@@ -421,11 +421,21 @@ export class StagehandActHandler {
         await Promise.race([
           this.stagehand.page.waitForLoadState("networkidle"),
           new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]).catch((e: Error) => {
+        ]).catch((e) => {
           this.logger({
             category: "action",
             message: "network idle timeout hit",
             level: 1,
+            auxiliary: {
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+              message: {
+                value: e.message,
+                type: "string",
+              },
+            },
           });
         });
 
@@ -617,7 +627,7 @@ export class StagehandActHandler {
       });
 
       // First try to get the value (for input/textarea elements)
-      let currentComponent = await this._getComponentString(locator);
+      const currentComponent = await this._getComponentString(locator);
 
       this.logger({
         category: "action",
@@ -844,9 +854,8 @@ export class StagehandActHandler {
       );
 
       steps = steps + cachedStep.newStepString;
-      const { outputString, selectorMap } = await this.stagehand.page.evaluate(
+      await this.stagehand.page.evaluate(
         ({ chunksSeen }: { chunksSeen: number[] }) => {
-          // @ts-ignore
           return window.processDom(chunksSeen);
         },
         { chunksSeen },
@@ -854,7 +863,7 @@ export class StagehandActHandler {
 
       if (cachedStep.completed) {
         // Verify the action was completed successfully
-        let actionCompleted = await this._verifyActionCompletion({
+        const actionCompleted = await this._verifyActionCompletion({
           completed: true,
           verifierUseVision,
           llmClient,
@@ -1033,7 +1042,6 @@ export class StagehandActHandler {
       const { outputString, selectorMap, chunk, chunks } =
         await this.stagehand.page.evaluate(
           ({ chunksSeen }: { chunksSeen: number[] }) => {
-            // @ts-ignore
             return window.processDom(chunksSeen);
           },
           { chunksSeen },
@@ -1265,7 +1273,7 @@ export class StagehandActHandler {
               previousSelectors,
               playwrightCommand: {
                 method,
-                args: responseArgs,
+                args: responseArgs.map((arg) => arg?.toString() || ""),
               },
               componentString,
               requestId,

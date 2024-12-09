@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { initStagehand } from "../utils";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../../types/evals";
 
-export const extract_snowshoeing_destinations: EvalFunction = async ({ modelName, logger }) => {
+export const extract_snowshoeing_destinations: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -18,17 +21,22 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({ modelName
     await stagehand.act({ action: "reject the cookies" });
 
     const snowshoeing_regions = await stagehand.extract({
-      instruction: "Extract all the snowshoeing regions and the names of the trails within each region.",
+      instruction:
+        "Extract all the snowshoeing regions and the names of the trails within each region.",
       schema: z.object({
         snowshoeing_regions: z.array(
           z.object({
-            region_name: z.string().describe("The name of the snowshoeing region"),
-            trails: z.array(
-              z.object({
-                trail_name: z.string().describe("The name of the trail"),
-              })
-            ).describe("The list of trails available in this region."),
-          })
+            region_name: z
+              .string()
+              .describe("The name of the snowshoeing region"),
+            trails: z
+              .array(
+                z.object({
+                  trail_name: z.string().describe("The name of the trail"),
+                }),
+              )
+              .describe("The list of trails available in this region."),
+          }),
         ),
       }),
       modelName,
@@ -45,7 +53,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({ modelName
       },
     });
 
-    await stagehand.close()
+    await stagehand.close();
 
     const _success = snowshoeing_regions.snowshoeing_regions.length === 10;
 
