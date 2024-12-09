@@ -7,9 +7,8 @@ async function example() {
     verbose: 1,
     debugDom: true,
     enableCaching: false,
-    modelName: "claude-3-5-sonnet-latest"
+    modelName: "claude-3-5-sonnet-latest",
   });
-
 
   await stagehand.init({ domSettleTimeoutMs: 3000 });
   await stagehand.page.goto("https://www.mycmh.org/locations/");
@@ -23,13 +22,14 @@ async function example() {
           name: z.string(),
           phone_number: z.string(),
           address: z.string(),
-        })
+        }),
       ),
     }),
   });
 
-  console.log(`The healthcare centers are ${JSON.stringify(result.health_centers, null, 2)}`);
-
+  console.log(
+    `The healthcare centers are ${JSON.stringify(result.health_centers, null, 2)}`,
+  );
 }
 
 (async () => {

@@ -5,7 +5,7 @@ import { LogLine } from "../../types/log";
 
 export interface CacheEntry {
   timestamp: number;
-  data: any;
+  data: unknown;
   requestId: string;
 }
 
@@ -90,7 +90,7 @@ export class BaseCache<T extends CacheEntry> {
     }
   }
 
-  protected createHash(data: any): string {
+  protected createHash(data: unknown): string {
     const hash = crypto.createHash("sha256");
     return hash.update(JSON.stringify(data)).digest("hex");
   }
@@ -124,7 +124,22 @@ export class BaseCache<T extends CacheEntry> {
           level: 1,
         });
         return true;
-      } catch (error) {
+      } catch (e) {
+        this.logger({
+          category: "base_cache",
+          message: "error acquiring lock",
+          level: 2,
+          auxiliary: {
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            message: {
+              value: e.message,
+              type: "string",
+            },
+          },
+        });
         await this.sleep(5);
       }
     }
@@ -300,7 +315,7 @@ export class BaseCache<T extends CacheEntry> {
    * @returns The cached data if available, otherwise null.
    */
   public async get(
-    hashObj: Record<string, any> | string,
+    hashObj: Record<string, unknown> | string,
     requestId: string,
   ): Promise<T["data"] | null> {
     if (!(await this.acquireLock())) {
@@ -352,7 +367,7 @@ export class BaseCache<T extends CacheEntry> {
    * @param requestId - The identifier for the cache entry.
    */
   public async set(
-    hashObj: Record<string, any>,
+    hashObj: Record<string, unknown>,
     data: T["data"],
     requestId: string,
   ): Promise<void> {
@@ -403,7 +418,7 @@ export class BaseCache<T extends CacheEntry> {
     }
   }
 
-  public async delete(hashObj: Record<string, any>): Promise<void> {
+  public async delete(hashObj: Record<string, unknown>): Promise<void> {
     if (!(await this.acquireLock())) {
       this.logger({
         category: "base_cache",

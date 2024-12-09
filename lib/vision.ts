@@ -162,17 +162,16 @@ export class ScreenshotService {
       let element = null;
 
       // Try each selector until one works
-      const selectorPromises: Promise<any | null>[] = selectors.map(
-        async (selector) => {
+      const selectorPromises: Promise<Omit<AnnotationBox, "id"> | null>[] =
+        selectors.map(async (selector) => {
           try {
             element = await this.page.locator(`xpath=${selector}`).first();
             const box = await element.boundingBox({ timeout: 5_000 });
             return box;
-          } catch (e) {
+          } catch {
             return null;
           }
-        },
-      );
+        });
 
       const boxes = await Promise.all(selectorPromises);
       const box = boxes.find((b) => b !== null);
@@ -235,7 +234,7 @@ export class ScreenshotService {
 
   private findNonOverlappingNumberPosition(box: AnnotationBox): NumberPosition {
     const circleRadius = 12;
-    let position: NumberPosition = {
+    const position: NumberPosition = {
       x: box.x - circleRadius,
       y: box.y - circleRadius,
     };

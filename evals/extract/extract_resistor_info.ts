@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_resistor_info: EvalFunction = async ({ modelName, logger }) => {
+export const extract_resistor_info: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -14,7 +17,8 @@ export const extract_resistor_info: EvalFunction = async ({ modelName, logger })
   await stagehand.page.goto("https://www.seielect.com/?stockcheck=ASR1JA330R");
 
   const result = await stagehand.extract({
-    instruction: "Extract the MOQ, tolerance percentage, ohmic value, and operating temperature range of the resistor.",
+    instruction:
+      "Extract the MOQ, tolerance percentage, ohmic value, and operating temperature range of the resistor.",
     schema: z.object({
       moq: z.string(),
       tolerance_percentage: z.string(),
@@ -26,7 +30,12 @@ export const extract_resistor_info: EvalFunction = async ({ modelName, logger })
 
   await stagehand.close();
 
-  const { moq, tolerance_percentage, ohmic_value, operating_temperature_range } = result;
+  const {
+    moq,
+    tolerance_percentage,
+    ohmic_value,
+    operating_temperature_range,
+  } = result;
 
   const expected = {
     moq: "500",
@@ -59,7 +68,10 @@ export const extract_resistor_info: EvalFunction = async ({ modelName, logger })
     };
   }
 
-  if (normalizeString(tolerance_percentage) !== normalizeString(expected.tolerance_percentage)) {
+  if (
+    normalizeString(tolerance_percentage) !==
+    normalizeString(expected.tolerance_percentage)
+  ) {
     logger.error({
       message: "Tolerance percentage extracted does not match expected",
       level: 0,
@@ -107,7 +119,10 @@ export const extract_resistor_info: EvalFunction = async ({ modelName, logger })
     };
   }
 
-  if (normalizeString(operating_temperature_range) !== normalizeString(expected.operating_temperature_range)) {
+  if (
+    normalizeString(operating_temperature_range) !==
+    normalizeString(expected.operating_temperature_range)
+  ) {
     logger.error({
       message: "Operating temperature range extracted does not match expected",
       level: 0,

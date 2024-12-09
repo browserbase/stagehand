@@ -22,8 +22,7 @@ export const extract_partners: EvalFunction = async ({ modelName, logger }) => {
     });
 
     await stagehand.act({
-      action:
-        "Find and click on the link that leads to the partners page.",
+      action: "Find and click on the link that leads to the partners page.",
     });
 
     const partners = await stagehand.extract({
@@ -33,11 +32,7 @@ export const extract_partners: EvalFunction = async ({ modelName, logger }) => {
       schema: z.object({
         partners: z.array(
           z.object({
-            partner_category: z
-              .string()
-              .describe(
-                "The partner category",
-              ),
+            partner_category: z.string().describe("The partner category"),
           }),
         ),
         explanation: z

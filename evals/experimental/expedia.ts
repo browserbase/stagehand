@@ -28,7 +28,21 @@ export const expedia: EvalFunction = async ({ modelName, logger }) => {
       sessionUrl,
     };
   } catch (error) {
-    // ... error handling
+    logger.error({
+      message: "Error in expedia eval",
+      level: 0,
+      auxiliary: {
+        error: { value: error.message, type: "string" },
+        trace: { value: error.stack, type: "string" },
+      },
+    });
+
+    return {
+      _success: false,
+      logs: logger.getLogs(),
+      debugUrl,
+      sessionUrl,
+    };
   } finally {
     await stagehand.close();
   }

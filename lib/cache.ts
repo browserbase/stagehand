@@ -1,5 +1,4 @@
-const fs = require("fs");
-const crypto = require("crypto");
+import fs from "fs";
 const observationsPath = "./.cache/observations.json";
 const actionsPath = "./.cache/actions.json";
 

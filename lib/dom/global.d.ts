@@ -21,5 +21,8 @@ declare global {
     cleanupDebug: () => void;
     scrollToHeight: (height: number) => Promise<void>;
     waitForDomSettle: () => Promise<void>;
+    __playwright?: unknown;
+    __pw_manual?: unknown;
+    __PW_inspect?: unknown;
   }
 }

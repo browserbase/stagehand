@@ -1,16 +1,16 @@
-import { Stagehand } from "../index";
-import { LLMProvider } from "../llm/LLMProvider";
-import { ScreenshotService } from "../vision";
-import { verifyActCompletion, act, fillInVariables } from "../inference";
 import { Locator, Page } from "@playwright/test";
-import { ActionCache } from "../cache/ActionCache";
-import { LLMClient, modelsWithVision } from "../llm/LLMClient";
-import { generateId } from "../utils";
 import { LogLine } from "../../types/log";
 import {
   PlaywrightCommandException,
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
+import { ActionCache } from "../cache/ActionCache";
+import { Stagehand } from "../index";
+import { act, fillInVariables, verifyActCompletion } from "../inference";
+import { LLMClient } from "../llm/LLMClient";
+import { LLMProvider } from "../llm/LLMProvider";
+import { generateId } from "../utils";
+import { ScreenshotService } from "../vision";
 
 export class StagehandActHandler {
   private readonly stagehand: Stagehand;
@@ -207,7 +207,7 @@ export class StagehandActHandler {
       });
       try {
         await locator
-          .evaluate((element: any) => {
+          .evaluate((element: HTMLElement) => {
             element.scrollIntoView({ behavior: "smooth", block: "center" });
           })
           .catch((e: Error) => {
@@ -330,8 +330,11 @@ export class StagehandActHandler {
 
       // Perform the action
       try {
-        // @ts-ignore
-        await locator[method](...args);
+        await (
+          locator[method as keyof Locator] as unknown as (
+            ...args: string[]
+          ) => Promise<void>
+        )(...args);
       } catch (e) {
         this.logger({
           category: "action",
@@ -421,11 +424,21 @@ export class StagehandActHandler {
         await Promise.race([
           this.stagehand.page.waitForLoadState("networkidle"),
           new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]).catch((e: Error) => {
+        ]).catch((e) => {
           this.logger({
             category: "action",
             message: "network idle timeout hit",
             level: 1,
+            auxiliary: {
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+              message: {
+                value: e.message,
+                type: "string",
+              },
+            },
           });
         });
 
@@ -617,7 +630,7 @@ export class StagehandActHandler {
       });
 
       // First try to get the value (for input/textarea elements)
-      let currentComponent = await this._getComponentString(locator);
+      const currentComponent = await this._getComponentString(locator);
 
       this.logger({
         category: "action",
@@ -844,9 +857,8 @@ export class StagehandActHandler {
       );
 
       steps = steps + cachedStep.newStepString;
-      const { outputString, selectorMap } = await this.stagehand.page.evaluate(
+      await this.stagehand.page.evaluate(
         ({ chunksSeen }: { chunksSeen: number[] }) => {
-          // @ts-ignore
           return window.processDom(chunksSeen);
         },
         { chunksSeen },
@@ -854,7 +866,7 @@ export class StagehandActHandler {
 
       if (cachedStep.completed) {
         // Verify the action was completed successfully
-        let actionCompleted = await this._verifyActionCompletion({
+        const actionCompleted = await this._verifyActionCompletion({
           completed: true,
           verifierUseVision,
           llmClient,
@@ -1033,7 +1045,6 @@ export class StagehandActHandler {
       const { outputString, selectorMap, chunk, chunks } =
         await this.stagehand.page.evaluate(
           ({ chunksSeen }: { chunksSeen: number[] }) => {
-            // @ts-ignore
             return window.processDom(chunksSeen);
           },
           { chunksSeen },

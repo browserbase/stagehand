@@ -10,7 +10,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.act({action: "close the cookies popup"});
+  await stagehand.act({ action: "close the cookies popup" });
 
   const observations = await stagehand.observe();
 

@@ -92,8 +92,7 @@ export async function processElements(
   const chunkHeight = viewportHeight * chunk;
 
   // Calculate the maximum scrollable offset
-  const maxScrollTop =
-    document.documentElement.scrollHeight - viewportHeight;
+  const maxScrollTop = document.documentElement.scrollHeight - viewportHeight;
 
   // Adjust the offsetTop to not exceed the maximum scrollable offset
   const offsetTop = Math.min(chunkHeight, maxScrollTop);
