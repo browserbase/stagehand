@@ -6,25 +6,29 @@ import { EvalCategory, EvalFunction } from "../types/evals";
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
-const MODELS: AvailableModel[] = process.env.EVAL_MODELS.split(",").map(
-  (model) => {
-    if (!AvailableModel.safeParse(model).success) {
-      throw new Error(`Model ${model} is not a supported model`);
-    }
+const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
+  ? process.env.EVAL_MODELS.split(",")
+  : ["gpt-4o", "claude-3-5-sonnet-latest"];
 
-    return model as AvailableModel;
-  },
-);
+const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
+  ? process.env.EVAL_CATEGORIES.split(",")
+  : ["observe", "act", "combination", "extract", "experimental"];
 
-const CATEGORIES: EvalCategory[] = process.env.EVAL_CATEGORIES.split(",").map(
-  (category) => {
-    if (!EvalCategory.safeParse(category).success) {
-      throw new Error(`Category ${category} is not a valid category`);
-    }
+const MODELS: AvailableModel[] = DEFAULT_EVAL_MODELS.map((model) => {
+  if (!AvailableModel.safeParse(model).success) {
+    throw new Error(`Model ${model} is not a supported model`);
+  }
 
-    return category as EvalCategory;
-  },
-);
+  return model as AvailableModel;
+});
+
+const CATEGORIES: EvalCategory[] = DEFAULT_EVAL_CATEGORIES.map((category) => {
+  if (!EvalCategory.safeParse(category).success) {
+    throw new Error(`Category ${category} is not a valid category`);
+  }
+
+  return category as EvalCategory;
+});
 
 const generateTimestamp = (): string => {
   const now = new Date();
