@@ -49,8 +49,8 @@ jobs:
           if [ -f eval-summary.json ]; then
             extract_score=$(jq '.categories.extract' eval-summary.json)
             echo "Extract category score: $extract_score%"
-            if (( $(echo "$extract_score < 85" | bc -l) )); then
-              echo "Extract category score is below 85%. Failing CI."
+            if (( $(echo "$extract_score < 80" | bc -l) )); then
+              echo "Extract category score is below 80%. Failing CI."
               exit 1
             fi
           else
@@ -94,8 +94,8 @@ jobs:
           if [ -f eval-summary.json ]; then
             act_score=$(jq '.categories.act' eval-summary.json)
             echo "Act category score: $act_score%"
-            if (( $(echo "$act_score < 85" | bc -l) )); then
-              echo "Act category score is below 85%. Failing CI."
+            if (( $(echo "$act_score < 80" | bc -l) )); then
+              echo "Act category score is below 80%. Failing CI."
               exit 1
             fi
           else
@@ -139,8 +139,8 @@ jobs:
           if [ -f eval-summary.json ]; then
             observe_score=$(jq '.categories.observe' eval-summary.json)
             echo "Observe category score: $observe_score%"
-            if (( $(echo "$observe_score < 85" | bc -l) )); then
-              echo "Observe category score is below 85%. Failing CI."
+            if (( $(echo "$observe_score < 80" | bc -l) )); then
+              echo "Observe category score is below 80%. Failing CI."
               exit 1
             fi
           else

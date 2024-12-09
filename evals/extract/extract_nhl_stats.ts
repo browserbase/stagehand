@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_nhl_stats: EvalFunction = async ({ modelName, logger }) => {
+export const extract_nhl_stats: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -12,12 +15,16 @@ export const extract_nhl_stats: EvalFunction = async ({ modelName, logger }) => 
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990", {
-    waitUntil: "domcontentloaded",
-  });
+  await stagehand.page.goto(
+    "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
+    {
+      waitUntil: "domcontentloaded",
+    },
+  );
 
   const result = await stagehand.extract({
-    instruction: "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
+    instruction:
+      "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
     schema: z.object({
       name: z.string(),
       num_goals: z.string(),

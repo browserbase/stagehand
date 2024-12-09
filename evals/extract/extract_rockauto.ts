@@ -11,15 +11,18 @@ export const extract_rockauto: EvalFunction = async ({ modelName, logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393");
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await stagehand.page.goto(
+    "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 5000));
   const result = await stagehand.extract({
-    instruction: "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
+    instruction:
+      "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
     schema: z.object({
       coolant_products: z.array(
         z.object({
           part_number: z.string(),
-        })
+        }),
       ),
     }),
     modelName,
@@ -90,7 +93,8 @@ export const extract_rockauto: EvalFunction = async ({ modelName, logger }) => {
   }
 
   const lastItemMatches =
-    coolantProducts[coolantProducts.length - 1].part_number === expectedLastItem.part_number;
+    coolantProducts[coolantProducts.length - 1].part_number ===
+    expectedLastItem.part_number;
 
   if (!lastItemMatches) {
     logger.error({

@@ -20,8 +20,7 @@ export const nonsense_action: EvalFunction = async ({ modelName, logger }) => {
     // Assert the output
     const expectedResult = {
       success: false,
-      message:
-        "Action was not able to be completed.",
+      message: "Action was not able to be completed.",
       action: "click on the first banana",
     };
 

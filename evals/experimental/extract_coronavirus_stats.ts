@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_coronavirus_stats: EvalFunction = async ({ modelName, logger }) => {
+export const extract_coronavirus_stats: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -15,7 +18,8 @@ export const extract_coronavirus_stats: EvalFunction = async ({ modelName, logge
   await stagehand.page.goto("https://www.worldometers.info/coronavirus/");
 
   const result = await stagehand.extract({
-    instruction: "Extract the total number of coronavirus cases, deaths, and recovered cases displayed on the page.",
+    instruction:
+      "Extract the total number of coronavirus cases, deaths, and recovered cases displayed on the page.",
     schema: z.object({
       cases: z.string(),
       deaths: z.string(),

@@ -3,7 +3,10 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const extract_baptist_health: EvalFunction = async ({ modelName, logger }) => {
+export const extract_baptist_health: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -11,10 +14,13 @@ export const extract_baptist_health: EvalFunction = async ({ modelName, logger }
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.baptistfirst.org/location/baptist-health-ent-partners");
+  await stagehand.page.goto(
+    "https://www.baptistfirst.org/location/baptist-health-ent-partners",
+  );
 
   const result = await stagehand.extract({
-    instruction: "Extract the address, phone number, and fax number of the healthcare location.",
+    instruction:
+      "Extract the address, phone number, and fax number of the healthcare location.",
     schema: z.object({
       address: z.string(),
       phone: z.string(),

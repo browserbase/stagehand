@@ -60,8 +60,6 @@ export const extract_staff_members: EvalFunction = async ({
       },
     });
 
-
-
     return {
       _success: false,
       error: "Incorrect number of staff members extracted",
@@ -75,7 +73,7 @@ export const extract_staff_members: EvalFunction = async ({
   const firstItemExists = staff_members.some(
     (member) =>
       member.name === expectedFirstItem.name &&
-      member.job_title === expectedFirstItem.job_title
+      member.job_title === expectedFirstItem.job_title,
   );
 
   if (!firstItemExists) {
@@ -108,7 +106,7 @@ export const extract_staff_members: EvalFunction = async ({
   const lastItemExists = staff_members.some(
     (member) =>
       member.name === expectedLastItem.name &&
-      member.job_title === expectedLastItem.job_title
+      member.job_title === expectedLastItem.job_title,
   );
 
   if (!lastItemExists) {
