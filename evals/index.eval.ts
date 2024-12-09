@@ -2,30 +2,47 @@ import { Eval } from "braintrust";
 import fs from "fs";
 import path from "path";
 import process from "process";
-import { EvalFunction } from "../types/evals";
+import { EvalCategory, EvalFunction } from "../types/evals";
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
-const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
+const MODELS: AvailableModel[] = process.env.EVAL_MODELS.split(",").map(
+  (model) => {
+    if (!AvailableModel.safeParse(model).success) {
+      throw new Error(`Model ${model} is not in AvailableModel`);
+    }
 
-const CATEGORIES = ["observe", "act", "combination", "extract", "experimental"];
+    return model as AvailableModel;
+  },
+);
+
+const CATEGORIES: EvalCategory[] = process.env.EVAL_CATEGORIES.split(",").map(
+  (category) => {
+    if (!EvalCategory.safeParse(category).success) {
+      throw new Error(`Category ${category} is not in EvalCategory`);
+    }
+
+    return category as EvalCategory;
+  },
+);
 
 const generateTimestamp = (): string => {
   const now = new Date();
-  return now.toISOString().replace(/[-:TZ]/g, "").slice(0, 14);
+  return now
+    .toISOString()
+    .replace(/[-:TZ]/g, "")
+    .slice(0, 14);
 };
 
-const generateExperimentName = (
-  {
-    evalName,
-    category,
-    environment,
-  }: {
-    evalName?: string;
-    category?: string;
-    environment: string;
-  }
-): string => {
+const generateExperimentName = ({
+  evalName,
+  category,
+  environment,
+}: {
+  evalName?: string;
+  category?: string;
+  environment: string;
+}): string => {
   const timestamp = generateTimestamp();
   if (evalName) {
     return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
@@ -35,7 +52,6 @@ const generateExperimentName = (
   }
   return `all_${environment.toLowerCase()}_${timestamp}`;
 };
-
 
 const generateTasksAndCategories = (): {
   tasks: Record<string, EvalFunction>;
@@ -106,7 +122,6 @@ const errorMatch = (args: {
   };
 };
 
-
 const generateSummary = async (results: any[]) => {
   const passed = results
     .filter((result) => result.output?._success)
@@ -128,12 +143,13 @@ const generateSummary = async (results: any[]) => {
 
   Object.values(taskCategories).forEach((category) => {
     const categoryResults = results.filter(
-      (r) => taskCategories[r.input.name] === category
+      (r) => taskCategories[r.input.name] === category,
     );
-    const successCount = categoryResults.filter((r) => r.output?._success)
-      .length;
+    const successCount = categoryResults.filter(
+      (r) => r.output?._success,
+    ).length;
     categories[category] = Math.round(
-      (successCount / categoryResults.length) * 100
+      (successCount / categoryResults.length) * 100,
     );
   });
 
@@ -143,8 +159,9 @@ const generateSummary = async (results: any[]) => {
     const model = result.input.modelName;
     if (!models[model]) {
       const modelResults = results.filter((r) => r.input.modelName === model);
-      const successCount = modelResults.filter((r) => r.output?._success)
-        .length;
+      const successCount = modelResults.filter(
+        (r) => r.output?._success,
+      ).length;
       models[model] = Math.round((successCount / modelResults.length) * 100);
     }
   });
@@ -156,11 +173,15 @@ const generateSummary = async (results: any[]) => {
     models,
   };
 
-  fs.writeFileSync("eval-summary.json", JSON.stringify(formattedSummary, null, 2));
+  fs.writeFileSync(
+    "eval-summary.json",
+    JSON.stringify(formattedSummary, null, 2),
+  );
   console.log("Evaluation summary written to eval-summary.json");
 };
 
 const args = process.argv.slice(2);
+
 let filterByCategory: string | null = null;
 let filterByEvalName: string | null = null;
 
@@ -171,11 +192,13 @@ if (args.length > 0) {
       console.error("Error: Category name not specified.");
       process.exit(1);
     }
-    if (!CATEGORIES.includes(filterByCategory)) {
+    try {
+      EvalCategory.parse(filterByCategory);
+    } catch (e) {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
-          ", "
-        )}`
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${EvalCategory.options.join(
+          ", ",
+        )}`,
       );
       process.exit(1);
     }
@@ -188,9 +211,8 @@ if (args.length > 0) {
   }
 }
 
-
 const generateFilteredTestcases = () => {
-  let allTestcases = models.flatMap((model) =>
+  let allTestcases = MODELS.flatMap((model) =>
     Object.keys(tasks).map((test) => ({
       input: { name: test, modelName: model },
       name: test,
@@ -199,12 +221,12 @@ const generateFilteredTestcases = () => {
         model,
         test,
       },
-    }))
+    })),
   );
 
   if (filterByCategory) {
     allTestcases = allTestcases.filter(
-      (testcase) => taskCategories[testcase.name] === filterByCategory
+      (testcase) => taskCategories[testcase.name] === filterByCategory,
     );
   }
 
@@ -212,12 +234,14 @@ const generateFilteredTestcases = () => {
     allTestcases = allTestcases.filter(
       (testcase) =>
         testcase.name === filterByEvalName ||
-        testcase.input.name === filterByEvalName
+        testcase.input.name === filterByEvalName,
     );
   }
 
   if (env === "BROWSERBASE") {
-    allTestcases = allTestcases.filter((testcase) => testcase.name !== "peeler_simple");
+    allTestcases = allTestcases.filter(
+      (testcase) => testcase.name !== "peeler_simple",
+    );
   }
 
   return allTestcases;
