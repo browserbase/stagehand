@@ -22,7 +22,6 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number,
   ) => Promise<void>;
   private readonly actionCache: ActionCache | undefined;
-  private readonly llmClient: LLMClient;
   private readonly startDomDebug: () => Promise<void>;
   private readonly cleanupDomDebug: () => Promise<void>;
   private actions: { [key: string]: { result: string; action: string } };
@@ -34,7 +33,6 @@ export class StagehandActHandler {
     enableCaching,
     logger,
     waitForSettledDom,
-    llmClient,
     startDomDebug,
     cleanupDomDebug,
   }: {
@@ -55,7 +53,6 @@ export class StagehandActHandler {
     this.logger = logger;
     this.waitForSettledDom = waitForSettledDom;
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
-    this.llmClient = llmClient;
     this.startDomDebug = startDomDebug;
     this.cleanupDomDebug = cleanupDomDebug;
     this.actions = {};
@@ -187,7 +184,7 @@ export class StagehandActHandler {
 
   private async _performPlaywrightMethod(
     method: string,
-    args: string[],
+    args: unknown[],
     xpath: string,
     domSettleTimeoutMs?: number,
   ) {
@@ -258,7 +255,7 @@ export class StagehandActHandler {
       try {
         await locator.fill("");
         await locator.click();
-        const text = args[0];
+        const text = args[0]?.toString();
         for (const char of text) {
           await this.stagehand.page.keyboard.type(char, {
             delay: Math.random() * 50 + 25,
@@ -289,7 +286,7 @@ export class StagehandActHandler {
       }
     } else if (method === "press") {
       try {
-        const key = args[0];
+        const key = args[0]?.toString();
         await this.stagehand.page.keyboard.press(key);
       } catch (e) {
         this.logger({
@@ -334,7 +331,7 @@ export class StagehandActHandler {
           locator[method as keyof Locator] as unknown as (
             ...args: string[]
           ) => Promise<void>
-        )(...args);
+        )(...args.map((arg) => arg?.toString() || ""));
       } catch (e) {
         this.logger({
           category: "action",
@@ -1276,7 +1273,7 @@ export class StagehandActHandler {
               previousSelectors,
               playwrightCommand: {
                 method,
-                args: responseArgs,
+                args: responseArgs.map((arg) => arg?.toString() || ""),
               },
               componentString,
               requestId,

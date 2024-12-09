@@ -119,7 +119,7 @@ export class StagehandExtractHandler {
     });
 
     const {
-      metadata: { progress: newProgress, completed },
+      metadata: { completed },
       ...output
     } = extractionResponse;
     await this.cleanupDomDebug();
@@ -165,7 +165,6 @@ export class StagehandExtractHandler {
       return this.extract({
         instruction,
         schema,
-        progress: newProgress,
         content: output,
         chunksSeen,
         llmClient,
