@@ -14,6 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  run-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Run Lint
+        run: npm run lint
+
   run-extract-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -37,9 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-frozen-lockfile
-
-      - name: Lint
-        run: npm run lint
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
