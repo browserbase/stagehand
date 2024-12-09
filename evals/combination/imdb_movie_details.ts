@@ -47,11 +47,11 @@ export const imdb_movie_details: EvalFunction = async ({
       auxiliary: {
         expected: {
           value: JSON.stringify(expectedCountries),
-          type: "array",
+          type: "object",
         },
         actual: {
           value: JSON.stringify(movieDetails.countries || []),
-          type: "array",
+          type: "object",
         },
       },
     });
@@ -76,11 +76,11 @@ export const imdb_movie_details: EvalFunction = async ({
       auxiliary: {
         missing: {
           value: JSON.stringify(missingCountries),
-          type: "array",
+          type: "object",
         },
         extracted: {
           value: JSON.stringify(movieDetails.countries),
-          type: "array",
+          type: "object",
         },
       },
     });

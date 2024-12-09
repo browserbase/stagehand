@@ -61,7 +61,12 @@ export const allrecipes: EvalFunction = async ({ modelName, logger }) => {
     logger.error({
       message: "Failed to extract correct recipe details",
       level: 0,
-      auxiliary: errors,
+      auxiliary: {
+        errors: {
+          value: JSON.stringify(errors),
+          type: "object",
+        },
+      },
     });
 
     return {

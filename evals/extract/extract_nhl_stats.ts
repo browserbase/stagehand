@@ -49,11 +49,11 @@ export const extract_nhl_stats: EvalFunction = async ({
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.cases),
+          value: normalizeString(expected.name),
           type: "string",
         },
         actual: {
-          value: normalizeString(cases),
+          value: normalizeString(name),
           type: "string",
         },
       },

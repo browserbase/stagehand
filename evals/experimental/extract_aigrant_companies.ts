@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { initStagehand } from "../utils";
-import { EvalFunction } from "../types/evals";
+import { EvalFunction } from "../../types/evals";
 
 export const extract_aigrant_companies: EvalFunction = async ({
   modelName,

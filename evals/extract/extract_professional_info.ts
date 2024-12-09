@@ -53,11 +53,11 @@ export const extract_professional_info: EvalFunction = async ({
       auxiliary: {
         expected: {
           value: JSON.stringify(expected.practices),
-          type: "array",
+          type: "object",
         },
         actual: {
           value: JSON.stringify(practices),
-          type: "array",
+          type: "object",
         },
       },
     });
