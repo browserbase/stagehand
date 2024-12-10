@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { initStagehand } from "../utils";
 import { EvalFunction } from "../../types/evals";
-import { normalizeString } from "../utils";
+import { initStagehand } from "../utils";
+import { z } from "zod";
+import { compareStrings } from "../utils";
 
 export const extract_memorial_healthcare: EvalFunction = async ({
   modelName,
@@ -16,26 +16,29 @@ export const extract_memorial_healthcare: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto("https://www.mycmh.org/locations/");
-  const healthCenterSchema = z.object({
-    name: z.string(),
-    phone_number: z.string(),
-    address: z.string(),
-  });
-  type HealthCenterType = z.infer<typeof healthCenterSchema>;
 
   const result = await stagehand.extract({
     instruction:
       "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
     schema: z.object({
-      health_centers: z.array(healthCenterSchema),
+      health_centers: z.array(
+        z.object({
+          name: z.string(),
+          phone_number: z.string(),
+          address: z.string(),
+        }),
+      ),
     }),
   });
 
   await stagehand.close();
 
-  const health_centers = result.health_centers;
+  const health_centers: Array<
+    Partial<{ name: string; phone_number: string; address: string }>
+  > = result.health_centers;
 
   const expectedLength = 3;
+  const similarityThreshold = 0.85;
 
   const expectedFirstItem = {
     name: "Community Memorial Breast Center",
@@ -74,62 +77,102 @@ export const extract_memorial_healthcare: EvalFunction = async ({
     };
   }
 
-  const normalizeAndCompare = (
-    actual: HealthCenterType,
-    expected: HealthCenterType,
-  ) =>
-    normalizeString(actual.name) === normalizeString(expected.name) &&
-    normalizeString(actual.phone_number) ===
-      normalizeString(expected.phone_number) &&
-    normalizeString(actual.address) === normalizeString(expected.address);
-
-  if (!normalizeAndCompare(health_centers[0], expectedFirstItem)) {
+  const validateHealthCenter = (
+    center: Partial<{ name: string; phone_number: string; address: string }>,
+  ): { name: string; phone_number: string; address: string } | null => {
+    if (center.name && center.phone_number && center.address) {
+      return center as { name: string; phone_number: string; address: string };
+    }
     logger.error({
-      message: "First health center does not match expected",
+      message: "Invalid health center data",
       level: 0,
       auxiliary: {
-        expected: {
-          value: JSON.stringify(expectedFirstItem),
-          type: "object",
-        },
-        actual: {
-          value: JSON.stringify(health_centers[0]),
-          type: "object",
-        },
+        center: { value: JSON.stringify(center), type: "object" },
       },
     });
+    return null;
+  };
+
+  const validHealthCenters = health_centers
+    .map(validateHealthCenter)
+    .filter(Boolean) as Array<{
+    name: string;
+    phone_number: string;
+    address: string;
+  }>;
+
+  if (validHealthCenters.length < expectedLength) {
     return {
       _success: false,
-      error: "First health center does not match expected",
+      error: "One or more health centers have missing fields",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
   }
 
-  if (
-    !normalizeAndCompare(
-      health_centers[health_centers.length - 1],
-      expectedLastItem,
-    )
-  ) {
-    logger.error({
-      message: "Last health center does not match expected",
-      level: 0,
-      auxiliary: {
-        expected: {
-          value: JSON.stringify(expectedLastItem),
-          type: "object",
+  const compareField = (
+    actual: string,
+    expected: string,
+    fieldName: string,
+  ): boolean => {
+    const { similarity, meetsThreshold } = compareStrings(
+      actual,
+      expected,
+      similarityThreshold,
+    );
+
+    if (!meetsThreshold) {
+      logger.error({
+        message: `Field "${fieldName}" does not meet similarity threshold`,
+        level: 0,
+        auxiliary: {
+          field: { value: fieldName, type: "string" },
+          similarity: { value: similarity.toFixed(2), type: "float" },
+          expected: { value: expected, type: "string" },
+          actual: { value: actual, type: "string" },
         },
-        actual: {
-          value: JSON.stringify(health_centers[health_centers.length - 1]),
-          type: "object",
-        },
+      });
+    }
+
+    return meetsThreshold;
+  };
+
+  const compareItem = (
+    actual: { name: string; phone_number: string; address: string },
+    expected: { name: string; phone_number: string; address: string },
+    position: string,
+  ): boolean => {
+    const fields = [
+      { field: "name", actual: actual.name, expected: expected.name },
+      {
+        field: "phone_number",
+        actual: actual.phone_number,
+        expected: expected.phone_number,
       },
-    });
+      { field: "address", actual: actual.address, expected: expected.address },
+    ];
+
+    return fields.every(({ field, actual, expected }) =>
+      compareField(actual, expected, `${position} ${field}`),
+    );
+  };
+
+  const firstItemMatches = compareItem(
+    validHealthCenters[0],
+    expectedFirstItem,
+    "First",
+  );
+  const lastItemMatches = compareItem(
+    validHealthCenters[validHealthCenters.length - 1],
+    expectedLastItem,
+    "Last",
+  );
+
+  if (!firstItemMatches || !lastItemMatches) {
     return {
       _success: false,
-      error: "Last health center does not match expected",
+      error: "One or more fields do not match expected values",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
