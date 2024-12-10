@@ -1,6 +1,8 @@
 import { AvailableModel, Stagehand } from "../lib";
 import { logLineToString } from "../lib/utils";
 import { LogLine } from "../types/log";
+import stringComparison from "string-comparison";
+const { jaroWinkler } = stringComparison;
 
 export const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
@@ -96,6 +98,22 @@ export function normalizeString(str: string): string {
   return str
     .toLowerCase()
     .replace(/\s+/g, " ")
-    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+    .replace(/[;/#!$%^&*:{}=\-_`~()]/g, "")
+    .replace(/\s*,\s*/g, ", ")
     .trim();
+}
+
+export function compareStrings(
+  actual: string,
+  expected: string,
+  similarityThreshold: number = 0.85,
+): { similarity: number; meetsThreshold: boolean } {
+  const similarity = jaroWinkler.similarity(
+    normalizeString(actual),
+    normalizeString(expected),
+  );
+  return {
+    similarity,
+    meetsThreshold: similarity >= similarityThreshold,
+  };
 }

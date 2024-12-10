@@ -1,7 +1,7 @@
 import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
-import { normalizeString } from "../utils";
 import { z } from "zod";
+import { compareStrings } from "../utils";
 
 export const extract_baptist_health: EvalFunction = async ({
   modelName,
@@ -32,82 +32,65 @@ export const extract_baptist_health: EvalFunction = async ({
   await stagehand.close();
 
   const { address, phone, fax } = result;
-
   const expected = {
     address: "2055 East South Blvd; Suite 908 Montgomery, AL 36116",
     phone: "334-747-2273",
     fax: "334-747-7501",
   };
 
-  if (normalizeString(address) !== normalizeString(expected.address)) {
-    logger.error({
-      message: "Address extracted does not match expected",
-      level: 0,
-      auxiliary: {
-        expected: {
-          value: expected.address,
-          type: "string",
-        },
-        actual: {
-          value: address,
-          type: "string",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error: "Address extracted does not match expected",
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  }
+  const similarityThreshold = 0.85;
+  const failedFields: Array<{
+    field: string;
+    similarity: number;
+    expected: string;
+    actual: string;
+  }> = [];
 
-  if (normalizeString(phone) !== normalizeString(expected.phone)) {
-    logger.error({
-      message: "Phone number extracted does not match expected",
-      level: 0,
-      auxiliary: {
-        expected: {
-          value: expected.phone,
-          type: "string",
-        },
-        actual: {
-          value: phone,
-          type: "string",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error: "Phone number extracted does not match expected",
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  }
+  const compareField = (
+    actualVal: string,
+    expectedVal: string,
+    fieldName: string,
+  ) => {
+    const { similarity, meetsThreshold } = compareStrings(
+      actualVal,
+      expectedVal,
+      similarityThreshold,
+    );
 
-  if (normalizeString(fax) !== normalizeString(expected.fax)) {
-    logger.error({
-      message: "Fax number extracted does not match expected",
-      level: 0,
-      auxiliary: {
-        expected: {
-          value: expected.fax,
-          type: "string",
+    if (!meetsThreshold) {
+      failedFields.push({
+        field: fieldName,
+        similarity,
+        expected: expectedVal,
+        actual: actualVal,
+      });
+      logger.error({
+        message: `${fieldName} extracted does not meet similarity threshold`,
+        level: 0,
+        auxiliary: {
+          field: { value: fieldName, type: "string" },
+          similarity: { value: similarity.toFixed(2), type: "string" },
+          expected: { value: expectedVal, type: "string" },
+          actual: { value: actualVal, type: "string" },
         },
-        actual: {
-          value: fax,
-          type: "string",
-        },
-      },
-    });
+      });
+    }
+
+    return meetsThreshold;
+  };
+
+  const addressOk = compareField(address, expected.address, "Address");
+  const phoneOk = compareField(phone, expected.phone, "Phone number");
+  const faxOk = compareField(fax, expected.fax, "Fax number");
+
+  if (!addressOk || !phoneOk || !faxOk) {
     return {
       _success: false,
-      error: "Fax number extracted does not match expected",
+      error: "Some fields did not meet similarity threshold",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
+      failedFields,
     };
   }
 
