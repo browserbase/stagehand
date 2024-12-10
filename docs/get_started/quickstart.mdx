@@ -1,0 +1,121 @@
+---
+title: 'Quickstart'
+description: 'Automate the web in under 5 minutes'
+icon: 'code'
+---
+
+<Card
+  title="Follow along on Github"
+  icon="github"
+  href="https://github.com/browserbase/stagehand-quickstart"
+>
+  We've created a Github repository with the code for this quickstart. These instructions will walk you through the code.
+</Card>
+
+## 0. Prerequisites
+
+Before you begin, you'll need to install Node.js and NPM. We highly recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your Node.js versions, and running on Node 20 or later.
+
+<Tip>
+
+We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun.
+
+</Tip>
+
+## 1. Install the Stagehand package
+
+```bash
+npm install @browserbasehq/stagehand zod
+```
+
+If you're running locally, you may need to install Chromium for Playwright as well:
+
+```bash
+npx playwright install
+```
+
+## 2. Configure secrets
+
+You'll need to provide your API Key for the model provider you'd like to use. The default model provider is OpenAI, but you can also use Anthropic or others. More information on supported models can be found in the API Reference.
+
+Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment.
+
+```bash
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-...
+```
+
+If you're running on Browserbase, you also need to set the `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` environment variables.
+
+```bash
+export BROWSERBASE_API_KEY=...
+export BROWSERBASE_PROJECT_ID=...
+```
+
+## 3. Create an `index.ts` file
+While TypeScript is not required, it is recommended for writing Stagehand scripts. 
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+async function main() {
+  // Initialize stagehand
+  // You can mark debugDom: false to hide the debug rectangles
+  // You can mark env: 'BROWSERBASE' to run on the cloud,
+  //     provided you have BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+  // Lastly, you can mark headless: true to run in headless mode
+  const stagehand = new Stagehand({ env: "LOCAL", debugDom: true });
+
+  // Initialize the stagehand instance
+  // This runs on GPT-4o by default. To use Claude, set the `modelName` parameter to `claude-3-5-sonnet-20241022`.
+  // Also ensure you have the `ANTHROPIC_API_KEY` environment variable set.
+  await stagehand.init();
+
+  // Navigate to a page
+  await stagehand.page.goto("https://www.github.com/browserbase");
+
+  // Act on the page
+  await stagehand.act({
+    action: "Click on the stagehand repo",
+  });
+
+  // Extract data from the page
+  // This will return an object in the form { about: "..." }
+  const { about } = await stagehand.extract({
+    instruction: "extract the repo 'about' value",
+    schema: z.object({
+      about: z.string(),
+    }),
+  });
+
+  console.log(`Stagehand: ${about}`);
+
+  // The browser session will close automatically when the script finishes,
+  // but you can also close it manually.
+  await stagehand.close();
+}
+
+(async () => {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error);
+  }
+})();
+```
+
+## 4. Run the script
+Assuming you've installed the `tsx` package globally, you can run the script with the following command using the `npx` command:
+
+```bash
+npx tsx index.ts
+```
+
+<Card
+  title="View the code on Github"
+  icon="github"
+  href="https://github.com/browserbase/stagehand-quickstart"
+>
+  All of the code for this quickstart is available on Github.
+</Card>
