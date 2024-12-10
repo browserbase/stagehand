@@ -63,7 +63,7 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
     "sharp": "^0.33.5",
-    "zod-to-json-schema": "^3.23.3"
+    "zod-to-json-schema": "^3.23.5"
   },
   "directories": {
     "doc": "docs",

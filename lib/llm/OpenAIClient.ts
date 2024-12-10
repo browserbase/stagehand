@@ -14,13 +14,16 @@ import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
+import { validateZodSchema } from "../utils";
+import zodToJsonSchema from "zod-to-json-schema";
 
 export class OpenAIClient extends LLMClient {
+  public type = "openai" as const;
   private client: OpenAI;
   private cache: LLMCache | undefined;
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
-  private clientOptions: ClientOptions;
+  public clientOptions: ClientOptions;
 
   constructor(
     logger: (message: LogLine) => void,
@@ -30,6 +33,7 @@ export class OpenAIClient extends LLMClient {
     clientOptions?: ClientOptions,
   ) {
     super(modelName);
+    this.clientOptions = clientOptions;
     this.client = new OpenAI(clientOptions);
     this.logger = logger;
     this.cache = cache;
@@ -38,9 +42,73 @@ export class OpenAIClient extends LLMClient {
   }
 
   async createChatCompletion<T = ChatCompletion>(
-    options: ChatCompletionOptions,
+    optionsInitial: ChatCompletionOptions,
+    retries: number = 3,
   ): Promise<T> {
+    let options: Partial<ChatCompletionOptions> = optionsInitial;
+
+    // O1 models do not support most of the options. So we override them.
+    // For schema and tools, we add them as user messages.
+    let isToolsOverridedForO1 = false;
+    if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+      /* eslint-disable */
+      // Remove unsupported options
+      let {
+        tool_choice,
+        top_p,
+        frequency_penalty,
+        presence_penalty,
+        temperature,
+      } = options;
+      ({
+        tool_choice,
+        top_p,
+        frequency_penalty,
+        presence_penalty,
+        temperature,
+        ...options
+      } = options);
+      /* eslint-enable */
+      // Remove unsupported options
+      options.messages = options.messages.map((message) => ({
+        ...message,
+        role: "user",
+      }));
+      if (options.tools && options.response_model) {
+        throw new Error(
+          "Cannot use both tool and response_model for o1 models",
+        );
+      }
+
+      if (options.tools) {
+        // Remove unsupported options
+        let { tools } = options;
+        ({ tools, ...options } = options);
+        isToolsOverridedForO1 = true;
+        options.messages.push({
+          role: "user",
+          content: `You have the following tools available to you:\n${JSON.stringify(
+            tools,
+          )}
+
+          Respond with the following zod schema format to use a method: {
+            "name": "<tool_name>",
+            "arguments": <tool_args>
+          }
+          
+          Do not include any other text or formattings like \`\`\` in your response. Just the JSON object.`,
+        });
+      }
+    }
+    if (
+      options.temperature &&
+      (this.modelName === "o1-mini" || this.modelName === "o1-preview")
+    ) {
+      throw new Error("Temperature is not supported for o1 models");
+    }
+
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
+
     this.logger({
       category: "openai",
       message: "creating chat completion",
@@ -59,6 +127,7 @@ export class OpenAIClient extends LLMClient {
         },
       },
     });
+
     const cacheOptions = {
       model: this.modelName,
       messages: options.messages,
@@ -126,18 +195,52 @@ export class OpenAIClient extends LLMClient {
       options.messages.push(screenshotMessage);
     }
 
+    let responseFormat = undefined;
+    if (options.response_model) {
+      // For O1 models, we need to add the schema as a user message.
+      if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+        try {
+          const parsedSchema = JSON.stringify(
+            zodToJsonSchema(options.response_model.schema),
+          );
+          options.messages.push({
+            role: "user",
+            content: `Respond in this zod schema format:\n${parsedSchema}\n
+
+          Do not include any other text, formating or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+          });
+        } catch (error) {
+          this.logger({
+            category: "openai",
+            message: "Failed to parse response model schema",
+            level: 0,
+          });
+
+          if (retries > 0) {
+            // as-casting to account for o1 models not supporting all options
+            return this.createChatCompletion(
+              options as ChatCompletionOptions,
+              retries - 1,
+            );
+          }
+
+          throw error;
+        }
+      } else {
+        responseFormat = zodResponseFormat(
+          options.response_model.schema,
+          options.response_model.name,
+        );
+      }
+    }
+
+    /* eslint-disable */
+    // Remove unsupported options
     const { response_model, ...openAiOptions } = {
       ...optionsWithoutImageAndRequestId,
       model: this.modelName,
     };
-
-    let responseFormat = undefined;
-    if (options.response_model) {
-      responseFormat = zodResponseFormat(
-        options.response_model.schema,
-        options.response_model.name,
-      );
-    }
+    /* eslint-enable */
 
     this.logger({
       category: "openai",
@@ -221,6 +324,51 @@ export class OpenAIClient extends LLMClient {
 
     const response = await this.client.chat.completions.create(body);
 
+    // For O1 models, we need to parse the tool call response manually and add it to the response.
+    if (isToolsOverridedForO1) {
+      try {
+        const parsedContent = JSON.parse(response.choices[0].message.content);
+
+        response.choices[0].message.tool_calls = [
+          {
+            function: {
+              name: parsedContent["name"],
+              arguments: JSON.stringify(parsedContent["arguments"]),
+            },
+            type: "function",
+            id: "-1",
+          },
+        ];
+        response.choices[0].message.content = null;
+      } catch (error) {
+        this.logger({
+          category: "openai",
+          message: "Failed to parse tool call response",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            content: {
+              value: response.choices[0].message.content,
+              type: "string",
+            },
+          },
+        });
+
+        if (retries > 0) {
+          // as-casting to account for o1 models not supporting all options
+          return this.createChatCompletion(
+            options as ChatCompletionOptions,
+            retries - 1,
+          );
+        }
+
+        throw error;
+      }
+    }
+
     this.logger({
       category: "openai",
       message: "response",
@@ -231,15 +379,27 @@ export class OpenAIClient extends LLMClient {
           type: "object",
         },
         requestId: {
-          value: options.requestId,
+          value: requestId,
           type: "string",
         },
       },
     });
 
-    if (response_model) {
+    if (options.response_model) {
       const extractedData = response.choices[0].message.content;
       const parsedData = JSON.parse(extractedData);
+
+      if (!validateZodSchema(options.response_model.schema, parsedData)) {
+        if (retries > 0) {
+          // as-casting to account for o1 models not supporting all options
+          return this.createChatCompletion(
+            options as ChatCompletionOptions,
+            retries - 1,
+          );
+        }
+
+        throw new Error("Invalid response schema");
+      }
 
       if (this.enableCaching) {
         this.cache.set(

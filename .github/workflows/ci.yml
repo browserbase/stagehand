@@ -83,6 +83,8 @@ jobs:
 
       - name: Log Extract Evals Performance
         run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             extract_score=$(jq '.categories.extract' eval-summary.json)
             echo "Extract category score: $extract_score%"
@@ -128,6 +130,8 @@ jobs:
 
       - name: Log Act Evals Performance
         run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             act_score=$(jq '.categories.act' eval-summary.json)
             echo "Act category score: $act_score%"
@@ -173,6 +177,8 @@ jobs:
 
       - name: Log Observe Evals Performance
         run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             observe_score=$(jq '.categories.observe' eval-summary.json)
             echo "Observe category score: $observe_score%"
@@ -218,6 +224,8 @@ jobs:
 
       - name: Log Combination Evals Performance
         run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             combination_score=$(jq '.categories.combination' eval-summary.json)
             echo "Combination category score: $combination_score%"
@@ -232,7 +240,7 @@ jobs:
 
   run-experimental-evals:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 120
     needs: [run-combination-evals]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     env:
@@ -264,6 +272,8 @@ jobs:
 
       - name: Log Experimental Evals Performance
         run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
           if [ -f eval-summary.json ]; then
             experimental_score=$(jq '.categories.experimental' eval-summary.json)
             echo "Experimental category score: $experimental_score%"

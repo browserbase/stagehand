@@ -124,11 +124,30 @@ export class ScreenshotService {
       },
     });
 
-    const svgAnnotations = await Promise.all(
-      Object.entries(this.selectorMap).map(async ([id, selectors]) =>
-        this.createElementAnnotation(id, selectors),
-      ),
-    );
+    const svgAnnotations = (
+      await Promise.all(
+        Object.entries(this.selectorMap).map(async ([id, selectors]) =>
+          this.createElementAnnotation(id, selectors).catch((error: Error) => {
+            this.log({
+              category: "screenshotService",
+              message:
+                "warning: failed to create screenshot annotation for element",
+              level: 2,
+              auxiliary: {
+                message: {
+                  value: error.message,
+                  type: "string",
+                },
+                trace: {
+                  value: error.stack,
+                  type: "string",
+                },
+              },
+            });
+          }),
+        ),
+      )
+    ).filter((annotation) => annotation !== null);
 
     const scrollPosition = await this.page.evaluate(() => {
       return {

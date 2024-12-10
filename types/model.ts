@@ -8,7 +8,9 @@ export type AvailableModel =
   | "gpt-4o-2024-08-06"
   | "claude-3-5-sonnet-latest"
   | "claude-3-5-sonnet-20241022"
-  | "claude-3-5-sonnet-20240620";
+  | "claude-3-5-sonnet-20240620"
+  | "o1-mini"
+  | "o1-preview";
 
 export type ModelProvider = "openai" | "anthropic";
 

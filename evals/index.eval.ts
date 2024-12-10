@@ -13,36 +13,11 @@ import {
 import { AvailableModel } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
-const models: AvailableModel[] = ["gpt-4o", "claude-3-5-sonnet-latest"];
-
 const CATEGORIES = ["observe", "act", "combination", "extract", "experimental"];
 
-const generateTimestamp = (): string => {
-  const now = new Date();
-  return now
-    .toISOString()
-    .replace(/[-:TZ]/g, "")
-    .slice(0, 14);
-};
-
-const generateExperimentName = ({
-  evalName,
-  category,
-  environment,
-}: {
-  evalName?: string;
-  category?: string;
-  environment: string;
-}): string => {
-  const timestamp = generateTimestamp();
-  if (evalName) {
-    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
-  }
-  if (category) {
-    return `${category}_${environment.toLowerCase()}_${timestamp}`;
-  }
-  return `all_${environment.toLowerCase()}_${timestamp}`;
-};
+const args = process.argv.slice(2);
+let filterByCategory: string | null = null;
+let filterByEvalName: string | null = null;
 
 const generateTasksAndCategories = (): {
   tasks: Record<
@@ -85,6 +60,62 @@ const generateTasksAndCategories = (): {
 };
 
 const { tasks, taskCategories } = generateTasksAndCategories();
+
+if (args.length > 0) {
+  if (args[0].toLowerCase() === "category") {
+    filterByCategory = args[1];
+    if (!filterByCategory) {
+      console.error("Error: Category name not specified.");
+      process.exit(1);
+    }
+    if (!CATEGORIES.includes(filterByCategory)) {
+      console.error(
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
+          ", ",
+        )}`,
+      );
+      process.exit(1);
+    }
+  } else {
+    filterByEvalName = args[0];
+    if (!Object.keys(tasks).includes(filterByEvalName)) {
+      console.error(`Error: Evaluation "${filterByEvalName}" does not exist.`);
+      process.exit(1);
+    }
+  }
+}
+
+const models: AvailableModel[] =
+  filterByCategory === "experimental"
+    ? ["gpt-4o", "claude-3-5-sonnet-latest", "o1-mini", "o1-preview"]
+    : ["gpt-4o", "claude-3-5-sonnet-latest"];
+
+const generateTimestamp = (): string => {
+  const now = new Date();
+  return now
+    .toISOString()
+    .replace(/[-:TZ]/g, "")
+    .slice(0, 14);
+};
+
+const generateExperimentName = ({
+  evalName,
+  category,
+  environment,
+}: {
+  evalName?: string;
+  category?: string;
+  environment: string;
+}): string => {
+  const timestamp = generateTimestamp();
+  if (evalName) {
+    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  if (category) {
+    return `${category}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  return `all_${environment.toLowerCase()}_${timestamp}`;
+};
 
 const exactMatch = (
   args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
@@ -130,7 +161,10 @@ const errorMatch = (
   };
 };
 
-const generateSummary = async (results: SummaryResult[]) => {
+const generateSummary = async (
+  results: SummaryResult[],
+  experimentName: string,
+) => {
   const passed = results
     .filter((result) => result.output._success)
     .map((result) => ({
@@ -173,6 +207,7 @@ const generateSummary = async (results: SummaryResult[]) => {
   });
 
   const formattedSummary = {
+    experimentName,
     passed,
     failed,
     categories,
@@ -185,34 +220,6 @@ const generateSummary = async (results: SummaryResult[]) => {
   );
   console.log("Evaluation summary written to eval-summary.json");
 };
-
-const args = process.argv.slice(2);
-let filterByCategory: string | null = null;
-let filterByEvalName: string | null = null;
-
-if (args.length > 0) {
-  if (args[0].toLowerCase() === "category") {
-    filterByCategory = args[1];
-    if (!filterByCategory) {
-      console.error("Error: Category name not specified.");
-      process.exit(1);
-    }
-    if (!CATEGORIES.includes(filterByCategory)) {
-      console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
-          ", ",
-        )}`,
-      );
-      process.exit(1);
-    }
-  } else {
-    filterByEvalName = args[0];
-    if (!Object.keys(tasks).includes(filterByEvalName)) {
-      console.error(`Error: Evaluation "${filterByEvalName}" does not exist.`);
-      process.exit(1);
-    }
-  }
-}
 
 const generateFilteredTestcases = (): Testcase[] => {
   let allTestcases = models.flatMap((model) =>
@@ -244,7 +251,7 @@ const generateFilteredTestcases = (): Testcase[] => {
 
   if (env === "BROWSERBASE") {
     allTestcases = allTestcases.filter(
-      (testcase) => testcase.name !== "peeler_simple",
+      (testcase) => !["peeler_simple", "stock_x"].includes(testcase.name),
     );
   }
 
@@ -328,7 +335,7 @@ const generateFilteredTestcases = (): Testcase[] => {
       };
     });
 
-    await generateSummary(summaryResults);
+    await generateSummary(summaryResults, experimentName);
   } catch (error) {
     console.error("Error during evaluation run:", error);
     process.exit(1);
