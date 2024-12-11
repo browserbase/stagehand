@@ -767,6 +767,7 @@ export class Stagehand {
     modelName,
     modelClientOptions,
     domSettleTimeoutMs,
+    useTextExtract,
   }: ExtractOptions<T>): Promise<ExtractResult<T>> {
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
@@ -804,6 +805,7 @@ export class Stagehand {
         llmClient,
         requestId,
         domSettleTimeoutMs,
+        useTextExtract,
       })
       .catch((e) => {
         this.logger({

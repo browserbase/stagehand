@@ -24,5 +24,15 @@ declare global {
     __playwright?: unknown;
     __pw_manual?: unknown;
     __PW_inspect?: unknown;
+    storeDOM: () => string;
+    restoreDOM: (storedDOM: string) => void;
+    createTextBoundingBoxes: () => void;
+    getElementBoundingBoxes: (xpath: string) => Array<{
+      text: string;
+      top: number;
+      left: number;
+      width: number;
+      height: number;
+    }>;
   }
 }

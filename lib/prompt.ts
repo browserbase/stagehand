@@ -201,23 +201,38 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 ];
 
 // extract
-const extractSystemPrompt = `You are extracting content on behalf of a user. You will be given:
-1. An instruction
-2. A list of DOM elements to extract from
-
-Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
-Print null or an empty string if no new information is found.
-`;
-
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
+  useTextExtract: boolean = true,
 ): ChatMessage {
-  let content = extractSystemPrompt.replace(/\s+/g, " ");
-  if (isUsingPrintExtractedDataTool) {
-    content += `
+  const baseContent = `You are extracting content on behalf of a user. You will be given:
+1. An instruction
+2. `;
+
+  const contentDetail = useTextExtract
+    ? `A text representation of a webpage to extract information from`
+    : `A list of DOM elements to extract from`;
+
+  const instructions = `
+Print the exact text from the ${
+    useTextExtract ? "text-rendered webpage" : "DOM elements"
+  } with all symbols, characters, and endlines as is.
+Print null or an empty string if no new information is found.
+  `.trim();
+
+  const toolInstructions = isUsingPrintExtractedDataTool
+    ? `
 ONLY print the content using the print_extracted_data tool provided.
-ONLY print the content using the print_extracted_data tool provided.`;
-  }
+ONLY print the content using the print_extracted_data tool provided.
+  `.trim()
+    : "";
+
+  const content =
+    `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}`.replace(
+      /\s+/g,
+      " ",
+    );
+
   return {
     role: "system",
     content,
