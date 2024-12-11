@@ -1,30 +1,30 @@
 ---
-title: 'Act'
-description: 'Perform actions on the current page.'
-icon: 'robot'
+title: "Act"
+description: "Perform actions on the current page."
+icon: "robot"
 ---
 
- ```javascript
-  // Basic usage
-  await stagehand.act({ action: "click on add to cart" });
+```javascript
+// Basic usage
+await stagehand.act({ action: "click on add to cart" });
 
-  // Using variables
-  await stagehand.act({
-    action: "enter %username% into the username field",
-    variables: {
-      username: "john.doe@example.com",
-    },
-  });
+// Using variables
+await stagehand.act({
+  action: "enter %username% into the username field",
+  variables: {
+    username: "john.doe@example.com",
+  },
+});
 
-  // Multiple variables
-  await stagehand.act({
-    action: "fill in the form with %username% and %password%",
-    variables: {
-      username: "john.doe",
-      password: "secretpass123",
-    },
-  });
-  ```
+// Multiple variables
+await stagehand.act({
+  action: "fill in the form with %username% and %password%",
+  variables: {
+    username: "john.doe",
+    password: "secretpass123",
+  },
+});
+```
 
 `act()` allows Stagehand to interact with a web page. Provide an `action` like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`.
 
@@ -32,19 +32,19 @@ Small atomic goals perform the best. Avoid using `act()` to perform complex acti
 
 ### **Arguments:** [`ActOptions`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L51-L58)
 
-  | | | |
-  |-------|------|-------------|
-  | `action` | `string` | Describes the action to perform |
-  | `modelName?` | [`AvailableModel`](/reference/model_support) | Specifies the model to use |
-  | `modelClientOptions?` | `object` | Configuration options for the model client |
-  | `useVision?` | `boolean \| "fallback"` | Determines if vision-based processing should be used. Defaults to `"fallback"` |
-  | `variables?` | `Record<string, string>` | Variables to use in the action. Variables in the action string are referenced using `%variable_name%` |
-  | `domSettleTimeoutMs?` | `number` | Timeout in milliseconds for waiting for the DOM to settle |
+|                       |                                              |                                                                                                       |
+| --------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `action`              | `string`                                     | Describes the action to perform                                                                       |
+| `modelName?`          | [`AvailableModel`](/reference/model_support) | Specifies the model to use                                                                            |
+| `modelClientOptions?` | `object`                                     | Configuration options for the model client                                                            |
+| `useVision?`          | `boolean \| "fallback"`                      | Determines if vision-based processing should be used. Defaults to `"fallback"`                        |
+| `variables?`          | `Record<string, string>`                     | Variables to use in the action. Variables in the action string are referenced using `%variable_name%` |
+| `domSettleTimeoutMs?` | `number`                                     | Timeout in milliseconds for waiting for the DOM to settle                                             |
 
 ### **Returns:** [`Promise<ActResult>`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L60-L64)
 
-  | | | |
-  |-----------|-------------|-------------|
-  | `success` | `boolean` | If the action was completed successfully |
-  | `message` | `string` | Details about the action's execution |
-  | `action` | `string` | The action performed |
+|           |           |                                          |
+| --------- | --------- | ---------------------------------------- |
+| `success` | `boolean` | If the action was completed successfully |
+| `message` | `string`  | Details about the action's execution     |
+| `action`  | `string`  | The action performed                     |

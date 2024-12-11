@@ -1,7 +1,7 @@
 ---
-title: 'Initialization and Closing'
-description: 'How to start and stop a Stagehand session'
-icon: 'gear'
+title: "Initialization and Closing"
+description: "How to start and stop a Stagehand session"
+icon: "gear"
 ---
 
 ## Stagehand constructor
@@ -34,21 +34,21 @@ This constructor is used to create an instance of Stagehand.
 
 ### **Arguments:** [`ConstructorParams`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/stagehand.ts#L8-L23)
 
-|  |  |  |
-|-----------|-------------|-------------|
-| `env?` | `"LOCAL" \| "BROWSERBASE"` | Defaults to `'BROWSERBASE'` |
-| `apiKey?` | `string` | Your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable |
-| `projectId?` | `string` | Your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable |
-| `browserBaseSessionCreateParams?` | [`SessionCreateParams`](https://github.com/browserbase/sdk-node/blob/630e50c1c7d77f416429effc42bdfa78977334c4/src/resources/sessions/sessions.ts#L210-L249) | Configuration options for creating new Browserbase sessions |
-| `browserbaseResumeSessionID?` | `string` | ID of an existing Browserbase session to resume |
-| `modelName?` | [`AvailableModel`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/model.ts#L6-L12) | Specifying the default model to use |
-| `modelClientOptions?` | `object` | Configuration options for the model client |
-| `enableCaching?` | `boolean` | Enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false` |
-| `headless?` | `boolean` | Determines if the browser runs in headless mode. Defaults to `false`. When the env is set to `BROWSERBASE`, this will be ignored |
-| `domSettleTimeoutMs?` | `integer` | Specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds) |
-| `logger?` | `(message: LogLine) => void` | `message` is a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. Handles log messages. Useful for custom logging implementations. For more information, see the [Logging](/reference/logging) page |
-| `verbose?` | `integer` | Enables several levels of logging during automation: `0`: limited to no logging, `1`: SDK-level logging, `2`: LLM-client level logging (most granular) |
-| `debugDom?` | `boolean` | Draws bounding boxes around elements presented to the LLM during automation |
+|                                   |                                                                                                                                                             |                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env?`                            | `"LOCAL" \| "BROWSERBASE"`                                                                                                                                  | Defaults to `'BROWSERBASE'`                                                                                                                                                                                                                                                      |
+| `apiKey?`                         | `string`                                                                                                                                                    | Your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable                                                                                                                                                                                                 |
+| `projectId?`                      | `string`                                                                                                                                                    | Your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable                                                                                                                                                                                           |
+| `browserBaseSessionCreateParams?` | [`SessionCreateParams`](https://github.com/browserbase/sdk-node/blob/630e50c1c7d77f416429effc42bdfa78977334c4/src/resources/sessions/sessions.ts#L210-L249) | Configuration options for creating new Browserbase sessions                                                                                                                                                                                                                      |
+| `browserbaseResumeSessionID?`     | `string`                                                                                                                                                    | ID of an existing Browserbase session to resume                                                                                                                                                                                                                                  |
+| `modelName?`                      | [`AvailableModel`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/model.ts#L6-L12)                            | Specifying the default model to use                                                                                                                                                                                                                                              |
+| `modelClientOptions?`             | `object`                                                                                                                                                    | Configuration options for the model client                                                                                                                                                                                                                                       |
+| `enableCaching?`                  | `boolean`                                                                                                                                                   | Enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`                                                                                                                             |
+| `headless?`                       | `boolean`                                                                                                                                                   | Determines if the browser runs in headless mode. Defaults to `false`. When the env is set to `BROWSERBASE`, this will be ignored                                                                                                                                                 |
+| `domSettleTimeoutMs?`             | `integer`                                                                                                                                                   | Specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds)                                                                                                                                                                          |
+| `logger?`                         | `(message: LogLine) => void`                                                                                                                                | `message` is a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. Handles log messages. Useful for custom logging implementations. For more information, see the [Logging](/reference/logging) page |
+| `verbose?`                        | `integer`                                                                                                                                                   | Enables several levels of logging during automation: `0`: limited to no logging, `1`: SDK-level logging, `2`: LLM-client level logging (most granular)                                                                                                                           |
+| `debugDom?`                       | `boolean`                                                                                                                                                   | Draws bounding boxes around elements presented to the LLM during automation                                                                                                                                                                                                      |
 
 ### **Returns:** Stagehand object
 
@@ -58,11 +58,11 @@ The constructor returns an instance of the `Stagehand` class configured with the
 
 ```javascript
 await stagehand.init({
-	modelName: "gpt-4o",
-	modelClientOptions: {
-		apiKey: "sk-proj-1234567890",
-	},
-	domSettleTimeoutMs: 10_000,
+  modelName: "gpt-4o",
+  modelClientOptions: {
+    apiKey: "sk-proj-1234567890",
+  },
+  domSettleTimeoutMs: 10_000,
 });
 ```
 
@@ -70,20 +70,21 @@ await stagehand.init({
 
 ### **Arguments:** [`InitOptions`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/stagehand.ts#L30-L34)
 
-|  |  |  |
-|-----------|-------------|-------------|
-| `modelName?` | [`AvailableModel`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/model.ts#L6-L12) | Model to use for all methods unless overridden. Will override model specified in constructor |
-| `modelClientOptions?` | `object` | Configuration options for the model client |
-| `domSettleTimeoutMs?` | `number` | Timeout in milliseconds for waiting for the DOM to settle |
+|                       |                                                                                                                                  |                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `modelName?`          | [`AvailableModel`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/model.ts#L6-L12) | Model to use for all methods unless overridden. Will override model specified in constructor |
+| `modelClientOptions?` | `object`                                                                                                                         | Configuration options for the model client                                                   |
+| `domSettleTimeoutMs?` | `number`                                                                                                                         | Timeout in milliseconds for waiting for the DOM to settle                                    |
 
 ### **Returns:** [`Promise<InitResult>`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/stagehand.ts#L36-L40)
 
-|  |  |
-|-----------|-------------|
-| `debugUrl` | A `string` representing the URL for live debugging. This is only available when using a Browserbase browser |
-| `sessionUrl` | A `string` representing the session URL. This is only available when using a Browserbase browser |
+|              |                                                                                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| `debugUrl`   | A `string` representing the URL for live debugging. This is only available when using a Browserbase browser |
+| `sessionUrl` | A `string` representing the session URL. This is only available when using a Browserbase browser            |
 
 ## `stagehand.close()`
+
 ```javascript
 await stagehand.close();
 ```

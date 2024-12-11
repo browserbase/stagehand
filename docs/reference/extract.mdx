@@ -1,29 +1,29 @@
 ---
-title: 'Extract'
-description: 'Extract structured data from the page.'
-icon: 'brain-circuit'
+title: "Extract"
+description: "Extract structured data from the page."
+icon: "brain-circuit"
 ---
 
 ```javascript
-  const price = await stagehand.extract({
-    instruction: "extract the price of the item",
-    schema: z.object({
-      price: z.number(),
-    }),
-  });
+const price = await stagehand.extract({
+  instruction: "extract the price of the item",
+  schema: z.object({
+    price: z.number(),
+  }),
+});
 ```
 
 `extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data. Unlike some extraction libraries, stagehand can extract any information on a page, not just the main article contents.
 
 ### **Arguments:** [`ExtractOptions<T extends z.AnyZodObject>`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L66-L72)
 
-  | | | |
-  |-------|------|-------------|
-  | `instruction` | `string` | Provides instructions for extraction |
-  | `schema` | `T` | Defines the structure of the data to extract |
-  | `modelName?` | `AvailableModel` | Specifies the model to use |
-  | `modelClientOptions?` | `object` | Configuration options for the model client |
-  | `domSettleTimeoutMs?` | `number` | Timeout in milliseconds for waiting for the DOM to settle |
+|                       |                  |                                                           |
+| --------------------- | ---------------- | --------------------------------------------------------- |
+| `instruction`         | `string`         | Provides instructions for extraction                      |
+| `schema`              | `T`              | Defines the structure of the data to extract              |
+| `modelName?`          | `AvailableModel` | Specifies the model to use                                |
+| `modelClientOptions?` | `object`         | Configuration options for the model client                |
+| `domSettleTimeoutMs?` | `number`         | Timeout in milliseconds for waiting for the DOM to settle |
 
 ### **Returns:** [`Promise<ExtractResult<T extends z.AnyZodObject>>`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L74)
 

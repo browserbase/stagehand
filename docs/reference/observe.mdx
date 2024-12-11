@@ -1,38 +1,38 @@
 ---
-title: 'Observe'
-description: 'Get candidate DOM elements for actions.'
-icon: 'lightbulb'
+title: "Observe"
+description: "Get candidate DOM elements for actions."
+icon: "lightbulb"
 ---
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
+
 ```javascript
-  const actions = await stagehand.observe();
+const actions = await stagehand.observe();
 ```
 
 If you are looking for a specific element, you can also pass in an instruction to observe via: `observe({ instruction: "your instruction"})`.
+
 ```javascript
-  const actions = await stagehand.observe({
-    instruction: "Find the buttons on this page",
-  });
+const actions = await stagehand.observe({
+  instruction: "Find the buttons on this page",
+});
 ```
 
-<Tip>
-`observe()` currently only evaluates the first chunk in the page.
-</Tip>
+<Tip>`observe()` currently only evaluates the first chunk in the page.</Tip>
 
 ### **Arguments:** [`ObserveOptions`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L76-L82)
 
-  | | | |
-  |-------|------|-------------|
-  | `instruction?` | `string` | Provides instructions for the observation. Defaults to "Find actions that can be performed on this page." |
-  | `modelName?` | `AvailableModel` | Specifies the model to use |
-  | `modelClientOptions?` | `object` | Configuration options for the model client |
-  | `useVision?` | `boolean \| "fallback"` | Determines if vision-based processing should be used. Defaults to `"fallback"` |
-  | `domSettleTimeoutMs?` | `number` | Timeout in milliseconds for waiting for the DOM to settle |
+|                       |                         |                                                                                                           |
+| --------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `instruction?`        | `string`                | Provides instructions for the observation. Defaults to "Find actions that can be performed on this page." |
+| `modelName?`          | `AvailableModel`        | Specifies the model to use                                                                                |
+| `modelClientOptions?` | `object`                | Configuration options for the model client                                                                |
+| `useVision?`          | `boolean \| "fallback"` | Determines if vision-based processing should be used. Defaults to `"fallback"`                            |
+| `domSettleTimeoutMs?` | `number`                | Timeout in milliseconds for waiting for the DOM to settle                                                 |
 
 ### **Returns:** [`Promise<ObserveResult>`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/stagehand.ts#L84-L87)
 
-  | | | |
-  |-----------|-------------|-------------|
-  | `selector` | `string` | A string representing the element selector |
-  | `description` | `string` | A string describing the possible action |
+|               |          |                                            |
+| ------------- | -------- | ------------------------------------------ |
+| `selector`    | `string` | A string representing the element selector |
+| `description` | `string` | A string describing the possible action    |

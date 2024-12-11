@@ -61,9 +61,9 @@
         "reference/playwright_interop",
         "reference/model_support",
         "reference/initialization_config",
-		"reference/act",
-		"reference/extract",
-		"reference/observe",
+        "reference/act",
+        "reference/extract",
+        "reference/observe",
         "reference/logging"
       ]
     }

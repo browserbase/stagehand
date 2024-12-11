@@ -1,7 +1,7 @@
 ---
-title: 'Logging'
-description: 'How Stagehand logs'
-icon: 'newspaper'
+title: "Logging"
+description: "How Stagehand logs"
+icon: "newspaper"
 ---
 
 Stagehand logs log a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. You can override the default logger by passing in a custom logger function to the constructor.
@@ -16,31 +16,31 @@ const stagehand = new Stagehand({
 
 Below is the list of fields in the `LogLine` object. `message` is the main log message content, and `auxiliary` contains parameters that can be used to provide additional context and color to the log.
 
-| | | |
-|-----------|------|-------------|
-| `id?` | `string` | Unique identifier for the log line |
-| `category?` | `string` | Category/type of the log message |
-| `message` | `string` | The main log message content |
-| `level?` | `0 \| 1 \| 2` | Logging verbosity level |
-| `timestamp?` | `string` | Timestamp of when the log was created |
-| `auxiliary?` | `object` | Additional metadata where each key contains a `value` and `type`. The `value` will always be a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"` |
+|              |               |                                                                                                                                                                                                   |
+| ------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id?`        | `string`      | Unique identifier for the log line                                                                                                                                                                |
+| `category?`  | `string`      | Category/type of the log message                                                                                                                                                                  |
+| `message`    | `string`      | The main log message content                                                                                                                                                                      |
+| `level?`     | `0 \| 1 \| 2` | Logging verbosity level                                                                                                                                                                           |
+| `timestamp?` | `string`      | Timestamp of when the log was created                                                                                                                                                             |
+| `auxiliary?` | `object`      | Additional metadata where each key contains a `value` and `type`. The `value` will always be a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"` |
 
 You can see an example of a log line in [`OpenAIClient.ts`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/lib/llm/OpenAIClient.ts#L79-L93). You'll notice here how `auxiliary` contains a `requestId` and `cachedResponse`.
 
 ```javascript
 this.logger({
-	category: "llm_cache",
-	message: "LLM cache hit - returning cached response",
-	level: 1,
-	auxiliary: {
-		requestId: {
-			value: options.requestId,
-			type: "string",
-		},
-		cachedResponse: {
-			value: JSON.stringify(cachedResponse),
-			type: "object",
-		},
-	}
+  category: "llm_cache",
+  message: "LLM cache hit - returning cached response",
+  level: 1,
+  auxiliary: {
+    requestId: {
+      value: options.requestId,
+      type: "string",
+    },
+    cachedResponse: {
+      value: JSON.stringify(cachedResponse),
+      type: "object",
+    },
+  },
 });
 ```

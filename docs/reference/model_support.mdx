@@ -1,7 +1,7 @@
 ---
-title: 'Model Support'
-description: 'Which models are supported by Stagehand'
-icon: 'brain-circuit'
+title: "Model Support"
+description: "Which models are supported by Stagehand"
+icon: "brain-circuit"
 ---
 
 Stagehand leverages a generic LLM client architecture to support various language models from different providers. This design allows for flexibility, enabling the integration of new models with minimal changes to the core system. Different models work better for different tasks, so you can choose the model that best suits your needs.
@@ -11,13 +11,15 @@ Stagehand leverages a generic LLM client architecture to support various languag
 Stagehand currently supports the latest models from OpenAI and Anthropic.
 
 #### OpenAI Models
-  - `gpt-4o`
-  - `gpt-4o-mini` (not recommended due to low parameter count)
-  - `gpt-4o-2024-08-06`
+
+- `gpt-4o`
+- `gpt-4o-mini` (not recommended due to low parameter count)
+- `gpt-4o-2024-08-06`
 
 #### Anthropic Models
-  - `claude-3-5-sonnet-latest`
-  - `claude-3-5-sonnet-20240620`
-  - `claude-3-5-sonnet-20241022`
+
+- `claude-3-5-sonnet-latest`
+- `claude-3-5-sonnet-20240620`
+- `claude-3-5-sonnet-20241022`
 
 These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
