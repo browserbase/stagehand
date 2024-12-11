@@ -31,6 +31,7 @@ export interface InitOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
+  slackWebhookUrl?: string;
 }
 
 export interface InitResult {

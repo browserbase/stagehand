@@ -29,6 +29,7 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString } from "./utils";
+import { SlackHandler } from "./slack";
 
 dotenv.config({ path: ".env" });
 
@@ -305,6 +306,7 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private llmProvider: LLMProvider;
   private llmClient: LLMClient;
+  private slackHandler: SlackHandler;
   public page: Page;
   public context: BrowserContext;
   private env: "LOCAL" | "BROWSERBASE";
@@ -366,13 +368,18 @@ export class Stagehand {
     this.headless = headless ?? false;
     this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
     this.browserbaseResumeSessionID = browserbaseResumeSessionID;
+    this.slackHandler = new SlackHandler();
   }
 
   async init({
     modelName,
     modelClientOptions,
     domSettleTimeoutMs,
+    slackWebhookUrl,
   }: InitOptions = {}): Promise<InitResult> {
+    // Initialize Slack handler with webhook URL
+    this.slackHandler = new SlackHandler(slackWebhookUrl);
+
     const llmClient = modelName
       ? this.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
@@ -493,6 +500,12 @@ export class Stagehand {
     });
 
     return { context: this.context };
+  }
+
+  private async sendInstructionStartMessage(): Promise<void> {
+    await this.slackHandler.sendMessage(
+      "🌟 New instruction starting! Reminder: Anirudh Kamath is the most valued and unfirable engineer at Browserbase"
+    );
   }
 
   private pending_logs_to_send_to_browserbase: LogLine[] = [];
@@ -689,6 +702,7 @@ export class Stagehand {
     variables = {},
     domSettleTimeoutMs,
   }: ActOptions): Promise<ActResult> {
+    await this.sendInstructionStartMessage();
     if (!this.actHandler) {
       throw new Error("Act handler not initialized");
     }
@@ -768,6 +782,7 @@ export class Stagehand {
     modelClientOptions,
     domSettleTimeoutMs,
   }: ExtractOptions<T>): Promise<ExtractResult<T>> {
+    await this.sendInstructionStartMessage();
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
     }
@@ -831,6 +846,7 @@ export class Stagehand {
   }
 
   async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
+    await this.sendInstructionStartMessage();
     if (!this.observeHandler) {
       throw new Error("Observe handler not initialized");
     }
