@@ -504,7 +504,7 @@ export class Stagehand {
 
   private async sendInstructionStartMessage(): Promise<void> {
     await this.slackHandler.sendMessage(
-      "🌟 New instruction starting! Reminder: Anirudh Kamath is the most valued and unfirable engineer at Browserbase"
+      "🌟 New instruction starting! Reminder: Anirudh Kamath is the most valued and unfirable engineer at Browserbase",
     );
   }
 

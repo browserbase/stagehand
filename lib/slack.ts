@@ -14,12 +14,12 @@ export class SlackHandler {
 
     try {
       await fetch(this.webhookUrl!, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: message })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: message }),
       });
     } catch (error) {
-      console.error('Failed to send Slack message:', error);
+      console.error("Failed to send Slack message:", error);
     }
   }
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 async function example() {
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
     verbose: 1,
     debugDom: true,
     enableCaching: false,
