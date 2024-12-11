@@ -1,5 +1,7 @@
 import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
 import { calculateViewportHeight } from "./utils";
+import { Page, ElementHandle } from "playwright";
+import { getAccessibilityInfo } from "./accessibility";
 
 export function isElementNode(node: Node): node is Element {
   return node.nodeType === Node.ELEMENT_NODE;
@@ -9,9 +11,14 @@ export function isTextNode(node: Node): node is Text {
   return node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim());
 }
 
-export async function processDom(chunksSeen: Array<number>) {
+export async function processDom(chunksSeen: Array<number>, page?: Page) {
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
+  const { outputString, selectorMap } = await processElements(
+    chunk,
+    true,
+    0,
+    page,
+  );
 
   console.log(
     `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
@@ -25,7 +32,7 @@ export async function processDom(chunksSeen: Array<number>) {
   };
 }
 
-export async function processAllOfDom() {
+export async function processAllOfDom(page?: Page) {
   console.log("Stagehand (Browser Process): Processing all of DOM");
 
   const viewportHeight = calculateViewportHeight();
@@ -35,7 +42,7 @@ export async function processAllOfDom() {
   let index = 0;
   const results = [];
   for (let chunk = 0; chunk < totalChunks; chunk++) {
-    const result = await processElements(chunk, true, index);
+    const result = await processElements(chunk, true, index, page);
     results.push(result);
     index += Object.keys(result.selectorMap).length;
   }
@@ -83,6 +90,7 @@ export async function processElements(
   chunk: number,
   scrollToChunk: boolean = true,
   indexOffset: number = 0,
+  page?: Page,
 ): Promise<{
   outputString: string;
   selectorMap: Record<number, string[]>;
@@ -124,14 +132,14 @@ export async function processElements(
       }
 
       // Check if element is interactive
-      if (isInteractiveElement(element)) {
-        if (isActive(element) && isVisible(element)) {
+      if (await isInteractiveElement(element, page)) {
+        if (isActive(element) && (await isVisible(element, page))) {
           shouldAddElement = true;
         }
       }
 
       if (isLeafElement(element)) {
-        if (isActive(element) && isVisible(element)) {
+        if (isActive(element) && (await isVisible(element, page))) {
           shouldAddElement = true;
         }
       }
@@ -170,29 +178,31 @@ export async function processElements(
   );
   console.timeEnd("processElements:generateXPaths");
 
-  candidateElements.forEach((element, index) => {
-    const xpaths = xpathLists[index];
+  // Process elements sequentially to handle async operations
+  for (let i = 0; i < candidateElements.length; i++) {
+    const element = candidateElements[i];
+    const xpaths = xpathLists[i];
     let elementOutput = "";
 
     if (isTextNode(element)) {
       const textContent = element.textContent?.trim();
       if (textContent) {
-        elementOutput += `${index + indexOffset}:${textContent}\n`;
+        elementOutput += `${i + indexOffset}:${textContent}\n`;
       }
     } else if (isElementNode(element)) {
       const tagName = element.tagName.toLowerCase();
-      const attributes = collectEssentialAttributes(element);
+      const attributes = await collectEssentialAttributes(element, page);
 
       const openingTag = `<${tagName}${attributes ? " " + attributes : ""}>`;
       const closingTag = `</${tagName}>`;
       const textContent = element.textContent?.trim() || "";
 
-      elementOutput += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
+      elementOutput += `${i + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
     }
 
     outputString += elementOutput;
-    selectorMap[index + indexOffset] = xpaths;
-  });
+    selectorMap[i + indexOffset] = xpaths;
+  }
   console.timeEnd("processElements:processCandidates");
 
   console.timeEnd("processElements:total");
@@ -207,7 +217,10 @@ export async function processElements(
  * @param element The DOM element.
  * @returns A string of formatted attributes.
  */
-function collectEssentialAttributes(element: Element): string {
+async function collectEssentialAttributes(
+  element: Element,
+  page?: Page,
+): Promise<string> {
   const essentialAttributes = [
     "id",
     "class",
@@ -236,6 +249,29 @@ function collectEssentialAttributes(element: Element): string {
       attrs.push(`${attr.name}="${attr.value}"`);
     }
   });
+
+  // Add accessibility information if page is available
+  if (page) {
+    try {
+      const accessibilityInfo = await getAccessibilityInfo(
+        page,
+        element as unknown as ElementHandle<Element>,
+      );
+      if (accessibilityInfo.role) {
+        attrs.push(`accessibility-role="${accessibilityInfo.role}"`);
+      }
+      if (accessibilityInfo.name) {
+        attrs.push(`accessibility-name="${accessibilityInfo.name}"`);
+      }
+      if (accessibilityInfo.description) {
+        attrs.push(
+          `accessibility-description="${accessibilityInfo.description}"`,
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to get accessibility info:", error);
+    }
+  }
 
   return attrs.join(" ");
 }
@@ -286,7 +322,23 @@ const interactiveRoles = [
   "spinbutton",
   "tooltip",
 ];
-const interactiveAriaRoles = ["menu", "menuitem", "button"];
+
+const interactiveAriaRoles = [
+  "button",
+  "link",
+  "menuitem",
+  "checkbox",
+  "radio",
+  "tab",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "textbox",
+  "combobox",
+  "listbox",
+  "slider",
+  "spinbutton",
+  "scrollbar",
+];
 
 /*
  * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
@@ -295,7 +347,7 @@ const interactiveAriaRoles = ["menu", "menuitem", "button"];
  * - Opacity
  * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
  */
-const isVisible = (element: Element) => {
+const isVisible = async (element: Element, page?: Page) => {
   const rect = element.getBoundingClientRect();
   // Ensure the element is within the viewport
   if (
@@ -308,6 +360,32 @@ const isVisible = (element: Element) => {
   }
   if (!isTopElement(element, rect)) {
     return false;
+  }
+
+  // Add accessibility visibility check
+  if (page) {
+    try {
+      const accessibilityInfo = await getAccessibilityInfo(
+        page,
+        element as unknown as ElementHandle<Element>,
+      );
+      // Check if element is explicitly hidden in accessibility tree
+      if (accessibilityInfo && !accessibilityInfo.focused) {
+        const style = window.getComputedStyle(element);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.opacity === "0"
+        ) {
+          return false;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "Failed to get accessibility info for visibility check:",
+        error,
+      );
+    }
   }
 
   const visible = element.checkVisibility({
@@ -380,10 +458,31 @@ const isActive = (element: Element) => {
 
   return true;
 };
-const isInteractiveElement = (element: Element) => {
+const isInteractiveElement = async (element: Element, page?: Page) => {
   const elementType = element.tagName;
   const elementRole = element.getAttribute("role");
   const elementAriaRole = element.getAttribute("aria-role");
+
+  // Check accessibility tree if page is available
+  if (page) {
+    try {
+      const accessibilityInfo = await getAccessibilityInfo(
+        page,
+        element as unknown as ElementHandle<Element>,
+      );
+      if (
+        accessibilityInfo.role &&
+        interactiveRoles.includes(accessibilityInfo.role)
+      ) {
+        return true;
+      }
+    } catch (error) {
+      console.warn(
+        "Failed to get accessibility info for interactive check:",
+        error,
+      );
+    }
+  }
 
   return (
     (elementType && interactiveElementTypes.includes(elementType)) ||
