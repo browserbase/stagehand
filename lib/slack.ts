@@ -1,5 +1,3 @@
-import { LogLine } from "../types/log";
-
 export class SlackHandler {
   private readonly webhookUrl: string | undefined;
   private readonly enabled: boolean;
