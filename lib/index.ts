@@ -394,6 +394,7 @@ export class Stagehand {
           context: undefined,
           debugUrl: undefined,
           sessionUrl: undefined,
+          sessionId: undefined,
         };
         return br;
       });
