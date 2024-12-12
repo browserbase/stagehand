@@ -195,7 +195,7 @@ async function getBrowser(
 
     const context = browser.contexts()[0];
 
-    return { browser, context, debugUrl, sessionUrl };
+    return { browser, context, debugUrl, sessionUrl, sessionId };
   } else {
     logger({
       category: "init",
@@ -307,6 +307,8 @@ export class Stagehand {
   private llmClient: LLMClient;
   public page: Page;
   public context: BrowserContext;
+  public browserbaseSessionID?: string;
+
   private env: "LOCAL" | "BROWSERBASE";
   private apiKey: string | undefined;
   private projectId: string | undefined;
@@ -377,23 +379,24 @@ export class Stagehand {
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
-    const { context, debugUrl, sessionUrl, contextPath } = await getBrowser(
-      this.apiKey,
-      this.projectId,
-      this.env,
-      this.headless,
-      this.logger,
-      this.browserbaseSessionCreateParams,
-      this.browserbaseResumeSessionID,
-    ).catch((e) => {
-      console.error("Error in init:", e);
-      const br: BrowserResult = {
-        context: undefined,
-        debugUrl: undefined,
-        sessionUrl: undefined,
-      };
-      return br;
-    });
+    const { context, debugUrl, sessionUrl, contextPath, sessionId } =
+      await getBrowser(
+        this.apiKey,
+        this.projectId,
+        this.env,
+        this.headless,
+        this.logger,
+        this.browserbaseSessionCreateParams,
+        this.browserbaseResumeSessionID,
+      ).catch((e) => {
+        console.error("Error in init:", e);
+        const br: BrowserResult = {
+          context: undefined,
+          debugUrl: undefined,
+          sessionUrl: undefined,
+        };
+        return br;
+      });
     this.contextPath = contextPath;
     this.context = context;
     this.page = context.pages()[0];
@@ -455,8 +458,9 @@ export class Stagehand {
       verbose: this.verbose,
       llmClient: this.llmClient,
     });
+    this.browserbaseSessionID = sessionId;
 
-    return { debugUrl, sessionUrl };
+    return { debugUrl, sessionUrl, sessionId };
   }
 
   /** @deprecated initFromPage is deprecated and will be removed in the next major version. */

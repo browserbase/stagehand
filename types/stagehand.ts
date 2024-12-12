@@ -22,11 +22,6 @@ export interface ConstructorParams {
   modelClientOptions?: ClientOptions;
 }
 
-export interface InitResult {
-  debugUrl: string;
-  sessionUrl: string;
-}
-
 export interface InitOptions {
   /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   modelName?: AvailableModel;
@@ -39,6 +34,7 @@ export interface InitOptions {
 export interface InitResult {
   debugUrl: string;
   sessionUrl: string;
+  sessionId: string;
 }
 
 export interface InitFromPageOptions {
