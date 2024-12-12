@@ -374,7 +374,7 @@ export class Stagehand {
   ): Promise<InitResult> {
     if (initOptions) {
       console.warn(
-        "initOptions is deprecated and will be removed in the next major version. Use constructor options instead.",
+        "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
     const { context, debugUrl, sessionUrl, contextPath } = await getBrowser(
