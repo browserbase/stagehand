@@ -32,10 +32,10 @@ export const extract_press_releases: EvalFunction = async ({
 
     await stagehand.close();
     const items = result.items;
-    const expectedLength = 25;
+    const expectedLength = 28;
     const expectedFirstItem = {
-      title: "Is Brad Lander the Progressive to Beat Eric Adams?",
-      publishedOn: "Jul 30, 2024",
+      title: "UAW Region 9A Endorses Brad Lander for Mayor",
+      publishedOn: "Dec 4, 2024",
     };
     const expectedLastItem = {
       title: "An Unassuming Liberal Makes a Rapid Ascent to Power Broker",
