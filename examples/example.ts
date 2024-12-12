@@ -8,9 +8,10 @@ async function example() {
     debugDom: true,
     enableCaching: false,
     modelName: "claude-3-5-sonnet-latest",
+    domSettleTimeoutMs: 10_000,
   });
 
-  await stagehand.init({ domSettleTimeoutMs: 3000 });
+  await stagehand.init();
   await stagehand.page.goto("https://www.mycmh.org/locations/");
 
   const result = await stagehand.extract({

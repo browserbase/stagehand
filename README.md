@@ -141,7 +141,7 @@ This constructor is used to create an instance of Stagehand.
   - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
   - `apiKey`: (optional) your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable.
   - `projectId`: (optional) your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable.
-  - `browserBaseSessionCreateParams`: configuration options for creating new Browserbase sessions.
+  - `browserbaseSessionCreateParams`: configuration options for creating new Browserbase sessions.
   - `browserbaseResumeSessionID`: ID of an existing Browserbase session to resume.
   - `logger`: a function that handles log messages. Useful for custom logging implementations.
   - `verbose`: an `integer` that enables several levels of logging during automation:
@@ -184,11 +184,14 @@ This constructor is used to create an instance of Stagehand.
 
 `init()` asynchronously initializes the Stagehand instance. It should be called before any other methods.
 
+> [!WARNING]  
+> Passing parameters to `init()` is deprecated and will be removed in the next major version. Use the constructor options instead.
+
 - **Arguments:**
 
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use. This will be used for all other methods unless overridden.
-  - `modelClientOptions`: (optional) configuration options for the model client
-  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
+  - `modelName`: (**deprecated**, optional) an `AvailableModel` string to specify the model to use. This will be used for all other methods unless overridden.
+  - `modelClientOptions`: (**deprecated**, optional) configuration options for the model client
+  - `domSettleTimeoutMs`: (**deprecated**, optional) timeout in milliseconds for waiting for the DOM to settle
 
 - **Returns:**
 
@@ -198,7 +201,7 @@ This constructor is used to create an instance of Stagehand.
 
 - **Example:**
   ```javascript
-  await stagehand.init({ modelName: "gpt-4o" });
+  await stagehand.init();
   ```
 
 #### `act()`

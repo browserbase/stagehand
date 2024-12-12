@@ -23,12 +23,7 @@ async function example() {
     },
   });
 
-  await stagehand.init({
-    modelName: "gpt-4o",
-    modelClientOptions: {
-      apiKey: process.env.USE_OPENAI_API_KEY,
-    },
-  });
+  await stagehand.init();
   await stagehand.page.goto("https://github.com/browserbase/stagehand");
   await stagehand.act({ action: "click on the contributors" });
   const contributor = await stagehand.extract({

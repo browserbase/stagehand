@@ -30,12 +30,14 @@ export const initStagehand = async ({
 }) => {
   const stagehand = new Stagehand({
     ...defaultStagehandOptions,
+    modelName,
+    domSettleTimeoutMs,
     logger: (logLine: LogLine) => {
       logger.log(logLine);
     },
   });
   logger.init(stagehand);
-  const initResponse = await stagehand.init({ modelName, domSettleTimeoutMs });
+  const initResponse = await stagehand.init();
   return { stagehand, logger, initResponse };
 };
 

@@ -15,7 +15,7 @@ export interface ConstructorParams {
   headless?: boolean;
   logger?: (message: LogLine) => void;
   domSettleTimeoutMs?: number;
-  browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   enableCaching?: boolean;
   browserbaseResumeSessionID?: string;
   modelName?: AvailableModel;
@@ -28,8 +28,11 @@ export interface InitResult {
 }
 
 export interface InitOptions {
+  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   modelName?: AvailableModel;
+  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   modelClientOptions?: ClientOptions;
+  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   domSettleTimeoutMs?: number;
 }
 
@@ -40,7 +43,9 @@ export interface InitResult {
 
 export interface InitFromPageOptions {
   page: Page;
+  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   modelName?: AvailableModel;
+  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
   modelClientOptions?: ClientOptions;
 }
 
