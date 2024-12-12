@@ -3,7 +3,7 @@ import type { ClientOptions as OpenAIClientOptions } from "openai";
 import { ChatCompletionTool as OpenAITool } from "openai/resources";
 import { z } from "zod";
 
-export const AvailableModel = z.enum([
+export const AvailableModelSchema = z.enum([
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-4o-2024-08-06",
@@ -12,7 +12,7 @@ export const AvailableModel = z.enum([
   "claude-3-5-sonnet-20240620",
 ]);
 
-export type AvailableModel = z.infer<typeof AvailableModel>;
+export type AvailableModel = z.infer<typeof AvailableModelSchema>;
 
 export type ModelProvider = "openai" | "anthropic";
 

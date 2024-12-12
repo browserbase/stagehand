@@ -172,23 +172,23 @@ export async function extract({
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
+  const isUsingAnthropic = llmClient.type === "anthropic";
 
-  const extractionResponse =
-    await llmClient.createChatCompletion<ExtractionResponse>({
-      messages: [
-        buildExtractSystemPrompt(),
-        buildExtractUserPrompt(instruction, domElements),
-      ],
-      response_model: {
-        schema: schema,
-        name: "Extraction",
-      },
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      requestId,
-    });
+  const extractionResponse = await llmClient.createChatCompletion({
+    messages: [
+      buildExtractSystemPrompt(isUsingAnthropic),
+      buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
+    ],
+    response_model: {
+      schema: schema,
+      name: "Extraction",
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+    requestId,
+  });
 
   const refinedResponse =
     await llmClient.createChatCompletion<ExtractionResponse>({
