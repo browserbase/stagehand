@@ -201,7 +201,7 @@ This constructor is used to create an instance of Stagehand.
 
 - **Example:**
   ```javascript
-  await stagehand.init({ modelName: "gpt-4o" });
+  await stagehand.init();
   ```
 
 #### `act()`
