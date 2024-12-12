@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: "0 */6 * * *" # every 6 hours
 
+env:
+  EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
+  EXPERIMENTAL_EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest,o1-mini,o1-preview"
+  EVAL_CATEGORIES: "observe,act,combination,extract,experimental"
+
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
