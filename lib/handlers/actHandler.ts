@@ -203,6 +203,23 @@ export class StagehandActHandler {
   ) {
     const locator = this.stagehand.page.locator(`xpath=${xpath}`).first();
     const initialUrl = this.stagehand.page.url();
+
+    this.stagehand.log({
+      category: "action",
+      message: "performing playwright method",
+      level: 2,
+      auxiliary: {
+        xpath: {
+          value: xpath,
+          type: "string",
+        },
+        method: {
+          value: method,
+          type: "string",
+        },
+      },
+    });
+
     if (method === "scrollIntoView") {
       this.stagehand.log({
         category: "action",
