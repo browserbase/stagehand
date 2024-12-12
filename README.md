@@ -198,6 +198,7 @@ This constructor is used to create an instance of Stagehand.
   - A `Promise` that resolves to an object containing:
     - `debugUrl`: a `string` representing the URL for live debugging. This is only available when using a Browserbase browser.
     - `sessionUrl`: a `string` representing the session URL. This is only available when using a Browserbase browser.
+    - `sessionId`: a `string` representing the session ID. This is only available when using a Browserbase browser.
 
 - **Example:**
   ```javascript
