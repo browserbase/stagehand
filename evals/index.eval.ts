@@ -103,13 +103,21 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : ["gpt-4o", "claude-3-5-sonnet-latest"];
 
-const MODELS: AvailableModel[] = (
-  filterByCategory === "experimental"
-    ? DEFAULT_EVAL_MODELS
-    : DEFAULT_EVAL_MODELS.filter(
-        (model) => model !== "o1-mini" && model !== "o1-preview",
-      )
-).map((model) => {
+const EXPERIMENTAL_EVAL_MODELS = process.env.EXPERIMENTAL_EVAL_MODELS
+  ? process.env.EXPERIMENTAL_EVAL_MODELS.split(",")
+  : ["o1-mini", "o1-preview"];
+
+const getModelList = (category: string | null): string[] => {
+  if (category === "experimental") {
+    // to remove duplicates
+    return Array.from(
+      new Set([...DEFAULT_EVAL_MODELS, ...EXPERIMENTAL_EVAL_MODELS]),
+    );
+  }
+  return DEFAULT_EVAL_MODELS;
+};
+
+const MODELS: AvailableModel[] = getModelList(filterByCategory).map((model) => {
   if (!AvailableModelSchema.safeParse(model).success) {
     throw new Error(`Model ${model} is not a supported model`);
   }
