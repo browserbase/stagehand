@@ -316,7 +316,7 @@ export class Stagehand {
   private logger: (logLine: LogLine) => void;
   private externalLogger?: (logLine: LogLine) => void;
   private domSettleTimeoutMs: number;
-  private browserBaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
   private variables: { [key: string]: unknown };
   private browserbaseResumeSessionID?: string;
@@ -336,7 +336,7 @@ export class Stagehand {
       llmProvider,
       headless,
       logger,
-      browserBaseSessionCreateParams,
+      browserbaseSessionCreateParams,
       domSettleTimeoutMs,
       enableCaching,
       browserbaseResumeSessionID,
@@ -364,25 +364,26 @@ export class Stagehand {
     );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
-    this.browserBaseSessionCreateParams = browserBaseSessionCreateParams;
+    this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseResumeSessionID = browserbaseResumeSessionID;
   }
 
-  async init({
-    modelName,
-    modelClientOptions,
-    domSettleTimeoutMs,
-  }: InitOptions = {}): Promise<InitResult> {
-    const llmClient = modelName
-      ? this.llmProvider.getClient(modelName, modelClientOptions)
-      : this.llmClient;
+  async init(
+    /** @deprecated Use constructor options instead */
+    initOptions?: InitOptions,
+  ): Promise<InitResult> {
+    if (initOptions) {
+      console.warn(
+        "initOptions is deprecated and will be removed in the next major version. Use constructor options instead.",
+      );
+    }
     const { context, debugUrl, sessionUrl, contextPath } = await getBrowser(
       this.apiKey,
       this.projectId,
       this.env,
       this.headless,
       this.logger,
-      this.browserBaseSessionCreateParams,
+      this.browserbaseSessionCreateParams,
       this.browserbaseResumeSessionID,
     ).catch((e) => {
       console.error("Error in init:", e);
@@ -399,7 +400,6 @@ export class Stagehand {
     // Redundant but needed for users who are re-connecting to a previously-created session
     await this.page.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
-    this.domSettleTimeoutMs = domSettleTimeoutMs ?? this.domSettleTimeoutMs;
 
     // Overload the page.goto method
     const originalGoto = this.page.goto.bind(this.page);
@@ -431,7 +431,7 @@ export class Stagehand {
       waitForSettledDom: this._waitForSettledDom.bind(this),
       startDomDebug: this.startDomDebug.bind(this),
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmClient,
+      llmClient: this.llmClient,
     });
 
     this.extractHandler = new StagehandExtractHandler({
@@ -442,7 +442,7 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient,
+      llmClient: this.llmClient,
     });
 
     this.observeHandler = new StagehandObserveHandler({
@@ -453,23 +453,21 @@ export class Stagehand {
       cleanupDomDebug: this.cleanupDomDebug.bind(this),
       llmProvider: this.llmProvider,
       verbose: this.verbose,
-      llmClient,
+      llmClient: this.llmClient,
     });
 
-    this.llmClient = llmClient;
     return { debugUrl, sessionUrl };
   }
 
+  /** @deprecated initFromPage is deprecated and will be removed in the next major version. */
   async initFromPage({
     page,
-    modelName,
-    modelClientOptions,
   }: InitFromPageOptions): Promise<InitFromPageResult> {
+    console.warn(
+      "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseResumeSessionID` in the constructor.",
+    );
     this.page = page;
     this.context = page.context();
-    this.llmClient = modelName
-      ? this.llmProvider.getClient(modelName, modelClientOptions)
-      : this.llmClient;
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: GotoOptions) => {
