@@ -12,7 +12,7 @@ import {
   SummaryResult,
   Testcase,
 } from "../types/evals";
-import { AvailableModelSchema } from "../types/model";
+import { AvailableModel, AvailableModelSchema } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
 const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES

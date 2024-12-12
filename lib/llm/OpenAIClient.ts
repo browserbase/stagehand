@@ -10,12 +10,12 @@ import {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
+import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
-import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
 import { validateZodSchema } from "../utils";
-import zodToJsonSchema from "zod-to-json-schema";
+import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;

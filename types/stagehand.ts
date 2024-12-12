@@ -1,9 +1,9 @@
 import Browserbase from "@browserbasehq/sdk";
 import { BrowserContext, Page } from "@playwright/test";
+import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { z } from "zod";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";

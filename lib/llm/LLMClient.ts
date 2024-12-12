@@ -1,3 +1,7 @@
+import {
+  ChatCompletion,
+  ChatCompletionToolChoiceOption,
+} from "openai/resources";
 import { ZodType } from "zod";
 import {
   AnthropicTransformedResponse,
@@ -5,10 +9,6 @@ import {
   ClientOptions,
   ToolCall,
 } from "../../types/model";
-import {
-  ChatCompletion,
-  ChatCompletionToolChoiceOption,
-} from "openai/resources";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";

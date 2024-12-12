@@ -10,6 +10,8 @@ export const AvailableModelSchema = z.enum([
   "claude-3-5-sonnet-latest",
   "claude-3-5-sonnet-20241022",
   "claude-3-5-sonnet-20240620",
+  "o1-mini",
+  "o1-preview",
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;

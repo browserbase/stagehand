@@ -15,7 +15,7 @@ export type EvalFunction = (args: {
   error?: unknown;
 }>;
 
-export const EvalCategory = z.enum([
+export const EvalCategorySchema = z.enum([
   "observe",
   "act",
   "combination",
@@ -23,7 +23,7 @@ export const EvalCategory = z.enum([
   "experimental",
 ]);
 
-export type EvalCategory = z.infer<typeof EvalCategory>;
+export type EvalCategory = z.infer<typeof EvalCategorySchema>;
 export interface EvalInput {
   name: string;
   modelName: AvailableModel;
