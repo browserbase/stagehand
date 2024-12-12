@@ -1,6 +1,7 @@
 import { EvalLogger } from "../evals/utils";
 import { AvailableModel } from "../types/model";
 import { LogLine } from "../types/log";
+import { z } from "zod";
 import { EvalCase } from "braintrust";
 
 export type EvalFunction = (args: {
@@ -14,6 +15,15 @@ export type EvalFunction = (args: {
   error?: unknown;
 }>;
 
+export const EvalCategorySchema = z.enum([
+  "observe",
+  "act",
+  "combination",
+  "extract",
+  "experimental",
+]);
+
+export type EvalCategory = z.infer<typeof EvalCategorySchema>;
 export interface EvalInput {
   name: string;
   modelName: AvailableModel;
