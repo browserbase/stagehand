@@ -6,4 +6,5 @@ export interface BrowserResult {
   debugUrl?: string;
   sessionUrl?: string;
   contextPath?: string;
+  sessionId?: string;
 }
