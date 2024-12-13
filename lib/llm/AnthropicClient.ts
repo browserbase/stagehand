@@ -222,7 +222,7 @@ export class AnthropicClient extends LLMClient {
 
     const response = await this.client.messages.create({
       model: this.modelName,
-      max_tokens: options.maxTokens || 1500,
+      max_tokens: options.maxTokens || 8192,
       messages: formattedMessages,
       tools: anthropicTools,
       system: systemMessage
