@@ -1,4 +1,4 @@
-import { Stagehand, type ConstructorParams, type LogLine } from "../lib";
+import type { ConstructorParams, LogLine } from "../lib";
 
 const StagehandConfig: ConstructorParams = {
   env: "LOCAL" /* Environment to run Stagehand in */,
