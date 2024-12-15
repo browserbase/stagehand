@@ -2,7 +2,11 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const peeler_complex: EvalFunction = async ({ modelName, logger }) => {
+export const peeler_complex: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -27,7 +31,8 @@ export const peeler_complex: EvalFunction = async ({ modelName, logger }) => {
     const { price } = await stagehand.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
-      modelName: "gpt-4o-2024-08-06",
+      modelName,
+      useTextExtract,
     });
 
     await stagehand.close();

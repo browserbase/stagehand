@@ -2,7 +2,11 @@ import { initStagehand } from "../utils";
 import { EvalFunction } from "../../types/evals";
 import { z } from "zod";
 
-export const allrecipes: EvalFunction = async ({ modelName, logger }) => {
+export const allrecipes: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -28,6 +32,7 @@ export const allrecipes: EvalFunction = async ({ modelName, logger }) => {
         .describe("Total number of ratings for the recipe"),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

@@ -7,6 +7,7 @@ import { EvalCase } from "braintrust";
 export type EvalFunction = (args: {
   modelName: AvailableModel;
   logger: EvalLogger;
+  useTextExtract: boolean;
 }) => Promise<{
   _success: boolean;
   logs: LogLine[];
@@ -21,6 +22,7 @@ export const EvalCategorySchema = z.enum([
   "combination",
   "extract",
   "experimental",
+  "text_extract",
 ]);
 
 export type EvalCategory = z.infer<typeof EvalCategorySchema>;

@@ -19,6 +19,7 @@ export const extract_press_releases: EvalFunction = async ({
     await stagehand.page.goto("https://www.landerfornyc.com/news", {
       waitUntil: "networkidle",
     });
+    // timeout for 5 seconds to allow for the page to load
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const result = await stagehand.extract({

@@ -2,7 +2,11 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const google_jobs: EvalFunction = async ({ modelName, logger }) => {
+export const google_jobs: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -42,7 +46,8 @@ export const google_jobs: EvalFunction = async ({ modelName, logger }) => {
             .nullable(),
         }),
       }),
-      modelName: "gpt-4o-2024-08-06",
+      modelName,
+      useTextExtract,
     });
 
     const isJobDetailsValid =

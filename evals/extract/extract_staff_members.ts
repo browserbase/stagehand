@@ -5,6 +5,7 @@ import { EvalFunction } from "../../types/evals";
 export const extract_staff_members: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -27,6 +28,8 @@ export const extract_staff_members: EvalFunction = async ({
         }),
       ),
     }),
+    modelName,
+    useTextExtract,
   });
 
   const staff_members = result.staff_members;

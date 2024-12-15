@@ -6,6 +6,7 @@ import { z } from "zod";
 export const extract_resistor_info: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -26,6 +27,7 @@ export const extract_resistor_info: EvalFunction = async ({
       operating_temperature_range: z.string(),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

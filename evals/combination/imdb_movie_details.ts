@@ -5,6 +5,7 @@ import { z } from "zod";
 export const imdb_movie_details: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -28,6 +29,7 @@ export const imdb_movie_details: EvalFunction = async ({
         .describe("List of countries with the most ratings"),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

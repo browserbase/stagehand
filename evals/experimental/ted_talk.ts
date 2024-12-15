@@ -3,7 +3,11 @@ import { initStagehand } from "../utils";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
-export const ted_talk: EvalFunction = async ({ modelName, logger }) => {
+export const ted_talk: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -36,6 +40,7 @@ export const ted_talk: EvalFunction = async ({ modelName, logger }) => {
         .describe("List of culture video playlists"),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

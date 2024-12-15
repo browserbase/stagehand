@@ -6,6 +6,7 @@ import { z } from "zod";
 export const extract_nhl_stats: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -31,6 +32,7 @@ export const extract_nhl_stats: EvalFunction = async ({
       team: z.string(),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

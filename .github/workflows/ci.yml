@@ -14,7 +14,7 @@ on:
 env:
   EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
   EXPERIMENTAL_EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest,o1-mini,o1-preview"
-  EVAL_CATEGORIES: "observe,act,combination,extract,experimental"
+  EVAL_CATEGORIES: "observe,act,combination,extract,experimental,text_extract"
 
 concurrency:
   group: ${{ github.ref }}
@@ -67,7 +67,6 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -83,29 +82,98 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run Extract Evals
-        run: npm run evals category extract
+      # Run extract category with domExtract
+      - name: Run Extract Evals (domExtract)
+        run: npm run evals category extract -- --extract-method=domExtract
+      - name: Save Extract Dom Results
+        run: mv eval-summary.json eval-summary-extract-dom.json
 
-      - name: Log Extract Evals Performance
+      # Run extract category with textExtract
+      - name: Run Extract Evals (textExtract)
+        run: npm run evals category extract -- --extract-method=textExtract
+        continue-on-error: true
+      #      - name: Save Extract Text Results
+      #        run: mv eval-summary.json eval-summary-extract-text.json
+
+      - name: Log and Compare Extract Evals Performance
         run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            extract_score=$(jq '.categories.extract' eval-summary.json)
-            echo "Extract category score: $extract_score%"
-            if (( $(echo "$extract_score < 80" | bc -l) )); then
-              echo "Extract category score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for extract category. Failing CI."
+          experimentNameDom=$(jq -r '.experimentName' eval-summary-extract-dom.json)
+          dom_score=$(jq '.categories.extract' eval-summary-extract-dom.json)
+          echo "DomExtract Extract category score: $dom_score%"
+          echo "View domExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameDom}"
+
+          # experimentNameText=$(jq -r '.experimentName' eval-summary-extract-text.json)
+          # text_score=$(jq '.categories.extract' eval-summary-extract-text.json)
+          # echo "TextExtract Extract category score: $text_score%"
+          # echo "View textExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameText}"
+
+          if (( $(echo "$dom_score < 80" | bc -l) )); then
+            echo "DomExtract extract category score is below 80%. Failing CI."
             exit 1
           fi
+
+  run-text-extract-evals:
+    needs: [run-extract-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      # Run text_extract category with domExtract
+      - name: Run text_extract Evals (domExtract)
+        run: npm run evals category text_extract -- --extract-method=domExtract
+      - name: Save text_extract Dom Results
+        run: mv eval-summary.json eval-summary-text_extract-dom.json
+
+      # Run text_extract category with textExtract
+      - name: Run text_extract Evals (textExtract)
+        run: npm run evals category text_extract -- --extract-method=textExtract
+        continue-on-error: true
+      #      - name: Save text_extract Text Results
+      #        run: mv eval-summary.json eval-summary-text_extract-text.json
+
+      - name: Log and Compare text_extract Evals Performance
+        run: |
+          experimentNameDom=$(jq -r '.experimentName' eval-summary-text_extract-dom.json)
+          dom_score=$(jq '.categories.text_extract' eval-summary-text_extract-dom.json)
+          echo "DomExtract text_extract category score: $dom_score%"
+          echo "View domExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameDom}"
+
+  #          experimentNameText=$(jq -r '.experimentName' eval-summary-text_extract-text.json)
+  #          text_score=$(jq '.categories.text_extract' eval-summary-text_extract-text.json)
+  #          echo "TextExtract text_extract category score: $text_score%"
+  #          echo "View textExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameText}"
+
+  # Fail CI only if textExtract is below 80%
+  #          if (( $(echo "$text_score < 80" | bc -l) )); then
+  #            echo "textExtract text_extract category score is below 80%. Failing CI."
+  #            exit 1
+  #          fi
 
   run-act-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [run-extract-evals]
+    needs: [run-text-extract-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -198,7 +266,7 @@ jobs:
 
   run-combination-evals:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     needs: [run-observe-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -246,7 +314,7 @@ jobs:
   run-experimental-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    needs: [run-combination-evals]
+    needs: [run-text-extract-evals]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

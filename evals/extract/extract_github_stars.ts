@@ -5,6 +5,7 @@ import { z } from "zod";
 export const extract_github_stars: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -22,6 +23,7 @@ export const extract_github_stars: EvalFunction = async ({
         stars: z.number().describe("the number of stars for the project"),
       }),
       modelName,
+      useTextExtract,
     });
 
     const expectedStarsString = await stagehand.page

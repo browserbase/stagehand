@@ -5,6 +5,7 @@ import { z } from "zod";
 export const extract_regulations: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -27,6 +28,7 @@ export const extract_regulations: EvalFunction = async ({
       ),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

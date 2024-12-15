@@ -2,7 +2,11 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const arxiv: EvalFunction = async ({ modelName, logger }) => {
+export const arxiv: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -29,7 +33,8 @@ export const arxiv: EvalFunction = async ({ modelName, logger }) => {
           )
           .describe("list of papers"),
       }),
-      modelName: "gpt-4o-2024-08-06",
+      modelName,
+      useTextExtract,
     });
 
     if (
@@ -86,7 +91,8 @@ export const arxiv: EvalFunction = async ({ modelName, logger }) => {
               )
               .nullable(),
           }),
-          modelName: "gpt-4o-2024-08-06",
+          modelName,
+          useTextExtract,
         });
 
         papers.push({

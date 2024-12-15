@@ -2,7 +2,11 @@ import { initStagehand } from "../utils";
 import { EvalFunction } from "../../types/evals";
 import { z } from "zod";
 
-export const sciquest: EvalFunction = async ({ modelName, logger }) => {
+export const sciquest: EvalFunction = async ({
+  modelName,
+  logger,
+  useTextExtract,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -25,6 +29,7 @@ export const sciquest: EvalFunction = async ({ modelName, logger }) => {
       total_results: z.string(),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

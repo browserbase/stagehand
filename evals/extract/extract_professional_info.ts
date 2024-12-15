@@ -6,6 +6,7 @@ import { z } from "zod";
 export const extract_professional_info: EvalFunction = async ({
   modelName,
   logger,
+  useTextExtract,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -27,6 +28,7 @@ export const extract_professional_info: EvalFunction = async ({
       fax: z.string(),
     }),
     modelName,
+    useTextExtract,
   });
 
   await stagehand.close();

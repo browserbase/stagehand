@@ -2,7 +2,7 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
 
-export const extract_rockauto: EvalFunction = async ({
+export const extract_research_reports: EvalFunction = async ({
   modelName,
   logger,
   useTextExtract,
@@ -10,46 +10,51 @@ export const extract_rockauto: EvalFunction = async ({
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
-    domSettleTimeoutMs: 10000,
   });
 
   const { debugUrl, sessionUrl } = initResponse;
 
+  await stagehand.init();
   await stagehand.page.goto(
-    "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
+    "http://www.dsbd.gov.za/index.php/research-reports",
+    { waitUntil: "load" },
   );
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+
   const result = await stagehand.extract({
     instruction:
-      "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
+      "Extract ALL the research report names. Do not extract the names of the PDF attachments.",
     schema: z.object({
-      coolant_products: z.array(
+      reports: z.array(
         z.object({
-          part_number: z.string(),
+          report_name: z
+            .string()
+            .describe(
+              "The name or title of the research report. NOT the name of the PDF attachment.",
+            ),
         }),
       ),
     }),
     modelName,
     useTextExtract,
-    domSettleTimeoutMs: 10000,
   });
 
   await stagehand.close();
 
-  const coolantProducts = result.coolant_products;
-  const expectedLength = 4;
+  const reports = result.reports;
+  const expectedLength = 9;
 
   const expectedFirstItem = {
-    part_number: "GREEN5050GAL",
+    report_name:
+      "Longitudinal Study on SMMEs and Co-operatives in South Africa and the study on the Eastern SeaBoard",
   };
 
   const expectedLastItem = {
-    part_number: "719009",
+    report_name: "Research Agenda",
   };
 
-  if (coolantProducts.length !== expectedLength) {
+  if (reports.length !== expectedLength) {
     logger.error({
-      message: "Incorrect number of coolant products extracted",
+      message: "Incorrect number of reports extracted",
       level: 0,
       auxiliary: {
         expected: {
@@ -57,25 +62,25 @@ export const extract_rockauto: EvalFunction = async ({
           type: "integer",
         },
         actual: {
-          value: coolantProducts.length.toString(),
+          value: reports.length.toString(),
           type: "integer",
         },
       },
     });
     return {
       _success: false,
-      error: "Incorrect number of coolant products extracted",
+      error: "Incorrect number of reports extracted",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
   }
   const firstItemMatches =
-    coolantProducts[0].part_number === expectedFirstItem.part_number;
+    reports[0].report_name === expectedFirstItem.report_name;
 
   if (!firstItemMatches) {
     logger.error({
-      message: "First coolant product extracted does not match expected",
+      message: "First report extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
@@ -83,14 +88,14 @@ export const extract_rockauto: EvalFunction = async ({
           type: "object",
         },
         actual: {
-          value: JSON.stringify(coolantProducts[0]),
+          value: JSON.stringify(reports[0]),
           type: "object",
         },
       },
     });
     return {
       _success: false,
-      error: "First coolant product extracted does not match expected",
+      error: "First report extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
@@ -98,12 +103,11 @@ export const extract_rockauto: EvalFunction = async ({
   }
 
   const lastItemMatches =
-    coolantProducts[coolantProducts.length - 1].part_number ===
-    expectedLastItem.part_number;
+    reports[reports.length - 1].report_name === expectedLastItem.report_name;
 
   if (!lastItemMatches) {
     logger.error({
-      message: "Last coolant product extracted does not match expected",
+      message: "Last report extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
@@ -111,14 +115,14 @@ export const extract_rockauto: EvalFunction = async ({
           type: "object",
         },
         actual: {
-          value: JSON.stringify(coolantProducts[coolantProducts.length - 1]),
+          value: JSON.stringify(reports[reports.length - 1]),
           type: "object",
         },
       },
     });
     return {
       _success: false,
-      error: "Last coolant product extracted does not match expected",
+      error: "Last report extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
