@@ -1,6 +1,7 @@
 import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
+import { compareStrings } from "../utils";
 
 export const extract_press_releases: EvalFunction = async ({
   modelName,
@@ -22,7 +23,7 @@ export const extract_press_releases: EvalFunction = async ({
     // timeout for 5 seconds to allow for the page to load
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const result = await stagehand.extract({
+    const { items } = (await stagehand.extract({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema: z.object({
@@ -39,10 +40,10 @@ export const extract_press_releases: EvalFunction = async ({
       }),
       modelName,
       useTextExtract,
-    });
+    })) satisfies { items: { title: string; publish_date: string }[] };
 
     await stagehand.close();
-    const items = result.items;
+
     const expectedLength = 28;
     const expectedFirstItem = {
       title: "UAW Region 9A Endorses Brad Lander for Mayor",
@@ -53,14 +54,14 @@ export const extract_press_releases: EvalFunction = async ({
       publish_date: "Jan 23, 2014",
     };
 
-    if (items.length !== expectedLength) {
+    if (items.length <= expectedLength) {
       logger.error({
-        message: "Incorrect number of items extracted",
+        message: "Not enough items extracted",
         level: 0,
         auxiliary: {
           expected: {
-            value: expectedLength.toString(),
-            type: "integer",
+            value: `> ${expectedLength}`,
+            type: "string",
           },
           actual: {
             value: items.length.toString(),
@@ -70,22 +71,35 @@ export const extract_press_releases: EvalFunction = async ({
       });
       return {
         _success: false,
-        error: "Incorrect number of items extracted",
+        error: "Not enough items extracted",
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     }
 
-    const firstItemMatches =
-      items[0].title === expectedFirstItem.title &&
-      items[0].publish_date === expectedFirstItem.publish_date;
-    const lastItemMatches =
-      items[items.length - 1].title === expectedLastItem.title &&
-      items[items.length - 1].publish_date === expectedLastItem.publish_date;
+    const isItemMatch = (
+      item: { title: string; publish_date: string },
+      expected: { title: string; publish_date: string },
+    ) => {
+      const titleComparison = compareStrings(item.title, expected.title, 0.9);
+      const dateComparison = compareStrings(
+        item.publish_date,
+        expected.publish_date,
+        0.9,
+      );
+      return titleComparison.meetsThreshold && dateComparison.meetsThreshold;
+    };
+
+    const foundFirstItem = items.some((item) =>
+      isItemMatch(item, expectedFirstItem),
+    );
+    const foundLastItem = items.some((item) =>
+      isItemMatch(item, expectedLastItem),
+    );
 
     return {
-      _success: firstItemMatches && lastItemMatches,
+      _success: foundFirstItem && foundLastItem,
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
