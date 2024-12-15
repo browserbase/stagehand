@@ -61,4 +61,6 @@ async function main() {
   await stagehand.close();
 }
 
-main().catch(console.error);
+(async () => {
+  await main().catch(console.error);
+})();
