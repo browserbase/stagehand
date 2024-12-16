@@ -260,6 +260,7 @@ This constructor is used to create an instance of Stagehand.
   - `modelName`: (optional) an `AvailableModel` string to specify the model to use
   - `modelClientOptions`: (optional) configuration options for the model client
   - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
+  - `useTextExtract`: (optional) a `boolean` to determine if text-based extraction should be used. Defaults to `false`
 
 - **Returns:**
 

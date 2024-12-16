@@ -240,10 +240,207 @@ function collectEssentialAttributes(element: Element): string {
   return attrs.join(" ");
 }
 
+export function storeDOM(): string {
+  const originalDOM = document.body.cloneNode(true) as HTMLElement;
+  console.log("DOM state stored.");
+  return originalDOM.outerHTML;
+}
+
+export function restoreDOM(storedDOM: string): void {
+  console.log("Restoring DOM");
+  if (storedDOM) {
+    document.body.innerHTML = storedDOM;
+  } else {
+    console.error("No DOM state was provided.");
+  }
+}
+
+export function createTextBoundingBoxes(): void {
+  const style = document.createElement("style");
+  document.head.appendChild(style);
+  if (style.sheet) {
+    style.sheet.insertRule(
+      `
+      .stagehand-highlighted-word, .stagehand-space {
+        border: 0px solid orange;
+        display: inline-block !important;
+        visibility: visible;
+      }
+    `,
+      0,
+    );
+
+    style.sheet.insertRule(
+      `
+        code .stagehand-highlighted-word, code .stagehand-space,
+        pre .stagehand-highlighted-word, pre .stagehand-space {
+          white-space: pre-wrap;
+          display: inline !important;
+      }
+     `,
+      1,
+    );
+  }
+
+  function applyHighlighting(root: Document | HTMLElement): void {
+    root.querySelectorAll("body *").forEach((element) => {
+      if (element.closest(".stagehand-nav, .stagehand-marker")) {
+        return;
+      }
+      if (
+        ["SCRIPT", "STYLE", "IFRAME", "INPUT", "TEXTAREA"].includes(
+          element.tagName,
+        )
+      ) {
+        return;
+      }
+
+      const childNodes = Array.from(element.childNodes);
+      childNodes.forEach((node) => {
+        if (node.nodeType === 3 && node.textContent?.trim().length > 0) {
+          const textContent = node.textContent.replace(/\u00A0/g, " ");
+          const tokens = textContent.split(/(\s+)/g); // Split text by spaces
+          const fragment = document.createDocumentFragment();
+          const parentIsCode = element.tagName === "CODE";
+
+          tokens.forEach((token) => {
+            const span = document.createElement("span");
+            span.textContent = token;
+            if (parentIsCode) {
+              // Special handling for <code> tags
+              span.style.whiteSpace = "pre-wrap";
+              span.style.display = "inline";
+            }
+            span.className =
+              token.trim().length === 0
+                ? "stagehand-space"
+                : "stagehand-highlighted-word";
+            fragment.appendChild(span);
+          });
+
+          if (fragment.childNodes.length > 0 && node.parentNode) {
+            element.insertBefore(fragment, node);
+            node.remove();
+          }
+        }
+      });
+    });
+  }
+
+  applyHighlighting(document);
+
+  document.querySelectorAll("iframe").forEach((iframe) => {
+    try {
+      iframe.contentWindow?.postMessage({ action: "highlight" }, "*");
+    } catch (error) {
+      console.error("Error accessing iframe content: ", error);
+    }
+  });
+}
+
+export function getElementBoundingBoxes(xpath: string): Array<{
+  text: string;
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}> {
+  const element = document.evaluate(
+    xpath,
+    document,
+    null,
+    XPathResult.FIRST_ORDERED_NODE_TYPE,
+    null,
+  ).singleNodeValue as HTMLElement;
+
+  if (!element) return [];
+
+  const isValidText = (text: string) => text && text.trim().length > 0;
+  let dropDownElem = element.querySelector("option[selected]");
+
+  if (!dropDownElem) {
+    dropDownElem = element.querySelector("option");
+  }
+
+  if (dropDownElem) {
+    const elemText = dropDownElem.textContent || "";
+    if (isValidText(elemText)) {
+      const parentRect = element.getBoundingClientRect();
+      return [
+        {
+          text: elemText.trim(),
+          top: parentRect.top + window.scrollY,
+          left: parentRect.left + window.scrollX,
+          width: parentRect.width,
+          height: parentRect.height,
+        },
+      ];
+    } else {
+      return [];
+    }
+  }
+
+  let placeholderText = "";
+  if (
+    (element.tagName.toLowerCase() === "input" ||
+      element.tagName.toLowerCase() === "textarea") &&
+    (element as HTMLInputElement).placeholder
+  ) {
+    placeholderText = (element as HTMLInputElement).placeholder;
+  } else if (element.tagName.toLowerCase() === "a") {
+    placeholderText = "";
+  } else if (element.tagName.toLowerCase() === "img") {
+    placeholderText = (element as HTMLImageElement).alt || "";
+  }
+
+  const words = element.querySelectorAll(
+    ".stagehand-highlighted-word",
+  ) as NodeListOf<HTMLElement>;
+
+  const boundingBoxes = Array.from(words)
+    .map((word) => {
+      const rect = word.getBoundingClientRect();
+      return {
+        text: word.innerText || "",
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+        height: rect.height * 0.75,
+      };
+    })
+    .filter(
+      (box) =>
+        box.width > 0 &&
+        box.height > 0 &&
+        box.top >= 0 &&
+        box.left >= 0 &&
+        isValidText(box.text),
+    );
+
+  if (boundingBoxes.length === 0) {
+    const elementRect = element.getBoundingClientRect();
+    return [
+      {
+        text: placeholderText,
+        top: elementRect.top + window.scrollY,
+        left: elementRect.left + window.scrollX,
+        width: elementRect.width,
+        height: elementRect.height * 0.75,
+      },
+    ];
+  }
+
+  return boundingBoxes;
+}
+
 window.processDom = processDom;
 window.processAllOfDom = processAllOfDom;
 window.processElements = processElements;
 window.scrollToHeight = scrollToHeight;
+window.storeDOM = storeDOM;
+window.restoreDOM = restoreDOM;
+window.createTextBoundingBoxes = createTextBoundingBoxes;
+window.getElementBoundingBoxes = getElementBoundingBoxes;
 
 const leafElementDenyList = ["SVG", "IFRAME", "SCRIPT", "STYLE", "LINK"];
 

@@ -34,12 +34,6 @@ const extractMethodArg = args.find((arg) =>
 );
 if (extractMethodArg) {
   extractMethod = extractMethodArg.split("=")[1];
-
-  if (extractMethod === "textExtract") {
-    throw new Error(
-      "NotImplementedError: textExtract method is not implemented on this branch.",
-    );
-  }
 }
 
 process.env.EXTRACT_METHOD = extractMethod;

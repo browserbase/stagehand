@@ -160,6 +160,7 @@ export async function extract({
   chunksSeen,
   chunksTotal,
   requestId,
+  isUsingTextExtract,
 }: {
   instruction: string;
   previouslyExtractedContent: object;
@@ -169,6 +170,7 @@ export async function extract({
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
+  isUsingTextExtract?: boolean;
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
@@ -176,7 +178,7 @@ export async function extract({
 
   const extractionResponse = await llmClient.createChatCompletion({
     messages: [
-      buildExtractSystemPrompt(isUsingAnthropic),
+      buildExtractSystemPrompt(isUsingAnthropic, isUsingTextExtract),
       buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
     ],
     response_model: {
