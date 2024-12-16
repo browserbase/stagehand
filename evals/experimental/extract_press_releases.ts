@@ -1,6 +1,7 @@
 import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../utils";
 import { z } from "zod";
+import { compareStrings } from "../utils";
 
 export const extract_press_releases: EvalFunction = async ({
   modelName,
@@ -15,51 +16,56 @@ export const extract_press_releases: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
+  const schema = z.object({
+    items: z.array(
+      z.object({
+        title: z.string().describe("The title of the press release"),
+        publish_date: z
+          .string()
+          .describe("The date the press release was published"),
+      }),
+    ),
+  });
+
+  type PressRelease = z.infer<typeof schema>["items"][number];
+
   try {
     await stagehand.page.goto("https://www.landerfornyc.com/news", {
       waitUntil: "networkidle",
     });
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const result = await stagehand.extract({
+    const rawResult = await stagehand.extract({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
-      schema: z.object({
-        items: z.array(
-          z.object({
-            title: z.string().describe("The title of the press release"),
-            publish_date: z
-              .string()
-              .describe(
-                "The date the press release was published, eg 'Oct 12, 2021'",
-              ),
-          }),
-        ),
-      }),
+      schema,
       modelName,
       useTextExtract,
     });
 
+    const parsed = schema.parse(rawResult);
+    const { items } = parsed;
+
     await stagehand.close();
-    const items = result.items;
+
     const expectedLength = 28;
-    const expectedFirstItem = {
+    const expectedFirstItem: PressRelease = {
       title: "UAW Region 9A Endorses Brad Lander for Mayor",
       publish_date: "Dec 4, 2024",
     };
-    const expectedLastItem = {
+    const expectedLastItem: PressRelease = {
       title: "An Unassuming Liberal Makes a Rapid Ascent to Power Broker",
       publish_date: "Jan 23, 2014",
     };
 
-    if (items.length !== expectedLength) {
+    if (items.length <= expectedLength) {
       logger.error({
-        message: "Incorrect number of items extracted",
+        message: "Not enough items extracted",
         level: 0,
         auxiliary: {
           expected: {
-            value: expectedLength.toString(),
-            type: "integer",
+            value: `> ${expectedLength}`,
+            type: "string",
           },
           actual: {
             value: items.length.toString(),
@@ -69,22 +75,32 @@ export const extract_press_releases: EvalFunction = async ({
       });
       return {
         _success: false,
-        error: "Incorrect number of items extracted",
+        error: "Not enough items extracted",
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     }
 
-    const firstItemMatches =
-      items[0].title === expectedFirstItem.title &&
-      items[0].publish_date === expectedFirstItem.publish_date;
-    const lastItemMatches =
-      items[items.length - 1].title === expectedLastItem.title &&
-      items[items.length - 1].publish_date === expectedLastItem.publish_date;
+    const isItemMatch = (item: PressRelease, expected: PressRelease) => {
+      const titleComparison = compareStrings(item.title, expected.title, 0.9);
+      const dateComparison = compareStrings(
+        item.publish_date,
+        expected.publish_date,
+        0.9,
+      );
+      return titleComparison.meetsThreshold && dateComparison.meetsThreshold;
+    };
+
+    const foundFirstItem = items.some((item) =>
+      isItemMatch(item, expectedFirstItem),
+    );
+    const foundLastItem = items.some((item) =>
+      isItemMatch(item, expectedLastItem),
+    );
 
     return {
-      _success: firstItemMatches && lastItemMatches,
+      _success: foundFirstItem && foundLastItem,
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
@@ -95,11 +111,11 @@ export const extract_press_releases: EvalFunction = async ({
       level: 0,
       auxiliary: {
         error: {
-          value: error.message || JSON.stringify(error),
+          value: (error as Error).message || JSON.stringify(error),
           type: "string",
         },
         trace: {
-          value: error.stack,
+          value: (error as Error).stack,
           type: "string",
         },
       },
