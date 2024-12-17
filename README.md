@@ -142,7 +142,7 @@ This constructor is used to create an instance of Stagehand.
   - `apiKey`: (optional) your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable.
   - `projectId`: (optional) your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable.
   - `browserbaseSessionCreateParams`: configuration options for creating new Browserbase sessions.
-  - `browserbaseResumeSessionID`: ID of an existing Browserbase session to resume.
+  - `browserbaseSessionID`: ID of an existing live Browserbase session. Overrides `browserbaseSessionCreateParams`.
   - `logger`: a function that handles log messages. Useful for custom logging implementations.
   - `verbose`: an `integer` that enables several levels of logging during automation:
     - `0`: limited to no logging
@@ -174,7 +174,7 @@ This constructor is used to create an instance of Stagehand.
   // Resume existing Browserbase session
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
-    browserbaseResumeSessionID: "existing-session-id",
+    browserbaseSessionID: "existing-session-id",
   });
   ```
 

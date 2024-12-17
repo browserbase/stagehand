@@ -47,7 +47,7 @@ async function getBrowser(
   headless: boolean = false,
   logger: (message: LogLine) => void,
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
-  browserbaseResumeSessionID?: string,
+  browserbaseSessionID?: string,
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
@@ -83,20 +83,19 @@ async function getBrowser(
       apiKey,
     });
 
-    if (browserbaseResumeSessionID) {
+    if (browserbaseSessionID) {
       // Validate the session status
       try {
-        const sessionStatus = await browserbase.sessions.retrieve(
-          browserbaseResumeSessionID,
-        );
+        const sessionStatus =
+          await browserbase.sessions.retrieve(browserbaseSessionID);
 
         if (sessionStatus.status !== "RUNNING") {
           throw new Error(
-            `Session ${browserbaseResumeSessionID} is not running (status: ${sessionStatus.status})`,
+            `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
           );
         }
 
-        sessionId = browserbaseResumeSessionID;
+        sessionId = browserbaseSessionID;
         const browserbaseDomain =
           BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
           "wss://connect.browserbase.com";
@@ -173,7 +172,7 @@ async function getBrowser(
 
     logger({
       category: "init",
-      message: browserbaseResumeSessionID
+      message: browserbaseSessionID
         ? "browserbase session resumed"
         : "browserbase session started",
       level: 0,
@@ -321,7 +320,6 @@ export class Stagehand {
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
   private variables: { [key: string]: unknown };
-  private browserbaseResumeSessionID?: string;
   private contextPath?: string;
 
   private actHandler?: StagehandActHandler;
@@ -341,7 +339,7 @@ export class Stagehand {
       browserbaseSessionCreateParams,
       domSettleTimeoutMs,
       enableCaching,
-      browserbaseResumeSessionID,
+      browserbaseSessionID,
       modelName,
       modelClientOptions,
     }: ConstructorParams = {
@@ -367,7 +365,7 @@ export class Stagehand {
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
-    this.browserbaseResumeSessionID = browserbaseResumeSessionID;
+    this.browserbaseSessionID = browserbaseSessionID;
   }
 
   async init(
@@ -387,7 +385,7 @@ export class Stagehand {
         this.headless,
         this.logger,
         this.browserbaseSessionCreateParams,
-        this.browserbaseResumeSessionID,
+        this.browserbaseSessionID,
       ).catch((e) => {
         console.error("Error in init:", e);
         const br: BrowserResult = {
@@ -469,7 +467,7 @@ export class Stagehand {
     page,
   }: InitFromPageOptions): Promise<InitFromPageResult> {
     console.warn(
-      "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseResumeSessionID` in the constructor.",
+      "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
     );
     this.page = page;
     this.context = page.context();
