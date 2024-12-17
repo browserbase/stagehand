@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_aigrant_companies: EvalFunction = async ({
@@ -16,7 +16,7 @@ export const extract_aigrant_companies: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto("https://aigrant.com/");
-  const companyList = await stagehand.extract({
+  const companyList = await stagehand.page.extract({
     instruction:
       "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
     schema: z.object({

@@ -10,6 +10,17 @@ import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
 
 export class LLMProvider {
+  // This function is only ran if a modelName is not specified to the LLMProvider
+  private getDefaultModelName() {
+    if (!!process.env.OPENAI_API_KEY && !!process.env.ANTHROPIC_API_KEY) {
+      return "gpt-4o"
+    } else if (!!process.env.ANTHROPIC_API_KEY) {
+      return "claude-3-5-sonnet-latest"
+    }
+
+    return "gpt-4o"
+  }
+
   private modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
     "gpt-4o": "openai",
     "gpt-4o-mini": "openai",
@@ -51,29 +62,37 @@ export class LLMProvider {
   }
 
   getClient(
-    modelName: AvailableModel,
+    modelName?: AvailableModel,
     clientOptions?: ClientOptions,
   ): LLMClient {
-    const provider = this.modelToProviderMap[modelName];
+    const model = modelName ?? this.getDefaultModelName()
+    const provider = this.modelToProviderMap[model]
+
     if (!provider) {
-      throw new Error(`Unsupported model: ${modelName}`);
+      throw new Error(`Unsupported model: ${model}`);
     }
 
     switch (provider) {
       case "openai":
+        if (!clientOptions.apiKey && !process.env.OPENAI_API_KEY)
+          throw new Error('OPENAI_API_KEY is not set in environment. Please set env or use apiKey in client options')
+
         return new OpenAIClient(
           this.logger,
           this.enableCaching,
           this.cache,
-          modelName,
+          model,
           clientOptions,
         );
       case "anthropic":
+        if (!clientOptions.apiKey && !process.env.ANTHROPIC_API_KEY)
+          throw new Error('ANTHROPIC_API_KEY is not set in environment. Please set env or use apiKey in client options')
+
         return new AnthropicClient(
           this.logger,
           this.enableCaching,
           this.cache,
-          modelName,
+          model,
           clientOptions,
         );
       default:

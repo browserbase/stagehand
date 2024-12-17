@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const google_jobs: EvalFunction = async ({
@@ -16,14 +16,14 @@ export const google_jobs: EvalFunction = async ({
 
   try {
     await stagehand.page.goto("https://www.google.com/");
-    await stagehand.act({ action: "click on the about page" });
-    await stagehand.act({ action: "click on the careers page" });
-    await stagehand.act({ action: "input data scientist into role" });
-    await stagehand.act({ action: "input new york city into location" });
-    await stagehand.act({ action: "click on the search button" });
-    await stagehand.act({ action: "click on the first job link" });
+    await stagehand.page.act({ action: "click on the about page" });
+    await stagehand.page.act({ action: "click on the careers page" });
+    await stagehand.page.act({ action: "input data scientist into role" });
+    await stagehand.page.act({ action: "input new york city into location" });
+    await stagehand.page.act({ action: "click on the search button" });
+    await stagehand.page.act({ action: "click on the first job link" });
 
-    const jobDetails = await stagehand.extract({
+    const jobDetails = await stagehand.page.extract({
       instruction:
         "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
       schema: z.object({

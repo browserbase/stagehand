@@ -5,57 +5,47 @@ import {
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
 import { ActionCache } from "../cache/ActionCache";
-import { Stagehand } from "../index";
 import { act, fillInVariables, verifyActCompletion } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
+import { StagehandPage } from "../StagehandPage";
+import { StagehandContext } from "../StagehandContext";
 
 export class StagehandActHandler {
-  private readonly stagehand: Stagehand;
+  private readonly stagehandPage: StagehandPage;
   private readonly verbose: 0 | 1 | 2;
   private readonly llmProvider: LLMProvider;
   private readonly enableCaching: boolean;
   private readonly logger: (logLine: LogLine) => void;
-  private readonly waitForSettledDom: (
-    domSettleTimeoutMs?: number,
-  ) => Promise<void>;
   private readonly actionCache: ActionCache | undefined;
-  private readonly startDomDebug: () => Promise<void>;
-  private readonly cleanupDomDebug: () => Promise<void>;
-  private actions: { [key: string]: { result: string; action: string } };
+  private readonly actions: {
+    [key: string]: { result: string; action: string };
+  };
 
   constructor({
-    stagehand,
     verbose,
     llmProvider,
     enableCaching,
     logger,
-    waitForSettledDom,
-    startDomDebug,
-    cleanupDomDebug,
+    stagehandPage,
   }: {
-    stagehand: Stagehand;
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
     enableCaching: boolean;
     logger: (logLine: LogLine) => void;
-    waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
     llmClient: LLMClient;
-    startDomDebug: () => Promise<void>;
-    cleanupDomDebug: () => Promise<void>;
+    stagehandPage: StagehandPage;
+    stagehandContext: StagehandContext;
   }) {
-    this.stagehand = stagehand;
     this.verbose = verbose;
     this.llmProvider = llmProvider;
     this.enableCaching = enableCaching;
     this.logger = logger;
-    this.waitForSettledDom = waitForSettledDom;
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
-    this.startDomDebug = startDomDebug;
-    this.cleanupDomDebug = cleanupDomDebug;
     this.actions = {};
+    this.stagehandPage = stagehandPage;
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {
@@ -83,7 +73,7 @@ export class StagehandActHandler {
     llmClient: LLMClient;
     domSettleTimeoutMs?: number;
   }): Promise<boolean> {
-    await this.waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 
     // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
     let verifyLLmClient = llmClient;
@@ -98,14 +88,14 @@ export class StagehandActHandler {
       );
     }
 
-    const { selectorMap } = await this.stagehand.page.evaluate(() => {
+    const { selectorMap } = await this.stagehandPage.page.evaluate(() => {
       return window.processAllOfDom();
     });
 
     let actionCompleted = false;
     if (completed) {
       // Run action completion verifier
-      this.stagehand.log({
+      this.logger({
         category: "action",
         message: "action marked as completed, verifying if this is true...",
         level: 1,
@@ -123,7 +113,7 @@ export class StagehandActHandler {
       if (verifierUseVision) {
         try {
           const screenshotService = new ScreenshotService(
-            this.stagehand.page,
+            this.stagehandPage.page,
             selectorMap,
             this.verbose,
             this.logger,
@@ -131,7 +121,7 @@ export class StagehandActHandler {
 
           fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
         } catch (e) {
-          this.stagehand.log({
+          this.logger({
             category: "action",
             message: "error getting full page screenshot. trying again...",
             level: 1,
@@ -148,7 +138,7 @@ export class StagehandActHandler {
           });
 
           const screenshotService = new ScreenshotService(
-            this.stagehand.page,
+            this.stagehandPage.page,
             selectorMap,
             this.verbose,
             this.logger,
@@ -157,7 +147,7 @@ export class StagehandActHandler {
           fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
         }
       } else {
-        ({ outputString: domElements } = await this.stagehand.page.evaluate(
+        ({ outputString: domElements } = await this.stagehandPage.page.evaluate(
           () => {
             return window.processAllOfDom();
           },
@@ -175,7 +165,7 @@ export class StagehandActHandler {
         requestId,
       });
 
-      this.stagehand.log({
+      this.logger({
         category: "action",
         message: "action completion verification result",
         level: 1,
@@ -201,10 +191,10 @@ export class StagehandActHandler {
     xpath: string,
     domSettleTimeoutMs?: number,
   ) {
-    const locator = this.stagehand.page.locator(`xpath=${xpath}`).first();
-    const initialUrl = this.stagehand.page.url();
+    const locator = this.stagehandPage.page.locator(`xpath=${xpath}`).first();
+    const initialUrl = this.stagehandPage.page.url();
 
-    this.stagehand.log({
+    this.logger({
       category: "action",
       message: "performing playwright method",
       level: 2,
@@ -221,7 +211,7 @@ export class StagehandActHandler {
     });
 
     if (method === "scrollIntoView") {
-      this.stagehand.log({
+      this.logger({
         category: "action",
         message: "scrolling element into view",
         level: 2,
@@ -238,7 +228,7 @@ export class StagehandActHandler {
             element.scrollIntoView({ behavior: "smooth", block: "center" });
           })
           .catch((e: Error) => {
-            this.stagehand.log({
+            this.logger({
               category: "action",
               message: "error scrolling element into view",
               level: 1,
@@ -259,7 +249,7 @@ export class StagehandActHandler {
             });
           });
       } catch (e) {
-        this.stagehand.log({
+        this.logger({
           category: "action",
           message: "error scrolling element into view",
           level: 1,
@@ -287,7 +277,7 @@ export class StagehandActHandler {
         await locator.click();
         const text = args[0]?.toString();
         for (const char of text) {
-          await this.stagehand.page.keyboard.type(char, {
+          await this.stagehandPage.page.keyboard.type(char, {
             delay: Math.random() * 50 + 25,
           });
         }
@@ -317,7 +307,7 @@ export class StagehandActHandler {
     } else if (method === "press") {
       try {
         const key = args[0]?.toString();
-        await this.stagehand.page.keyboard.press(key);
+        await this.stagehandPage.page.keyboard.press(key);
       } catch (e) {
         this.logger({
           category: "action",
@@ -349,7 +339,7 @@ export class StagehandActHandler {
         level: 2,
         auxiliary: {
           url: {
-            value: this.stagehand.page.url(),
+            value: this.stagehandPage.page.url(),
             type: "string",
           },
         },
@@ -411,7 +401,9 @@ export class StagehandActHandler {
         // NAVIDNOTE: Should this happen before we wait for locator[method]?
         const newOpenedTab = await Promise.race([
           new Promise<Page | null>((resolve) => {
-            this.stagehand.context.once("page", (page) => resolve(page));
+            // TODO: This is a hack to get the new page
+            // We should find a better way to do this
+            this.stagehandPage.context.once("page", (page) => resolve(page));
             setTimeout(() => resolve(null), 1_500);
           }),
         ]);
@@ -441,15 +433,13 @@ export class StagehandActHandler {
             },
           });
           await newOpenedTab.close();
-          await this.stagehand.page.goto(newOpenedTab.url());
-          await this.stagehand.page.waitForLoadState("domcontentloaded");
-          await this.waitForSettledDom(domSettleTimeoutMs);
+          await this.stagehandPage.page.goto(newOpenedTab.url());
+          await this.stagehandPage.page.waitForLoadState("domcontentloaded");
+          await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
         }
 
-        // Wait for the network to be idle with timeout of 5s (will only wait if loading a new page)
-        // await this.waitForSettledDom(domSettleTimeoutMs);
         await Promise.race([
-          this.stagehand.page.waitForLoadState("networkidle"),
+          this.stagehandPage.page.waitForLoadState("networkidle"),
           new Promise((resolve) => setTimeout(resolve, 5_000)),
         ]).catch((e) => {
           this.logger({
@@ -475,14 +465,14 @@ export class StagehandActHandler {
           level: 1,
         });
 
-        if (this.stagehand.page.url() !== initialUrl) {
+        if (this.stagehandPage.page.url() !== initialUrl) {
           this.logger({
             category: "action",
             message: "new page detected with URL",
             level: 1,
             auxiliary: {
               url: {
-                value: this.stagehand.page.url(),
+                value: this.stagehandPage.page.url(),
                 type: "string",
               },
             },
@@ -507,7 +497,7 @@ export class StagehandActHandler {
       );
     }
 
-    await this.waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
   }
 
   private async _getComponentString(locator: Locator) {
@@ -585,7 +575,7 @@ export class StagehandActHandler {
     timeout: number = 5_000,
   ): Promise<Locator | null> {
     try {
-      const element = this.stagehand.page.locator(`xpath=${xpath}`).first();
+      const element = this.stagehandPage.page.locator(`xpath=${xpath}`).first();
       await element.waitFor({ state: "attached", timeout });
       return element;
     } catch {
@@ -776,7 +766,7 @@ export class StagehandActHandler {
     }
 
     const cacheObj = {
-      url: this.stagehand.page.url(),
+      url: this.stagehandPage.page.url(),
       action,
       previousSelectors,
       requestId,
@@ -884,7 +874,7 @@ export class StagehandActHandler {
       );
 
       steps = steps + cachedStep.newStepString;
-      await this.stagehand.page.evaluate(
+      await this.stagehandPage.page.evaluate(
         ({ chunksSeen }: { chunksSeen: number[] }) => {
           return window.processDom(chunksSeen);
         },
@@ -988,8 +978,8 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number;
   }): Promise<{ success: boolean; message: string; action: string }> {
     try {
-      await this.waitForSettledDom(domSettleTimeoutMs);
-      await this.startDomDebug();
+      await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+      await this.stagehandPage.startDomDebug();
 
       if (this.enableCaching && !skipActionCacheForThisStep) {
         const response = await this._runCachedActionIfAvailable({
@@ -1057,7 +1047,7 @@ export class StagehandActHandler {
             type: "string",
           },
           pageUrl: {
-            value: this.stagehand.page.url(),
+            value: this.stagehandPage.page.url(),
             type: "string",
           },
         },
@@ -1070,7 +1060,7 @@ export class StagehandActHandler {
       });
 
       const { outputString, selectorMap, chunk, chunks } =
-        await this.stagehand.page.evaluate(
+        await this.stagehandPage.page.evaluate(
           ({ chunksSeen }: { chunksSeen: number[] }) => {
             return window.processDom(chunksSeen);
           },
@@ -1119,7 +1109,7 @@ export class StagehandActHandler {
           });
         } else {
           const screenshotService = new ScreenshotService(
-            this.stagehand.page,
+            this.stagehandPage.page,
             selectorMap,
             this.verbose,
             this.logger,
@@ -1153,7 +1143,7 @@ export class StagehandActHandler {
         },
       });
 
-      await this.cleanupDomDebug();
+      await this.stagehandPage.cleanupDomDebug();
 
       if (!response) {
         if (chunksSeen.length + 1 < chunks.length) {
@@ -1199,7 +1189,9 @@ export class StagehandActHandler {
               },
             },
           });
-          await this.stagehand.page.evaluate(() => window.scrollToHeight(0));
+          await this.stagehandPage.page.evaluate(() =>
+            window.scrollToHeight(0),
+          );
           return await this.act({
             action,
             steps,
@@ -1265,11 +1257,11 @@ export class StagehandActHandler {
       });
 
       try {
-        const initialUrl = this.stagehand.page.url();
-        const locator = this.stagehand.page
+        const initialUrl = this.stagehandPage.page.url();
+        const locator = this.stagehandPage.page
           .locator(`xpath=${xpaths[0]}`)
           .first();
-        const originalUrl = this.stagehand.page.url();
+        const originalUrl = this.stagehandPage.page.url();
         const componentString = await this._getComponentString(locator);
         const responseArgs = [...args];
         if (variables) {
@@ -1330,8 +1322,8 @@ export class StagehandActHandler {
             });
         }
 
-        if (this.stagehand.page.url() !== initialUrl) {
-          steps += `  Result (Important): Page URL changed from ${initialUrl} to ${this.stagehand.page.url()}\n\n`;
+        if (this.stagehandPage.page.url() !== initialUrl) {
+          steps += `  Result (Important): Page URL changed from ${initialUrl} to ${this.stagehandPage.page.url()}\n\n`;
         }
 
         const actionCompleted = await this._verifyActionCompletion({

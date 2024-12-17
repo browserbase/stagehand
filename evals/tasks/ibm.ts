@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const ibm: EvalFunction = async ({ modelName, logger }) => {
@@ -13,18 +13,18 @@ export const ibm: EvalFunction = async ({ modelName, logger }) => {
   try {
     await stagehand.page.goto("https://www.ibm.com/artificial-intelligence");
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "if there is a cookies popup, accept it",
     });
 
-    const { title } = await stagehand.extract({
+    const { title } = await stagehand.page.extract({
       instruction: "extract the title of the article",
       schema: z.object({
         title: z.string().describe("the title of the article"),
       }),
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on the 'explore AI use cases' button",
     });
 

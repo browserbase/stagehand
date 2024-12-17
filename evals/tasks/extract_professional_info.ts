@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ export const extract_professional_info: EvalFunction = async ({
     "https://www.paulweiss.com/professionals/partners-and-counsel/brian-bolin",
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the list of Practices, phone number, and fax number of the professional.",
     schema: z.object({

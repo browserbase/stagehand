@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const combination_sauce: EvalFunction = async ({
@@ -17,7 +17,7 @@ export const combination_sauce: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://www.saucedemo.com/");
 
-    const { usernames, password } = await stagehand.extract({
+    const { usernames, password } = await stagehand.page.extract({
       instruction: "extract the accepted usernames and the password for login",
       schema: z.object({
         usernames: z.array(z.string()).describe("the accepted usernames"),
@@ -27,19 +27,19 @@ export const combination_sauce: EvalFunction = async ({
       useTextExtract,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: `enter username 'standard_user'`,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: `enter password '${password}'`,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on 'login'",
     });
 
-    const observations = await stagehand.observe({
+    const observations = await stagehand.page.observe({
       instruction: "find all the 'add to cart' buttons",
     });
 

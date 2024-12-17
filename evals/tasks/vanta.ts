@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const vanta: EvalFunction = async ({ modelName, logger }) => {
@@ -10,9 +10,9 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.act({ action: "close the cookies popup" });
+  await stagehand.page.act({ action: "close the cookies popup" });
 
-  const observations = await stagehand.observe();
+  const observations = await stagehand.page.observe();
 
   if (observations.length === 0) {
     await stagehand.close();

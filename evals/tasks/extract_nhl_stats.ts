@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -23,7 +23,7 @@ export const extract_nhl_stats: EvalFunction = async ({
     },
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
     schema: z.object({

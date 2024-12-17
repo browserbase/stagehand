@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -17,7 +17,7 @@ export const extract_resistor_info: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.seielect.com/?stockcheck=ASR1JA330R");
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the MOQ, tolerance percentage, ohmic value, and operating temperature range of the resistor.",
     schema: z.object({

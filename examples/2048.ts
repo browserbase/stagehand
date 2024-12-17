@@ -21,7 +21,7 @@ async function example() {
       // Add a small delay for UI updates
       await new Promise((resolve) => setTimeout(resolve, 300));
       // Get current game state
-      const gameState = await stagehand.extract({
+      const gameState = await stagehand.page.extract({
         instruction: `Extract the current game state:
           1. Score from the score counter
           2. All tile values in the 4x4 grid (empty spaces as 0)
@@ -44,7 +44,7 @@ async function example() {
         grid: grid,
       });
       // Analyze board and decide next move
-      const analysis = await stagehand.extract({
+      const analysis = await stagehand.page.extract({
         instruction: `Based on the current game state:
           - Score: ${gameState.score}
           - Highest tile: ${gameState.highestTile}

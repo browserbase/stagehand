@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -16,16 +16,15 @@ export const extract_capacitor_info: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.tti.com/content/ttiinc/en/apps/part-detail.html?partsNumber=C320C104K5R5TA&mfgShortname=KEM&productId=6335148",
+    "https://www.jakelectronics.com/productdetail/panasonicelectroniccomponents-eeufm1a472l-2937406",
   );
 
-  const result = await stagehand.extract({
-    instruction:
-      "Extract the TTI Part Number, Product Category, and minimum operating temperature of the capacitor.",
+  const result = await stagehand.page.extract({
+    instruction: "Extract the ECCN Code, RoHS Status, and Impedance.",
     schema: z.object({
-      tti_part_number: z.string(),
-      product_category: z.string(),
-      min_operating_temp: z.string(),
+      ECCN_code: z.string(),
+      RoHS_Status: z.string(),
+      Impedance: z.string(),
     }),
     modelName,
     useTextExtract,
@@ -33,90 +32,80 @@ export const extract_capacitor_info: EvalFunction = async ({
 
   await stagehand.close();
 
-  const { tti_part_number, product_category, min_operating_temp } = result;
+  const { ECCN_code, RoHS_Status, Impedance } = result;
 
   const expected = {
-    tti_part_number: "C320C104K5R5TA",
-    product_category: "Multilayer Ceramic Capacitors MLCC - Leaded",
-    min_operating_temp: "- 55 C",
+    ECCN_code: "EAR99",
+    RoHS_Status: "RoHS Compliant",
+    Impedance: "12mOhm",
   };
 
-  if (
-    normalizeString(tti_part_number) !==
-    normalizeString(expected.tti_part_number)
-  ) {
+  if (normalizeString(ECCN_code) !== normalizeString(expected.ECCN_code)) {
     logger.error({
-      message: "TTI Part Number extracted does not match expected",
+      message: "ECCN code extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.tti_part_number),
+          value: normalizeString(expected.ECCN_code),
           type: "string",
         },
         actual: {
-          value: normalizeString(tti_part_number),
+          value: normalizeString(ECCN_code),
           type: "string",
         },
       },
     });
     return {
       _success: false,
-      error: "TTI Part Number extracted does not match expected",
+      error: "ECCN code extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
   }
 
-  if (
-    normalizeString(product_category) !==
-    normalizeString(expected.product_category)
-  ) {
+  if (normalizeString(RoHS_Status) !== normalizeString(expected.RoHS_Status)) {
     logger.error({
-      message: "Product Category extracted does not match expected",
+      message: "RoHS Status extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.product_category),
+          value: normalizeString(expected.RoHS_Status),
           type: "string",
         },
         actual: {
-          value: normalizeString(product_category),
+          value: normalizeString(RoHS_Status),
           type: "string",
         },
       },
     });
     return {
       _success: false,
-      error: "Product Category extracted does not match expected",
+      error: "RoHS Status extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
   }
 
-  if (
-    normalizeString(min_operating_temp) !==
-    normalizeString(expected.min_operating_temp)
-  ) {
+  if (normalizeString(Impedance) !== normalizeString(expected.Impedance)) {
     logger.error({
-      message:
-        "Minimum operating temperature extracted does not match expected",
+      message: "Impedance extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.min_operating_temp),
+          value: normalizeString(expected.Impedance),
           type: "string",
         },
         actual: {
-          value: normalizeString(min_operating_temp),
+          value: normalizeString(Impedance),
           type: "string",
         },
       },
     });
     return {
       _success: false,
-      error: "Minimum operating temperature extracted does not match expected",
+      error: "Impedance extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,

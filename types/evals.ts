@@ -1,4 +1,4 @@
-import { EvalLogger } from "../evals/utils";
+import { EvalLogger } from "../evals/logger";
 import { AvailableModel } from "../types/model";
 import { LogLine } from "../types/log";
 import { z } from "zod";
@@ -62,3 +62,7 @@ export interface EvalResult {
   name: string;
   score: number;
 }
+
+export type LogLineEval = LogLine & {
+  parsedAuxiliary?: string | object;
+};

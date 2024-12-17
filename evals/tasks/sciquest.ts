@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 import { z } from "zod";
 
@@ -18,11 +18,11 @@ export const sciquest: EvalFunction = async ({
     "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
   );
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Click on the "Closed" tab',
   });
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
     schema: z.object({

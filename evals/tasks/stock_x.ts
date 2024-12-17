@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 
 export const stock_x: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({
@@ -15,7 +15,7 @@ export const stock_x: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.waitForTimeout(3000);
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click on Jordan 3 Retro Crimson in the related products",
   });
 

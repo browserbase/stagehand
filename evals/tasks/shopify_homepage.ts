@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const shopify_homepage: EvalFunction = async ({ modelName, logger }) => {
@@ -11,7 +11,7 @@ export const shopify_homepage: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.goto("https://www.shopify.com/");
 
-  const observations = await stagehand.observe();
+  const observations = await stagehand.page.observe();
 
   if (observations.length === 0) {
     await stagehand.close();

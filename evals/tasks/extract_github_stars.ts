@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_github_stars: EvalFunction = async ({
@@ -17,7 +17,7 @@ export const extract_github_stars: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
-    const { stars } = await stagehand.extract({
+    const { stars } = await stagehand.page.extract({
       instruction: "Extract the number of stars for the project",
       schema: z.object({
         stars: z.number().describe("the number of stars for the project"),

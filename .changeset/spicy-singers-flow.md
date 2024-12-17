@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Add sessionId to public params
+exposed llmClient in stagehand constructor

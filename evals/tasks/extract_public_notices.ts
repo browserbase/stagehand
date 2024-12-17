@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 import { compareStrings } from "../utils";
 
@@ -21,7 +21,7 @@ export const extract_public_notices: EvalFunction = async ({
     { waitUntil: "load" },
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
     schema: z.object({

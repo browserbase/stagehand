@@ -1,101 +1,28 @@
-import { AvailableModel, Stagehand } from "../lib";
-import { logLineToString } from "../lib/utils";
-import { LogLine } from "../types/log";
+/**
+ * This file provides utility functions and classes to assist with evaluation tasks.
+ *
+ * Key functionalities:
+ * - String normalization and fuzzy comparison utility functions to compare output strings
+ *   against expected results in a flexible and robust way.
+ * - Generation of unique experiment names based on the current timestamp, environment,
+ *   and eval name or category.
+ */
+
 import stringComparison from "string-comparison";
 const { jaroWinkler } = stringComparison;
 
-export const env: "BROWSERBASE" | "LOCAL" =
-  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-    ? "BROWSERBASE"
-    : "LOCAL";
-
-const enableCaching = process.env.EVAL_ENABLE_CACHING?.toLowerCase() === "true";
-
-const defaultStagehandOptions = {
-  env,
-  headless: false,
-  verbose: 2 as const,
-  debugDom: true,
-  enableCaching,
-};
-
-export const initStagehand = async ({
-  modelName,
-  domSettleTimeoutMs,
-  logger,
-}: {
-  modelName: AvailableModel;
-  domSettleTimeoutMs?: number;
-  logger: EvalLogger;
-}) => {
-  const stagehand = new Stagehand({
-    ...defaultStagehandOptions,
-    modelName,
-    domSettleTimeoutMs,
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
-    },
-  });
-  logger.init(stagehand);
-  const initResponse = await stagehand.init();
-  return { stagehand, logger, initResponse };
-};
-
-type LogLineEval = LogLine & {
-  parsedAuxiliary?: string | object;
-};
-
-function parseLogLine(logLine: LogLine): LogLineEval {
-  try {
-    return {
-      ...logLine,
-      auxiliary: undefined,
-      parsedAuxiliary: logLine.auxiliary
-        ? Object.fromEntries(
-            Object.entries(logLine.auxiliary).map(([key, entry]) => [
-              key,
-              entry.type === "object" ? JSON.parse(entry.value) : entry.value,
-            ]),
-          )
-        : undefined,
-    } as LogLineEval;
-  } catch (e) {
-    console.log("Error parsing log line", logLine);
-    console.error(e);
-    return logLine;
-  }
-}
-
-export class EvalLogger {
-  logs: LogLineEval[] = [];
-  stagehand?: Stagehand;
-
-  constructor() {}
-
-  init(stagehand: Stagehand) {
-    this.stagehand = stagehand;
-  }
-
-  log(logLine: LogLine) {
-    console.log(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
-  }
-
-  error(logLine: LogLine) {
-    console.error(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
-  }
-
-  warn(logLine: LogLine) {
-    console.warn(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
-  }
-
-  getLogs() {
-    return this.logs;
-  }
-}
-
+/**
+ * normalizeString:
+ * Prepares a string for comparison by:
+ * - Converting to lowercase
+ * - Collapsing multiple spaces to a single space
+ * - Removing punctuation and special characters that are not alphabetic or numeric
+ * - Normalizing spacing around commas
+ * - Trimming leading and trailing whitespace
+ *
+ * This helps create a stable string representation to compare against expected outputs,
+ * even if the actual output contains minor formatting differences.
+ */
 export function normalizeString(str: string): string {
   return str
     .toLowerCase()
@@ -105,6 +32,24 @@ export function normalizeString(str: string): string {
     .trim();
 }
 
+/**
+ * compareStrings:
+ * Compares two strings (actual vs. expected) using a similarity metric (Jaro-Winkler).
+ *
+ * Arguments:
+ * - actual: The actual output string to be checked.
+ * - expected: The expected string we want to match against.
+ * - similarityThreshold: A number between 0 and 1. Default is 0.85.
+ *   If the computed similarity is greater than or equal to this threshold,
+ *   we consider the strings sufficiently similar.
+ *
+ * Returns:
+ * - similarity: A number indicating how similar the two strings are.
+ * - meetsThreshold: A boolean indicating if the similarity meets or exceeds the threshold.
+ *
+ * This function is useful for tasks where exact string matching is too strict,
+ * allowing for fuzzy matching that tolerates minor differences in formatting or spelling.
+ */
 export function compareStrings(
   actual: string,
   expected: string,
@@ -118,4 +63,43 @@ export function compareStrings(
     similarity,
     meetsThreshold: similarity >= similarityThreshold,
   };
+}
+
+/**
+ * generateTimestamp:
+ * Generates a timestamp string formatted as "YYYYMMDDHHMMSS".
+ * Used to create unique experiment names, ensuring that results can be
+ * distinguished by the time they were generated.
+ */
+export function generateTimestamp(): string {
+  const now = new Date();
+  return now
+    .toISOString()
+    .replace(/[-:TZ]/g, "")
+    .slice(0, 14);
+}
+
+/**
+ * generateExperimentName:
+ * Creates a unique name for the experiment based on optional evalName or category,
+ * the environment (e.g., dev or CI), and the current timestamp.
+ * This is used to label the output files and directories.
+ */
+export function generateExperimentName({
+  evalName,
+  category,
+  environment,
+}: {
+  evalName?: string;
+  category?: string;
+  environment: string;
+}): string {
+  const timestamp = generateTimestamp();
+  if (evalName) {
+    return `${evalName}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  if (category) {
+    return `${category}_${environment.toLowerCase()}_${timestamp}`;
+  }
+  return `all_${environment.toLowerCase()}_${timestamp}`;
 }

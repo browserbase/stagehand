@@ -22,7 +22,7 @@ import {
   LLMClient,
 } from "./llm/LLMClient";
 import { VerifyActCompletionParams } from "../types/inference";
-import { ActResult, ActParams } from "../types/act";
+import { ActCommandParams, ActCommandResult } from "../types/act";
 
 export async function verifyActCompletion({
   goal,
@@ -102,7 +102,7 @@ export async function act({
   logger,
   requestId,
   variables,
-}: ActParams): Promise<ActResult | null> {
+}: ActCommandParams): Promise<ActCommandResult | null> {
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
     buildActUserPrompt(action, steps, domElements, variables),

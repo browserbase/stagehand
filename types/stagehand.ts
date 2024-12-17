@@ -1,9 +1,10 @@
 import Browserbase from "@browserbasehq/sdk";
-import { BrowserContext, Page } from "@playwright/test";
+import { Page, BrowserContext } from "../types/page";
 import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
+import { LLMClient } from "../lib/llm/LLMClient";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
@@ -13,12 +14,13 @@ export interface ConstructorParams {
   debugDom?: boolean;
   llmProvider?: LLMProvider;
   headless?: boolean;
-  logger?: (message: LogLine) => void;
+  logger?: (message: LogLine) => void | Promise<void>;
   domSettleTimeoutMs?: number;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   enableCaching?: boolean;
   browserbaseSessionID?: string;
   modelName?: AvailableModel;
+  llmClient?: LLMClient;
   modelClientOptions?: ClientOptions;
 }
 

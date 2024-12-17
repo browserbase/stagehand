@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 import { compareStrings } from "../utils";
 
@@ -35,7 +35,7 @@ export const extract_press_releases: EvalFunction = async ({
     });
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const rawResult = await stagehand.extract({
+    const rawResult = await stagehand.page.extract({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema,

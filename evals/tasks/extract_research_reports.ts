@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_research_reports: EvalFunction = async ({
@@ -20,7 +20,7 @@ export const extract_research_reports: EvalFunction = async ({
     { waitUntil: "load" },
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract ALL the research report names. Do not extract the names of the PDF attachments.",
     schema: z.object({
