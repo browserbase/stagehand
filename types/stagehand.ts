@@ -17,7 +17,7 @@ export interface ConstructorParams {
   domSettleTimeoutMs?: number;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   enableCaching?: boolean;
-  browserbaseResumeSessionID?: string;
+  browserbaseSessionID?: string;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
 }

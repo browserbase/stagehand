@@ -16,7 +16,7 @@ const StagehandConfig: ConstructorParams = {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
   },
   enableCaching: true /* Enable caching functionality */,
-  browserbaseResumeSessionID:
+  browserbaseSessionID:
     undefined /* Session ID for resuming Browserbase sessions */,
   modelName: "gpt-4o" /* Name of the model to use */,
   modelClientOptions: {
