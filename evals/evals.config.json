@@ -1,0 +1,209 @@
+{
+  "tasks": [
+    {
+      "name": "amazon_add_to_cart",
+      "categories": ["act"]
+    },
+    {
+      "name": "bidnet",
+      "categories": ["act"]
+    },
+    {
+      "name": "ionwave",
+      "categories": ["act"]
+    },
+    {
+      "name": "laroche_form",
+      "categories": ["act"]
+    },
+    {
+      "name": "nonsense_action",
+      "categories": ["act"]
+    },
+    {
+      "name": "peeler_simple",
+      "categories": ["act"]
+    },
+    {
+      "name": "simple_google_search",
+      "categories": ["act"]
+    },
+    {
+      "name": "vantechjournal",
+      "categories": ["act"]
+    },
+    {
+      "name": "wikipedia",
+      "categories": ["act"]
+    },
+
+    {
+      "name": "allrecipes",
+      "categories": ["combination"]
+    },
+    {
+      "name": "arxiv",
+      "categories": ["combination"]
+    },
+    {
+      "name": "extract_collaborators",
+      "categories": ["combination"]
+    },
+    {
+      "name": "extract_github_commits",
+      "categories": ["combination"]
+    },
+    {
+      "name": "imdb_movie_details",
+      "categories": ["combination"]
+    },
+    {
+      "name": "peeler_complex",
+      "categories": ["combination"]
+    },
+    {
+      "name": "sciquest",
+      "categories": ["combination"]
+    },
+    {
+      "name": "wichita",
+      "categories": ["combination"]
+    },
+
+    {
+      "name": "apple",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "combination_sauce",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "costar",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "expedia",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "expedia_search",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "extract_aigrant_companies",
+      "categories": ["experimental", "text_extract"]
+    },
+    {
+      "name": "extract_capacitor_info",
+      "categories": ["experimental", "text_extract"]
+    },
+    {
+      "name": "extract_partners",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "extract_press_releases",
+      "categories": ["experimental", "text_extract"]
+    },
+    {
+      "name": "extract_snowshoeing_destinations",
+      "categories": ["experimental", "text_extract"]
+    },
+    {
+      "name": "google_jobs",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "homedepot",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "ibm",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "rakuten_jp",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "stock_x",
+      "categories": ["experimental"]
+    },
+    {
+      "name": "ted_talk",
+      "categories": ["experimental"]
+    },
+
+    {
+      "name": "extract_baptist_health",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_github_stars",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_memorial_healthcare",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_nhl_stats",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_professional_info",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_regulations",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_resistor_info",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_rockauto",
+      "categories": ["extract"]
+    },
+    {
+      "name": "extract_staff_members",
+      "categories": ["extract"]
+    },
+
+    {
+      "name": "ionwave_observe",
+      "categories": ["observe"]
+    },
+    {
+      "name": "panamcs",
+      "categories": ["observe"]
+    },
+    {
+      "name": "shopify_homepage",
+      "categories": ["observe"]
+    },
+    {
+      "name": "vanta",
+      "categories": ["observe"]
+    },
+    {
+      "name": "vanta_h",
+      "categories": ["observe"]
+    },
+
+    {
+      "name": "extract_area_codes",
+      "categories": ["text_extract"]
+    },
+    {
+      "name": "extract_public_notices",
+      "categories": ["text_extract"]
+    },
+    {
+      "name": "extract_research_reports",
+      "categories": ["text_extract"]
+    }
+  ]
+}

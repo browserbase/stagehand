@@ -1,10 +1,9 @@
-import { Eval } from "braintrust";
 import fs from "fs";
 import path from "path";
 import process from "process";
+import { Eval } from "braintrust";
 import {
   EvalArgs,
-  EvalCategory,
   EvalCategorySchema,
   EvalFunction,
   EvalInput,
@@ -16,6 +15,9 @@ import { AvailableModel, AvailableModelSchema } from "../types/model";
 import { EvalLogger, env } from "./utils";
 
 const args = process.argv.slice(2);
+
+const configPath = path.join(__dirname, "evals.config.json");
+const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
 const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
   ? process.env.EVAL_CATEGORIES.split(",")
@@ -42,14 +44,6 @@ const useTextExtract = process.env.EXTRACT_METHOD === "textExtract";
 let filterByCategory: string | null = null;
 let filterByEvalName: string | null = null;
 
-const CATEGORIES: EvalCategory[] = DEFAULT_EVAL_CATEGORIES.map((category) => {
-  if (!EvalCategorySchema.safeParse(category).success) {
-    throw new Error(`Category ${category} is not a valid category`);
-  }
-
-  return category as EvalCategory;
-});
-
 if (args.length > 0) {
   if (args[0].toLowerCase() === "category") {
     filterByCategory = args[1];
@@ -61,9 +55,7 @@ if (args.length > 0) {
       EvalCategorySchema.parse(filterByCategory);
     } catch {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${CATEGORIES.join(
-          ", ",
-        )}`,
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${DEFAULT_EVAL_CATEGORIES.join(", ")}`,
       );
       process.exit(1);
     }
@@ -72,49 +64,16 @@ if (args.length > 0) {
   }
 }
 
-const generateTasksAndCategories = (): {
-  tasks: Record<
-    string,
-    Promise<{
-      [name: string]: EvalFunction;
-    }>
-  >;
-  taskCategories: Record<string, string>;
-} => {
-  const tasks: Record<
-    string,
-    Promise<{
-      [name: string]: EvalFunction;
-    }>
-  > = {};
-  const taskCategories: Record<string, string> = {};
+type TaskConfig = { name: string; categories: string[] };
+const tasksConfig = config.tasks as TaskConfig[];
+const tasksByName = tasksConfig.reduce<
+  Record<string, { categories: string[] }>
+>((acc, task) => {
+  acc[task.name] = { categories: task.categories };
+  return acc;
+}, {});
 
-  CATEGORIES.forEach((category) => {
-    const categoryPath = path.join(__dirname, category);
-    try {
-      const files = fs.readdirSync(categoryPath);
-      files.forEach((file) => {
-        if (file.endsWith(".ts")) {
-          const taskName = file.replace(".ts", "");
-          const taskModule = import(`./${category}/${taskName}`) as Promise<{
-            [name: string]: EvalFunction;
-          }>;
-          tasks[taskName] = taskModule;
-          taskCategories[taskName] = category;
-        }
-      });
-    } catch (error) {
-      console.warn(`Warning: Category directory ${category} not found`);
-      console.log(error);
-    }
-  });
-
-  return { tasks, taskCategories };
-};
-
-const { tasks, taskCategories } = generateTasksAndCategories();
-
-if (filterByEvalName && !Object.keys(tasks).includes(filterByEvalName)) {
+if (filterByEvalName && !tasksByName[filterByEvalName]) {
   console.error(`Error: Evaluation "${filterByEvalName}" does not exist.`);
   process.exit(1);
 }
@@ -220,45 +179,51 @@ const generateSummary = async (
   experimentName: string,
 ) => {
   const passed = results
-    .filter((result) => result.output._success)
-    .map((result) => ({
-      eval: result.input.name,
-      model: result.input.modelName,
-      category: taskCategories[result.input.name],
+    .filter((r) => r.output._success)
+    .map((r) => ({
+      eval: r.input.name,
+      model: r.input.modelName,
+      categories: tasksByName[r.input.name].categories,
     }));
 
   const failed = results
-    .filter((result) => !result.output._success)
-    .map((result) => ({
-      eval: result.input.name,
-      model: result.input.modelName,
-      category: taskCategories[result.input.name],
+    .filter((r) => !r.output._success)
+    .map((r) => ({
+      eval: r.input.name,
+      model: r.input.modelName,
+      categories: tasksByName[r.input.name].categories,
     }));
 
-  const categories: Record<string, number> = {};
+  const categorySuccessCounts: Record<
+    string,
+    { total: number; success: number }
+  > = {};
+  for (const taskName of Object.keys(tasksByName)) {
+    const taskCategories = tasksByName[taskName].categories;
+    const taskResults = results.filter((r) => r.input.name === taskName);
+    const successCount = taskResults.filter((r) => r.output._success).length;
 
-  Object.values(taskCategories).forEach((category) => {
-    const categoryResults = results.filter(
-      (r) => taskCategories[r.input.name] === category,
-    );
-    const successCount = categoryResults.filter(
-      (r) => r.output._success,
-    ).length;
-    categories[category] = Math.round(
-      (successCount / categoryResults.length) * 100,
-    );
-  });
+    for (const cat of taskCategories) {
+      if (!categorySuccessCounts[cat]) {
+        categorySuccessCounts[cat] = { total: 0, success: 0 };
+      }
+      categorySuccessCounts[cat].total += taskResults.length;
+      categorySuccessCounts[cat].success += successCount;
+    }
+  }
+
+  const categories: Record<string, number> = {};
+  for (const [cat, counts] of Object.entries(categorySuccessCounts)) {
+    categories[cat] = Math.round((counts.success / counts.total) * 100);
+  }
 
   const models: Record<string, number> = {};
-
-  results.forEach((result) => {
-    const model = result.input.modelName;
-    if (!models[model]) {
-      const modelResults = results.filter((r) => r.input.modelName === model);
-      const successCount = modelResults.filter((r) => r.output._success).length;
-      models[model] = Math.round((successCount / modelResults.length) * 100);
-    }
-  });
+  const allModels = [...new Set(results.map((r) => r.input.modelName))];
+  for (const model of allModels) {
+    const modelResults = results.filter((r) => r.input.modelName === model);
+    const successCount = modelResults.filter((r) => r.output._success).length;
+    models[model] = Math.round((successCount / modelResults.length) * 100);
+  }
 
   const formattedSummary = {
     experimentName,
@@ -277,21 +242,21 @@ const generateSummary = async (
 
 const generateFilteredTestcases = (): Testcase[] => {
   let allTestcases = MODELS.flatMap((model) =>
-    Object.keys(tasks).map((test) => ({
-      input: { name: test, modelName: model },
-      name: test,
-      tags: [model, test],
+    Object.keys(tasksByName).map((testName) => ({
+      input: { name: testName, modelName: model },
+      name: testName,
+      tags: [model, testName],
       metadata: {
         model,
-        test,
+        test: testName,
       },
       expected: true,
     })),
   );
 
   if (filterByCategory) {
-    allTestcases = allTestcases.filter(
-      (testcase) => taskCategories[testcase.name] === filterByCategory,
+    allTestcases = allTestcases.filter((testcase) =>
+      tasksByName[testcase.name].categories.includes(filterByCategory!),
     );
   }
 
@@ -318,18 +283,23 @@ const generateFilteredTestcases = (): Testcase[] => {
     category: filterByCategory || undefined,
     environment: env,
   });
-
+  const braintrustProjectName =
+    process.env.CI === "true" ? "stagehand" : "stagehand-dev";
   try {
-    const evalResult = await Eval("stagehand", {
+    const evalResult = await Eval(braintrustProjectName, {
       experimentName,
       data: generateFilteredTestcases,
-      task: async (input: {
-        name: keyof typeof tasks;
-        modelName: AvailableModel;
-      }) => {
+      task: async (input: { name: string; modelName: AvailableModel }) => {
         const logger = new EvalLogger();
         try {
-          const taskModule = await tasks[input.name];
+          const taskModulePath = path.join(
+            __dirname,
+            "tasks",
+            `${input.name}.ts`,
+          );
+          const taskModule = (await import(taskModulePath)) as {
+            [key: string]: EvalFunction;
+          };
           const taskFunction = taskModule[input.name];
 
           if (typeof taskFunction !== "function") {
