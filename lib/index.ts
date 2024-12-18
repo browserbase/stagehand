@@ -58,7 +58,7 @@ async function getBrowser(
           "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
         level: 0,
       });
-      env = "LOCAL";
+      this.env = "LOCAL";
     }
     if (!projectId) {
       logger({
