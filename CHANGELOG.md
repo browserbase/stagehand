@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 1.7.1
+
+### Patch Changes
+
+- [#320](https://github.com/browserbase/stagehand/pull/320) [`c0cdd0e`](https://github.com/browserbase/stagehand/commit/c0cdd0e985d66f0464d2e70b7d0cb343b0efbd3f) Thanks [@kamath](https://github.com/kamath)! - bug fix: set this.env to LOCAL if BROWSERBASE_API_KEY is not defined
+
 ## 1.7.0
 
 ### Minor Changes
