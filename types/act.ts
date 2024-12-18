@@ -1,5 +1,6 @@
 import { Buffer } from "buffer";
 import { LLMClient } from "../lib/llm/LLMClient";
+import { LogLine } from "./log";
 
 export interface ActParams {
   action: string;
@@ -8,7 +9,7 @@ export interface ActParams {
   llmClient: LLMClient;
   screenshot?: Buffer;
   retries?: number;
-  logger: (message: { category?: string; message: string }) => void;
+  logger: (logLine: LogLine) => void;
   requestId: string;
   variables?: Record<string, string>;
 }

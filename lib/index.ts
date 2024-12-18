@@ -368,15 +368,9 @@ export class Stagehand {
     this.browserbaseSessionID = browserbaseSessionID;
   }
 
-  async init(
-    /** @deprecated Use constructor options instead */
-    initOptions?: InitOptions,
+  static async init(
+    constructorParams?: ConstructorParams,
   ): Promise<InitResult> {
-    if (initOptions) {
-      console.warn(
-        "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
-      );
-    }
     const { context, debugUrl, sessionUrl, contextPath, sessionId } =
       await getBrowser(
         this.apiKey,
