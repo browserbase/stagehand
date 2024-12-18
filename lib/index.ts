@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { type BrowserContext, chromium, type Page } from "@playwright/test";
+import { type BrowserContext, chromium, Page } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -29,6 +29,7 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString } from "./utils";
+import { StagehandPage } from "./StagehandPage";
 
 dotenv.config({ path: ".env" });
 
@@ -304,7 +305,7 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private llmProvider: LLMProvider;
   private llmClient: LLMClient;
-  public page: Page;
+  private stagehandPage: StagehandPage;
   public context: BrowserContext;
   public browserbaseSessionID?: string;
 
@@ -368,6 +369,10 @@ export class Stagehand {
     this.browserbaseSessionID = browserbaseSessionID;
   }
 
+  public get page(): Page {
+    return this.stagehandPage.page;
+  }
+
   async init(
     /** @deprecated Use constructor options instead */
     initOptions?: InitOptions,
@@ -398,7 +403,8 @@ export class Stagehand {
       });
     this.contextPath = contextPath;
     this.context = context;
-    this.page = context.pages()[0];
+    const defaultPage = context.pages()[0];
+    this.stagehandPage = await StagehandPage.init(defaultPage, this);
     // Redundant but needed for users who are re-connecting to a previously-created session
     await this.page.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
@@ -469,7 +475,7 @@ export class Stagehand {
     console.warn(
       "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
     );
-    this.page = page;
+    this.stagehandPage = await StagehandPage.init(page, this);
     this.context = page.context();
 
     const originalGoto = this.page.goto.bind(this.page);
