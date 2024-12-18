@@ -1,0 +1,76 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "🤘 Stagehand",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@browserbase.com"
+    }
+  ],
+  "tabs": [
+    {
+      "name": "Reference",
+      "url": "reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Join our Slack!",
+      "icon": "slack",
+      "url": "https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/browserbase/stagehand"
+    },
+    {
+      "name": "NPM Package",
+      "icon": "npm",
+      "url": "https://www.npmjs.com/package/@browserbasehq/stagehand?activeTab=readme"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "get_started/introduction",
+        "get_started/quickstart",
+        "get_started/best_practices",
+        "get_started/walkthrough"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "reference/introduction",
+        "reference/playwright_interop",
+        "reference/model_support",
+        "reference/initialization_config",
+		"reference/act",
+		"reference/extract",
+		"reference/observe",
+        "reference/logging"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "x": "https://x.com/browserbase",
+    "github": "https://github.com/browserbase",
+    "linkedin": "https://linkedin.com/company/browserbasehq"
+  }
+}

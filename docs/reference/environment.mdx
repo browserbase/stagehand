@@ -1,0 +1,49 @@
+---
+title: 'Environment Variables'
+description: 'Configure Stagehand with environment variables'
+icon: 'gear'
+---
+
+Stagehand requires certain environment variables to be set for proper functionality. These variables control model access, evaluation capabilities, and cloud deployment options.
+
+## Required Variables
+
+### Model Provider Keys
+| Variable | Description | Required |
+|----------|-------------|-----------|
+| `OPENAI_API_KEY` | API key for OpenAI models (gpt-4o series) | Yes* |
+| `ANTHROPIC_API_KEY` | API key for Anthropic models (claude-3-5-sonnet series) | Yes* |
+
+\* At least one model provider key is required
+
+### Evaluation Variables
+| Variable | Description | Required |
+|----------|-------------|-----------|
+| `BRAINTRUST_API_KEY` | Required for running evaluation tests | Only for evals |
+
+### Cloud Deployment (Optional)
+| Variable | Description | Required |
+| ---------|-------------|-----------|
+| `BROWSERBASE_API_KEY` | API key for Browserbase cloud deployment | For cloud only |
+| `BROWSERBASE_PROJECT_ID` | Project ID for Browserbase cloud deployment | For cloud only |
+
+## Setting Environment Variables
+
+### Local Development
+```bash
+# Add to your .env file or export in your shell
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-...
+export BRAINTRUST_API_KEY=...
+```
+
+### Cloud Deployment
+```bash
+# Required for Browserbase cloud deployment
+export BROWSERBASE_API_KEY=...
+export BROWSERBASE_PROJECT_ID=...
+```
+
+<Tip>
+For security, never commit your API keys to version control. Consider using a `.env` file for local development and secure environment variable management for production deployments.
+</Tip>
