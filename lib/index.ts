@@ -30,6 +30,7 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString } from "./utils";
 import { StagehandPage } from "./StagehandPage";
+import { StagehandContext } from "./StagehandContext";
 
 dotenv.config({ path: ".env" });
 
@@ -58,7 +59,7 @@ async function getBrowser(
           "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
         level: 0,
       });
-      this.env = "LOCAL";
+      env = "LOCAL";
     }
     if (!projectId) {
       logger({
@@ -195,7 +196,7 @@ async function getBrowser(
 
     const context = browser.contexts()[0];
 
-    return { browser, context, debugUrl, sessionUrl, sessionId };
+    return { browser, context, debugUrl, sessionUrl, sessionId, env };
   } else {
     logger({
       category: "init",
@@ -261,7 +262,7 @@ async function getBrowser(
 
     await applyStealthScripts(context);
 
-    return { context, contextPath: tmpDir };
+    return { context, contextPath: tmpDir, env: "LOCAL" };
   }
 }
 
@@ -306,10 +307,10 @@ export class Stagehand {
   private llmProvider: LLMProvider;
   private llmClient: LLMClient;
   private stagehandPage: StagehandPage;
-  public context: BrowserContext;
+  private stagehandContext: StagehandContext;
   public browserbaseSessionID?: string;
 
-  public readonly env: "LOCAL" | "BROWSERBASE";
+  private intEnv: "LOCAL" | "BROWSERBASE";
   public readonly domSettleTimeoutMs: number;
   public readonly debugDom: boolean;
   public readonly headless: boolean;
@@ -354,7 +355,7 @@ export class Stagehand {
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
-    this.env = env;
+    this.intEnv = env;
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
@@ -372,7 +373,20 @@ export class Stagehand {
   public get page(): Page {
     // End users should not be able to access the StagehandPage directly
     // This is a proxy to the underlying Playwright Page
+    if (!this.stagehandPage) {
+      throw new Error(
+        "Stagehand not initialized. Make sure to await stagehand.init() first.",
+      );
+    }
     return this.stagehandPage.page;
+  }
+
+  public get env(): "LOCAL" | "BROWSERBASE" {
+    return this.intEnv;
+  }
+
+  public get context(): BrowserContext {
+    return this.stagehandContext.context;
   }
 
   async init(
@@ -384,7 +398,7 @@ export class Stagehand {
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
-    const { context, debugUrl, sessionUrl, contextPath, sessionId } =
+    const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
       await getBrowser(
         this.apiKey,
         this.projectId,
@@ -400,11 +414,13 @@ export class Stagehand {
           debugUrl: undefined,
           sessionUrl: undefined,
           sessionId: undefined,
+          env: this.env,
         };
         return br;
       });
+    this.intEnv = env;
     this.contextPath = contextPath;
-    this.context = context;
+    this.stagehandContext = await StagehandContext.init(context, this);
     const defaultPage = context.pages()[0];
     this.stagehandPage = await StagehandPage.init(defaultPage, this);
 
@@ -452,7 +468,7 @@ export class Stagehand {
       "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
     );
     this.stagehandPage = await StagehandPage.init(page, this);
-    this.context = page.context();
+    this.stagehandContext = await StagehandContext.init(page.context(), this);
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: GotoOptions) => {
