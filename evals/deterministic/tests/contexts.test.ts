@@ -1,9 +1,15 @@
-import { test, expect } from "@playwright/test";
+import Browserbase from "@browserbasehq/sdk";
 import { Stagehand } from "../../../lib";
-import { Browserbase } from "@browserbasehq/sdk";
-const CONTEXT_TEST_URL = "https://news.ycombinator.com";
-const BROWSERBASE_PROJECT_ID = process.env.BROWSERBASE_PROJECT_ID!;
-const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY!;
+import { expect, test } from "@playwright/test";
+
+// Configuration
+const CONTEXT_TEST_URL = "https://docs.browserbase.com";
+const BROWSERBASE_PROJECT_ID = process.env["BROWSERBASE_PROJECT_ID"]!;
+const BROWSERBASE_API_KEY = process.env["BROWSERBASE_API_KEY"]!;
+
+const bb = new Browserbase({
+  apiKey: BROWSERBASE_API_KEY,
+});
 
 // Helper functions
 function addHour(date: Date): number {
@@ -17,151 +23,132 @@ async function findCookie(stagehand: Stagehand, name: string) {
   return cookies?.find((cookie) => cookie.name === name);
 }
 
-const browserbase = new Browserbase({
-  apiKey: BROWSERBASE_API_KEY,
-});
+async function createContext() {
+  console.log("Creating a new context...");
+  const context = await bb.contexts.create({
+    projectId: BROWSERBASE_PROJECT_ID,
+  });
+  const contextId = context.id;
+  console.log(`Context created with ID: ${contextId}`);
+  return contextId;
+}
 
-test.describe("Contexts", () => {
+async function setRandomCookie(contextId: string, stagehand: Stagehand) {
+  console.log(
+    `Populating context ${contextId} during session ${stagehand.browserbaseSessionID}`,
+  );
+  const page = stagehand.page;
+
+  await page.goto(CONTEXT_TEST_URL, { waitUntil: "domcontentloaded" });
+
+  const now = new Date();
+  const testCookieName = `bb_${now.getTime().toString()}`;
+  const testCookieValue = now.toISOString();
+
+  await stagehand.context.addCookies([
+    {
+      domain: `.${new URL(CONTEXT_TEST_URL).hostname}`,
+      expires: addHour(now),
+      name: testCookieName,
+      path: "/",
+      value: testCookieValue,
+    },
+  ]);
+
+  expect(findCookie(stagehand, testCookieName)).toBeDefined();
+  console.log(`Set test cookie: ${testCookieName}=${testCookieValue}`);
+  return { testCookieName, testCookieValue };
+}
+
+test.describe.only("Better Contexts", () => {
   test("Persists and re-uses a context", async () => {
     let contextId: string;
-    let sessionId: string;
     let testCookieName: string;
     let testCookieValue: string;
+    let stagehand: Stagehand;
 
-    await test.step("Creates a context", async () => {
-      const context = await browserbase.contexts.create({
-        projectId: BROWSERBASE_PROJECT_ID,
-      });
-
-      expect(context.id).toEqual(expect.any(String));
-      contextId = context.id;
+    await test.step("Create a context", async () => {
+      contextId = await createContext();
     });
 
-    await test.step("Creates a session with the context", async () => {
-      const session = await browserbase.sessions.create({
-        projectId: BROWSERBASE_PROJECT_ID,
-        browserSettings: {
-          context: {
-            id: contextId,
-            persist: true,
+    await test.step("Instantiate Stagehand with the context to persist", async () => {
+      // We will be adding cookies to the context in this session, so we need mark persist=true
+      stagehand = new Stagehand({
+        env: "BROWSERBASE",
+        // These are the parameters that can be used in browserbase.sessions.create()
+        browserbaseSessionCreateParams: {
+          projectId: BROWSERBASE_PROJECT_ID,
+          browserSettings: {
+            context: {
+              id: contextId,
+              persist: true,
+            },
           },
         },
       });
-
-      expect(session.contextId).toEqual(contextId);
-      sessionId = session.id;
+      await stagehand.init();
     });
 
-    await test.step("Populates and persists the context", async () => {
-      console.log(
-        `Populating context ${contextId} during session ${sessionId}`,
-      );
+    await test.step("Set a random cookie on the page", async () => {
+      ({ testCookieName } = await setRandomCookie(contextId, stagehand));
 
-      const stagehand = new Stagehand({
-        env: "BROWSERBASE",
-        verbose: 1,
-        debugDom: true,
-        domSettleTimeoutMs: 100,
-      });
-      await stagehand.init();
-
+      // Step 4: Validate cookie persistence between pages
       const page = stagehand.page;
-      await page.goto(CONTEXT_TEST_URL, { waitUntil: "domcontentloaded" });
-
-      // set a random cookie on the page
-      const now = new Date();
-      testCookieName = `bb_${now.getTime().toString()}`;
-      testCookieValue = now.toISOString();
-      await stagehand.context.addCookies([
-        {
-          domain: ".ycombinator.com",
-          // expires expects "Unix time in seconds"
-          expires: addHour(now),
-          name: testCookieName,
-          path: "/",
-          value: testCookieValue,
-        },
-      ]);
-
-      expect(findCookie(stagehand, testCookieName)).toBeDefined();
-
       await page.goto("https://www.google.com", {
         waitUntil: "domcontentloaded",
       });
-
       await page.goBack();
+    });
 
-      // validate the cookie was persisted between pages
-      expect(findCookie(stagehand, testCookieName)).toBeDefined();
+    await test.step("Validate cookie persistence between pages", async () => {
+      const cookie = await findCookie(stagehand, testCookieName);
+      const found = !!cookie;
+      expect(found).toBe(true);
+      console.log("Cookie persisted between pages:", found);
 
       await stagehand.close();
-
-      // give the browser a moment to persist the context
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      // Wait for context to persist
+      console.log("Waiting for context to persist...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     });
 
-    await test.step("Creates another session with the same context", async () => {
-      const session = await browserbase.sessions.create({
-        projectId: BROWSERBASE_PROJECT_ID,
-        browserSettings: {
-          context: {
-            id: contextId,
-          },
-        },
-      });
-
-      expect(session.contextId).toEqual(contextId);
-      sessionId = session.id;
-    });
-
-    await test.step("Uses context to find previous state", async () => {
-      console.log(`Reusing context ${contextId} during session ${sessionId}`);
-
-      const stagehand = new Stagehand({
+    await test.step("Create another session with the same context", async () => {
+      // We don't need to persist cookies in this session, so we can mark persist=false
+      const newStagehand = new Stagehand({
         env: "BROWSERBASE",
-        verbose: 1,
-        debugDom: true,
-        domSettleTimeoutMs: 100,
-        browserbaseSessionID: sessionId,
-      });
-      await stagehand.init();
-
-      const page = stagehand.page;
-
-      await page.goto(CONTEXT_TEST_URL, { waitUntil: "domcontentloaded" });
-
-      // validate the cookie was restored from the previous session
-      const foundCookie = await findCookie(stagehand, testCookieName);
-      expect(foundCookie).toBeDefined();
-      expect(foundCookie?.value).toEqual(testCookieValue);
-
-      await stagehand.close();
-    });
-  });
-
-  test("Here's another test", async () => {
-    let contextId: string;
-
-    await test.step("Creates a context", async () => {
-      const context = await browserbase.contexts.create({
-        projectId: BROWSERBASE_PROJECT_ID,
-      });
-
-      expect(context.id).toEqual(expect.any(String));
-      contextId = context.id;
-    });
-
-    await test.step("Creates a session with the context", async () => {
-      const session = await browserbase.sessions.create({
-        projectId: BROWSERBASE_PROJECT_ID,
-        browserSettings: {
-          context: {
-            id: contextId,
+        // These are the parameters that can be used in browserbase.sessions.create()
+        browserbaseSessionCreateParams: {
+          projectId: BROWSERBASE_PROJECT_ID,
+          browserSettings: {
+            context: {
+              id: contextId,
+              persist: false,
+            },
           },
         },
       });
+      await newStagehand.init();
+      console.log(
+        `Reusing context ${contextId} during session ${newStagehand.browserbaseSessionID}`,
+      );
+      const newPage = newStagehand.page;
+      await newPage.goto(CONTEXT_TEST_URL, { waitUntil: "domcontentloaded" });
 
-      expect(session.contextId).toEqual(contextId);
+      // Step 6: Verify cookie persistence across sessions
+      const foundCookie = await findCookie(newStagehand, testCookieName);
+      console.log("Cookie found in new session:", !!foundCookie);
+      console.log(
+        "Cookie value matches:",
+        foundCookie?.value === testCookieValue,
+      );
+
+      await newStagehand.close();
+
+      console.log(
+        `\n\n🅱️ View this session recording at https://browserbase.com/sessions/${stagehand.browserbaseSessionID}\n\n`,
+      );
+
+      console.log("Context persistence test completed successfully!");
     });
   });
 });

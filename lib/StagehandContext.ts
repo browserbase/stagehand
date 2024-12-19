@@ -16,8 +16,6 @@ export class StagehandContext {
   ): Promise<StagehandContext> {
     const proxyContext = new Proxy(context, {
       get: (target, prop) => {
-        console.log("CONTEXT FROM PROXY", prop);
-
         return target[prop as keyof PlaywrightContext];
       },
     });

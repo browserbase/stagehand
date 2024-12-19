@@ -535,7 +535,7 @@ export class Stagehand {
   private async _log_to_browserbase(logObj: LogLine) {
     logObj.level = logObj.level || 1;
 
-    if (!this.page) {
+    if (!this.stagehandPage) {
       return;
     }
 

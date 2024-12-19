@@ -16,8 +16,6 @@ export class StagehandPage {
   ): Promise<StagehandPage> {
     this.intPage = new Proxy(page, {
       get: (target, prop) => {
-        console.log("PAGE FROM PROXY", prop);
-
         // Override the goto method to add debugDom and waitForSettledDom
         if (prop === "goto")
           return async (url: string, options: GotoOptions) => {
