@@ -306,8 +306,8 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private llmProvider: LLMProvider;
   private llmClient: LLMClient;
-  private stagehandPage: StagehandPage;
-  private stagehandContext: StagehandContext;
+  private stagehandPage!: StagehandPage;
+  private stagehandContext!: StagehandContext;
   public browserbaseSessionID?: string;
 
   private intEnv: "LOCAL" | "BROWSERBASE";
@@ -421,8 +421,11 @@ export class Stagehand {
     this.intEnv = env;
     this.contextPath = contextPath;
     this.stagehandContext = await StagehandContext.init(context, this);
-    const defaultPage = context.pages()[0];
-    this.stagehandPage = await StagehandPage.init(defaultPage, this);
+    const defaultPage = this.context.pages()[0];
+    this.stagehandPage = await new StagehandPage(defaultPage, this).init(
+      defaultPage,
+      this,
+    );
 
     // Set the browser to headless mode if specified
     if (this.headless) {
@@ -467,7 +470,7 @@ export class Stagehand {
     console.warn(
       "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
     );
-    this.stagehandPage = await StagehandPage.init(page, this);
+    this.stagehandPage = await new StagehandPage(page, this).init(page, this);
     this.stagehandContext = await StagehandContext.init(page.context(), this);
 
     const originalGoto = this.page.goto.bind(this.page);

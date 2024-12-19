@@ -5,18 +5,18 @@ export class StagehandPage {
   private stagehand: Stagehand;
   private intPage: PlaywrightPage;
 
-  private constructor(page: PlaywrightPage, stagehand: Stagehand) {
+  constructor(page: PlaywrightPage, stagehand: Stagehand) {
     this.intPage = page;
     this.stagehand = stagehand;
   }
 
-  static async init(
+  async init(
     page: PlaywrightPage,
     stagehand: Stagehand,
   ): Promise<StagehandPage> {
-    const proxyPage = new Proxy(page, {
+    this.intPage = new Proxy(page, {
       get: (target, prop) => {
-        console.log("FROM PROXY", prop);
+        console.log("PAGE FROM PROXY", prop);
 
         // Override the goto method to add debugDom and waitForSettledDom
         if (prop === "goto")
@@ -24,20 +24,20 @@ export class StagehandPage {
             const result = await page.goto(url, options);
             if (stagehand.debugDom) {
               await page.evaluate(
-                () => (window.showChunks = stagehand.debugDom),
+                (debugDom) => (window.showChunks = debugDom),
+                stagehand.debugDom,
               );
             }
             await page.waitForLoadState("domcontentloaded");
-            await instance._waitForSettledDom();
+            await this._waitForSettledDom();
             return result;
           };
 
         return target[prop as keyof PlaywrightPage];
       },
     });
-    const instance = new StagehandPage(proxyPage, stagehand);
-    await instance._waitForSettledDom();
-    return instance;
+    await this._waitForSettledDom();
+    return this;
   }
 
   public get page(): PlaywrightPage {
