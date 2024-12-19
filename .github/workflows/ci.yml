@@ -60,6 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
@@ -83,7 +85,7 @@ jobs:
         run: npm run e2e
 
   run-extract-evals:
-    needs: [run-lint, run-build]
+    needs: [run-lint, run-build, run-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
