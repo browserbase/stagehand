@@ -1,6 +1,7 @@
 import Browserbase from "@browserbasehq/sdk";
 import { Stagehand } from "../../../lib";
 import { expect, test } from "@playwright/test";
+import StagehandConfig from "../stagehand.config";
 
 // Configuration
 const CONTEXT_TEST_URL = "https://docs.browserbase.com";
@@ -60,7 +61,7 @@ async function setRandomCookie(contextId: string, stagehand: Stagehand) {
   return { testCookieName, testCookieValue };
 }
 
-test.describe.only("Better Contexts", () => {
+test.describe("Contexts", () => {
   test("Persists and re-uses a context", async () => {
     let contextId: string;
     let testCookieName: string;
@@ -74,8 +75,7 @@ test.describe.only("Better Contexts", () => {
     await test.step("Instantiate Stagehand with the context to persist", async () => {
       // We will be adding cookies to the context in this session, so we need mark persist=true
       stagehand = new Stagehand({
-        env: "BROWSERBASE",
-        // These are the parameters that can be used in browserbase.sessions.create()
+        ...StagehandConfig,
         browserbaseSessionCreateParams: {
           projectId: BROWSERBASE_PROJECT_ID,
           browserSettings: {
@@ -115,8 +115,7 @@ test.describe.only("Better Contexts", () => {
     await test.step("Create another session with the same context", async () => {
       // We don't need to persist cookies in this session, so we can mark persist=false
       const newStagehand = new Stagehand({
-        env: "BROWSERBASE",
-        // These are the parameters that can be used in browserbase.sessions.create()
+        ...StagehandConfig,
         browserbaseSessionCreateParams: {
           projectId: BROWSERBASE_PROJECT_ID,
           browserSettings: {
