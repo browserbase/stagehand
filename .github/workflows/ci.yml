@@ -55,6 +55,33 @@ jobs:
       - name: Run Build
         run: npm run build
 
+  run-e2e-tests:
+    needs: [run-lint, run-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run E2E Tests
+        run: npm run e2e
+
   run-extract-evals:
     needs: [run-lint, run-build]
     runs-on: ubuntu-latest
