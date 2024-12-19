@@ -11,20 +11,18 @@ import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
-
+import { StagehandPage } from "../StagehandPage";
 export class StagehandActHandler {
   private readonly stagehand: Stagehand;
+  private readonly stagehandPage: StagehandPage;
   private readonly verbose: 0 | 1 | 2;
   private readonly llmProvider: LLMProvider;
   private readonly enableCaching: boolean;
   private readonly logger: (logLine: LogLine) => void;
-  private readonly waitForSettledDom: (
-    domSettleTimeoutMs?: number,
-  ) => Promise<void>;
   private readonly actionCache: ActionCache | undefined;
-  private readonly startDomDebug: () => Promise<void>;
-  private readonly cleanupDomDebug: () => Promise<void>;
-  private actions: { [key: string]: { result: string; action: string } };
+  private readonly actions: {
+    [key: string]: { result: string; action: string };
+  };
 
   constructor({
     stagehand,
@@ -32,30 +30,24 @@ export class StagehandActHandler {
     llmProvider,
     enableCaching,
     logger,
-    waitForSettledDom,
-    startDomDebug,
-    cleanupDomDebug,
+    stagehandPage,
   }: {
     stagehand: Stagehand;
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
     enableCaching: boolean;
     logger: (logLine: LogLine) => void;
-    waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
     llmClient: LLMClient;
-    startDomDebug: () => Promise<void>;
-    cleanupDomDebug: () => Promise<void>;
+    stagehandPage: StagehandPage;
   }) {
     this.stagehand = stagehand;
     this.verbose = verbose;
     this.llmProvider = llmProvider;
     this.enableCaching = enableCaching;
     this.logger = logger;
-    this.waitForSettledDom = waitForSettledDom;
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
-    this.startDomDebug = startDomDebug;
-    this.cleanupDomDebug = cleanupDomDebug;
     this.actions = {};
+    this.stagehandPage = stagehandPage;
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {
@@ -83,7 +75,7 @@ export class StagehandActHandler {
     llmClient: LLMClient;
     domSettleTimeoutMs?: number;
   }): Promise<boolean> {
-    await this.waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 
     // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
     let verifyLLmClient = llmClient;
@@ -98,7 +90,7 @@ export class StagehandActHandler {
       );
     }
 
-    const { selectorMap } = await this.stagehand.page.evaluate(() => {
+    const { selectorMap } = await this.stagehandPage.page.evaluate(() => {
       return window.processAllOfDom();
     });
 
@@ -441,15 +433,13 @@ export class StagehandActHandler {
             },
           });
           await newOpenedTab.close();
-          await this.stagehand.page.goto(newOpenedTab.url());
-          await this.stagehand.page.waitForLoadState("domcontentloaded");
-          await this.waitForSettledDom(domSettleTimeoutMs);
+          await this.stagehandPage.page.goto(newOpenedTab.url());
+          await this.stagehandPage.page.waitForLoadState("domcontentloaded");
+          await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
         }
 
-        // Wait for the network to be idle with timeout of 5s (will only wait if loading a new page)
-        // await this.waitForSettledDom(domSettleTimeoutMs);
         await Promise.race([
-          this.stagehand.page.waitForLoadState("networkidle"),
+          this.stagehandPage.page.waitForLoadState("networkidle"),
           new Promise((resolve) => setTimeout(resolve, 5_000)),
         ]).catch((e) => {
           this.logger({
@@ -475,14 +465,14 @@ export class StagehandActHandler {
           level: 1,
         });
 
-        if (this.stagehand.page.url() !== initialUrl) {
+        if (this.stagehandPage.page.url() !== initialUrl) {
           this.logger({
             category: "action",
             message: "new page detected with URL",
             level: 1,
             auxiliary: {
               url: {
-                value: this.stagehand.page.url(),
+                value: this.stagehandPage.page.url(),
                 type: "string",
               },
             },
@@ -507,7 +497,7 @@ export class StagehandActHandler {
       );
     }
 
-    await this.waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
   }
 
   private async _getComponentString(locator: Locator) {
@@ -988,8 +978,8 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number;
   }): Promise<{ success: boolean; message: string; action: string }> {
     try {
-      await this.waitForSettledDom(domSettleTimeoutMs);
-      await this.startDomDebug();
+      await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+      await this.stagehandPage.startDomDebug();
 
       if (this.enableCaching && !skipActionCacheForThisStep) {
         const response = await this._runCachedActionIfAvailable({
@@ -1153,7 +1143,7 @@ export class StagehandActHandler {
         },
       });
 
-      await this.cleanupDomDebug();
+      await this.stagehandPage.cleanupDomDebug();
 
       if (!response) {
         if (chunksSeen.length + 1 < chunks.length) {

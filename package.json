@@ -15,6 +15,7 @@
     "eslint": "eslint .",
     "cache:clear": "rm -rf .cache",
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
+    "evals:deterministic": "npm run build-dom-scripts && cd evals/deterministic && npx playwright test",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "tsup lib/index.ts --dts",
