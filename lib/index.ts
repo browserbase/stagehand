@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { type BrowserContext, chromium, type Page } from "@playwright/test";
+import { type BrowserContext, chromium, Page } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -29,6 +29,8 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString } from "./utils";
+import { StagehandPage } from "./StagehandPage";
+import { StagehandContext } from "./StagehandContext";
 
 dotenv.config({ path: ".env" });
 
@@ -194,7 +196,7 @@ async function getBrowser(
 
     const context = browser.contexts()[0];
 
-    return { browser, context, debugUrl, sessionUrl, sessionId };
+    return { browser, context, debugUrl, sessionUrl, sessionId, env };
   } else {
     logger({
       category: "init",
@@ -260,7 +262,7 @@ async function getBrowser(
 
     await applyStealthScripts(context);
 
-    return { context, contextPath: tmpDir };
+    return { context, contextPath: tmpDir, env: "LOCAL" };
   }
 }
 
@@ -304,19 +306,19 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private llmProvider: LLMProvider;
   private llmClient: LLMClient;
-  public page: Page;
-  public context: BrowserContext;
+  private stagehandPage!: StagehandPage;
+  private stagehandContext!: StagehandContext;
   public browserbaseSessionID?: string;
 
-  private env: "LOCAL" | "BROWSERBASE";
+  private intEnv: "LOCAL" | "BROWSERBASE";
+  public readonly domSettleTimeoutMs: number;
+  public readonly debugDom: boolean;
+  public readonly headless: boolean;
+  private logger: (logLine: LogLine) => void;
   private apiKey: string | undefined;
   private projectId: string | undefined;
   private verbose: 0 | 1 | 2;
-  private debugDom: boolean;
-  private headless: boolean;
-  private logger: (logLine: LogLine) => void;
   private externalLogger?: (logLine: LogLine) => void;
-  private domSettleTimeoutMs: number;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   private enableCaching: boolean;
   private variables: { [key: string]: unknown };
@@ -353,7 +355,7 @@ export class Stagehand {
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
-    this.env = env;
+    this.intEnv = env;
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
@@ -368,6 +370,25 @@ export class Stagehand {
     this.browserbaseSessionID = browserbaseSessionID;
   }
 
+  public get page(): Page {
+    // End users should not be able to access the StagehandPage directly
+    // This is a proxy to the underlying Playwright Page
+    if (!this.stagehandPage) {
+      throw new Error(
+        "Stagehand not initialized. Make sure to await stagehand.init() first.",
+      );
+    }
+    return this.stagehandPage.page;
+  }
+
+  public get env(): "LOCAL" | "BROWSERBASE" {
+    return this.intEnv;
+  }
+
+  public get context(): BrowserContext {
+    return this.stagehandContext.context;
+  }
+
   async init(
     /** @deprecated Use constructor options instead */
     initOptions?: InitOptions,
@@ -377,7 +398,7 @@ export class Stagehand {
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
-    const { context, debugUrl, sessionUrl, contextPath, sessionId } =
+    const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
       await getBrowser(
         this.apiKey,
         this.projectId,
@@ -393,27 +414,18 @@ export class Stagehand {
           debugUrl: undefined,
           sessionUrl: undefined,
           sessionId: undefined,
+          env: this.env,
         };
         return br;
       });
+    this.intEnv = env;
     this.contextPath = contextPath;
-    this.context = context;
-    this.page = context.pages()[0];
-    // Redundant but needed for users who are re-connecting to a previously-created session
-    await this.page.waitForLoadState("domcontentloaded");
-    await this._waitForSettledDom();
-
-    // Overload the page.goto method
-    const originalGoto = this.page.goto.bind(this.page);
-    this.page.goto = async (url: string, options: GotoOptions) => {
-      const result = await originalGoto(url, options);
-      if (this.debugDom) {
-        await this.page.evaluate(() => (window.showChunks = this.debugDom));
-      }
-      await this.page.waitForLoadState("domcontentloaded");
-      await this._waitForSettledDom();
-      return result;
-    };
+    this.stagehandContext = await StagehandContext.init(context, this);
+    const defaultPage = this.context.pages()[0];
+    this.stagehandPage = await new StagehandPage(defaultPage, this).init(
+      defaultPage,
+      this,
+    );
 
     // Set the browser to headless mode if specified
     if (this.headless) {
@@ -430,33 +442,22 @@ export class Stagehand {
       llmProvider: this.llmProvider,
       enableCaching: this.enableCaching,
       logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
+      stagehandPage: this.stagehandPage,
       llmClient: this.llmClient,
     });
 
     this.extractHandler = new StagehandExtractHandler({
       stagehand: this,
       logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmProvider: this.llmProvider,
-      verbose: this.verbose,
-      llmClient: this.llmClient,
+      stagehandPage: this.stagehandPage,
     });
 
     this.observeHandler = new StagehandObserveHandler({
       stagehand: this,
       logger: this.logger,
-      waitForSettledDom: this._waitForSettledDom.bind(this),
-      startDomDebug: this.startDomDebug.bind(this),
-      cleanupDomDebug: this.cleanupDomDebug.bind(this),
-      llmProvider: this.llmProvider,
-      verbose: this.verbose,
-      llmClient: this.llmClient,
+      stagehandPage: this.stagehandPage,
     });
+
     this.browserbaseSessionID = sessionId;
 
     return { debugUrl, sessionUrl, sessionId };
@@ -469,8 +470,8 @@ export class Stagehand {
     console.warn(
       "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
     );
-    this.page = page;
-    this.context = page.context();
+    this.stagehandPage = await new StagehandPage(page, this).init(page, this);
+    this.stagehandContext = await StagehandContext.init(page.context(), this);
 
     const originalGoto = this.page.goto.bind(this.page);
     this.page.goto = async (url: string, options?: GotoOptions) => {
@@ -479,7 +480,7 @@ export class Stagehand {
         await this.page.evaluate(() => (window.showChunks = this.debugDom));
       }
       await this.page.waitForLoadState("domcontentloaded");
-      await this._waitForSettledDom();
+      await this.stagehandPage._waitForSettledDom();
       return result;
     };
 
@@ -534,7 +535,7 @@ export class Stagehand {
   private async _log_to_browserbase(logObj: LogLine) {
     logObj.level = logObj.level || 1;
 
-    if (!this.page) {
+    if (!this.stagehandPage) {
       return;
     }
 
@@ -577,108 +578,6 @@ export class Stagehand {
           //   },
           // });
         });
-    }
-  }
-
-  private async _waitForSettledDom(timeoutMs?: number) {
-    try {
-      const timeout = timeoutMs ?? this.domSettleTimeoutMs;
-      let timeoutHandle: NodeJS.Timeout;
-
-      const timeoutPromise = new Promise<void>((resolve) => {
-        timeoutHandle = setTimeout(() => {
-          this.log({
-            category: "dom",
-            message: "DOM settle timeout exceeded, continuing anyway",
-            level: 1,
-            auxiliary: {
-              timeout_ms: {
-                value: timeout.toString(),
-                type: "integer",
-              },
-            },
-          });
-          resolve();
-        }, timeout);
-      });
-
-      try {
-        await Promise.race([
-          this.page.evaluate(() => {
-            return new Promise<void>((resolve) => {
-              if (typeof window.waitForDomSettle === "function") {
-                window.waitForDomSettle().then(resolve);
-              } else {
-                console.warn(
-                  "waitForDomSettle is not defined, considering DOM as settled",
-                );
-                resolve();
-              }
-            });
-          }),
-          this.page.waitForLoadState("domcontentloaded"),
-          this.page.waitForSelector("body"),
-          timeoutPromise,
-        ]);
-      } finally {
-        clearTimeout(timeoutHandle!);
-      }
-    } catch (e) {
-      this.log({
-        category: "dom",
-        message: "Error in waitForSettledDom",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
-          },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
-      });
-    }
-  }
-
-  private async startDomDebug() {
-    try {
-      await this.page
-        .evaluate(() => {
-          if (typeof window.debugDom === "function") {
-            window.debugDom();
-          } else {
-            this.log({
-              category: "dom",
-              message: "debugDom is not defined",
-              level: 1,
-            });
-          }
-        })
-        .catch(() => {});
-    } catch (e) {
-      this.log({
-        category: "dom",
-        message: "Error in startDomDebug",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
-          },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
-      });
-    }
-  }
-
-  private async cleanupDomDebug() {
-    if (this.debugDom) {
-      await this.page.evaluate(() => window.cleanupDebug()).catch(() => {});
     }
   }
 
