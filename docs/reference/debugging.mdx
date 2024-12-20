@@ -1,0 +1,124 @@
+---
+title: 'Debugging Guide'
+description: 'Troubleshoot and debug Stagehand applications'
+icon: 'bug'
+---
+
+## Common Debugging Techniques
+
+### 1. Enable Debug Mode
+
+When initializing Stagehand, enable the `debugDom` option to visualize element selection:
+
+```typescript
+const stagehand = new Stagehand({
+  debugDom: true,
+  env: "LOCAL"
+});
+```
+
+This will highlight elements on the page as they're being considered for actions.
+
+### 2. Custom Logger
+
+Implement a custom logger to get detailed insights into Stagehand's operations:
+
+```typescript
+const stagehand = new Stagehand({
+  logger: (logLine) => {
+    console.log(`[${logLine.category}] ${logLine.message}`);
+    if (logLine.auxiliary) {
+      console.log('Additional data:', logLine.auxiliary);
+    }
+  }
+});
+```
+
+### 3. Using observe() for Debugging
+
+The `observe()` method is particularly useful for debugging element selection issues:
+
+```typescript
+// Get all possible actions on the current page
+const actions = await stagehand.observe();
+console.log('Available actions:', actions);
+
+// Look for specific elements
+const buttons = await stagehand.observe({
+  instruction: "Find all button elements on this page"
+});
+console.log('Available buttons:', buttons);
+```
+
+### 4. Playwright Debug Tools
+
+Since Stagehand is built on Playwright, you can use Playwright's debugging features:
+
+```typescript
+// Access the Playwright page object
+await stagehand.page.pause(); // Pauses execution for debugging
+
+// Take screenshots for debugging
+await stagehand.page.screenshot({
+  path: 'debug-screenshot.png',
+  fullPage: true
+});
+```
+
+## Common Issues and Solutions
+
+### Element Not Found
+
+If `act()` or `extract()` can't find elements:
+
+1. Use `observe()` to verify element visibility
+2. Check if the element is in an iframe
+3. Ensure the page has fully loaded
+4. Try using more specific instructions
+
+```typescript
+// Debug element visibility
+const elements = await stagehand.observe({
+  instruction: "Find the specific element I'm looking for",
+  domSettleTimeoutMs: 5000 // Increase timeout if needed
+});
+```
+
+### Model-Related Issues
+
+If you're experiencing issues with model responses:
+
+1. Verify API keys are set correctly
+2. Check model availability and quotas
+3. Try different model providers
+4. Use more specific instructions
+
+```typescript
+// Try different models
+await stagehand.act({
+  action: "click the login button",
+  modelName: "claude-3-5-sonnet-latest" // Switch models for comparison
+});
+```
+
+### Performance Issues
+
+If your automation is running slowly:
+
+1. Minimize unnecessary `observe()` calls
+2. Use appropriate timeouts
+3. Consider using vision mode only when necessary
+4. Cache responses when possible
+
+```typescript
+// Optimize performance with targeted instructions
+await stagehand.act({
+  action: "click the submit button",
+  useVision: "fallback", // Only use vision if DOM parsing fails
+  domSettleTimeoutMs: 2000 // Adjust timeout as needed
+});
+```
+
+<Tip>
+Remember to remove or disable debugging features before deploying to production, as they may impact performance.
+</Tip>
