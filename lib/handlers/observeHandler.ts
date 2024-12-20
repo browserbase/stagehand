@@ -2,21 +2,15 @@ import { LogLine } from "../../types/log";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
-import { LLMProvider } from "../llm/LLMProvider";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
+import { StagehandPage } from "../StagehandPage";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
-  private readonly waitForSettledDom: (
-    domSettleTimeoutMs?: number,
-  ) => Promise<void>;
-  private readonly startDomDebug: () => Promise<void>;
-  private readonly cleanupDomDebug: () => Promise<void>;
-  private readonly llmProvider: LLMProvider;
+  private readonly stagehandPage: StagehandPage;
   private readonly verbose: 0 | 1 | 2;
-  private readonly llmClient: LLMClient;
   private observations: {
     [key: string]: {
       result: { selector: string; description: string }[];
@@ -27,30 +21,15 @@ export class StagehandObserveHandler {
   constructor({
     stagehand,
     logger,
-    waitForSettledDom,
-    startDomDebug,
-    cleanupDomDebug,
-    llmProvider,
-    verbose,
-    llmClient,
+    stagehandPage,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
-    waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
-    startDomDebug: () => Promise<void>;
-    cleanupDomDebug: () => Promise<void>;
-    llmProvider: LLMProvider;
-    verbose: 0 | 1 | 2;
-    llmClient: LLMClient;
+    stagehandPage: StagehandPage;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
-    this.waitForSettledDom = waitForSettledDom;
-    this.startDomDebug = startDomDebug;
-    this.cleanupDomDebug = cleanupDomDebug;
-    this.llmProvider = llmProvider;
-    this.verbose = verbose;
-    this.llmClient = llmClient;
+    this.stagehandPage = stagehandPage;
     this.observations = {};
   }
 
@@ -95,8 +74,8 @@ export class StagehandObserveHandler {
       },
     });
 
-    await this.waitForSettledDom(domSettleTimeoutMs);
-    await this.startDomDebug();
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage.startDomDebug();
     const evalResult = await this.stagehand.page.evaluate(
       (fullPage: boolean) =>
         fullPage ? window.processAllOfDom() : window.processDom([]),
@@ -154,7 +133,7 @@ export class StagehandObserveHandler {
       },
     );
 
-    await this.cleanupDomDebug();
+    await this.stagehandPage.cleanupDomDebug();
 
     this.logger({
       category: "observation",

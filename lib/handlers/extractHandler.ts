@@ -1,11 +1,11 @@
-import { LLMProvider } from "../llm/LLMProvider";
-import { Stagehand } from "../index";
 import { z } from "zod";
 import { LogLine } from "../../types/log";
 import { TextAnnotation } from "../../types/textannotation";
 import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
+import { StagehandPage } from "../StagehandPage";
+import { Stagehand } from "../index";
 
 const PROXIMITY_THRESHOLD = 15;
 
@@ -81,26 +81,13 @@ const PROXIMITY_THRESHOLD = 15;
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
-
+  private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
-  private readonly waitForSettledDom: (
-    domSettleTimeoutMs?: number,
-  ) => Promise<void>;
-  private readonly startDomDebug: () => Promise<void>;
-  private readonly cleanupDomDebug: () => Promise<void>;
-  private readonly llmProvider: LLMProvider;
-  private readonly llmClient: LLMClient;
-  private readonly verbose: 0 | 1 | 2;
 
   constructor({
     stagehand,
     logger,
-    waitForSettledDom,
-    startDomDebug,
-    cleanupDomDebug,
-    llmProvider,
-    llmClient,
-    verbose,
+    stagehandPage,
   }: {
     stagehand: Stagehand;
     logger: (message: {
@@ -109,21 +96,11 @@ export class StagehandExtractHandler {
       level?: number;
       auxiliary?: { [key: string]: { value: string; type: string } };
     }) => void;
-    waitForSettledDom: (domSettleTimeoutMs?: number) => Promise<void>;
-    startDomDebug: () => Promise<void>;
-    cleanupDomDebug: () => Promise<void>;
-    llmProvider: LLMProvider;
-    llmClient: LLMClient;
-    verbose: 0 | 1 | 2;
+    stagehandPage: StagehandPage;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
-    this.waitForSettledDom = waitForSettledDom;
-    this.startDomDebug = startDomDebug;
-    this.cleanupDomDebug = cleanupDomDebug;
-    this.llmProvider = llmProvider;
-    this.llmClient = llmClient;
-    this.verbose = verbose;
+    this.stagehandPage = stagehandPage;
   }
 
   public async extract<T extends z.AnyZodObject>({
@@ -195,13 +172,13 @@ export class StagehandExtractHandler {
     });
 
     // **1:** Wait for the DOM to settle and start DOM debugging
-    await this.waitForSettledDom(domSettleTimeoutMs);
-    await this.startDomDebug();
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage.startDomDebug();
 
     // **2:** Store the original DOM before any mutations
     // we need to store the original DOM here because calling createTextBoundingBoxes()
     // will mutate the DOM by adding spans around every word
-    const originalDOM = await this.stagehand.page.evaluate(() =>
+    const originalDOM = await this.stagehandPage.page.evaluate(() =>
       window.storeDOM(),
     );
 
@@ -244,7 +221,7 @@ export class StagehandExtractHandler {
         top: number;
         width: number;
         height: number;
-      }> = await this.stagehand.page.evaluate(
+      }> = await this.stagehandPage.page.evaluate(
         (xpath) => window.getElementBoundingBoxes(xpath),
         xpath,
       );
@@ -311,7 +288,7 @@ export class StagehandExtractHandler {
     }
 
     // **7:** Restore the original DOM after mutations
-    await this.stagehand.page.evaluate(
+    await this.stagehandPage.page.evaluate(
       (dom) => window.restoreDOM(dom),
       originalDOM,
     );
@@ -335,7 +312,7 @@ export class StagehandExtractHandler {
       metadata: { completed },
       ...output
     } = extractionResponse;
-    await this.cleanupDomDebug();
+    await this.stagehandPage.cleanupDomDebug();
 
     // **10:** Handle the extraction response and log the results
     this.logger({
@@ -408,8 +385,8 @@ export class StagehandExtractHandler {
 
     // **1:** Wait for the DOM to settle and start DOM debugging
     // This ensures the page is stable before extracting any data.
-    await this.waitForSettledDom(domSettleTimeoutMs);
-    await this.startDomDebug();
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+    await this.stagehandPage.startDomDebug();
 
     // **2:** Call processDom() to handle chunk-based extraction
     // processDom determines which chunk of the page to process next.
@@ -464,7 +441,7 @@ export class StagehandExtractHandler {
       ...output
     } = extractionResponse;
 
-    await this.cleanupDomDebug();
+    await this.stagehandPage.cleanupDomDebug();
 
     this.logger({
       category: "extraction",
@@ -507,7 +484,7 @@ export class StagehandExtractHandler {
           },
         },
       });
-      await this.waitForSettledDom(domSettleTimeoutMs);
+      await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 
       // Recursively continue with the next chunk
       return this.domExtract({
