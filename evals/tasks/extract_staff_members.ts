@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_staff_members: EvalFunction = async ({
