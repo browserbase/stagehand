@@ -92,7 +92,6 @@ test.describe("Contexts", () => {
     await test.step("Set a random cookie on the page", async () => {
       ({ testCookieName } = await setRandomCookie(contextId, stagehand));
 
-      // Step 4: Validate cookie persistence between pages
       const page = stagehand.page;
       await page.goto("https://www.google.com", {
         waitUntil: "domcontentloaded",
@@ -133,7 +132,6 @@ test.describe("Contexts", () => {
       const newPage = newStagehand.page;
       await newPage.goto(CONTEXT_TEST_URL, { waitUntil: "domcontentloaded" });
 
-      // Step 6: Verify cookie persistence across sessions
       const foundCookie = await findCookie(newStagehand, testCookieName);
       console.log("Cookie found in new session:", !!foundCookie);
       console.log(
@@ -142,12 +140,6 @@ test.describe("Contexts", () => {
       );
 
       await newStagehand.close();
-
-      console.log(
-        `\n\n🅱️ View this session recording at https://browserbase.com/sessions/${stagehand.browserbaseSessionID}\n\n`,
-      );
-
-      console.log("Context persistence test completed successfully!");
     });
   });
 });
