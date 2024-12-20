@@ -34,7 +34,7 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]  
+> [!NOTE]
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 ## Intro
@@ -63,12 +63,14 @@ npm install @browserbasehq/stagehand zod
 
 You'll need to provide your API Key for the model provider you'd like to use. The default model provider is OpenAI, but you can also use Anthropic or others. More information on supported models can be found in the [API Reference](#api-reference).
 
-Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment.
+Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment (only one is required).
 
 ```
 export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-...
 ```
+
+NOTE: Stagehand client will default to openai if these are not specified
 
 ### 3. Create a Stagehand Instance
 
@@ -184,7 +186,7 @@ This constructor is used to create an instance of Stagehand.
 
 `init()` asynchronously initializes the Stagehand instance. It should be called before any other methods.
 
-> [!WARNING]  
+> [!WARNING]
 > Passing parameters to `init()` is deprecated and will be removed in the next major version. Use the constructor options instead.
 
 - **Arguments:**
@@ -278,7 +280,7 @@ This constructor is used to create an instance of Stagehand.
 
 #### `observe()`
 
-> [!NOTE]  
+> [!NOTE]
 > `observe()` currently only evaluates the first chunk in the page.
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
@@ -480,7 +482,7 @@ You can see the roadmap [here](./ROADMAP.md). Looking to contribute? Read on!
 
 ## Contributing
 
-> [!NOTE]  
+> [!NOTE]
 > We highly value contributions to Stagehand! For support or code review, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
 
 First, clone the repo

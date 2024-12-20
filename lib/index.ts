@@ -34,7 +34,6 @@ import { StagehandContext } from "./StagehandContext";
 
 dotenv.config({ path: ".env" });
 
-const DEFAULT_MODEL_NAME = "gpt-4o";
 const BROWSERBASE_REGION_DOMAIN = {
   "us-west-2": "wss://connect.usw2.browserbase.com",
   "us-east-1": "wss://connect.use1.browserbase.com",
@@ -361,7 +360,7 @@ export class Stagehand {
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
     this.llmClient = this.llmProvider.getClient(
-      modelName ?? DEFAULT_MODEL_NAME,
+      modelName,
       modelClientOptions,
     );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
