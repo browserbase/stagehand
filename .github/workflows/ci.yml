@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v2
   pull_request:
     types:
       - opened
@@ -345,7 +346,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: [run-text-extract-evals]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v2'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
