@@ -110,36 +110,38 @@ export class StagehandPage {
   }
 
   public async startDomDebug() {
-    try {
-      await this.page
-        .evaluate(() => {
-          if (typeof window.debugDom === "function") {
-            window.debugDom();
-          } else {
-            this.stagehand.log({
-              category: "dom",
-              message: "debugDom is not defined",
-              level: 1,
-            });
-          }
-        })
-        .catch(() => {});
-    } catch (e) {
-      this.stagehand.log({
-        category: "dom",
-        message: "Error in startDomDebug",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
+    if (this.stagehand.debugDom) {
+      try {
+        await this.page
+          .evaluate(() => {
+            if (typeof window.debugDom === "function") {
+              window.debugDom();
+            } else {
+              this.stagehand.log({
+                category: "dom",
+                message: "debugDom is not defined",
+                level: 1,
+              });
+            }
+          })
+          .catch(() => {});
+      } catch (e) {
+        this.stagehand.log({
+          category: "dom",
+          message: "Error in startDomDebug",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
           },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
-      });
+        });
+      }
     }
   }
 
