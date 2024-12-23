@@ -450,18 +450,6 @@ export class Stagehand {
       content: scriptContent,
     });
 
-    this.extractHandler = new StagehandExtractHandler({
-      stagehand: this,
-      logger: this.logger,
-      stagehandPage: this.stagehandPage,
-    });
-
-    this.observeHandler = new StagehandObserveHandler({
-      stagehand: this,
-      logger: this.logger,
-      stagehandPage: this.stagehandPage,
-    });
-
     this.browserbaseSessionID = sessionId;
 
     return { debugUrl, sessionUrl, sessionId };
@@ -592,160 +580,19 @@ export class Stagehand {
 
   /** @deprecated Use stagehand.page.act() instead. This will be removed in the next major release. */
   async act(options: ActOptions): Promise<ActResult> {
-    this.logger({
-      category: "act",
-      message: "running act",
-      level: 1,
-    });
-    return this.stagehandPage.act(options);
+    return await this.stagehandPage.act(options);
   }
 
-  async extract<T extends z.AnyZodObject>({
-    instruction,
-    schema,
-    modelName,
-    modelClientOptions,
-    domSettleTimeoutMs,
-    useTextExtract,
-  }: ExtractOptions<T>): Promise<ExtractResult<T>> {
-    if (!this.extractHandler) {
-      throw new Error("Extract handler not initialized");
-    }
-
-    const requestId = Math.random().toString(36).substring(2);
-    const llmClient = modelName
-      ? this.llmProvider.getClient(modelName, modelClientOptions)
-      : this.llmClient;
-
-    this.logger({
-      category: "extract",
-      message: "running extract",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: instruction,
-          type: "string",
-        },
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-        modelName: {
-          value: llmClient.modelName,
-          type: "string",
-        },
-      },
-    });
-
-    return this.extractHandler
-      .extract({
-        instruction,
-        schema,
-        llmClient,
-        requestId,
-        domSettleTimeoutMs,
-        useTextExtract,
-      })
-      .catch((e) => {
-        this.logger({
-          category: "extract",
-          message: "error extracting",
-          level: 1,
-          auxiliary: {
-            error: {
-              value: e.message,
-              type: "string",
-            },
-            trace: {
-              value: e.stack,
-              type: "string",
-            },
-          },
-        });
-
-        if (this.enableCaching) {
-          this.llmProvider.cleanRequestCache(requestId);
-        }
-
-        throw e;
-      });
+  /** @deprecated Use stagehand.page.extract() instead. This will be removed in the next major release. */
+  async extract<T extends z.AnyZodObject>(
+    options: ExtractOptions<T>,
+  ): Promise<ExtractResult<T>> {
+    return await this.stagehandPage.extract(options);
   }
 
+  /** @deprecated Use stagehand.page.observe() instead. This will be removed in the next major release. */
   async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
-    if (!this.observeHandler) {
-      throw new Error("Observe handler not initialized");
-    }
-
-    const requestId = Math.random().toString(36).substring(2);
-    const llmClient = options?.modelName
-      ? this.llmProvider.getClient(
-          options.modelName,
-          options.modelClientOptions,
-        )
-      : this.llmClient;
-
-    this.logger({
-      category: "observe",
-      message: "running observe",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: options?.instruction,
-          type: "string",
-        },
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-        modelName: {
-          value: llmClient.modelName,
-          type: "string",
-        },
-      },
-    });
-
-    return this.observeHandler
-      .observe({
-        instruction:
-          options?.instruction ??
-          "Find actions that can be performed on this page.",
-        llmClient,
-        useVision: options?.useVision ?? false,
-        fullPage: false,
-        requestId,
-        domSettleTimeoutMs: options?.domSettleTimeoutMs,
-      })
-      .catch((e) => {
-        this.logger({
-          category: "observe",
-          message: "error observing",
-          level: 1,
-          auxiliary: {
-            error: {
-              value: e.message,
-              type: "string",
-            },
-            trace: {
-              value: e.stack,
-              type: "string",
-            },
-            requestId: {
-              value: requestId,
-              type: "string",
-            },
-            instruction: {
-              value: options?.instruction,
-              type: "string",
-            },
-          },
-        });
-
-        if (this.enableCaching) {
-          this.llmProvider.cleanRequestCache(requestId);
-        }
-
-        throw e;
-      });
+    return await this.stagehandPage.observe(options);
   }
 
   async close(): Promise<void> {
