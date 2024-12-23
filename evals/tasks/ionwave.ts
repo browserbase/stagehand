@@ -11,7 +11,7 @@ export const ionwave: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.goto("https://elpasotexas.ionwave.net/Login.aspx");
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Click on "Closed Bids"',
   });
 

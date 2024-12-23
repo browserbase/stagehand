@@ -21,7 +21,7 @@ export const peeler_simple: EvalFunction = async ({ modelName, logger }) => {
   }
 
   await stagehand.page.goto(`file://${process.cwd()}/evals/assets/peeler.html`);
-  await stagehand.act({ action: "add the peeler to cart" });
+  await stagehand.page.act({ action: "add the peeler to cart" });
 
   const successMessageLocator = stagehand.page.locator(
     'text="Congratulations, you have 1 A in your cart"',

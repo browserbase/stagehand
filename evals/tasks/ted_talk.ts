@@ -21,7 +21,7 @@ export const ted_talk: EvalFunction = async ({
       waitUntil: "domcontentloaded",
     },
   );
-  await stagehand.act({
+  await stagehand.page.act({
     action:
       "Click the link that takes you to the page about the 'Culture' topic",
   });

@@ -18,7 +18,7 @@ export const sciquest: EvalFunction = async ({
     "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
   );
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Click on the "Closed" tab',
   });
 

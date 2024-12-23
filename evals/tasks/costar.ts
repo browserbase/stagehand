@@ -22,9 +22,9 @@ export const costar: EvalFunction = async ({
       ),
     ]);
 
-    await stagehand.act({ action: "click on the first article" });
+    await stagehand.page.act({ action: "click on the first article" });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on the learn more button for the first job",
     });
 

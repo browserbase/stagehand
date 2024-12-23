@@ -12,7 +12,7 @@ export const nonsense_action: EvalFunction = async ({ modelName, logger }) => {
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
 
-    const result = await stagehand.act({
+    const result = await stagehand.page.act({
       action: "click on the first banana",
     });
     console.log("result", result);

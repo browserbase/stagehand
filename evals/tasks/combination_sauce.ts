@@ -27,15 +27,15 @@ export const combination_sauce: EvalFunction = async ({
       useTextExtract,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: `enter username 'standard_user'`,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: `enter password '${password}'`,
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on 'login'",
     });
 

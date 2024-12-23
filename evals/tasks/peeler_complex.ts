@@ -17,14 +17,14 @@ export const peeler_complex: EvalFunction = async ({
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "search for %search_query%",
       variables: {
         search_query: "peeler",
       },
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: 'click on the first "OXO" brand peeler',
     });
 

@@ -18,7 +18,7 @@ export const allrecipes: EvalFunction = async ({
     waitUntil: "domcontentloaded",
   });
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Search for "chocolate chip cookies" using the search bar',
   });
 

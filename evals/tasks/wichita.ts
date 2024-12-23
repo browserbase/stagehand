@@ -16,7 +16,7 @@ export const wichita: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Click on "Show Closed/Awarded/Cancelled bids"',
   });
 

@@ -16,7 +16,7 @@ export const extract_collaborators: EvalFunction = async ({
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
-    await stagehand.act({
+    await stagehand.page.act({
       action: "find the contributors section",
     });
 

@@ -111,7 +111,7 @@ const stagehand = new Stagehand({
 ```javascript
 await stagehand.init();
 await stagehand.page.goto("https://github.com/browserbase/stagehand");
-await stagehand.act({ action: "click on the contributors" });
+await stagehand.page.act({ action: "click on the contributors" });
 const contributor = await stagehand.extract({
   instruction: "extract the top contributor",
   schema: z.object({
@@ -412,7 +412,7 @@ Prompting Stagehand is more literal and atomic than other higher level framework
 - **Use specific and concise actions**
 
 ```javascript
-await stagehand.act({ action: "click the login button" });
+await stagehand.page.act({ action: "click the login button" });
 
 const productInfo = await stagehand.extract({
   instruction: "find the red shoes",
@@ -429,16 +429,16 @@ Instead of combining actions:
 
 ```javascript
 // Avoid this
-await stagehand.act({ action: "log in and purchase the first item" });
+await stagehand.page.act({ action: "log in and purchase the first item" });
 ```
 
 Split them into individual steps:
 
 ```javascript
-await stagehand.act({ action: "click the login button" });
+await stagehand.page.act({ action: "click the login button" });
 // ...additional steps to log in...
-await stagehand.act({ action: "click on the first item" });
-await stagehand.act({ action: "click the purchase button" });
+await stagehand.page.act({ action: "click on the first item" });
+await stagehand.page.act({ action: "click the purchase button" });
 ```
 
 - **Use `observe()` to get actionable suggestions from the current page**
@@ -454,21 +454,21 @@ console.log("Possible actions:", actions);
 
 ```javascript
 // Too vague
-await stagehand.act({ action: "find something interesting on the page" });
+await stagehand.page.act({ action: "find something interesting on the page" });
 ```
 
 - **Combine multiple actions into one instruction**
 
 ```javascript
 // Avoid combining actions
-await stagehand.act({ action: "fill out the form and submit it" });
+await stagehand.page.act({ action: "fill out the form and submit it" });
 ```
 
 - **Expect Stagehand to perform high-level planning or reasoning**
 
 ```javascript
 // Outside Stagehand's scope
-await stagehand.act({ action: "book the cheapest flight available" });
+await stagehand.page.act({ action: "book the cheapest flight available" });
 ```
 
 By following these guidelines, you'll increase the reliability and effectiveness of your web automations with Stagehand. Remember, Stagehand excels at executing precise, well-defined actions so keeping your instructions atomic will lead to the best outcomes.

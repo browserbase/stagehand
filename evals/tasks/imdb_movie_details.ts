@@ -17,7 +17,7 @@ export const imdb_movie_details: EvalFunction = async ({
   await stagehand.page.goto("https://www.imdb.com/title/tt0111161/", {
     waitUntil: "domcontentloaded",
   });
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click on the movie ratings",
   });
 

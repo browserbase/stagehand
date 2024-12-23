@@ -19,7 +19,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
     );
 
-    await stagehand.act({ action: "reject the cookies" });
+    await stagehand.page.act({ action: "reject the cookies" });
 
     const snowshoeing_regions = await stagehand.extract({
       instruction:

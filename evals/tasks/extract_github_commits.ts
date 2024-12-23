@@ -17,7 +17,7 @@ export const extract_github_commits: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
-    await stagehand.act({
+    await stagehand.page.act({
       action:
         "find commit history, generally described by the number of commits",
     });

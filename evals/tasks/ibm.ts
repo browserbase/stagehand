@@ -13,7 +13,7 @@ export const ibm: EvalFunction = async ({ modelName, logger }) => {
   try {
     await stagehand.page.goto("https://www.ibm.com/artificial-intelligence");
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "if there is a cookies popup, accept it",
     });
 
@@ -24,7 +24,7 @@ export const ibm: EvalFunction = async ({ modelName, logger }) => {
       }),
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on the 'explore AI use cases' button",
     });
 

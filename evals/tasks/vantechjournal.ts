@@ -11,7 +11,7 @@ export const vantechjournal: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.goto("https://vantechjournal.com/");
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click on page 8. do not click the next button",
   });
 
