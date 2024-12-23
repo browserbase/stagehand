@@ -39,7 +39,7 @@ export const combination_sauce: EvalFunction = async ({
       action: "click on 'login'",
     });
 
-    const observations = await stagehand.observe({
+    const observations = await stagehand.page.observe({
       instruction: "find all the 'add to cart' buttons",
     });
 

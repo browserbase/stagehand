@@ -11,7 +11,7 @@ export const ionwave_observe: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.goto("https://elpasotexas.ionwave.net/Login.aspx");
 
-  const observations = await stagehand.observe();
+  const observations = await stagehand.page.observe();
 
   if (observations.length === 0) {
     await stagehand.close();
