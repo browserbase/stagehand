@@ -439,7 +439,7 @@ export class Stagehand {
       this,
       this.stagehandContext,
       this.llmClient,
-    ).init(defaultPage, this);
+    ).init();
 
     // Set the browser to headless mode if specified
     if (this.headless) {
@@ -479,7 +479,7 @@ export class Stagehand {
       this,
       this.stagehandContext,
       this.llmClient,
-    ).init(page, this);
+    ).init();
     this.stagehandContext = await StagehandContext.init(page.context(), this);
 
     const originalGoto = this.page.goto.bind(this.page);

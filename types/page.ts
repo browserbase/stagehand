@@ -3,5 +3,5 @@ import { ActResult } from "./act";
 import { ActOptions } from "./stagehand";
 
 export interface Page extends PlaywrightPage {
-  act?: (options: ActOptions) => Promise<ActResult>;
+  act: (options: ActOptions) => Promise<ActResult>;
 }

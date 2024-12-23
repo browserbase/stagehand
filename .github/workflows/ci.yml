@@ -85,7 +85,7 @@ jobs:
       - name: Run E2E Tests
         run: npm run e2e
 
-run-act-evals:
+  run-act-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: [run-text-extract-evals]
@@ -247,8 +247,6 @@ run-act-evals:
             echo "textExtract text_extract category score is below 80%. Failing CI."
             exit 1
           fi
-
-  
 
   run-observe-evals:
     runs-on: ubuntu-latest

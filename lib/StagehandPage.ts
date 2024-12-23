@@ -21,7 +21,11 @@ export class StagehandPage {
     context: StagehandContext,
     llmClient: LLMClient,
   ) {
-    this.intPage = page;
+    this.intPage = Object.assign(page, {
+      act: () => {
+        throw new Error("act() is not implemented on the base page object");
+      },
+    });
     this.stagehand = stagehand;
     this.intContext = context;
     this.actHandler = new StagehandActHandler({
@@ -36,10 +40,9 @@ export class StagehandPage {
     this.llmClient = llmClient;
   }
 
-  async init(
-    page: PlaywrightPage,
-    stagehand: Stagehand,
-  ): Promise<StagehandPage> {
+  async init(): Promise<StagehandPage> {
+    const page = this.intPage;
+    const stagehand = this.stagehand;
     this.intPage = new Proxy(page, {
       get: (target, prop) => {
         // Override the goto method to add debugDom and waitForSettledDom
@@ -52,7 +55,7 @@ export class StagehandPage {
                 stagehand.debugDom,
               );
             }
-            await page.waitForLoadState("domcontentloaded");
+            await this.intPage.waitForLoadState("domcontentloaded");
             await this._waitForSettledDom();
             return result;
           };
