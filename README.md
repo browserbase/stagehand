@@ -110,9 +110,10 @@ const stagehand = new Stagehand({
 
 ```javascript
 await stagehand.init();
-await stagehand.page.goto("https://github.com/browserbase/stagehand");
-await stagehand.page.act({ action: "click on the contributors" });
-const contributor = await stagehand.extract({
+const page = stagehand.page;
+await page.goto("https://github.com/browserbase/stagehand");
+await page.act({ action: "click on the contributors" });
+const contributor = await page.extract({
   instruction: "extract the top contributor",
   schema: z.object({
     username: z.string(),
@@ -209,7 +210,7 @@ This constructor is used to create an instance of Stagehand.
 
 `act()` allows Stagehand to interact with a web page. Provide an `action` like `"search for 'x'"`, or `"select the cheapest flight presented"` (small atomic goals perform the best).
 
-> [!NOTE]  
+> [!WARNING]  
 > `act()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.act()` instead.
 
 - **Arguments:**
@@ -256,6 +257,9 @@ This constructor is used to create an instance of Stagehand.
 
 `extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data. Unlike some extraction libraries, stagehand can extract any information on a page, not just the main article contents.
 
+> [!WARNING]  
+> `extract()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.extract()` instead.
+
 - **Arguments:**
 
   - `instruction`: a `string` providing instructions for extraction
@@ -271,7 +275,7 @@ This constructor is used to create an instance of Stagehand.
 
 - **Example:**
   ```javascript
-  const price = await stagehand.extract({
+  const price = await stagehand.page.extract({
     instruction: "extract the price of the item",
     schema: z.object({
       price: z.number(),
@@ -280,6 +284,9 @@ This constructor is used to create an instance of Stagehand.
   ```
 
 #### `observe()`
+
+> [!WARNING]  
+> `observe()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.observe()` instead.
 
 > [!NOTE]  
 > `observe()` currently only evaluates the first chunk in the page.
@@ -304,7 +311,7 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 - **Example:**
   ```javascript
-  const actions = await stagehand.observe();
+  const actions = await stagehand.page.observe();
   ```
 
 #### `close()`
@@ -414,7 +421,7 @@ Prompting Stagehand is more literal and atomic than other higher level framework
 ```javascript
 await stagehand.page.act({ action: "click the login button" });
 
-const productInfo = await stagehand.extract({
+const productInfo = await stagehand.page.extract({
   instruction: "find the red shoes",
   schema: z.object({
     productName: z.string(),
@@ -444,7 +451,7 @@ await stagehand.page.act({ action: "click the purchase button" });
 - **Use `observe()` to get actionable suggestions from the current page**
 
 ```javascript
-const actions = await stagehand.observe();
+const actions = await stagehand.page.observe();
 console.log("Possible actions:", actions);
 ```
 
