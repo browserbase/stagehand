@@ -11,18 +11,11 @@
   An AI web browsing framework focused on simplicity and extensibility.</em>
 </p>
 
-<!-- dark mode -->
-<p align="center">
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="docs/media/dark_license.svg#gh-dark-mode-only" /></a>
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="docs/media/dark_npm.svg#gh-dark-mode-only" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Join our Slack Community!" src="docs/media/dark_slack.svg#gh-dark-mode-only" /></a>
-</p>
-
 <!-- light mode -->
 <p align="center">
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="docs/media/light_license.svg#gh-light-mode-only" /></a>
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="docs/media/light_npm.svg#gh-light-mode-only" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Join our Slack Community!" src="docs/media/light_slack.svg#gh-light-mode-only" /></a>
+  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="docs/media/light_license.svg" /></a>
+  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="docs/media/light_npm.svg" /></a>
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Join our Slack Community!" src="docs/media/light_slack.svg" /></a>
 </p>
 
 ---
