@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const imdb_movie_details: EvalFunction = async ({
@@ -17,11 +17,11 @@ export const imdb_movie_details: EvalFunction = async ({
   await stagehand.page.goto("https://www.imdb.com/title/tt0111161/", {
     waitUntil: "domcontentloaded",
   });
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click on the movie ratings",
   });
 
-  const movieDetails = await stagehand.extract({
+  const movieDetails = await stagehand.page.extract({
     instruction: "Extract the list of countries with the most ratings.",
     schema: z.object({
       countries: z

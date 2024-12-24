@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 import { z } from "zod";
 
@@ -16,11 +16,11 @@ export const wichita: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Click on "Show Closed/Awarded/Cancelled bids"',
   });
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction: "Extract the total number of bids that the search produced.",
     schema: z.object({
       total_results: z.string(),

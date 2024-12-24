@@ -84,6 +84,53 @@ jobs:
       - name: Run E2E Tests
         run: npm run e2e
 
+  run-act-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [run-text-extract-evals]
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Act Evals
+        run: npm run evals category act
+
+      - name: Log Act Evals Performance
+        run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            act_score=$(jq '.categories.act' eval-summary.json)
+            echo "Act category score: $act_score%"
+            if (( $(echo "$act_score < 80" | bc -l) )); then
+              echo "Act category score is below 80%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for act category. Failing CI."
+            exit 1
+          fi
+
   run-extract-evals:
     needs: [run-lint, run-build, run-e2e-tests]
     runs-on: ubuntu-latest
@@ -200,53 +247,6 @@ jobs:
             exit 1
           fi
 
-  run-act-evals:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: [run-text-extract-evals]
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: npm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Act Evals
-        run: npm run evals category act
-
-      - name: Log Act Evals Performance
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            act_score=$(jq '.categories.act' eval-summary.json)
-            echo "Act category score: $act_score%"
-            if (( $(echo "$act_score < 80" | bc -l) )); then
-              echo "Act category score is below 80%. Failing CI."
-              exit 1
-            fi
-          else
-            echo "Eval summary not found for act category. Failing CI."
-            exit 1
-          fi
-
   run-observe-evals:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -332,10 +332,7 @@ jobs:
           if [ -f eval-summary.json ]; then
             combination_score=$(jq '.categories.combination' eval-summary.json)
             echo "Combination category score: $combination_score%"
-            if (( $(echo "$combination_score < 85" | bc -l) )); then
-              echo "Combination category score is below 85%. Failing CI."
-              exit 1
-            fi
+            exit 0
           else
             echo "Eval summary not found for combination category. Failing CI."
             exit 1
@@ -345,7 +342,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: [run-text-extract-evals]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main'
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

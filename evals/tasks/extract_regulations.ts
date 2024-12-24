@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_regulations: EvalFunction = async ({
@@ -16,7 +16,7 @@ export const extract_regulations: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.jsc.gov.jo/Links2/en/Regulations");
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the list of regulations with their descriptions and issue dates",
     schema: z.object({

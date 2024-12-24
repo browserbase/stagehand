@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_collaborators: EvalFunction = async ({
@@ -16,11 +16,11 @@ export const extract_collaborators: EvalFunction = async ({
 
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
-    await stagehand.act({
+    await stagehand.page.act({
       action: "find the contributors section",
     });
 
-    const { contributors } = await stagehand.extract({
+    const { contributors } = await stagehand.page.extract({
       instruction: "Extract top 20 contributors of this repository",
       schema: z.object({
         contributors: z.array(

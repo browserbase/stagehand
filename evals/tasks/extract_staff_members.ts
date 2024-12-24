@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_staff_members: EvalFunction = async ({
@@ -17,7 +17,7 @@ export const extract_staff_members: EvalFunction = async ({
 
   await stagehand.page.goto("https://panamcs.org/about/staff/");
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "extract a list of staff members on this page, with their name and their job title",
     schema: z.object({

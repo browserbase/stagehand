@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_partners: EvalFunction = async ({
@@ -17,19 +17,19 @@ export const extract_partners: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://ramp.com");
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "move down to the bottom of the page.",
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "Close the popup.",
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "Find and click on the link that leads to the partners page.",
     });
 
-    const partners = await stagehand.extract({
+    const partners = await stagehand.page.extract({
       instruction: `
       Extract all of the partner categories on the page.
     `,

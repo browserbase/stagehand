@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_area_codes: EvalFunction = async ({
@@ -20,7 +20,7 @@ export const extract_area_codes: EvalFunction = async ({
     { waitUntil: "domcontentloaded" },
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
     schema: z.object({

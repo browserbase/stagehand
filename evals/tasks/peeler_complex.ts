@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const peeler_complex: EvalFunction = async ({
@@ -17,18 +17,18 @@ export const peeler_complex: EvalFunction = async ({
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "search for %search_query%",
       variables: {
         search_query: "peeler",
       },
     });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: 'click on the first "OXO" brand peeler',
     });
 
-    const { price } = await stagehand.extract({
+    const { price } = await stagehand.page.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
       modelName,

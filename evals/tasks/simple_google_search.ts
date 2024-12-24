@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const simple_google_search: EvalFunction = async ({
@@ -14,7 +14,7 @@ export const simple_google_search: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.google.com");
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: 'Search for "OpenAI"',
   });
 

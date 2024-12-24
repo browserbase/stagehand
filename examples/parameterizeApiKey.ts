@@ -25,8 +25,8 @@ async function example() {
 
   await stagehand.init();
   await stagehand.page.goto("https://github.com/browserbase/stagehand");
-  await stagehand.act({ action: "click on the contributors" });
-  const contributor = await stagehand.extract({
+  await stagehand.page.act({ action: "click on the contributors" });
+  const contributor = await stagehand.page.extract({
     instruction: "extract the top contributor",
     schema: z.object({
       username: z.string(),

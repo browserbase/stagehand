@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 
 export const amazon_add_to_cart: EvalFunction = async ({
   modelName,
@@ -18,13 +18,13 @@ export const amazon_add_to_cart: EvalFunction = async ({
 
   await stagehand.page.waitForTimeout(5000);
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click the 'Add to Cart' button",
   });
 
   await stagehand.page.waitForTimeout(2000);
 
-  await stagehand.act({
+  await stagehand.page.act({
     action: "click the 'Proceed to checkout' button",
   });
 

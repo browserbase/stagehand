@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -21,12 +21,12 @@ export const ted_talk: EvalFunction = async ({
       waitUntil: "domcontentloaded",
     },
   );
-  await stagehand.act({
+  await stagehand.page.act({
     action:
       "Click the link that takes you to the page about the 'Culture' topic",
   });
 
-  const playlists = await stagehand.extract({
+  const playlists = await stagehand.page.extract({
     instruction:
       "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
     schema: z.object({

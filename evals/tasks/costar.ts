@@ -1,4 +1,4 @@
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 import { z } from "zod";
 
@@ -22,13 +22,13 @@ export const costar: EvalFunction = async ({
       ),
     ]);
 
-    await stagehand.act({ action: "click on the first article" });
+    await stagehand.page.act({ action: "click on the first article" });
 
-    await stagehand.act({
+    await stagehand.page.act({
       action: "click on the learn more button for the first job",
     });
 
-    const articleTitle = await stagehand.extract({
+    const articleTitle = await stagehand.page.extract({
       instruction: "extract the title of the article",
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),

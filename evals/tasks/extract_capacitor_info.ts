@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { normalizeString } from "../utils";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ export const extract_capacitor_info: EvalFunction = async ({
     "https://www.jakelectronics.com/productdetail/panasonicelectroniccomponents-eeufm1a472l-2937406",
   );
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction: "Extract the ECCN Code, RoHS Status, and Impedance.",
     schema: z.object({
       ECCN_code: z.string(),

@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 import { compareStrings } from "../utils";
 
@@ -18,7 +18,7 @@ export const extract_memorial_healthcare: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.mycmh.org/locations/");
 
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
     schema: z.object({

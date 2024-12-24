@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../utils";
+import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
 export const extract_rockauto: EvalFunction = async ({
@@ -19,7 +19,7 @@ export const extract_rockauto: EvalFunction = async ({
     "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
   );
   await new Promise((resolve) => setTimeout(resolve, 5000));
-  const result = await stagehand.extract({
+  const result = await stagehand.page.extract({
     instruction:
       "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
     schema: z.object({

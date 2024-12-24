@@ -110,9 +110,10 @@ const stagehand = new Stagehand({
 
 ```javascript
 await stagehand.init();
-await stagehand.page.goto("https://github.com/browserbase/stagehand");
-await stagehand.act({ action: "click on the contributors" });
-const contributor = await stagehand.extract({
+const page = stagehand.page;
+await page.goto("https://github.com/browserbase/stagehand");
+await page.act({ action: "click on the contributors" });
+const contributor = await page.extract({
   instruction: "extract the top contributor",
   schema: z.object({
     username: z.string(),
@@ -209,6 +210,9 @@ This constructor is used to create an instance of Stagehand.
 
 `act()` allows Stagehand to interact with a web page. Provide an `action` like `"search for 'x'"`, or `"select the cheapest flight presented"` (small atomic goals perform the best).
 
+> [!WARNING]  
+> `act()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.act()` instead.
+
 - **Arguments:**
 
   - `action`: a `string` describing the action to perform
@@ -229,10 +233,10 @@ This constructor is used to create an instance of Stagehand.
 
   ```javascript
   // Basic usage
-  await stagehand.act({ action: "click on add to cart" });
+  await stagehand.page.act({ action: "click on add to cart" });
 
   // Using variables
-  await stagehand.act({
+  await stagehand.page.act({
     action: "enter %username% into the username field",
     variables: {
       username: "john.doe@example.com",
@@ -240,7 +244,7 @@ This constructor is used to create an instance of Stagehand.
   });
 
   // Multiple variables
-  await stagehand.act({
+  await stagehand.page.act({
     action: "fill in the form with %username% and %password%",
     variables: {
       username: "john.doe",
@@ -252,6 +256,9 @@ This constructor is used to create an instance of Stagehand.
 #### `extract()`
 
 `extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data. Unlike some extraction libraries, stagehand can extract any information on a page, not just the main article contents.
+
+> [!WARNING]  
+> `extract()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.extract()` instead.
 
 - **Arguments:**
 
@@ -268,7 +275,7 @@ This constructor is used to create an instance of Stagehand.
 
 - **Example:**
   ```javascript
-  const price = await stagehand.extract({
+  const price = await stagehand.page.extract({
     instruction: "extract the price of the item",
     schema: z.object({
       price: z.number(),
@@ -277,6 +284,9 @@ This constructor is used to create an instance of Stagehand.
   ```
 
 #### `observe()`
+
+> [!WARNING]  
+> `observe()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.observe()` instead.
 
 > [!NOTE]  
 > `observe()` currently only evaluates the first chunk in the page.
@@ -301,7 +311,7 @@ If you are looking for a specific element, you can also pass in an instruction t
 
 - **Example:**
   ```javascript
-  const actions = await stagehand.observe();
+  const actions = await stagehand.page.observe();
   ```
 
 #### `close()`
@@ -409,9 +419,9 @@ Prompting Stagehand is more literal and atomic than other higher level framework
 - **Use specific and concise actions**
 
 ```javascript
-await stagehand.act({ action: "click the login button" });
+await stagehand.page.act({ action: "click the login button" });
 
-const productInfo = await stagehand.extract({
+const productInfo = await stagehand.page.extract({
   instruction: "find the red shoes",
   schema: z.object({
     productName: z.string(),
@@ -426,22 +436,22 @@ Instead of combining actions:
 
 ```javascript
 // Avoid this
-await stagehand.act({ action: "log in and purchase the first item" });
+await stagehand.page.act({ action: "log in and purchase the first item" });
 ```
 
 Split them into individual steps:
 
 ```javascript
-await stagehand.act({ action: "click the login button" });
+await stagehand.page.act({ action: "click the login button" });
 // ...additional steps to log in...
-await stagehand.act({ action: "click on the first item" });
-await stagehand.act({ action: "click the purchase button" });
+await stagehand.page.act({ action: "click on the first item" });
+await stagehand.page.act({ action: "click the purchase button" });
 ```
 
 - **Use `observe()` to get actionable suggestions from the current page**
 
 ```javascript
-const actions = await stagehand.observe();
+const actions = await stagehand.page.observe();
 console.log("Possible actions:", actions);
 ```
 
@@ -451,21 +461,21 @@ console.log("Possible actions:", actions);
 
 ```javascript
 // Too vague
-await stagehand.act({ action: "find something interesting on the page" });
+await stagehand.page.act({ action: "find something interesting on the page" });
 ```
 
 - **Combine multiple actions into one instruction**
 
 ```javascript
 // Avoid combining actions
-await stagehand.act({ action: "fill out the form and submit it" });
+await stagehand.page.act({ action: "fill out the form and submit it" });
 ```
 
 - **Expect Stagehand to perform high-level planning or reasoning**
 
 ```javascript
 // Outside Stagehand's scope
-await stagehand.act({ action: "book the cheapest flight available" });
+await stagehand.page.act({ action: "book the cheapest flight available" });
 ```
 
 By following these guidelines, you'll increase the reliability and effectiveness of your web automations with Stagehand. Remember, Stagehand excels at executing precise, well-defined actions so keeping your instructions atomic will lead to the best outcomes.
