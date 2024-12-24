@@ -1,7 +1,8 @@
 <div id="toc" align="center">
   <ul style="list-style: none">
     <summary>
-      <h1> 🤘 Stagehand </h1>
+      <img src="docs/media/logo_dark.svg#gh-dark-mode-only" alt="Stagehand Logo" />
+      <img src="docs/media/logo_light.svg#gh-light-mode-only" alt="Stagehand Logo" />
     </summary>
   </ul>
 </div>
@@ -10,10 +11,11 @@
   An AI web browsing framework focused on simplicity and extensibility.</em>
 </p>
 
+<!-- light mode -->
 <p align="center">
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://img.shields.io/npm/v/@browserbasehq/stagehand.svg" /></a>
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://img.shields.io/badge/slack-Join%20our%20community-FEC89A.svg?logo=slack" /></a>
+  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="docs/media/light_license.svg" /></a>
+  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="docs/media/light_npm.svg" /></a>
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Join our Slack Community!" src="docs/media/light_slack.svg" /></a>
 </p>
 
 ---
