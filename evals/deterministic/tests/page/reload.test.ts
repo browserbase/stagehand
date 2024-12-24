@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../lib";
-import StagehandConfig from "../stagehand.config";
+import { Stagehand } from "../../../../lib";
+import StagehandConfig from "../../stagehand.config";
 
 test.describe("StagehandPage - Reload", () => {
   test("should reload the page and reset page state", async () => {

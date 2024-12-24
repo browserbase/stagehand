@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../lib";
-import StagehandConfig from "../stagehand.config";
+import { Stagehand } from "../../../../lib";
+import StagehandConfig from "../../stagehand.config";
 
 test.describe("Playwright Upload", () => {
   let stagehand: Stagehand;
@@ -21,7 +21,7 @@ test.describe("Playwright Upload", () => {
 
     const fileInput = page.locator("#fileUpload");
     await fileInput.setInputFiles(
-      join(__dirname, "..", "auxiliary", "logo.png"),
+      join(__dirname, "../..", "auxiliary", "logo.png"),
     );
 
     const fileNameSpan = page.locator("#fileName");

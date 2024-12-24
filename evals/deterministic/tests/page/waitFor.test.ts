@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../lib";
-import StagehandConfig from "../stagehand.config";
+import { Stagehand } from "../../../../lib";
+import StagehandConfig from "../../stagehand.config";
 
 test.describe("StagehandPage - waitFor", () => {
   test("should wait for an element to become visible", async () => {

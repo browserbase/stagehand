@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../lib";
-import StagehandConfig from "../stagehand.config";
+import { Stagehand } from "../../../../lib";
+import StagehandConfig from "../../stagehand.config";
 
 test.describe("StagehandPage - content", () => {
   test("should retrieve the full HTML content of the page", async () => {

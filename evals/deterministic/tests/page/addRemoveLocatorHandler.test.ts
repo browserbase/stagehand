@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../lib";
-import StagehandConfig from "../stagehand.config";
+import { Stagehand } from "../../../../lib";
+import StagehandConfig from "../../stagehand.config";
 
 test.describe("StagehandPage - addLocatorHandler and removeLocatorHandler", () => {
   // This HTML snippet is reused by both tests.
