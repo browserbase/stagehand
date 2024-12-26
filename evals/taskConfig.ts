@@ -13,7 +13,7 @@
 import fs from "fs";
 import path from "path";
 import { AvailableModel, AvailableModelSchema } from "../types/model";
-import { filterByCategory, filterByEvalName } from "./args";
+import { filterByEvalName } from "./args";
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
 const configPath = path.join(__dirname, "evals.config.json");
@@ -51,26 +51,16 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : ["gpt-4o", "claude-3-5-sonnet-latest"];
 
-const EXPERIMENTAL_EVAL_MODELS = process.env.EXPERIMENTAL_EVAL_MODELS
-  ? process.env.EXPERIMENTAL_EVAL_MODELS.split(",")
-  : ["o1-mini", "o1-preview"];
-
 /**
  * getModelList:
  * Returns a list of models to be used for the given category.
  * If category is "experimental", it merges DEFAULT_EVAL_MODELS and EXPERIMENTAL_EVAL_MODELS.
  * Otherwise, returns DEFAULT_EVAL_MODELS.
  */
-const getModelList = (category: string | null): string[] => {
-  if (category === "experimental") {
-    // Remove duplicates by creating a Set and converting back to array.
-    return Array.from(
-      new Set([...DEFAULT_EVAL_MODELS, ...EXPERIMENTAL_EVAL_MODELS]),
-    );
-  }
+const getModelList = (): string[] => {
   return DEFAULT_EVAL_MODELS;
 };
-const MODELS: AvailableModel[] = getModelList(filterByCategory).map((model) => {
+const MODELS: AvailableModel[] = getModelList().map((model) => {
   if (!AvailableModelSchema.safeParse(model).success) {
     throw new Error(`Model ${model} is not a supported model`);
   }
