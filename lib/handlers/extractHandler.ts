@@ -355,7 +355,18 @@ export class StagehandExtractHandler {
         },
       });
     }
-    return output;
+    const usageForThisCall = this.stagehand
+      .getUsage()
+      .find(
+        (entry) =>
+          entry.functionName === functionName ||
+          entry.functionName === "extract",
+      );
+
+    return {
+      ...output,
+      _stagehandTokenUsage: usageForThisCall,
+    };
   }
 
   private async domExtract<T extends z.AnyZodObject>({
@@ -478,7 +489,18 @@ export class StagehandExtractHandler {
         },
       });
 
-      return output;
+      const usageForThisCall = this.stagehand
+        .getUsage()
+        .find(
+          (entry) =>
+            entry.functionName === functionName ||
+            entry.functionName === "extract",
+        );
+
+      return {
+        ...output,
+        _stagehandTokenUsage: usageForThisCall,
+      };
     } else {
       this.logger({
         category: "extraction",

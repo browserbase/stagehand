@@ -13,7 +13,9 @@ export interface ActParams {
   variables?: Record<string, string>;
 }
 
-export interface ActResult {
+import { WithTokenUsage } from "./tokenUsage";
+
+export interface ActResult extends WithTokenUsage {
   method: string;
   element: number;
   args: unknown[];

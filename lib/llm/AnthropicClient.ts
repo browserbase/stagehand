@@ -311,7 +311,7 @@ export class AnthropicClient extends LLMClient {
         this.modelName,
         prompt,
         completion,
-        total
+        total,
       );
     }
 
