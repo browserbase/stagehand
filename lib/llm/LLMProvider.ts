@@ -53,6 +53,7 @@ export class LLMProvider {
   getClient(
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    stagehand?: any,
   ): LLMClient {
     const provider = this.modelToProviderMap[modelName];
     if (!provider) {
@@ -67,6 +68,7 @@ export class LLMProvider {
           this.cache,
           modelName,
           clientOptions,
+          stagehand,
         );
       case "anthropic":
         return new AnthropicClient(
@@ -75,6 +77,7 @@ export class LLMProvider {
           this.cache,
           modelName,
           clientOptions,
+          stagehand,
         );
       default:
         throw new Error(`Unsupported provider: ${provider}`);

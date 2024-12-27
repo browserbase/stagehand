@@ -4,7 +4,10 @@ import {
   PlaywrightCommandException,
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
+import { TokenUsageResult } from "../../types/tokenUsage";
+import { LLMUsageEntry } from "../../types/model";
 import { ActionCache } from "../cache/ActionCache";
+import { ActParams, ActResult } from "../../types/act";
 import { act, fillInVariables, verifyActCompletion } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
@@ -906,10 +909,24 @@ export class StagehandActHandler {
         });
 
         if (actionCompleted) {
+          this.logger({
+            category: "action",
+            message:
+              "action completed successfully using cached step (no token usage)",
+            level: 1,
+          });
           return {
             success: true,
             message: "action completed successfully using cached step",
             action,
+            _stagehandTokenUsage: {
+              functionName: "act",
+              modelName: llmClient.modelName,
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: 0,
+              timestamp: Date.now(),
+            },
           };
         }
       }
@@ -976,7 +993,9 @@ export class StagehandActHandler {
     previousSelectors: string[];
     skipActionCacheForThisStep: boolean;
     domSettleTimeoutMs?: number;
-  }): Promise<{ success: boolean; message: string; action: string }> {
+  }): Promise<
+    TokenUsageResult & { success: boolean; message: string; action: string }
+  > {
     try {
       await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
       await this.stagehandPage.startDomDebug();
@@ -1120,7 +1139,7 @@ export class StagehandActHandler {
         }
       }
 
-      const response = await act({
+      let response = await act({
         action,
         domElements: outputString,
         steps,
@@ -1130,6 +1149,46 @@ export class StagehandActHandler {
         requestId,
         variables,
       });
+
+      // Ensure response has token usage
+      const defaultTokenUsage: LLMUsageEntry = {
+        functionName: "act",
+        modelName: llmClient.modelName,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        timestamp: Date.now(),
+      };
+
+      if (!response) {
+        response = {
+          success: false,
+          message: "No response from act function",
+          action: action,
+          completed: false,
+          method: "none",
+          element: 0,
+          args: [],
+          step: "Failed to get response",
+          _stagehandTokenUsage: defaultTokenUsage,
+        } as ActResult;
+      } else if (!response._stagehandTokenUsage) {
+        response._stagehandTokenUsage = defaultTokenUsage;
+      }
+
+      if (response && response._stagehandTokenUsage) {
+        this.logger({
+          category: "action",
+          message: "received response from act with token usage",
+          level: 1,
+          auxiliary: {
+            token_usage: {
+              value: JSON.stringify(response._stagehandTokenUsage),
+              type: "object",
+            },
+          },
+        });
+      }
 
       this.logger({
         category: "action",
@@ -1145,7 +1204,7 @@ export class StagehandActHandler {
 
       await this.stagehandPage.cleanupDomDebug();
 
-      if (!response) {
+      if (!response || !response._stagehandTokenUsage) {
         if (chunksSeen.length + 1 < chunks.length) {
           chunksSeen.push(chunk);
 
@@ -1211,10 +1270,16 @@ export class StagehandActHandler {
             this.actionCache?.deleteCacheForRequestId(requestId);
           }
 
+          this.logger({
+            category: "action",
+            message: "action failed to complete (no token usage)",
+            level: 1,
+          });
           return {
             success: false,
             message: `Action was not able to be completed.`,
             action: action,
+            _stagehandTokenUsage: defaultTokenUsage,
           };
         }
       }
@@ -1358,6 +1423,17 @@ export class StagehandActHandler {
             level: 1,
           });
 
+          this.logger({
+            category: "action",
+            message: "continuing to next action step with token usage",
+            level: 1,
+            auxiliary: {
+              token_usage: {
+                value: JSON.stringify(response._stagehandTokenUsage),
+                type: "object",
+              },
+            },
+          });
           return this.act({
             action,
             steps,
@@ -1378,10 +1454,22 @@ export class StagehandActHandler {
             level: 1,
           });
           await this._recordAction(action, response.step);
+          this.logger({
+            category: "action",
+            message: "action completed successfully with token usage",
+            level: 1,
+            auxiliary: {
+              token_usage: {
+                value: JSON.stringify(response._stagehandTokenUsage),
+                type: "object",
+              },
+            },
+          });
           return {
             success: true,
             message: `Action completed successfully: ${steps}${response.step}`,
             action: action,
+            _stagehandTokenUsage: response._stagehandTokenUsage,
           };
         }
       } catch (error) {
@@ -1406,6 +1494,17 @@ export class StagehandActHandler {
         });
 
         if (retries < 2) {
+          this.logger({
+            category: "action",
+            message: "retrying action with token usage",
+            level: 1,
+            auxiliary: {
+              token_usage: {
+                value: JSON.stringify(response._stagehandTokenUsage),
+                type: "object",
+              },
+            },
+          });
           return this.act({
             action,
             steps,
@@ -1428,10 +1527,23 @@ export class StagehandActHandler {
           this.actionCache.deleteCacheForRequestId(requestId);
         }
 
+        this.logger({
+          category: "action",
+          message: "error performing action - a (no token usage)",
+          level: 1,
+        });
         return {
           success: false,
           message: "error performing action - a",
           action: action,
+          _stagehandTokenUsage: {
+            functionName: "act",
+            modelName: llmClient.modelName,
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            timestamp: Date.now(),
+          },
         };
       }
     } catch (error) {
@@ -1456,10 +1568,23 @@ export class StagehandActHandler {
         this.actionCache.deleteCacheForRequestId(requestId);
       }
 
+      this.logger({
+        category: "action",
+        message: "error performing action - c (no token usage)",
+        level: 1,
+      });
       return {
         success: false,
         message: `Error performing action - C: ${error.message}`,
         action: action,
+        _stagehandTokenUsage: {
+          functionName: "act",
+          modelName: llmClient.modelName,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          timestamp: Date.now(),
+        } as LLMUsageEntry,
       };
     }
   }

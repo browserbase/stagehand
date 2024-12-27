@@ -7,6 +7,7 @@ import {
   AnthropicTransformedResponse,
   AvailableModel,
   ClientOptions,
+  LLMUsageEntry,
   ToolCall,
 } from "../../types/model";
 
@@ -60,9 +61,12 @@ export interface ChatCompletionOptions {
   tool_choice?: "auto" | ChatCompletionToolChoiceOption;
   maxTokens?: number;
   requestId: string;
+  functionName?: string;
 }
 
-export type LLMResponse = AnthropicTransformedResponse | ChatCompletion;
+export type LLMResponse = (AnthropicTransformedResponse | ChatCompletion) & {
+  _stagehandTokenUsage?: LLMUsageEntry;
+};
 
 export abstract class LLMClient {
   public type: "openai" | "anthropic";
