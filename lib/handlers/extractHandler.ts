@@ -6,6 +6,8 @@ import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand } from "../index";
+import { TokenUsage, TokenUsageResult } from "../../types/tokenUsage";
+import { LLMUsageEntry } from "../../types/model";
 
 const PROXIMITY_THRESHOLD = 15;
 
@@ -121,7 +123,7 @@ export class StagehandExtractHandler {
     requestId?: string;
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
-  }): Promise<z.infer<T>> {
+  }): Promise<z.infer<T> & TokenUsageResult> {
     if (useTextExtract) {
       return this.textExtract({
         instruction,
@@ -130,7 +132,6 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
-        functionName: "extract",
       });
     } else {
       return this.domExtract({
@@ -141,7 +142,6 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
-        functionName: "extract",
       });
     }
   }
@@ -153,7 +153,6 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
-    functionName,
   }: {
     instruction: string;
     schema: T;
@@ -161,8 +160,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
-    functionName?: string;
-  }): Promise<z.infer<T>> {
+  }): Promise<z.infer<T> & TokenUsageResult> {
     this.logger({
       category: "extraction",
       message: "starting extraction",
@@ -310,6 +308,30 @@ export class StagehandExtractHandler {
       chunksTotal: 1,
       llmClient,
       requestId,
+    }).catch((error) => {
+      this.logger({
+        category: "extraction",
+        message: "Error during extraction",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+        },
+      });
+      return {
+        metadata: { completed: false },
+        output: content,
+        _stagehandTokenUsage: {
+          functionName: "extract",
+          modelName: llmClient.modelName,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          timestamp: Date.now(),
+        },
+      };
     });
 
     const {
@@ -355,7 +377,21 @@ export class StagehandExtractHandler {
         },
       });
     }
-    return output;
+    this.logger({
+      category: "extraction",
+      message: "returning extraction result with token usage",
+      level: 1,
+      auxiliary: {
+        token_usage: {
+          value: JSON.stringify(extractionResponse._stagehandTokenUsage),
+          type: "object",
+        },
+      },
+    });
+    return {
+      ...output,
+      _stagehandTokenUsage: extractionResponse._stagehandTokenUsage,
+    };
   }
 
   private async domExtract<T extends z.AnyZodObject>({
@@ -366,7 +402,6 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
-    functionName,
   }: {
     instruction: string;
     schema: T;
@@ -375,8 +410,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
-    functionName?: string;
-  }): Promise<z.infer<T>> {
+  }): Promise<z.infer<T> & TokenUsageResult> {
     this.logger({
       category: "extraction",
       message: "starting extraction using old approach",
@@ -478,7 +512,10 @@ export class StagehandExtractHandler {
         },
       });
 
-      return output;
+      return {
+        ...output,
+        _stagehandTokenUsage: extractionResponse._stagehandTokenUsage,
+      };
     } else {
       this.logger({
         category: "extraction",

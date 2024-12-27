@@ -15,6 +15,8 @@ import {
   buildMetadataSystemPrompt,
   buildMetadataPrompt,
 } from "./prompt";
+import { LLMResponse } from "./llm/LLMClient";
+import { LLMUsageEntry } from "../types/model";
 import { z } from "zod";
 import {
   AnnotatedScreenshotText,
@@ -39,7 +41,9 @@ export async function verifyActCompletion({
 
   type VerificationResponse = z.infer<typeof verificationSchema>;
 
-  const response = await llmClient.createChatCompletion<VerificationResponse>({
+  const response = await llmClient.createChatCompletion<
+    VerificationResponse & { _stagehandTokenUsage?: LLMUsageEntry }
+  >({
     messages: [
       buildVerifyActCompletionSystemPrompt(),
       buildVerifyActCompletionUserPrompt(goal, steps, domElements),
@@ -103,7 +107,9 @@ export async function act({
   logger,
   requestId,
   variables,
-}: ActParams): Promise<ActResult | null> {
+}: ActParams): Promise<
+  (ActResult & { _stagehandTokenUsage?: LLMUsageEntry }) | null
+> {
   const messages: ChatMessage[] = [
     buildActSystemPrompt(),
     buildActUserPrompt(action, steps, domElements, variables),
@@ -131,7 +137,13 @@ export async function act({
       return null;
     }
 
-    return JSON.parse(toolCalls[0].function.arguments);
+    const result = JSON.parse(toolCalls[0].function.arguments);
+    const tokenUsage = response._stagehandTokenUsage;
+
+    return {
+      ...result,
+      _stagehandTokenUsage: tokenUsage,
+    };
   } else {
     if (retries >= 2) {
       logger({
@@ -173,9 +185,15 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
   isUsingTextExtract?: boolean;
-}) {
+}): Promise<{
+  [key: string]: unknown;
+  metadata?: { progress?: string; completed?: boolean };
+  _stagehandTokenUsage?: LLMUsageEntry;
+}> {
   type ExtractionResponse = z.infer<typeof schema>;
-  type MetadataResponse = z.infer<typeof metadataSchema>;
+  type MetadataResponse = z.infer<typeof metadataSchema> & {
+    _stagehandTokenUsage?: LLMUsageEntry;
+  };
   const isUsingAnthropic = llmClient.type === "anthropic";
 
   const extractionResponse = await llmClient.createChatCompletion({
@@ -253,9 +271,37 @@ export async function extract({
       requestId,
     });
 
+  // Get the token usage from the most recent extraction call
+  const extractionTokenUsage = extractionResponse._stagehandTokenUsage;
+  const refinedTokenUsage = refinedResponse._stagehandTokenUsage;
+  const metadataTokenUsage = metadataResponse._stagehandTokenUsage;
+
+  // Combine token usage from all calls
+  const combinedTokenUsage = {
+    functionName: "extract",
+    modelName:
+      extractionTokenUsage?.modelName ||
+      refinedTokenUsage?.modelName ||
+      metadataTokenUsage?.modelName,
+    promptTokens:
+      (extractionTokenUsage?.promptTokens || 0) +
+      (refinedTokenUsage?.promptTokens || 0) +
+      (metadataTokenUsage?.promptTokens || 0),
+    completionTokens:
+      (extractionTokenUsage?.completionTokens || 0) +
+      (refinedTokenUsage?.completionTokens || 0) +
+      (metadataTokenUsage?.completionTokens || 0),
+    totalTokens:
+      (extractionTokenUsage?.totalTokens || 0) +
+      (refinedTokenUsage?.totalTokens || 0) +
+      (metadataTokenUsage?.totalTokens || 0),
+    timestamp: Date.now(),
+  };
+
   return {
     ...refinedResponse,
     metadata: metadataResponse,
+    _stagehandTokenUsage: combinedTokenUsage,
   };
 }
 
@@ -265,7 +311,6 @@ export async function observe({
   llmClient,
   image,
   requestId,
-  functionName = "observe",
 }: {
   instruction: string;
   domElements: string;
@@ -275,6 +320,7 @@ export async function observe({
   functionName?: string;
 }): Promise<{
   elements: { elementId: number; description: string }[];
+  _stagehandTokenUsage?: LLMUsageEntry;
 }> {
   const observeSchema = z.object({
     elements: z
@@ -293,26 +339,27 @@ export async function observe({
 
   type ObserveResponse = z.infer<typeof observeSchema>;
 
-  const observationResponse =
-    await llmClient.createChatCompletion<ObserveResponse>({
-      messages: [
-        buildObserveSystemPrompt(),
-        buildObserveUserMessage(instruction, domElements),
-      ],
-      image: image
-        ? { buffer: image, description: AnnotatedScreenshotText }
-        : undefined,
-      response_model: {
-        schema: observeSchema,
-        name: "Observation",
-      },
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      functionName: "observe",
-      requestId,
-    });
+  const observationResponse = await llmClient.createChatCompletion<
+    ObserveResponse & { _stagehandTokenUsage?: LLMUsageEntry }
+  >({
+    messages: [
+      buildObserveSystemPrompt(),
+      buildObserveUserMessage(instruction, domElements),
+    ],
+    image: image
+      ? { buffer: image, description: AnnotatedScreenshotText }
+      : undefined,
+    response_model: {
+      schema: observeSchema,
+      name: "Observation",
+    },
+    temperature: 0.1,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+    functionName: "observe",
+    requestId,
+  });
 
   const parsedResponse = {
     elements:
@@ -322,7 +369,13 @@ export async function observe({
       })) ?? [],
   } satisfies { elements: { elementId: number; description: string }[] };
 
-  return parsedResponse;
+  // Get the token usage from the observation response
+  const tokenUsage = observationResponse._stagehandTokenUsage;
+
+  return {
+    ...parsedResponse,
+    _stagehandTokenUsage: tokenUsage,
+  };
 }
 
 export async function ask({
@@ -333,8 +386,11 @@ export async function ask({
   question: string;
   llmClient: LLMClient;
   requestId: string;
-}) {
-  const response = await llmClient.createChatCompletion({
+}): Promise<{
+  content: string | null;
+  _stagehandTokenUsage?: LLMUsageEntry;
+}> {
+  const response = await llmClient.createChatCompletion<LLMResponse>({
     messages: [buildAskSystemPrompt(), buildAskUserPrompt(question)],
     temperature: 0.1,
     top_p: 1,
@@ -345,5 +401,11 @@ export async function ask({
   });
 
   // The parsing is now handled in the LLM clients
-  return response.choices[0].message.content;
+  const content = response.choices[0].message.content;
+  const tokenUsage = response._stagehandTokenUsage;
+
+  return {
+    content,
+    _stagehandTokenUsage: tokenUsage,
+  };
 }

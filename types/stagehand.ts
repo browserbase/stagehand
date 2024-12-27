@@ -4,6 +4,7 @@ import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
+import { TokenUsageResult } from "./tokenUsage";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
@@ -58,7 +59,7 @@ export interface ActOptions {
   domSettleTimeoutMs?: number;
 }
 
-export interface ActResult {
+export interface ActResult extends TokenUsageResult {
   success: boolean;
   message: string;
   action: string;
@@ -74,7 +75,8 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   useVision?: boolean;
 }
 
-export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
+export type ExtractResult<T extends z.AnyZodObject> = z.infer<T> &
+  TokenUsageResult;
 
 export interface ObserveOptions {
   instruction?: string;
@@ -85,7 +87,7 @@ export interface ObserveOptions {
   functionName?: string;
 }
 
-export interface ObserveResult {
+export interface ObserveResult extends TokenUsageResult {
   selector: string;
   description: string;
 }

@@ -1,23 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { test } from "@playwright/test";
 import { z } from "zod";
 import { Stagehand } from "../../../../lib";
 import StagehandConfig from "../../stagehand.config";
-
-function logTokenUsage(
-  functionName: string,
-  entry: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  },
-) {
-  console.log(
-    `\n\x1b[1m${functionName} Token Usage:\x1b[0m
-    \x1b[36mPrompt Tokens:     ${entry.promptTokens.toString().padStart(6)}\x1b[0m
-    \x1b[32mCompletion Tokens: ${entry.completionTokens.toString().padStart(6)}\x1b[0m
-    \x1b[33mTotal Tokens:      ${entry.totalTokens.toString().padStart(6)}\x1b[0m`,
-  );
-}
 
 test.describe("Token Usage Tracking", () => {
   test.setTimeout(120000);
@@ -47,42 +31,26 @@ test.describe("Token Usage Tracking", () => {
       rating: z.string().optional(),
     });
 
-    await page.extract<typeof schema>({
+    const result = await page.extract<typeof schema>({
       instruction:
         "get the product name, current price, and rating from this product",
       schema,
       useVision: true,
     });
 
-    const usage = stagehand.getUsage();
-    const extractEntry = usage.find(
-      (entry) => entry.functionName === "extract",
-    );
-    if (extractEntry) {
-      logTokenUsage("AMAZON-PRODUCT-EXTRACT", extractEntry);
+    const tokenUsage = result._stagehandTokenUsage;
+    if (tokenUsage) {
+      console.log(
+        `\n\x1b[1mAMAZON-PRODUCT-EXTRACT Token Usage:\x1b[0m
+        \x1b[36mPrompt Tokens:     ${tokenUsage.promptTokens.toString().padStart(6)}\x1b[0m
+        \x1b[32mCompletion Tokens: ${tokenUsage.completionTokens.toString().padStart(6)}\x1b[0m
+        \x1b[33mTotal Tokens:      ${tokenUsage.totalTokens.toString().padStart(6)}\x1b[0m`,
+      );
     }
   });
 
-  // News website scenarios
-  test("should track tokens when analyzing news articles", async () => {
-    const page = stagehand.page;
-    await page.goto("https://www.reuters.com");
-
-    // Find and read main headline
-    await page.act({
-      action:
-        "find the main headline article and summarize its key points in 3 sentences",
-    });
-
-    const usage = stagehand.getUsage();
-    const actEntry = usage.find((entry) => entry.functionName === "act");
-    if (actEntry) {
-      logTokenUsage("REUTERS-SUMMARY-ACT", actEntry);
-    }
-  });
-
-  // Technical data extraction
-  test("should track tokens when parsing technical content", async () => {
+  // Github data extraction
+  test("should track tokens when parsing Github repos", async () => {
     const page = stagehand.page;
     await page.goto(
       "https://github.com/microsoft/TypeScript/blob/main/README.md",
@@ -98,19 +66,64 @@ test.describe("Token Usage Tracking", () => {
       }),
     });
 
-    await page.extract<typeof schema>({
+    const result = await page.extract<typeof schema>({
       instruction:
         "extract the installation steps, requirements, and documentation information from the TypeScript README",
       schema,
       useVision: false,
     });
 
-    const usage = stagehand.getUsage();
-    const extractEntry = usage.find(
-      (entry) => entry.functionName === "extract",
+    const tokenUsage = result._stagehandTokenUsage;
+    if (tokenUsage) {
+      console.log(
+        `\n\x1b[1mGITHUB-README-EXTRACT Token Usage:\x1b[0m
+        \x1b[36mPrompt Tokens:     ${tokenUsage.promptTokens.toString().padStart(6)}\x1b[0m
+        \x1b[32mCompletion Tokens: ${tokenUsage.completionTokens.toString().padStart(6)}\x1b[0m
+        \x1b[33mTotal Tokens:      ${tokenUsage.totalTokens.toString().padStart(6)}\x1b[0m`,
+      );
+    }
+  });
+
+  // Weather data extraction
+  test("should track tokens when extracting weather data from Weather.gov", async () => {
+    const page = stagehand.page;
+    await page.goto(
+      "https://forecast.weather.gov/MapClick.php?lat=32.7158&lon=-117.1638",
     );
-    if (extractEntry) {
-      logTokenUsage("GITHUB-README-EXTRACT", extractEntry);
+
+    const schema = z.object({
+      currentConditions: z.object({
+        temperature: z.string(),
+        humidity: z.string(),
+        windSpeed: z.string(),
+        forecast: z.string(),
+      }),
+      alerts: z
+        .array(
+          z.object({
+            type: z.string(),
+            severity: z.string(),
+            description: z.string(),
+          }),
+        )
+        .optional(),
+    });
+
+    const result = await page.extract<typeof schema>({
+      instruction:
+        "extract the current weather conditions including temperature, humidity, wind speed, and forecast. Also get any active weather alerts if present",
+      schema,
+      useVision: true,
+    });
+
+    const tokenUsage = result._stagehandTokenUsage;
+    if (tokenUsage) {
+      console.log(
+        `\n\x1b[1mWEATHER-DATA-EXTRACT Token Usage:\x1b[0m
+        \x1b[36mPrompt Tokens:     ${tokenUsage.promptTokens.toString().padStart(6)}\x1b[0m
+        \x1b[32mCompletion Tokens: ${tokenUsage.completionTokens.toString().padStart(6)}\x1b[0m
+        \x1b[33mTotal Tokens:      ${tokenUsage.totalTokens.toString().padStart(6)}\x1b[0m`,
+      );
     }
   });
 });

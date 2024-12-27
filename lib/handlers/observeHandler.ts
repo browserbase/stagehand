@@ -5,6 +5,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
 import { StagehandPage } from "../StagehandPage";
+import { TokenUsage, TokenUsageResult } from "../../types/tokenUsage";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -51,7 +52,6 @@ export class StagehandObserveHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
-    functionName = "observe",
   }: {
     instruction: string;
     useVision: boolean;
@@ -59,8 +59,9 @@ export class StagehandObserveHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
-    functionName?: string;
-  }): Promise<{ selector: string; description: string }[]> {
+  }): Promise<
+    (TokenUsageResult & { selector: string; description: string })[]
+  > {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
@@ -123,6 +124,29 @@ export class StagehandObserveHandler {
       image: annotatedScreenshot,
       requestId,
       functionName: "observe",
+    }).catch((error) => {
+      this.logger({
+        category: "observation",
+        message: "Error during observation",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+        },
+      });
+      return {
+        elements: [],
+        _stagehandTokenUsage: {
+          functionName: "observe",
+          modelName: llmClient.modelName,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          timestamp: Date.now(),
+        },
+      };
     });
 
     const elementsWithSelectors = observationResponse.elements.map(
@@ -151,6 +175,23 @@ export class StagehandObserveHandler {
     });
 
     await this._recordObservation(instruction, elementsWithSelectors);
-    return elementsWithSelectors;
+
+    this.logger({
+      category: "observation",
+      message: "returning observation results with token usage",
+      level: 1,
+      auxiliary: {
+        token_usage: {
+          value: JSON.stringify(observationResponse._stagehandTokenUsage),
+          type: "object",
+        },
+      },
+    });
+
+    const result = elementsWithSelectors.map((element) => ({
+      ...element,
+      _stagehandTokenUsage: observationResponse._stagehandTokenUsage,
+    }));
+    return result;
   }
 }

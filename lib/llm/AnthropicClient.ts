@@ -283,6 +283,14 @@ export class AnthropicClient extends LLMClient {
         total_tokens:
           response.usage.input_tokens + response.usage.output_tokens,
       },
+      _stagehandTokenUsage: {
+        functionName: options.functionName || "unknown",
+        modelName: this.modelName,
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+        timestamp: Date.now(),
+      },
     };
 
     this.logger({
@@ -311,7 +319,7 @@ export class AnthropicClient extends LLMClient {
         this.modelName,
         prompt,
         completion,
-        total
+        total,
       );
     }
 

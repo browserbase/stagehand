@@ -1,7 +1,7 @@
 import OpenAI, { ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
-  ChatCompletion,
+  ChatCompletion as OpenAIChatCompletion,
   ChatCompletionAssistantMessageParam,
   ChatCompletionContentPartImage,
   ChatCompletionContentPartText,
@@ -12,11 +12,16 @@ import {
 } from "openai/resources/chat";
 import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
-import { AvailableModel } from "../../types/model";
+import { AvailableModel, LLMUsageEntry } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema } from "../utils";
 import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
 import { Stagehand } from "../index";
+
+interface ExtendedChatCompletion extends OpenAIChatCompletion {
+  _stagehandTokenUsage?: LLMUsageEntry;
+  _request_id?: string;
+}
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -45,7 +50,7 @@ export class OpenAIClient extends LLMClient {
     this.stagehand = stagehand;
   }
 
-  async createChatCompletion<T = ChatCompletion>(
+  async createChatCompletion<T = ExtendedChatCompletion>(
     optionsInitial: ChatCompletionOptions,
     retries: number = 3,
   ): Promise<T> {
@@ -328,6 +333,33 @@ export class OpenAIClient extends LLMClient {
 
     const response = await this.client.chat.completions.create(body);
 
+    // Debug log the raw response with detailed token usage information
+    this.logger({
+      category: "openai",
+      message: "raw response with usage data",
+      level: 0, // Changed to level 0 to ensure visibility
+      auxiliary: {
+        usage: {
+          value: JSON.stringify(response.usage),
+          type: "object",
+        },
+        fullResponse: {
+          value: JSON.stringify(response),
+          type: "object",
+        },
+        tokenUsage: {
+          value: JSON.stringify({
+            prompt_tokens: response.usage?.prompt_tokens,
+            completion_tokens: response.usage?.completion_tokens,
+            total_tokens: response.usage?.total_tokens,
+            model: this.modelName,
+            functionName: optionsInitial.functionName,
+          }),
+          type: "object",
+        },
+      },
+    });
+
     // Record token usage if stagehand is available
     if (response.usage && this.stagehand) {
       const prompt = response.usage.prompt_tokens ?? 0;
@@ -419,17 +451,23 @@ export class OpenAIClient extends LLMClient {
         throw new Error("Invalid response schema");
       }
 
+      const responseWithTokenUsage = {
+        ...parsedData,
+        _stagehandTokenUsage: {
+          functionName: optionsInitial.functionName || "unknown",
+          modelName: this.modelName,
+          promptTokens: response.usage?.prompt_tokens || 0,
+          completionTokens: response.usage?.completion_tokens || 0,
+          totalTokens: response.usage?.total_tokens || 0,
+          timestamp: Date.now(),
+        },
+      };
+
       if (this.enableCaching) {
-        this.cache.set(
-          cacheOptions,
-          {
-            ...parsedData,
-          },
-          options.requestId,
-        );
+        this.cache.set(cacheOptions, responseWithTokenUsage, options.requestId);
       }
 
-      return parsedData;
+      return responseWithTokenUsage;
     }
 
     if (this.enableCaching) {
@@ -452,11 +490,35 @@ export class OpenAIClient extends LLMClient {
           },
         },
       });
-      this.cache.set(cacheOptions, response, options.requestId);
+      const responseToCache = {
+        ...response,
+        _stagehandTokenUsage: {
+          functionName: optionsInitial.functionName || "unknown",
+          modelName: this.modelName,
+          promptTokens: response.usage?.prompt_tokens || 0,
+          completionTokens: response.usage?.completion_tokens || 0,
+          totalTokens: response.usage?.total_tokens || 0,
+          timestamp: Date.now(),
+        },
+      };
+      this.cache.set(cacheOptions, responseToCache, options.requestId);
     }
 
+    // Add token usage to response
+    const responseWithUsage = {
+      ...response,
+      _stagehandTokenUsage: {
+        functionName: optionsInitial.functionName || "unknown",
+        modelName: this.modelName,
+        promptTokens: response.usage?.prompt_tokens || 0,
+        completionTokens: response.usage?.completion_tokens || 0,
+        totalTokens: response.usage?.total_tokens || 0,
+        timestamp: Date.now(),
+      },
+    };
+
     // if the function was called with a response model, it would have returned earlier
-    // so we can safely cast here to T, which defaults to ChatCompletion
-    return response as T;
+    // so we can safely cast here to T, which defaults to ExtendedChatCompletion
+    return responseWithUsage as T;
   }
 }
