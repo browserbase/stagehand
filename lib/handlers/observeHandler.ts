@@ -51,6 +51,7 @@ export class StagehandObserveHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
+    functionName = "observe",
   }: {
     instruction: string;
     useVision: boolean;
@@ -58,6 +59,7 @@ export class StagehandObserveHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
+    functionName?: string;
   }): Promise<{ selector: string; description: string }[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -120,6 +122,7 @@ export class StagehandObserveHandler {
       llmClient,
       image: annotatedScreenshot,
       requestId,
+      functionName: "observe",
     });
 
     const elementsWithSelectors = observationResponse.elements.map(

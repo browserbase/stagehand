@@ -9,6 +9,7 @@ import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
 import { GotoOptions } from "../types/playwright";
+import { LLMUsageEntry } from "../types/model";
 import { Page } from "../types/page";
 import {
   ActOptions,
@@ -327,6 +328,7 @@ export class Stagehand {
 
   private extractHandler?: StagehandExtractHandler;
   private observeHandler?: StagehandObserveHandler;
+  private usageLog: LLMUsageEntry[] = [];
 
   constructor(
     {
@@ -363,6 +365,7 @@ export class Stagehand {
     this.llmClient = this.llmProvider.getClient(
       modelName ?? DEFAULT_MODEL_NAME,
       modelClientOptions,
+      this,
     );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
@@ -593,6 +596,32 @@ export class Stagehand {
   /** @deprecated Use stagehand.page.observe() instead. This will be removed in the next major release. */
   async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
     return await this.stagehandPage.observe(options);
+  }
+
+  public recordUsage(
+    functionName: string,
+    modelName: string,
+    promptTokens: number,
+    completionTokens: number,
+    totalTokens: number,
+  ): void {
+    const entry: LLMUsageEntry = {
+      functionName,
+      modelName,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      timestamp: Date.now(),
+    };
+    this.usageLog.push(entry);
+  }
+
+  public getUsage(): LLMUsageEntry[] {
+    return [...this.usageLog];
+  }
+
+  public getTotalTokensUsed(): number {
+    return this.usageLog.reduce((sum, entry) => sum + entry.totalTokens, 0);
   }
 
   async close(): Promise<void> {

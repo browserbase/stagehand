@@ -57,3 +57,12 @@ export interface AnthropicJsonSchemaObject {
   properties?: Record<string, unknown>;
   required?: string[];
 }
+
+export interface LLMUsageEntry {
+  functionName: string;     // e.g. "act", "extract", "observe"
+  modelName: string;        // e.g. "gpt-4o", "claude-3-5-sonnet-2024..."
+  promptTokens: number;     // input/prompt tokens used
+  completionTokens: number; // output/completion tokens used
+  totalTokens: number;      // total tokens for the call
+  timestamp: number;        // Date.now() timestamp
+}

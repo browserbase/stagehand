@@ -58,6 +58,7 @@ export async function verifyActCompletion({
       name: "Verification",
       schema: verificationSchema,
     },
+    functionName: "verify_act",
     requestId,
   });
 
@@ -119,6 +120,7 @@ export async function act({
     image: screenshot
       ? { buffer: screenshot, description: AnnotatedScreenshotText }
       : undefined,
+    functionName: "act",
     requestId,
   });
 
@@ -189,6 +191,7 @@ export async function extract({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    functionName: "extract",
     requestId,
   });
 
@@ -210,6 +213,7 @@ export async function extract({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
+      functionName: "refine_extract",
       requestId,
     });
 
@@ -245,6 +249,7 @@ export async function extract({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
+      functionName: "metadata_extract",
       requestId,
     });
 
@@ -260,12 +265,14 @@ export async function observe({
   llmClient,
   image,
   requestId,
+  functionName = "observe",
 }: {
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
   image?: Buffer;
   requestId: string;
+  functionName?: string;
 }): Promise<{
   elements: { elementId: number; description: string }[];
 }> {
@@ -303,6 +310,7 @@ export async function observe({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
+      functionName: "observe",
       requestId,
     });
 
@@ -332,6 +340,7 @@ export async function ask({
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
+    functionName: "ask",
     requestId,
   });
 

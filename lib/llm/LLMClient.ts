@@ -60,6 +60,7 @@ export interface ChatCompletionOptions {
   tool_choice?: "auto" | ChatCompletionToolChoiceOption;
   maxTokens?: number;
   requestId: string;
+  functionName?: string;
 }
 
 export type LLMResponse = AnthropicTransformedResponse | ChatCompletion;

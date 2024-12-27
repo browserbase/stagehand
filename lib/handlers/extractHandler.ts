@@ -130,6 +130,7 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
+        functionName: "extract",
       });
     } else {
       return this.domExtract({
@@ -140,6 +141,7 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
+        functionName: "extract",
       });
     }
   }
@@ -151,6 +153,7 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
+    functionName,
   }: {
     instruction: string;
     schema: T;
@@ -158,6 +161,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
+    functionName?: string;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -362,6 +366,7 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
+    functionName,
   }: {
     instruction: string;
     schema: T;
@@ -370,6 +375,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
+    functionName?: string;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",

@@ -14,6 +14,7 @@ import {
 } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { ChatCompletionOptions, LLMClient } from "./LLMClient";
+import { Stagehand } from "../index";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -22,6 +23,7 @@ export class AnthropicClient extends LLMClient {
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
+  private stagehand?: Stagehand;
 
   constructor(
     logger: (message: LogLine) => void,
@@ -29,6 +31,7 @@ export class AnthropicClient extends LLMClient {
     cache: LLMCache | undefined,
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    stagehand?: Stagehand,
   ) {
     super(modelName);
     this.client = new Anthropic(clientOptions);
@@ -37,6 +40,7 @@ export class AnthropicClient extends LLMClient {
     this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.clientOptions = clientOptions;
+    this.stagehand = stagehand;
   }
 
   async createChatCompletion<T = AnthropicTransformedResponse>(
@@ -296,6 +300,20 @@ export class AnthropicClient extends LLMClient {
         },
       },
     });
+
+    // Record token usage if stagehand is available
+    if (response.usage && this.stagehand) {
+      const prompt = response.usage.input_tokens ?? 0;
+      const completion = response.usage.output_tokens ?? 0;
+      const total = prompt + completion;
+      this.stagehand.recordUsage(
+        options.functionName || "unknown",
+        this.modelName,
+        prompt,
+        completion,
+        total
+      );
+    }
 
     if (options.response_model) {
       const toolUse = response.content.find((c) => c.type === "tool_use");

@@ -71,6 +71,7 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   useTextExtract?: boolean;
+  useVision?: boolean;
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
@@ -81,6 +82,7 @@ export interface ObserveOptions {
   modelClientOptions?: ClientOptions;
   useVision?: boolean;
   domSettleTimeoutMs?: number;
+  functionName?: string;
 }
 
 export interface ObserveResult {

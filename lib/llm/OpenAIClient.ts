@@ -16,6 +16,7 @@ import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema } from "../utils";
 import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
+import { Stagehand } from "../index";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -24,6 +25,7 @@ export class OpenAIClient extends LLMClient {
   public logger: (message: LogLine) => void;
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
+  private stagehand?: Stagehand;
 
   constructor(
     logger: (message: LogLine) => void,
@@ -31,6 +33,7 @@ export class OpenAIClient extends LLMClient {
     cache: LLMCache | undefined,
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    stagehand?: Stagehand,
   ) {
     super(modelName);
     this.clientOptions = clientOptions;
@@ -39,6 +42,7 @@ export class OpenAIClient extends LLMClient {
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
+    this.stagehand = stagehand;
   }
 
   async createChatCompletion<T = ChatCompletion>(
@@ -236,7 +240,7 @@ export class OpenAIClient extends LLMClient {
 
     /* eslint-disable */
     // Remove unsupported options
-    const { response_model, ...openAiOptions } = {
+    const { response_model, functionName, ...openAiOptions } = {
       ...optionsWithoutImageAndRequestId,
       model: this.modelName,
     };
@@ -323,6 +327,20 @@ export class OpenAIClient extends LLMClient {
     };
 
     const response = await this.client.chat.completions.create(body);
+
+    // Record token usage if stagehand is available
+    if (response.usage && this.stagehand) {
+      const prompt = response.usage.prompt_tokens ?? 0;
+      const completion = response.usage.completion_tokens ?? 0;
+      const total = response.usage.total_tokens ?? prompt + completion;
+      this.stagehand.recordUsage(
+        optionsInitial.functionName || "unknown",
+        this.modelName,
+        prompt,
+        completion,
+        total,
+      );
+    }
 
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {
