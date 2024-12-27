@@ -1,7 +1,21 @@
 import { Stagehand } from "../lib";
 import { z } from "zod";
 
-// Token usage is now directly accessible via _stagehandTokenUsage property on returned objects
+function logTokenUsage(
+  functionName: string,
+  entry: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  },
+) {
+  console.log(
+    `\n\x1b[1m${functionName} Token Usage:\x1b[0m
+    \x1b[36mPrompt Tokens:     ${entry.promptTokens.toString().padStart(6)}\x1b[0m
+    \x1b[32mCompletion Tokens: ${entry.completionTokens.toString().padStart(6)}\x1b[0m
+    \x1b[33mTotal Tokens:      ${entry.totalTokens.toString().padStart(6)}\x1b[0m`,
+  );
+}
 
 async function scrapeHackerNews() {
   console.log("🚀 Starting Hacker News scraper...");
@@ -41,7 +55,13 @@ async function scrapeHackerNews() {
     });
 
     // Log token usage for extraction
-    console.log("Token usage for extract:", topArticle._stagehandTokenUsage);
+    const extractUsage = stagehand.getUsage();
+    const extractEntry = extractUsage.find(
+      (entry) => entry.functionName === "extract",
+    );
+    if (extractEntry) {
+      logTokenUsage("HN-ARTICLE-EXTRACT", extractEntry);
+    }
 
     console.log("\n📰 Top Article Details:", topArticle);
 
@@ -56,7 +76,11 @@ async function scrapeHackerNews() {
     });
 
     // Log token usage for summary
-    console.log("Token usage for summary:", summaryResult._stagehandTokenUsage);
+    const summaryUsage = stagehand.getUsage();
+    const actEntry = summaryUsage.find((entry) => entry.functionName === "act");
+    if (actEntry) {
+      logTokenUsage("HN-ARTICLE-SUMMARY", actEntry);
+    }
 
     console.log("\n📋 Summary:", summaryResult);
 

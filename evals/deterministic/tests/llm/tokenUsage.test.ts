@@ -1,9 +1,23 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { z } from "zod";
 import { Stagehand } from "../../../../lib";
 import StagehandConfig from "../../stagehand.config";
 
-// Token usage is now directly accessible via _stagehandTokenUsage property on returned objects
+function logTokenUsage(
+  functionName: string,
+  entry: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  },
+) {
+  console.log(
+    `\n\x1b[1m${functionName} Token Usage:\x1b[0m
+    \x1b[36mPrompt Tokens:     ${entry.promptTokens.toString().padStart(6)}\x1b[0m
+    \x1b[32mCompletion Tokens: ${entry.completionTokens.toString().padStart(6)}\x1b[0m
+    \x1b[33mTotal Tokens:      ${entry.totalTokens.toString().padStart(6)}\x1b[0m`,
+  );
+}
 
 test.describe("Token Usage Tracking", () => {
   test.setTimeout(120000);
@@ -33,14 +47,20 @@ test.describe("Token Usage Tracking", () => {
       rating: z.string().optional(),
     });
 
-    const result = await page.extract<typeof schema>({
+    await page.extract<typeof schema>({
       instruction:
         "get the product name, current price, and rating from this product",
       schema,
       useVision: true,
     });
 
-    console.log("Token usage:", result._stagehandTokenUsage);
+    const usage = stagehand.getUsage();
+    const extractEntry = usage.find(
+      (entry) => entry.functionName === "extract",
+    );
+    if (extractEntry) {
+      logTokenUsage("AMAZON-PRODUCT-EXTRACT", extractEntry);
+    }
   });
 
   // News website scenarios
@@ -49,12 +69,16 @@ test.describe("Token Usage Tracking", () => {
     await page.goto("https://www.reuters.com");
 
     // Find and read main headline
-    const actResult = await page.act({
+    await page.act({
       action:
         "find the main headline article and summarize its key points in 3 sentences",
     });
 
-    console.log("Token usage:", actResult._stagehandTokenUsage);
+    const usage = stagehand.getUsage();
+    const actEntry = usage.find((entry) => entry.functionName === "act");
+    if (actEntry) {
+      logTokenUsage("REUTERS-SUMMARY-ACT", actEntry);
+    }
   });
 
   // Technical data extraction
@@ -74,13 +98,19 @@ test.describe("Token Usage Tracking", () => {
       }),
     });
 
-    const readmeResult = await page.extract<typeof schema>({
+    await page.extract<typeof schema>({
       instruction:
         "extract the installation steps, requirements, and documentation information from the TypeScript README",
       schema,
       useVision: false,
     });
 
-    console.log("Token usage:", readmeResult._stagehandTokenUsage);
+    const usage = stagehand.getUsage();
+    const extractEntry = usage.find(
+      (entry) => entry.functionName === "extract",
+    );
+    if (extractEntry) {
+      logTokenUsage("GITHUB-README-EXTRACT", extractEntry);
+    }
   });
 });

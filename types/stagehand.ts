@@ -58,9 +58,7 @@ export interface ActOptions {
   domSettleTimeoutMs?: number;
 }
 
-import { WithTokenUsage } from "./tokenUsage";
-
-export interface ActResult extends WithTokenUsage {
+export interface ActResult {
   success: boolean;
   message: string;
   action: string;
@@ -76,8 +74,7 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   useVision?: boolean;
 }
 
-export type ExtractResult<T extends z.AnyZodObject> = z.infer<T> &
-  WithTokenUsage;
+export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
 
 export interface ObserveOptions {
   instruction?: string;
@@ -88,7 +85,7 @@ export interface ObserveOptions {
   functionName?: string;
 }
 
-export interface ObserveResult extends WithTokenUsage {
+export interface ObserveResult {
   selector: string;
   description: string;
 }

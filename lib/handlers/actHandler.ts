@@ -1211,19 +1211,10 @@ export class StagehandActHandler {
             this.actionCache?.deleteCacheForRequestId(requestId);
           }
 
-          const usageForThisCall = this.stagehand
-            .getUsage()
-            .find(
-              (entry) =>
-                entry.functionName === functionName ||
-                entry.functionName === "act",
-            );
-
           return {
             success: false,
             message: `Action was not able to be completed.`,
             action: action,
-            _stagehandTokenUsage: usageForThisCall,
           };
         }
       }

@@ -151,18 +151,6 @@ export class StagehandObserveHandler {
     });
 
     await this._recordObservation(instruction, elementsWithSelectors);
-
-    const usageForThisCall = this.stagehand
-      .getUsage()
-      .find(
-        (entry) =>
-          entry.functionName === functionName ||
-          entry.functionName === "observe",
-      );
-
-    return {
-      elements: elementsWithSelectors,
-      _stagehandTokenUsage: usageForThisCall,
-    };
+    return elementsWithSelectors;
   }
 }
