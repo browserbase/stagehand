@@ -297,8 +297,8 @@ async function applyStealthScripts(context: BrowserContext) {
     window.navigator.permissions.query = (parameters) =>
       parameters.name === "notifications"
         ? Promise.resolve({
-            state: Notification.permission,
-          } as PermissionStatus)
+          state: Notification.permission,
+        } as PermissionStatus)
         : originalQuery(parameters);
   });
 }
@@ -350,8 +350,8 @@ export class Stagehand {
       modelName,
       modelClientOptions,
     }: ConstructorParams = {
-      env: "BROWSERBASE",
-    },
+        env: "BROWSERBASE",
+      },
   ) {
     this.externalLogger = logger || defaultLogger;
     this.internalLogger = this.log.bind(this);
@@ -377,10 +377,7 @@ export class Stagehand {
 
   public get logger(): (logLine: LogLine) => void {
     return (logLine: LogLine) => {
-      this.internalLogger(logLine);
-      if (this.externalLogger) {
-        this.externalLogger(logLine);
-      }
+      this.log(logLine);
     };
   }
 
