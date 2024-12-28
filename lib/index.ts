@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { type BrowserContext, chromium } from "@playwright/test";
+import { chromium } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -9,7 +9,7 @@ import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
 import { GotoOptions } from "../types/playwright";
-import { Page } from "../types/page";
+import { Page, BrowserContext } from "../types/page";
 import {
   ActOptions,
   ActResult,
@@ -303,6 +303,10 @@ async function applyStealthScripts(context: BrowserContext) {
   });
 }
 
+const defaultLogger = async (logLine: LogLine) => {
+  console.log(logLineToString(logLine));
+};
+
 export class Stagehand {
   private stagehandPage!: StagehandPage;
   private stagehandContext!: StagehandContext;
@@ -319,7 +323,8 @@ export class Stagehand {
   private internalLogger: (logLine: LogLine) => void;
   private apiKey: string | undefined;
   private projectId: string | undefined;
-  private externalLogger?: (logLine: LogLine) => void;
+  // We want external logger to accept async functions
+  private externalLogger?: (logLine: LogLine) => void | Promise<void>;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
   private contextPath?: string;
@@ -348,7 +353,7 @@ export class Stagehand {
       env: "BROWSERBASE",
     },
   ) {
-    this.externalLogger = logger;
+    this.externalLogger = logger || defaultLogger;
     this.internalLogger = this.log.bind(this);
     this.enableCaching =
       enableCaching ??
@@ -504,9 +509,6 @@ export class Stagehand {
     // Normal Logging
     if (this.externalLogger) {
       this.externalLogger(logObj);
-    } else {
-      const logMessage = logLineToString(logObj);
-      console.log(logMessage);
     }
 
     // Add the logs to the browserbase session
@@ -613,3 +615,4 @@ export * from "../types/log";
 export * from "../types/model";
 export * from "../types/playwright";
 export * from "../types/stagehand";
+export * from "../types/page";
