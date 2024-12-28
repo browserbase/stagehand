@@ -13,7 +13,7 @@ export interface ConstructorParams {
   debugDom?: boolean;
   llmProvider?: LLMProvider;
   headless?: boolean;
-  logger?: (message: LogLine) => void;
+  logger?: (message: LogLine) => void | Promise<void>;
   domSettleTimeoutMs?: number;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   enableCaching?: boolean;
