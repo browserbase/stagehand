@@ -4,8 +4,6 @@ import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { StagehandPage } from "lib/StagehandPage";
-import { StagehandContext } from "lib/StagehandContext";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
@@ -89,6 +87,3 @@ export interface ObserveResult {
   selector: string;
   description: string;
 }
-
-export { StagehandPage };
-export { StagehandContext };

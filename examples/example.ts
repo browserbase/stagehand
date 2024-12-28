@@ -11,6 +11,8 @@ import StagehandConfig from "./stagehand.config";
 async function example() {
   const stagehand = new Stagehand(StagehandConfig);
   await stagehand.init();
+  const page = stagehand.page;
+  await page.act({ action: "click on the first article" });
 }
 
 (async () => {

@@ -10,7 +10,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*", "lib/types/*"]
+      "*": ["node_modules/*", "types/*"]
     },
     "skipLibCheck": true,
     "declaration": true
