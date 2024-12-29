@@ -1,7 +1,7 @@
 import type { ConstructorParams, LogLine } from "../lib";
 
 const StagehandConfig: ConstructorParams = {
-  env: "LOCAL" /* Environment to run Stagehand in */,
+  env: "BROWSERBASE" /* Environment to run Stagehand in */,
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
   verbose: 1 /* Logging verbosity level (0=quiet, 1=normal, 2=verbose) */,
@@ -15,7 +15,7 @@ const StagehandConfig: ConstructorParams = {
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
   },
-  // enableCaching: true /* Enable caching functionality */,
+  enableCaching: true /* Enable caching functionality */,
   browserbaseSessionID:
     undefined /* Session ID for resuming Browserbase sessions */,
   modelName: "gpt-4o" /* Name of the model to use */,
