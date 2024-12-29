@@ -11,6 +11,22 @@ import StagehandConfig from "./stagehand.config";
 async function example() {
   const stagehand = new Stagehand(StagehandConfig);
   await stagehand.init();
+
+  const { page } = stagehand;
+
+  await page.goto("https://www.google.com");
+
+  await page.act({
+    action: 'Type "Sameel Arif" in the search bar',
+  });
+
+  await page.act({
+    action: "Click the search button",
+  });
+
+  await page.act({
+    action: "Click the first result",
+  });
 }
 
 (async () => {
