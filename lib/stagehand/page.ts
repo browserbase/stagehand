@@ -1,21 +1,24 @@
-import type {
-  Page as PlaywrightPage,
-  BrowserContext as PlaywrightContext,
-} from "@playwright/test";
-import { LLMClient } from "./llm/LLMClient";
-import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
-import { StagehandActHandler } from "./handlers/actHandler";
-import { StagehandContext } from "./StagehandContext";
-import { Page } from "../types/page";
+import { Page } from "@/types/page";
+import { GotoOptions } from "@/types/playwright";
 import {
+  ActOptions,
+  ActResult,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
   ObserveResult,
-} from "../types/stagehand";
+} from "@/types/stagehand";
+import type {
+  BrowserContext as PlaywrightContext,
+  Page as PlaywrightPage,
+} from "@playwright/test";
 import { z } from "zod";
-import { StagehandExtractHandler } from "./handlers/extractHandler";
-import { StagehandObserveHandler } from "./handlers/observeHandler";
+import { StagehandActHandler } from "../handlers/actHandler";
+import { StagehandExtractHandler } from "../handlers/extractHandler";
+import { StagehandObserveHandler } from "../handlers/observeHandler";
+import { LLMClient } from "../llm/LLMClient";
+import { Stagehand } from "./";
+import { StagehandContext } from "./context";
 
 export class StagehandPage {
   private stagehand: Stagehand;

@@ -4,7 +4,7 @@ import { TextAnnotation } from "../../types/textannotation";
 import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
-import { StagehandPage } from "../StagehandPage";
+import { StagehandPage } from "../stagehand/page";
 import { Stagehand } from "../index";
 
 const PROXIMITY_THRESHOLD = 15;

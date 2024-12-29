@@ -10,8 +10,8 @@ import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
-import { StagehandPage } from "../StagehandPage";
-import { StagehandContext } from "../StagehandContext";
+import { StagehandPage } from "../stagehand/page";
+import { StagehandContext } from "../stagehand/context";
 
 export class StagehandActHandler {
   private readonly stagehandPage: StagehandPage;

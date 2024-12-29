@@ -4,7 +4,7 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
-import { StagehandPage } from "../StagehandPage";
+import { StagehandPage } from "../stagehand/page";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
