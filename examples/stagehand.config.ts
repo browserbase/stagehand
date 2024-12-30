@@ -1,9 +1,15 @@
+import { LLMProvider } from "../lib/llm/LLMProvider";
+import { OpenAIClient } from "../lib/llm/OpenAIClient";
 import type { ConstructorParams, LogLine } from "../lib";
 
 const StagehandConfig: ConstructorParams = {
   env: "BROWSERBASE" /* Environment to run Stagehand in */,
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
+  llmProvider: new LLMProvider({
+    enableCaching: true,
+    llmClient: OpenAIClient,
+  }),
   verbose: 1 /* Logging verbosity level (0=quiet, 1=normal, 2=verbose) */,
   debugDom: true /* Enable DOM debugging features */,
   headless: false /* Run browser in headless mode */,

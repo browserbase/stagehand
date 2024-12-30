@@ -16,28 +16,29 @@ import { LLMCache } from "../cache/LLMCache";
 import { ChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AnthropicClient extends LLMClient {
-  public type = "anthropic" as const;
-  private client: Anthropic;
-  private cache: LLMCache | undefined;
-  public logger: (message: LogLine) => void;
-  private enableCaching: boolean;
-  public clientOptions: ClientOptions;
+	public type = "anthropic" as const;
+	private client: Anthropic;
+	public logger: (message: LogLine) => void;
+	public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
-    enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: AvailableModel,
-    clientOptions?: ClientOptions,
-  ) {
-    super(modelName);
-    this.client = new Anthropic(clientOptions);
-    this.logger = logger;
-    this.cache = cache;
-    this.enableCaching = enableCaching;
-    this.modelName = modelName;
-    this.clientOptions = clientOptions;
-  }
+	constructor(
+		logger: (message: LogLine) => void,
+		enableCaching = false,
+		cache: LLMCache | undefined,
+		modelName: AvailableModel,
+		clientOptions?: ClientOptions,
+	) {
+		super({
+			modelName,
+			enableCaching,
+			cache,
+			clientOptions,
+		});
+    console.log(clientOptions)
+		this.client = new Anthropic(clientOptions);
+		this.logger = logger;
+		this.clientOptions = clientOptions;
+	}
 
   async createChatCompletion<T = AnthropicTransformedResponse>(
     options: ChatCompletionOptions & { retries?: number },

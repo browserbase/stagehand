@@ -18,28 +18,28 @@ import { validateZodSchema } from "../utils";
 import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
 
 export class OpenAIClient extends LLMClient {
-  public type = "openai" as const;
-  private client: OpenAI;
-  private cache: LLMCache | undefined;
-  public logger: (message: LogLine) => void;
-  private enableCaching: boolean;
-  public clientOptions: ClientOptions;
+	public type = "openai" as const;
+	private client: OpenAI;
+	public logger: (message: LogLine) => void;
+	public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
-    enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: AvailableModel,
-    clientOptions?: ClientOptions,
-  ) {
-    super(modelName);
-    this.clientOptions = clientOptions;
-    this.client = new OpenAI(clientOptions);
-    this.logger = logger;
-    this.cache = cache;
-    this.enableCaching = enableCaching;
-    this.modelName = modelName;
-  }
+	constructor(
+		logger: (message: LogLine) => void,
+		enableCaching = false,
+		cache: LLMCache | undefined,
+		modelName: AvailableModel,
+		clientOptions?: ClientOptions,
+	) {
+		super({
+			modelName,
+			enableCaching,
+			cache,
+			clientOptions,
+		});
+		this.clientOptions = clientOptions;
+		this.client = new OpenAI(clientOptions);
+		this.logger = logger;
+	}
 
   async createChatCompletion<T = ChatCompletion>(
     optionsInitial: ChatCompletionOptions,
