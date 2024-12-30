@@ -65,34 +65,33 @@ export interface ChatCompletionOptions {
 
 export type LLMResponse = AnthropicTransformedResponse | ChatCompletion;
 
-
 export abstract class LLMClient {
-	public type: string;
-	public modelName: string;
-	public hasVision: boolean;
-	public clientOptions: ClientOptions;
-	protected enableCaching: boolean;
-	protected cache: LLMCache | undefined;
+  public type: string;
+  public modelName: string;
+  public hasVision: boolean;
+  public clientOptions: ClientOptions;
+  protected enableCaching: boolean;
+  protected cache: LLMCache | undefined;
 
-	constructor({
-		modelName,
-		hasVision = false,
-		clientOptions,
-		enableCaching = false,
-		cache,
-	}: {
-		modelName: string;
-		hasVision?: boolean;
-		clientOptions?: ClientOptions;
-		enableCaching?: boolean;
-		cache?: LLMCache;
-	}) {
-		this.modelName = modelName;
-		this.hasVision = hasVision;
-		this.clientOptions = clientOptions;
-		this.enableCaching = enableCaching;
-		this.cache = cache;
-	}
+  constructor({
+    modelName,
+    hasVision = false,
+    clientOptions,
+    enableCaching = false,
+    cache,
+  }: {
+    modelName: string;
+    hasVision?: boolean;
+    clientOptions?: ClientOptions;
+    enableCaching?: boolean;
+    cache?: LLMCache;
+  }) {
+    this.modelName = modelName;
+    this.hasVision = hasVision;
+    this.clientOptions = clientOptions;
+    this.enableCaching = enableCaching;
+    this.cache = cache;
+  }
 
   abstract createChatCompletion<T = LLMResponse>(
     options: ChatCompletionOptions,
