@@ -18,7 +18,7 @@ export interface ConstructorParams {
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   enableCaching?: boolean;
   browserbaseSessionID?: string;
-  modelName?: AvailableModel;
+  modelName?: string;
   modelClientOptions?: ClientOptions;
 }
 

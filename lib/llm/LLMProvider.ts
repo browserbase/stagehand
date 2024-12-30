@@ -1,83 +1,65 @@
-import { LogLine } from "../../types/log";
-import {
-  AvailableModel,
-  ClientOptions,
-  ModelProvider,
-} from "../../types/model";
+import type { LogLine } from "../../types/log";
+import type { ClientOptions } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
-import { AnthropicClient } from "./AnthropicClient";
-import { LLMClient } from "./LLMClient";
-import { OpenAIClient } from "./OpenAIClient";
+import type { LLMClient } from "./LLMClient";
+
+type LLMClientConstructor = new (
+  logger: (message: LogLine) => void, 
+	enableCaching: boolean,
+	cache: LLMCache | undefined,
+	modelName: string,
+	options?: ClientOptions,
+) => LLMClient;
 
 export class LLMProvider {
-  private modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
-    "gpt-4o": "openai",
-    "gpt-4o-mini": "openai",
-    "gpt-4o-2024-08-06": "openai",
-    "o1-mini": "openai",
-    "o1-preview": "openai",
-    "claude-3-5-sonnet-latest": "anthropic",
-    "claude-3-5-sonnet-20240620": "anthropic",
-    "claude-3-5-sonnet-20241022": "anthropic",
-  };
+	private logger: (message: LogLine) => void;
+	private enableCaching: boolean;
+	private cache: LLMCache | undefined;
+	private llmClient: LLMClientConstructor;
 
-  private logger: (message: LogLine) => void;
-  private enableCaching: boolean;
-  private cache: LLMCache | undefined;
+	constructor({
+		logger,
+		enableCaching,
+		llmClient,
+	}: {
+		logger?: (message: LogLine) => void,
+		enableCaching: boolean,
+		llmClient: LLMClientConstructor,
+	}) {
+		this.logger = logger || ((message: LogLine) =>
+      console.log(`[stagehand::${message.category}] ${message.message}`)
+    );
+		this.enableCaching = enableCaching;
+		this.cache = enableCaching ? new LLMCache(this.logger) : undefined;
+		this.llmClient = llmClient;
+	}
 
-  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
-    this.logger = logger;
-    this.enableCaching = enableCaching;
-    this.cache = enableCaching ? new LLMCache(logger) : undefined;
-  }
+	cleanRequestCache(requestId: string): void {
+		if (!this.enableCaching) {
+			return;
+		}
 
-  cleanRequestCache(requestId: string): void {
-    if (!this.enableCaching) {
-      return;
-    }
+		this.logger({
+			category: "llm_cache",
+			message: "cleaning up cache",
+			level: 1,
+			auxiliary: {
+				requestId: {
+					value: requestId,
+					type: "string",
+				},
+			},
+		});
+		this.cache.deleteCacheForRequestId(requestId);
+	}
 
-    this.logger({
-      category: "llm_cache",
-      message: "cleaning up cache",
-      level: 1,
-      auxiliary: {
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-      },
-    });
-    this.cache.deleteCacheForRequestId(requestId);
-  }
-
-  getClient(
-    modelName: AvailableModel,
-    clientOptions?: ClientOptions,
-  ): LLMClient {
-    const provider = this.modelToProviderMap[modelName];
-    if (!provider) {
-      throw new Error(`Unsupported model: ${modelName}`);
-    }
-
-    switch (provider) {
-      case "openai":
-        return new OpenAIClient(
-          this.logger,
-          this.enableCaching,
-          this.cache,
-          modelName,
-          clientOptions,
-        );
-      case "anthropic":
-        return new AnthropicClient(
-          this.logger,
-          this.enableCaching,
-          this.cache,
-          modelName,
-          clientOptions,
-        );
-      default:
-        throw new Error(`Unsupported provider: ${provider}`);
-    }
-  }
+	getClient(modelName: string, clientOptions?: ClientOptions): LLMClient {
+		return new this.llmClient(
+      this.logger,
+			this.enableCaching,
+			this.cache,
+			modelName,
+			clientOptions,
+		);
+	}
 }
