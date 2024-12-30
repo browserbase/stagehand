@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -39,6 +39,7 @@
     "@types/cheerio": "^0.22.35",
     "@types/express": "^4.17.21",
     "@types/node": "^20.11.30",
+    "@types/ws": "^8.5.13",
     "adm-zip": "^0.5.16",
     "autoevals": "^0.0.64",
     "braintrust": "^0.0.171",
@@ -67,6 +68,7 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
     "sharp": "^0.33.5",
+    "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },
   "directories": {

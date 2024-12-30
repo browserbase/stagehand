@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { type BrowserContext, chromium } from "@playwright/test";
+import { chromium } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -9,7 +9,7 @@ import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { LogLine } from "../types/log";
 import { GotoOptions } from "../types/playwright";
-import { Page } from "../types/page";
+import { Page, BrowserContext } from "../types/page";
 import {
   ActOptions,
   ActResult,
@@ -297,11 +297,15 @@ async function applyStealthScripts(context: BrowserContext) {
     window.navigator.permissions.query = (parameters) =>
       parameters.name === "notifications"
         ? Promise.resolve({
-            state: Notification.permission,
-          } as PermissionStatus)
+          state: Notification.permission,
+        } as PermissionStatus)
         : originalQuery(parameters);
   });
 }
+
+const defaultLogger = async (logLine: LogLine) => {
+  console.log(logLineToString(logLine));
+};
 
 export class Stagehand {
   private stagehandPage!: StagehandPage;
@@ -319,7 +323,8 @@ export class Stagehand {
   private internalLogger: (logLine: LogLine) => void;
   private apiKey: string | undefined;
   private projectId: string | undefined;
-  private externalLogger?: (logLine: LogLine) => void;
+  // We want external logger to accept async functions
+  private externalLogger?: (logLine: LogLine) => void | Promise<void>;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
   private contextPath?: string;
@@ -345,10 +350,10 @@ export class Stagehand {
       modelName,
       modelClientOptions,
     }: ConstructorParams = {
-      env: "BROWSERBASE",
-    },
+        env: "BROWSERBASE",
+      },
   ) {
-    this.externalLogger = logger;
+    this.externalLogger = logger || defaultLogger;
     this.internalLogger = this.log.bind(this);
     this.enableCaching =
       enableCaching ??
@@ -372,10 +377,7 @@ export class Stagehand {
 
   public get logger(): (logLine: LogLine) => void {
     return (logLine: LogLine) => {
-      this.internalLogger(logLine);
-      if (this.externalLogger) {
-        this.externalLogger(logLine);
-      }
+      this.log(logLine);
     };
   }
 
@@ -504,9 +506,6 @@ export class Stagehand {
     // Normal Logging
     if (this.externalLogger) {
       this.externalLogger(logObj);
-    } else {
-      const logMessage = logLineToString(logObj);
-      console.log(logMessage);
     }
 
     // Add the logs to the browserbase session
@@ -613,3 +612,4 @@ export * from "../types/log";
 export * from "../types/model";
 export * from "../types/playwright";
 export * from "../types/stagehand";
+export * from "../types/page";

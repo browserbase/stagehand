@@ -9,13 +9,10 @@ on:
     types:
       - opened
       - synchronize
-  schedule:
-    - cron: "0 */6 * * *" # every 6 hours
 
 env:
   EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
-  EXPERIMENTAL_EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest,o1-mini,o1-preview"
-  EVAL_CATEGORIES: "observe,act,combination,extract,experimental,text_extract"
+  EVAL_CATEGORIES: "observe,act,combination,extract,text_extract"
 
 concurrency:
   group: ${{ github.ref }}
@@ -336,49 +333,5 @@ jobs:
             exit 0
           else
             echo "Eval summary not found for combination category. Failing CI."
-            exit 1
-          fi
-
-  run-experimental-evals:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    needs: [run-text-extract-evals]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v2'
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: npm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Experimental Evals
-        run: npm run evals category experimental
-
-      - name: Log Experimental Evals Performance
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            experimental_score=$(jq '.categories.experimental' eval-summary.json)
-            echo "Experimental category score: $experimental_score%"
-          else
-            echo "Eval summary not found for experimental category. Failing CI."
             exit 1
           fi
