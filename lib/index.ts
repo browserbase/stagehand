@@ -24,8 +24,6 @@ import {
   ObserveResult,
 } from "../types/stagehand";
 import { scriptContent } from "./dom/build/scriptContent";
-import { StagehandExtractHandler } from "./handlers/extractHandler";
-import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString } from "./utils";
@@ -320,7 +318,6 @@ export class Stagehand {
   public llmProvider: LLMProvider;
   public enableCaching: boolean;
 
-  private internalLogger: (logLine: LogLine) => void;
   private apiKey: string | undefined;
   private projectId: string | undefined;
   // We want external logger to accept async functions
@@ -329,9 +326,6 @@ export class Stagehand {
   public variables: { [key: string]: unknown };
   private contextPath?: string;
   private llmClient: LLMClient;
-
-  private extractHandler?: StagehandExtractHandler;
-  private observeHandler?: StagehandObserveHandler;
 
   constructor(
     {
@@ -354,7 +348,6 @@ export class Stagehand {
     },
   ) {
     this.externalLogger = logger || defaultLogger;
-    this.internalLogger = this.log.bind(this);
     this.enableCaching =
       enableCaching ??
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
@@ -400,6 +393,11 @@ export class Stagehand {
   }
 
   public get context(): BrowserContext {
+    if (!this.stagehandContext) {
+      throw new Error(
+        "Stagehand not initialized. Make sure to await stagehand.init() first.",
+      );
+    }
     return this.stagehandContext.context;
   }
 
