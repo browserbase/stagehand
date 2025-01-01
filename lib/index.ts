@@ -499,7 +499,7 @@ export class Stagehand {
   private is_processing_browserbase_logs: boolean = false;
 
   log(logObj: LogLine): void {
-    logObj.level = logObj.level || 1;
+    logObj.level = logObj.level ?? 1;
 
     // Normal Logging
     if (this.externalLogger) {
@@ -527,7 +527,7 @@ export class Stagehand {
   }
 
   private async _log_to_browserbase(logObj: LogLine) {
-    logObj.level = logObj.level || 1;
+    logObj.level = logObj.level ?? 1;
 
     if (!this.stagehandPage) {
       return;
