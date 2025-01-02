@@ -1,4 +1,4 @@
-import { Browser, BrowserContext } from "@playwright/test";
+import { Browser, BrowserContext } from "./page";
 
 export interface BrowserResult {
   env: "LOCAL" | "BROWSERBASE";
