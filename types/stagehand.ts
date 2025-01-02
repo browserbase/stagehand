@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { BrowserContext, Page } from "@playwright/test";
+import { Page, BrowserContext } from "../types/page";
 import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
