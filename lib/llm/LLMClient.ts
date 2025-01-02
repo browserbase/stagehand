@@ -65,7 +65,7 @@ export interface ChatCompletionOptions {
 export type LLMResponse = AnthropicTransformedResponse | ChatCompletion;
 
 export abstract class LLMClient {
-  public type: "openai" | "anthropic" | "ollama";
+  public type: "openai" | "anthropic";
   public modelName: AvailableModel;
   public hasVision: boolean;
   public clientOptions: ClientOptions;

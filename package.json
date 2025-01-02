@@ -8,7 +8,6 @@
   "scripts": {
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
-    "hackernews": "npm run build-dom-scripts && tsx examples/hackernews.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",

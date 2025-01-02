@@ -7,7 +7,6 @@ import {
 import { LLMCache } from "../cache/LLMCache";
 import { AnthropicClient } from "./AnthropicClient";
 import { LLMClient } from "./LLMClient";
-import { OllamaClient } from "./OllamaClient";
 import { OpenAIClient } from "./OpenAIClient";
 
 export class LLMProvider {
@@ -20,7 +19,6 @@ export class LLMProvider {
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
     "claude-3-5-sonnet-20241022": "anthropic",
-    "llama3.2": "ollama",
   };
 
   private logger: (message: LogLine) => void;
@@ -72,14 +70,6 @@ export class LLMProvider {
         );
       case "anthropic":
         return new AnthropicClient(
-          this.logger,
-          this.enableCaching,
-          this.cache,
-          modelName,
-          clientOptions,
-        );
-      case "ollama":
-        return new OllamaClient(
           this.logger,
           this.enableCaching,
           this.cache,

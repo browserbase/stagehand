@@ -1,20 +1,24 @@
 import OpenAI, { type ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import type { LLMCache } from "../cache/LLMCache";
-import { validateZodSchema } from "../utils";
-import { type ChatCompletionOptions, type ChatMessage, LLMClient } from "./LLMClient";
-import type { LogLine } from "../../types/log";
-import type { AvailableModel } from "../../types/model";
+import type { LLMCache } from "../lib/cache/LLMCache";
+import { validateZodSchema } from "../lib/utils";
+import {
+  type ChatCompletionOptions,
+  type ChatMessage,
+  LLMClient,
+} from "../lib/llm/LLMClient";
+import type { LogLine } from "../types/log";
+import type { AvailableModel } from "../types/model";
 import type {
-    ChatCompletion,
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionContentPartImage,
-    ChatCompletionContentPartText,
-    ChatCompletionCreateParamsNonStreaming,
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-  } from "openai/resources/chat";
+  ChatCompletion,
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionContentPartImage,
+  ChatCompletionContentPartText,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionMessageParam,
+  ChatCompletionSystemMessageParam,
+  ChatCompletionUserMessageParam,
+} from "openai/resources/chat";
 
 export class OllamaClient extends LLMClient {
   public type = "ollama" as const;
@@ -28,19 +32,19 @@ export class OllamaClient extends LLMClient {
     logger: (message: LogLine) => void,
     enableCaching = false,
     cache: LLMCache | undefined,
-    modelName: AvailableModel,
+    modelName: "llama3.2",
     clientOptions?: ClientOptions,
   ) {
-    super(modelName);
+    super(modelName as AvailableModel);
     this.client = new OpenAI({
       ...clientOptions,
-      baseURL: clientOptions?.baseURL || process.env.OLLAMA_BASE_URL,
-      apiKey: "ollama" // 'ollama' is required as the API key for Ollama
+      baseURL: clientOptions?.baseURL || "http://localhost:11434/v1",
+      apiKey: "ollama",
     });
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
-    this.modelName = modelName;
+    this.modelName = modelName as AvailableModel;
   }
 
   async createChatCompletion<T = ChatCompletion>(
@@ -49,6 +53,7 @@ export class OllamaClient extends LLMClient {
   ): Promise<T> {
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
 
+    // TODO: Implement vision support
     if (image) {
       throw new Error(
         "Image provided. Vision is not currently supported for Ollama",
@@ -86,23 +91,23 @@ export class OllamaClient extends LLMClient {
     };
 
     if (options.image) {
-        const screenshotMessage: ChatMessage = {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
-              },
+      const screenshotMessage: ChatMessage = {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
             },
-            ...(options.image.description
-              ? [{ type: "text", text: options.image.description }]
-              : []),
-          ],
-        };
-  
-        options.messages.push(screenshotMessage);
-      }
+          },
+          ...(options.image.description
+            ? [{ type: "text", text: options.image.description }]
+            : []),
+        ],
+      };
+
+      options.messages.push(screenshotMessage);
+    }
 
     if (this.enableCaching && this.cache) {
       const cachedResponse = await this.cache.get<T>(
@@ -261,10 +266,7 @@ export class OllamaClient extends LLMClient {
 
       if (!validateZodSchema(options.response_model.schema, parsedData)) {
         if (retries > 0) {
-          return this.createChatCompletion(
-            options,
-            retries - 1,
-          );
+          return this.createChatCompletion(options, retries - 1);
         }
 
         throw new Error("Invalid response schema");
@@ -306,8 +308,6 @@ export class OllamaClient extends LLMClient {
       this.cache.set(cacheOptions, response, options.requestId);
     }
 
-    // if the function was called with a response model, it would have returned earlier
-    // so we can safely cast here to T, which defaults to ChatCompletion
     return response as T;
   }
 }
