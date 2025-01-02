@@ -1,5 +1,3 @@
-import { calculateViewportHeight } from "./utils";
-
 export async function debugDom() {
   window.chunkNumber = 0;
 
@@ -10,7 +8,6 @@ export async function debugDom() {
   const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
 
   drawChunk(selectorMap);
-  setupChunkNav();
 }
 
 function multiSelectorMapToSelectorMap(
@@ -67,7 +64,6 @@ function drawChunk(selectorMap: Record<number, string>) {
 
 async function cleanupDebug() {
   cleanupMarkers();
-  cleanupNav();
 }
 
 function cleanupMarkers() {
@@ -75,75 +71,6 @@ function cleanupMarkers() {
   markers.forEach((marker) => {
     marker.remove();
   });
-}
-
-function cleanupNav() {
-  const stagehandNavElements = document.querySelectorAll(".stagehand-nav");
-  stagehandNavElements.forEach((element) => {
-    element.remove();
-  });
-}
-
-function setupChunkNav() {
-  const viewportHeight = calculateViewportHeight();
-  const documentHeight = document.documentElement.scrollHeight;
-  const totalChunks = Math.ceil(documentHeight / viewportHeight);
-
-  if (window.chunkNumber > 0) {
-    const prevChunkButton = document.createElement("button");
-    prevChunkButton.className = "stagehand-nav";
-
-    prevChunkButton.textContent = "Previous";
-    prevChunkButton.style.marginLeft = "50px";
-    prevChunkButton.style.position = "fixed";
-    prevChunkButton.style.bottom = "10px";
-    prevChunkButton.style.left = "50%";
-    prevChunkButton.style.transform = "translateX(-50%)";
-    prevChunkButton.style.zIndex = "1000000000";
-    prevChunkButton.onclick = async () => {
-      cleanupMarkers();
-      cleanupNav();
-      window.chunkNumber -= 1;
-      window.scrollTo(0, window.chunkNumber * viewportHeight);
-      await window.waitForDomSettle();
-      const { selectorMap: multiSelectorMap } = await window.processElements(
-        window.chunkNumber,
-      );
-
-      const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
-
-      drawChunk(selectorMap);
-      setupChunkNav();
-    };
-    document.body.appendChild(prevChunkButton);
-  }
-  if (totalChunks > window.chunkNumber) {
-    const nextChunkButton = document.createElement("button");
-    nextChunkButton.className = "stagehand-nav";
-    nextChunkButton.textContent = "Next";
-    nextChunkButton.style.marginRight = "50px";
-    nextChunkButton.style.position = "fixed";
-    nextChunkButton.style.bottom = "10px";
-    nextChunkButton.style.right = "50%";
-    nextChunkButton.style.transform = "translateX(50%)";
-    nextChunkButton.style.zIndex = "1000000000";
-    nextChunkButton.onclick = async () => {
-      cleanupMarkers();
-      cleanupNav();
-      window.chunkNumber += 1;
-      window.scrollTo(0, window.chunkNumber * viewportHeight);
-      await window.waitForDomSettle();
-
-      const { selectorMap: multiSelectorMap } = await window.processElements(
-        window.chunkNumber,
-      );
-      const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
-      drawChunk(selectorMap);
-      setupChunkNav();
-    };
-
-    document.body.appendChild(nextChunkButton);
-  }
 }
 
 window.debugDom = debugDom;
