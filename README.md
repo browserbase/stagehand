@@ -1,8 +1,6 @@
 <div id="toc" align="center">
   <ul style="list-style: none">
-    <summary>
-      <h1> 🤘 Stagehand </h1>
-    </summary>
+    <img src="https://stagehand.dev/logo_light.svg" alt="Stagehand" />
   </ul>
 </div>
 
