@@ -9,6 +9,7 @@
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
+    "external-client": "npm run build-dom-scripts && tsx examples/external_client.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
