@@ -23,13 +23,19 @@ export class AnthropicClient extends LLMClient {
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
+  constructor({
+    logger,
     enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: AvailableModel,
-    clientOptions?: ClientOptions,
-  ) {
+    cache,
+    modelName,
+    clientOptions,
+  }: {
+    logger: (message: LogLine) => void;
+    enableCaching?: boolean;
+    cache?: LLMCache;
+    modelName: AvailableModel;
+    clientOptions?: ClientOptions;
+  }) {
     super(modelName);
     this.client = new Anthropic(clientOptions);
     this.logger = logger;

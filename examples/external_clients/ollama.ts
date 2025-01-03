@@ -28,13 +28,19 @@ export class OllamaClient extends LLMClient {
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
+  constructor({
+    logger,
     enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: "llama3.2",
-    clientOptions?: ClientOptions,
-  ) {
+    cache = undefined,
+    modelName = "llama3.2",
+    clientOptions,
+  }: {
+    logger?: (message: LogLine) => void;
+    enableCaching?: boolean;
+    cache?: LLMCache;
+    modelName?: string;
+    clientOptions?: ClientOptions;
+  }) {
     super(modelName as AvailableModel);
     this.client = new OpenAI({
       ...clientOptions,
