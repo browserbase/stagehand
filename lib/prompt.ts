@@ -22,7 +22,7 @@ If the user's goal will be accomplished after running the playwright action, set
 Note 1: If there is a popup on the page for cookies or advertising that has nothing to do with the goal, try to close it first before proceeding. As this can block the goal from being completed.
 Note 2: Sometimes what your are looking for is hidden behind and element you need to interact with. For example, sliders, buttons, etc...
 
-Again, if the user's goal will be accomplished after running the playwright action, set completed to true.
+Again, if the user's goal will be accomplished after running the playwright action, set completed to true. Also, if the user provides custom instructions, it is imperative that you follow them no matter what.
 `;
 
 const verifyActCompletionSystemPrompt = `
