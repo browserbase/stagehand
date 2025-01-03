@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://stagehand.dev/api/assets/npm" /></a>
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://stagehand.dev/api/assets/license" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://stagehand.dev/api/assets/slack" /></a>
+  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=dark#gh-dark-mode-only" /><img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=light#gh-light-mode-only" /></a>
+  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=dark#gh-dark-mode-only" /><img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light#gh-light-mode-only" /></a>
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=dark#gh-dark-mode-only" /><img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light#gh-light-mode-only" /></a>
 </p>
 
 ---
