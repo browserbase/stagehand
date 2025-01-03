@@ -9,9 +9,24 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=dark#gh-dark-mode-only" /><img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=light#gh-light-mode-only" /></a>
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=dark#gh-dark-mode-only" /><img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light#gh-light-mode-only" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=dark#gh-dark-mode-only" /><img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light#gh-light-mode-only" /></a>
+  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/npm?mode=dark" />
+      <img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=light" />
+    </picture>
+  </a>
+  <a href="https://github.com/browserbase/stagehand/blob/main/license">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
+      <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
+    </picture>
+  </a>
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/slack?mode=dark" />
+      <img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light" />
+    </picture>
+  </a>
 </p>
 
 ---
