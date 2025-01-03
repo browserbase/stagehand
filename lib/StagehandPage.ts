@@ -31,6 +31,7 @@ export class StagehandPage {
     stagehand: Stagehand,
     context: StagehandContext,
     llmClient: LLMClient,
+    userProvidedInstructions?: string,
   ) {
     this.intPage = Object.assign(page, {
       act: () => {
@@ -53,16 +54,19 @@ export class StagehandPage {
       stagehandPage: this,
       stagehandContext: this.intContext,
       llmClient: llmClient,
+      userProvidedInstructions,
     });
     this.extractHandler = new StagehandExtractHandler({
       stagehand: this.stagehand,
       logger: this.stagehand.logger,
       stagehandPage: this,
+      userProvidedInstructions,
     });
     this.observeHandler = new StagehandObserveHandler({
       stagehand: this.stagehand,
       logger: this.stagehand.logger,
       stagehandPage: this,
+      userProvidedInstructions,
     });
     this.llmClient = llmClient;
   }

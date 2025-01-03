@@ -102,9 +102,10 @@ export async function act({
   logger,
   requestId,
   variables,
+  userProvidedInstructions,
 }: ActCommandParams): Promise<ActCommandResult | null> {
   const messages: ChatMessage[] = [
-    buildActSystemPrompt(),
+    buildActSystemPrompt(userProvidedInstructions),
     buildActUserPrompt(action, steps, domElements, variables),
   ];
 
@@ -161,6 +162,7 @@ export async function extract({
   chunksTotal,
   requestId,
   isUsingTextExtract,
+  userProvidedInstructions,
 }: {
   instruction: string;
   previouslyExtractedContent: object;
@@ -171,6 +173,7 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
   isUsingTextExtract?: boolean;
+  userProvidedInstructions?: string;
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
@@ -178,7 +181,11 @@ export async function extract({
 
   const extractionResponse = await llmClient.createChatCompletion({
     messages: [
-      buildExtractSystemPrompt(isUsingAnthropic, isUsingTextExtract),
+      buildExtractSystemPrompt(
+        isUsingAnthropic,
+        isUsingTextExtract,
+        userProvidedInstructions,
+      ),
       buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
     ],
     response_model: {
@@ -260,12 +267,14 @@ export async function observe({
   llmClient,
   image,
   requestId,
+  userProvidedInstructions,
 }: {
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
   image?: Buffer;
   requestId: string;
+  userProvidedInstructions?: string;
 }): Promise<{
   elements: { elementId: number; description: string }[];
 }> {
@@ -289,7 +298,7 @@ export async function observe({
   const observationResponse =
     await llmClient.createChatCompletion<ObserveResponse>({
       messages: [
-        buildObserveSystemPrompt(),
+        buildObserveSystemPrompt(userProvidedInstructions),
         buildObserveUserMessage(instruction, domElements),
       ],
       image: image

@@ -96,10 +96,29 @@ ${domElements}
   };
 }
 
-export function buildActSystemPrompt(): ChatMessage {
+export function buildUserInstructionsPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
   return {
     role: "system",
-    content: actSystemPrompt,
+    content: `# Custom Instructions Provided by the User
+    
+    Please keep the user's instructions in mind when performing actions. If the user's instructions are not relevant to the current task, ignore them.
+
+    User Instructions:
+    \n\n${userProvidedInstructions}`,
+  };
+}
+
+export function buildActSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
+  return {
+    role: "system",
+    content:
+      actSystemPrompt +
+      "\n\n" +
+      buildUserInstructionsPrompt(userProvidedInstructions),
   };
 }
 
@@ -204,6 +223,7 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   useTextExtract: boolean = true,
+  userProvidedInstructions?: string,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -237,10 +257,14 @@ ONLY print the content using the print_extracted_data tool provided.
     do not miss any important information.`
     : "";
 
+  const userInstructions = buildUserInstructionsPrompt(
+    userProvidedInstructions,
+  );
+
   const content =
     `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
       additionalInstructions ? `\n\n${additionalInstructions}` : ""
-    }`.replace(/\s+/g, " ");
+    }\n\n${userInstructions}`.replace(/\s+/g, " ");
 
   return {
     role: "system",
@@ -337,12 +361,15 @@ You will be given:
 
 Return an array of elements that match the instruction.
 `;
-export function buildObserveSystemPrompt(): ChatMessage {
+export function buildObserveSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
     role: "system",
-    content,
+    content:
+      content + "\n\n" + buildUserInstructionsPrompt(userProvidedInstructions),
   };
 }
 
@@ -372,14 +399,5 @@ export function buildAskUserPrompt(question: string): ChatMessage {
   return {
     role: "user",
     content: `question: ${question}`,
-  };
-}
-
-export function buildUserProvidedInstructionsPrompt(
-  instructions: string,
-): ChatMessage {
-  return {
-    role: "system",
-    content: `# Custom Instructions Provided by the User\n\n${instructions}`,
   };
 }

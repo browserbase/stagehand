@@ -14,6 +14,7 @@ export interface ActCommandParams {
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
   variables?: Record<string, string>;
+  userProvidedInstructions?: string;
 }
 
 // WARNING: This is NOT to be confused with the ActResult type used in `page.act()`.
