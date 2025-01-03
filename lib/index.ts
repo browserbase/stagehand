@@ -359,10 +359,12 @@ export class Stagehand {
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
-    this.llmClient = llmClient || this.llmProvider.getClient(
-      modelName ?? DEFAULT_MODEL_NAME,
-      modelClientOptions,
-    );
+    this.llmClient =
+      llmClient ||
+      this.llmProvider.getClient(
+        modelName ?? DEFAULT_MODEL_NAME,
+        modelClientOptions,
+      );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;

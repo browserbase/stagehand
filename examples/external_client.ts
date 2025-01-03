@@ -26,13 +26,15 @@ async function example() {
   const headlines = await stagehand.page.extract({
     instruction: "Extract only 3 stories from the Hacker News homepage.",
     schema: z.object({
-      stories: z.array(
-        z.object({
-          title: z.string(),
-          url: z.string(),
-          points: z.number(),
-        }),
-      ).length(3),
+      stories: z
+        .array(
+          z.object({
+            title: z.string(),
+            url: z.string(),
+            points: z.number(),
+          }),
+        )
+        .length(3),
     }),
   });
 
