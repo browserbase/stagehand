@@ -1,11 +1,6 @@
 <div id="toc" align="center">
   <ul style="list-style: none">
-    <a href="https://stagehand.dev">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
-        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
-      </picture>
-    </a>
+    <img src="https://stagehand.dev/logo_light.svg" alt="Stagehand" />
   </ul>
 </div>
 
