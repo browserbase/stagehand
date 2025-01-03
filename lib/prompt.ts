@@ -96,18 +96,15 @@ ${domElements}
   };
 }
 
-export function buildUserInstructionsPrompt(
+export function buildUserInstructionsString(
   userProvidedInstructions?: string,
-): ChatMessage {
-  return {
-    role: "system",
-    content: `# Custom Instructions Provided by the User
+): string {
+  return `# Custom Instructions Provided by the User
     
-    Please keep the user's instructions in mind when performing actions. If the user's instructions are not relevant to the current task, ignore them.
+Please keep the user's instructions in mind when performing actions. If the user's instructions are not relevant to the current task, ignore them.
 
-    User Instructions:
-    \n\n${userProvidedInstructions}`,
-  };
+User Instructions:
+${userProvidedInstructions}`;
 }
 
 export function buildActSystemPrompt(
@@ -118,7 +115,7 @@ export function buildActSystemPrompt(
     content:
       actSystemPrompt +
       "\n\n" +
-      buildUserInstructionsPrompt(userProvidedInstructions),
+      buildUserInstructionsString(userProvidedInstructions),
   };
 }
 
@@ -257,7 +254,7 @@ ONLY print the content using the print_extracted_data tool provided.
     do not miss any important information.`
     : "";
 
-  const userInstructions = buildUserInstructionsPrompt(
+  const userInstructions = buildUserInstructionsString(
     userProvidedInstructions,
   );
 
@@ -369,7 +366,7 @@ export function buildObserveSystemPrompt(
   return {
     role: "system",
     content:
-      content + "\n\n" + buildUserInstructionsPrompt(userProvidedInstructions),
+      content + "\n\n" + buildUserInstructionsString(userProvidedInstructions),
   };
 }
 
