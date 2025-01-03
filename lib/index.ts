@@ -335,6 +335,7 @@ export class Stagehand {
       verbose,
       debugDom,
       llmProvider,
+      llmClient,
       headless,
       logger,
       browserbaseSessionCreateParams,
@@ -358,7 +359,7 @@ export class Stagehand {
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
     this.debugDom = debugDom ?? false;
-    this.llmClient = this.llmProvider.getClient(
+    this.llmClient = llmClient || this.llmProvider.getClient(
       modelName ?? DEFAULT_MODEL_NAME,
       modelClientOptions,
     );

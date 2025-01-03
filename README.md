@@ -150,6 +150,7 @@ This constructor is used to create an instance of Stagehand.
     - `1`: SDK-level logging
     - `2`: LLM-client level logging (most granular)
   - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
+  - `llmClient`: (optional) a custom `LLMClient` implementation.
 
 - **Returns:**
 
