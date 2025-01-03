@@ -103,7 +103,7 @@ export function buildUserInstructionsString(
     return "";
   }
 
-  return `# Custom Instructions Provided by the User
+  return `\n\n# Custom Instructions Provided by the User
     
 Please keep the user's instructions in mind when performing actions. If the user's instructions are not relevant to the current task, ignore them.
 
@@ -116,10 +116,10 @@ export function buildActSystemPrompt(
 ): ChatMessage {
   return {
     role: "system",
-    content:
-      actSystemPrompt +
-      "\n\n" +
+    content: [
+      actSystemPrompt,
       buildUserInstructionsString(userProvidedInstructions),
+    ].join("\n\n"),
   };
 }
 
