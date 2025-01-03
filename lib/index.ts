@@ -619,3 +619,4 @@ export * from "../types/model";
 export * from "../types/playwright";
 export * from "../types/stagehand";
 export * from "../types/page";
+export { LLMClient } from "./llm/LLMClient";
