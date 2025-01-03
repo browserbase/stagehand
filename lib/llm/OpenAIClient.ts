@@ -1,3 +1,4 @@
+import { buildUserProvidedInstructionsPrompt } from "../prompt";
 import OpenAI, { ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
@@ -31,8 +32,9 @@ export class OpenAIClient extends LLMClient {
     cache: LLMCache | undefined,
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    userProvidedInstructions?: string,
   ) {
-    super(modelName);
+    super(modelName, userProvidedInstructions);
     this.clientOptions = clientOptions;
     this.client = new OpenAI(clientOptions);
     this.logger = logger;
@@ -46,6 +48,12 @@ export class OpenAIClient extends LLMClient {
     retries: number = 3,
   ): Promise<T> {
     let options: Partial<ChatCompletionOptions> = optionsInitial;
+
+    if (this.userProvidedInstructions) {
+      options.messages.push(
+        buildUserProvidedInstructionsPrompt(this.userProvidedInstructions),
+      );
+    }
 
     // O1 models do not support most of the options. So we override them.
     // For schema and tools, we add them as user messages.
@@ -194,7 +202,6 @@ export class OpenAIClient extends LLMClient {
 
       options.messages.push(screenshotMessage);
     }
-
     let responseFormat = undefined;
     if (options.response_model) {
       // For O1 models, we need to add the schema as a user message.

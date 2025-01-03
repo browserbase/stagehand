@@ -344,6 +344,7 @@ export class Stagehand {
       browserbaseSessionID,
       modelName,
       modelClientOptions,
+      instructions,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -364,11 +365,13 @@ export class Stagehand {
       this.llmProvider.getClient(
         modelName ?? DEFAULT_MODEL_NAME,
         modelClientOptions,
+        instructions,
       );
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
+    this.userProvidedInstructions = instructions;
   }
 
   public get logger(): (logLine: LogLine) => void {

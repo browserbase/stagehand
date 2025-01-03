@@ -374,3 +374,12 @@ export function buildAskUserPrompt(question: string): ChatMessage {
     content: `question: ${question}`,
   };
 }
+
+export function buildUserProvidedInstructionsPrompt(
+  instructions: string,
+): ChatMessage {
+  return {
+    role: "system",
+    content: `# Custom Instructions Provided by the User\n\n${instructions}`,
+  };
+}
