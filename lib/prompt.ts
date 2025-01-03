@@ -12,6 +12,7 @@ You will receive:
 2. the steps that you've taken so far
 3. a list of active DOM elements in this chunk to consider to get closer to the goal. 
 4. Optionally, a list of variable names that the user has provided that you may use to accomplish the goal. To use the variables, you must use the special <|VARIABLE_NAME|> syntax.
+5. Optionally, custom instructions will be provided by the user. If the user's instructions are not relevant to the current task, ignore them. Otherwise, make sure to adhere to them.
 
 
 ## Your Goal / Specification
