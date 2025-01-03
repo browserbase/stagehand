@@ -20,7 +20,7 @@
       <img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=light" />
     </picture>
   </a>
-  <a href="#">
+  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
       <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
