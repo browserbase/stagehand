@@ -194,7 +194,7 @@ export class OpenAIClient extends LLMClient {
 
       options.messages.push(screenshotMessage);
     }
-    console.log(options.messages);
+
     let responseFormat = undefined;
     if (options.response_model) {
       // For O1 models, we need to add the schema as a user message.
