@@ -4,10 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "lib/**"
+      - "evals/**"
   pull_request:
     types:
       - opened
       - synchronize
+      - labeled
 
 env:
   EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
@@ -18,6 +22,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  determine-evals:
+    runs-on: ubuntu-latest
+    outputs:
+      run-extract: ${{ steps.check-labels.outputs.run-extract }}
+      run-act: ${{ steps.check-labels.outputs.run-act }}
+      run-observe: ${{ steps.check-labels.outputs.run-observe }}
+      run-text-extract: ${{ steps.check-labels.outputs.run-text-extract }}
+    steps:
+      - id: check-labels
+        run: |
+          # Default to running all tests on main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Running all tests for main branch"
+            echo "run-extract=true" >> $GITHUB_OUTPUT
+            echo "run-act=true" >> $GITHUB_OUTPUT
+            echo "run-observe=true" >> $GITHUB_OUTPUT
+            echo "run-text-extract=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check for specific labels
+          echo "run-extract=${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" >> $GITHUB_OUTPUT
+          echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
+          echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
+          echo "run-text-extract=${{ contains(github.event.pull_request.labels.*.name, 'text-extract') }}" >> $GITHUB_OUTPUT
   run-lint:
     runs-on: ubuntu-latest
     steps:
@@ -81,10 +110,55 @@ jobs:
       - name: Run E2E Tests
         run: npm run e2e
 
+  run-combination-evals:
+    needs: [run-e2e-tests, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Combination Evals
+        run: npm run evals category combination
+
+      - name: Log Combination Evals Performance
+        run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            combination_score=$(jq '.categories.combination' eval-summary.json)
+            echo "Combination category score: $combination_score%"
+            exit 0
+          else
+            echo "Eval summary not found for combination category. Failing CI."
+            exit 1
+          fi
+
   run-act-evals:
+    needs: [run-e2e-tests, determine-evals, run-combination-evals]
+    if: needs.determine-evals.outputs.run-act == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [run-text-extract-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -129,7 +203,8 @@ jobs:
           fi
 
   run-extract-evals:
-    needs: [run-lint, run-build, run-e2e-tests]
+    needs: [run-e2e-tests, determine-evals, run-combination-evals]
+    if: needs.determine-evals.outputs.run-extract == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -187,7 +262,8 @@ jobs:
           fi
 
   run-text-extract-evals:
-    needs: [run-extract-evals]
+    needs: [run-e2e-tests, determine-evals, run-combination-evals]
+    if: needs.determine-evals.outputs.run-text-extract == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -245,9 +321,10 @@ jobs:
           fi
 
   run-observe-evals:
+    needs: [run-e2e-tests, determine-evals, run-combination-evals]
+    if: needs.determine-evals.outputs.run-observe == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [run-act-evals]
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -288,49 +365,5 @@ jobs:
             fi
           else
             echo "Eval summary not found for observe category. Failing CI."
-            exit 1
-          fi
-
-  run-combination-evals:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    needs: [run-observe-evals]
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: npm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Combination Evals
-        run: npm run evals category combination
-
-      - name: Log Combination Evals Performance
-        run: |
-          experimentName=$(jq -r '.experimentName' eval-summary.json)
-          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
-          if [ -f eval-summary.json ]; then
-            combination_score=$(jq '.categories.combination' eval-summary.json)
-            echo "Combination category score: $combination_score%"
-            exit 0
-          else
-            echo "Eval summary not found for combination category. Failing CI."
             exit 1
           fi
