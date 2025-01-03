@@ -371,7 +371,6 @@ export class Stagehand {
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
-    this.userProvidedInstructions = instructions;
   }
 
   public get logger(): (logLine: LogLine) => void {
