@@ -34,13 +34,19 @@ export class StagehandPage {
   ) {
     this.intPage = Object.assign(page, {
       act: () => {
-        throw new Error("act() is not implemented on the base page object");
+        throw new Error(
+          "act() is not implemented on the base page object. Ensure you are calling init() on the Stagehand object before calling methods on the page object.",
+        );
       },
       extract: () => {
-        throw new Error("extract() is not implemented on the base page object");
+        throw new Error(
+          "extract() is not implemented on the base page object. Ensure you are calling init() on the Stagehand object before calling methods on the page object.",
+        );
       },
       observe: () => {
-        throw new Error("observe() is not implemented on the base page object");
+        throw new Error(
+          "observe() is not implemented on the base page object. Ensure you are calling init() on the Stagehand object before calling methods on the page object.",
+        );
       },
     });
     this.stagehand = stagehand;
@@ -105,9 +111,35 @@ export class StagehandPage {
           };
         }
 
+        if (prop === "on") {
+          return (event: string, listener: (param: unknown) => void) => {
+            if (event === "popup") {
+              return this.context.on("page", async (page) => {
+                const newContext = await StagehandContext.init(
+                  page.context(),
+                  stagehand,
+                );
+                const newStagehandPage = new StagehandPage(
+                  page,
+                  stagehand,
+                  newContext,
+                  this.llmClient,
+                );
+
+                await newStagehandPage.init();
+
+                listener(newStagehandPage.page);
+              });
+            }
+
+            return target[prop as keyof PlaywrightPage];
+          };
+        }
+
         return target[prop as keyof PlaywrightPage];
       },
     });
+
     await this._waitForSettledDom();
     return this;
   }

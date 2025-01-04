@@ -1,6 +1,9 @@
-import type { Page as PlaywrightPage } from "@playwright/test";
-import type { BrowserContext as PlaywrightContext } from "@playwright/test";
-import type { Browser as PlaywrightBrowser } from "@playwright/test";
+import type {
+  Browser as PlaywrightBrowser,
+  BrowserContext as PlaywrightContext,
+  Page as PlaywrightPage,
+} from "@playwright/test";
+import type { z } from "zod";
 import type {
   ActOptions,
   ActResult,
@@ -9,7 +12,7 @@ import type {
   ObserveOptions,
   ObserveResult,
 } from "./stagehand";
-import type { z } from "zod";
+
 export interface Page extends PlaywrightPage {
   act: (options: ActOptions) => Promise<ActResult>;
   extract: <T extends z.AnyZodObject>(
