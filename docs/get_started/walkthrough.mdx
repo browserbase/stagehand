@@ -1,0 +1,51 @@
+---
+title: 'How Stagehand Works'
+description: 'Go behind the scenes'
+icon: 'person-booth'
+---
+
+## How It Works
+
+The SDK has two major phases:
+
+1. Processing the DOM (including chunking - _see below_).
+2. Taking LLM powered actions based on the current state of the DOM.
+
+### DOM processing
+
+Stagehand uses a combination of techniques to prepare the DOM.
+
+The DOM Processing steps look as follows:
+
+1. Via Playwright, inject a script into the DOM accessible by the SDK that can run processing.
+2. Crawl the DOM and create a list of candidate elements.
+   - Candidate elements are either leaf elements (DOM elements that contain actual user facing substance), or are interactive elements.
+   - Interactive elements are determined by a combination of roles and HTML tags.
+3. Candidate elements that are not active, visible, or at the top of the DOM are discarded.
+   - The LLM should only receive elements it can faithfully act on on behalf of the agent/user.
+4. For each candidate element, an [xPath](https://developer.mozilla.org/en-US/docs/Web/XPath) is generated. This guarantees that if this element is picked by the LLM, we'll be able to reliably target it.
+5. Return both the list of candidate elements, as well as the map of elements to xPath selectors across the browser back to the SDK, to be analyzed by the LLM.
+
+#### Chunking
+
+While LLMs will continue to increase context window length and reduce latency, giving any reasoning system less stuff to think about should make it more reliable. As a result, DOM processing is done in chunks in order to keep the context small per inference call. In order to chunk, the SDK considers a candidate element that starts in a section of the viewport to be a part of that chunk. In the future, padding will be added to ensure that an individual chunk does not lack relevant context. See this diagram for how it looks:
+
+![](/images/chunks.png)
+
+### Vision
+
+The `act()` and `observe()` methods can take a `useVision` flag. If this is set to `true`, the LLM will be provided with a annotated screenshot of the current page to identify which elements to act on. This is useful for complex DOMs that the LLM has a hard time reasoning about, even after processing and chunking. By default, this flag is set to `"fallback"`, which means that if the LLM fails to successfully identify a single element, Stagehand will retry the attempt using vision.
+
+### LLM analysis
+
+Now we have a list of candidate elements and a way to select them. We can present those elements with additional context to the LLM for extraction or action. While untested on a large scale, presenting a "numbered list of elements" guides the model to not treat the context as a full DOM, but as a list of related but independent elements to operate on.
+
+In the case of action, we ask the LLM to write a playwright method in order to do the correct thing. In our limited testing, playwright syntax is much more effective than relying on built in javascript APIs, possibly due to tokenization.
+
+Lastly, we use the LLM to write future instructions to itself to help manage its progress and goals when operating across chunks.
+
+### Stagehand vs Playwright
+
+Below is an example of how to extract a list of companies from the AI Grant website using both Stagehand and Playwright.
+
+![](/images/stagehand-playwright.png)
