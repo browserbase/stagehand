@@ -20,7 +20,7 @@ test.describe("StagehandPage - bringToFront", () => {
 
     await page1.bringToFront();
 
-    await page1.goto("https://www.browserbase.com");
+    await page1.goto("https://docs.browserbase.com");
     const page1TitleAfter = await page1.title();
     console.log("Page1 Title after:", page1TitleAfter);
 

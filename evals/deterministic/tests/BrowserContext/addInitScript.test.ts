@@ -28,7 +28,7 @@ test.describe("StagehandContext - addInitScript", () => {
     expect(resultA).toBe("Hello from context.initScript!");
 
     const pageB = await context.newPage();
-    await pageB.goto("https://www.browserbase.com");
+    await pageB.goto("https://docs.browserbase.com");
 
     const resultB = await pageB.evaluate(() => {
       const w = window as typeof window & {
