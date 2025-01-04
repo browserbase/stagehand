@@ -4,7 +4,10 @@ import { defineConfig, devices } from "@playwright/test";
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
+  // Look in "tests" for test files...
   testDir: "./tests",
+  // ...but ignore anything in "tests/browserbase"
+  testIgnore: ["**/browserbase/**"],
 
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   /* Run tests in files in parallel */
