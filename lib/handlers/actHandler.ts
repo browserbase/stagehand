@@ -84,7 +84,7 @@ export class StagehandActHandler {
     if (
       llmClient.modelName === "o1-mini" ||
       llmClient.modelName === "o1-preview" ||
-      llmClient.modelName.startsWith("o1-")
+      llmClient.modelName === "o1"
     ) {
       verifyLLmClient = this.llmProvider.getClient(
         "gpt-4o",
