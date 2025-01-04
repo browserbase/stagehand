@@ -12,14 +12,14 @@ test.describe("StagehandPage - Navigation", () => {
     await page.goto("https://example.com");
     expect(page.url()).toBe("https://example.com/");
 
-    await page.goto("https://www.browserbase.com/");
-    expect(page.url()).toBe("https://www.browserbase.com/");
+    await page.goto("https://docs.browserbase.com/introduction");
+    expect(page.url()).toBe("https://docs.browserbase.com/introduction");
 
     await page.goBack();
     expect(page.url()).toBe("https://example.com/");
 
     await page.goForward();
-    expect(page.url()).toBe("https://www.browserbase.com/");
+    expect(page.url()).toBe("https://docs.browserbase.com/introduction");
 
     await stagehand.close();
   });

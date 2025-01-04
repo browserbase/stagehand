@@ -26,7 +26,7 @@ test.describe("StagehandPage - addInitScript", () => {
     });
     expect(result).toBe("Hello from init script!");
 
-    await page.goto("https://www.browserbase.com/");
+    await page.goto("https://docs.browserbase.com/");
     const resultAfterNavigation = await page.evaluate(() => {
       const w = window as typeof window & {
         __testInitScriptVar?: string;

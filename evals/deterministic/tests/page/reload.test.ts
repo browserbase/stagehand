@@ -8,7 +8,7 @@ test.describe("StagehandPage - Reload", () => {
     await stagehand.init();
 
     const page = stagehand.page;
-    await page.goto("https://www.browserbase.com/");
+    await page.goto("https://docs.browserbase.com/");
 
     await page.evaluate(() => {
       const w = window as typeof window & {
