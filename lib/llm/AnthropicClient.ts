@@ -29,14 +29,16 @@ export class AnthropicClient extends LLMClient {
     cache: LLMCache | undefined,
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
+    userProvidedInstructions?: string,
   ) {
-    super(modelName);
+    super(modelName, userProvidedInstructions);
     this.client = new Anthropic(clientOptions);
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.clientOptions = clientOptions;
+    this.userProvidedInstructions = userProvidedInstructions;
   }
 
   async createChatCompletion<T = AnthropicTransformedResponse>(
@@ -56,6 +58,7 @@ export class AnthropicClient extends LLMClient {
         },
       },
     });
+
     // Try to get cached response
     const cacheOptions = {
       model: this.modelName,

@@ -17,19 +17,22 @@ export class StagehandObserveHandler {
       instruction: string;
     };
   };
-
+  private readonly userProvidedInstructions?: string;
   constructor({
     stagehand,
     logger,
     stagehandPage,
+    userProvidedInstructions,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
+    userProvidedInstructions?: string;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
+    this.userProvidedInstructions = userProvidedInstructions;
     this.observations = {};
   }
 
@@ -120,6 +123,7 @@ export class StagehandObserveHandler {
       llmClient,
       image: annotatedScreenshot,
       requestId,
+      userProvidedInstructions: this.userProvidedInstructions,
     });
 
     const elementsWithSelectors = observationResponse.elements.map(

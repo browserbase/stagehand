@@ -326,6 +326,7 @@ export class Stagehand {
   public variables: { [key: string]: unknown };
   private contextPath?: string;
   private llmClient: LLMClient;
+  private userProvidedInstructions?: string;
 
   constructor(
     {
@@ -344,6 +345,7 @@ export class Stagehand {
       browserbaseSessionID,
       modelName,
       modelClientOptions,
+      instructions,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -369,6 +371,7 @@ export class Stagehand {
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
+    this.userProvidedInstructions = instructions;
   }
 
   public get logger(): (logLine: LogLine) => void {
@@ -442,6 +445,7 @@ export class Stagehand {
       this,
       this.stagehandContext,
       this.llmClient,
+      this.userProvidedInstructions,
     ).init();
 
     // Set the browser to headless mode if specified

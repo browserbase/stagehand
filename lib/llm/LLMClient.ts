@@ -69,10 +69,12 @@ export abstract class LLMClient {
   public modelName: AvailableModel;
   public hasVision: boolean;
   public clientOptions: ClientOptions;
+  public userProvidedInstructions?: string;
 
-  constructor(modelName: AvailableModel) {
+  constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
     this.modelName = modelName;
     this.hasVision = modelsWithVision.includes(modelName);
+    this.userProvidedInstructions = userProvidedInstructions;
   }
 
   abstract createChatCompletion<T = LLMResponse>(
