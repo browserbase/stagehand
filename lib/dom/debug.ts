@@ -1,37 +1,33 @@
-export async function debugDom() {
-  window.chunkNumber = 0;
+export async function debugDom(chunkNumber: number = 0) {
+  window.chunkNumber = chunkNumber;
 
-  const { selectorMap: multiSelectorMap } = await window.processElements(
-    window.chunkNumber,
-  );
-
-  const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
+  const { selectorMap } = await window.processElements(window.chunkNumber);
 
   drawChunk(selectorMap);
 }
 
-function multiSelectorMapToSelectorMap(
-  multiSelectorMap: Record<number, string[]>,
+function drawChunk(
+  selectorMap: Record<number, string[]>,
+  forceDraw: boolean = false,
 ) {
-  return Object.fromEntries(
-    Object.entries(multiSelectorMap).map(([key, selectors]) => [
-      Number(key),
-      selectors[0],
-    ]),
-  );
-}
-
-function drawChunk(selectorMap: Record<number, string>) {
-  if (!window.showChunks) return;
+  if (!window.showChunks && !forceDraw) return;
   cleanupMarkers();
-  Object.values(selectorMap).forEach((selector) => {
-    const element = document.evaluate(
-      selector as string,
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
-    ).singleNodeValue as Element;
+  Object.values(selectorMap).forEach((selectorArr) => {
+    let element = null;
+    for (const selector of selectorArr) {
+      const result = document.evaluate(
+        selector,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null,
+      ).singleNodeValue as Element;
+
+      if (result) {
+        element = result;
+        break;
+      }
+    }
 
     if (element) {
       let rect;
@@ -75,3 +71,4 @@ function cleanupMarkers() {
 
 window.debugDom = debugDom;
 window.cleanupDebug = cleanupDebug;
+window.drawChunk = drawChunk;

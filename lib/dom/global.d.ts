@@ -17,8 +17,12 @@ declare global {
       outputString: string;
       selectorMap: Record<number, string[]>;
     }>;
-    debugDom: () => Promise<void>;
+    debugDom: (chunkNumber?: number) => Promise<void>;
     cleanupDebug: () => void;
+    drawChunk: (
+      selectorMap: Record<number, string[]>,
+      forceDraw?: boolean,
+    ) => void;
     scrollToHeight: (height: number) => Promise<void>;
     waitForDomSettle: () => Promise<void>;
     __playwright?: unknown;

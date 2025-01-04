@@ -18,6 +18,7 @@
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "e2e": "npm run build-dom-scripts && cd evals/deterministic && npx playwright test",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
+    "bundle-dom-scripts": "tsup lib/dom/index.ts --minify --platform browser --target es2015 --outDir lib/dom --format iife",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "tsup lib/index.ts --dts",
     "build": "npm run lint && npm run build-dom-scripts && npm run build-js && npm run build-types",
