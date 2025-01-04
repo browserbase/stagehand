@@ -6,6 +6,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
   modelName,
   logger,
   useTextExtract,
+  useAccessibilityTree,
 }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
@@ -42,6 +43,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       }),
       modelName,
       useTextExtract,
+      useAccessibilityTree,
     });
 
     logger.log({

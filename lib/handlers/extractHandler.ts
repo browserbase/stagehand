@@ -112,6 +112,7 @@ export class StagehandExtractHandler {
     requestId,
     domSettleTimeoutMs,
     useTextExtract = false,
+    useAccessibilityTree = false,
   }: {
     instruction: string;
     schema: T;
@@ -121,8 +122,18 @@ export class StagehandExtractHandler {
     requestId?: string;
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
+    useAccessibilityTree?: boolean;
   }): Promise<z.infer<T>> {
-    if (useTextExtract) {
+    if (useAccessibilityTree) {
+      return this.accessibilityExtract({
+        instruction,
+        schema,
+        content,
+        llmClient,
+        requestId,
+        domSettleTimeoutMs,
+      });
+    } else if (useTextExtract) {
       return this.textExtract({
         instruction,
         schema,
@@ -497,4 +508,221 @@ export class StagehandExtractHandler {
       });
     }
   }
+
+  /**
+   * Here is what `accessibilityExtract` does at a high level:
+   *
+   * **1. Wait for the DOM to settle and start DOM debugging.**
+   *    - Ensures the page is fully loaded and stable before extraction.
+   *
+   * **2. Get the full accessibility tree.**
+   *    - Uses Chrome DevTools Protocol to fetch the complete accessibility tree
+   *    - This provides a semantic representation of the page's content and structure
+   *
+   * **3. Format the accessibility tree for LLM consumption.**
+   *    - Preserves role and name information for each node
+   *    - Makes the structure easily parseable by the LLM
+   *
+   * **4. Pass the formatted tree to LLM for structured data extraction.**
+   *    - Uses the instructions, schema, and previously extracted content as context
+   *    - LLM processes the semantic structure to extract requested information
+   *
+   * **5. Handle the extraction response and return the results.**
+   *    - Processes the LLM's output and returns structured data according to schema
+   *
+   * @remarks
+   * This approach leverages the semantic structure of the page rather than visual layout
+   * or DOM structure, potentially providing more accurate and meaningful extractions.
+   */
+
+  private async accessibilityExtract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+    content = {},
+    llmClient,
+    requestId,
+  }: {
+    instruction: string;
+    schema: T;
+    content?: z.infer<T>;
+    llmClient: LLMClient;
+    requestId?: string;
+    domSettleTimeoutMs?: number;
+  }): Promise<z.infer<T>> {
+    // 1. Get accessibility snapshot
+    // const snapshot = await this.stagehand.page.accessibility.snapshot();
+    // const cleanedSnapshot = cleanObject(snapshot);
+    const accessibilityTree = await getAccessibilityTree(this.stagehandPage);
+    // 2. Format the accessibility tree for LLM
+    // const formattedTree = formatAccessibilityTree(cleanedSnapshot);
+    const formattedTree = cleanAccessibilityTree(accessibilityTree);
+    // console.log(formattedTree);
+    // 3. Extract using LLM
+    const extractionResponse = await extract({
+      instruction,
+      previouslyExtractedContent: content,
+      // domElements: accessibilityTree,
+      domElements: formattedTree,
+      schema,
+      chunksSeen: 1,
+      chunksTotal: 1,
+      llmClient,
+      requestId,
+      isUsingAccessibilityExtract: true,
+    });
+
+    const {
+      // metadata: { completed },
+      ...output
+    } = extractionResponse;
+
+    return output;
+  }
 }
+
+// function cleanObject(obj: any): any {
+//   if (Array.isArray(obj)) {
+//     return obj.map(cleanObject);
+//   }
+//   if (typeof obj === "object" && obj !== null) {
+//     const cleaned = Object.fromEntries(
+//       Object.entries(obj)
+//         .filter(([_, value]) => value !== undefined)
+//         .map(([key, value]) => [key, cleanObject(value)]),
+//     );
+//     // Preserve children as array if it exists
+//     if (obj.children) {
+//       cleaned.children = cleanObject(obj.children);
+//     }
+//     return cleaned;
+//   }
+//   return obj;
+// }
+
+// function formatAccessibilityTree(node: any, level = 0): string {
+//   if (!node) return "";
+
+//   const indent = "  ".repeat(level);
+//   let result = `${indent}${node.role || "unknown"}: ${node.name || ""}\n`;
+
+//   if (Array.isArray(node.children)) {
+//     for (const child of node.children) {
+//       result += formatAccessibilityTree(child, level + 1);
+//     }
+//   }
+
+//   return result;
+// }
+
+interface AccessibilityNode {
+  name?: string;
+  role?: string;
+  properties?: unknown[];
+  description?: string;
+  value?: string;
+  nodeId: string;
+  parentId?: string;
+  backendDOMNodeId: number;
+  childIds: string[];
+  children?: AccessibilityNode[];
+}
+
+async function getAccessibilityTree(page: StagehandPage) {
+  const cdpClient = await page.context.newCDPSession(page.page);
+  await cdpClient.send("Accessibility.enable");
+
+  try {
+    const { nodes } = await cdpClient.send("Accessibility.getFullAXTree");
+
+    // Extract specific sources
+    const sources = nodes.map((node) => ({
+      role: node.role?.value,
+      name: node.name?.value,
+      description: node.description?.value,
+      value: node.value?.value,
+      properties: node.properties,
+      nodeId: node.nodeId,
+      parentId: node.parentId,
+      backendDOMNodeId: node.backendDOMNodeId,
+      childIds: node.childIds,
+    }));
+
+    // const hierarchicalTree = buildHierarchicalTree(sources);
+
+    // return JSON.stringify(hierarchicalTree, null, 1);
+    // console.log(sources);
+    return sources;
+  } finally {
+    await cdpClient.send("Accessibility.disable");
+  }
+}
+
+function cleanAccessibilityTree(source: AccessibilityNode[]): string {
+  const meaningfulNodes = source
+    .filter((node: AccessibilityNode) => {
+      // const name = node.name?.trim();
+      // return Boolean(
+      //     name &&
+      //     name !== '' &&
+      //     name !== '[]' &&
+      //     node.role?.trim() &&
+      //     !/[\u{0080}-\u{FFFF}]/u.test(name)
+      // );
+      return node.role !== "none";
+    })
+    .map((node: AccessibilityNode) => ({
+      role: node.role,
+      name: node.name,
+      // ...(node.properties && node.properties.length > 0 && { properties: node.properties }),
+      // ...(node.description && { description: node.description })
+    }));
+
+  return JSON.stringify(meaningfulNodes, null, 2);
+}
+
+// function buildHierarchicalTree(nodes: any[]): AccessibilityNode[] {
+//   // Create a map of nodes by their IDs for quick lookup
+//   const nodeMap = new Map<string, AccessibilityNode>();
+
+//   // First pass: Create basic nodes
+//   nodes.forEach((node) => {
+//     // Skip nodes that have no name and no children, or have role 'none' without children
+//     const hasChildren = node.childIds && node.childIds.length > 0;
+//     const hasValidName = node.name && node.name.trim() !== "";
+
+//     if (
+//       (!hasValidName && !hasChildren) ||
+//       (node.role === "none" && !hasChildren)
+//     ) {
+//       return;
+//     }
+
+//     nodeMap.set(node.nodeId, {
+//       role: node.role,
+//       ...(hasValidName && { name: node.name }),
+//       ...(node.description && { description: node.description }),
+//       ...(node.value && { value: node.value }),
+//     });
+//   });
+
+//   // Second pass: Build parent-child relationships
+//   nodes.forEach((node) => {
+//     if (node.parentId && nodeMap.has(node.nodeId)) {
+//       const parentNode = nodeMap.get(node.parentId);
+//       const currentNode = nodeMap.get(node.nodeId);
+
+//       if (parentNode && currentNode) {
+//         if (!parentNode.children) {
+//           parentNode.children = [];
+//         }
+//         parentNode.children.push(currentNode);
+//       }
+//     }
+//   });
+
+//   // Return only root nodes (nodes without parents)
+//   return nodes
+//     .filter((node) => !node.parentId && nodeMap.has(node.nodeId))
+//     .map((node) => nodeMap.get(node.nodeId))
+//     .filter(Boolean) as AccessibilityNode[];
+// }

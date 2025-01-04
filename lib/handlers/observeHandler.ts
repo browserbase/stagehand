@@ -121,10 +121,19 @@ export class StagehandObserveHandler {
       image: annotatedScreenshot,
       requestId,
     });
-
+    console.log(
+      `\n\nobservationResponse: ${JSON.stringify(observationResponse)}`,
+    );
     const elementsWithSelectors = observationResponse.elements.map(
       (element) => {
         const { elementId, ...rest } = element;
+
+        // if (useAccessibilityTree) {
+        //   return {
+        //     ...rest,
+        //     selector: selectorMap[elementId][0],
+        //   };
+        // }
 
         return {
           ...rest,
@@ -151,3 +160,80 @@ export class StagehandObserveHandler {
     return elementsWithSelectors;
   }
 }
+
+// function createAccessibilitySelectorMap(
+//   node: any,
+//   map: { [key: string]: string[] } = {},
+//   counter: { value: 0 } = { value: 0 }, // Use object to maintain count across recursion
+// ): { [key: string]: string[] } {
+//   if (!node) return map;
+
+//   const selector = createAccessibilitySelector(node);
+//   if (selector) {
+//     const id = counter.value.toString();
+//     map[id] = [selector];
+//     counter.value++;
+//   }
+
+//   if (Array.isArray(node.children)) {
+//     node.children.forEach((child: any) => {
+//       createAccessibilitySelectorMap(child, map, counter);
+//     });
+//   }
+
+//   return map;
+// }
+
+// function createAccessibilitySelector(node: any): string | null {
+//   if (!node.role) return null;
+
+//   let selector = `role=${node.role}`;
+//   if (node.name) {
+//     selector += `[name='${node.name.replace(/'/g, "\\'")}']`;
+//   }
+//   // console.log(selector);
+//   return selector;
+// }
+
+// function cleanObject(obj: any): any {
+//   if (Array.isArray(obj)) {
+//     return obj.map(cleanObject);
+//   }
+//   if (typeof obj === "object" && obj !== null) {
+//     const cleaned = Object.fromEntries(
+//       Object.entries(obj)
+//         .filter(([_, value]) => value !== undefined)
+//         .map(([key, value]) => [key, cleanObject(value)]),
+//     );
+//     // Preserve children as array if it exists
+//     if (obj.children) {
+//       cleaned.children = cleanObject(obj.children);
+//     }
+//     return cleaned;
+//   }
+//   return obj;
+// }
+
+// function formatAccessibilityTree(
+//   node: any,
+//   level = 0,
+//   counter: { value: 0 } = { value: 0 },
+// ): string {
+//   if (!node) return "";
+
+//   const indent = "  ".repeat(level);
+//   const id = counter.value;
+//   let result = `${indent}[${id}] ${node.role || "unknown"}: ${node.name || ""}\n`;
+
+//   if (node.role) {
+//     counter.value++; // Only increment for valid nodes with roles
+//   }
+
+//   if (Array.isArray(node.children)) {
+//     for (const child of node.children) {
+//       result += formatAccessibilityTree(child, level + 1, counter);
+//     }
+//   }
+
+//   return result;
+// }

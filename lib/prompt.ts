@@ -203,7 +203,8 @@ export const actTools: Array<OpenAI.ChatCompletionTool> = [
 // extract
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
-  useTextExtract: boolean = true,
+  useTextExtract: boolean = false,
+  useAccessibilityExtract: boolean = true,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -215,11 +216,17 @@ export function buildExtractSystemPrompt(
 
   const contentDetail = useTextExtract
     ? `A text representation of a webpage to extract information from.`
-    : `A list of DOM elements to extract from.`;
+    : useAccessibilityExtract
+      ? `A cleaned accessibility tree from the page to extract information from.`
+      : `A list of DOM elements to extract from.`;
 
   const instructions = `
 Print the exact text from the ${
-    useTextExtract ? "text-rendered webpage" : "DOM elements"
+    useTextExtract
+      ? "text-rendered webpage"
+      : useAccessibilityExtract
+        ? "accessibility tree"
+        : "DOM elements"
   } with all symbols, characters, and endlines as is.
 Print null or an empty string if no new information is found.
   `.trim();
@@ -235,7 +242,12 @@ ONLY print the content using the print_extracted_data tool provided.
     ? `Once you are given the text-rendered webpage, 
     you must thoroughly and meticulously analyze it. Be very careful to ensure that you
     do not miss any important information.`
-    : "";
+    : useAccessibilityExtract
+      ? `Once you are given the accessibility tree, 
+    you must thoroughly and meticulously analyze it. Be very careful to ensure that you
+    do not miss any important information. In some cases, information might show twice in different element roles.
+    Make sure to aggregate these and review before returning the result.`
+      : "";
 
   const content =
     `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
@@ -259,7 +271,7 @@ DOM: ${domElements}`;
   if (isUsingPrintExtractedDataTool) {
     content += `
 ONLY print the content using the print_extracted_data tool provided.
-ONLY print the content using the print_extracted_data tool provided.`;
+ONLY print the content using the print_extracted_data tool provided.`; // duplicate?
   }
 
   return {
@@ -273,6 +285,7 @@ const refineSystemPrompt = `You are tasked with refining and filtering informati
 2. For text fields, append or update relevant text if the new content is an extension, replacement, or continuation.
 3. For non-text fields (e.g., numbers, booleans), update with new values if they differ.
 4. Add any completely new fields or objects.
+5. Clean any responses to match the correct string format, if there are multiple lines aggregate into a single line.
 
 Return the updated content that includes both the previous content and the new, non-duplicate, or extended information.`;
 

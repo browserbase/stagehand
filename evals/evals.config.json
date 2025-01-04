@@ -92,11 +92,11 @@
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "accessibility_tree"]
     },
     {
       "name": "extract_capacitor_info",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "accessibility_tree"]
     },
     {
       "name": "extract_partners",
@@ -104,11 +104,11 @@
     },
     {
       "name": "extract_press_releases",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "accessibility_tree"]
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "accessibility_tree"]
     },
     {
       "name": "google_jobs",
@@ -192,18 +192,17 @@
       "name": "vanta_h",
       "categories": ["observe"]
     },
-
     {
       "name": "extract_area_codes",
-      "categories": ["text_extract"]
+      "categories": ["text_extract", "accessibility_tree"]
     },
     {
       "name": "extract_public_notices",
-      "categories": ["text_extract"]
+      "categories": ["text_extract", "accessibility_tree"]
     },
     {
       "name": "extract_research_reports",
-      "categories": ["text_extract"]
+      "categories": ["text_extract", "accessibility_tree"]
     }
   ]
 }

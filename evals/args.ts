@@ -35,6 +35,7 @@ if (extractMethodArg) {
 // Set the extraction method in the process environment so tasks can reference it.
 process.env.EXTRACT_METHOD = extractMethod;
 const useTextExtract = process.env.EXTRACT_METHOD === "textExtract";
+const useAccessibilityTree = process.env.EXTRACT_METHOD === "accessibilityTree";
 
 /**
  * Variables for filtering which tasks to run:
@@ -75,5 +76,6 @@ export {
   filterByCategory,
   filterByEvalName,
   useTextExtract,
+  useAccessibilityTree,
   DEFAULT_EVAL_CATEGORIES,
 };

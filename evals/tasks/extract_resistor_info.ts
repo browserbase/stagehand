@@ -15,7 +15,9 @@ export const extract_resistor_info: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.seielect.com/?stockcheck=ASR1JA330R");
+  await stagehand.page.goto("https://www.seielect.com/?stockcheck=ASR1JA330R", {
+    waitUntil: "networkidle",
+  });
 
   const result = await stagehand.page.extract({
     instruction:

@@ -312,6 +312,7 @@ export class StagehandPage {
     modelClientOptions,
     domSettleTimeoutMs,
     useTextExtract,
+    useAccessibilityTree,
   }: ExtractOptions<T>): Promise<ExtractResult<T>> {
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
@@ -350,6 +351,7 @@ export class StagehandPage {
         requestId,
         domSettleTimeoutMs,
         useTextExtract,
+        useAccessibilityTree,
       })
       .catch((e) => {
         this.stagehand.log({

@@ -161,6 +161,7 @@ export async function extract({
   chunksTotal,
   requestId,
   isUsingTextExtract,
+  isUsingAccessibilityExtract,
 }: {
   instruction: string;
   previouslyExtractedContent: object;
@@ -171,6 +172,7 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
   isUsingTextExtract?: boolean;
+  isUsingAccessibilityExtract?: boolean;
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
@@ -178,7 +180,11 @@ export async function extract({
 
   const extractionResponse = await llmClient.createChatCompletion({
     messages: [
-      buildExtractSystemPrompt(isUsingAnthropic, isUsingTextExtract),
+      buildExtractSystemPrompt(
+        isUsingAnthropic,
+        isUsingTextExtract,
+        isUsingAccessibilityExtract,
+      ),
       buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
     ],
     response_model: {
@@ -266,9 +272,7 @@ export async function observe({
   llmClient: LLMClient;
   image?: Buffer;
   requestId: string;
-}): Promise<{
-  elements: { elementId: number; description: string }[];
-}> {
+}) {
   const observeSchema = z.object({
     elements: z
       .array(
