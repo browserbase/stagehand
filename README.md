@@ -1,8 +1,11 @@
 <div id="toc" align="center">
   <ul style="list-style: none">
-    <summary>
-      <h1> 🤘 Stagehand </h1>
-    </summary>
+    <a href="https://stagehand.dev">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
+        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
+      </picture>
+    </a>
   </ul>
 </div>
 
@@ -11,9 +14,24 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand"><img alt="NPM" src="https://img.shields.io/npm/v/@browserbasehq/stagehand.svg" /></a>
-  <a href="https://github.com/browserbase/stagehand/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA"><img alt="Slack Community" src="https://img.shields.io/badge/slack-Join%20our%20community-FEC89A.svg?logo=slack" /></a>
+  <a href="https://www.npmjs.com/package/@browserbasehq/stagehand">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/npm?mode=dark" />
+      <img alt="NPM" src="https://stagehand.dev/api/assets/npm?mode=light" />
+    </picture>
+  </a>
+  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
+      <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
+    </picture>
+  </a>
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/slack?mode=dark" />
+      <img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light" />
+    </picture>
+  </a>
 </p>
 
 ---
