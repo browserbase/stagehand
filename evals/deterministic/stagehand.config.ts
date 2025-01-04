@@ -1,4 +1,6 @@
 import type { ConstructorParams, LogLine } from "../../lib";
+import dotenv from "dotenv";
+dotenv.config({ path: "../../.env" });
 
 const StagehandConfig: ConstructorParams = {
   env: "LOCAL" /* Environment to run Stagehand in */,
