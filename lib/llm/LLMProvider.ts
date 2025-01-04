@@ -61,21 +61,21 @@ export class LLMProvider {
 
     switch (provider) {
       case "openai":
-        return new OpenAIClient(
-          this.logger,
-          this.enableCaching,
-          this.cache,
+        return new OpenAIClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
           modelName,
           clientOptions,
-        );
+        });
       case "anthropic":
-        return new AnthropicClient(
-          this.logger,
-          this.enableCaching,
-          this.cache,
+        return new AnthropicClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
           modelName,
           clientOptions,
-        );
+        });
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }
