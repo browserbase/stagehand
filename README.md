@@ -36,13 +36,11 @@
 
 ---
 
+> [!NOTE]
+> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+
 - [Intro](#intro)
 - [Getting Started](#getting-started)
-- [API Reference](#api-reference)
-  - [act()](#act)
-  - [extract()](#extract)
-  - [observe()](#observe)
-  - [close()](#close)
 - [Model Support](#model-support)
 - [How It Works](#how-it-works)
 - [Stagehand vs Playwright](#stagehand-vs-playwright)
@@ -52,34 +50,29 @@
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
-> [!NOTE]  
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
-
 ## Intro
 
-Stagehand is the AI-powered successor to [Playwright](https://github.com/microsoft/playwright), offering three simple APIs (`act`, `extract`, and `observe`) that provide the building blocks for natural language driven web automation.
+Stagehand is the easiest way to build browser automations. It is completely interoperable with [Playwright](https://playwright.dev/) and has seamless integration with [Browserbase](https://browserbase.com/).
 
-The goal of Stagehand is to provide a lightweight, configurable framework, without overly complex abstractions, as well as modular support for different models and model providers. It's not going to order you a pizza, but it will help you reliably automate the web.
+It offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language.
 
-Each Stagehand function takes in an atomic instruction, such as `act("click the login button")` or `extract("find the red shoes")`, generates the appropriate Playwright code to accomplish that instruction, and executes it.
+Anything that can be done in a browser can be done with Stagehand. Think about stuff like:
 
-Instructions should be atomic to increase reliability, and step planning should be handled by the higher level agent. You can use `observe()` to get a suggested list of actions that can be taken on the current page, and then use those to ground your step planning prompts.
+1. Log into Amazon, search for AirPods, and buy the most relevant product
+1. Go to Hacker News and extract the top stories of the day
+1. Go to Doordash, find the cheapest pad thai, and order it to your house
 
-Stagehand is [open source](#license) and maintained by the [Browserbase](https://browserbase.com) team. We believe that by enabling more developers to build reliable web automations, we'll expand the market of developers who benefit from our headless browser infrastructure. This is the framework that we wished we had while tinkering on our own applications, and we're excited to share it with you.
+These automations can be built with Playwright, but it can be very cumbersome to write the code, and it will be very vulnerable to minor changes in the UI.
+
+Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable code and bypass bot detection and captchas.
 
 ## Getting Started
 
-### 1. Install the Stagehand package
+### Recommended Prerequisites
 
-We also install zod to power typed extraction
+While optional, we strongly recommend setting up your LLM provider and Browserbase credentials.
 
-```bash
-npm install @browserbasehq/stagehand zod
-```
-
-### 2. Configure your model provider
-
-You'll need to provide your API Key for the model provider you'd like to use. The default model provider is OpenAI, but you can also use Anthropic or others. More information on supported models can be found in the [API Reference](#api-reference).
+**Configure your LLM provider**
 
 Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment.
 
@@ -88,279 +81,29 @@ export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-...
 ```
 
-### 3. Create a Stagehand Instance
+**Configure your Browserbase API Key and Project ID**
 
-If you plan to run the browser locally, you'll also need to install Playwright's browser dependencies.
+You can find your Browserbase API Key and Project ID in [Browserbase Settings](https://www.browserbase.com/settings).
 
-```bash
-npm exec playwright install
 ```
-
-Then you can create a Stagehand instance like so:
-
-```javascript
-import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod";
-
-const stagehand = new Stagehand({
-  env: "LOCAL",
-});
-```
-
-If you plan to run the browser remotely, you'll need to set a Browserbase API Key and Project ID.
-
-```bash
 export BROWSERBASE_API_KEY=...
 export BROWSERBASE_PROJECT_ID=...
 ```
 
-```javascript
-import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod";
+### Quickstart
 
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  enableCaching: true,
-});
+You can run `npx create-browser-app` to create a new Stagehand project configured to our default settings.
+
+Read our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
+
+### From Source
+
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+npm install
+npx playwright install
 ```
-
-### 4. Run your first automation
-
-```javascript
-await stagehand.init();
-const page = stagehand.page;
-await page.goto("https://github.com/browserbase/stagehand");
-await page.act({ action: "click on the contributors" });
-const contributor = await page.extract({
-  instruction: "extract the top contributor",
-  schema: z.object({
-    username: z.string(),
-    url: z.string(),
-  }),
-});
-await stagehand.close();
-console.log(`Our favorite contributor is ${contributor.username}`);
-```
-
-This simple snippet will open a browser, navigate to the Stagehand repo, and log the top contributor.
-
-## API Reference
-
-### `Stagehand()`
-
-This constructor is used to create an instance of Stagehand.
-
-- **Arguments:**
-
-  - `env`: `'LOCAL'` or `'BROWSERBASE'`. Defaults to `'BROWSERBASE'`.
-  - `modelName`: (optional) an `AvailableModel` string to specify the default model to use.
-  - `modelClientOptions`: (optional) configuration options for the model client.
-  - `enableCaching`: a `boolean` that enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`.
-  - `headless`: a `boolean` that determines if the browser runs in headless mode. Defaults to `false`. When the env is set to `BROWSERBASE`, this will be ignored.
-  - `domSettleTimeoutMs`: an `integer` that specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to 30000 (30 seconds).
-  - `apiKey`: (optional) your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable.
-  - `projectId`: (optional) your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable.
-  - `browserbaseSessionCreateParams`: configuration options for creating new Browserbase sessions.
-  - `browserbaseSessionID`: ID of an existing live Browserbase session. Overrides `browserbaseSessionCreateParams`.
-  - `logger`: a function that handles log messages. Useful for custom logging implementations.
-  - `verbose`: an `integer` that enables several levels of logging during automation:
-    - `0`: limited to no logging
-    - `1`: SDK-level logging
-    - `2`: LLM-client level logging (most granular)
-  - `debugDom`: a `boolean` that draws bounding boxes around elements presented to the LLM during automation.
-  - `llmClient`: (optional) a custom `LLMClient` implementation.
-
-- **Returns:**
-
-  - An instance of the `Stagehand` class configured with the specified options.
-
-- **Example:**
-
-  ```javascript
-  // Basic usage
-  const stagehand = new Stagehand();
-
-  // Custom configuration
-  const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
-    headless: true,
-    enableCaching: true,
-    logger: (logLine) => {
-      console.log(`[${logLine.category}] ${logLine.message}`);
-    },
-  });
-
-  // Resume existing Browserbase session
-  const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    browserbaseSessionID: "existing-session-id",
-  });
-  ```
-
-### Methods
-
-#### `init()`
-
-`init()` asynchronously initializes the Stagehand instance. It should be called before any other methods.
-
-> [!WARNING]  
-> Passing parameters to `init()` is deprecated and will be removed in the next major version. Use the constructor options instead.
-
-- **Arguments:**
-
-  - `modelName`: (**deprecated**, optional) an `AvailableModel` string to specify the model to use. This will be used for all other methods unless overridden.
-  - `modelClientOptions`: (**deprecated**, optional) configuration options for the model client
-  - `domSettleTimeoutMs`: (**deprecated**, optional) timeout in milliseconds for waiting for the DOM to settle
-
-- **Returns:**
-
-  - A `Promise` that resolves to an object containing:
-    - `debugUrl`: a `string` representing the URL for live debugging. This is only available when using a Browserbase browser.
-    - `sessionUrl`: a `string` representing the session URL. This is only available when using a Browserbase browser.
-    - `sessionId`: a `string` representing the session ID. This is only available when using a Browserbase browser.
-
-- **Example:**
-  ```javascript
-  await stagehand.init();
-  ```
-
-#### `act()`
-
-`act()` allows Stagehand to interact with a web page. Provide an `action` like `"search for 'x'"`, or `"select the cheapest flight presented"` (small atomic goals perform the best).
-
-> [!WARNING]  
-> `act()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.act()` instead.
-
-- **Arguments:**
-
-  - `action`: a `string` describing the action to perform
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
-  - `modelClientOptions`: (optional) configuration options for the model client
-  - `useVision`: (optional) a `boolean` or `"fallback"` to determine if vision-based processing should be used. Defaults to `"fallback"`
-  - `variables`: (optional) a `Record<string, string>` of variables to use in the action. Variables in the action string are referenced using `%variable_name%`
-  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
-
-- **Returns:**
-
-  - A `Promise` that resolves to an object containing:
-    - `success`: a `boolean` indicating if the action was completed successfully.
-    - `message`: a `string` providing details about the action's execution.
-    - `action`: a `string` describing the action performed.
-
-- **Example:**
-
-  ```javascript
-  // Basic usage
-  await stagehand.page.act({ action: "click on add to cart" });
-
-  // Using variables
-  await stagehand.page.act({
-    action: "enter %username% into the username field",
-    variables: {
-      username: "john.doe@example.com",
-    },
-  });
-
-  // Multiple variables
-  await stagehand.page.act({
-    action: "fill in the form with %username% and %password%",
-    variables: {
-      username: "john.doe",
-      password: "secretpass123",
-    },
-  });
-  ```
-
-#### `extract()`
-
-`extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data. Unlike some extraction libraries, stagehand can extract any information on a page, not just the main article contents.
-
-> [!WARNING]  
-> `extract()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.extract()` instead.
-
-- **Arguments:**
-
-  - `instruction`: a `string` providing instructions for extraction
-  - `schema`: a `z.AnyZodObject` defining the structure of the data to extract
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
-  - `modelClientOptions`: (optional) configuration options for the model client
-  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
-  - `useTextExtract`: (optional) a `boolean` to determine if text-based extraction should be used. Defaults to `false`
-
-- **Returns:**
-
-  - A `Promise` that resolves to the structured data as defined by the provided `schema`.
-
-- **Example:**
-  ```javascript
-  const price = await stagehand.page.extract({
-    instruction: "extract the price of the item",
-    schema: z.object({
-      price: z.number(),
-    }),
-  });
-  ```
-
-#### `observe()`
-
-> [!WARNING]  
-> `observe()` on the Stagehand instance is deprecated and will be removed in the next major version. Use `stagehand.page.observe()` instead.
-
-> [!NOTE]  
-> `observe()` currently only evaluates the first chunk in the page.
-
-`observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
-
-If you are looking for a specific element, you can also pass in an instruction to observe via: `observe({ instruction: "{your instruction}"})`.
-
-- **Arguments:**
-
-  - `instruction`: (optional) a `string` providing instructions for the observation. Defaults to "Find actions that can be performed on this page."
-  - `modelName`: (optional) an `AvailableModel` string to specify the model to use
-  - `modelClientOptions`: (optional) configuration options for the model client
-  - `useVision`: (optional) a `boolean` to determine if vision-based processing should be used. Defaults to `false`
-  - `domSettleTimeoutMs`: (optional) timeout in milliseconds for waiting for the DOM to settle
-
-- **Returns:**
-
-  - A `Promise` that resolves to an array of objects containing:
-    - `selector`: a `string` representing the element selector
-    - `description`: a `string` describing the possible action
-
-- **Example:**
-  ```javascript
-  const actions = await stagehand.page.observe();
-  ```
-
-#### `close()`
-
-`close()` is a cleanup method to remove the temporary files created by Stagehand. It's highly recommended that you call this when you're done with your automation.
-
-- **Example:**
-  ```javascript
-  await stagehand.close();
-  ```
-
-#### `page` and `context`
-
-`page` and `context` are instances of Playwright's `Page` and `BrowserContext` respectively. Use these methods to interact with the Playwright instance that Stagehand is using. Most commonly, you'll use `page.goto()` to navigate to a URL.
-
-- **Example:**
-  ```javascript
-  await stagehand.page.goto("https://github.com/browserbase/stagehand");
-  ```
-
-### `log()`
-
-`log()` is used to print a message to the browser console. These messages will be persisted in the Browserbase session logs, and can be used to debug sessions after they've completed.
-
-Make sure the log level is above the verbose level you set when initializing the Stagehand instance.
-
-- **Example:**
-  ```javascript
-  stagehand.log("Hello, world!");
-  ```
 
 ## Model Support
 
@@ -382,6 +125,10 @@ Stagehand currently supports the following models from OpenAI and Anthropic:
   - `claude-3-5-sonnet-20241022`
 
 These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
+
+### Additional Models
+
+Stagehand is designed to be extensible, so you can add your own models by implementing the `LLMClient` interface. You can see an example of how to add a custom `LLMClient` [in our examples](./examples/external_client.ts).
 
 ## How It Works
 
@@ -438,9 +185,9 @@ Prompting Stagehand is more literal and atomic than other higher level framework
 - **Use specific and concise actions**
 
 ```javascript
-await stagehand.page.act({ action: "click the login button" });
+await page.act({ action: "click the login button" });
 
-const productInfo = await stagehand.page.extract({
+const productInfo = await page.extract({
   instruction: "find the red shoes",
   schema: z.object({
     productName: z.string(),
@@ -455,22 +202,22 @@ Instead of combining actions:
 
 ```javascript
 // Avoid this
-await stagehand.page.act({ action: "log in and purchase the first item" });
+await page.act({ action: "log in and purchase the first item" });
 ```
 
 Split them into individual steps:
 
 ```javascript
-await stagehand.page.act({ action: "click the login button" });
+await page.act({ action: "click the login button" });
 // ...additional steps to log in...
-await stagehand.page.act({ action: "click on the first item" });
-await stagehand.page.act({ action: "click the purchase button" });
+await page.act({ action: "click on the first item" });
+await page.act({ action: "click the purchase button" });
 ```
 
 - **Use `observe()` to get actionable suggestions from the current page**
 
 ```javascript
-const actions = await stagehand.page.observe();
+const actions = await page.observe();
 console.log("Possible actions:", actions);
 ```
 
@@ -480,21 +227,21 @@ console.log("Possible actions:", actions);
 
 ```javascript
 // Too vague
-await stagehand.page.act({ action: "find something interesting on the page" });
+await page.act({ action: "find something interesting on the page" });
 ```
 
 - **Combine multiple actions into one instruction**
 
 ```javascript
 // Avoid combining actions
-await stagehand.page.act({ action: "fill out the form and submit it" });
+await page.act({ action: "fill out the form and submit it" });
 ```
 
 - **Expect Stagehand to perform high-level planning or reasoning**
 
 ```javascript
 // Outside Stagehand's scope
-await stagehand.page.act({ action: "book the cheapest flight available" });
+await page.act({ action: "book the cheapest flight available" });
 ```
 
 By following these guidelines, you'll increase the reliability and effectiveness of your web automations with Stagehand. Remember, Stagehand excels at executing precise, well-defined actions so keeping your instructions atomic will lead to the best outcomes.
@@ -504,8 +251,6 @@ We leave the agentic behaviour to higher-level agentic systems which can use Sta
 ## Roadmap
 
 At a high level, we're focused on improving reliability, speed, and cost in that order of priority.
-
-You can see the roadmap [here](./ROADMAP.md). Looking to contribute? Read on!
 
 ## Contributing
 
