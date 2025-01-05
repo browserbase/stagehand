@@ -17,3 +17,4 @@ evals/playground.ts
 tmp/
 eval-summary.json
 pnpm-lock.yaml
+evals/deterministic/tests/BrowserContext/tmp-test.har
