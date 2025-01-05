@@ -6,6 +6,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
+    "popup": "npm run build-dom-scripts && tsx examples/popup.ts",
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
