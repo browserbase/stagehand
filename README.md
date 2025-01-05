@@ -96,6 +96,7 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 npm install
 npx playwright install
+npm run example # run the blank script at ./examples/example.ts
 ```
 
 ## Model Support
@@ -250,22 +251,6 @@ At a high level, we're focused on improving reliability, speed, and cost in that
 > [!NOTE]  
 > We highly value contributions to Stagehand! For support or code review, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
 
-First, clone the repo
-
-```bash
-git clone git@github.com:browserbase/stagehand.git
-```
-
-Then install dependencies
-
-```bash
-npm install
-```
-
-Ensure you have the `.env` file as documented above in the Getting Started section.
-
-Then, run the example script `npm run example`.
-
 ### Development tips
 
 A good development loop is:
@@ -323,4 +308,4 @@ This project heavily relies on [Playwright](https://playwright.dev/) as a resili
 
 Licensed under the MIT License.
 
-Copyright 2024 Browserbase, Inc.
+Copyright 2025 Browserbase, Inc.
