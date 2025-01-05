@@ -36,8 +36,7 @@
 
 ---
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 - [Intro](#intro)
 - [Getting Started](#getting-started)
@@ -70,10 +69,6 @@ Stagehand, especially when combined with Browserbase’s stealth mode, makes it 
 
 ### Recommended Prerequisites
 
-While optional, we strongly recommend setting up your LLM provider and Browserbase credentials.
-
-**Configure your LLM provider**
-
 Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment.
 
 ```
@@ -81,9 +76,7 @@ export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-...
 ```
 
-**Configure your Browserbase API Key and Project ID**
-
-You can find your Browserbase API Key and Project ID in [Browserbase Settings](https://www.browserbase.com/settings).
+Also, if you're using Browserbase, ensure that your Browserbase API Key and Project ID are accessible in your local environment.
 
 ```
 export BROWSERBASE_API_KEY=...
