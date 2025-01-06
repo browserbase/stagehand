@@ -40,19 +40,6 @@
 > [!NOTE] 
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
-- [Intro](#intro)
-- [Getting Started](#getting-started)
-- [Model Support](#model-support)
-- [How It Works](#how-it-works)
-- [Stagehand vs Playwright](#stagehand-vs-playwright)
-- [Prompting Tips](#prompting-tips)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [Acknowledgements](#acknowledgements)
-- [License](#license)
-
-## Intro
-
 Stagehand is the easiest way to build browser automations. It is completely interoperable with [Playwright](https://playwright.dev/) and has seamless integration with [Browserbase](https://browserbase.com/).
 
 It offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language.
@@ -66,6 +53,10 @@ Anything that can be done in a browser can be done with Stagehand. Think about s
 These automations can be built with Playwright, but it can be very cumbersome to write the code, and it will be very vulnerable to minor changes in the UI.
 
 Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable code and bypass bot detection and captchas.
+
+## Documentation
+
+Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
 ## Getting Started
 
@@ -93,29 +84,6 @@ Stagehand is best when you have an API key for an LLM provider and Browserbase c
 cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
-
-## Model Support
-
-Stagehand leverages a generic LLM client architecture to support various language models from different providers. This design allows for flexibility, enabling the integration of new models with minimal changes to the core system. Different models work better for different tasks, so you can choose the model that best suits your needs.
-
-#### Currently Supported Models
-
-Stagehand currently supports the following models from OpenAI and Anthropic:
-
-- **OpenAI Models:**
-
-  - `gpt-4o` / `gpt-4o-2024-08-06`
-  - `gpt-4o-mini` (not recommended due to low parameter count)
-  - `o1-mini` / `o1-preview`
-
-- **Anthropic Models:**
-  - `claude-3-5-sonnet-latest` / `claude-3-5-sonnet-20240620` / `claude-3-5-sonnet-20241022`
-
-These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
-
-### Additional Models
-
-Stagehand is designed to be extensible, so you can add your own models by implementing the `LLMClient` interface. You can see an example of how to add a custom `LLMClient` [in our examples](./examples/external_client.ts).
 
 ## How It Works
 
