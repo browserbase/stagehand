@@ -42,17 +42,15 @@
 
 Stagehand is the easiest way to build browser automations. It is completely interoperable with [Playwright](https://playwright.dev/) and has seamless integration with [Browserbase](https://browserbase.com/).
 
-It offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language.
-
 Anything that can be done in a browser can be done with Stagehand. Think about stuff like:
 
 1. Log into Amazon, search for AirPods, and buy the most relevant product
 1. Go to Hacker News and extract the top stories of the day
 1. Go to ESPN, search for Steph Curry, and get stats for his last 10 games
 
-These automations can be built with Playwright, but it can be very cumbersome to write the code, and it will be very vulnerable to minor changes in the UI.
+Stagehand offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language. It also makes Playwright more accessible to non-technical users and less vulnerable to minor changes in the UI/DOM.
 
-Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable, performant code that can bypass bot detection and captchas.
+Stagehand, especially when combined with [Browserbase](https://browserbase.com/)'s stealth mode, makes it easier to write durable, performant code that can bypass bot detection and captchas.
 
 ## Documentation
 
@@ -62,7 +60,11 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ### Quickstart
 
-You can run `npx create-browser-app` to create a new Stagehand project configured to our default settings.
+To create a new Stagehand project configured to our default settings, run:
+
+```bash
+npx create-browser-app --example quickstart
+```
 
 Read our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
 
@@ -76,8 +78,6 @@ npx playwright install
 npm run example # run the blank script at ./examples/example.ts
 ```
 
-**Environment Variables**
-
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
 
 ```bash
@@ -88,10 +88,11 @@ nano .env # Edit the .env file to add API keys
 ## Contributing
 
 > [!NOTE]  
-> We highly value contributions to Stagehand! For support or code review, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
+> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
 
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority.
+At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) before starting to ensure that your contribution aligns with our goals.
 
+For more information, please see our [Contributing Guide](https://docs.stagehand.dev/contributions/contributing).
 
 ## Acknowledgements
 
