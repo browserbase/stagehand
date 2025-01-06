@@ -321,7 +321,7 @@ export class Stagehand {
   private apiKey: string | undefined;
   private projectId: string | undefined;
   // We want external logger to accept async functions
-  private externalLogger?: (logLine: LogLine) => void | Promise<void>;
+  private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
   private contextPath?: string;
