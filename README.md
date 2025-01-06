@@ -102,7 +102,7 @@ We'd like to thank the following people for their contributions to Stagehand:
 - [Jeremy Press](https://x.com/jeremypress) wrote the original MVP of Stagehand and continues to be an ally to the project.
 - [Navid Pour](https://github.com/navidpour) is heavily responsible for the current architecture of Stagehand and the `act` API.
 - [Sean McGuire](https://github.com/seanmcguire12) is a major contributor to the project and has been a great help with improving the `extract` API and getting evals to a high level.
-- [Filip Michalsky](https://github.com/filip-michalsky) has been doing a lot of work on building out integrations like [Langchain](https://js.langchain.com/docs/integrations/tools/stagehand/), generally improving the repository, and unblocking users.
+- [Filip Michalsky](https://github.com/filip-michalsky) has been doing a lot of work on building out integrations like [Langchain](https://js.langchain.com/docs/integrations/tools/stagehand/) and [Claude MCP](https://github.com/browserbase/mcp-server-browserbase), generally improving the repository, and unblocking users.
 - [Sameel Arif](https://github.com/sameelarif) is a major contributor to the project, especially around improving the developer experience.
 
 ## License
