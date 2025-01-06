@@ -69,29 +69,13 @@ Stagehand, especially when combined with Browserbase’s stealth mode, makes it 
 
 ## Getting Started
 
-### Recommended Prerequisites
-
-Ensure that an OpenAI API Key or Anthropic API key is accessible in your local environment.
-
-```
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-...
-```
-
-Also, if you're using Browserbase, ensure that your Browserbase API Key and Project ID are accessible in your local environment.
-
-```
-export BROWSERBASE_API_KEY=...
-export BROWSERBASE_PROJECT_ID=...
-```
-
 ### Quickstart
 
 You can run `npx create-browser-app` to create a new Stagehand project configured to our default settings.
 
 Read our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
 
-### From Source
+### Build and Run from Source
 
 ```bash
 git clone https://github.com/browserbase/stagehand.git
@@ -99,6 +83,15 @@ cd stagehand
 npm install
 npx playwright install
 npm run example # run the blank script at ./examples/example.ts
+```
+
+### Environment Variables
+
+Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
+
+```bash
+cp .env.example .env 
+nano .env # Edit the .env file to add API keys
 ```
 
 ## Model Support
