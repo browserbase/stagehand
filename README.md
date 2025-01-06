@@ -54,11 +54,11 @@ These automations can be built with Playwright, but it can be very cumbersome to
 
 Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable code and bypass bot detection and captchas.
 
-## Documentation
+# Documentation
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-## Getting Started
+# Getting Started
 
 ### Quickstart
 
@@ -85,63 +85,15 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
-![](./docs/media/stagehand-playwright.png)
-
-## Roadmap
+# Roadmap
 
 At a high level, we're focused on improving reliability, speed, and cost in that order of priority.
 
-## Contributing
+# Contributing
 
 > [!NOTE]  
 > We highly value contributions to Stagehand! For support or code review, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
 
-### Development tips
-
-A good development loop is:
-
-1. Try things in the example file
-2. Use that to make changes to the SDK
-3. Write evals that help validate your changes
-4. Make sure you don't break existing evals!
-5. Open a PR and get it reviewed by the team.
-
-### Running evals
-
-You'll need a Braintrust API key to run evals
-
-```.env
-BRAINTRUST_API_KEY=""
-```
-
-After that, you can run all evals at once using `npm run evals`
-
-You can also run individual evals using `npm run evals -- your_eval_name`.
-
-### Adding new evals
-
-Running all evals can take some time. We have a convenience script `example.ts` where you can develop your new single eval before adding it to the set of all evals.
-
-You can run `npm run example` to execute and iterate on the eval you are currently developing.
-
-#### Adding a New Model
-
-To add a new model to Stagehand, follow these steps:
-
-1. **Define the Model**: Add the new model name to the `AvailableModel` type in the `LLMProvider.ts` file. This ensures that the model is recognized by the system.
-
-2. **Map the Model to a Provider**: Update the `modelToProviderMap` in the `LLMProvider` class to associate the new model with its corresponding provider. This mapping is crucial for determining which client to use.
-
-3. **Implement the Client**: If the new model requires a new client, implement a class that adheres to the `LLMClient` interface. This class should define all necessary methods, such as `createChatCompletion`.
-
-4. **Update the `getClient` Method**: Modify the `getClient` method in the `LLMProvider` class to return an instance of the new client when the new model is requested.
-
-### Building the SDK
-
-Stagehand uses [tsup](https://github.com/egoist/tsup) to build the SDK and vanilla [esbuild](https://esbuild.github.io/d) to build the scripts that run in the DOM.
-
-1. run `npm run build`
-2. run `npm pack` to get a tarball for distribution
 
 ## Acknowledgements
 
@@ -154,3 +106,5 @@ This project heavily relies on [Playwright](https://playwright.dev/) as a resili
 Licensed under the MIT License.
 
 Copyright 2025 Browserbase, Inc.
+
+![](./docs/media/stagehand-playwright.png)
