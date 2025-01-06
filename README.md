@@ -48,11 +48,11 @@ Anything that can be done in a browser can be done with Stagehand. Think about s
 
 1. Log into Amazon, search for AirPods, and buy the most relevant product
 1. Go to Hacker News and extract the top stories of the day
-1. Go to Doordash, find the cheapest pad thai, and order it to your house
+1. Go to ESPN, search for Steph Curry, and get stats for his last 10 games
 
 These automations can be built with Playwright, but it can be very cumbersome to write the code, and it will be very vulnerable to minor changes in the UI.
 
-Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable code and bypass bot detection and captchas.
+Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable, performant code that can bypass bot detection and captchas.
 
 ## Documentation
 
