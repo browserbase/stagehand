@@ -76,7 +76,7 @@ npx playwright install
 npm run example # run the blank script at ./examples/example.ts
 ```
 
-### Environment Variables
+**Environment Variables**
 
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
 
