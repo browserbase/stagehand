@@ -37,8 +37,7 @@
 
 ---
 
-> [!NOTE]
-> `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
+> [!NOTE] > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
 - [Intro](#intro)
 - [Getting Started](#getting-started)
@@ -90,7 +89,7 @@ npm run example # run the blank script at ./examples/example.ts
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
 
 ```bash
-cp .env.example .env 
+cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
@@ -104,14 +103,12 @@ Stagehand currently supports the following models from OpenAI and Anthropic:
 
 - **OpenAI Models:**
 
-  - `gpt-4o`
-  - `gpt-4o-mini`
-  - `gpt-4o-2024-08-06`
+  - `gpt-4o` / `gpt-4o-2024-08-06`
+  - `gpt-4o-mini` (not recommended due to low parameter count)
+  - `o1-mini` / `o1-preview`
 
 - **Anthropic Models:**
-  - `claude-3-5-sonnet-latest`
-  - `claude-3-5-sonnet-20240620`
-  - `claude-3-5-sonnet-20241022`
+  - `claude-3-5-sonnet-latest` / `claude-3-5-sonnet-20240620` / `claude-3-5-sonnet-20241022`
 
 These models can be specified when initializing the `Stagehand` instance or when calling methods like `act()` and `extract()`.
 
