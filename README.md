@@ -54,11 +54,11 @@ These automations can be built with Playwright, but it can be very cumbersome to
 
 Stagehand, especially when combined with Browserbase’s stealth mode, makes it easier to write durable code and bypass bot detection and captchas.
 
-# Documentation
+## Documentation
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-# Getting Started
+## Getting Started
 
 ### Quickstart
 
@@ -85,21 +85,24 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
-# Roadmap
-
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority.
-
-# Contributing
+## Contributing
 
 > [!NOTE]  
 > We highly value contributions to Stagehand! For support or code review, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA).
+
+At a high level, we're focused on improving reliability, speed, and cost in that order of priority.
 
 
 ## Acknowledgements
 
 This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), and [fuji-web](https://github.com/normal-computing/fuji-web).
 
-[Jeremy Press](https://x.com/jeremypress) wrote the original MVP of Stagehand and continues to be a major ally to the project.
+We'd like to thank the following people for their contributions to Stagehand:
+- [Jeremy Press](https://x.com/jeremypress) wrote the original MVP of Stagehand and continues to be an ally to the project.
+- [Navid Pour](https://github.com/navidpour) is heavily responsible for the current architecture of Stagehand and the `act` API.
+- [Sean McGuire](https://github.com/seanmcguire12) is a major contributor to the project and has been a great help with improving the `extract` API and getting evals to a high level.
+- [Filip Michalsky](https://github.com/filip-michalsky) has been doing a lot of work on building out integrations like [Langchain](https://js.langchain.com/docs/integrations/tools/stagehand/), generally improving the repository, and unblocking users.
+- [Sameel Arif](https://github.com/sameelarif) is a major contributor to the project, especially around improving the developer experience.
 
 ## License
 
