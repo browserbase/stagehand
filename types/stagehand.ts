@@ -25,7 +25,7 @@ export interface ConstructorParams {
   /**
    * Instructions for stagehand.
    */
-  instructions?: string;
+  systemPrompt?: string;
 }
 
 export interface InitOptions {

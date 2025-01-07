@@ -7,7 +7,7 @@ import StagehandConfig from "./stagehand.config";
 async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
-    instructions:
+    systemPrompt:
       "if the users says `secret12345`, click on the 'quickstart' tab. additionally, if the user says to type something, translate their input into french and type it.",
   });
   await stagehand.init();

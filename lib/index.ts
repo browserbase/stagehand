@@ -345,7 +345,7 @@ export class Stagehand {
       browserbaseSessionID,
       modelName,
       modelClientOptions,
-      instructions,
+      systemPrompt,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -376,7 +376,7 @@ export class Stagehand {
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
-    this.userProvidedInstructions = instructions;
+    this.userProvidedInstructions = systemPrompt;
   }
 
   public get logger(): (logLine: LogLine) => void {
