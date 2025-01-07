@@ -11,7 +11,7 @@
  */
 
 import { enableCaching, env } from "./env";
-import { AvailableModel, LogLine, Stagehand } from "../lib";
+import { AvailableModel, ConstructorParams, LogLine, Stagehand } from "../lib";
 import { EvalLogger } from "./logger";
 
 /**
@@ -54,10 +54,12 @@ export const initStagehand = async ({
   modelName,
   domSettleTimeoutMs,
   logger,
+  configOverrides,
 }: {
   modelName: AvailableModel;
   domSettleTimeoutMs?: number;
   logger: EvalLogger;
+  configOverrides?: Partial<ConstructorParams>;
 }) => {
   let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
   if (modelName.startsWith("claude")) {
@@ -74,6 +76,7 @@ export const initStagehand = async ({
     logger: (logLine: LogLine) => {
       logger.log(logLine);
     },
+    ...configOverrides,
   };
 
   const stagehand = new Stagehand(config);
