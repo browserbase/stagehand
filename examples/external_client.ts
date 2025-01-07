@@ -1,4 +1,4 @@
-import { type ConstructorParams, type LogLine, Stagehand } from "../lib";
+import { type ConstructorParams, Stagehand } from "../lib";
 import { z } from "zod";
 import { OllamaClient } from "./external_clients/ollama";
 
@@ -7,13 +7,9 @@ const StagehandConfig: ConstructorParams = {
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
   verbose: 1,
-  llmClient: new OllamaClient(
-    (message: LogLine) =>
-      console.log(`[stagehand::${message.category}] ${message.message}`),
-    false,
-    undefined,
-    "llama3.2",
-  ),
+  llmClient: new OllamaClient({
+    modelName: "llama3.2",
+  }),
   debugDom: true,
 };
 
