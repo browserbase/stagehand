@@ -68,6 +68,13 @@ npx create-browser-app --example quickstart
 
 Read our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) in the docs for more information.
 
+You can also add Stagehand to an existing Typescript project by running:
+
+```bash
+npm install @browserbasehq/stagehand zod
+npx playwright install # if running locally
+```
+
 ### Build and Run from Source
 
 ```bash
