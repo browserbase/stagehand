@@ -1378,7 +1378,6 @@ export class StagehandActHandler {
           llmClient,
           domSettleTimeoutMs,
         }).catch((error) => {
-          console.log("error verifying action completion", error);
           this.logger({
             category: "action",
             message:
@@ -1387,6 +1386,10 @@ export class StagehandActHandler {
             auxiliary: {
               error: {
                 value: error.message,
+                type: "string",
+              },
+              trace: {
+                value: error.stack,
                 type: "string",
               },
             },

@@ -7,13 +7,9 @@ import {
 } from "@anthropic-ai/sdk/resources";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
-import {
-  AnthropicJsonSchemaObject,
-  AnthropicTransformedResponse,
-  AvailableModel,
-} from "../../types/model";
+import { AnthropicJsonSchemaObject, AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
-import { ChatCompletionOptions, LLMClient } from "./LLMClient";
+import { ChatCompletionOptions, LLMClient, LLMResponse } from "./LLMClient";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -39,7 +35,7 @@ export class AnthropicClient extends LLMClient {
     this.clientOptions = clientOptions;
   }
 
-  async createChatCompletion<T = AnthropicTransformedResponse>(
+  async createChatCompletion<T = LLMResponse>(
     options: ChatCompletionOptions & { retries?: number },
   ): Promise<T> {
     const optionsWithoutImage = { ...options };
@@ -185,17 +181,15 @@ export class AnthropicClient extends LLMClient {
     }
 
     let anthropicTools: Tool[] = options.tools?.map((tool) => {
-      if (tool.type === "function") {
-        return {
-          name: tool.function.name,
-          description: tool.function.description,
-          input_schema: {
-            type: "object",
-            properties: tool.function.parameters.properties,
-            required: tool.function.parameters.required,
-          },
-        };
-      }
+      return {
+        name: tool.name,
+        description: tool.description,
+        input_schema: {
+          type: "object",
+          properties: tool.parameters.properties,
+          required: tool.parameters.required,
+        },
+      };
     });
 
     let toolDefinition: Tool | undefined;
@@ -247,7 +241,7 @@ export class AnthropicClient extends LLMClient {
       },
     });
 
-    const transformedResponse: AnthropicTransformedResponse = {
+    const transformedResponse: LLMResponse = {
       id: response.id,
       object: "chat.completion",
       created: Date.now(),
