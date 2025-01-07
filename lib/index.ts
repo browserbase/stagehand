@@ -321,7 +321,7 @@ export class Stagehand {
   private apiKey: string | undefined;
   private projectId: string | undefined;
   // We want external logger to accept async functions
-  private externalLogger?: (logLine: LogLine) => void | Promise<void>;
+  private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
   private contextPath?: string;
@@ -367,6 +367,11 @@ export class Stagehand {
         modelName ?? DEFAULT_MODEL_NAME,
         modelClientOptions,
       );
+
+    if (!this.llmClient.logger) {
+      this.llmClient.logger = this.logger;
+    }
+
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
@@ -618,3 +623,4 @@ export * from "../types/model";
 export * from "../types/playwright";
 export * from "../types/stagehand";
 export * from "../types/page";
+export { LLMClient } from "./llm/LLMClient";

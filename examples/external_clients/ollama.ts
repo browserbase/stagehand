@@ -28,13 +28,19 @@ export class OllamaClient extends LLMClient {
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
+  constructor({
+    logger,
     enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: "llama3.2",
-    clientOptions?: ClientOptions,
-  ) {
+    cache = undefined,
+    modelName = "llama3.2",
+    clientOptions,
+  }: {
+    logger?: (message: LogLine) => void;
+    enableCaching?: boolean;
+    cache?: LLMCache;
+    modelName?: string;
+    clientOptions?: ClientOptions;
+  }) {
     super(modelName as AvailableModel);
     this.client = new OpenAI({
       ...clientOptions,
@@ -239,7 +245,14 @@ export class OllamaClient extends LLMClient {
       messages: formattedMessages,
       response_format: responseFormat,
       stream: false,
-      tools: options.tools?.filter((tool) => "function" in tool), // ensure only OpenAI compatibletools are used
+      tools: options.tools?.map((tool) => ({
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+        type: "function",
+      })),
     };
 
     const response = await this.client.chat.completions.create(body);

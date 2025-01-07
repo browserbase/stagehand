@@ -177,6 +177,7 @@ export async function extract({
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
   type MetadataResponse = z.infer<typeof metadataSchema>;
+  // TODO: antipattern
   const isUsingAnthropic = llmClient.type === "anthropic";
 
   const extractionResponse = await llmClient.createChatCompletion({

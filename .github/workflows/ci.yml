@@ -1,12 +1,6 @@
 name: Evals
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "lib/**"
-      - "evals/**"
   pull_request:
     types:
       - opened
@@ -47,6 +41,7 @@ jobs:
           echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-text-extract=${{ contains(github.event.pull_request.labels.*.name, 'text-extract') }}" >> $GITHUB_OUTPUT
+
   run-lint:
     runs-on: ubuntu-latest
     steps:
@@ -88,6 +83,38 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      HEADLESS: true
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run E2E Tests (Deterministic Playwright)
+        run: npm run e2e
+
+  run-e2e-bb-tests:
+    needs: [run-e2e-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
@@ -107,8 +134,8 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run E2E Tests
-        run: npm run e2e
+      - name: Run E2E Tests (browserbase)
+        run: npm run e2e:bb
 
   run-combination-evals:
     needs: [run-e2e-tests, determine-evals]

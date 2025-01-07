@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { LLMTool } from "../types/llm";
 import { ChatMessage } from "./llm/LLMClient";
 
 // act
@@ -156,65 +156,60 @@ ${Object.keys(variables)
   };
 }
 
-export const actTools: Array<OpenAI.ChatCompletionTool> = [
+export const actTools: LLMTool[] = [
   {
     type: "function",
-    function: {
-      name: "doAction",
-      description:
-        "execute the next playwright step that directly accomplishes the goal",
-      parameters: {
-        type: "object",
-        required: ["method", "element", "args", "step", "completed"],
-        properties: {
-          method: {
+    name: "doAction",
+    description:
+      "execute the next playwright step that directly accomplishes the goal",
+    parameters: {
+      type: "object",
+      required: ["method", "element", "args", "step", "completed"],
+      properties: {
+        method: {
+          type: "string",
+          description: "The playwright function to call.",
+        },
+        element: {
+          type: "number",
+          description: "The element number to act on",
+        },
+        args: {
+          type: "array",
+          description: "The required arguments",
+          items: {
             type: "string",
-            description: "The playwright function to call.",
+            description: "The argument to pass to the function",
           },
-          element: {
-            type: "number",
-            description: "The element number to act on",
-          },
-          args: {
-            type: "array",
-            description: "The required arguments",
-            items: {
-              type: "string",
-              description: "The argument to pass to the function",
-            },
-          },
-          step: {
-            type: "string",
-            description:
-              "human readable description of the step that is taken in the past tense. Please be very detailed.",
-          },
-          why: {
-            type: "string",
-            description:
-              "why is this step taken? how does it advance the goal?",
-          },
-          completed: {
-            type: "boolean",
-            description:
-              "true if the goal should be accomplished after this step",
-          },
+        },
+        step: {
+          type: "string",
+          description:
+            "human readable description of the step that is taken in the past tense. Please be very detailed.",
+        },
+        why: {
+          type: "string",
+          description: "why is this step taken? how does it advance the goal?",
+        },
+        completed: {
+          type: "boolean",
+          description:
+            "true if the goal should be accomplished after this step",
         },
       },
     },
   },
   {
     type: "function",
-    function: {
-      name: "skipSection",
-      description:
-        "skips this area of the webpage because the current goal cannot be accomplished here",
-      parameters: {
-        type: "object",
-        properties: {
-          reason: {
-            type: "string",
-            description: "reason that no action is taken",
-          },
+    name: "skipSection",
+    description:
+      "skips this area of the webpage because the current goal cannot be accomplished here",
+    parameters: {
+      type: "object",
+      properties: {
+        reason: {
+          type: "string",
+          description: "reason that no action is taken",
         },
       },
     },

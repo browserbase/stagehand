@@ -1,7 +1,6 @@
 import OpenAI, { ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
-  ChatCompletion,
   ChatCompletionAssistantMessageParam,
   ChatCompletionContentPartImage,
   ChatCompletionContentPartText,
@@ -15,7 +14,12 @@ import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema } from "../utils";
-import { ChatCompletionOptions, ChatMessage, LLMClient } from "./LLMClient";
+import {
+  ChatCompletionOptions,
+  ChatMessage,
+  LLMClient,
+  LLMResponse,
+} from "./LLMClient";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -25,13 +29,19 @@ export class OpenAIClient extends LLMClient {
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
-  constructor(
-    logger: (message: LogLine) => void,
+  constructor({
+    logger,
     enableCaching = false,
-    cache: LLMCache | undefined,
-    modelName: AvailableModel,
-    clientOptions?: ClientOptions,
-  ) {
+    cache,
+    modelName,
+    clientOptions,
+  }: {
+    logger: (message: LogLine) => void;
+    enableCaching?: boolean;
+    cache?: LLMCache;
+    modelName: AvailableModel;
+    clientOptions?: ClientOptions;
+  }) {
     super(modelName);
     this.clientOptions = clientOptions;
     this.client = new OpenAI(clientOptions);
@@ -41,7 +51,7 @@ export class OpenAIClient extends LLMClient {
     this.modelName = modelName;
   }
 
-  async createChatCompletion<T = ChatCompletion>(
+  async createChatCompletion<T = LLMResponse>(
     optionsInitial: ChatCompletionOptions,
     retries: number = 3,
   ): Promise<T> {
@@ -319,7 +329,14 @@ export class OpenAIClient extends LLMClient {
       messages: formattedMessages,
       response_format: responseFormat,
       stream: false,
-      tools: options.tools?.filter((tool) => "function" in tool), // ensure only OpenAI tools are used
+      tools: options.tools?.map((tool) => ({
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+        type: "function",
+      })),
     };
 
     const response = await this.client.chat.completions.create(body);
