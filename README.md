@@ -42,15 +42,15 @@
 
 Stagehand is the easiest way to build browser automations. It is completely interoperable with [Playwright](https://playwright.dev/) and has seamless integration with [Browserbase](https://browserbase.com/).
 
+Stagehand offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language. It also makes Playwright more accessible to non-technical users and less vulnerable to minor changes in the UI/DOM.
+
 Anything that can be done in a browser can be done with Stagehand. Think about stuff like:
 
 1. Log into Amazon, search for AirPods, and buy the most relevant product
 1. Go to Hacker News and extract the top stories of the day
 1. Go to ESPN, search for Steph Curry, and get stats for his last 10 games
 
-Stagehand offers three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language. It also makes Playwright more accessible to non-technical users and less vulnerable to minor changes in the UI/DOM.
-
-Stagehand, especially when combined with [Browserbase](https://browserbase.com/)'s stealth mode, makes it easier to write durable, performant code that can bypass bot detection and captchas.
+Stagehand makes it easier to write durable, performant browser automation code. When used with [Browserbase](https://browserbase.com/), it offers unparalleled debugging tools like session replay and step-by-step debugging.
 
 ## Documentation
 
