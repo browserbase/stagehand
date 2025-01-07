@@ -120,7 +120,9 @@ export function buildActSystemPrompt(
     content: [
       actSystemPrompt,
       buildUserInstructionsString(userProvidedInstructions),
-    ].join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 
@@ -261,7 +263,7 @@ ONLY print the content using the print_extracted_data tool provided.
   const content =
     `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
       additionalInstructions ? `\n\n${additionalInstructions}` : ""
-    }\n\n${userInstructions}`.replace(/\s+/g, " ");
+    }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
 
   return {
     role: "system",
@@ -365,8 +367,9 @@ export function buildObserveSystemPrompt(
 
   return {
     role: "system",
-    content:
-      content + "\n\n" + buildUserInstructionsString(userProvidedInstructions),
+    content: [content, buildUserInstructionsString(userProvidedInstructions)]
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 

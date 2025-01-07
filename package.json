@@ -11,6 +11,7 @@
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "external-client": "npm run build-dom-scripts && tsx examples/external_client.ts",
+    "instructions": "npm run build-dom-scripts && tsx examples/instructions.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
