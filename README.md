@@ -117,5 +117,3 @@ We'd like to thank the following people for their contributions to Stagehand:
 Licensed under the MIT License.
 
 Copyright 2025 Browserbase, Inc.
-
-![](./docs/media/stagehand-playwright.png)
