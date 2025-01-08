@@ -57,29 +57,31 @@ export class StagehandPage {
     });
     this.stagehand = stagehand;
     this.intContext = context;
-    this.actHandler = new StagehandActHandler({
-      verbose: this.stagehand.verbose,
-      llmProvider: this.stagehand.llmProvider,
-      enableCaching: this.stagehand.enableCaching,
-      logger: this.stagehand.logger,
-      stagehandPage: this,
-      stagehandContext: this.intContext,
-      llmClient: llmClient,
-      userProvidedInstructions,
-    });
-    this.extractHandler = new StagehandExtractHandler({
-      stagehand: this.stagehand,
-      logger: this.stagehand.logger,
-      stagehandPage: this,
-      userProvidedInstructions,
-    });
-    this.observeHandler = new StagehandObserveHandler({
-      stagehand: this.stagehand,
-      logger: this.stagehand.logger,
-      stagehandPage: this,
-      userProvidedInstructions,
-    });
     this.llmClient = llmClient;
+    if (this.llmClient) {
+      this.actHandler = new StagehandActHandler({
+        verbose: this.stagehand.verbose,
+        llmProvider: this.stagehand.llmProvider,
+        enableCaching: this.stagehand.enableCaching,
+        logger: this.stagehand.logger,
+        stagehandPage: this,
+        stagehandContext: this.intContext,
+        llmClient: llmClient,
+        userProvidedInstructions,
+      });
+      this.extractHandler = new StagehandExtractHandler({
+        stagehand: this.stagehand,
+        logger: this.stagehand.logger,
+        stagehandPage: this,
+        userProvidedInstructions,
+      });
+      this.observeHandler = new StagehandObserveHandler({
+        stagehand: this.stagehand,
+        logger: this.stagehand.logger,
+        stagehandPage: this,
+        userProvidedInstructions,
+      });
+    }
   }
 
   async init(): Promise<StagehandPage> {
@@ -102,22 +104,30 @@ export class StagehandPage {
             return result;
           };
 
-        if (prop === "act") {
-          return async (options: ActOptions) => {
-            return this.act(options);
-          };
-        }
-
-        if (prop === "extract") {
-          return async (options: ExtractOptions<z.AnyZodObject>) => {
-            return this.extract(options);
-          };
-        }
-
-        if (prop === "observe") {
-          return async (options: ObserveOptions) => {
-            return this.observe(options);
-          };
+        if (this.llmClient) {
+          if (prop === "act") {
+            return async (options: ActOptions) => {
+              return this.act(options);
+            };
+          }
+          if (prop === "extract") {
+            return async (options: ExtractOptions<z.AnyZodObject>) => {
+              return this.extract(options);
+            };
+          }
+          if (prop === "observe") {
+            return async (options: ObserveOptions) => {
+              return this.observe(options);
+            };
+          }
+        } else {
+          if (prop === "act" || prop === "extract" || prop === "observe") {
+            return () => {
+              throw new Error(
+                "No LLM API key or LLM Client configured. An LLM API key or a custom LLM Client is required to use act, extract, or observe.",
+              );
+            };
+          }
         }
 
         if (prop === "on") {
