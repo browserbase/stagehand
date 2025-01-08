@@ -56,6 +56,15 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ## Getting Started
 
+<div>
+    <a href="https://www.loom.com/share/f5107f86d8c94fa0a8b4b1e89740f7a7">
+      <p>Watch Anirudh demo create-browser-app to create a Stagehand project!</p>
+    </a>
+    <a href="https://www.loom.com/share/f5107f86d8c94fa0a8b4b1e89740f7a7">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/f5107f86d8c94fa0a8b4b1e89740f7a7-ec3f428b6775ceeb-full-play.gif">
+    </a>
+  </div>
+
 ### Quickstart
 
 To create a new Stagehand project configured to our default settings, run:
