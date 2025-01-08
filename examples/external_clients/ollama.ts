@@ -1,14 +1,5 @@
 import OpenAI, { type ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import type { LLMCache } from "../../lib/cache/LLMCache";
-import { validateZodSchema } from "../../lib/utils";
-import {
-  type ChatCompletionOptions,
-  type ChatMessage,
-  LLMClient,
-} from "../../lib/llm/LLMClient";
-import type { LogLine } from "../../types/log";
-import type { AvailableModel } from "../../types/model";
 import type {
   ChatCompletion,
   ChatCompletionAssistantMessageParam,
@@ -19,23 +10,28 @@ import type {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
+import type { LLMCache } from "../../lib/cache/LLMCache";
+import {
+  type ChatMessage,
+  CreateChatCompletionOptions,
+  LLMClient,
+} from "../../lib/llm/LLMClient";
+import { validateZodSchema } from "../../lib/utils";
+import type { AvailableModel } from "../../types/model";
 
 export class OllamaClient extends LLMClient {
   public type = "ollama" as const;
   private client: OpenAI;
   private cache: LLMCache | undefined;
-  public logger: (message: LogLine) => void;
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
   constructor({
-    logger,
     enableCaching = false,
     cache = undefined,
     modelName = "llama3.2",
     clientOptions,
   }: {
-    logger?: (message: LogLine) => void;
     enableCaching?: boolean;
     cache?: LLMCache;
     modelName?: string;
@@ -47,16 +43,16 @@ export class OllamaClient extends LLMClient {
       baseURL: clientOptions?.baseURL || "http://localhost:11434/v1",
       apiKey: "ollama",
     });
-    this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName as AvailableModel;
   }
 
-  async createChatCompletion<T = ChatCompletion>(
-    options: ChatCompletionOptions,
+  async createChatCompletion<T = ChatCompletion>({
+    options,
     retries = 3,
-  ): Promise<T> {
+    logger,
+  }: CreateChatCompletionOptions): Promise<T> {
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
 
     // TODO: Implement vision support
@@ -66,7 +62,7 @@ export class OllamaClient extends LLMClient {
       );
     }
 
-    this.logger({
+    logger({
       category: "ollama",
       message: "creating chat completion",
       level: 1,
@@ -122,7 +118,7 @@ export class OllamaClient extends LLMClient {
       );
 
       if (cachedResponse) {
-        this.logger({
+        logger({
           category: "llm_cache",
           message: "LLM cache hit - returning cached response",
           level: 1,
@@ -140,7 +136,7 @@ export class OllamaClient extends LLMClient {
         return cachedResponse;
       }
 
-      this.logger({
+      logger({
         category: "llm_cache",
         message: "LLM cache miss - no cached response found",
         level: 1,
@@ -168,7 +164,7 @@ export class OllamaClient extends LLMClient {
       model: this.modelName,
     };
 
-    this.logger({
+    logger({
       category: "ollama",
       message: "creating chat completion",
       level: 1,
@@ -257,7 +253,7 @@ export class OllamaClient extends LLMClient {
 
     const response = await this.client.chat.completions.create(body);
 
-    this.logger({
+    logger({
       category: "ollama",
       message: "response",
       level: 1,
@@ -279,7 +275,11 @@ export class OllamaClient extends LLMClient {
 
       if (!validateZodSchema(options.response_model.schema, parsedData)) {
         if (retries > 0) {
-          return this.createChatCompletion(options, retries - 1);
+          return this.createChatCompletion({
+            options,
+            logger,
+            retries: retries - 1,
+          });
         }
 
         throw new Error("Invalid response schema");
@@ -299,7 +299,7 @@ export class OllamaClient extends LLMClient {
     }
 
     if (this.enableCaching) {
-      this.logger({
+      logger({
         category: "llm_cache",
         message: "caching response",
         level: 1,

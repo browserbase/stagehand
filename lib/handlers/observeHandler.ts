@@ -120,6 +120,7 @@ export class StagehandObserveHandler {
       llmClient,
       image: annotatedScreenshot,
       requestId,
+      logger: this.logger,
     });
 
     const elementsWithSelectors = observationResponse.elements.map(
