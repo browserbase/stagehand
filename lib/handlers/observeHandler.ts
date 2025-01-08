@@ -2,9 +2,9 @@ import { LogLine } from "../../types/log";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
+import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
-import { StagehandPage } from "../StagehandPage";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -124,6 +124,7 @@ export class StagehandObserveHandler {
       image: annotatedScreenshot,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
+      logger: this.logger,
     });
 
     const elementsWithSelectors = observationResponse.elements.map(

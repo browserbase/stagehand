@@ -311,6 +311,7 @@ export class StagehandExtractHandler {
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
+      logger: this.logger,
     });
 
     const {
@@ -440,6 +441,7 @@ export class StagehandExtractHandler {
       requestId,
       isUsingTextExtract: false,
       userProvidedInstructions: this.userProvidedInstructions,
+      logger: this.logger,
     });
 
     const {

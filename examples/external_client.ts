@@ -1,20 +1,15 @@
-import { type ConstructorParams, Stagehand } from "../lib";
+import { Stagehand } from "../lib";
 import { z } from "zod";
 import { OllamaClient } from "./external_clients/ollama";
-
-const StagehandConfig: ConstructorParams = {
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
-  verbose: 1,
-  llmClient: new OllamaClient({
-    modelName: "llama3.2",
-  }),
-  debugDom: true,
-};
+import StagehandConfig from "./stagehand.config";
 
 async function example() {
-  const stagehand = new Stagehand(StagehandConfig);
+  const stagehand = new Stagehand({
+    ...StagehandConfig,
+    llmClient: new OllamaClient({
+      modelName: "llama3.2",
+    }),
+  });
 
   await stagehand.init();
   await stagehand.page.goto("https://news.ycombinator.com");

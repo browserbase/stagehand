@@ -1,6 +1,7 @@
 import { ZodType } from "zod";
 import { LLMTool } from "../../types/llm";
 import { AvailableModel, ClientOptions } from "../../types/model";
+import { LogLine } from "../../types/log";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -82,6 +83,12 @@ export type LLMResponse = {
   };
 };
 
+export interface CreateChatCompletionOptions {
+  options: ChatCompletionOptions;
+  logger: (message: LogLine) => void;
+  retries?: number;
+}
+
 export abstract class LLMClient {
   public type: "openai" | "anthropic" | string;
   public modelName: AvailableModel;
@@ -96,7 +103,6 @@ export abstract class LLMClient {
   }
 
   abstract createChatCompletion<T = LLMResponse>(
-    options: ChatCompletionOptions,
+    options: CreateChatCompletionOptions,
   ): Promise<T>;
-  abstract logger: (message: { category?: string; message: string }) => void;
 }
