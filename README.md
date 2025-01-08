@@ -56,7 +56,7 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ## Getting Started
 
-<div>
+<div align="center">
     <a href="https://www.loom.com/share/f5107f86d8c94fa0a8b4b1e89740f7a7">
       <p>Watch Anirudh demo create-browser-app to create a Stagehand project!</p>
     </a>
