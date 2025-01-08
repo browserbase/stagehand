@@ -12,6 +12,7 @@ You will receive:
 2. the steps that you've taken so far
 3. a list of active DOM elements in this chunk to consider to get closer to the goal. 
 4. Optionally, a list of variable names that the user has provided that you may use to accomplish the goal. To use the variables, you must use the special <|VARIABLE_NAME|> syntax.
+5. Optionally, custom instructions will be provided by the user. If the user's instructions are not relevant to the current task, ignore them. Otherwise, make sure to adhere to them.
 
 
 ## Your Goal / Specification
@@ -21,7 +22,7 @@ If the user's goal will be accomplished after running the playwright action, set
 Note 1: If there is a popup on the page for cookies or advertising that has nothing to do with the goal, try to close it first before proceeding. As this can block the goal from being completed.
 Note 2: Sometimes what your are looking for is hidden behind and element you need to interact with. For example, sliders, buttons, etc...
 
-Again, if the user's goal will be accomplished after running the playwright action, set completed to true.
+Again, if the user's goal will be accomplished after running the playwright action, set completed to true. Also, if the user provides custom instructions, it is imperative that you follow them no matter what.
 `;
 
 const verifyActCompletionSystemPrompt = `
@@ -96,10 +97,32 @@ ${domElements}
   };
 }
 
-export function buildActSystemPrompt(): ChatMessage {
+export function buildUserInstructionsString(
+  userProvidedInstructions?: string,
+): string {
+  if (!userProvidedInstructions) {
+    return "";
+  }
+
+  return `\n\n# Custom Instructions Provided by the User
+    
+Please keep the user's instructions in mind when performing actions. If the user's instructions are not relevant to the current task, ignore them.
+
+User Instructions:
+${userProvidedInstructions}`;
+}
+
+export function buildActSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
   return {
     role: "system",
-    content: actSystemPrompt,
+    content: [
+      actSystemPrompt,
+      buildUserInstructionsString(userProvidedInstructions),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 
@@ -199,6 +222,7 @@ export const actTools: LLMTool[] = [
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   useTextExtract: boolean = true,
+  userProvidedInstructions?: string,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -232,10 +256,14 @@ ONLY print the content using the print_extracted_data tool provided.
     do not miss any important information.`
     : "";
 
+  const userInstructions = buildUserInstructionsString(
+    userProvidedInstructions,
+  );
+
   const content =
     `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
       additionalInstructions ? `\n\n${additionalInstructions}` : ""
-    }`.replace(/\s+/g, " ");
+    }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
 
   return {
     role: "system",
@@ -332,12 +360,16 @@ You will be given:
 
 Return an array of elements that match the instruction.
 `;
-export function buildObserveSystemPrompt(): ChatMessage {
+export function buildObserveSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
   const content = observeSystemPrompt.replace(/\s+/g, " ");
 
   return {
     role: "system",
-    content,
+    content: [content, buildUserInstructionsString(userProvidedInstructions)]
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 

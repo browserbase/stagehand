@@ -5,6 +5,10 @@
       "categories": ["act"]
     },
     {
+      "name": "instructions",
+      "categories": ["combination"]
+    },
+    {
       "name": "bidnet",
       "categories": ["act"]
     },

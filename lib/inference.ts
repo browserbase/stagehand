@@ -104,9 +104,10 @@ export async function act({
   logger,
   requestId,
   variables,
+  userProvidedInstructions,
 }: ActCommandParams): Promise<ActCommandResult | null> {
   const messages: ChatMessage[] = [
-    buildActSystemPrompt(),
+    buildActSystemPrompt(userProvidedInstructions),
     buildActUserPrompt(action, steps, domElements, variables),
   ];
 
@@ -167,6 +168,7 @@ export async function extract({
   requestId,
   logger,
   isUsingTextExtract,
+  userProvidedInstructions,
 }: {
   instruction: string;
   previouslyExtractedContent: object;
@@ -177,6 +179,7 @@ export async function extract({
   chunksTotal: number;
   requestId: string;
   isUsingTextExtract?: boolean;
+  userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
 }) {
   type ExtractionResponse = z.infer<typeof schema>;
@@ -187,7 +190,11 @@ export async function extract({
   const extractionResponse = await llmClient.createChatCompletion({
     options: {
       messages: [
-        buildExtractSystemPrompt(isUsingAnthropic, isUsingTextExtract),
+        buildExtractSystemPrompt(
+          isUsingAnthropic,
+          isUsingTextExtract,
+          userProvidedInstructions,
+        ),
         buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
       ],
       response_model: {
@@ -277,6 +284,7 @@ export async function observe({
   llmClient,
   image,
   requestId,
+  userProvidedInstructions,
   logger,
 }: {
   instruction: string;
@@ -284,6 +292,7 @@ export async function observe({
   llmClient: LLMClient;
   image?: Buffer;
   requestId: string;
+  userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
 }): Promise<{
   elements: { elementId: number; description: string }[];
@@ -309,7 +318,7 @@ export async function observe({
     await llmClient.createChatCompletion<ObserveResponse>({
       options: {
         messages: [
-          buildObserveSystemPrompt(),
+          buildObserveSystemPrompt(userProvidedInstructions),
           buildObserveUserMessage(instruction, domElements),
         ],
         image: image
@@ -327,7 +336,6 @@ export async function observe({
       },
       logger,
     });
-
   const parsedResponse = {
     elements:
       observationResponse.elements?.map((el) => ({

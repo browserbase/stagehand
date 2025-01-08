@@ -2,9 +2,9 @@ import { LogLine } from "../../types/log";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
+import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
-import { StagehandPage } from "../StagehandPage";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -17,19 +17,22 @@ export class StagehandObserveHandler {
       instruction: string;
     };
   };
-
+  private readonly userProvidedInstructions?: string;
   constructor({
     stagehand,
     logger,
     stagehandPage,
+    userProvidedInstructions,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
+    userProvidedInstructions?: string;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
+    this.userProvidedInstructions = userProvidedInstructions;
     this.observations = {};
   }
 
@@ -120,6 +123,7 @@ export class StagehandObserveHandler {
       llmClient,
       image: annotatedScreenshot,
       requestId,
+      userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
     });
 

@@ -22,6 +22,10 @@ export interface ConstructorParams {
   modelName?: AvailableModel;
   llmClient?: LLMClient;
   modelClientOptions?: ClientOptions;
+  /**
+   * Instructions for stagehand.
+   */
+  systemPrompt?: string;
 }
 
 export interface InitOptions {

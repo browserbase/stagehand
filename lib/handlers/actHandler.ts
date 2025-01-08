@@ -23,6 +23,7 @@ export class StagehandActHandler {
   private readonly actions: {
     [key: string]: { result: string; action: string };
   };
+  private readonly userProvidedInstructions?: string;
 
   constructor({
     verbose,
@@ -30,6 +31,7 @@ export class StagehandActHandler {
     enableCaching,
     logger,
     stagehandPage,
+    userProvidedInstructions,
   }: {
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
@@ -38,6 +40,7 @@ export class StagehandActHandler {
     llmClient: LLMClient;
     stagehandPage: StagehandPage;
     stagehandContext: StagehandContext;
+    userProvidedInstructions?: string;
   }) {
     this.verbose = verbose;
     this.llmProvider = llmProvider;
@@ -46,6 +49,7 @@ export class StagehandActHandler {
     this.actionCache = enableCaching ? new ActionCache(this.logger) : undefined;
     this.actions = {};
     this.stagehandPage = stagehandPage;
+    this.userProvidedInstructions = userProvidedInstructions;
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {
@@ -1133,6 +1137,7 @@ export class StagehandActHandler {
         logger: this.logger,
         requestId,
         variables,
+        userProvidedInstructions: this.userProvidedInstructions,
       });
 
       this.logger({
