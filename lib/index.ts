@@ -374,6 +374,7 @@ export class Stagehand {
         this.llmClient = undefined;
       }
     }
+
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
