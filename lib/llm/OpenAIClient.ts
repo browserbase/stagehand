@@ -150,7 +150,7 @@ export class OpenAIClient extends LLMClient {
 
     if (this.enableCaching) {
       // TODO: harded coded for now, need to find a better way to do this
-      if (cacheOptions.response_model?.schema?._cached){
+      if (cacheOptions.response_model?.schema?._cached) {
         cacheOptions.response_model.schema._cached = null;
       }
 
@@ -426,7 +426,7 @@ export class OpenAIClient extends LLMClient {
       }
 
       // TODO: harded coded for now, need to find a better way to do this
-      if (cacheOptions.response_model?.schema?._cached){
+      if (cacheOptions.response_model?.schema?._cached) {
         cacheOptions.response_model.schema._cached = null;
       }
 
