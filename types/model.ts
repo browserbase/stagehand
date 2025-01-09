@@ -11,11 +11,12 @@ export const AvailableModelSchema = z.enum([
   "claude-3-5-sonnet-20240620",
   "o1-mini",
   "o1-preview",
+  "deepseek-chat",
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;
 
-export type ModelProvider = "openai" | "anthropic";
+export type ModelProvider = "openai" | "anthropic" | "deepseek-chat";
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 

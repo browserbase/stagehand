@@ -19,6 +19,7 @@ export class LLMProvider {
     "claude-3-5-sonnet-latest": "anthropic",
     "claude-3-5-sonnet-20240620": "anthropic",
     "claude-3-5-sonnet-20241022": "anthropic",
+    "deepseek-chat": "deepseek-chat",
   };
 
   private logger: (message: LogLine) => void;
@@ -75,6 +76,17 @@ export class LLMProvider {
           cache: this.cache,
           modelName,
           clientOptions,
+        });
+      case "deepseek-chat":
+        return new OpenAIClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions: {
+            baseURL: "https://api.deepseek.com",
+            ...clientOptions,
+          },
         });
       default:
         throw new Error(`Unsupported provider: ${provider}`);
