@@ -136,7 +136,7 @@ jobs:
         run: npm run e2e:bb
 
   run-combination-evals:
-    needs: [run-e2e-tests, determine-evals]
+    needs: [run-e2e-bb-tests, run-e2e-tests, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
