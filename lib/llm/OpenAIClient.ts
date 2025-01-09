@@ -149,6 +149,11 @@ export class OpenAIClient extends LLMClient {
     };
 
     if (this.enableCaching) {
+      // TODO: harded coded for now, need to find a better way to do this
+      if (cacheOptions.response_model?.schema?._cached){
+        cacheOptions.response_model.schema._cached = null;
+      }
+
       const cachedResponse = await this.cache.get<T>(
         cacheOptions,
         options.requestId,
@@ -418,6 +423,11 @@ export class OpenAIClient extends LLMClient {
         }
 
         throw new Error("Invalid response schema");
+      }
+
+      // TODO: harded coded for now, need to find a better way to do this
+      if (cacheOptions.response_model?.schema?._cached){
+        cacheOptions.response_model.schema._cached = null;
       }
 
       if (this.enableCaching) {
