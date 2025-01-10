@@ -1,10 +1,10 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@2.1.1/schema.json",
-  "commit": false,
+  "commit": true,
   "fixed": [],
   "linked": [],
   "baseBranch": "main",
-  "updateInternalDependencies": "patch",
+  "updateInternalDependencies": "minor",
   "access": "public",
   "changelog": [
     "@changesets/changelog-github",
@@ -14,7 +14,8 @@
   ],
   "snapshot": {
     "useCalculatedVersion": true,
-    "prereleaseTemplate": "alpha-{commit}",
-    "tag": "alpha"
+    "prereleaseTemplate": "beta-{commit}",
+    "tag": "beta"
   }
 }
+
