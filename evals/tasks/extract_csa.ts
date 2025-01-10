@@ -42,7 +42,7 @@ export const extract_csa: EvalFunction = async ({
   const expectedLength = 15;
 
   const expectedFirstItem = {
-    publication_date: "12-20-2024",
+    publication_date: "01-09-2025",
     session_type: "Regular Session",
     publication_type: "Assembly Weekly History",
     annotation: "",
