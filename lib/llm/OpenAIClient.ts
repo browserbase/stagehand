@@ -216,7 +216,7 @@ export class OpenAIClient extends LLMClient {
             role: "user",
             content: `Respond in this zod schema format:\n${parsedSchema}\n
 
-          Do not include any other text, formating or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+          Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
           });
         } catch (error) {
           logger({
