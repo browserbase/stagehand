@@ -61,7 +61,6 @@ export class StagehandActHandler {
   }
 
   private async _verifyActionCompletion({
-    completed,
     verifierUseVision,
     requestId,
     action,
@@ -69,18 +68,16 @@ export class StagehandActHandler {
     llmClient,
     domSettleTimeoutMs,
   }: {
-    completed: boolean;
     verifierUseVision: boolean;
     requestId: string;
     action: string;
     steps: string;
     llmClient: LLMClient;
     domSettleTimeoutMs?: number;
-  }): Promise<boolean> {
-    if (!completed) {
-      return false;
-    }
-
+  }): Promise<{
+    completed: boolean;
+    why: string;
+  }> {
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 
     // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
@@ -100,97 +97,94 @@ export class StagehandActHandler {
       return window.processAllOfDom();
     });
 
-    let actionCompleted = false;
-    if (completed) {
-      // Run action completion verifier
-      this.logger({
-        category: "action",
-        message: "action marked as completed, verifying if this is true...",
-        level: 1,
-        auxiliary: {
-          action: {
-            value: action,
-            type: "string",
-          },
+    // Run action completion verifier
+    this.logger({
+      category: "action",
+      message: "action marked as completed, verifying if this is true...",
+      level: 1,
+      auxiliary: {
+        action: {
+          value: action,
+          type: "string",
         },
-      });
+      },
+    });
 
-      let domElements: string | undefined = undefined;
-      let fullpageScreenshot: Buffer | undefined = undefined;
+    let domElements: string | undefined = undefined;
+    let fullpageScreenshot: Buffer | undefined = undefined;
 
-      if (verifierUseVision) {
-        try {
-          const screenshotService = new ScreenshotService(
-            this.stagehandPage.page,
-            selectorMap,
-            this.verbose,
-            this.logger,
-          );
+    if (verifierUseVision) {
+      try {
+        const screenshotService = new ScreenshotService(
+          this.stagehandPage.page,
+          selectorMap,
+          this.verbose,
+          this.logger,
+        );
 
-          fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
-        } catch (e) {
-          this.logger({
-            category: "action",
-            message: "error getting full page screenshot. trying again...",
-            level: 1,
-            auxiliary: {
-              error: {
-                value: e.message,
-                type: "string",
-              },
-              trace: {
-                value: e.stack,
-                type: "string",
-              },
+        fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
+      } catch (e) {
+        this.logger({
+          category: "action",
+          message: "error getting full page screenshot. trying again...",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
             },
-          });
-
-          const screenshotService = new ScreenshotService(
-            this.stagehandPage.page,
-            selectorMap,
-            this.verbose,
-            this.logger,
-          );
-
-          fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
-        }
-      } else {
-        ({ outputString: domElements } = await this.stagehandPage.page.evaluate(
-          () => {
-            return window.processAllOfDom();
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
           },
-        ));
+        });
+
+        const screenshotService = new ScreenshotService(
+          this.stagehandPage.page,
+          selectorMap,
+          this.verbose,
+          this.logger,
+        );
+
+        fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
       }
-
-      actionCompleted = await verifyActCompletion({
-        goal: action,
-        steps,
-        llmProvider: this.llmProvider,
-        llmClient: verifyLLmClient,
-        screenshot: fullpageScreenshot,
-        domElements,
-        logger: this.logger,
-        requestId,
-      });
-
-      this.logger({
-        category: "action",
-        message: "action completion verification result",
-        level: 1,
-        auxiliary: {
-          action: {
-            value: action,
-            type: "string",
-          },
-          result: {
-            value: actionCompleted.toString(),
-            type: "boolean",
-          },
+    } else {
+      ({ outputString: domElements } = await this.stagehandPage.page.evaluate(
+        () => {
+          return window.processAllOfDom();
         },
-      });
+      ));
     }
 
-    return actionCompleted;
+    const result = await verifyActCompletion({
+      goal: action,
+      steps,
+      llmProvider: this.llmProvider,
+      llmClient: verifyLLmClient,
+      screenshot: fullpageScreenshot,
+      domElements,
+      logger: this.logger,
+      requestId,
+    });
+
+    this.logger({
+      category: "action",
+      message: "action completion verification result",
+      level: 1,
+      auxiliary: {
+        action: {
+          value: action,
+          type: "string",
+        },
+        result: {
+          value: JSON.stringify(result),
+          type: "object",
+        },
+      },
+    });
+
+    return result;
   }
 
   private async _performPlaywrightMethod(
@@ -891,15 +885,16 @@ export class StagehandActHandler {
 
       if (cachedStep.completed) {
         // Verify the action was completed successfully
-        const actionCompleted = await this._verifyActionCompletion({
-          completed: true,
-          verifierUseVision,
-          llmClient,
-          steps,
-          requestId,
-          action,
-          domSettleTimeoutMs,
-        });
+        const verifyActionCompletionResult = await this._verifyActionCompletion(
+          {
+            verifierUseVision,
+            llmClient,
+            steps,
+            requestId,
+            action,
+            domSettleTimeoutMs,
+          },
+        );
 
         this.logger({
           category: "action",
@@ -907,13 +902,13 @@ export class StagehandActHandler {
           level: 1,
           auxiliary: {
             actionCompleted: {
-              value: actionCompleted.toString(),
-              type: "boolean",
+              value: JSON.stringify(verifyActionCompletionResult),
+              type: "object",
             },
           },
         });
 
-        if (actionCompleted) {
+        if (verifyActionCompletionResult.completed) {
           return {
             success: true,
             message: "action completed successfully using cached step",
@@ -1374,67 +1369,93 @@ export class StagehandActHandler {
           steps += `  Result (Important): Page URL changed from ${initialUrl} to ${this.stagehandPage.page.url()}\n\n`;
         }
 
-        const actionCompleted = await this._verifyActionCompletion({
-          completed: response.completed,
-          verifierUseVision,
-          requestId,
-          action,
-          steps,
-          llmClient,
-          domSettleTimeoutMs,
-        }).catch((error) => {
-          this.logger({
-            category: "action",
-            message:
-              "error verifying action completion. Assuming action completed.",
-            level: 1,
-            auxiliary: {
-              error: {
-                value: error.message,
-                type: "string",
-              },
-              trace: {
-                value: error.stack,
-                type: "string",
-              },
-            },
-          });
+        if (!response.completed) {
+          if (retries < 2) {
+            return this.act({
+              action,
+              steps,
+              llmClient,
+              useVision,
+              verifierUseVision,
+              retries: retries + 1,
+              chunksSeen,
+              requestId,
+              variables,
+              previousSelectors,
+              skipActionCacheForThisStep,
+              domSettleTimeoutMs,
+            });
+          } else {
+            await this._recordAction(action, "");
+            if (this.enableCaching) {
+              this.llmProvider.cleanRequestCache(requestId);
+              this.actionCache.deleteCacheForRequestId(requestId);
+            }
 
-          return true;
-        });
-
-        if (!actionCompleted) {
-          this.logger({
-            category: "action",
-            message: "continuing to next action step",
-            level: 1,
-          });
-
-          return this.act({
-            action,
-            steps,
-            llmClient,
-            chunksSeen,
-            useVision,
-            verifierUseVision,
-            requestId,
-            variables,
-            previousSelectors: [...previousSelectors, foundXpath],
-            skipActionCacheForThisStep: false,
-            domSettleTimeoutMs,
-          });
+            return {
+              success: false,
+              message: "Too many retries for action",
+              action: action,
+            };
+          }
         } else {
-          this.logger({
-            category: "action",
-            message: "action completed successfully",
-            level: 1,
-          });
-          await this._recordAction(action, response.step);
-          return {
-            success: true,
-            message: `Action completed successfully: ${steps}${response.step}`,
-            action: action,
-          };
+          const verifyActionCompletionResult =
+            await this._verifyActionCompletion({
+              verifierUseVision,
+              requestId,
+              action,
+              steps,
+              llmClient,
+              domSettleTimeoutMs,
+            }).catch((error) => {
+              this.logger({
+                category: "action",
+                message:
+                  "error verifying action completion. Assuming action completed.",
+                level: 1,
+                auxiliary: {
+                  error: {
+                    value: error.message,
+                    type: "string",
+                  },
+                  trace: {
+                    value: error.stack,
+                    type: "string",
+                  },
+                },
+              });
+
+              return {
+                completed: true,
+                why: "error verifying action completion. Assuming action completed.",
+              };
+            });
+
+          if (!verifyActionCompletionResult.completed) {
+            this.logger({
+              category: "action",
+              message: "continuing to next action step",
+              level: 1,
+            });
+
+            return {
+              success: false,
+              message: verifyActionCompletionResult.why,
+              action: action,
+            };
+          } else {
+            this.logger({
+              category: "action",
+              message: "action completed successfully",
+              level: 1,
+            });
+            await this._recordAction(action, response.step);
+            return {
+              success: true,
+              message: `Action completed successfully: ${steps}${response.step}`,
+              action: action,
+            };
+          }
         }
       } catch (error) {
         this.logger({

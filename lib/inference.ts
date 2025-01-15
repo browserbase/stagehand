@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { ActCommandParams, ActCommandResult } from "../types/act";
-import { VerifyActCompletionParams } from "../types/inference";
+import {
+  VerifyActCompletionParams,
+  VerifyActCompletionResult,
+} from "../types/inference";
 import { LogLine } from "../types/log";
 import {
   AnnotatedScreenshotText,
@@ -31,9 +34,10 @@ export async function verifyActCompletion({
   domElements,
   logger,
   requestId,
-}: VerifyActCompletionParams): Promise<boolean> {
+}: VerifyActCompletionParams): Promise<VerifyActCompletionResult> {
   const verificationSchema = z.object({
     completed: z.boolean().describe("true if the goal is accomplished"),
+    why: z.string().describe("reasoning behind the completion status"),
   });
 
   type VerificationResponse = z.infer<typeof verificationSchema>;
@@ -68,7 +72,10 @@ export async function verifyActCompletion({
       category: "VerifyAct",
       message: "Unexpected response format: " + JSON.stringify(response),
     });
-    return false;
+    return {
+      completed: false,
+      why: "Fail to check completion status - unexpected response format",
+    };
   }
 
   if (response.completed === undefined) {
@@ -76,10 +83,16 @@ export async function verifyActCompletion({
       category: "VerifyAct",
       message: "Missing 'completed' field in response",
     });
-    return false;
+    return {
+      completed: false,
+      why: "Fail to check completion status - missing 'completed' field",
+    };
   }
 
-  return response.completed;
+  return {
+    completed: response.completed,
+    why: response.why,
+  };
 }
 
 export function fillInVariables(

@@ -12,3 +12,8 @@ export interface VerifyActCompletionParams {
   logger: (message: { category?: string; message: string }) => void;
   requestId: string;
 }
+
+export interface VerifyActCompletionResult {
+  completed: boolean;
+  why: string;
+}
