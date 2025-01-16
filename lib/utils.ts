@@ -3,6 +3,11 @@ import { LogLine } from "../types/log";
 import { TextAnnotation } from "../types/textannotation";
 import { z } from "zod";
 
+// This is a heuristic for the width of a character in pixels. It seems to work
+// better than attempting to calculate character widths dynamically, which sometimes
+// results in collisions when placing characters on the "canvas".
+const HEURISTIC_CHAR_WIDTH = 5;
+
 export function generateId(operation: string) {
   return crypto.createHash("sha256").update(operation).digest("hex");
 }
@@ -26,27 +31,20 @@ export function formatText(
   textAnnotations: TextAnnotation[],
   pageWidth: number,
 ): string {
-  // **1:** Estimate the average character width in pixels by examining the text annotations.
-  // If no reliable measurement is found, default to 10 pixels per character.
-  const charWidth = estimateCharacterWidth(textAnnotations) || 10;
-
-  // **2:** Create a copy of textAnnotations and sort them by their vertical position (y-coordinate),
-  // ensuring that topmost annotations appear first and bottommost appear last.
+  // **1: Sort annotations by vertical position (y-coordinate).**
+  //    The topmost annotations appear first, the bottommost last.
   const sortedAnnotations = [...textAnnotations].sort(
     (a, b) => a.bottom_left.y - b.bottom_left.y,
   );
 
-  // **3:** Group annotations by their line position. We use a small epsilon to handle
-  // floating-point differences. Two annotations are considered on the same line if their
-  // y-coordinates differ by less than epsilon.
-  const epsilon = 0.0001;
+  // **2: Group annotations by line based on their y-coordinate.**
+  //    We use an epsilon so that very close y-values are treated as the same line.
+  const epsilon = 1;
   const lineMap: Map<number, TextAnnotation[]> = new Map();
 
   for (const annotation of sortedAnnotations) {
     let foundLineY: number | undefined;
-
-    // **4:** Check if the annotation belongs to an existing line group.
-    // If so, add it to that line. Otherwise, start a new line group.
+    // **3: Check if this annotation belongs to any existing line group.**
     for (const key of lineMap.keys()) {
       if (Math.abs(key - annotation.bottom_left.y) < epsilon) {
         foundLineY = key;
@@ -54,6 +52,7 @@ export function formatText(
       }
     }
 
+    // If found, push into that line; otherwise, create a new line entry.
     if (foundLineY !== undefined) {
       lineMap.get(foundLineY)!.push(annotation);
     } else {
@@ -61,107 +60,121 @@ export function formatText(
     }
   }
 
-  // **5:** Extract all line keys (y-coordinates) and sort them to process lines top-to-bottom.
+  // **4: Get all unique y-coordinates for lines and sort them top-to-bottom.**
   const lineYs = Array.from(lineMap.keys()).sort((a, b) => a - b);
 
-  // **6:** For each line, group words together and calculate the maximum normalized end position (maxNormalizedEndX).
-  // This will help determine the necessary canvas width to accommodate all text.
-  let maxNormalizedEndX = 0;
+  // **5: Build an array of "final lines" (TextAnnotations[]) by grouping words for each line.**
   const finalLines: TextAnnotation[][] = [];
 
   for (const lineY of lineYs) {
     const lineAnnotations = lineMap.get(lineY)!;
 
-    // **7:** Sort annotations in the current line by their horizontal position (x-coordinate),
-    // ensuring left-to-right ordering.
+    // **6: Sort annotations in the current line left-to-right by x-coordinate.**
     lineAnnotations.sort((a, b) => a.bottom_left.x - b.bottom_left.x);
 
-    // **8:** Group nearby annotations into word clusters, forming logical sentences or phrases.
+    // **7: Group annotations into word clusters (sentences/phrases).**
     const groupedLineAnnotations = groupWordsInSentence(lineAnnotations);
 
-    // **9:** Determine how far to the right the text in this line extends, normalized by page width.
-    // Update maxNormalizedEndX to track the widest line encountered.
-    for (const ann of groupedLineAnnotations) {
-      const textLengthInPx = ann.text.length * charWidth;
-      const normalizedTextLength = textLengthInPx / pageWidth;
-      const endX = ann.bottom_left_normalized.x + normalizedTextLength;
-      if (endX > maxNormalizedEndX) {
-        maxNormalizedEndX = endX;
-      }
-    }
-
-    // **10:** Save the processed line to finalLines for later rendering.
+    // **8: Push the grouped annotations for this line into finalLines.**
     finalLines.push(groupedLineAnnotations);
   }
 
-  // **11:** Determine the canvas width in characters. We scale according to maxNormalizedEndX and page width.
-  // Add a small buffer (20 chars) to ensure no text overflows the canvas.
-  let canvasWidth = Math.ceil(maxNormalizedEndX * (pageWidth / charWidth)) + 20;
-  canvasWidth = Math.max(canvasWidth, 1);
+  // -------------------------
+  // **First Pass**: Calculate the width of the longest line (in characters) up front.
+  // We will use this to set the width of the canvas, which will reduce likelihood of collisions.
+  // -------------------------
+  let maxLineWidthInChars = 0;
 
-  // **12:** Compute the baseline (lowest point) of each line. This helps us understand vertical spacing.
+  for (const line of finalLines) {
+    let lineMaxEnd = 0;
+    for (const ann of line) {
+      // Convert normalized X to character index
+      const startXInChars = Math.round(
+        ann.bottom_left_normalized.x * (pageWidth / HEURISTIC_CHAR_WIDTH),
+      );
+      // Each annotation spans ann.text.length characters
+      const endXInChars = startXInChars + ann.text.length;
+
+      if (endXInChars > lineMaxEnd) {
+        lineMaxEnd = endXInChars;
+      }
+    }
+    // Track the largest width across all lines
+    if (lineMaxEnd > maxLineWidthInChars) {
+      maxLineWidthInChars = lineMaxEnd;
+    }
+  }
+
+  // **9: Add a 20-char buffer to ensure we don’t cut off text.**
+  maxLineWidthInChars += 20;
+
+  // **10: Determine the canvas width based on the measured maxLineWidthInChars.**
+  const canvasWidth = Math.max(maxLineWidthInChars, 1);
+
+  // **11: Compute the baseline (lowest y) of each line to measure vertical spacing.**
   const lineBaselines = finalLines.map((line) =>
     Math.min(...line.map((a) => a.bottom_left.y)),
   );
 
-  // **13:** Compute vertical gaps between consecutive lines to determine line spacing.
+  // **12: Compute the gaps between consecutive lines.**
   const verticalGaps: number[] = [];
   for (let i = 1; i < lineBaselines.length; i++) {
     verticalGaps.push(lineBaselines[i] - lineBaselines[i - 1]);
   }
 
-  // **14:** Estimate what a "normal" line spacing is by taking the median of all vertical gaps.
+  // **13: Estimate a "normal" line spacing via the median of these gaps.**
   const normalLineSpacing = verticalGaps.length > 0 ? median(verticalGaps) : 0;
 
-  // **15:** Create a 2D character canvas initialized with spaces, onto which we'll "print" text lines.
+  // **14: Create a 2D character canvas (array of arrays), filled with spaces.**
   let canvas: string[][] = [];
 
-  // **16:** lineIndex represents the current line of the canvas. Initialize with -1 so the first line starts at 0.
+  // **15: lineIndex tracks which row of the canvas we’re on; start at -1 so the first line is index 0.**
   let lineIndex = -1;
 
-  // **17:** Iterate over each line of processed text.
+  // **16: Render each line of text into our canvas.**
   for (let i = 0; i < finalLines.length; i++) {
     if (i === 0) {
-      // **18:** For the first line, just increment lineIndex to start at 0 with no extra spacing.
+      // **17: For the very first line, just increment lineIndex once.**
       lineIndex++;
       ensureLineExists(canvas, lineIndex, canvasWidth);
     } else {
-      // **19:** For subsequent lines, calculate how many extra blank lines to insert based on spacing.
+      // **18: For subsequent lines, figure out how many blank lines to insert
+      //       based on the gap between this line’s baseline and the previous line’s baseline.**
       const gap = lineBaselines[i] - lineBaselines[i - 1];
 
       let extraLines = 0;
-      // **20:** If we have a known normal line spacing, and the gap is larger than expected,
-      // insert extra blank lines proportional to the ratio of gap to normal spacing.
-      if (normalLineSpacing > 0) {
-        if (gap > 1.2 * normalLineSpacing) {
-          extraLines = Math.max(Math.round(gap / normalLineSpacing) - 1, 0);
-        }
+      // **19: If the gap is significantly larger than the "normal" spacing,
+      //       insert blank lines proportionally.**
+      if (normalLineSpacing > 0 && gap > 1.2 * normalLineSpacing) {
+        extraLines = Math.max(Math.round(gap / normalLineSpacing) - 1, 0);
       }
 
-      // **21:** Insert the calculated extra blank lines to maintain approximate vertical spacing.
+      // **20: Insert the calculated extra blank lines.**
       for (let e = 0; e < extraLines; e++) {
         lineIndex++;
         ensureLineExists(canvas, lineIndex, canvasWidth);
       }
 
-      // **22:** After adjusting for spacing, increment lineIndex for the current line of text.
+      // **21: Move to the next line (row) in the canvas for this line’s text.**
       lineIndex++;
       ensureLineExists(canvas, lineIndex, canvasWidth);
     }
 
-    // **23:** Now place the annotations for the current line onto the canvas at the appropriate horizontal positions.
+    // **22: Place each annotation’s text in the correct horizontal position for this line.**
     const lineAnnotations = finalLines[i];
     for (const annotation of lineAnnotations) {
       const text = annotation.text;
-      // **24:** Calculate the starting x-position in the canvas based on normalized coordinates.
+
+      // **23: Calculate the starting x-position in the canvas by converting normalized x to char space.**
       const startXInChars = Math.round(
-        annotation.bottom_left_normalized.x * canvasWidth,
+        annotation.bottom_left_normalized.x *
+          (pageWidth / HEURISTIC_CHAR_WIDTH),
       );
 
-      // **25:** Place each character of the annotation text into the canvas.
+      // **24: Place each character of the annotation in the canvas.**
       for (let j = 0; j < text.length; j++) {
         const xPos = startXInChars + j;
-        // **26:** Ensure we don't exceed the canvas width.
+        // **25: Don’t write beyond the right edge of the canvas.**
         if (xPos < canvasWidth) {
           canvas[lineIndex][xPos] = text[j];
         }
@@ -169,21 +182,21 @@ export function formatText(
     }
   }
 
-  // **27:** Trim trailing whitespace from each line to create a cleaner output.
+  // **26: Trim trailing whitespace from each line to clean up the output.**
   canvas = canvas.map((row) => {
     const lineStr = row.join("");
     return Array.from(lineStr.trimEnd());
   });
 
-  // **29:** Join all lines to form the final page text. Trim any trailing whitespace from the entire text.
+  // **27: Combine all rows into a single string, separating rows with newlines.**
   let pageText = canvas.map((line) => line.join("")).join("\n");
   pageText = pageText.trimEnd();
 
-  // **30:** Surround the page text with lines of dashes to clearly delineate the text block.
+  // **28: Surround the rendered text with lines of dashes for clarity.**
   pageText =
     "-".repeat(canvasWidth) + "\n" + pageText + "\n" + "-".repeat(canvasWidth);
 
-  // **31:** Return the fully formatted text.
+  // **29: Return the final formatted text.**
   return pageText;
 }
 
@@ -209,28 +222,6 @@ function ensureLineExists(
 }
 
 /**
- * `estimateCharacterWidth` estimates the average character width (in pixels) from a collection of text annotations.
- * It calculates the width per character for each annotation and uses their median as the result.
- * If no annotations are available or they have zero-length text, returns 0.
- *
- * @param textAnnotations - An array of text annotations with text and width fields.
- * @returns The median character width in pixels, or 0 if none can be calculated.
- */
-function estimateCharacterWidth(textAnnotations: TextAnnotation[]): number {
-  // collect width-per-character measurements from each annotation
-  const charWidths: number[] = [];
-  for (const annotation of textAnnotations) {
-    const length = annotation.text.length;
-    if (length > 0) {
-      charWidths.push(annotation.width / length);
-    }
-  }
-
-  // return the median of all collected measurements
-  return median(charWidths);
-}
-
-/**
  * `groupWordsInSentence` groups annotations within a single line into logical "words" or "sentences".
  * It uses a set of heuristics involving horizontal proximity and similar height
  * to decide when to join multiple annotations into a single grouped annotation.
@@ -253,7 +244,7 @@ function groupWordsInSentence(
 
     // determine horizontal grouping criteria
     // use a padding factor to allow slight spaces between words
-    const padding = 2;
+    const padding = 1;
     const lastAnn = currentGroup[currentGroup.length - 1];
     const characterWidth = (lastAnn.width / lastAnn.text.length) * padding;
     const isWithinHorizontalRange =
@@ -277,8 +268,10 @@ function groupWordsInSentence(
       // 3. start a new group with the current annotation
       if (currentGroup.length > 0) {
         const groupedAnnotation = createGroupedAnnotation(currentGroup);
-        groupedAnnotations.push(groupedAnnotation);
-        currentGroup = [annotation];
+        if (groupedAnnotation.text.length > 0) {
+          groupedAnnotations.push(groupedAnnotation);
+          currentGroup = [annotation];
+        }
       }
     }
   }
