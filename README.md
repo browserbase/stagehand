@@ -63,6 +63,8 @@ await page.act({ action: "click on the 'Quickstart'" });
 
 Stagehand makes it easier to write durable, performant browser automation code. When used with [Browserbase](https://browserbase.com/), it offers unparalleled debugging tools like session replay and step-by-step debugging.
 
+It's also taking a somewhat unconventional approach to web agents, relying heavily on the underlying DOM and accessibility tree (a11y tree) to feed into LLMs, as opposed to using more traditionally vision-based approaches. For more on this, read [how Stagehand works](https://docs.stagehand.dev/get_started/walkthrough).
+
 > [!NOTE] 
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
 
