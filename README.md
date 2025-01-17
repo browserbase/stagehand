@@ -41,7 +41,7 @@
 
 ---
 
-Stagehand is the easiest way to build browser automations. It is fully compatible with [Playwright](https://playwright.dev/), offering three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language. It also makes Playwright more accessible to non-technical users and less vulnerable to minor changes in the UI/DOM.
+Stagehand is the easiest way to build browser automations. It is fully compatible with [Playwright](https://playwright.dev/), offering three simple AI APIs (`act`, `extract`, and `observe`) on top of the base Playwright `Page` class that provide the building blocks for web automation via natural language. 
 
 Here's a sample of what you can do with Stagehand:
 
@@ -61,7 +61,12 @@ const { description } = await page.extract({
 await page.act({ action: "click on the 'Quickstart'" });
 ```
 
-It's also taking a somewhat unconventional approach to web agents, relying heavily on the underlying DOM and accessibility tree (a11y tree) to feed into LLMs, as opposed to using more traditionally vision-based approaches. For more on this, read [how Stagehand works](https://docs.stagehand.dev/get_started/walkthrough).
+## Why?
+**Stagehand adds determinism to otherwise unpredictable agents.**
+
+While there's no limit to what you could instruct Stagehand to do, our primitives allow you to control how much you want to leave to an AI. It works best when your code is a sequence of atomic actions. Instead of writing a single script for a single website, Stagehand allows you to write durable, self-healing, and repeatable web automation workflows that actually work.
+
+Stagehand heavily relies on the underlying DOM and accessibility tree (a11y tree) to feed into LLMs, as opposed to using more traditionally vision-based approaches. For more on how Stagehand works, read [how Stagehand works](https://docs.stagehand.dev/get_started/walkthrough).
 
 > [!NOTE] 
 > `Stagehand` is currently available as an early release, and we're actively seeking feedback from the community. Please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-2tdncfgkk-fF8y5U0uJzR2y2_M9c9OJA) to stay updated on the latest developments and provide feedback.
