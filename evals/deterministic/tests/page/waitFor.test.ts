@@ -17,7 +17,7 @@ test.describe("StagehandPage - waitFor", () => {
     expect(isVisibleBefore).toBe(false);
 
     const clickableElement = page.locator(
-      "div.mt-12:nth-child(3) > ul:nth-child(2) > li:nth-child(2) > div:nth-child(1)",
+      "div.not-prose:nth-child(2) > a:nth-child(1) > div:nth-child(1)",
     );
     await clickableElement.click();
 
@@ -153,7 +153,7 @@ test.describe("StagehandPage - waitFor", () => {
     await page.goto("https://docs.browserbase.com");
 
     const quickstartLink = page.locator(
-      "div.mt-12:nth-child(3) > ul:nth-child(2) > li:nth-child(2) > div:nth-child(1) > div:nth-child(1)",
+      "div.not-prose:nth-child(2) > a:nth-child(1) > div:nth-child(1)",
     );
     await quickstartLink.click();
 
