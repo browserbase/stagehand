@@ -58,7 +58,7 @@ const { description } = await page.extract({
 });
 
 // Stagehand AI: Act on the page
-await page.act({ action: "click on the 'Quickstart' button" });
+await page.act({ action: "click on the 'Quickstart'" });
 ```
 
 Stagehand makes it easier to write durable, performant browser automation code. When used with [Browserbase](https://browserbase.com/), it offers unparalleled debugging tools like session replay and step-by-step debugging.
