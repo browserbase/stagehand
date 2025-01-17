@@ -53,7 +53,7 @@ await page.goto("https://docs.stagehand.dev");
 const { description } = await page.extract({
   instruction: "Extract the description of the page",
   schema: z.object({
-	description: z.string(),
+    description: z.string(),
   }),
 });
 
