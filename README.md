@@ -61,8 +61,6 @@ const { description } = await page.extract({
 await page.act({ action: "click on the 'Quickstart'" });
 ```
 
-Stagehand makes it easier to write durable, performant browser automation code. When used with [Browserbase](https://browserbase.com/), it offers unparalleled debugging tools like session replay and step-by-step debugging.
-
 It's also taking a somewhat unconventional approach to web agents, relying heavily on the underlying DOM and accessibility tree (a11y tree) to feed into LLMs, as opposed to using more traditionally vision-based approaches. For more on this, read [how Stagehand works](https://docs.stagehand.dev/get_started/walkthrough).
 
 > [!NOTE] 
