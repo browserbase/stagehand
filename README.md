@@ -51,10 +51,10 @@ await page.goto("https://docs.stagehand.dev");
 
 // Stagehand AI: Extract data from the page
 const { description } = await page.extract({
-	instruction: "Extract the description of the page",
-	schema: z.object({
-		description: z.string(),
-	}),
+  instruction: "Extract the description of the page",
+  schema: z.object({
+	description: z.string(),
+  }),
 });
 
 // Stagehand AI: Act on the page
