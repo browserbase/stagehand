@@ -532,9 +532,6 @@ const isTextVisible = (element: ChildNode) => {
   if (!parent) {
     return false;
   }
-  if (!isTopElement(parent, rect)) {
-    return false;
-  }
 
   const visible = parent.checkVisibility({
     checkOpacity: true,
