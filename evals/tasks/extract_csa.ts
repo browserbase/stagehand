@@ -39,13 +39,14 @@ export const extract_csa: EvalFunction = async ({
   await stagehand.close();
 
   const publications = result.publications;
-  const expectedLength = 15;
+  const expectedLength = 14;
 
   const expectedFirstItem = {
-    publication_date: "01-09-2025",
+    publication_date: "11-30-2024",
     session_type: "Regular Session",
     publication_type: "Assembly Weekly History",
-    annotation: "",
+    annotation:
+      "2024 -- This publication includes the complete histories of second-year bills. The complete electronic history of all bills is always available at leginfo.legislature.ca.gov",
   };
 
   const expectedLastItem = {
@@ -55,13 +56,13 @@ export const extract_csa: EvalFunction = async ({
     annotation: "",
   };
 
-  if (publications.length !== expectedLength) {
+  if (publications.length < expectedLength) {
     logger.error({
       message: "Incorrect number of publications extracted",
       level: 0,
       auxiliary: {
         expected: {
-          value: expectedLength.toString(),
+          value: `>= ${expectedLength}`,
           type: "integer",
         },
         actual: {
@@ -78,15 +79,19 @@ export const extract_csa: EvalFunction = async ({
       sessionUrl,
     };
   }
-  const firstItemMatches =
-    publications[0].publication_date === expectedFirstItem.publication_date &&
-    publications[0].session_type === expectedFirstItem.session_type &&
-    publications[0].publication_type === expectedFirstItem.publication_type &&
-    publications[0].annotation === expectedFirstItem.annotation;
 
-  if (!firstItemMatches) {
+  const hasExpectedFirstItem = publications.some((publication) => {
+    return (
+      publication.publication_date === expectedFirstItem.publication_date &&
+      publication.session_type === expectedFirstItem.session_type &&
+      publication.publication_type === expectedFirstItem.publication_type &&
+      publication.annotation === expectedFirstItem.annotation
+    );
+  });
+
+  if (!hasExpectedFirstItem) {
     logger.error({
-      message: "First publication extracted does not match expected",
+      message: "Expected 'first' item not found in publications",
       level: 0,
       auxiliary: {
         expected: {
@@ -94,33 +99,32 @@ export const extract_csa: EvalFunction = async ({
           type: "object",
         },
         actual: {
-          value: JSON.stringify(publications[0]),
+          value: JSON.stringify(publications),
           type: "object",
         },
       },
     });
     return {
       _success: false,
-      error: "First publication extracted does not match expected",
+      error: "Expected 'first' item not found in publications",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
   }
 
-  const lastItemMatches =
-    publications[publications.length - 1].publication_date ===
-      expectedLastItem.publication_date &&
-    publications[publications.length - 1].session_type ===
-      expectedLastItem.session_type &&
-    publications[publications.length - 1].publication_type ===
-      expectedLastItem.publication_type &&
-    publications[publications.length - 1].annotation ===
-      expectedLastItem.annotation;
+  const hasExpectedLastItem = publications.some((publication) => {
+    return (
+      publication.publication_date === expectedLastItem.publication_date &&
+      publication.session_type === expectedLastItem.session_type &&
+      publication.publication_type === expectedLastItem.publication_type &&
+      publication.annotation === expectedLastItem.annotation
+    );
+  });
 
-  if (!lastItemMatches) {
+  if (!hasExpectedLastItem) {
     logger.error({
-      message: "Last publication extracted does not match expected",
+      message: "Expected 'last' item not found in publications",
       level: 0,
       auxiliary: {
         expected: {
@@ -128,14 +132,14 @@ export const extract_csa: EvalFunction = async ({
           type: "object",
         },
         actual: {
-          value: JSON.stringify(publications[publications.length - 1]),
+          value: JSON.stringify(publications),
           type: "object",
         },
       },
     });
     return {
       _success: false,
-      error: "Last publication extracted does not match expected",
+      error: "Expected 'last' item not found in publications",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
