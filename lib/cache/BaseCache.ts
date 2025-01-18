@@ -52,13 +52,14 @@ export class BaseCache<T extends CacheEntry> {
     process.on("SIGINT", releaseLockAndExit);
     process.on("SIGTERM", releaseLockAndExit);
     process.on("uncaughtException", (err) => {
+      console.log("uncaught exception", err);
       this.logger({
         category: "base_cache",
         message: "uncaught exception",
         level: 2,
         auxiliary: {
           error: {
-            value: err.message,
+            value: JSON.stringify(err),
             type: "string",
           },
           trace: {
