@@ -1,3 +1,5 @@
+import { StagehandContainer } from "./StagehandContainer";
+
 export {};
 declare global {
   interface Window {
@@ -19,7 +21,7 @@ declare global {
     }>;
     debugDom: () => Promise<void>;
     cleanupDebug: () => void;
-    scrollToHeight: (height: number) => Promise<void>;
+    createStagehandContainer: (obj: Window | HTMLElement) => StagehandContainer;
     waitForDomSettle: () => Promise<void>;
     __playwright?: unknown;
     __pw_manual?: unknown;

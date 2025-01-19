@@ -204,6 +204,14 @@
     {
       "name": "extract_research_reports",
       "categories": ["text_extract"]
+    },
+    {
+      "name": "extract_apartments",
+      "categories": ["text_extract"]
+    },
+    {
+      "name": "extract_zillow",
+      "categories": ["text_extract"]
     }
   ]
 }
