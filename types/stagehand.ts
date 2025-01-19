@@ -22,6 +22,7 @@ export interface ConstructorParams {
   modelName?: AvailableModel;
   llmClient?: LLMClient;
   modelClientOptions?: ClientOptions;
+  unsafeIframeSupport?: boolean;
   /**
    * Instructions for stagehand.
    */

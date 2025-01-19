@@ -9,6 +9,14 @@ export function isTextNode(node: Node): node is Text {
   return node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim());
 }
 
+/**
+ * Extended visibility result interface to also capture the reason for non-visibility.
+ */
+interface VisibilityResult {
+  visible: boolean;
+  reason: string;
+}
+
 export async function processDom(chunksSeen: Array<number>) {
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
   const { outputString, selectorMap } = await processElements(chunk);
@@ -77,15 +85,35 @@ export async function scrollToHeight(height: number) {
   });
 }
 
-const xpathCache: Map<Node, string[]> = new Map();
+const xpathCache: Map<Node, (string | string[])[]> = new Map();
+
+function getIFrameDocument(iframe: HTMLIFrameElement): Document | null {
+  try {
+    // Attempt to read same-origin iframe
+    if (iframe.contentDocument) {
+      return iframe.contentDocument;
+    }
+    if (iframe.contentWindow?.document) {
+      return iframe.contentWindow.document;
+    }
+  } catch (error) {
+    // Cross-origin iframes will throw here
+    console.warn(
+      "Could not access iframe document (likely cross-origin).",
+      error,
+    );
+  }
+  return null;
+}
 
 export async function processElements(
   chunk: number,
-  scrollToChunk: boolean = true,
-  indexOffset: number = 0,
+  scrollToChunk = true,
+  indexOffset = 0,
+  debug = false,
 ): Promise<{
   outputString: string;
-  selectorMap: Record<number, string[]>;
+  selectorMap: Record<number, (string | string[])[]>;
 }> {
   console.time("processElements:total");
   const viewportHeight = calculateViewportHeight();
@@ -111,49 +139,142 @@ export async function processElements(
 
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
+    if (!element) continue;
 
     let shouldAddElement = false;
+    let skipReason = "";
 
-    if (element && isElementNode(element)) {
-      const childrenCount = element.childNodes.length;
+    if (isElementNode(element)) {
+      const tagName = element.tagName.toLowerCase();
+
+      if (debug) {
+        console.debug(`[Debug] Checking element: <${tagName}>`, element);
+      }
+
+      if (tagName === "iframe") {
+        const iframeDoc = getIFrameDocument(element as HTMLIFrameElement);
+        if (iframeDoc && iframeDoc.body) {
+          if (debug) {
+            console.debug(
+              "[Debug] [IFrame] Found same-origin iframe document:",
+              iframeDoc,
+            );
+          }
+          DOMQueue.push(...Array.from(iframeDoc.body.childNodes));
+        } else {
+          console.warn(`Skipping cross-origin iframe: ${element}`);
+        }
+      }
 
       // Always traverse child nodes
+      const childrenCount = element.childNodes.length;
       for (let i = childrenCount - 1; i >= 0; i--) {
         const child = element.childNodes[i];
         DOMQueue.push(child as ChildNode);
       }
 
-      // Check if element is interactive
-      if (isInteractiveElement(element)) {
-        if (isActive(element) && isVisible(element)) {
-          shouldAddElement = true;
-        }
+      // Check if element is interactive or leaf
+      const interactive = isInteractiveElement(element);
+      const active = isActive(element);
+      const visibility = isVisible(element);
+      const isLeaf = isLeafElement(element);
+
+      if (debug) {
+        console.debug(
+          `[Debug] <${tagName}>: interactive=${interactive}, active=${active}, visible=${visibility.visible}, leaf=${isLeaf}, visibilityReason=${visibility.reason}`,
+        );
       }
 
-      if (isLeafElement(element)) {
-        if (isActive(element) && isVisible(element)) {
+      if (interactive) {
+        if (!active) {
+          skipReason = "Interactive element is not active";
+        } else if (!visibility.visible) {
+          skipReason = `Interactive element is not visible: ${visibility.reason}`;
+        } else {
           shouldAddElement = true;
         }
+      } else if (isLeaf) {
+        if (!active) {
+          skipReason = "Leaf element is not active";
+        } else if (!visibility.visible) {
+          skipReason = `Leaf element is not visible: ${visibility.reason}`;
+        } else {
+          shouldAddElement = true;
+        }
+      } else {
+        skipReason = "Element is neither interactive nor leaf";
       }
-    }
+    } else if (isTextNode(element)) {
+      const visibility = isTextVisible(element); // returns { visible: boolean, reason: string }
 
-    if (element && isTextNode(element) && isTextVisible(element)) {
-      shouldAddElement = true;
+      if (debug) {
+        const textPreview =
+          element.textContent?.trim().substring(0, 50) +
+          (element.textContent?.length > 50 ? "..." : "");
+        console.debug(
+          `[Debug] Checking TEXT NODE: "${textPreview}" visible=${visibility.visible}, visibilityReason=${visibility.reason}`,
+          element,
+        );
+      }
+
+      if (!visibility.visible) {
+        skipReason = `Text node is not visible: ${visibility.reason}`;
+      } else {
+        shouldAddElement = true;
+      }
+    } else {
+      skipReason = "Node is neither an element nor a text node";
     }
 
     if (shouldAddElement) {
+      if (debug) {
+        if (isElementNode(element)) {
+          console.info(
+            `[Debug] ✅ Element accepted: <${element.tagName.toLowerCase()}>`,
+            element,
+          );
+        } else if (isTextNode(element)) {
+          const textPreview =
+            element.textContent?.trim().substring(0, 50) +
+            (element.textContent?.length > 50 ? "..." : "");
+          console.info(
+            `[Debug] ✅ Text node accepted: "${textPreview}"`,
+            element,
+          );
+        }
+      }
       candidateElements.push(element);
+    } else if (debug) {
+      if (isElementNode(element)) {
+        console.info(
+          `[Debug] ❌ Element skipped: <${element.tagName.toLowerCase()}> - Reason: ${skipReason}`,
+          element,
+        );
+      } else if (isTextNode(element)) {
+        const textPreview =
+          element.textContent?.trim().substring(0, 50) +
+          (element.textContent?.length > 50 ? "..." : "");
+        console.info(
+          `[Debug] ❌ Text node skipped: "${textPreview}" - Reason: ${skipReason}`,
+          element,
+        );
+      } else {
+        console.info(
+          `[Debug] ❌ Node skipped - Reason: ${skipReason}`,
+          element,
+        );
+      }
     }
   }
 
   console.timeEnd("processElements:findCandidates");
 
-  const selectorMap: Record<number, string[]> = {};
-  let outputString = "";
-
   console.log(
     `Stagehand (Browser Process): Processing candidate elements: ${candidateElements.length}`,
   );
+
+  const selectorMap: Record<number, (string | string[])[]> = {};
+  let outputString = "";
 
   console.time("processElements:processCandidates");
   console.time("processElements:generateXPaths");
@@ -162,7 +283,7 @@ export async function processElements(
       if (xpathCache.has(element)) {
         return xpathCache.get(element);
       }
-
+      // generateXPaths is your function that's able to build "iframe-aware" XPaths
       const xpaths = await generateXPaths(element);
       xpathCache.set(element, xpaths);
       return xpaths;
@@ -171,13 +292,19 @@ export async function processElements(
   console.timeEnd("processElements:generateXPaths");
 
   candidateElements.forEach((element, index) => {
-    const xpaths = xpathLists[index];
+    const xpaths = xpathLists[index] || [];
     let elementOutput = "";
 
     if (isTextNode(element)) {
       const textContent = element.textContent?.trim();
       if (textContent) {
         elementOutput += `${index + indexOffset}:${textContent}\n`;
+        if (debug) {
+          console.debug(
+            `[Debug] Outputting text node at index ${index + indexOffset}:`,
+            textContent,
+          );
+        }
       }
     } else if (isElementNode(element)) {
       const tagName = element.tagName.toLowerCase();
@@ -188,12 +315,23 @@ export async function processElements(
       const textContent = element.textContent?.trim() || "";
 
       elementOutput += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
+      if (debug) {
+        console.debug(
+          `[Debug] Outputting element at index ${
+            index + indexOffset
+          }: <${tagName}> + text: "${textContent}"`,
+        );
+      }
     }
 
     outputString += elementOutput;
     selectorMap[index + indexOffset] = xpaths;
   });
   console.timeEnd("processElements:processCandidates");
+
+  if (debug) {
+    window.drawChunk(selectorMap, true);
+  }
 
   console.timeEnd("processElements:total");
   return {
@@ -338,20 +476,14 @@ export function createTextBoundingBoxes(): void {
   });
 }
 
-export function getElementBoundingBoxes(xpath: string): Array<{
+export function getElementBoundingBoxes(xpath: string | string[]): Array<{
   text: string;
   top: number;
   left: number;
   width: number;
   height: number;
 }> {
-  const element = document.evaluate(
-    xpath,
-    document,
-    null,
-    XPathResult.FIRST_ORDERED_NODE_TYPE,
-    null,
-  ).singleNodeValue as HTMLElement;
+  const element = window.findElementWithIframeSupport(xpath);
 
   if (!element) return [];
 
@@ -485,85 +617,274 @@ const interactiveRoles = [
 ];
 const interactiveAriaRoles = ["menu", "menuitem", "button"];
 
-/*
- * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
- * - Size
- * - Display properties
- * - Opacity
- * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
+/**
+ * Utility to transform an Element’s boundingClientRect into the “top” window’s coordinate system.
  */
-const isVisible = (element: Element) => {
+function getGlobalRect(element: Element): DOMRect {
   const rect = element.getBoundingClientRect();
-  // Ensure the element is within the viewport
-  if (
-    rect.width === 0 ||
-    rect.height === 0 ||
-    rect.top < 0 ||
-    rect.top > window.innerHeight
-  ) {
-    return false;
+
+  let doc = element.ownerDocument;
+  let win = doc.defaultView;
+  let offsetX = rect.left;
+  let offsetY = rect.top;
+
+  while (win && win !== window.top) {
+    const frameElem = win.frameElement as HTMLIFrameElement | null;
+    if (!frameElem) {
+      // Not in an iframe or no further frames up
+      break;
+    }
+
+    // Get the iframe’s position in its parent doc:
+    const frameRect = frameElem.getBoundingClientRect();
+    offsetX += frameRect.left;
+    offsetY += frameRect.top;
+
+    doc = frameElem.ownerDocument;
+    win = doc.defaultView;
   }
-  if (!isTopElement(element, rect)) {
+
+  // Build a “global” DOMRect-like object
+  return {
+    x: offsetX,
+    y: offsetY,
+    width: rect.width,
+    height: rect.height,
+    left: offsetX,
+    top: offsetY,
+    right: offsetX + rect.width,
+    bottom: offsetY + rect.height,
+    toJSON() {
+      return { x: this.x, y: this.y, width: this.width, height: this.height };
+    },
+  } as DOMRect;
+}
+
+/**
+ * Recursively check if each iframe up the chain is topmost in its parent.
+ * If we’ve reached the top-level document, return true.
+ */
+function isIFrameOnTop(element: Element): boolean {
+  const doc = element.ownerDocument;
+  const frameElem = doc.defaultView?.frameElement as HTMLIFrameElement | null;
+  if (!frameElem) {
+    // We’re in the top window already (no <iframe>).
+    return true;
+  }
+
+  // If we are in an iframe, check that that iframe is topmost in its parent doc
+  const parentDoc = frameElem.ownerDocument;
+  const iframeRect = frameElem.getBoundingClientRect();
+
+  // We can reuse isTopElement logic on the parent doc, but note it’ll be in the parent’s coordinate system
+  // This ensures the iframe itself is not obscured in the parent.
+  if (!isTopElement(frameElem, iframeRect, parentDoc)) {
     return false;
   }
 
-  const visible = element.checkVisibility({
+  // Recurse upwards in case the parent doc is also in an iframe
+  return isIFrameOnTop(frameElem);
+}
+
+/**
+ * Checks if an element is visible and therefore relevant for LLMs to consider
+ * (size, display properties, opacity, if it’s top-element in local doc, and iframe is top-element in parent).
+ * Returns an object with { visible: boolean, reason: string }.
+ */
+export function isVisible(element: Element): VisibilityResult {
+  const doc = element.ownerDocument;
+  if (!doc) return { visible: false, reason: "No ownerDocument found" };
+
+  const rect = element.getBoundingClientRect();
+
+  // Basic checks for zero-size
+  if (rect.width === 0 || rect.height === 0) {
+    return {
+      visible: false,
+      reason: "Element has zero width or height",
+    };
+  }
+
+  // Convert local doc coordinates into main-page coordinates
+  const globalRect = getGlobalRect(element);
+  const winTop = window.top;
+  if (!winTop) {
+    return {
+      visible: false,
+      reason: "No top-level window found",
+    };
+  }
+
+  const topWinWidth = winTop.innerWidth;
+  const topWinHeight = winTop.innerHeight;
+  // If it’s placed well outside the current visible region in the top window, consider it not visible
+  if (
+    globalRect.top > topWinHeight ||
+    globalRect.bottom < 0 ||
+    globalRect.left > topWinWidth ||
+    globalRect.right < 0
+  ) {
+    return {
+      visible: false,
+      reason: "Element is outside of the visible viewport in the top window",
+    };
+  }
+
+  // Make sure it’s topmost at some point in its own document
+  if (!isTopElement(element, rect, doc)) {
+    return {
+      visible: false,
+      reason:
+        "Element is not the topmost at its position (it may be overlapped)",
+    };
+  }
+
+  // Also ensure each parent iframe is topmost in its parent doc
+  if (!isIFrameOnTop(element)) {
+    return {
+      visible: false,
+      reason: "Its parent iframe is not topmost in its parent document",
+    };
+  }
+
+  // If all the above checks pass, let the browser do final visibility calculation
+  const browserVisible = element.checkVisibility({
     checkOpacity: true,
     checkVisibilityCSS: true,
   });
 
-  return visible;
-};
+  return browserVisible
+    ? { visible: true, reason: "Element is visible" }
+    : { visible: false, reason: "CSS rules make the element invisible" };
+}
 
-const isTextVisible = (element: ChildNode) => {
-  const range = document.createRange();
-  range.selectNodeContents(element);
+/**
+ * Checks if a text node is visible in the main page, similarly to isVisible,
+ * returning { visible: boolean, reason: string } for debug.
+ */
+export function isTextVisible(node: ChildNode): VisibilityResult {
+  const doc = node.ownerDocument;
+  if (!doc) {
+    return {
+      visible: false,
+      reason: "No ownerDocument found for text node",
+    };
+  }
+
+  const range = doc.createRange();
+  range.selectNodeContents(node);
+
   const rect = range.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    return {
+      visible: false,
+      reason: "Text node has zero bounding box (empty or no visible space)",
+    };
+  }
 
+  const dummyElement = node.parentElement;
+  if (!dummyElement) {
+    return {
+      visible: false,
+      reason: "No parent element found for text node",
+    };
+  }
+
+  const globalRect = getGlobalRect(dummyElement);
+  const winTop = window.top;
+  if (!winTop) {
+    return {
+      visible: false,
+      reason: "No top-level window found",
+    };
+  }
+
+  const topWinWidth = winTop.innerWidth;
+  const topWinHeight = winTop.innerHeight;
   if (
-    rect.width === 0 ||
-    rect.height === 0 ||
-    rect.top < 0 ||
-    rect.top > window.innerHeight
+    globalRect.top > topWinHeight ||
+    globalRect.bottom < 0 ||
+    globalRect.left > topWinWidth ||
+    globalRect.right < 0
   ) {
-    return false;
-  }
-  const parent = element.parentElement;
-  if (!parent) {
-    return false;
-  }
-  if (!isTopElement(parent, rect)) {
-    return false;
+    return {
+      visible: false,
+      reason: "Text node is outside of the visible viewport in the top window",
+    };
   }
 
-  const visible = parent.checkVisibility({
+  if (!isTopElement(dummyElement, rect, doc)) {
+    return {
+      visible: false,
+      reason: "Text node is overlapped by another element",
+    };
+  }
+
+  if (!isIFrameOnTop(dummyElement)) {
+    return {
+      visible: false,
+      reason: "Its parent iframe is not topmost in its parent document",
+    };
+  }
+
+  const browserVisible = dummyElement.checkVisibility({
     checkOpacity: true,
     checkVisibilityCSS: true,
   });
+  return browserVisible
+    ? { visible: true, reason: "Text is visible" }
+    : { visible: false, reason: "CSS rules make the text node invisible" };
+}
 
-  return visible;
-};
-
-function isTopElement(elem: ChildNode, rect: DOMRect) {
+/**
+ * Checks if this element is the topmost at some set of sample points
+ * in its own coordinate space.
+ */
+function isTopElement(elem: Element, rect: DOMRect, doc: Document): boolean {
+  // We'll pick some sample points inside the element
   const points = [
+    // Corners
+    { x: rect.left, y: rect.top }, // Top left
+    { x: rect.right, y: rect.top }, // Top right
+    { x: rect.left, y: rect.bottom }, // Bottom left
+    { x: rect.right, y: rect.bottom }, // Bottom right
+
+    // Edge midpoints
+    { x: rect.left + rect.width / 2, y: rect.top }, // Top middle
+    { x: rect.left + rect.width / 2, y: rect.bottom }, // Bottom middle
+    { x: rect.left, y: rect.top + rect.height / 2 }, // Left middle
+    { x: rect.right, y: rect.top + rect.height / 2 }, // Right middle
+
+    // Interior points at 25% intervals
     { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
+    { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.25 },
     { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
+    { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.5 },
+    { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 }, // Center
+    { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.5 },
     { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75 },
+    { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.75 },
     { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75 },
-    { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+
+    // Additional interior points at 33% intervals
+    { x: rect.left + rect.width * 0.33, y: rect.top + rect.height * 0.33 },
+    { x: rect.left + rect.width * 0.66, y: rect.top + rect.height * 0.33 },
+    { x: rect.left + rect.width * 0.33, y: rect.top + rect.height * 0.66 },
+    { x: rect.left + rect.width * 0.66, y: rect.top + rect.height * 0.66 },
   ];
 
-  return points.some((point) => {
-    const topEl = document.elementFromPoint(point.x, point.y);
-    let current = topEl;
-    while (current && current !== document.body) {
-      if (current.isSameNode(elem)) {
-        return true;
-      }
+  // Use doc.elementFromPoint(...) instead of top-level document
+  const results = points.map((point) => {
+    const elAtPoint = doc.elementFromPoint(point.x, point.y);
+    let current: Element | null = elAtPoint as Element;
+    while (current && current !== doc.body) {
+      if (current.isSameNode(elem)) return true;
       current = current.parentElement;
     }
     return false;
   });
+
+  return results.some((result) => result);
 }
 
 const isActive = (element: Element) => {
@@ -574,9 +895,9 @@ const isActive = (element: Element) => {
   ) {
     return false;
   }
-
   return true;
 };
+
 const isInteractiveElement = (element: Element) => {
   const elementType = element.tagName;
   const elementRole = element.getAttribute("role");
@@ -593,16 +914,13 @@ const isLeafElement = (element: Element) => {
   if (element.textContent === "") {
     return false;
   }
-
   if (element.childNodes.length === 0) {
     return !leafElementDenyList.includes(element.tagName);
   }
-
   // This case ensures that extra context will be included for simple element nodes that contain only text
   if (element.childNodes.length === 1 && isTextNode(element.childNodes[0])) {
     return true;
   }
-
   return false;
 };
 

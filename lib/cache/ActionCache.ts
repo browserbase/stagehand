@@ -10,10 +10,10 @@ export interface ActionEntry extends CacheEntry {
   data: {
     playwrightCommand: PlaywrightCommand;
     componentString: string;
-    xpaths: string[];
+    xpaths: (string | string[])[];
     newStepString: string;
     completed: boolean;
-    previousSelectors: string[];
+    previousSelectors: (string | string[])[];
     action: string;
   };
 }
@@ -43,11 +43,11 @@ export class ActionCache extends BaseCache<ActionEntry> {
   }: {
     url: string;
     action: string;
-    previousSelectors: string[];
+    previousSelectors: (string | string[])[];
     playwrightCommand: PlaywrightCommand;
     componentString: string;
     requestId: string;
-    xpaths: string[];
+    xpaths: (string | string[])[];
     newStepString: string;
     completed: boolean;
   }): Promise<void> {
@@ -104,7 +104,7 @@ export class ActionCache extends BaseCache<ActionEntry> {
   }: {
     url: string;
     action: string;
-    previousSelectors: string[];
+    previousSelectors: (string | string[])[];
     requestId: string;
   }): Promise<ActionEntry["data"] | null> {
     const data = await super.get({ url, action, previousSelectors }, requestId);
@@ -118,7 +118,7 @@ export class ActionCache extends BaseCache<ActionEntry> {
   public async removeActionStep(cacheHashObj: {
     url: string;
     action: string;
-    previousSelectors: string[];
+    previousSelectors: (string | string[])[];
     requestId: string;
   }): Promise<void> {
     await super.delete(cacheHashObj);

@@ -19,7 +19,7 @@ export const google_jobs: EvalFunction = async ({
     await stagehand.page.act({ action: "click on the about page" });
     await stagehand.page.act({ action: "click on the careers page" });
     await stagehand.page.act({ action: "input data scientist into role" });
-    await stagehand.page.act({ action: "input new york city into location" });
+    await stagehand.page.act({ action: "input new york into location" });
     await stagehand.page.act({ action: "click on the search button" });
     await stagehand.page.act({ action: "click on the first job link" });
 
