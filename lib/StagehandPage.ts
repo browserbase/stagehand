@@ -1,6 +1,7 @@
 import type {
   Page as PlaywrightPage,
   BrowserContext as PlaywrightContext,
+  CDPSession,
 } from "@playwright/test";
 import { LLMClient } from "./llm/LLMClient";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
@@ -25,6 +26,7 @@ export class StagehandPage {
   private extractHandler: StagehandExtractHandler;
   private observeHandler: StagehandObserveHandler;
   private llmClient: LLMClient;
+  private cdpClient: CDPSession | null = null;
 
   constructor(
     page: PlaywrightPage,
@@ -460,6 +462,10 @@ export class StagehandPage {
           value: llmClient.modelName,
           type: "string",
         },
+        useAccessibilityTree: {
+          value: options?.useAccessibilityTree ? "true" : "false",
+          type: "boolean",
+        },
       },
     });
 
@@ -473,6 +479,7 @@ export class StagehandPage {
         fullPage: false,
         requestId,
         domSettleTimeoutMs: options?.domSettleTimeoutMs,
+        useAccessibilityTree: options?.useAccessibilityTree ?? false,
       })
       .catch((e) => {
         this.stagehand.log({
@@ -505,5 +512,32 @@ export class StagehandPage {
 
         throw e;
       });
+  }
+
+  async getCDPClient(): Promise<CDPSession> {
+    if (!this.cdpClient) {
+      this.cdpClient = await this.context.newCDPSession(this.page);
+    }
+    return this.cdpClient;
+  }
+
+  async sendCDP<T>(
+    command: string,
+    args?: Record<string, unknown>,
+  ): Promise<T> {
+    const client = await this.getCDPClient();
+    // Type assertion needed because CDP command strings are not fully typed
+    return client.send(
+      command as Parameters<CDPSession["send"]>[0],
+      args || {},
+    ) as Promise<T>;
+  }
+
+  async enableCDP(domain: string): Promise<void> {
+    await this.sendCDP(`${domain}.enable`, {});
+  }
+
+  async disableCDP(domain: string): Promise<void> {
+    await this.sendCDP(`${domain}.disable`, {});
   }
 }

@@ -8,6 +8,7 @@ export type EvalFunction = (args: {
   modelName: AvailableModel;
   logger: EvalLogger;
   useTextExtract: boolean;
+  useAccessibilityTree: boolean;
 }) => Promise<{
   _success: boolean;
   logs: LogLine[];

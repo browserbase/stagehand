@@ -1,7 +1,11 @@
 import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
-export const panamcs: EvalFunction = async ({ modelName, logger }) => {
+export const panamcs: EvalFunction = async ({
+  modelName,
+  logger,
+  useAccessibilityTree,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -11,7 +15,7 @@ export const panamcs: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.goto("https://panamcs.org/about/staff/");
 
-  const observations = await stagehand.page.observe();
+  const observations = await stagehand.page.observe({ useAccessibilityTree });
 
   if (observations.length === 0) {
     await stagehand.close();
