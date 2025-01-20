@@ -201,7 +201,7 @@
       "categories": ["text_extract"]
     },
     {
-      "name": "extract_research_reports",
+      "name": "extract_jstor_news",
       "categories": ["text_extract"]
     }
   ]

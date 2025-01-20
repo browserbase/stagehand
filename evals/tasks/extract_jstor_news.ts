@@ -2,7 +2,7 @@ import { EvalFunction } from "../../types/evals";
 import { initStagehand } from "../initStagehand";
 import { z } from "zod";
 
-export const extract_research_reports: EvalFunction = async ({
+export const extract_jstor_news: EvalFunction = async ({
   modelName,
   logger,
   useTextExtract,
@@ -15,22 +15,22 @@ export const extract_research_reports: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.init();
-  await stagehand.page.goto(
-    "http://www.dsbd.gov.za/index.php/research-reports",
-    { waitUntil: "load" },
-  );
+  await stagehand.page.goto("http://jstor-eval.surge.sh", {
+    waitUntil: "load",
+  });
+  await stagehand.page.act({ action: "close the cookie" });
 
   const result = await stagehand.page.extract({
-    instruction:
-      "Extract ALL the research report names. Do not extract the names of the PDF attachments.",
+    instruction: "Extract ALL the news report titles and their dates.",
     schema: z.object({
       reports: z.array(
         z.object({
           report_name: z
             .string()
-            .describe(
-              "The name or title of the research report. NOT the name of the PDF attachment.",
-            ),
+            .describe("The name or title of the news report."),
+          publish_date: z
+            .string()
+            .describe("The date the news report was published."),
         }),
       ),
     }),
@@ -41,15 +41,16 @@ export const extract_research_reports: EvalFunction = async ({
   await stagehand.close();
 
   const reports = result.reports;
-  const expectedLength = 9;
+  const expectedLength = 10;
 
   const expectedFirstItem = {
-    report_name:
-      "Longitudinal Study on SMMEs and Co-operatives in South Africa and the study on the Eastern SeaBoard",
+    report_name: "JSTOR retires Publisher Sales Service",
+    publish_date: "December 9, 2024",
   };
 
   const expectedLastItem = {
-    report_name: "Research Agenda",
+    report_name: "Path to Open announces 2024 titles",
+    publish_date: "May 10, 2024",
   };
 
   if (reports.length !== expectedLength) {
@@ -76,7 +77,8 @@ export const extract_research_reports: EvalFunction = async ({
     };
   }
   const firstItemMatches =
-    reports[0].report_name === expectedFirstItem.report_name;
+    reports[0].report_name === expectedFirstItem.report_name &&
+    reports[0].publish_date === expectedFirstItem.publish_date;
 
   if (!firstItemMatches) {
     logger.error({
@@ -103,7 +105,8 @@ export const extract_research_reports: EvalFunction = async ({
   }
 
   const lastItemMatches =
-    reports[reports.length - 1].report_name === expectedLastItem.report_name;
+    reports[reports.length - 1].report_name === expectedLastItem.report_name &&
+    reports[reports.length - 1].publish_date === expectedLastItem.publish_date;
 
   if (!lastItemMatches) {
     logger.error({
