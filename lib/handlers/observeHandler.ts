@@ -5,6 +5,10 @@ import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
 import { ScreenshotService } from "../vision";
+import {
+  getAccessibilityTree,
+  getXPathByResolvedObjectId,
+} from "../a11y/utils";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -53,15 +57,16 @@ export class StagehandObserveHandler {
     fullPage,
     llmClient,
     requestId,
-    domSettleTimeoutMs,
+    useAccessibilityTree = false,
   }: {
     instruction: string;
     useVision: boolean;
     fullPage: boolean;
     llmClient: LLMClient;
-    requestId?: string;
+    requestId: string;
     domSettleTimeoutMs?: number;
-  }): Promise<{ selector: string; description: string }[]> {
+    useAccessibilityTree?: boolean;
+  }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
@@ -77,17 +82,67 @@ export class StagehandObserveHandler {
       },
     });
 
-    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    await this.stagehandPage.startDomDebug();
-    const evalResult = await this.stagehand.page.evaluate(
-      (fullPage: boolean) =>
-        fullPage ? window.processAllOfDom() : window.processDom([]),
-      fullPage,
-    );
+    let outputString: string;
+    let selectorMap: Record<string, string[]> = {};
+    const backendNodeIdMap: Record<string, number> = {};
 
-    const { selectorMap } = evalResult;
-    // has to be like this atm because of the re-assignment
-    let { outputString } = evalResult;
+    await this.stagehandPage.startDomDebug();
+    await this.stagehandPage.enableCDP("DOM");
+
+    const evalResult = await this.stagehand.page.evaluate(async () => {
+      const result = await window.processAllOfDom();
+      return result;
+    });
+
+    // For each element in the selector map, get its backendNodeId
+    for (const [index, xpaths] of Object.entries(evalResult.selectorMap)) {
+      try {
+        // Use the first xpath to find the element
+        const xpath = xpaths[0];
+        const { result } = await this.stagehandPage.sendCDP<{
+          result: { objectId: string };
+        }>("Runtime.evaluate", {
+          expression: `document.evaluate('${xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`,
+          returnByValue: false,
+        });
+
+        if (result.objectId) {
+          // Get the node details using CDP
+          const { node } = await this.stagehandPage.sendCDP<{
+            node: { backendNodeId: number };
+          }>("DOM.describeNode", {
+            objectId: result.objectId,
+            depth: -1,
+            pierce: true,
+          });
+
+          if (node.backendNodeId) {
+            backendNodeIdMap[index] = node.backendNodeId;
+          }
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to get backendNodeId for element ${index}:`,
+          error,
+        );
+        continue;
+      }
+    }
+
+    await this.stagehandPage.disableCDP("DOM");
+    ({ outputString, selectorMap } = evalResult);
+
+    if (useAccessibilityTree) {
+      const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+
+      this.logger({
+        category: "observation",
+        message: "Getting accessibility tree data",
+        level: 1,
+      });
+
+      outputString = tree.simplified;
+    }
 
     let annotatedScreenshot: Buffer | undefined;
     if (useVision === true) {
@@ -125,17 +180,46 @@ export class StagehandObserveHandler {
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
+      isUsingAccessibilityTree: useAccessibilityTree,
     });
-
-    const elementsWithSelectors = observationResponse.elements.map(
-      (element) => {
+    const elementsWithSelectors = await Promise.all(
+      observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
+
+        if (useAccessibilityTree) {
+          const index = Object.entries(backendNodeIdMap).find(
+            ([, value]) => value === elementId,
+          )?.[0];
+          if (!index || !selectorMap[index]?.[0]) {
+            // Generate xpath for the given element if not found in selectorMap
+            const { object } = await this.stagehandPage.sendCDP<{
+              object: { objectId: string };
+            }>("DOM.resolveNode", {
+              backendNodeId: elementId,
+            });
+            const xpath = await getXPathByResolvedObjectId(
+              await this.stagehandPage.getCDPClient(),
+              object.objectId,
+            );
+            return {
+              ...rest,
+              selector: xpath,
+              backendNodeId: elementId,
+            };
+          }
+          return {
+            ...rest,
+            selector: `xpath=${selectorMap[index][0]}`,
+            backendNodeId: elementId,
+          };
+        }
 
         return {
           ...rest,
           selector: `xpath=${selectorMap[elementId][0]}`,
+          backendNodeId: backendNodeIdMap[elementId],
         };
-      },
+      }),
     );
 
     await this.stagehandPage.cleanupDomDebug();

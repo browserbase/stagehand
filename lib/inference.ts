@@ -284,6 +284,7 @@ export async function observe({
   llmClient,
   image,
   requestId,
+  isUsingAccessibilityTree,
   userProvidedInstructions,
   logger,
 }: {
@@ -294,9 +295,8 @@ export async function observe({
   requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
-}): Promise<{
-  elements: { elementId: number; description: string }[];
-}> {
+  isUsingAccessibilityTree?: boolean;
+}) {
   const observeSchema = z.object({
     elements: z
       .array(
@@ -305,11 +305,17 @@ export async function observe({
           description: z
             .string()
             .describe(
-              "a description of the element and what it is relevant for",
+              isUsingAccessibilityTree
+                ? "a description of the accessible element and its purpose"
+                : "a description of the element and what it is relevant for",
             ),
         }),
       )
-      .describe("an array of elements that match the instruction"),
+      .describe(
+        isUsingAccessibilityTree
+          ? "an array of accessible elements that match the instruction"
+          : "an array of elements that match the instruction",
+      ),
   });
 
   type ObserveResponse = z.infer<typeof observeSchema>;
@@ -318,8 +324,15 @@ export async function observe({
     await llmClient.createChatCompletion<ObserveResponse>({
       options: {
         messages: [
-          buildObserveSystemPrompt(userProvidedInstructions),
-          buildObserveUserMessage(instruction, domElements),
+          buildObserveSystemPrompt(
+            userProvidedInstructions,
+            isUsingAccessibilityTree,
+          ),
+          buildObserveUserMessage(
+            instruction,
+            domElements,
+            isUsingAccessibilityTree,
+          ),
         ],
         image: image
           ? { buffer: image, description: AnnotatedScreenshotText }

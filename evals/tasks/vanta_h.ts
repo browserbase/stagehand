@@ -1,7 +1,11 @@
 import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
-export const vanta_h: EvalFunction = async ({ modelName, logger }) => {
+export const vanta_h: EvalFunction = async ({
+  modelName,
+  logger,
+  useAccessibilityTree,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -13,6 +17,7 @@ export const vanta_h: EvalFunction = async ({ modelName, logger }) => {
 
   const observations = await stagehand.page.observe({
     instruction: "find the buy now button if it is available",
+    useAccessibilityTree,
   });
 
   await stagehand.close();
