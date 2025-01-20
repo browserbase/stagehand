@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { LogLine } from "../types/log";
-import { logLineToString } from "./utils";
+import { logLineToString, safeLocatorWithIframeSupport } from "./utils";
 
 type AnnotationBox = {
   x: number;
@@ -21,7 +21,7 @@ type NumberPosition = {
 
 export class ScreenshotService {
   private page: Page;
-  private selectorMap: Record<number, string[]>;
+  private selectorMap: Record<number, (string | string[])[]>;
   private annotationBoxes: AnnotationBox[] = [];
   private numberPositions: NumberPosition[] = [];
   private isDebugEnabled: boolean;
@@ -30,7 +30,7 @@ export class ScreenshotService {
 
   constructor(
     page: Page,
-    selectorMap: Record<number, string[]>,
+    selectorMap: Record<number, (string | string[])[]>,
     verbose: 0 | 1 | 2,
     externalLogger?: (logLine: LogLine) => void,
     isDebugEnabled: boolean = false,
@@ -175,7 +175,7 @@ export class ScreenshotService {
 
   private async createElementAnnotation(
     id: string,
-    selectors: string[],
+    selectors: (string | string[])[],
   ): Promise<string> {
     try {
       let element = null;
@@ -184,7 +184,7 @@ export class ScreenshotService {
       const selectorPromises: Promise<Omit<AnnotationBox, "id"> | null>[] =
         selectors.map(async (selector) => {
           try {
-            element = await this.page.locator(`xpath=${selector}`).first();
+            element = safeLocatorWithIframeSupport(this.page, selector);
             const box = await element.boundingBox({ timeout: 5_000 });
             return box;
           } catch {

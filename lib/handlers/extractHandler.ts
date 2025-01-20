@@ -187,7 +187,9 @@ export class StagehandExtractHandler {
     );
 
     // **3:** Process the DOM to generate a selector map of candidate elements
-    const { selectorMap }: { selectorMap: Record<number, string[]> } =
+    const {
+      selectorMap,
+    }: { selectorMap: Record<number, (string | string[])[]> } =
       await this.stagehand.page.evaluate(() => window.processAllOfDom());
 
     this.logger({

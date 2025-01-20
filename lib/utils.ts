@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { LogLine } from "../types/log";
 import { TextAnnotation } from "../types/textannotation";
 import { z } from "zod";
+import { FrameLocator, Page } from "@playwright/test";
+import { Locator } from "@playwright/test";
 
 // This is a heuristic for the width of a character in pixels. It seems to work
 // better than attempting to calculate character widths dynamically, which sometimes
@@ -373,4 +375,34 @@ export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   } catch {
     return false;
   }
+}
+
+export function safeLocatorWithIframeSupport(
+  page: Page,
+  selector: string | string[],
+): Locator {
+  const selectorArr = Array.isArray(selector) ? selector : [selector];
+  const safeSelectorArr: string[] = selectorArr.map((sel) => {
+    if (sel.startsWith("//")) {
+      return sel;
+    } else if (sel.startsWith("/")) {
+      return `/${sel}`;
+    }
+    return `//${sel}`;
+  });
+
+  let result: Locator | FrameLocator | Page = page;
+
+  for (let i = 0; i < safeSelectorArr.length; i++) {
+    const sel = safeSelectorArr[i];
+    if (i === safeSelectorArr.length - 1) {
+      // Last in chain -> final locator
+      result = result.locator(`xpath=${sel}`);
+    } else {
+      // Intermediate steps -> frameLocator
+      result = result.frameLocator(`xpath=${sel}`).first();
+    }
+  }
+
+  return result as Locator;
 }
