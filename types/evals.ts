@@ -1,8 +1,8 @@
-import { EvalLogger } from "../evals/logger";
-import { AvailableModel } from "../types/model";
-import { LogLine } from "../types/log";
 import { z } from "zod";
-import { EvalCase } from "braintrust";
+import type { EvalLogger } from "../evals/logger";
+import type { AvailableModel } from "../types/model";
+import type { LogLine } from "../types/log";
+import type { EvalCase } from "braintrust";
 
 export type EvalFunction = (args: {
   modelName: AvailableModel;

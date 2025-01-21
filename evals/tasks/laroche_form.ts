@@ -1,5 +1,5 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 
 export const laroche_form: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({

@@ -1,5 +1,5 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 
 export const amazon_add_to_cart: EvalFunction = async ({
   modelName,

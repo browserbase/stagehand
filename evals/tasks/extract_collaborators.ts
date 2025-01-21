@@ -1,5 +1,5 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_collaborators: EvalFunction = async ({

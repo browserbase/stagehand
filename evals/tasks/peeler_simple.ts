@@ -1,5 +1,5 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"

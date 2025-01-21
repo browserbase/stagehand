@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../../lib";
-import StagehandConfig from "../../stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/evals/deterministic/stagehand.config";
 
 test.describe("StagehandContext - addInitScript", () => {
   test("should inject a script on the context before pages load", async () => {

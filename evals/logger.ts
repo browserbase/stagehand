@@ -10,10 +10,9 @@
  * all logs emitted during the evaluation process can be captured, persisted, and
  * reviewed after the tasks complete.
  */
-import { logLineToString } from "../lib/utils";
-import { LogLine } from "../types/log";
-import { LogLineEval } from "../types/evals";
-import { Stagehand } from "../lib";
+import { logLineToString } from "./utils";
+import { LogLineEval } from "@/types/evals";
+import { Stagehand, LogLine } from "@/dist";
 
 /**
  * parseLogLine:

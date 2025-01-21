@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../../lib";
-import StagehandConfig from "../../stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/evals/deterministic/stagehand.config";
 
 test.describe("StagehandPage - bringToFront", () => {
   test("should bring a background page to the front and allow further actions", async () => {
