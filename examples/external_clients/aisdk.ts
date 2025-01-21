@@ -11,11 +11,7 @@ import {
   TextPart,
 } from "ai";
 import { ChatCompletion } from "openai/resources/chat/completions";
-import {
-  CreateChatCompletionOptions,
-  LLMClient,
-} from "../../lib/llm/LLMClient";
-import { AvailableModel } from "../../types/model";
+import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;

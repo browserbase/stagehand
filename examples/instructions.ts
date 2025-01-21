@@ -1,8 +1,8 @@
 /**
  * This example shows how to use custom instructions with Stagehand.
  */
-import { Stagehand } from "../lib";
-import StagehandConfig from "./stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/stagehand.config";
 
 async function example() {
   const stagehand = new Stagehand({

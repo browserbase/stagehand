@@ -1,7 +1,7 @@
-import { Stagehand } from "../lib";
+import { Stagehand } from "@/dist";
 import { z } from "zod";
 import { OllamaClient } from "./external_clients/ollama";
-import StagehandConfig from "./stagehand.config";
+import StagehandConfig from "@/stagehand.config";
 
 async function example() {
   const stagehand = new Stagehand({

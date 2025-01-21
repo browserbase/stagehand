@@ -5,8 +5,8 @@
  * npx create-browser-app@latest my-browser-app
  */
 
-import { Stagehand } from "../lib";
-import StagehandConfig from "./stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/stagehand.config";
 
 async function example() {
   const stagehand = new Stagehand(StagehandConfig);

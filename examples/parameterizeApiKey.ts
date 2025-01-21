@@ -1,4 +1,4 @@
-import { Stagehand } from "../lib";
+import { Stagehand } from "@/dist";
 import { z } from "zod";
 
 /**

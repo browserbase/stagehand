@@ -1,5 +1,6 @@
-import { Stagehand } from "../lib";
+import { Stagehand } from "@/dist";
 import { z } from "zod";
+
 async function example() {
   console.log("🎮 Starting 2048 bot...");
   const stagehand = new Stagehand({
