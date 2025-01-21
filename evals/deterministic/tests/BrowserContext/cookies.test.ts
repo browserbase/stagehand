@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../../lib"; // Adjust the relative path as needed
-import StagehandConfig from "../../stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/evals/deterministic/stagehand.config";
 
 test.describe("StagehandContext - Cookies", () => {
   let stagehand: Stagehand;

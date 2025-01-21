@@ -1,5 +1,5 @@
-import { initStagehand } from "../initStagehand";
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 
 export const simple_google_search: EvalFunction = async ({
   modelName,

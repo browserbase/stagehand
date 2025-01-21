@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { Stagehand } from "../../../../lib";
-import StagehandConfig from "../../stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/evals/deterministic/stagehand.config";
 import { z } from "zod";
 
 test.describe("API key/LLMClient error", () => {

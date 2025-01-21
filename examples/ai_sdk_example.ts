@@ -1,8 +1,8 @@
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
-import { Stagehand } from "../lib";
+import { Stagehand } from "@/dist";
 import { AISdkClient } from "./external_clients/aisdk";
-import StagehandConfig from "./stagehand.config";
+import StagehandConfig from "@/stagehand.config";
 
 async function example() {
   const stagehand = new Stagehand({

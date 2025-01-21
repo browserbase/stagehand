@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
+import { compareStrings } from "@/evals/utils";
 import { z } from "zod";
-import { compareStrings } from "../utils";
 
 export const extract_baptist_health: EvalFunction = async ({
   modelName,

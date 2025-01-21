@@ -1,5 +1,5 @@
-import { initStagehand } from "../initStagehand";
-import { EvalFunction } from "../../types/evals";
+import { initStagehand } from "@/evals/initStagehand";
+import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const extract_github_commits: EvalFunction = async ({

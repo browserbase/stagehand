@@ -26,9 +26,9 @@ import {
   useAccessibilityTree,
 } from "./args";
 import { Eval } from "braintrust";
-import { EvalFunction, SummaryResult, Testcase } from "../types/evals";
+import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "../types/model";
+import { AvailableModel } from "@/dist";
 import dotenv from "dotenv";
 dotenv.config();
 

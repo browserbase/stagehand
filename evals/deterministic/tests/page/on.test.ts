@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { Stagehand } from "../../../../lib";
-import StagehandConfig from "../../stagehand.config";
+import { Stagehand } from "@/dist";
+import StagehandConfig from "@/evals/deterministic/stagehand.config";
 
 test.describe("StagehandPage - page.on()", () => {
   test("should click on the crewAI blog tab", async () => {

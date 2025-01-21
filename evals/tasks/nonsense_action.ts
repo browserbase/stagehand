@@ -1,5 +1,5 @@
-import { initStagehand } from "../initStagehand";
-import { EvalFunction } from "../../types/evals";
+import { initStagehand } from "@/evals/initStagehand";
+import { EvalFunction } from "@/types/evals";
 
 export const nonsense_action: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({

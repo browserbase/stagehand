@@ -1,5 +1,5 @@
-import { initStagehand } from "../initStagehand";
-import { EvalFunction } from "../../types/evals";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 
 export const shopify_homepage: EvalFunction = async ({
   modelName,

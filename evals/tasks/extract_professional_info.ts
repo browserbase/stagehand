@@ -1,6 +1,6 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
-import { normalizeString } from "../utils";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
+import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_professional_info: EvalFunction = async ({

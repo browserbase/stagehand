@@ -1,3 +1,18 @@
+/**
+ * Welcome to the Stagehand Ollama client!
+ *
+ * This is a client for the Ollama API. It is a wrapper around the OpenAI API
+ * that allows you to create chat completions with Ollama.
+ *
+ * To use this client, you need to have an Ollama instance running. You can
+ * start an Ollama instance by running the following command:
+ *
+ * ```bash
+ * ollama run llama3.2
+ * ```
+ */
+
+import { AvailableModel, CreateChatCompletionOptions, LLMClient } from "@/dist";
 import OpenAI, { type ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import type {
@@ -9,42 +24,43 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
-} from "openai/resources/chat";
-import type { LLMCache } from "../../lib/cache/LLMCache";
-import {
-  type ChatMessage,
-  CreateChatCompletionOptions,
-  LLMClient,
-} from "../../lib/llm/LLMClient";
-import { validateZodSchema } from "../../lib/utils";
-import type { AvailableModel } from "../../types/model";
+} from "openai/resources/chat/completions";
+import { z } from "zod";
+
+function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
+  try {
+    schema.parse(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export class OllamaClient extends LLMClient {
   public type = "ollama" as const;
   private client: OpenAI;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
-  public clientOptions: ClientOptions;
 
   constructor({
-    enableCaching = false,
-    cache = undefined,
     modelName = "llama3.2",
     clientOptions,
+    enableCaching = false,
   }: {
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName?: string;
     clientOptions?: ClientOptions;
+    enableCaching?: boolean;
   }) {
+    if (enableCaching) {
+      console.warn(
+        "Caching is not supported yet. Setting enableCaching to true will have no effect.",
+      );
+    }
+
     super(modelName as AvailableModel);
     this.client = new OpenAI({
       ...clientOptions,
       baseURL: clientOptions?.baseURL || "http://localhost:11434/v1",
       apiKey: "ollama",
     });
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName as AvailableModel;
   }
 
@@ -57,7 +73,7 @@ export class OllamaClient extends LLMClient {
 
     // TODO: Implement vision support
     if (image) {
-      throw new Error(
+      console.warn(
         "Image provided. Vision is not currently supported for Ollama",
       );
     }
@@ -81,72 +97,10 @@ export class OllamaClient extends LLMClient {
       },
     });
 
-    const cacheOptions = {
-      model: this.modelName,
-      messages: options.messages,
-      temperature: options.temperature,
-      top_p: options.top_p,
-      frequency_penalty: options.frequency_penalty,
-      presence_penalty: options.presence_penalty,
-      image: image,
-      response_model: options.response_model,
-    };
-
     if (options.image) {
-      const screenshotMessage: ChatMessage = {
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
-            },
-          },
-          ...(options.image.description
-            ? [{ type: "text", text: options.image.description }]
-            : []),
-        ],
-      };
-
-      options.messages.push(screenshotMessage);
-    }
-
-    if (this.enableCaching && this.cache) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
+      console.warn(
+        "Image provided. Vision is not currently supported for Ollama",
       );
-
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse;
-      }
-
-      logger({
-        category: "llm_cache",
-        message: "LLM cache miss - no cached response found",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-        },
-      });
     }
 
     let responseFormat = undefined;
@@ -271,6 +225,9 @@ export class OllamaClient extends LLMClient {
 
     if (options.response_model) {
       const extractedData = response.choices[0].message.content;
+      if (!extractedData) {
+        throw new Error("No content in response");
+      }
       const parsedData = JSON.parse(extractedData);
 
       if (!validateZodSchema(options.response_model.schema, parsedData)) {
@@ -285,40 +242,7 @@ export class OllamaClient extends LLMClient {
         throw new Error("Invalid response schema");
       }
 
-      if (this.enableCaching) {
-        this.cache.set(
-          cacheOptions,
-          {
-            ...parsedData,
-          },
-          options.requestId,
-        );
-      }
-
       return parsedData;
-    }
-
-    if (this.enableCaching) {
-      logger({
-        category: "llm_cache",
-        message: "caching response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-          response: {
-            value: JSON.stringify(response),
-            type: "object",
-          },
-        },
-      });
-      this.cache.set(cacheOptions, response, options.requestId);
     }
 
     return response as T;

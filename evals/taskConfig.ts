@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel, AvailableModelSchema } from "../types/model";
+import { AvailableModel, AvailableModelSchema } from "@/dist";
 import { filterByEvalName } from "./args";
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.

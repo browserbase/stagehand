@@ -98,6 +98,9 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
+      - name: Build Stagehand
+        run: npm run build
+
       - name: Run E2E Tests (Deterministic Playwright)
         run: npm run e2e
 
@@ -132,6 +135,9 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
+      - name: Build Stagehand
+        run: npm run build
+
       - name: Run E2E Tests (browserbase)
         run: npm run e2e:bb
 
@@ -159,6 +165,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-frozen-lockfile
+
+      - name: Build Stagehand
+        run: npm run build
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -211,6 +220,9 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
+      - name: Build Stagehand
+        run: npm run build
+
       - name: Run Act Evals
         run: npm run evals category act
 
@@ -257,6 +269,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-frozen-lockfile
+
+      - name: Build Stagehand
+        run: npm run build
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -323,6 +338,9 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
+      - name: Build Stagehand
+        run: npm run build
+
       # 1. Run text_extract category with textExtract first
       - name: Run text_extract Evals (textExtract)
         run: npm run evals category text_extract -- --extract-method=textExtract
@@ -385,6 +403,9 @@ jobs:
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
+
+      - name: Build Stagehand
+        run: npm run build
 
       - name: Run Observe Evals
         run: npm run evals category observe

@@ -1,7 +1,7 @@
-import { EvalFunction } from "../../types/evals";
-import { initStagehand } from "../initStagehand";
+import { EvalFunction } from "@/types/evals";
+import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
-import { compareStrings } from "../utils";
+import { compareStrings } from "@/evals/utils";
 
 export const extract_memorial_healthcare: EvalFunction = async ({
   modelName,

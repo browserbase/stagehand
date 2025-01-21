@@ -1,5 +1,5 @@
 import process from "process";
-import { EvalCategorySchema } from "../types/evals";
+import { EvalCategorySchema } from "@/types/evals";
 
 // Extract command-line arguments passed to this script.
 const args = process.argv.slice(2);

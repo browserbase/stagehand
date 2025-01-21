@@ -1,4 +1,4 @@
-import { Stagehand } from "../lib";
+import { Stagehand } from "@/dist";
 
 async function debug(url: string) {
   const stagehand = new Stagehand({

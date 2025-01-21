@@ -11,7 +11,7 @@
  */
 
 import { enableCaching, env } from "./env";
-import { AvailableModel, ConstructorParams, LogLine, Stagehand } from "../lib";
+import { AvailableModel, ConstructorParams, LogLine, Stagehand } from "@/dist";
 import { EvalLogger } from "./logger";
 
 /**
