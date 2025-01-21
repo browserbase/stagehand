@@ -1,5 +1,7 @@
 import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
-import { calculateViewportHeight } from "./utils";
+import { calculateViewportHeight, canElementScroll } from "./utils";
+import { createStagehandContainer } from "./containerFactory";
+import { StagehandContainer } from "./StagehandContainer";
 
 export function isElementNode(node: Node): node is Element {
   return node.nodeType === Node.ELEMENT_NODE;
@@ -9,9 +11,59 @@ export function isTextNode(node: Node): node is Text {
   return node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim());
 }
 
+function getMainScrollableElement(): HTMLElement {
+  const docEl = document.documentElement;
+  let mainScrollable: HTMLElement = docEl;
+
+  // 1) Compute how “scrollable” the root <html> is
+  //    i.e. total scrollHeight - visible clientHeight
+  const rootScrollDiff = docEl.scrollHeight - docEl.clientHeight;
+
+  // Keep track of the “largest” scroll diff found so far.
+  let maxScrollDiff = rootScrollDiff;
+
+  // 2) Scan all elements to find if any <div> has a larger scrollable diff
+  const allElements = document.querySelectorAll<HTMLElement>("*");
+  for (const elem of allElements) {
+    const style = window.getComputedStyle(elem);
+    const overflowY = style.overflowY;
+
+    const isPotentiallyScrollable =
+      overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay";
+
+    if (isPotentiallyScrollable) {
+      const candidateScrollDiff = elem.scrollHeight - elem.clientHeight;
+      // Only pick this <div> if it has strictly more vertical “scrollable distance” than our current best
+      if (candidateScrollDiff > maxScrollDiff) {
+        maxScrollDiff = candidateScrollDiff;
+        mainScrollable = elem;
+      }
+    }
+  }
+
+  // 3) Verify the chosen element truly scrolls
+  if (mainScrollable !== docEl) {
+    if (!canElementScroll(mainScrollable)) {
+      console.log(
+        "Stagehand (Browser Process): Unable to scroll candidate. Fallback to <html>.",
+      );
+      mainScrollable = docEl;
+    }
+  }
+
+  return mainScrollable;
+}
+
 export async function processDom(chunksSeen: Array<number>) {
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const { outputString, selectorMap } = await processElements(chunk);
+  const container = createStagehandContainer(window);
+
+  const { outputString, selectorMap } = await processElements(
+    chunk,
+    true,
+    0,
+    container,
+  );
 
   console.log(
     `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
@@ -28,19 +80,27 @@ export async function processDom(chunksSeen: Array<number>) {
 export async function processAllOfDom() {
   console.log("Stagehand (Browser Process): Processing all of DOM");
 
-  const viewportHeight = calculateViewportHeight();
-  const documentHeight = document.documentElement.scrollHeight;
+  const mainScrollable = getMainScrollableElement();
+
+  const container =
+    mainScrollable === document.documentElement
+      ? createStagehandContainer(window)
+      : createStagehandContainer(mainScrollable);
+
+  const viewportHeight = container.getViewportHeight();
+  const documentHeight = container.getScrollHeight();
   const totalChunks = Math.ceil(documentHeight / viewportHeight);
 
   let index = 0;
   const results = [];
   for (let chunk = 0; chunk < totalChunks; chunk++) {
-    const result = await processElements(chunk, true, index);
+    // Pass the container to processElements
+    const result = await processElements(chunk, true, index, container);
     results.push(result);
     index += Object.keys(result.selectorMap).length;
   }
 
-  await scrollToHeight(0);
+  await container.scrollTo(0);
 
   const allOutputString = results.map((result) => result.outputString).join("");
   const allSelectorMap = results.reduce(
@@ -58,56 +118,40 @@ export async function processAllOfDom() {
   };
 }
 
-export async function scrollToHeight(height: number) {
-  window.scrollTo({ top: height, left: 0, behavior: "smooth" });
-
-  // Wait for scrolling to finish using the scrollend event
-  await new Promise<void>((resolve) => {
-    let scrollEndTimer: number;
-    const handleScrollEnd = () => {
-      clearTimeout(scrollEndTimer);
-      scrollEndTimer = window.setTimeout(() => {
-        window.removeEventListener("scroll", handleScrollEnd);
-        resolve();
-      }, 100);
-    };
-
-    window.addEventListener("scroll", handleScrollEnd, { passive: true });
-    handleScrollEnd();
-  });
-}
-
 const xpathCache: Map<Node, string[]> = new Map();
 
 export async function processElements(
   chunk: number,
   scrollToChunk: boolean = true,
   indexOffset: number = 0,
+  container?: StagehandContainer,
 ): Promise<{
   outputString: string;
   selectorMap: Record<number, string[]>;
 }> {
   console.time("processElements:total");
-  const viewportHeight = calculateViewportHeight();
+
+  // If no container given, default to the entire page
+  const stagehandContainer = container ?? createStagehandContainer(window);
+
+  const viewportHeight = stagehandContainer.getViewportHeight();
+  const totalScrollHeight = stagehandContainer.getScrollHeight();
+
   const chunkHeight = viewportHeight * chunk;
-
-  // Calculate the maximum scrollable offset
-  const maxScrollTop = document.documentElement.scrollHeight - viewportHeight;
-
-  // Adjust the offsetTop to not exceed the maximum scrollable offset
+  const maxScrollTop = totalScrollHeight - viewportHeight;
   const offsetTop = Math.min(chunkHeight, maxScrollTop);
 
   if (scrollToChunk) {
     console.time("processElements:scroll");
-    await scrollToHeight(offsetTop);
+    await stagehandContainer.scrollTo(offsetTop);
     console.timeEnd("processElements:scroll");
   }
-
-  const candidateElements: Array<ChildNode> = [];
-  const DOMQueue: Array<ChildNode> = [...document.body.childNodes];
-
   console.log("Stagehand (Browser Process): Generating candidate elements");
   console.time("processElements:findCandidates");
+
+  // NOTE: we still gather candidate elems from the entire body
+  const DOMQueue: ChildNode[] = [...document.body.childNodes];
+  const candidateElements: ChildNode[] = [];
 
   while (DOMQueue.length > 0) {
     const element = DOMQueue.pop();
@@ -287,11 +331,7 @@ export function createTextBoundingBoxes(): void {
       if (element.closest(".stagehand-nav, .stagehand-marker")) {
         return;
       }
-      if (
-        ["SCRIPT", "STYLE", "IFRAME", "INPUT", "TEXTAREA"].includes(
-          element.tagName,
-        )
-      ) {
+      if (["SCRIPT", "STYLE", "IFRAME", "INPUT"].includes(element.tagName)) {
         return;
       }
 
@@ -436,11 +476,11 @@ export function getElementBoundingBoxes(xpath: string): Array<{
 window.processDom = processDom;
 window.processAllOfDom = processAllOfDom;
 window.processElements = processElements;
-window.scrollToHeight = scrollToHeight;
 window.storeDOM = storeDOM;
 window.restoreDOM = restoreDOM;
 window.createTextBoundingBoxes = createTextBoundingBoxes;
 window.getElementBoundingBoxes = getElementBoundingBoxes;
+window.createStagehandContainer = createStagehandContainer;
 
 const leafElementDenyList = ["SVG", "IFRAME", "SCRIPT", "STYLE", "LINK"];
 
