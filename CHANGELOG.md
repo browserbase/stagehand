@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 1.10.1
+
+### Patch Changes
+
+- [#422](https://github.com/browserbase/stagehand/pull/422) [`a2878d0`](https://github.com/browserbase/stagehand/commit/a2878d0acaf393b37763fb0c07b1a24043f7eb8d) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixing a build type error for async functions being called inside evaulate for observeHandler.
+
 ## 1.10.0
 
 ### Minor Changes
