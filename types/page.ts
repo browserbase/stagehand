@@ -3,7 +3,7 @@ import type {
   BrowserContext as PlaywrightContext,
   Page as PlaywrightPage,
 } from "@playwright/test";
-import type { z } from "zod";
+import { z } from "zod";
 import type {
   ActOptions,
   ActResult,
@@ -13,12 +13,24 @@ import type {
   ObserveResult,
 } from "./stagehand";
 
+export const defaultExtractSchema = z.object({
+  extraction: z.string(),
+});
+
 export interface Page extends Omit<PlaywrightPage, "on"> {
-  act: (options: ActOptions) => Promise<ActResult>;
-  extract: <T extends z.AnyZodObject>(
+  act(action: string): Promise<ActResult>;
+  act(options: ActOptions): Promise<ActResult>;
+
+  extract(
+    instruction: string,
+  ): Promise<ExtractResult<typeof defaultExtractSchema>>;
+  extract<T extends z.AnyZodObject>(
     options: ExtractOptions<T>,
-  ) => Promise<ExtractResult<T>>;
-  observe: (options?: ObserveOptions) => Promise<ObserveResult[]>;
+  ): Promise<ExtractResult<T>>;
+
+  observe(): Promise<ObserveResult[]>;
+  observe(instruction: string): Promise<ObserveResult[]>;
+  observe(options?: ObserveOptions): Promise<ObserveResult[]>;
 
   on: {
     (event: "popup", listener: (page: Page) => unknown): Page;

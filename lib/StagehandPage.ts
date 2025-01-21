@@ -7,7 +7,7 @@ import { LLMClient } from "./llm/LLMClient";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { StagehandContext } from "./StagehandContext";
-import { Page } from "../types/page";
+import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
   ExtractResult,
@@ -285,19 +285,25 @@ export class StagehandPage {
     }
   }
 
-  async act({
-    action,
-    modelName,
-    modelClientOptions,
-    useVision = "fallback",
-    variables = {},
-    domSettleTimeoutMs,
-  }: ActOptions): Promise<ActResult> {
+  async act(actionOrOptions: string | ActOptions): Promise<ActResult> {
     if (!this.actHandler) {
       throw new Error("Act handler not initialized");
     }
 
-    useVision = useVision ?? "fallback";
+    const options: ActOptions =
+      typeof actionOrOptions === "string"
+        ? { action: actionOrOptions }
+        : actionOrOptions;
+
+    const {
+      action,
+      modelName,
+      modelClientOptions,
+      useVision = "fallback",
+      variables = {},
+      domSettleTimeoutMs,
+    } = options;
+
     const requestId = Math.random().toString(36).substring(2);
     const llmClient: LLMClient = modelName
       ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
@@ -361,17 +367,29 @@ export class StagehandPage {
       });
   }
 
-  async extract<T extends z.AnyZodObject>({
-    instruction,
-    schema,
-    modelName,
-    modelClientOptions,
-    domSettleTimeoutMs,
-    useTextExtract,
-  }: ExtractOptions<T>): Promise<ExtractResult<T>> {
+  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
+    instructionOrOptions: string | ExtractOptions<T>,
+  ): Promise<ExtractResult<T>> {
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
     }
+
+    const options: ExtractOptions<T> =
+      typeof instructionOrOptions === "string"
+        ? {
+            instruction: instructionOrOptions,
+            schema: defaultExtractSchema as T,
+          }
+        : instructionOrOptions;
+
+    const {
+      instruction,
+      schema,
+      modelName,
+      modelClientOptions,
+      domSettleTimeoutMs,
+      useTextExtract,
+    } = options;
 
     const requestId = Math.random().toString(36).substring(2);
     const llmClient = modelName
@@ -432,17 +450,30 @@ export class StagehandPage {
       });
   }
 
-  async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
+  async observe(
+    instructionOrOptions?: string | ObserveOptions,
+  ): Promise<ObserveResult[]> {
     if (!this.observeHandler) {
       throw new Error("Observe handler not initialized");
     }
 
+    const options: ObserveOptions =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions || {};
+
+    const {
+      instruction = "Find actions that can be performed on this page.",
+      modelName,
+      modelClientOptions,
+      useVision = false,
+      domSettleTimeoutMs,
+      useAccessibilityTree = false,
+    } = options;
+
     const requestId = Math.random().toString(36).substring(2);
-    const llmClient = options?.modelName
-      ? this.stagehand.llmProvider.getClient(
-          options.modelName,
-          options.modelClientOptions,
-        )
+    const llmClient = modelName
+      ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
 
     this.stagehand.log({
@@ -451,7 +482,7 @@ export class StagehandPage {
       level: 1,
       auxiliary: {
         instruction: {
-          value: options?.instruction,
+          value: instruction,
           type: "string",
         },
         requestId: {
@@ -463,7 +494,7 @@ export class StagehandPage {
           type: "string",
         },
         useAccessibilityTree: {
-          value: options?.useAccessibilityTree ? "true" : "false",
+          value: useAccessibilityTree ? "true" : "false",
           type: "boolean",
         },
       },
@@ -471,15 +502,13 @@ export class StagehandPage {
 
     return this.observeHandler
       .observe({
-        instruction:
-          options?.instruction ??
-          "Find actions that can be performed on this page.",
+        instruction,
         llmClient,
-        useVision: options?.useVision ?? false,
+        useVision,
         fullPage: false,
         requestId,
-        domSettleTimeoutMs: options?.domSettleTimeoutMs,
-        useAccessibilityTree: options?.useAccessibilityTree ?? false,
+        domSettleTimeoutMs,
+        useAccessibilityTree,
       })
       .catch((e) => {
         this.stagehand.log({
@@ -500,7 +529,7 @@ export class StagehandPage {
               type: "string",
             },
             instruction: {
-              value: options?.instruction,
+              value: instruction,
               type: "string",
             },
           },

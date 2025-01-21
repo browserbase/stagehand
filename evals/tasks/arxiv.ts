@@ -17,9 +17,9 @@ export const arxiv: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://arxiv.org/search/");
 
-    await stagehand.page.act({
-      action: "search for papers about web agents with multimodal models",
-    });
+    await stagehand.page.act(
+      "search for papers about web agents with multimodal models",
+    );
 
     const paper_links = await stagehand.page.extract({
       instruction: "extract the titles and links for two papers",

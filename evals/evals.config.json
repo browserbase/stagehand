@@ -1,6 +1,10 @@
 {
   "tasks": [
     {
+      "name": "extract_repo_name",
+      "categories": ["extract"]
+    },
+    {
       "name": "amazon_add_to_cart",
       "categories": ["act"]
     },
