@@ -89,9 +89,8 @@ export class StagehandObserveHandler {
     await this.stagehandPage.startDomDebug();
     await this.stagehandPage.enableCDP("DOM");
 
-    const evalResult = await this.stagehand.page.evaluate(async () => {
-      const result = await window.processAllOfDom();
-      return result;
+    const evalResult = await this.stagehand.page.evaluate(() => {
+      return window.processAllOfDom().then((result) => result);
     });
 
     // For each element in the selector map, get its backendNodeId
