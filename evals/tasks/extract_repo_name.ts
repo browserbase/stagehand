@@ -1,7 +1,7 @@
 import { EvalFunction } from "@/types/evals";
 import { initStagehand } from "@/evals/initStagehand";
 
-export const extract_github_commits: EvalFunction = async ({
+export const extract_repo_name: EvalFunction = async ({
   modelName,
   logger,
 }) => {
