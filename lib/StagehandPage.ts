@@ -505,7 +505,6 @@ export class StagehandPage {
         instruction,
         llmClient,
         useVision,
-        fullPage: false,
         requestId,
         domSettleTimeoutMs,
         useAccessibilityTree,
