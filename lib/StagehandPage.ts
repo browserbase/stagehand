@@ -299,7 +299,7 @@ export class StagehandPage {
       action,
       modelName,
       modelClientOptions,
-      useVision = "fallback",
+      useVision,
       variables = {},
       domSettleTimeoutMs,
     } = options;
@@ -335,7 +335,7 @@ export class StagehandPage {
         llmClient,
         chunksSeen: [],
         useVision,
-        verifierUseVision: useVision !== false,
+        verifierUseVision: false,
         requestId,
         variables,
         previousSelectors: [],
