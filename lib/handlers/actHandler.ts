@@ -11,8 +11,12 @@ import { LLMProvider } from "../llm/LLMProvider";
 import { StagehandContext } from "../StagehandContext";
 import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
-import { ScreenshotService } from "../vision";
 
+/**
+ * NOTE: Vision support has been removed from this version of Stagehand.
+ * If useVision or verifierUseVision is set to true, a warning is logged and
+ * the flow continues as if vision = false.
+ */
 export class StagehandActHandler {
   private readonly stagehandPage: StagehandPage;
   private readonly verbose: 0 | 1 | 2;
@@ -81,6 +85,17 @@ export class StagehandActHandler {
       return false;
     }
 
+    // Even though we might have been told to verify with vision, vision is not supported.
+    if (verifierUseVision) {
+      this.logger({
+        category: "warning",
+        message:
+          "vision is not currently supported in this version of stagehand",
+        level: 1,
+      });
+      verifierUseVision = false;
+    }
+
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 
     // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
@@ -96,9 +111,10 @@ export class StagehandActHandler {
       );
     }
 
-    const { selectorMap } = await this.stagehandPage.page.evaluate(() => {
-      return window.processAllOfDom();
-    });
+    const { outputString: domElements } =
+      await this.stagehandPage.page.evaluate(() => {
+        return window.processAllOfDom();
+      });
 
     let actionCompleted = false;
     if (completed) {
@@ -115,59 +131,13 @@ export class StagehandActHandler {
         },
       });
 
-      let domElements: string | undefined = undefined;
-      let fullpageScreenshot: Buffer | undefined = undefined;
-
-      if (verifierUseVision) {
-        try {
-          const screenshotService = new ScreenshotService(
-            this.stagehandPage.page,
-            selectorMap,
-            this.verbose,
-            this.logger,
-          );
-
-          fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
-        } catch (e) {
-          this.logger({
-            category: "action",
-            message: "error getting full page screenshot. trying again...",
-            level: 1,
-            auxiliary: {
-              error: {
-                value: e.message,
-                type: "string",
-              },
-              trace: {
-                value: e.stack,
-                type: "string",
-              },
-            },
-          });
-
-          const screenshotService = new ScreenshotService(
-            this.stagehandPage.page,
-            selectorMap,
-            this.verbose,
-            this.logger,
-          );
-
-          fullpageScreenshot = await screenshotService.getScreenshot(true, 15);
-        }
-      } else {
-        ({ outputString: domElements } = await this.stagehandPage.page.evaluate(
-          () => {
-            return window.processAllOfDom();
-          },
-        ));
-      }
-
+      // Always use text-based DOM verification (no vision).
       actionCompleted = await verifyActCompletion({
         goal: action,
         steps,
         llmProvider: this.llmProvider,
         llmClient: verifyLLmClient,
-        screenshot: fullpageScreenshot,
+        screenshot: undefined, // no vision
         domElements,
         logger: this.logger,
         requestId,
@@ -654,7 +624,6 @@ export class StagehandActHandler {
         },
       });
 
-      // First try to get the value (for input/textarea elements)
       const currentComponent = await this._getComponentString(locator);
 
       this.logger({
@@ -1024,27 +993,6 @@ export class StagehandActHandler {
         }
       }
 
-      if (!llmClient.hasVision && (useVision !== false || verifierUseVision)) {
-        this.logger({
-          category: "action",
-          message:
-            "model does not support vision but useVision was not false. defaulting to false.",
-          level: 1,
-          auxiliary: {
-            model: {
-              value: llmClient.modelName,
-              type: "string",
-            },
-            useVision: {
-              value: useVision.toString(),
-              type: "boolean",
-            },
-          },
-        });
-        useVision = false;
-        verifierUseVision = false;
-      }
-
       this.logger({
         category: "action",
         message: "running / continuing action",
@@ -1099,41 +1047,13 @@ export class StagehandActHandler {
         },
       });
 
-      // Prepare annotated screenshot if vision is enabled
-      let annotatedScreenshot: Buffer | undefined;
-      if (useVision === true) {
-        if (!llmClient.hasVision) {
-          this.logger({
-            category: "action",
-            message:
-              "model does not support vision. skipping vision processing.",
-            level: 1,
-            auxiliary: {
-              model: {
-                value: llmClient.modelName,
-                type: "string",
-              },
-            },
-          });
-        } else {
-          const screenshotService = new ScreenshotService(
-            this.stagehandPage.page,
-            selectorMap,
-            this.verbose,
-            this.logger,
-          );
-
-          annotatedScreenshot =
-            await screenshotService.getAnnotatedScreenshot(false);
-        }
-      }
-
+      // Run the LLM-based inference with text only
       const response = await act({
         action,
         domElements: outputString,
         steps,
         llmClient,
-        screenshot: annotatedScreenshot,
+        screenshot: undefined, // Vision is not supported, so always undefined
         logger: this.logger,
         requestId,
         variables,
@@ -1179,38 +1099,6 @@ export class StagehandActHandler {
             chunksSeen,
             llmClient,
             useVision,
-            verifierUseVision,
-            requestId,
-            variables,
-            previousSelectors,
-            skipActionCacheForThisStep,
-            domSettleTimeoutMs,
-          });
-        } else if (useVision === "fallback") {
-          this.logger({
-            category: "action",
-            message: "switching to vision-based processing",
-            level: 1,
-            auxiliary: {
-              useVision: {
-                value: useVision.toString(),
-                type: "string",
-              },
-            },
-          });
-          await this.stagehandPage.page.evaluate(() => {
-            const container = window.createStagehandContainer(
-              document.documentElement,
-            );
-            return container.scrollTo(0);
-          });
-
-          return await this.act({
-            action,
-            steps,
-            chunksSeen,
-            llmClient,
-            useVision: true,
             verifierUseVision,
             requestId,
             variables,
