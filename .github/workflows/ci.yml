@@ -6,6 +6,7 @@ on:
       - opened
       - synchronize
       - labeled
+      - unlabeled
 
 env:
   EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
@@ -82,7 +83,6 @@ jobs:
     timeout-minutes: 50
     env:
       HEADLESS: true
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -108,18 +108,15 @@ jobs:
     needs: [run-e2e-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 50
-
     if: >
       github.event_name == 'push' ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -153,7 +150,6 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -189,13 +185,9 @@ jobs:
           fi
 
   run-act-evals:
-    needs: [run-e2e-tests, determine-evals, run-combination-evals]
-    if: needs.determine-evals.outputs.run-act == 'true'
+    needs: [run-combination-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    concurrency:
-      group: evals-${{ github.run_id }}
-      cancel-in-progress: true
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -204,29 +196,44 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Check for 'act' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-act }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for ACT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-act == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install dependencies
+        if: needs.determine-evals.outputs.run-act == 'true'
         run: npm install --no-frozen-lockfile
 
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
       - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-act == 'true'
         run: npm run build
 
+      - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-act == 'true'
+        run: npm exec playwright install --with-deps
+
       - name: Run Act Evals
+        if: needs.determine-evals.outputs.run-act == 'true'
         run: npm run evals category act
 
       - name: Log Act Evals Performance
+        if: needs.determine-evals.outputs.run-act == 'true'
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
@@ -243,13 +250,9 @@ jobs:
           fi
 
   run-extract-evals:
-    needs: [run-e2e-tests, determine-evals, run-combination-evals]
-    if: needs.determine-evals.outputs.run-extract == 'true'
+    needs: [run-act-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 50
-    concurrency:
-      group: evals-${{ github.run_id }}
-      cancel-in-progress: true
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -262,34 +265,55 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Check for 'extract' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-extract }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for EXTRACT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install dependencies
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: npm install --no-frozen-lockfile
 
       - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: npm run build
 
       - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: npm exec playwright install --with-deps
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: npm run evals category extract -- --extract-method=domExtract
+
       - name: Save Extract Dom Results
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: mv eval-summary.json eval-summary-extract-dom.json
 
-      # 2. Once domExtract finishes, run extract category with textExtract
+      # 2. Then run extract category with textExtract
       - name: Run Extract Evals (textExtract)
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: npm run evals category extract -- --extract-method=textExtract
+
       - name: Save Extract Text Results
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: mv eval-summary.json eval-summary-extract-text.json
 
       # 3. Log and Compare Extract Evals Performance
       - name: Log and Compare Extract Evals Performance
+        if: needs.determine-evals.outputs.run-extract == 'true'
         run: |
           experimentNameDom=$(jq -r '.experimentName' eval-summary-extract-dom.json)
           dom_score=$(jq '.categories.extract' eval-summary-extract-dom.json)
@@ -301,20 +325,16 @@ jobs:
           echo "TextExtract Extract category score: $text_score%"
           echo "View textExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameText}"
 
-          # 4. If domExtract <80% fail CI
+          # If domExtract <80% fail CI
           if (( $(echo "$dom_score < 80" | bc -l) )); then
             echo "DomExtract extract category score is below 80%. Failing CI."
             exit 1
           fi
 
   run-text-extract-evals:
-    needs: [run-e2e-tests, determine-evals, run-combination-evals]
-    if: needs.determine-evals.outputs.run-text-extract == 'true'
+    needs: [run-extract-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    concurrency:
-      group: evals-${{ github.run_id }}
-      cancel-in-progress: true
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -327,34 +347,55 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Check for 'text-extract' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-text-extract }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for TEXT-EXTRACT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install dependencies
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm exec playwright install --with-deps
 
       - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm run build
 
       # 1. Run text_extract category with textExtract first
       - name: Run text_extract Evals (textExtract)
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm run evals category text_extract -- --extract-method=textExtract
+
       - name: Save text_extract Text Results
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: mv eval-summary.json eval-summary-text_extract-text.json
 
       # 2. Then run text_extract category with domExtract
       - name: Run text_extract Evals (domExtract)
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm run evals category text_extract -- --extract-method=domExtract
+
       - name: Save text_extract Dom Results
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: mv eval-summary.json eval-summary-text_extract-dom.json
 
       # 3. Log and Compare text_extract Evals Performance
       - name: Log and Compare text_extract Evals Performance
+        if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: |
           experimentNameText=$(jq -r '.experimentName' eval-summary-text_extract-text.json)
           text_score=$(jq '.categories.text_extract' eval-summary-text_extract-text.json)
@@ -366,20 +407,16 @@ jobs:
           echo "DomExtract text_extract category score: $dom_score%"
           echo "View domExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameDom}"
 
-          # 4. If textExtract (for text_extract category) <80% fail CI
+          # If text_score <80% fail CI
           if (( $(echo "$text_score < 80" | bc -l) )); then
             echo "textExtract text_extract category score is below 80%. Failing CI."
             exit 1
           fi
 
   run-observe-evals:
-    needs: [run-e2e-tests, determine-evals, run-combination-evals]
-    if: needs.determine-evals.outputs.run-observe == 'true'
+    needs: [run-text-extract-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    concurrency:
-      group: evals-${{ github.run_id }}
-      cancel-in-progress: true
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -388,29 +425,44 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
-
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
 
+      - name: Check for 'observe' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-observe }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for OBSERVE. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-observe == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install dependencies
+        if: needs.determine-evals.outputs.run-observe == 'true'
         run: npm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-observe == 'true'
         run: npm exec playwright install --with-deps
 
       - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-observe == 'true'
         run: npm run build
 
       - name: Run Observe Evals
+        if: needs.determine-evals.outputs.run-observe == 'true'
         run: npm run evals category observe
 
       - name: Log Observe Evals Performance
+        if: needs.determine-evals.outputs.run-observe == 'true'
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
