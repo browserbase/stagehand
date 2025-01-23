@@ -732,7 +732,7 @@ export class StagehandActHandler {
     steps: string;
     chunksSeen: number[];
     llmClient: LLMClient;
-    useVision: boolean | "fallback";
+    useVision: boolean;
     verifierUseVision: boolean;
     retries: number;
     variables: Record<string, string>;
@@ -945,7 +945,7 @@ export class StagehandActHandler {
     steps?: string;
     chunksSeen: number[];
     llmClient: LLMClient;
-    useVision: boolean | "fallback";
+    useVision: boolean;
     verifierUseVision: boolean;
     retries?: number;
     requestId?: string;

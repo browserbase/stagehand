@@ -59,7 +59,7 @@ export interface ActOptions {
   action: string;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  useVision?: "fallback" | boolean;
+  useVision?: boolean;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
 }
