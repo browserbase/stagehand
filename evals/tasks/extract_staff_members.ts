@@ -15,7 +15,7 @@ export const extract_staff_members: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://panamcs.org/about/staff/");
+  await stagehand.page.goto("https://panamcs-static-site.surge.sh/");
 
   const result = await stagehand.page.extract({
     instruction:
@@ -35,7 +35,7 @@ export const extract_staff_members: EvalFunction = async ({
   const staff_members = result.staff_members;
   await stagehand.close();
 
-  const expectedLength = 47;
+  const expectedLength = 49;
 
   const expectedFirstItem = {
     name: "Louis Alvarez",
