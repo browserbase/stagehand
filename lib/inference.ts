@@ -2,11 +2,7 @@ import { z } from "zod";
 import { ActCommandParams, ActCommandResult } from "../types/act";
 import { VerifyActCompletionParams } from "../types/inference";
 import { LogLine } from "../types/log";
-import {
-  AnnotatedScreenshotText,
-  ChatMessage,
-  LLMClient,
-} from "./llm/LLMClient";
+import { ChatMessage, LLMClient } from "./llm/LLMClient";
 import {
   actTools,
   buildActSystemPrompt,
@@ -27,7 +23,6 @@ export async function verifyActCompletion({
   goal,
   steps,
   llmClient,
-  screenshot,
   domElements,
   logger,
   requestId,
@@ -48,12 +43,6 @@ export async function verifyActCompletion({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      image: screenshot
-        ? {
-            buffer: screenshot,
-            description: "This is a screenshot of the whole visible page.",
-          }
-        : undefined,
       response_model: {
         name: "Verification",
         schema: verificationSchema,
@@ -99,7 +88,6 @@ export async function act({
   domElements,
   steps,
   llmClient,
-  screenshot,
   retries = 0,
   logger,
   requestId,
@@ -120,9 +108,6 @@ export async function act({
       presence_penalty: 0,
       tool_choice: "auto" as const,
       tools: actTools,
-      image: screenshot
-        ? { buffer: screenshot, description: AnnotatedScreenshotText }
-        : undefined,
       requestId,
     },
     logger,
@@ -282,7 +267,6 @@ export async function observe({
   instruction,
   domElements,
   llmClient,
-  image,
   requestId,
   isUsingAccessibilityTree,
   userProvidedInstructions,
@@ -291,7 +275,6 @@ export async function observe({
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
-  image?: Buffer;
   requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
@@ -334,9 +317,6 @@ export async function observe({
             isUsingAccessibilityTree,
           ),
         ],
-        image: image
-          ? { buffer: image, description: AnnotatedScreenshotText }
-          : undefined,
         response_model: {
           schema: observeSchema,
           name: "Observation",
