@@ -1,5 +1,5 @@
 ---
-"@browserbasehq/stagehand": major
+"@browserbasehq/stagehand": minor
 ---
 
 temporarily remove vision
