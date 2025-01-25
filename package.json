@@ -75,7 +75,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
-    "sharp": "^0.33.5",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },
