@@ -66,7 +66,6 @@ export class StagehandActHandler {
 
   private async _verifyActionCompletion({
     completed,
-    verifierUseVision,
     requestId,
     action,
     steps,
@@ -74,7 +73,6 @@ export class StagehandActHandler {
     domSettleTimeoutMs,
   }: {
     completed: boolean;
-    verifierUseVision: boolean;
     requestId: string;
     action: string;
     steps: string;
@@ -83,17 +81,6 @@ export class StagehandActHandler {
   }): Promise<boolean> {
     if (!completed) {
       return false;
-    }
-
-    // Even though we might have been told to verify with vision, vision is not supported.
-    if (verifierUseVision) {
-      this.logger({
-        category: "warning",
-        message:
-          "vision is not currently supported in this version of stagehand",
-        level: 1,
-      });
-      verifierUseVision = false;
     }
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
@@ -137,7 +124,6 @@ export class StagehandActHandler {
         steps,
         llmProvider: this.llmProvider,
         llmClient: verifyLLmClient,
-        screenshot: undefined, // no vision
         domElements,
         logger: this.logger,
         requestId,
@@ -720,8 +706,6 @@ export class StagehandActHandler {
     steps,
     chunksSeen,
     llmClient,
-    useVision,
-    verifierUseVision,
     retries,
     variables,
     domSettleTimeoutMs,
@@ -732,8 +716,6 @@ export class StagehandActHandler {
     steps: string;
     chunksSeen: number[];
     llmClient: LLMClient;
-    useVision: boolean;
-    verifierUseVision: boolean;
     retries: number;
     variables: Record<string, string>;
     domSettleTimeoutMs?: number;
@@ -862,7 +844,6 @@ export class StagehandActHandler {
         // Verify the action was completed successfully
         const actionCompleted = await this._verifyActionCompletion({
           completed: true,
-          verifierUseVision,
           llmClient,
           steps,
           requestId,
@@ -896,8 +877,6 @@ export class StagehandActHandler {
         steps,
         chunksSeen,
         llmClient,
-        useVision,
-        verifierUseVision,
         retries,
         requestId,
         variables,
@@ -932,8 +911,6 @@ export class StagehandActHandler {
     steps = "",
     chunksSeen,
     llmClient,
-    useVision,
-    verifierUseVision,
     retries = 0,
     requestId,
     variables,
@@ -945,8 +922,6 @@ export class StagehandActHandler {
     steps?: string;
     chunksSeen: number[];
     llmClient: LLMClient;
-    useVision: boolean;
-    verifierUseVision: boolean;
     retries?: number;
     requestId?: string;
     variables: Record<string, string>;
@@ -966,8 +941,6 @@ export class StagehandActHandler {
           steps,
           chunksSeen,
           llmClient,
-          useVision,
-          verifierUseVision,
           retries,
           variables,
           domSettleTimeoutMs,
@@ -981,8 +954,6 @@ export class StagehandActHandler {
             steps,
             chunksSeen,
             llmClient,
-            useVision,
-            verifierUseVision,
             retries,
             requestId,
             variables,
@@ -1053,7 +1024,6 @@ export class StagehandActHandler {
         domElements: outputString,
         steps,
         llmClient,
-        screenshot: undefined, // Vision is not supported, so always undefined
         logger: this.logger,
         requestId,
         variables,
@@ -1098,8 +1068,6 @@ export class StagehandActHandler {
               "## Step: Scrolled to another section\n",
             chunksSeen,
             llmClient,
-            useVision,
-            verifierUseVision,
             requestId,
             variables,
             previousSelectors,
@@ -1268,7 +1236,6 @@ export class StagehandActHandler {
 
         const actionCompleted = await this._verifyActionCompletion({
           completed: response.completed,
-          verifierUseVision,
           requestId,
           action,
           steps,
@@ -1307,8 +1274,6 @@ export class StagehandActHandler {
             steps,
             llmClient,
             chunksSeen,
-            useVision,
-            verifierUseVision,
             requestId,
             variables,
             previousSelectors: [...previousSelectors, foundXpath],
@@ -1354,8 +1319,6 @@ export class StagehandActHandler {
             action,
             steps,
             llmClient,
-            useVision,
-            verifierUseVision,
             retries: retries + 1,
             chunksSeen,
             requestId,

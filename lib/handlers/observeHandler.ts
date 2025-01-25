@@ -51,13 +51,11 @@ export class StagehandObserveHandler {
 
   public async observe({
     instruction,
-    useVision,
     llmClient,
     requestId,
     useAccessibilityTree = false,
   }: {
     instruction: string;
-    useVision: boolean;
     llmClient: LLMClient;
     requestId: string;
     domSettleTimeoutMs?: number;
@@ -77,15 +75,6 @@ export class StagehandObserveHandler {
         },
       },
     });
-
-    if (useVision) {
-      this.logger({
-        category: "warning",
-        message:
-          "vision is not currently supported in this version of stagehand",
-        level: 1,
-      });
-    }
 
     let outputString: string;
     let selectorMap: Record<string, string[]> = {};
@@ -153,7 +142,6 @@ export class StagehandObserveHandler {
       instruction,
       domElements: outputString,
       llmClient,
-      image: undefined, // Always undefined - no vision support
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
