@@ -55,7 +55,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Run Lint
         run: npm run lint
@@ -71,10 +71,8 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Clean install
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run Build
         run: npm run build
@@ -95,7 +93,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -105,11 +103,6 @@ jobs:
 
       - name: Run E2E Tests (Deterministic Playwright)
         run: npm run e2e
-
-      - name: Clean install
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
 
   run-e2e-bb-tests:
     needs: [run-e2e-tests]
@@ -134,7 +127,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -144,11 +137,6 @@ jobs:
 
       - name: Run E2E Tests (browserbase)
         run: npm run e2e:bb
-
-      - name: Clean install
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
 
   run-combination-evals:
     needs: [run-e2e-bb-tests, run-e2e-tests, determine-evals]
@@ -172,7 +160,7 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Build Stagehand
         run: npm run build
@@ -195,11 +183,6 @@ jobs:
             echo "Eval summary not found for combination category. Failing CI."
             exit 1
           fi
-
-      - name: Clean install
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
 
   run-act-evals:
     needs: [run-combination-evals, determine-evals]
@@ -235,7 +218,7 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -265,12 +248,6 @@ jobs:
             echo "Eval summary not found for act category. Failing CI."
             exit 1
           fi
-
-      - name: Clean install
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
 
   run-extract-evals:
     needs: [run-act-evals, determine-evals]
@@ -306,7 +283,7 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -354,12 +331,6 @@ jobs:
             exit 1
           fi
 
-      - name: Clean install
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-
   run-text-extract-evals:
     needs: [run-extract-evals, determine-evals]
     runs-on: ubuntu-latest
@@ -394,7 +365,7 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -442,12 +413,6 @@ jobs:
             exit 1
           fi
 
-      - name: Clean install
-        if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-
   run-observe-evals:
     needs: [run-text-extract-evals, determine-evals]
     runs-on: ubuntu-latest
@@ -482,7 +447,7 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm install --no-frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -512,9 +477,3 @@ jobs:
             echo "Eval summary not found for observe category. Failing CI."
             exit 1
           fi
-
-      - name: Clean install
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
