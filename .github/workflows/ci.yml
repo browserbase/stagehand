@@ -97,8 +97,13 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Clean npm cache and remove problematic files
+        run: |
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
+
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
