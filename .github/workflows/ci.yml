@@ -55,7 +55,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Run Lint
         run: npm run lint
@@ -71,13 +74,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Clean npm cache and remove problematic files
-        run: |
-          rm -rf node_modules package-lock.json
-          npm cache clean --force
-
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Run Build
         run: npm run build
@@ -97,13 +98,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Clean npm cache and remove problematic files
-        run: |
-          rm -rf node_modules package-lock.json
-          npm cache clean --force
-
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -137,7 +136,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -170,7 +172,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         run: npm run build
@@ -228,7 +233,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -293,7 +301,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -375,7 +386,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -457,7 +471,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm ci
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
