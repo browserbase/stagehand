@@ -71,8 +71,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+      - name: Clean install
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
 
       - name: Run Build
         run: npm run build
