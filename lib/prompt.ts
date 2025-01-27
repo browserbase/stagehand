@@ -32,7 +32,6 @@ You are a browser automation assistant. The job has given you a goal and a list 
 You will receive:
 1. The user's goal: A clear description of what the user wants to achieve.
 2. Steps taken so far: A list of actions that have been performed up to this point.
-3. An image of the current page
 
 # Your Task
 Analyze the provided information to determine if the user's goal has been fully completed.
@@ -363,7 +362,7 @@ You will be given:
 2. ${
     isUsingAccessibilityTree
       ? "a hierarchical accessibility tree showing the semantic structure of the page"
-      : "a numbered list of possible elements or an annotated image of the page"
+      : "a numbered list of possible elements"
   }
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.`;

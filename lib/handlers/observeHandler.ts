@@ -4,7 +4,6 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
-import { ScreenshotService } from "../vision";
 import {
   getAccessibilityTree,
   getXPathByResolvedObjectId,
@@ -14,7 +13,6 @@ export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
   private readonly stagehandPage: StagehandPage;
-  private readonly verbose: 0 | 1 | 2;
   private observations: {
     [key: string]: {
       result: { selector: string; description: string }[];
@@ -53,15 +51,11 @@ export class StagehandObserveHandler {
 
   public async observe({
     instruction,
-    useVision,
-    fullPage,
     llmClient,
     requestId,
     useAccessibilityTree = false,
   }: {
     instruction: string;
-    useVision: boolean;
-    fullPage: boolean;
     llmClient: LLMClient;
     requestId: string;
     domSettleTimeoutMs?: number;
@@ -143,39 +137,11 @@ export class StagehandObserveHandler {
       outputString = tree.simplified;
     }
 
-    let annotatedScreenshot: Buffer | undefined;
-    if (useVision === true) {
-      if (!llmClient.hasVision) {
-        this.logger({
-          category: "observation",
-          message: "Model does not support vision. Skipping vision processing.",
-          level: 1,
-          auxiliary: {
-            model: {
-              value: llmClient.modelName,
-              type: "string",
-            },
-          },
-        });
-      } else {
-        const screenshotService = new ScreenshotService(
-          this.stagehand.page,
-          selectorMap,
-          this.verbose,
-          this.logger,
-        );
-
-        annotatedScreenshot =
-          await screenshotService.getAnnotatedScreenshot(fullPage);
-        outputString = "n/a. use the image to find the elements.";
-      }
-    }
-
+    // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
       domElements: outputString,
       llmClient,
-      image: annotatedScreenshot,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,

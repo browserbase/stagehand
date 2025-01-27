@@ -55,7 +55,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Run Lint
         run: npm run lint
@@ -72,7 +75,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Run Build
         run: npm run build
@@ -93,7 +99,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -127,7 +136,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
@@ -160,7 +172,10 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         run: npm run build
@@ -218,7 +233,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -283,7 +301,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -365,7 +386,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -447,7 +471,10 @@ jobs:
 
       - name: Install dependencies
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm install --no-frozen-lockfile
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
