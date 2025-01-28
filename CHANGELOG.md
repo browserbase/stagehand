@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 1.11.0
+
+### Minor Changes
+
+- [#428](https://github.com/browserbase/stagehand/pull/428) [`5efeb5a`](https://github.com/browserbase/stagehand/commit/5efeb5ad44852efe7b260862729a5ac74eaa0228) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - temporarily remove vision
+
 ## 1.10.1
 
 ### Patch Changes
