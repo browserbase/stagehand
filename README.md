@@ -108,6 +108,7 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 npm install
 npx playwright install
+npm run build
 npm run example # run the blank script at ./examples/example.ts
 ```
 
