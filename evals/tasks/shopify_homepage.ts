@@ -1,11 +1,7 @@
 import { EvalFunction } from "@/types/evals";
 import { initStagehand } from "@/evals/initStagehand";
 
-export const shopify_homepage: EvalFunction = async ({
-  modelName,
-  logger,
-  useAccessibilityTree,
-}) => {
+export const shopify_homepage: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -15,7 +11,7 @@ export const shopify_homepage: EvalFunction = async ({
 
   await stagehand.page.goto("https://www.shopify.com/");
 
-  const observations = await stagehand.page.observe({ useAccessibilityTree });
+  const observations = await stagehand.page.observe({ onlyVisible: true });
 
   if (observations.length === 0) {
     await stagehand.close();

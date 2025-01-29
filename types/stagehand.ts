@@ -89,10 +89,15 @@ export interface ObserveOptions {
   /** @deprecated Vision is not supported in this version of Stagehand. */
   useVision?: boolean;
   domSettleTimeoutMs?: number;
-  useAccessibilityTree?: boolean;
+  returnAction?: boolean;
+  onlyVisible?: boolean;
 }
 
 export interface ObserveResult {
   selector: string;
   description: string;
+  backendNodeId?: number;
+  //TODO: review name
+  method?: string;
+  arguments?: string[];
 }

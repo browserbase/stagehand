@@ -1,7 +1,7 @@
 import { EvalFunction } from "@/types/evals";
 import { initStagehand } from "@/evals/initStagehand";
 
-export const vanta: EvalFunction = async ({ modelName, logger }) => {
+export const observe_taxes: EvalFunction = async ({ modelName, logger }) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -9,10 +9,11 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.vanta.com/");
-  await stagehand.page.act({ action: "close the cookies popup" });
+  await stagehand.page.goto("https://file.1040.com/estimate/");
 
-  const observations = await stagehand.page.observe({ onlyVisible: true });
+  const observations = await stagehand.page.observe({
+    instruction: "Find all the form elements under the 'Income' section",
+  });
 
   if (observations.length === 0) {
     await stagehand.close();
@@ -23,14 +24,23 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } else if (observations.length < 13) {
+    await stagehand.close();
+    return {
+      _success: false,
+      observations,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   }
 
-  const expectedLocator = `body > div.page-wrapper > div.nav_component > div.nav_element.w-nav > div.padding-global > div > div > nav > div.nav_cta-wrapper.is-new > a.nav_link.is-tablet-margin-0.w-nav-link`;
+  const expectedLocator = `#tpWages`;
 
   const expectedResult = await stagehand.page
     .locator(expectedLocator)
     .first()
-    .innerHTML();
+    .innerText();
 
   let foundMatch = false;
   for (const observation of observations) {
@@ -38,7 +48,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
       const observationResult = await stagehand.page
         .locator(observation.selector)
         .first()
-        .innerHTML();
+        .innerText();
 
       if (observationResult === expectedResult) {
         foundMatch = true;

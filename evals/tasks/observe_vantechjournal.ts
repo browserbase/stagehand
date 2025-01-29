@@ -1,7 +1,10 @@
 import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
-export const ionwave_observe: EvalFunction = async ({ modelName, logger }) => {
+export const observe_vantechjournal: EvalFunction = async ({
+  modelName,
+  logger,
+}) => {
   const { stagehand, initResponse } = await initStagehand({
     modelName,
     logger,
@@ -9,9 +12,12 @@ export const ionwave_observe: EvalFunction = async ({ modelName, logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://elpasotexas.ionwave.net/Login.aspx");
+  await stagehand.page.goto("https://vantechjournal.com/archive?page=8");
+  await stagehand.page.waitForTimeout(1000);
 
-  const observations = await stagehand.page.observe({ onlyVisible: true });
+  const observations = await stagehand.page.observe({
+    instruction: "find the button that takes us to the 11th page",
+  });
 
   if (observations.length === 0) {
     await stagehand.close();
@@ -24,22 +30,31 @@ export const ionwave_observe: EvalFunction = async ({ modelName, logger }) => {
     };
   }
 
-  const expectedLocator = `div.rowLinks:nth-child(27) > div:nth-child(1) > a:nth-child(1)`;
+  const expectedLocator = `a.rounded-lg:nth-child(8)`;
 
-  const expectedResult = await stagehand.page
-    .locator(expectedLocator)
-    .first()
-    .innerText();
+  const expectedResult = await stagehand.page.locator(expectedLocator);
 
   let foundMatch = false;
+
   for (const observation of observations) {
     try {
-      const observationResult = await stagehand.page
+      const observationLocator = stagehand.page
         .locator(observation.selector)
-        .first()
-        .innerText();
+        .first();
+      const observationHandle = await observationLocator.elementHandle();
+      const expectedHandle = await expectedResult.elementHandle();
 
-      if (observationResult === expectedResult) {
+      if (!observationHandle || !expectedHandle) {
+        // Couldn’t get handles, skip
+        continue;
+      }
+
+      const isSameNode = await observationHandle.evaluate(
+        (node, otherNode) => node === otherNode,
+        expectedHandle,
+      );
+
+      if (isSameNode) {
         foundMatch = true;
         break;
       }

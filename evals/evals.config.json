@@ -215,6 +215,30 @@
     {
       "name": "extract_zillow",
       "categories": ["text_extract"]
+    },
+    {
+      "name": "observe_github",
+      "categories": ["observe"]
+    },
+    {
+      "name": "observe_vantechjournal",
+      "categories": ["observe"]
+    },
+    {
+      "name": "observe_amazon_add_to_cart",
+      "categories": ["observe"]
+    },
+    {
+      "name": "observe_simple_google_search",
+      "categories": ["observe"]
+    },
+    {
+      "name": "observe_yc_startup",
+      "categories": ["observe"]
+    },
+    {
+      "name": "observe_taxes",
+      "categories": ["observe"]
     }
   ]
 }

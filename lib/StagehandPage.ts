@@ -471,12 +471,13 @@ export class StagehandPage {
         : instructionOrOptions || {};
 
     const {
-      instruction = "Find actions that can be performed on this page.",
+      instruction,
       modelName,
       modelClientOptions,
       useVision, // still destructure but will not pass it on
       domSettleTimeoutMs,
-      useAccessibilityTree = false,
+      returnAction = false,
+      onlyVisible = false,
     } = options;
 
     if (typeof useVision !== "undefined") {
@@ -510,8 +511,8 @@ export class StagehandPage {
           value: llmClient.modelName,
           type: "string",
         },
-        useAccessibilityTree: {
-          value: useAccessibilityTree ? "true" : "false",
+        onlyVisible: {
+          value: onlyVisible ? "true" : "false",
           type: "boolean",
         },
       },
@@ -523,7 +524,8 @@ export class StagehandPage {
         llmClient,
         requestId,
         domSettleTimeoutMs,
-        useAccessibilityTree,
+        returnAction,
+        onlyVisible,
       })
       .catch((e) => {
         this.stagehand.log({

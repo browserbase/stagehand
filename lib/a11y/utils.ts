@@ -1,7 +1,11 @@
 import { AccessibilityNode, TreeResult, AXNode } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { CDPSession } from "playwright";
+import { CDPSession, Page, Locator } from "playwright";
+import {
+  PlaywrightCommandMethodNotSupportedException,
+  PlaywrightCommandException,
+} from "@/types/playwright";
 
 // Parser function for str output
 export function formatSimplifiedTree(
@@ -173,32 +177,33 @@ export async function getAccessibilityTree(
 
 // This function is wrapped into a string and sent as a CDP command
 // It is not meant to be actually executed here
-function getNodePath(node: Element) {
-  const parts = [];
-  let current = node;
-
-  while (current && current.parentNode) {
-    if (current.nodeType === Node.ELEMENT_NODE) {
-      let tagName = current.tagName.toLowerCase();
-      const sameTagSiblings = Array.from(current.parentNode.children).filter(
-        (child) => child.tagName === current.tagName,
-      );
-
-      if (sameTagSiblings.length > 1) {
-        let index = 1;
-        for (const sibling of sameTagSiblings) {
-          if (sibling === current) break;
-          index++;
-        }
-        tagName += "[" + index + "]";
+function getNodePath(el: Element) {
+  if (!el || el.nodeType !== Node.ELEMENT_NODE) return "";
+  const pathSegments = [];
+  let current = el;
+  while (current && current.nodeType === Node.ELEMENT_NODE) {
+    const tagName = current.nodeName.toLowerCase();
+    let index = 1;
+    let sibling = current.previousSibling;
+    while (sibling) {
+      if (
+        sibling.nodeType === Node.ELEMENT_NODE &&
+        sibling.nodeName.toLowerCase() === tagName
+      ) {
+        index++;
       }
-
-      parts.unshift(tagName);
+      sibling = sibling.previousSibling;
     }
+    const segment = index > 1 ? tagName + "[" + index + "]" : tagName;
+    pathSegments.unshift(segment);
     current = current.parentNode as Element;
+    if (!current || !current.parentNode) break;
+    if (current.nodeName.toLowerCase() === "html") {
+      pathSegments.unshift("html");
+      break;
+    }
   }
-
-  return "/" + parts.join("/");
+  return "/" + pathSegments.join("/");
 }
 
 const functionString = getNodePath.toString();
@@ -217,4 +222,320 @@ export async function getXPathByResolvedObjectId(
   });
 
   return result.value || "";
+}
+
+export async function performPlaywrightMethod(
+  stagehandPage: Page,
+  logger: (logLine: LogLine) => void,
+  method: string,
+  args: unknown[],
+  xpath: string,
+  // domSettleTimeoutMs?: number,
+) {
+  const locator = stagehandPage.locator(`xpath=${xpath}`).first();
+  const initialUrl = stagehandPage.url();
+
+  logger({
+    category: "action",
+    message: "performing playwright method",
+    level: 2,
+    auxiliary: {
+      xpath: {
+        value: xpath,
+        type: "string",
+      },
+      method: {
+        value: method,
+        type: "string",
+      },
+    },
+  });
+
+  if (method === "scrollIntoView") {
+    logger({
+      category: "action",
+      message: "scrolling element into view",
+      level: 2,
+      auxiliary: {
+        xpath: {
+          value: xpath,
+          type: "string",
+        },
+      },
+    });
+    try {
+      await locator
+        .evaluate((element: HTMLElement) => {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        })
+        .catch((e: Error) => {
+          logger({
+            category: "action",
+            message: "error scrolling element into view",
+            level: 1,
+            auxiliary: {
+              error: {
+                value: e.message,
+                type: "string",
+              },
+              trace: {
+                value: e.stack,
+                type: "string",
+              },
+              xpath: {
+                value: xpath,
+                type: "string",
+              },
+            },
+          });
+        });
+    } catch (e) {
+      logger({
+        category: "action",
+        message: "error scrolling element into view",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
+      });
+
+      throw new PlaywrightCommandException(e.message);
+    }
+  } else if (method === "fill" || method === "type") {
+    try {
+      await locator.fill("");
+      await locator.click();
+      const text = args[0]?.toString();
+      for (const char of text) {
+        await stagehandPage.keyboard.type(char, {
+          delay: Math.random() * 50 + 25,
+        });
+      }
+    } catch (e) {
+      logger({
+        category: "action",
+        message: "error filling element",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
+      });
+
+      throw new PlaywrightCommandException(e.message);
+    }
+  } else if (method === "press") {
+    try {
+      const key = args[0]?.toString();
+      await stagehandPage.keyboard.press(key);
+    } catch (e) {
+      logger({
+        category: "action",
+        message: "error pressing key",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+          key: {
+            value: args[0]?.toString() ?? "unknown",
+            type: "string",
+          },
+        },
+      });
+
+      throw new PlaywrightCommandException(e.message);
+    }
+  } else if (typeof locator[method as keyof typeof locator] === "function") {
+    // Log current URL before action
+    logger({
+      category: "action",
+      message: "page URL before action",
+      level: 2,
+      auxiliary: {
+        url: {
+          value: stagehandPage.url(),
+          type: "string",
+        },
+      },
+    });
+
+    // Perform the action
+    try {
+      await (
+        locator[method as keyof Locator] as unknown as (
+          ...args: string[]
+        ) => Promise<void>
+      )(...args.map((arg) => arg?.toString() || ""));
+    } catch (e) {
+      logger({
+        category: "action",
+        message: "error performing method",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: e.message,
+            type: "string",
+          },
+          trace: {
+            value: e.stack,
+            type: "string",
+          },
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+          method: {
+            value: method,
+            type: "string",
+          },
+          args: {
+            value: JSON.stringify(args),
+            type: "object",
+          },
+        },
+      });
+
+      throw new PlaywrightCommandException(e.message);
+    }
+
+    // Handle navigation if a new page is opened
+    if (method === "click") {
+      logger({
+        category: "action",
+        message: "clicking element, checking for page navigation",
+        level: 1,
+        auxiliary: {
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
+      });
+
+      const newOpenedTab = await Promise.race([
+        new Promise<Page | null>((resolve) => {
+          Promise.resolve(stagehandPage.context()).then((context) => {
+            context.once("page", (page: Page) => resolve(page));
+            setTimeout(() => resolve(null), 1_500);
+          });
+        }),
+      ]);
+
+      logger({
+        category: "action",
+        message: "clicked element",
+        level: 1,
+        auxiliary: {
+          newOpenedTab: {
+            value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
+            type: "string",
+          },
+        },
+      });
+
+      if (newOpenedTab) {
+        logger({
+          category: "action",
+          message: "new page detected (new tab) with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: newOpenedTab.url(),
+              type: "string",
+            },
+          },
+        });
+        await newOpenedTab.close();
+        await stagehandPage.goto(newOpenedTab.url());
+        await stagehandPage.waitForLoadState("domcontentloaded");
+        // await stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+      }
+
+      await Promise.race([
+        stagehandPage.waitForLoadState("networkidle"),
+        new Promise((resolve) => setTimeout(resolve, 5_000)),
+      ]).catch((e) => {
+        logger({
+          category: "action",
+          message: "network idle timeout hit",
+          level: 1,
+          auxiliary: {
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            message: {
+              value: e.message,
+              type: "string",
+            },
+          },
+        });
+      });
+
+      logger({
+        category: "action",
+        message: "finished waiting for (possible) page navigation",
+        level: 1,
+      });
+
+      if (stagehandPage.url() !== initialUrl) {
+        logger({
+          category: "action",
+          message: "new page detected with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: stagehandPage.url(),
+              type: "string",
+            },
+          },
+        });
+      }
+    }
+  } else {
+    logger({
+      category: "action",
+      message: "chosen method is invalid",
+      level: 1,
+      auxiliary: {
+        method: {
+          value: method,
+          type: "string",
+        },
+      },
+    });
+
+    throw new PlaywrightCommandMethodNotSupportedException(
+      `Method ${method} not supported`,
+    );
+  }
+
+  // await stagehandPage._waitForSettledDom(domSettleTimeoutMs);
 }
