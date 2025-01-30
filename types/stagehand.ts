@@ -91,13 +91,14 @@ export interface ObserveOptions {
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
   onlyVisible?: boolean;
+  /** @deprecated `useAccessibilityTree` is now deprecated. Use `onlyVisible` instead. */
+  useAccessibilityTree?: boolean;
 }
 
 export interface ObserveResult {
   selector: string;
   description: string;
   backendNodeId?: number;
-  //TODO: review name
   method?: string;
   arguments?: string[];
 }

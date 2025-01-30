@@ -504,7 +504,23 @@ export class StagehandPage {
       domSettleTimeoutMs,
       returnAction = false,
       onlyVisible = false,
+      useAccessibilityTree,
     } = options;
+
+    if (useAccessibilityTree !== undefined) {
+      this.stagehand.log({
+        category: "deprecation",
+        message:
+          "useAccessibilityTree is deprecated.\n" +
+          "  To use accessibility tree as context:\n" +
+          "    1. Set onlyVisible to false (default)\n" +
+          "    2. Don't declare useAccessibilityTree",
+        level: 1,
+      });
+      throw new Error(
+        "useAccessibilityTree is deprecated. Use onlyVisible instead.",
+      );
+    }
 
     if (typeof useVision !== "undefined") {
       this.stagehand.log({
