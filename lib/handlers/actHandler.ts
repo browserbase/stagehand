@@ -347,7 +347,150 @@ export class StagehandActHandler {
 
         throw new PlaywrightCommandException(e.message);
       }
+    } else if (method === "click") {
+      // Log the URL before clicking
+      this.logger({
+        category: "action",
+        message: "page URL before click",
+        level: 2,
+        auxiliary: {
+          url: {
+            value: this.stagehandPage.page.url(),
+            type: "string",
+          },
+        },
+      });
+
+      try {
+        // Perform the click
+        await locator.click(...args.map((arg) => arg?.toString() || ""));
+      } catch (e) {
+        this.logger({
+          category: "action",
+          message: "error performing click",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+            method: {
+              value: method,
+              type: "string",
+            },
+            args: {
+              value: JSON.stringify(args),
+              type: "object",
+            },
+          },
+        });
+
+        throw new PlaywrightCommandException(e.message);
+      }
+
+      // Handle navigation if a new page is opened
+      this.logger({
+        category: "action",
+        message: "clicking element, checking for page navigation",
+        level: 1,
+        auxiliary: {
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
+      });
+
+      // NAVIDNOTE: Should this happen before we wait for locator[method]?
+      const newOpenedTab = await Promise.race([
+        new Promise<Page | null>((resolve) => {
+          // TODO: This is a hack to get the new page
+          // We should find a better way to do this
+          this.stagehandPage.context.once("page", (page) => resolve(page));
+          setTimeout(() => resolve(null), 1_500);
+        }),
+      ]);
+
+      this.logger({
+        category: "action",
+        message: "clicked element",
+        level: 1,
+        auxiliary: {
+          newOpenedTab: {
+            value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
+            type: "string",
+          },
+        },
+      });
+
+      if (newOpenedTab) {
+        this.logger({
+          category: "action",
+          message: "new page detected (new tab) with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: newOpenedTab.url(),
+              type: "string",
+            },
+          },
+        });
+        await newOpenedTab.close();
+        await this.stagehandPage.page.goto(newOpenedTab.url());
+        await this.stagehandPage.page.waitForLoadState("domcontentloaded");
+        await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+      }
+
+      await Promise.race([
+        this.stagehandPage.page.waitForLoadState("networkidle"),
+        new Promise((resolve) => setTimeout(resolve, 5_000)),
+      ]).catch((e) => {
+        this.logger({
+          category: "action",
+          message: "network idle timeout hit",
+          level: 1,
+          auxiliary: {
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            message: {
+              value: e.message,
+              type: "string",
+            },
+          },
+        });
+      });
+
+      this.logger({
+        category: "action",
+        message: "finished waiting for (possible) page navigation",
+        level: 1,
+      });
+
+      if (this.stagehandPage.page.url() !== initialUrl) {
+        this.logger({
+          category: "action",
+          message: "new page detected with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: this.stagehandPage.page.url(),
+              type: "string",
+            },
+          },
+        });
+      }
     } else if (typeof locator[method as keyof typeof locator] === "function") {
+      // Fallback: any other locator method
       // Log current URL before action
       this.logger({
         category: "action",
@@ -398,102 +541,6 @@ export class StagehandActHandler {
         });
 
         throw new PlaywrightCommandException(e.message);
-      }
-
-      // Handle navigation if a new page is opened
-      if (method === "click") {
-        this.logger({
-          category: "action",
-          message: "clicking element, checking for page navigation",
-          level: 1,
-          auxiliary: {
-            xpath: {
-              value: xpath,
-              type: "string",
-            },
-          },
-        });
-
-        // NAVIDNOTE: Should this happen before we wait for locator[method]?
-        const newOpenedTab = await Promise.race([
-          new Promise<Page | null>((resolve) => {
-            // TODO: This is a hack to get the new page
-            // We should find a better way to do this
-            this.stagehandPage.context.once("page", (page) => resolve(page));
-            setTimeout(() => resolve(null), 1_500);
-          }),
-        ]);
-
-        this.logger({
-          category: "action",
-          message: "clicked element",
-          level: 1,
-          auxiliary: {
-            newOpenedTab: {
-              value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
-              type: "string",
-            },
-          },
-        });
-
-        if (newOpenedTab) {
-          this.logger({
-            category: "action",
-            message: "new page detected (new tab) with URL",
-            level: 1,
-            auxiliary: {
-              url: {
-                value: newOpenedTab.url(),
-                type: "string",
-              },
-            },
-          });
-          await newOpenedTab.close();
-          await this.stagehandPage.page.goto(newOpenedTab.url());
-          await this.stagehandPage.page.waitForLoadState("domcontentloaded");
-          await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-        }
-
-        await Promise.race([
-          this.stagehandPage.page.waitForLoadState("networkidle"),
-          new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]).catch((e) => {
-          this.logger({
-            category: "action",
-            message: "network idle timeout hit",
-            level: 1,
-            auxiliary: {
-              trace: {
-                value: e.stack,
-                type: "string",
-              },
-              message: {
-                value: e.message,
-                type: "string",
-              },
-            },
-          });
-        });
-
-        this.logger({
-          category: "action",
-          message: "finished waiting for (possible) page navigation",
-          level: 1,
-        });
-
-        if (this.stagehandPage.page.url() !== initialUrl) {
-          this.logger({
-            category: "action",
-            message: "new page detected with URL",
-            level: 1,
-            auxiliary: {
-              url: {
-                value: this.stagehandPage.page.url(),
-                type: "string",
-              },
-            },
-          });
-        }
       }
     } else {
       this.logger({
