@@ -20,6 +20,7 @@ export const defaultExtractSchema = z.object({
 export interface Page extends Omit<PlaywrightPage, "on"> {
   act(action: string): Promise<ActResult>;
   act(options: ActOptions): Promise<ActResult>;
+  act(observation: ObserveResult): Promise<ActResult>;
 
   extract(
     instruction: string,

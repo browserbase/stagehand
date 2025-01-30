@@ -285,15 +285,41 @@ export class StagehandPage {
     }
   }
 
-  async act(actionOrOptions: string | ActOptions): Promise<ActResult> {
+  async act(
+    actionOrOptions: string | ActOptions | ObserveResult,
+  ): Promise<ActResult> {
     if (!this.actHandler) {
       throw new Error("Act handler not initialized");
     }
 
-    const options: ActOptions =
-      typeof actionOrOptions === "string"
-        ? { action: actionOrOptions }
-        : actionOrOptions;
+    // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
+    // We need to ensure there is both a selector and a method in the ObserveResult.
+    if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
+      // If it has selector AND method => treat as ObserveResult
+      if ("selector" in actionOrOptions && "method" in actionOrOptions) {
+        const observeResult = actionOrOptions as ObserveResult;
+        // validate observeResult.method, etc.
+        return this.actHandler.actFromObserveResult(observeResult);
+      } else {
+        // If it's an object but no selector/method,
+        // check that it’s truly ActOptions (i.e., has an `action` field).
+        if (!("action" in actionOrOptions)) {
+          throw new Error(
+            "Invalid argument. Valid arguments are: a string, an ActOptions object, " +
+              "or an ObserveResult WITH 'selector' and 'method' fields.",
+          );
+        }
+      }
+    } else if (typeof actionOrOptions === "string") {
+      // Convert string to ActOptions
+      actionOrOptions = { action: actionOrOptions };
+    } else {
+      throw new Error(
+        "Invalid argument: you may have called act with an empty ObserveResult.\n" +
+          "Valid arguments are: a string, an ActOptions object, or an ObserveResult " +
+          "WITH 'selector' and 'method' fields.",
+      );
+    }
 
     const {
       action,
@@ -302,7 +328,7 @@ export class StagehandPage {
       useVision, // still destructure this but will not pass it on
       variables = {},
       domSettleTimeoutMs,
-    } = options;
+    } = actionOrOptions;
 
     if (typeof useVision !== "undefined") {
       this.stagehand.log({

@@ -11,6 +11,7 @@ import { LLMProvider } from "../llm/LLMProvider";
 import { StagehandContext } from "../StagehandContext";
 import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
+import { ObserveResult } from "@/types/stagehand";
 
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
@@ -54,6 +55,57 @@ export class StagehandActHandler {
     this.actions = {};
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+  }
+
+  /**
+   * Perform an immediate Playwright action based on an ObserveResult object
+   * that was returned from `page.observe(...)`.
+   */
+  public async actFromObserveResult(
+    observe: ObserveResult,
+  ): Promise<{ success: boolean; message: string; action: string }> {
+    this.logger({
+      category: "action",
+      message: "Performing act from an ObserveResult",
+      level: 1,
+      auxiliary: {
+        observeResult: {
+          value: JSON.stringify(observe),
+          type: "object",
+        },
+      },
+    });
+
+    const method = observe.method;
+    const args = observe.arguments ?? [];
+    // remove the xpath prefix on the selector
+    const selector = observe.selector.replace("xpath=", "");
+
+    try {
+      await this._performPlaywrightMethod(method, args, selector);
+
+      return {
+        success: true,
+        message: `Action [${method}] performed successfully on selector: ${selector}`,
+        action: observe.description || `ObserveResult action (${method})`,
+      };
+    } catch (err) {
+      this.logger({
+        category: "action",
+        message: "Error performing act from an ObserveResult",
+        level: 1,
+        auxiliary: {
+          error: { value: err.message, type: "string" },
+          trace: { value: err.stack, type: "string" },
+          observeResult: { value: JSON.stringify(observe), type: "object" },
+        },
+      });
+      return {
+        success: false,
+        message: `Failed to perform act: ${err.message}`,
+        action: observe.description || `ObserveResult action (${method})`,
+      };
+    }
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {
@@ -361,6 +413,13 @@ export class StagehandActHandler {
             },
           },
         });
+        // try {
+        //   // Force-click here
+        //   await locator.click({ force: true });
+        // } catch (e) {
+        //   // handle/log exception
+        //   throw new PlaywrightCommandException(e.message);
+        // }
 
         // NAVIDNOTE: Should this happen before we wait for locator[method]?
         const newOpenedTab = await Promise.race([
