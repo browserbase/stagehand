@@ -413,13 +413,6 @@ export class StagehandActHandler {
             },
           },
         });
-        // try {
-        //   // Force-click here
-        //   await locator.click({ force: true });
-        // } catch (e) {
-        //   // handle/log exception
-        //   throw new PlaywrightCommandException(e.message);
-        // }
 
         // NAVIDNOTE: Should this happen before we wait for locator[method]?
         const newOpenedTab = await Promise.race([
@@ -548,47 +541,6 @@ export class StagehandActHandler {
       });
 
       const outerHtml = clone.outerHTML;
-
-      //   const variables = {
-      //     // Replace with your actual variables and their values
-      //     // Example:
-      //     username: "JohnDoe",
-      //     email: "john@example.com",
-      //   };
-
-      //   // Function to replace variable values with variable names
-      //   const replaceVariables = (element: Element) => {
-      //     if (element instanceof HTMLElement) {
-      //       for (const [key, value] of Object.entries(variables)) {
-      //         if (value) {
-      //           element.innerText = element.innerText.replace(
-      //             new RegExp(value, "g"),
-      //             key,
-      //           );
-      //         }
-      //       }
-      //     }
-
-      //     if (
-      //       element instanceof HTMLInputElement ||
-      //       element instanceof HTMLTextAreaElement
-      //     ) {
-      //       for (const [key, value] of Object.entries(variables)) {
-      //         if (value) {
-      //           element.value = element.value.replace(
-      //             new RegExp(value, "g"),
-      //             key,
-      //           );
-      //         }
-      //       }
-      //     }
-      //   };
-
-      //   // Replace variables in the cloned element
-      //   replaceVariables(clone);
-
-      //   // Replace variables in all child elements
-      //   clone.querySelectorAll("*").forEach(replaceVariables);
       return outerHtml.trim().replace(/\s+/g, " ");
     });
   }
