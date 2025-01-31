@@ -361,9 +361,55 @@ export class StagehandActHandler {
         },
       });
 
+      // if the element is a radio button, we should try to click the label instead
       try {
-        // Perform the click
-        await locator.click(...args.map((arg) => arg?.toString() || ""));
+        const isRadio = await locator.evaluate((el) => {
+          return el instanceof HTMLInputElement && el.type === "radio";
+        });
+
+        const clickArg = args.length ? args[0] : undefined;
+
+        if (isRadio) {
+          // if it’s a radio button, try to find a label to click
+          const inputId = await locator.evaluate((el) => el.id);
+          let labelLocator;
+
+          if (inputId) {
+            // if the radio button has an ID, try label[for="thatId"]
+            labelLocator = this.stagehandPage.page.locator(
+              `label[for="${inputId}"]`,
+            );
+          }
+          if (!labelLocator || (await labelLocator.count()) < 1) {
+            // if no label was found or the label doesn’t exist, check if
+            // there is an ancestor <label>
+            labelLocator = this.stagehandPage.page
+              .locator(`xpath=${xpath}/ancestor::label`)
+              .first();
+          }
+          if ((await labelLocator.count()) < 1) {
+            // if still no label, try checking for a following-sibling or preceding-sibling label
+            labelLocator = locator
+              .locator(`xpath=following-sibling::label`)
+              .first();
+            if ((await labelLocator.count()) < 1) {
+              labelLocator = locator
+                .locator(`xpath=preceding-sibling::label`)
+                .first();
+            }
+          }
+          if ((await labelLocator.count()) > 0) {
+            // if we found a label, click it
+            await labelLocator.click(clickArg);
+          } else {
+            // otherwise, just click the radio button itself
+            await locator.click(clickArg);
+          }
+        } else {
+          // here we just do a normal click if it's not a radio input
+          const clickArg = args.length ? args[0] : undefined;
+          await locator.click(clickArg);
+        }
       } catch (e) {
         this.logger({
           category: "action",
