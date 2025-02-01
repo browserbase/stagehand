@@ -15,7 +15,6 @@ async function example() {
   });
   await stagehand.init();
   await stagehand.page.goto("https://www.google.com");
-  await stagehand.page.act("type in browserbase and hit enter");
 }
 
 (async () => {
