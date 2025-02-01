@@ -109,9 +109,19 @@ export class OpenAIClient extends LLMClient {
         });
       }
     }
+
+    if (this.modelName === "o1") {
+      delete options.temperature;
+      delete options.top_p;
+      delete options.frequency_penalty;
+      delete options.presence_penalty;
+    }
+
     if (
       options.temperature &&
-      (this.modelName === "o1-mini" || this.modelName === "o1-preview")
+      (this.modelName === "o1-mini" ||
+        this.modelName === "o1-preview" ||
+        this.modelName === "o1")
     ) {
       throw new Error("Temperature is not supported for o1 models");
     }
@@ -430,6 +440,22 @@ export class OpenAIClient extends LLMClient {
         );
       }
 
+      this.logger({
+        category: "openai",
+        message: "parsed response",
+        level: 1,
+        auxiliary: {
+          parsedData: {
+            value: JSON.stringify(parsedData),
+            type: "object",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
       return parsedData;
     }
 
@@ -455,6 +481,22 @@ export class OpenAIClient extends LLMClient {
       });
       this.cache.set(cacheOptions, response, options.requestId);
     }
+
+    this.logger({
+      category: "openai",
+      message: "final response",
+      level: 1,
+      auxiliary: {
+        response: {
+          value: JSON.stringify(response),
+          type: "object",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
     // if the function was called with a response model, it would have returned earlier
     // so we can safely cast here to T, which defaults to ChatCompletion
