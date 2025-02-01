@@ -52,6 +52,7 @@
     "ai": "^4.0.26",
     "autoevals": "^0.0.64",
     "braintrust": "^0.0.171",
+    "chalk": "^5.4.1",
     "cheerio": "^1.0.0",
     "chromium-bidi": "^0.10.0",
     "esbuild": "^0.21.4",
