@@ -30,6 +30,7 @@ export const modelsWithVision: AvailableModel[] = [
   "claude-3-5-sonnet-20240620",
   "claude-3-5-sonnet-20241022",
   "gpt-4o-2024-08-06",
+  "o3-mini",
 ];
 
 export const AnnotatedScreenshotText =
