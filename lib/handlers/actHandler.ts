@@ -88,9 +88,8 @@ export class StagehandActHandler {
     // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
     let verifyLLmClient = llmClient;
     if (
-      llmClient.modelName === "o1-mini" ||
-      llmClient.modelName === "o1-preview" ||
-      llmClient.modelName.startsWith("o1-")
+      llmClient.modelName.startsWith("o1") ||
+      llmClient.modelName.startsWith("o3")
     ) {
       verifyLLmClient = this.llmProvider.getClient(
         "gpt-4o",

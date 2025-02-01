@@ -59,7 +59,7 @@ export class OpenAIClient extends LLMClient {
     // O1 models do not support most of the options. So we override them.
     // For schema and tools, we add them as user messages.
     let isToolsOverridedForO1 = false;
-    if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+    if (this.modelName.startsWith("o1") || this.modelName.startsWith("o3")) {
       /* eslint-disable */
       // Remove unsupported options
       let {
@@ -111,7 +111,7 @@ export class OpenAIClient extends LLMClient {
     }
     if (
       options.temperature &&
-      (this.modelName === "o1-mini" || this.modelName === "o1-preview")
+      (this.modelName.startsWith("o1") || this.modelName.startsWith("o3"))
     ) {
       throw new Error("Temperature is not supported for o1 models");
     }
@@ -207,7 +207,7 @@ export class OpenAIClient extends LLMClient {
     let responseFormat = undefined;
     if (options.response_model) {
       // For O1 models, we need to add the schema as a user message.
-      if (this.modelName === "o1-mini" || this.modelName === "o1-preview") {
+      if (this.modelName.startsWith("o1") || this.modelName.startsWith("o3")) {
         try {
           const parsedSchema = JSON.stringify(
             zodToJsonSchema(options.response_model.schema),
