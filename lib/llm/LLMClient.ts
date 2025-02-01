@@ -23,16 +23,6 @@ export interface ChatMessageTextContent {
   text: string;
 }
 
-export const modelsWithVision: AvailableModel[] = [
-  "gpt-4o",
-  "gpt-4o-mini",
-  "claude-3-5-sonnet-latest",
-  "claude-3-5-sonnet-20240620",
-  "claude-3-5-sonnet-20241022",
-  "gpt-4o-2024-08-06",
-  "o3-mini",
-];
-
 export const AnnotatedScreenshotText =
   "This is a screenshot of the current page state with the elements annotated on it. Each element id is annotated with a number to the top left of it. Duplicate annotations at the same location are under each other vertically.";
 
@@ -99,7 +89,6 @@ export abstract class LLMClient {
 
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
     this.modelName = modelName;
-    this.hasVision = modelsWithVision.includes(modelName);
     this.userProvidedInstructions = userProvidedInstructions;
   }
 
