@@ -346,7 +346,196 @@ export class StagehandActHandler {
 
         throw new PlaywrightCommandException(e.message);
       }
+    } else if (method === "click") {
+      // Log the URL before clicking
+      this.logger({
+        category: "action",
+        message: "page URL before click",
+        level: 2,
+        auxiliary: {
+          url: {
+            value: this.stagehandPage.page.url(),
+            type: "string",
+          },
+        },
+      });
+
+      // if the element is a radio button, we should try to click the label instead
+      try {
+        const isRadio = await locator.evaluate((el) => {
+          return el instanceof HTMLInputElement && el.type === "radio";
+        });
+
+        const clickArg = args.length ? args[0] : undefined;
+
+        if (isRadio) {
+          // if it’s a radio button, try to find a label to click
+          const inputId = await locator.evaluate((el) => el.id);
+          let labelLocator;
+
+          if (inputId) {
+            // if the radio button has an ID, try label[for="thatId"]
+            labelLocator = this.stagehandPage.page.locator(
+              `label[for="${inputId}"]`,
+            );
+          }
+          if (!labelLocator || (await labelLocator.count()) < 1) {
+            // if no label was found or the label doesn’t exist, check if
+            // there is an ancestor <label>
+            labelLocator = this.stagehandPage.page
+              .locator(`xpath=${xpath}/ancestor::label`)
+              .first();
+          }
+          if ((await labelLocator.count()) < 1) {
+            // if still no label, try checking for a following-sibling or preceding-sibling label
+            labelLocator = locator
+              .locator(`xpath=following-sibling::label`)
+              .first();
+            if ((await labelLocator.count()) < 1) {
+              labelLocator = locator
+                .locator(`xpath=preceding-sibling::label`)
+                .first();
+            }
+          }
+          if ((await labelLocator.count()) > 0) {
+            // if we found a label, click it
+            await labelLocator.click(clickArg);
+          } else {
+            // otherwise, just click the radio button itself
+            await locator.click(clickArg);
+          }
+        } else {
+          // here we just do a normal click if it's not a radio input
+          const clickArg = args.length ? args[0] : undefined;
+          await locator.click(clickArg);
+        }
+      } catch (e) {
+        this.logger({
+          category: "action",
+          message: "error performing click",
+          level: 1,
+          auxiliary: {
+            error: {
+              value: e.message,
+              type: "string",
+            },
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            xpath: {
+              value: xpath,
+              type: "string",
+            },
+            method: {
+              value: method,
+              type: "string",
+            },
+            args: {
+              value: JSON.stringify(args),
+              type: "object",
+            },
+          },
+        });
+
+        throw new PlaywrightCommandException(e.message);
+      }
+
+      // Handle navigation if a new page is opened
+      this.logger({
+        category: "action",
+        message: "clicking element, checking for page navigation",
+        level: 1,
+        auxiliary: {
+          xpath: {
+            value: xpath,
+            type: "string",
+          },
+        },
+      });
+
+      // NAVIDNOTE: Should this happen before we wait for locator[method]?
+      const newOpenedTab = await Promise.race([
+        new Promise<Page | null>((resolve) => {
+          // TODO: This is a hack to get the new page
+          // We should find a better way to do this
+          this.stagehandPage.context.once("page", (page) => resolve(page));
+          setTimeout(() => resolve(null), 1_500);
+        }),
+      ]);
+
+      this.logger({
+        category: "action",
+        message: "clicked element",
+        level: 1,
+        auxiliary: {
+          newOpenedTab: {
+            value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
+            type: "string",
+          },
+        },
+      });
+
+      if (newOpenedTab) {
+        this.logger({
+          category: "action",
+          message: "new page detected (new tab) with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: newOpenedTab.url(),
+              type: "string",
+            },
+          },
+        });
+        await newOpenedTab.close();
+        await this.stagehandPage.page.goto(newOpenedTab.url());
+        await this.stagehandPage.page.waitForLoadState("domcontentloaded");
+        await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+      }
+
+      await Promise.race([
+        this.stagehandPage.page.waitForLoadState("networkidle"),
+        new Promise((resolve) => setTimeout(resolve, 5_000)),
+      ]).catch((e) => {
+        this.logger({
+          category: "action",
+          message: "network idle timeout hit",
+          level: 1,
+          auxiliary: {
+            trace: {
+              value: e.stack,
+              type: "string",
+            },
+            message: {
+              value: e.message,
+              type: "string",
+            },
+          },
+        });
+      });
+
+      this.logger({
+        category: "action",
+        message: "finished waiting for (possible) page navigation",
+        level: 1,
+      });
+
+      if (this.stagehandPage.page.url() !== initialUrl) {
+        this.logger({
+          category: "action",
+          message: "new page detected with URL",
+          level: 1,
+          auxiliary: {
+            url: {
+              value: this.stagehandPage.page.url(),
+              type: "string",
+            },
+          },
+        });
+      }
     } else if (typeof locator[method as keyof typeof locator] === "function") {
+      // Fallback: any other locator method
       // Log current URL before action
       this.logger({
         category: "action",
@@ -398,109 +587,6 @@ export class StagehandActHandler {
 
         throw new PlaywrightCommandException(e.message);
       }
-
-      // Handle navigation if a new page is opened
-      if (method === "click") {
-        this.logger({
-          category: "action",
-          message: "clicking element, checking for page navigation",
-          level: 1,
-          auxiliary: {
-            xpath: {
-              value: xpath,
-              type: "string",
-            },
-          },
-        });
-        // try {
-        //   // Force-click here
-        //   await locator.click({ force: true });
-        // } catch (e) {
-        //   // handle/log exception
-        //   throw new PlaywrightCommandException(e.message);
-        // }
-
-        // NAVIDNOTE: Should this happen before we wait for locator[method]?
-        const newOpenedTab = await Promise.race([
-          new Promise<Page | null>((resolve) => {
-            // TODO: This is a hack to get the new page
-            // We should find a better way to do this
-            this.stagehandPage.context.once("page", (page) => resolve(page));
-            setTimeout(() => resolve(null), 1_500);
-          }),
-        ]);
-
-        this.logger({
-          category: "action",
-          message: "clicked element",
-          level: 1,
-          auxiliary: {
-            newOpenedTab: {
-              value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
-              type: "string",
-            },
-          },
-        });
-
-        if (newOpenedTab) {
-          this.logger({
-            category: "action",
-            message: "new page detected (new tab) with URL",
-            level: 1,
-            auxiliary: {
-              url: {
-                value: newOpenedTab.url(),
-                type: "string",
-              },
-            },
-          });
-          await newOpenedTab.close();
-          await this.stagehandPage.page.goto(newOpenedTab.url());
-          await this.stagehandPage.page.waitForLoadState("domcontentloaded");
-          await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-        }
-
-        await Promise.race([
-          this.stagehandPage.page.waitForLoadState("networkidle"),
-          new Promise((resolve) => setTimeout(resolve, 5_000)),
-        ]).catch((e) => {
-          this.logger({
-            category: "action",
-            message: "network idle timeout hit",
-            level: 1,
-            auxiliary: {
-              trace: {
-                value: e.stack,
-                type: "string",
-              },
-              message: {
-                value: e.message,
-                type: "string",
-              },
-            },
-          });
-        });
-
-        this.logger({
-          category: "action",
-          message: "finished waiting for (possible) page navigation",
-          level: 1,
-        });
-
-        if (this.stagehandPage.page.url() !== initialUrl) {
-          this.logger({
-            category: "action",
-            message: "new page detected with URL",
-            level: 1,
-            auxiliary: {
-              url: {
-                value: this.stagehandPage.page.url(),
-                type: "string",
-              },
-            },
-          });
-        }
-      }
     } else {
       this.logger({
         category: "action",
@@ -547,47 +633,6 @@ export class StagehandActHandler {
       });
 
       const outerHtml = clone.outerHTML;
-
-      //   const variables = {
-      //     // Replace with your actual variables and their values
-      //     // Example:
-      //     username: "JohnDoe",
-      //     email: "john@example.com",
-      //   };
-
-      //   // Function to replace variable values with variable names
-      //   const replaceVariables = (element: Element) => {
-      //     if (element instanceof HTMLElement) {
-      //       for (const [key, value] of Object.entries(variables)) {
-      //         if (value) {
-      //           element.innerText = element.innerText.replace(
-      //             new RegExp(value, "g"),
-      //             key,
-      //           );
-      //         }
-      //       }
-      //     }
-
-      //     if (
-      //       element instanceof HTMLInputElement ||
-      //       element instanceof HTMLTextAreaElement
-      //     ) {
-      //       for (const [key, value] of Object.entries(variables)) {
-      //         if (value) {
-      //           element.value = element.value.replace(
-      //             new RegExp(value, "g"),
-      //             key,
-      //           );
-      //         }
-      //       }
-      //     }
-      //   };
-
-      //   // Replace variables in the cloned element
-      //   replaceVariables(clone);
-
-      //   // Replace variables in all child elements
-      //   clone.querySelectorAll("*").forEach(replaceVariables);
       return outerHtml.trim().replace(/\s+/g, " ");
     });
   }
