@@ -77,9 +77,13 @@ export function buildHierarchicalTree(nodes: AccessibilityNode[]): TreeResult {
   nodes.forEach((node) => {
     const hasChildren = node.childIds && node.childIds.length > 0;
     const hasValidName = node.name && node.name.trim() !== "";
+    const isInteractive =
+      node.role !== "none" &&
+      node.role !== "generic" &&
+      node.role !== "InlineTextBox"; //add other interactive roles here
 
-    // Skip nodes that have no semantic value (no name and no children)
-    if (!hasValidName && !hasChildren) {
+    // Include nodes that are either named, have children, or are interactive
+    if (!hasValidName && !hasChildren && !isInteractive) {
       return;
     }
 
@@ -177,7 +181,7 @@ export async function getAccessibilityTree(
 
 // This function is wrapped into a string and sent as a CDP command
 // It is not meant to be actually executed here
-function getNodePath(el: Element) {
+const functionString = `function getNodePath(el) {
   if (!el || el.nodeType !== Node.ELEMENT_NODE) return "";
   const pathSegments = [];
   let current = el;
@@ -196,7 +200,7 @@ function getNodePath(el: Element) {
     }
     const segment = index > 1 ? tagName + "[" + index + "]" : tagName;
     pathSegments.unshift(segment);
-    current = current.parentNode as Element;
+    current = current.parentNode;
     if (!current || !current.parentNode) break;
     if (current.nodeName.toLowerCase() === "html") {
       pathSegments.unshift("html");
@@ -204,9 +208,7 @@ function getNodePath(el: Element) {
     }
   }
   return "/" + pathSegments.join("/");
-}
-
-const functionString = getNodePath.toString();
+}`;
 
 export async function getXPathByResolvedObjectId(
   cdpClient: CDPSession,
