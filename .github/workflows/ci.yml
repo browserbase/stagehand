@@ -440,7 +440,7 @@ jobs:
   run-observe-evals:
     needs: [run-text-extract-evals, determine-evals]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
