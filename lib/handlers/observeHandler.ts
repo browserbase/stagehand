@@ -114,15 +114,46 @@ export class StagehandObserveHandler {
 
         if (useAccessibilityTree) {
           // Generate xpath for the given element if not found in selectorMap
+          this.logger({
+            category: "observation",
+            message: "Getting xpath for element",
+            level: 1,
+            auxiliary: {
+              elementId: {
+                value: elementId.toString(),
+                type: "string",
+              },
+            },
+          });
+
+          const args = { backendNodeId: elementId };
           const { object } = await this.stagehandPage.sendCDP<{
             object: { objectId: string };
-          }>("DOM.resolveNode", {
-            backendNodeId: elementId,
-          });
+          }>("DOM.resolveNode", args);
+
+          if (!object || !object.objectId) {
+            this.logger({
+              category: "observation",
+              message: `Invalid object ID returned for element: ${elementId}`,
+              level: 1,
+            });
+            return null;
+          }
+
           const xpath = await getXPathByResolvedObjectId(
             await this.stagehandPage.getCDPClient(),
             object.objectId,
           );
+
+          if (!xpath || xpath === "") {
+            this.logger({
+              category: "observation",
+              message: `Empty xpath returned for element: ${elementId}`,
+              level: 1,
+            });
+            return null;
+          }
+
           return {
             ...rest,
             selector: `xpath=${xpath}`,

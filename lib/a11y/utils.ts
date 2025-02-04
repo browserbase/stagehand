@@ -33,6 +33,11 @@ export function formatSimplifiedTree(
 function cleanStructuralNodes(
   node: AccessibilityNode,
 ): AccessibilityNode | null {
+  // Filter out nodes with negative IDs
+  if (node.nodeId && parseInt(node.nodeId) < 0) {
+    return null;
+  }
+
   // Base case: leaf node
   if (!node.children) {
     return node.role === "generic" || node.role === "none" ? null : node;
@@ -181,33 +186,54 @@ export async function getAccessibilityTree(
 
 // This function is wrapped into a string and sent as a CDP command
 // It is not meant to be actually executed here
-const functionString = `function getNodePath(el) {
-  if (!el || el.nodeType !== Node.ELEMENT_NODE) return "";
-  const pathSegments = [];
+const functionString = `
+function getNodePath(el) {
+  if (!el || (el.nodeType !== Node.ELEMENT_NODE && el.nodeType !== Node.TEXT_NODE)) {
+    console.log("el is not a valid node type");
+    return "";
+  }
+
+  const parts = [];
   let current = el;
-  while (current && current.nodeType === Node.ELEMENT_NODE) {
-    const tagName = current.nodeName.toLowerCase();
-    let index = 1;
-    let sibling = current.previousSibling;
-    while (sibling) {
+
+  while (current && (current.nodeType === Node.ELEMENT_NODE || current.nodeType === Node.TEXT_NODE)) {
+    let index = 0;
+    let hasSameTypeSiblings = false;
+    const siblings = current.parentElement
+      ? Array.from(current.parentElement.childNodes)
+      : [];
+
+    for (let i = 0; i < siblings.length; i++) {
+      const sibling = siblings[i];
       if (
-        sibling.nodeType === Node.ELEMENT_NODE &&
-        sibling.nodeName.toLowerCase() === tagName
+        sibling.nodeType === current.nodeType &&
+        sibling.nodeName === current.nodeName
       ) {
-        index++;
+        index = index + 1;
+        hasSameTypeSiblings = true;
+        if (sibling.isSameNode(current)) {
+          break;
+        }
       }
-      sibling = sibling.previousSibling;
     }
-    const segment = index > 1 ? tagName + "[" + index + "]" : tagName;
-    pathSegments.unshift(segment);
-    current = current.parentNode;
+
     if (!current || !current.parentNode) break;
-    if (current.nodeName.toLowerCase() === "html") {
-      pathSegments.unshift("html");
+    if (current.nodeName.toLowerCase() === "html"){
+      parts.unshift("html");
       break;
     }
+
+    // text nodes are handled differently in XPath
+    if (current.nodeName !== "#text") {
+      const tagName = current.nodeName.toLowerCase();
+      const pathIndex = hasSameTypeSiblings ? \`[\${index}]\` : "";
+      parts.unshift(\`\${tagName}\${pathIndex}\`);
+    }
+    
+    current = current.parentElement;
   }
-  return "/" + pathSegments.join("/");
+
+  return parts.length ? \`/\${parts.join("/")}\` : "";
 }`;
 
 export async function getXPathByResolvedObjectId(
