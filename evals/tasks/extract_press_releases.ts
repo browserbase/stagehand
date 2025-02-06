@@ -30,7 +30,7 @@ export const extract_press_releases: EvalFunction = async ({
   type PressRelease = z.infer<typeof schema>["items"][number];
 
   try {
-    await stagehand.page.goto("https://www.landerfornyc.com/news", {
+    await stagehand.page.goto("https://dummy-press-releases.surge.sh/news", {
       waitUntil: "networkidle",
     });
     await new Promise((resolve) => setTimeout(resolve, 5000));
