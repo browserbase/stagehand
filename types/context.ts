@@ -4,6 +4,7 @@ export interface AXNode {
   description?: { value: string };
   value?: { value: string };
   nodeId: string;
+  backendDOMNodeId?: number;
   parentId?: string;
   childIds?: string[];
 }
@@ -17,6 +18,7 @@ export type AccessibilityNode = {
   childIds?: string[];
   parentId?: string;
   nodeId?: string;
+  backendDOMNodeId?: number;
 };
 
 export interface TreeResult {

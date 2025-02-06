@@ -108,6 +108,7 @@ export class StagehandObserveHandler {
       isUsingAccessibilityTree: useAccessibilityTree,
       returnAction,
     });
+
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
@@ -137,7 +138,6 @@ export class StagehandObserveHandler {
               message: `Invalid object ID returned for element: ${elementId}`,
               level: 1,
             });
-            return null;
           }
 
           const xpath = await getXPathByResolvedObjectId(
@@ -151,7 +151,6 @@ export class StagehandObserveHandler {
               message: `Empty xpath returned for element: ${elementId}`,
               level: 1,
             });
-            return null;
           }
 
           return {
