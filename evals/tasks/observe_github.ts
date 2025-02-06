@@ -9,12 +9,10 @@ export const observe_github: EvalFunction = async ({ modelName, logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto(
-    "https://github.com/browserbase/stagehand/tree/main/lib",
-  );
+  await stagehand.page.goto("https://github.com/numpy/numpy/tree/main/numpy");
 
   const observations = await stagehand.page.observe({
-    instruction: "find the scrollable element that holds the repos file tree",
+    instruction: "find the scrollable element that holds the repos file tree.",
   });
 
   if (observations.length === 0) {
@@ -31,6 +29,7 @@ export const observe_github: EvalFunction = async ({ modelName, logger }) => {
   const possibleLocators = [
     `#repos-file-tree > div.Box-sc-g0xbh4-0.jbQqON > div > div > div > nav > ul`,
     `#repos-file-tree > div.Box-sc-g0xbh4-0.jbQqON > div > div > div > nav`,
+    `#repos-file-tree > div.Box-sc-g0xbh4-0.jbQqON`,
   ];
 
   const possibleHandles = [];
