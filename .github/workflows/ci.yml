@@ -399,37 +399,21 @@ jobs:
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm run build
 
-      # 1. Run text_extract category with textExtract first
       - name: Run text_extract Evals (textExtract)
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: npm run evals category text_extract -- --extract-method=textExtract
 
-      - name: Save text_extract Text Results
+      - name: Save text_extract Results
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: mv eval-summary.json eval-summary-text_extract-text.json
 
-      # 2. Then run text_extract category with domExtract
-      - name: Run text_extract Evals (domExtract)
-        if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm run evals category text_extract -- --extract-method=domExtract
-
-      - name: Save text_extract Dom Results
-        if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: mv eval-summary.json eval-summary-text_extract-dom.json
-
-      # 3. Log and Compare text_extract Evals Performance
-      - name: Log and Compare text_extract Evals Performance
+      - name: Log text_extract Evals Performance
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: |
           experimentNameText=$(jq -r '.experimentName' eval-summary-text_extract-text.json)
           text_score=$(jq '.categories.text_extract' eval-summary-text_extract-text.json)
           echo "TextExtract text_extract category score: $text_score%"
           echo "View textExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameText}"
-
-          experimentNameDom=$(jq -r '.experimentName' eval-summary-text_extract-dom.json)
-          dom_score=$(jq '.categories.text_extract' eval-summary-text_extract-dom.json)
-          echo "DomExtract text_extract category score: $dom_score%"
-          echo "View domExtract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameDom}"
 
           # If text_score <80% fail CI
           if (( $(echo "$text_score < 80" | bc -l) )); then
