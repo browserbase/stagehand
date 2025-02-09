@@ -93,6 +93,7 @@ export interface ObserveOptions {
   onlyVisible?: boolean;
   /** @deprecated `useAccessibilityTree` is now deprecated. Use `onlyVisible` instead. */
   useAccessibilityTree?: boolean;
+  drawOverlay?: boolean;
 }
 
 export interface ObserveResult {
