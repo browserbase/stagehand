@@ -17,6 +17,7 @@ import {
 import { z } from "zod";
 import { StagehandExtractHandler } from "./handlers/extractHandler";
 import { StagehandObserveHandler } from "./handlers/observeHandler";
+import { clearOverlays } from "./utils";
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -292,6 +293,8 @@ export class StagehandPage {
       throw new Error("Act handler not initialized");
     }
 
+    await clearOverlays(this.page);
+
     // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
     // We need to ensure there is both a selector and a method in the ObserveResult.
     if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
@@ -408,6 +411,8 @@ export class StagehandPage {
       throw new Error("Extract handler not initialized");
     }
 
+    await clearOverlays(this.page);
+
     const options: ExtractOptions<T> =
       typeof instructionOrOptions === "string"
         ? {
@@ -491,6 +496,8 @@ export class StagehandPage {
       throw new Error("Observe handler not initialized");
     }
 
+    await clearOverlays(this.page);
+
     const options: ObserveOptions =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
@@ -505,6 +512,7 @@ export class StagehandPage {
       returnAction = false,
       onlyVisible = false,
       useAccessibilityTree,
+      drawOverlay,
     } = options;
 
     if (useAccessibilityTree !== undefined) {
@@ -568,6 +576,7 @@ export class StagehandPage {
         domSettleTimeoutMs,
         returnAction,
         onlyVisible,
+        drawOverlay,
       })
       .catch((e) => {
         this.stagehand.log({
