@@ -12,7 +12,7 @@ export const observe_taxes: EvalFunction = async ({ modelName, logger }) => {
   await stagehand.page.goto("https://file.1040.com/estimate/");
 
   const observations = await stagehand.page.observe({
-    instruction: "Find all the form elements under the 'Income' section",
+    instruction: "Find all the form input elements under the 'Income' section",
   });
 
   if (observations.length === 0) {
