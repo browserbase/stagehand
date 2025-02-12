@@ -9,6 +9,7 @@
     "2048": "npm run build-dom-scripts && tsx examples/2048.ts",
     "popup": "npm run build-dom-scripts && tsx examples/popup.ts",
     "example": "npm run build-dom-scripts && tsx examples/example.ts",
+    "langchain": "npm install @langchain/core @langchain/openai && npm run build-dom-scripts && tsx examples/langchain.ts",
     "debug-url": "npm run build-dom-scripts && tsx examples/debugUrl.ts",
     "external-client": "npm run build-dom-scripts && tsx examples/external_client.ts",
     "instructions": "npm run build-dom-scripts && tsx examples/instructions.ts",
