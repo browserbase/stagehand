@@ -1,18 +1,12 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const costar: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
   // TODO: fix this eval - does not work in headless mode
   try {
     await Promise.race([
@@ -57,8 +51,6 @@ export const costar: EvalFunction = async ({
     return {
       title: articleTitle.title,
       _success: isTitleValid,
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
@@ -82,8 +74,6 @@ export const costar: EvalFunction = async ({
     return {
       title: null,
       _success: false,
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   }

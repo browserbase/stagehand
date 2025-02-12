@@ -1,20 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const ted_talk: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
     {
@@ -64,58 +57,63 @@ export const ted_talk: EvalFunction = async ({
     },
   ];
 
-  if (!playlists.playlists || playlists.playlists.length === 0) {
+  const foundPlaylists = playlists.playlists;
+
+  if (foundPlaylists.length !== expectedPlaylists.length) {
     logger.error({
-      message: "Failed to extract playlists on culture",
-      level: 0,
-    });
-
-    return {
-      _success: false,
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  }
-
-  const missingPlaylists = expectedPlaylists.filter((expected) =>
-    playlists.playlists.every(
-      (extracted) =>
-        normalizeString(extracted.title) !== normalizeString(expected.title) ||
-        extracted.num_talks !== expected.num_talks,
-    ),
-  );
-
-  if (missingPlaylists.length > 0) {
-    logger.error({
-      message: "Extracted playlists do not match expected playlists",
+      message: "Incorrect number of playlists extracted",
       level: 0,
       auxiliary: {
-        missing: {
-          value: JSON.stringify(missingPlaylists),
-          type: "object",
+        expected: {
+          value: expectedPlaylists.length.toString(),
+          type: "integer",
         },
-        extracted: {
-          value: JSON.stringify(playlists.playlists),
-          type: "object",
+        actual: {
+          value: foundPlaylists.length.toString(),
+          type: "integer",
         },
       },
     });
-
     return {
       _success: false,
-      error: "Extracted playlists do not match expected playlists",
+      error: "Incorrect number of playlists extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
+  }
+
+  for (let i = 0; i < expectedPlaylists.length; i++) {
+    const expected = expectedPlaylists[i];
+    const found = foundPlaylists[i];
+
+    if (
+      !normalizeString(found.title).includes(normalizeString(expected.title)) ||
+      found.num_talks !== expected.num_talks
+    ) {
+      logger.error({
+        message: "Playlist details do not match expected",
+        level: 0,
+        auxiliary: {
+          expected: {
+            value: JSON.stringify(expected),
+            type: "object",
+          },
+          actual: {
+            value: JSON.stringify(found),
+            type: "object",
+          },
+        },
+      });
+      return {
+        _success: false,
+        error: "Playlist details do not match expected",
+        logs: logger.getLogs(),
+      };
+    }
   }
 
   return {
     _success: true,
-    playlists: playlists.playlists,
+    playlists: foundPlaylists,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

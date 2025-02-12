@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { EvalFunction } from "@/types/evals";
 
 export const extract_staff_members: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://panamcs-static-site.surge.sh/");
 
   const result = await stagehand.page.extract({
@@ -67,8 +60,6 @@ export const extract_staff_members: EvalFunction = async ({
       _success: false,
       error: "Incorrect number of staff members extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -101,8 +92,6 @@ export const extract_staff_members: EvalFunction = async ({
       _success: false,
       error: "Expected first staff member not found in extracted data",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -134,8 +123,6 @@ export const extract_staff_members: EvalFunction = async ({
       _success: false,
       error: "Expected last staff member not found in extracted data",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -144,7 +131,5 @@ export const extract_staff_members: EvalFunction = async ({
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

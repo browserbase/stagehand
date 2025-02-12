@@ -1,19 +1,11 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
 const env: "BROWSERBASE" | "LOCAL" =
   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
     ? "BROWSERBASE"
     : "LOCAL";
 
-export const peeler_simple: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const peeler_simple: EvalFunction = async ({ stagehand, logger }) => {
   if (env === "BROWSERBASE") {
     throw new Error(
       "Browserbase not supported for this eval since we block all requests to file://",
@@ -32,8 +24,6 @@ export const peeler_simple: EvalFunction = async ({ modelName, logger }) => {
 
   return {
     _success: isVisible,
-    debugUrl,
-    sessionUrl,
     logs: logger.getLogs(),
   };
 };

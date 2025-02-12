@@ -1,19 +1,12 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const allrecipes: EvalFunction = async ({
-  modelName,
+  stagehand,
   logger,
+  modelName,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.allrecipes.com/", {
     waitUntil: "domcontentloaded",
   });
@@ -78,8 +71,6 @@ export const allrecipes: EvalFunction = async ({
       _success: false,
       error: "Recipe details extraction validation failed",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -90,7 +81,5 @@ export const allrecipes: EvalFunction = async ({
       total_ratings: extractedRatings,
     },
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

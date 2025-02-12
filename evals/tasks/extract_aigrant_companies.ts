@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { EvalFunction } from "@/types/evals";
 
 export const extract_aigrant_companies: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://aigrant.com/");
   const companyList = await stagehand.page.extract({
     instruction:
@@ -64,8 +57,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
       _success: false,
       error: "Incorrect number of companies extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
   const firstItemMatches =
@@ -91,8 +82,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
       _success: false,
       error: "First company extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -119,15 +108,11 @@ export const extract_aigrant_companies: EvalFunction = async ({
       _success: false,
       error: "Last company extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

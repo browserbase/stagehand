@@ -1,17 +1,9 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const observe_vantechjournal: EvalFunction = async ({
-  modelName,
+  stagehand,
   logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://vantechjournal.com/archive?page=8");
   await stagehand.page.waitForTimeout(1000);
 
@@ -24,8 +16,7 @@ export const observe_vantechjournal: EvalFunction = async ({
     return {
       _success: false,
       observations,
-      debugUrl,
-      sessionUrl,
+
       logs: logger.getLogs(),
     };
   }
@@ -73,8 +64,7 @@ export const observe_vantechjournal: EvalFunction = async ({
     _success: foundMatch,
     expected: expectedResult,
     observations,
-    debugUrl,
-    sessionUrl,
+
     logs: logger.getLogs(),
   };
 };

@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { z } from "zod";
 
 export const peeler_complex: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
 
@@ -40,8 +34,7 @@ export const peeler_complex: EvalFunction = async ({
     return {
       _success: price === 11.99,
       price,
-      debugUrl,
-      sessionUrl,
+
       logs: logger.getLogs(),
     };
   } catch (error) {
@@ -65,8 +58,7 @@ export const peeler_complex: EvalFunction = async ({
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
-      debugUrl,
-      sessionUrl,
+
       logs: logger.getLogs(),
     };
   }

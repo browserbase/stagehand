@@ -23,13 +23,25 @@ const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
  * The `tasksConfig` defines all tasks from the config file. Each task has a name and categories.
  * We create a mapping `tasksByName` from task name to its categories for quick lookup.
  */
-type TaskConfig = { name: string; categories: string[] };
+type TaskConfig = {
+  name: string;
+  categories: string[];
+  startUrl?: string;
+  description?: string;
+};
 const tasksConfig = config.tasks as TaskConfig[];
 
 const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[] }>
+  Record<
+    string,
+    { categories: string[]; startUrl?: string; description?: string }
+  >
 >((acc, task) => {
-  acc[task.name] = { categories: task.categories };
+  acc[task.name] = {
+    categories: task.categories,
+    startUrl: task.startUrl,
+    description: task.description,
+  };
   return acc;
 }, {});
 

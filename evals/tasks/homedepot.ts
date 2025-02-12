@@ -1,20 +1,12 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const homedepot: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 60_000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
     await stagehand.page.act("search for gas grills");
@@ -58,8 +50,6 @@ export const homedepot: EvalFunction = async ({
       return {
         _success: false,
         productSpecs,
-        debugUrl,
-        sessionUrl,
         logs: logger.getLogs(),
       };
     }
@@ -73,8 +63,6 @@ export const homedepot: EvalFunction = async ({
     return {
       _success: hasFourZerosAndOne4,
       productSpecs,
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
@@ -98,8 +86,6 @@ export const homedepot: EvalFunction = async ({
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   }

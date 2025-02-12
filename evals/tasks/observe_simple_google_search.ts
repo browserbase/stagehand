@@ -1,18 +1,11 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { performPlaywrightMethod } from "@/lib/a11y/utils";
 
 export const observe_simple_google_search: EvalFunction = async ({
-  modelName,
+  stagehand,
   logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.google.com");
 
   // await stagehand.page.act({
@@ -63,8 +56,7 @@ export const observe_simple_google_search: EvalFunction = async ({
   return {
     _success: currentUrl.startsWith(expectedUrl),
     currentUrl,
-    debugUrl,
-    sessionUrl,
+
     logs: logger.getLogs(),
   };
 };

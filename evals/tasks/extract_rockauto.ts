@@ -1,20 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { z } from "zod";
 
 export const extract_rockauto: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 10000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
   );
@@ -66,8 +59,6 @@ export const extract_rockauto: EvalFunction = async ({
       _success: false,
       error: "Incorrect number of coolant products extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
   const firstItemMatches =
@@ -92,8 +83,6 @@ export const extract_rockauto: EvalFunction = async ({
       _success: false,
       error: "First coolant product extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -120,15 +109,11 @@ export const extract_rockauto: EvalFunction = async ({
       _success: false,
       error: "Last coolant product extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

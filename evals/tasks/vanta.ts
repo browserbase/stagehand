@@ -1,14 +1,6 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const vanta: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const vanta: EvalFunction = async ({ stagehand, logger }) => {
   await stagehand.page.goto("https://www.vanta.com/");
   await stagehand.page.act({ action: "close the cookies popup" });
 
@@ -19,8 +11,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
     return {
       _success: false,
       observations,
-      debugUrl,
-      sessionUrl,
+
       logs: logger.getLogs(),
     };
   }
@@ -59,8 +50,7 @@ export const vanta: EvalFunction = async ({ modelName, logger }) => {
     _success: foundMatch,
     expected: expectedResult,
     observations,
-    debugUrl,
-    sessionUrl,
+
     logs: logger.getLogs(),
   };
 };

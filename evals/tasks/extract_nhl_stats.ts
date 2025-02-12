@@ -1,21 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_nhl_stats: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 4000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
     {
@@ -64,8 +56,6 @@ export const extract_nhl_stats: EvalFunction = async ({
       _success: false,
       error: "Player name extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -88,8 +78,6 @@ export const extract_nhl_stats: EvalFunction = async ({
       _success: false,
       error: "Number of goals extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -112,15 +100,11 @@ export const extract_nhl_stats: EvalFunction = async ({
       _success: false,
       error: "Player team extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

@@ -1,14 +1,6 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const stock_x: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const stock_x: EvalFunction = async ({ stagehand, logger }) => {
   await stagehand.page.goto(
     "https://stockx.com/air-jordan-3-retro-black-cement-2024",
   );
@@ -28,8 +20,7 @@ export const stock_x: EvalFunction = async ({ modelName, logger }) => {
   return {
     _success: currentUrl.startsWith(expectedUrlPrefix),
     currentUrl,
-    debugUrl,
-    sessionUrl,
+
     logs: logger.getLogs(),
   };
 };

@@ -2,242 +2,359 @@
   "tasks": [
     {
       "name": "extract_repo_name",
+      "description": "Extract the name of the repository",
+      "startUrl": "https://github.com/facebook/react",
       "categories": ["extract"]
     },
     {
       "name": "amazon_add_to_cart",
+      "description": "Add a product to the cart",
+      "startUrl": "https://www.amazon.com/Laptop-MacBook-Surface-Water-Resistant-Accessories/dp/B0D5M4H5CD",
       "categories": ["act"]
     },
     {
       "name": "instructions",
+      "description": "If the users says `secret12345`, click on the 'quickstart' tab",
+      "startUrl": "https://docs.browserbase.com/",
       "categories": ["combination"]
     },
     {
       "name": "bidnet",
+      "description": "Click on the 'Construction' keyword",
+      "startUrl": "https://www.bidnetdirect.com/",
       "categories": ["act"]
     },
     {
       "name": "ionwave",
+      "description": "Click on 'Closed Bids'",
+      "startUrl": "https://elpasotexas.ionwave.net/Login.aspx",
       "categories": ["act"]
     },
     {
       "name": "laroche_form",
+      "description": "Fill the last name field",
+      "startUrl": "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html",
       "categories": ["act"]
     },
     {
       "name": "nonsense_action",
+      "description": "Click on the first banana",
+      "startUrl": "https://www.homedepot.com/",
       "categories": ["act"]
     },
     {
       "name": "peeler_simple",
+      "startUrl": "file://evals/assets/peeler.html",
       "categories": ["act"]
     },
+
     {
       "name": "simple_google_search",
+      "description": "Search for 'OpenAI'",
+      "startUrl": "https://www.google.com",
       "categories": ["act"]
     },
     {
       "name": "vantechjournal",
+      "description": "Click on page 8. do not click the next button",
+      "startUrl": "https://vantechjournal.com/",
       "categories": ["act"]
     },
     {
       "name": "wikipedia",
+      "description": "Click on the 'Hit and run' link in this article",
+      "startUrl": "https://en.wikipedia.org/wiki/Baseball",
       "categories": ["act"]
     },
 
     {
       "name": "allrecipes",
+      "description": "Extract the title of the first recipe and the total number of ratings it has received.",
+      "startUrl": "https://www.allrecipes.com/",
       "categories": ["combination"]
     },
     {
       "name": "arxiv",
+      "description": "Search for papers about web agents with multimodal models",
+      "startUrl": "https://arxiv.org/search/",
       "categories": ["combination"]
     },
     {
       "name": "extract_collaborators",
+      "description": "Extract top 20 contributors of this repository",
+      "startUrl": "https://github.com/facebook/react",
       "categories": ["combination"]
     },
     {
       "name": "extract_github_commits",
+      "description": "Extract last 20 commits",
+      "startUrl": "https://github.com/facebook/react",
       "categories": ["combination"]
     },
     {
       "name": "imdb_movie_details",
+      "description": "Extract the list of countries with the most ratings.",
+      "startUrl": "https://www.imdb.com/title/tt0111161/",
       "categories": ["combination"]
     },
     {
       "name": "peeler_complex",
+      "description": "Click the first 'OXO' brand peeler and get its price",
+      "startUrl": "https://chefstoys.com/",
       "categories": ["combination"]
     },
     {
       "name": "sciquest",
+      "description": "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
+      "startUrl": "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
       "categories": ["combination"]
     },
     {
       "name": "wichita",
+      "description": "Extract the total number of bids that the search produced.",
+      "startUrl": "https://www.wichitafallstx.gov/Bids.aspx",
       "categories": ["combination"]
     },
 
     {
       "name": "apple",
+      "description": "Click on the 'Buy' button",
+      "startUrl": "https://www.apple.com/iphone-16-pro/",
       "categories": ["experimental"]
     },
     {
       "name": "combination_sauce",
+      "description": "Click on the 'Add to Cart' button",
+      "startUrl": "https://www.saucedemo.com/",
       "categories": ["experimental"]
     },
     {
       "name": "costar",
+      "description": "Click on the first article",
+      "startUrl": "https://www.costar.com/",
       "categories": ["experimental"]
     },
     {
       "name": "expedia",
+      "description": "Find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",
+      "startUrl": "https://www.expedia.com/flights",
       "categories": ["experimental"]
     },
     {
       "name": "expedia_search",
+      "description": "Find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",
+      "startUrl": "https://www.expedia.com/flights",
       "categories": ["experimental"]
     },
     {
       "name": "extract_aigrant_companies",
+      "description": "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
+      "startUrl": "https://aigrant.com/",
       "categories": ["experimental", "text_extract"]
     },
     {
       "name": "extract_capacitor_info",
+      "description": "Extract the ECCN Code, RoHS Status, and Impedance.",
+      "startUrl": "https://www.jakelectronics.com/productdetail/panasonicelectroniccomponents-eeufm1a472l-2937406",
       "categories": ["experimental", "text_extract"]
     },
     {
       "name": "extract_partners",
+      "description": "Extract all of the partner categories on the page.",
+      "startUrl": "https://ramp.com/",
       "categories": ["experimental"]
     },
     {
       "name": "extract_press_releases",
+      "description": "Extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
+      "startUrl": "https://dummy-press-releases.surge.sh/news",
       "categories": ["experimental", "text_extract"]
     },
     {
       "name": "extract_snowshoeing_destinations",
+      "description": "Extract all the snowshoeing regions and the names of the trails within each region.",
+      "startUrl": "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
       "categories": ["experimental", "text_extract"]
     },
     {
       "name": "google_jobs",
+      "description": "Extract the following details from the job posting: application deadline, minimum qualifications (degree and years of experience), and preferred qualifications (degree and years of experience)",
+      "startUrl": "https://www.google.com",
       "categories": ["experimental"]
     },
     {
       "name": "homedepot",
+      "description": "Extract the Primary exact Burner BTU of the product",
+      "startUrl": "https://www.homedepot.com/",
       "categories": ["experimental"]
     },
     {
       "name": "rakuten_jp",
+      "description": "Click on online supermarket",
+      "startUrl": "https://www.rakuten.co.jp/",
       "categories": ["experimental"]
     },
     {
       "name": "stock_x",
+      "description": "Click on Jordan 3 Retro Crimson in the related products",
+      "startUrl": "https://stockx.com/air-jordan-3-retro-black-cement-2024",
       "categories": ["experimental"]
     },
     {
       "name": "ted_talk",
+      "description": "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
+      "startUrl": "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
       "categories": ["experimental"]
     },
 
     {
       "name": "extract_baptist_health",
+      "description": "Extract the address, phone number, and fax number of the healthcare location.",
+      "startUrl": "https://www.baptistfirst.org/location/baptist-health-ent-partners",
       "categories": ["extract"]
     },
     {
       "name": "extract_github_stars",
+      "description": "Extract the number of stars for the project",
+      "startUrl": "https://github.com/facebook/react",
       "categories": ["extract"]
     },
     {
       "name": "extract_memorial_healthcare",
+      "description": "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
+      "startUrl": "https://www.mycmh.org/locations/",
       "categories": ["extract"]
     },
     {
       "name": "extract_nhl_stats",
+      "description": "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
+      "startUrl": "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
       "categories": ["extract"]
     },
     {
       "name": "extract_professional_info",
+      "description": "Extract the list of Practices, phone number, and fax number of the professional.",
+      "startUrl": "https://www.paulweiss.com/professionals/partners-and-counsel/brian-bolin",
       "categories": ["extract"]
     },
     {
       "name": "extract_csa",
+      "description": "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
+      "startUrl": "https://clerk.assembly.ca.gov/weekly-histories?from_date=&to_date=2025-01-09",
       "categories": ["text_extract"]
     },
     {
       "name": "extract_resistor_info",
+      "description": "Extract the MOQ, tolerance percentage, ohmic value, and operating temperature range of the resistor.",
+      "startUrl": "https://www.seielect.com/?stockcheck=ASR1JA330R",
       "categories": ["extract"]
     },
     {
       "name": "extract_rockauto",
+      "description": "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
+      "startUrl": "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
       "categories": ["extract"]
     },
     {
       "name": "extract_staff_members",
+      "description": "extract a list of staff members on this page, with their name and their job title",
+      "startUrl": "https://panamcs-static-site.surge.sh/",
       "categories": ["extract"]
     },
 
     {
       "name": "ionwave_observe",
+      "description": "Click on 'Closed Bids'",
+      "startUrl": "https://elpasotexas.ionwave.net/Login.aspx",
       "categories": ["observe"]
     },
     {
       "name": "panamcs",
+      "description": "Click on the 'About Us' button",
+      "startUrl": "https://panamcs.org/about/staff/",
       "categories": ["observe"]
     },
     {
       "name": "shopify_homepage",
+      "description": "Click on the 'Shop' button",
+      "startUrl": "https://www.shopify.com/",
       "categories": ["observe"]
     },
     {
       "name": "vanta",
+      "startUrl": "https://www.vanta.com/",
       "categories": ["observe"]
     },
     {
       "name": "vanta_h",
+      "description": "find the buy now button if it is available",
+      "startUrl": "https://www.vanta.com/",
       "categories": ["observe"]
     },
     {
       "name": "extract_area_codes",
+      "description": "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
+      "startUrl": "https://www.ncc.gov.ng/technical-regulation/standards/numbering#area-codes-by-zone-primary-centre",
       "categories": ["text_extract"]
     },
     {
       "name": "extract_public_notices",
+      "description": "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
+      "startUrl": "https://www.sars.gov.za/legal-counsel/secondary-legislation/public-notices/",
       "categories": ["text_extract"]
     },
     {
       "name": "extract_jstor_news",
+      "description": "Extract ALL the news report titles and their dates.",
+      "startUrl": "http://jstor-eval.surge.sh",
       "categories": ["text_extract"]
     },
     {
       "name": "extract_apartments",
+      "description": "Extract all the apartment listings with their prices and their addresses.",
+      "startUrl": "https://www.apartments.com/san-francisco-ca/2-bedrooms/",
       "categories": ["text_extract"]
     },
     {
       "name": "extract_zillow",
+      "description": "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
+      "startUrl": "https://zillow-eval.surge.sh/",
       "categories": ["text_extract"]
     },
     {
       "name": "observe_github",
+      "description": "find the scrollable element that holds the repos file tree.",
+      "startUrl": "https://github.com/numpy/numpy/tree/main/numpy",
       "categories": ["observe"]
     },
     {
       "name": "observe_vantechjournal",
+      "description": "find the button that takes us to the 11th page",
+      "startUrl": "https://vantechjournal.com/archive?page=8",
       "categories": ["observe"]
     },
     {
       "name": "observe_amazon_add_to_cart",
+      "description": "Find and click the 'Add to Cart' button",
+      "startUrl": "https://www.amazon.com/Laptop-MacBook-Surface-Water-Resistant-Accessories/dp/B0D5M4H5CD",
       "categories": ["observe"]
     },
     {
       "name": "observe_simple_google_search",
+      "description": "Find the search bar and enter 'OpenAI'",
+      "startUrl": "https://www.google.com",
       "categories": ["observe"]
     },
     {
       "name": "observe_yc_startup",
+      "description": "Find the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
+      "startUrl": "https://www.ycombinator.com/companies",
       "categories": ["observe"]
     },
     {
       "name": "observe_taxes",
+      "description": "Find all the form elements under the 'Income' section",
+      "startUrl": "https://file.1040.com/estimate/",
       "categories": ["observe"]
     }
   ]

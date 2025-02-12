@@ -194,7 +194,15 @@ async function getBrowser(
 
     const context = browser.contexts()[0];
 
-    return { browser, context, debugUrl, sessionUrl, sessionId, env };
+    return {
+      browser,
+      context,
+      debugUrl,
+      sessionUrl,
+      sessionId,
+      env,
+      connectUrl,
+    };
   } else {
     logger({
       category: "init",
@@ -403,7 +411,7 @@ export class Stagehand {
     if (this.intEnv === "BROWSERBASE" && this.apiKey && this.projectId) {
       return "BROWSERBASE";
     }
-    return "LOCAL";
+    return this.intEnv;
   }
 
   public get context(): BrowserContext {
@@ -424,26 +432,34 @@ export class Stagehand {
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
-    const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
-      await getBrowser(
-        this.apiKey,
-        this.projectId,
-        this.env,
-        this.headless,
-        this.logger,
-        this.browserbaseSessionCreateParams,
-        this.browserbaseSessionID,
-      ).catch((e) => {
-        console.error("Error in init:", e);
-        const br: BrowserResult = {
-          context: undefined,
-          debugUrl: undefined,
-          sessionUrl: undefined,
-          sessionId: undefined,
-          env: this.env,
-        };
-        return br;
-      });
+    const {
+      context,
+      debugUrl,
+      sessionUrl,
+      contextPath,
+      sessionId,
+      env,
+      connectUrl,
+    } = await getBrowser(
+      this.apiKey,
+      this.projectId,
+      this.env,
+      this.headless,
+      this.logger,
+      this.browserbaseSessionCreateParams,
+      this.browserbaseSessionID,
+    ).catch((e) => {
+      console.error("Error in init:", e);
+      const br: BrowserResult = {
+        context: undefined,
+        debugUrl: undefined,
+        sessionUrl: undefined,
+        sessionId: undefined,
+        env: this.env,
+        connectUrl: undefined,
+      };
+      return br;
+    });
     this.intEnv = env;
     this.contextPath = contextPath;
     this.stagehandContext = await StagehandContext.init(context, this);
@@ -467,7 +483,7 @@ export class Stagehand {
 
     this.browserbaseSessionID = sessionId;
 
-    return { debugUrl, sessionUrl, sessionId };
+    return { debugUrl, sessionUrl, sessionId, connectUrl };
   }
 
   /** @deprecated initFromPage is deprecated and will be removed in the next major version. */

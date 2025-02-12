@@ -2,18 +2,19 @@ import { z } from "zod";
 import type { EvalLogger } from "../evals/logger";
 import type { AvailableModel } from "../types/model";
 import type { LogLine } from "../types/log";
-import type { EvalCase } from "braintrust";
+import { PlatoSession, TestCase } from "plato-cli";
+import { Stagehand } from "@/dist";
 
 export type EvalFunction = (args: {
-  modelName: AvailableModel;
   logger: EvalLogger;
+  platoSim: PlatoSession;
+  stagehand: Stagehand;
+  modelName: AvailableModel;
   useTextExtract: boolean;
   useAccessibilityTree: boolean;
 }) => Promise<{
   _success: boolean;
   logs: LogLine[];
-  debugUrl: string;
-  sessionUrl: string;
   error?: unknown;
 }>;
 
@@ -32,15 +33,12 @@ export interface EvalInput {
   modelName: AvailableModel;
 }
 
-export interface Testcase
-  extends EvalCase<
-    EvalInput,
-    unknown,
-    { model: AvailableModel; test: string }
-  > {
+export interface Testcase extends TestCase {
   input: EvalInput;
   name: string;
   tags: string[];
+  description?: string;
+  startUrl?: string;
   metadata: { model: AvailableModel; test: string };
   expected: unknown;
 }

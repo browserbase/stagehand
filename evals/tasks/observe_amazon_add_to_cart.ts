@@ -1,18 +1,11 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { performPlaywrightMethod } from "@/lib/a11y/utils";
 
 export const observe_amazon_add_to_cart: EvalFunction = async ({
-  modelName,
+  stagehand,
   logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.amazon.com/Laptop-MacBook-Surface-Water-Resistant-Accessories/dp/B0D5M4H5CD",
   );
@@ -68,8 +61,7 @@ export const observe_amazon_add_to_cart: EvalFunction = async ({
   return {
     _success: currentUrl.startsWith(expectedUrlPrefix),
     currentUrl,
-    debugUrl,
-    sessionUrl,
+
     logs: logger.getLogs(),
   };
 };

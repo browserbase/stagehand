@@ -1,19 +1,12 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_csa: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   const { page } = stagehand;
   await page.goto(
     "https://clerk.assembly.ca.gov/weekly-histories?from_date=&to_date=2025-01-09",
@@ -75,8 +68,6 @@ export const extract_csa: EvalFunction = async ({
       _success: false,
       error: "Incorrect number of publications extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -108,8 +99,6 @@ export const extract_csa: EvalFunction = async ({
       _success: false,
       error: "Expected 'first' item not found in publications",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -141,15 +130,11 @@ export const extract_csa: EvalFunction = async ({
       _success: false,
       error: "Expected 'last' item not found in publications",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

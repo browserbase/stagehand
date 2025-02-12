@@ -8,4 +8,5 @@ export interface BrowserResult {
   sessionUrl?: string;
   contextPath?: string;
   sessionId?: string;
+  connectUrl?: string;
 }

@@ -1,14 +1,6 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const laroche_form: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const laroche_form: EvalFunction = async ({ stagehand, logger }) => {
   try {
     await stagehand.page.goto(
       "https://www.laroche-posay.us/offers/anthelios-melt-in-milk-sunscreen-sample.html",
@@ -27,8 +19,6 @@ export const laroche_form: EvalFunction = async ({ modelName, logger }) => {
     return {
       _success: true,
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   } catch (error) {
     logger.error({
@@ -48,8 +38,6 @@ export const laroche_form: EvalFunction = async ({ modelName, logger }) => {
     return {
       _success: false,
       error: error.message,
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   } finally {

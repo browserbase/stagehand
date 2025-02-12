@@ -17,7 +17,6 @@ import path from "path";
 import process from "process";
 import { env } from "./env";
 import { generateExperimentName } from "./utils";
-import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, MODELS } from "./taskConfig";
 import {
   filterByCategory,
@@ -25,15 +24,17 @@ import {
   useTextExtract,
   useAccessibilityTree,
 } from "./args";
-import { Eval } from "braintrust";
 import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@/dist";
 import dotenv from "dotenv";
+import Plato from "plato-cli";
+import { initStagehand } from "./initStagehand";
+import { errorMatch, exactMatch } from "./scoring";
+
 dotenv.config();
 
 const MAX_CONCURRENCY = 20;
-const TRIAL_COUNT = 5;
+const TRIAL_COUNT = 1;
 
 /**
  * generateSummary:
@@ -133,7 +134,12 @@ const generateFilteredTestcases = (): Testcase[] => {
   // Create a list of all testcases for each model-task combination.
   let allTestcases = MODELS.flatMap((model) =>
     Object.keys(tasksByName).map((testName) => ({
-      input: { name: testName, modelName: model },
+      input: {
+        name: testName,
+        modelName: model,
+      },
+      description: tasksByName[testName].description,
+      startUrl: tasksByName[testName].startUrl,
       name: testName,
       tags: [model, testName],
       metadata: {
@@ -167,7 +173,10 @@ const generateFilteredTestcases = (): Testcase[] => {
     );
   }
 
-  return allTestcases;
+  return allTestcases.map((t) => ({
+    ...t,
+    prompt: t.description || t.name,
+  }));
 };
 
 /**
@@ -192,97 +201,121 @@ const generateFilteredTestcases = (): Testcase[] => {
   });
 
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
-  const braintrustProjectName =
+  const platoAgentName =
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
   try {
-    // Run the evaluations with the braintrust Eval function
-    const evalResult = await Eval(braintrustProjectName, {
-      experimentName,
-      data: generateFilteredTestcases,
-      // Each test is a function that runs the corresponding task module
-      task: async (input: { name: string; modelName: AvailableModel }) => {
-        const logger = new EvalLogger();
-        try {
-          // Dynamically import the task based on its name
-          const taskModulePath = path.join(
-            __dirname,
-            "tasks",
-            `${input.name}.ts`,
-          );
-          const taskModule = (await import(taskModulePath)) as {
-            [key: string]: EvalFunction;
-          };
-          const taskFunction = taskModule[input.name];
-
-          if (typeof taskFunction !== "function") {
-            throw new Error(
-              `Task function for ${input.name} is not a function`,
+    const evalResult = await Plato.Eval(
+      platoAgentName,
+      {
+        name: experimentName,
+        data: generateFilteredTestcases(),
+        task: async (input, startSimulation) => {
+          const logger = new EvalLogger();
+          try {
+            // Dynamically import the task based on its name
+            const taskModulePath = path.join(
+              __dirname,
+              "tasks",
+              `${input.name}.ts`,
             );
-          }
+            const taskModule = (await import(taskModulePath)) as {
+              [key: string]: EvalFunction;
+            };
+            const taskFunction = taskModule[input.name];
 
-          // Execute the task
-          const result = await taskFunction({
-            modelName: input.modelName,
-            logger,
-            useTextExtract,
-            useAccessibilityTree,
-          });
+            if (typeof taskFunction !== "function") {
+              throw new Error(
+                `Task function for ${input.name} is not a function`,
+              );
+            }
 
-          // Log result to console
-          if (result && result._success) {
-            console.log(`✅ ${input.name}: Passed`);
-          } else {
-            console.log(`❌ ${input.name}: Failed`);
+            console.log("initializing stagehand for", input);
+            const { stagehand, initResponse } = await initStagehand({
+              modelName: input.input.modelName,
+              logger,
+            });
+
+            const { debugUrl, sessionUrl, connectUrl } = initResponse;
+
+            console.log("connecting to", connectUrl);
+
+            const platoSim = await startSimulation({
+              cdpUrl: connectUrl,
+            });
+
+            // Execute the task
+            const result = await taskFunction({
+              platoSim,
+              stagehand,
+              logger,
+              useTextExtract,
+              useAccessibilityTree,
+              modelName: input.modelName,
+            });
+
+            // Log result to console
+            if (result && result._success) {
+              console.log(`✅ ${input.name}: Passed`);
+            } else {
+              console.log(`❌ ${input.name}: Failed`);
+            }
+            return {
+              ...result,
+              debugUrl,
+              sessionUrl,
+            };
+          } catch (error) {
+            // Log any errors that occur during task execution
+            console.error(`❌ ${input.name}: Error - ${error}`);
+            logger.error({
+              message: `Error in task ${input.name}`,
+              level: 0,
+              auxiliary: {
+                error: {
+                  value: error.message,
+                  type: "object",
+                },
+                trace: {
+                  value: error.stack,
+                  type: "string",
+                },
+              },
+            });
+            return {
+              _success: false,
+              error: JSON.parse(JSON.stringify(error, null, 2)),
+              logs: logger.getLogs(),
+            };
           }
-          return result;
-        } catch (error) {
-          // Log any errors that occur during task execution
-          console.error(`❌ ${input.name}: Error - ${error}`);
-          logger.error({
-            message: `Error in task ${input.name}`,
-            level: 0,
-            auxiliary: {
-              error: {
-                value: error.message,
-                type: "object",
-              },
-              trace: {
-                value: error.stack,
-                type: "string",
-              },
-            },
-          });
-          return {
-            _success: false,
-            error: JSON.parse(JSON.stringify(error, null, 2)),
-            logs: logger.getLogs(),
-          };
-        }
+        },
+        customScores: [exactMatch, errorMatch],
+        maxConcurrency: MAX_CONCURRENCY,
+        trialCount: TRIAL_COUNT,
       },
-      // Use the scoring functions defined above
-      scores: [exactMatch, errorMatch],
-      maxConcurrency: MAX_CONCURRENCY,
-      trialCount: TRIAL_COUNT,
-    });
+      { baseUrl: "http://localhost:25565" },
+    );
 
     // Map results to the SummaryResult format
-    const summaryResults: SummaryResult[] = evalResult.results.map((result) => {
-      const output =
-        typeof result.output === "boolean"
-          ? { _success: result.output }
-          : result.output;
+    const summaryResults: SummaryResult[] = (evalResult?.results || []).map(
+      (result) => {
+        const output =
+          typeof result.output === "boolean"
+            ? { _success: result.output }
+            : result.output;
 
-      return {
-        input: result.input,
-        output,
-        name: result.input.name,
-        score: output._success ? 1 : 0,
-      };
-    });
+        return {
+          input: result.input,
+          output,
+          name: result.input.name,
+          score: output._success ? 1 : 0,
+        };
+      },
+    );
 
     // Generate and write the summary
     await generateSummary(summaryResults, experimentName);
+    process.exit(0);
   } catch (error) {
     console.error("Error during evaluation run:", error);
     process.exit(1);

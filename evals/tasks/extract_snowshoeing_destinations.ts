@@ -1,42 +1,31 @@
-import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
+import { z } from "zod";
 
 export const extract_snowshoeing_destinations: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(
-      "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
+      "https://www.wta.org/go-outside/seasonal-hikes/winter-destinations/sno-parks",
     );
 
-    await stagehand.page.act({ action: "reject the cookies" });
-
-    const snowshoeing_regions = await stagehand.page.extract({
-      instruction:
-        "Extract all the snowshoeing regions and the names of the trails within each region.",
+    const result = await stagehand.page.extract({
+      instruction: "Extract all the snowshoeing destinations",
       schema: z.object({
-        snowshoeing_regions: z.array(
+        destinations: z.array(
           z.object({
-            region_name: z
+            name: z.string().describe("name of the destination"),
+            description: z
               .string()
-              .describe("The name of the snowshoeing region"),
-            trails: z
-              .array(
-                z.object({
-                  trail_name: z.string().describe("The name of the trail"),
-                }),
-              )
-              .describe("The list of trails available in this region."),
+              .describe("description of the destination")
+              .nullable(),
+            region: z
+              .string()
+              .describe("region where the destination is located")
+              .nullable(),
           }),
         ),
       }),
@@ -44,26 +33,33 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       useTextExtract,
     });
 
-    logger.log({
-      message: "Extracted destinations and trails",
-      level: 1,
-      auxiliary: {
-        destinations: {
-          value: JSON.stringify(snowshoeing_regions),
-          type: "object",
-        },
-      },
-    });
+    const destinations = result.destinations;
 
-    await stagehand.close();
+    const expectedDestinations = [
+      "Cabin Creek Sno-Park",
+      "Crystal Springs Sno-Park",
+      "Gold Creek Sno-Park",
+      "Hyak Sno-Park",
+      "Lake Easton Sno-Park",
+      "Lake Wenatchee State Park",
+      "Mount Spokane State Park",
+      "Paradise",
+      "Price Creek Sno-Park",
+      "Salmon La Sac Sno-Park",
+      "Skyline Lake",
+      "Swauk Creek",
+      "White Pass",
+    ];
 
-    const _success = snowshoeing_regions.snowshoeing_regions.length === 10;
+    const foundDestinations = destinations.map((d) => d.name);
+
+    const allExpectedDestinationsFound = expectedDestinations.every((d) =>
+      foundDestinations.includes(d),
+    );
 
     return {
-      _success,
-      snowshoeing_regions,
-      debugUrl,
-      sessionUrl,
+      _success: allExpectedDestinationsFound,
+      destinations,
       logs: logger.getLogs(),
     };
   } catch (error) {
@@ -84,8 +80,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   } finally {

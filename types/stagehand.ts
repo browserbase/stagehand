@@ -41,6 +41,7 @@ export interface InitResult {
   debugUrl: string;
   sessionUrl: string;
   sessionId: string;
+  connectUrl: string;
 }
 
 export interface InitFromPageOptions {

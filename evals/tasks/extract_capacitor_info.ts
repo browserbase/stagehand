@@ -1,20 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_capacitor_info: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.jakelectronics.com/productdetail/panasonicelectroniccomponents-eeufm1a472l-2937406",
   );
@@ -59,14 +52,12 @@ export const extract_capacitor_info: EvalFunction = async ({
       _success: false,
       error: "ECCN code extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   if (normalizeString(RoHS_Status) !== normalizeString(expected.RoHS_Status)) {
     logger.error({
-      message: "RoHS Status extracted does not match expected",
+      message: "RoHS status extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
@@ -81,10 +72,8 @@ export const extract_capacitor_info: EvalFunction = async ({
     });
     return {
       _success: false,
-      error: "RoHS Status extracted does not match expected",
+      error: "RoHS status extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
@@ -107,15 +96,11 @@ export const extract_capacitor_info: EvalFunction = async ({
       _success: false,
       error: "Impedance extracted does not match expected",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
   }
 
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };

@@ -1,19 +1,12 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const google_jobs: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://www.google.com/");
     await stagehand.page.act("click on the about page");
@@ -70,8 +63,6 @@ export const google_jobs: EvalFunction = async ({
     return {
       _success: isJobDetailsValid,
       jobDetails,
-      debugUrl,
-      sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
@@ -94,8 +85,6 @@ export const google_jobs: EvalFunction = async ({
 
     return {
       _success: false,
-      debugUrl,
-      sessionUrl,
       error: JSON.parse(JSON.stringify(error, null, 2)),
       logs: logger.getLogs(),
     };

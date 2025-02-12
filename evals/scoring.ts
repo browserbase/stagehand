@@ -2,7 +2,7 @@
  * This file implements scoring functions needed by braintrust.
  */
 
-import { EvalArgs, EvalInput, EvalResult } from "@/types/evals";
+import { EvalArgs, EvalResult, Testcase } from "@/types/evals";
 
 /**
  * Scoring function: exactMatch
@@ -13,10 +13,10 @@ import { EvalArgs, EvalInput, EvalResult } from "@/types/evals";
  * If "expected" is a boolean or an object with _success flag,
  * it checks if output is exactly that success condition.
  */
-export function exactMatch(
-  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
-): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+export async function exactMatch(
+  args: EvalArgs<Testcase, boolean | { _success: boolean }, unknown>,
+): Promise<EvalResult> {
+  console.log(`Task "${args.input.input.name}" returned: ${args.output}`);
 
   const expected = args.expected ?? true;
   if (expected === true) {
@@ -44,22 +44,22 @@ export function exactMatch(
 /**
  * Scoring function: errorMatch
  * Determines if an error occurred in the task.
- * Scores 1 if an error is found, otherwise 0.
+ * Scores 0 if an error is found, otherwise 1.
  */
-export function errorMatch(
+export async function errorMatch(
   args: EvalArgs<
-    EvalInput,
+    Testcase,
     boolean | { _success: boolean; error?: unknown },
     unknown
   >,
-): EvalResult {
-  console.log(`Task "${args.input.name}" returned: ${args.output}`);
+): Promise<EvalResult> {
+  console.log(`Task "${args.input.input.name}" returned: ${args.output}`);
 
   return {
     name: "Error rate",
     score:
       typeof args.output === "object" && args.output.error !== undefined
-        ? 1
-        : 0,
+        ? 0
+        : 1,
   };
 }

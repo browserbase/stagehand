@@ -1,21 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 import { compareStrings } from "@/evals/utils";
 
 export const extract_press_releases: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   const schema = z.object({
     items: z.array(
       z.object({
@@ -29,105 +21,125 @@ export const extract_press_releases: EvalFunction = async ({
 
   type PressRelease = z.infer<typeof schema>["items"][number];
 
-  try {
-    await stagehand.page.goto("https://dummy-press-releases.surge.sh/news", {
-      waitUntil: "networkidle",
-    });
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+  await stagehand.page.goto(
+    "https://www.sars.gov.za/media-release/media-releases/",
+    { waitUntil: "load" },
+  );
 
-    const rawResult = await stagehand.page.extract({
-      instruction:
-        "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
-      schema,
-      modelName,
-      useTextExtract,
-    });
+  const result = await stagehand.page.extract({
+    instruction:
+      "Extract ALL the press release titles with their corresponding publication date. Extract ALL press releases from 2024 through 2020. Do not include the Notice number.",
+    schema,
+    modelName,
+    useTextExtract,
+  });
 
-    const parsed = schema.parse(rawResult);
-    const { items } = parsed;
+  await stagehand.close();
 
-    await stagehand.close();
+  const pressReleases = result.items;
+  const expectedLength = 24;
 
-    const expectedLength = 28;
-    const expectedFirstItem: PressRelease = {
-      title: "UAW Region 9A Endorses Brad Lander for Mayor",
-      publish_date: "Dec 4, 2024",
-    };
-    const expectedLastItem: PressRelease = {
-      title: "Fox Sued by New York City Pension Funds Over Election Falsehoods",
-      publish_date: "Nov 12, 2023",
-    };
+  const expectedFirstItem: PressRelease = {
+    title:
+      "SARS welcomes the appointment of the new Commissioner and Deputy Commissioner",
+    publish_date: "8 November 2024",
+  };
 
-    if (items.length <= expectedLength) {
-      logger.error({
-        message: "Not enough items extracted",
-        level: 0,
-        auxiliary: {
-          expected: {
-            value: `> ${expectedLength}`,
-            type: "string",
-          },
-          actual: {
-            value: items.length.toString(),
-            type: "integer",
-          },
-        },
-      });
-      return {
-        _success: false,
-        error: "Not enough items extracted",
-        logs: logger.getLogs(),
-        debugUrl,
-        sessionUrl,
-      };
-    }
+  const expectedLastItem: PressRelease = {
+    title:
+      "SARS welcomes the appointment of the new Commissioner and Deputy Commissioner",
+    publish_date: "3 July 2020",
+  };
 
-    const isItemMatch = (item: PressRelease, expected: PressRelease) => {
-      const titleComparison = compareStrings(item.title, expected.title, 0.9);
-      const dateComparison = compareStrings(
-        item.publish_date,
-        expected.publish_date,
-        0.9,
-      );
-      return titleComparison.meetsThreshold && dateComparison.meetsThreshold;
-    };
-
-    const foundFirstItem = items.some((item) =>
-      isItemMatch(item, expectedFirstItem),
-    );
-    const foundLastItem = items.some((item) =>
-      isItemMatch(item, expectedLastItem),
-    );
-
-    return {
-      _success: foundFirstItem && foundLastItem,
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  } catch (error) {
+  if (pressReleases.length !== expectedLength) {
     logger.error({
-      message: `Error in extract_press_releases function`,
+      message: "Incorrect number of press releases extracted",
       level: 0,
       auxiliary: {
-        error: {
-          value: (error as Error).message || JSON.stringify(error),
-          type: "string",
+        expected: {
+          value: expectedLength.toString(),
+          type: "integer",
         },
-        trace: {
-          value: (error as Error).stack,
-          type: "string",
+        actual: {
+          value: pressReleases.length.toString(),
+          type: "integer",
         },
       },
     });
     return {
       _success: false,
-      error: "An error occurred during extraction",
+      error: "Incorrect number of press releases extracted",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
     };
-  } finally {
-    await stagehand.context.close();
   }
+
+  const firstItemMatches =
+    compareStrings(pressReleases[0].title, expectedFirstItem.title, 0.9)
+      .meetsThreshold &&
+    compareStrings(
+      pressReleases[0].publish_date,
+      expectedFirstItem.publish_date,
+      0.9,
+    ).meetsThreshold;
+
+  if (!firstItemMatches) {
+    logger.error({
+      message: "First press release extracted does not match expected",
+      level: 0,
+      auxiliary: {
+        expected: {
+          value: JSON.stringify(expectedFirstItem),
+          type: "object",
+        },
+        actual: {
+          value: JSON.stringify(pressReleases[0]),
+          type: "object",
+        },
+      },
+    });
+    return {
+      _success: false,
+      error: "First press release extracted does not match expected",
+      logs: logger.getLogs(),
+    };
+  }
+
+  const lastItemMatches =
+    compareStrings(
+      pressReleases[pressReleases.length - 1].title,
+      expectedLastItem.title,
+      0.9,
+    ).meetsThreshold &&
+    compareStrings(
+      pressReleases[pressReleases.length - 1].publish_date,
+      expectedLastItem.publish_date,
+      0.9,
+    ).meetsThreshold;
+
+  if (!lastItemMatches) {
+    logger.error({
+      message: "Last press release extracted does not match expected",
+      level: 0,
+      auxiliary: {
+        expected: {
+          value: JSON.stringify(expectedLastItem),
+          type: "object",
+        },
+        actual: {
+          value: JSON.stringify(pressReleases[pressReleases.length - 1]),
+          type: "object",
+        },
+      },
+    });
+    return {
+      _success: false,
+      error: "Last press release extracted does not match expected",
+      logs: logger.getLogs(),
+    };
+  }
+
+  return {
+    _success: true,
+    logs: logger.getLogs(),
+  };
 };

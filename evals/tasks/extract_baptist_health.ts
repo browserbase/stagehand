@@ -1,20 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
+
 import { compareStrings } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_baptist_health: EvalFunction = async ({
+  stagehand,
   modelName,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.baptistfirst.org/location/baptist-health-ent-partners",
   );
@@ -90,8 +84,7 @@ export const extract_baptist_health: EvalFunction = async ({
       _success: false,
       error: "Some fields did not meet similarity threshold",
       logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
+
       failedFields,
     };
   }
@@ -99,7 +92,5 @@ export const extract_baptist_health: EvalFunction = async ({
   return {
     _success: true,
     logs: logger.getLogs(),
-    debugUrl,
-    sessionUrl,
   };
 };
