@@ -21,7 +21,8 @@ export const extract_rockauto: EvalFunction = async ({
   await new Promise((resolve) => setTimeout(resolve, 5000));
   const result = await stagehand.page.extract({
     instruction:
-      "Extract the part number of all the coolant and antifreeze products in the 'economy' category. Do not include the manufacturer name.",
+      "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
+      "Do not include the manufacturer name. Do not include products from the premium category.",
     schema: z.object({
       coolant_products: z.array(
         z.object({
@@ -38,14 +39,6 @@ export const extract_rockauto: EvalFunction = async ({
 
   const coolantProducts = result.coolant_products;
   const expectedLength = 4;
-
-  const expectedFirstItem = {
-    part_number: "GREEN5050GAL",
-  };
-
-  const expectedLastItem = {
-    part_number: "719009",
-  };
 
   if (coolantProducts.length !== expectedLength) {
     logger.error({
@@ -70,55 +63,31 @@ export const extract_rockauto: EvalFunction = async ({
       sessionUrl,
     };
   }
-  const firstItemMatches =
-    coolantProducts[0].part_number === expectedFirstItem.part_number;
+  const expectedPartNumbers = ["GREEN5050GAL", "719009", "AF3300", "MV5050GAL"];
 
-  if (!firstItemMatches) {
+  const missingParts = expectedPartNumbers.filter(
+    (expectedPart) =>
+      !coolantProducts.some((p) => p.part_number === expectedPart),
+  );
+
+  if (missingParts.length > 0) {
     logger.error({
-      message: "First coolant product extracted does not match expected",
+      message: "Missing expected part number(s)",
       level: 0,
       auxiliary: {
-        expected: {
-          value: JSON.stringify(expectedFirstItem),
+        missingParts: {
+          value: JSON.stringify(missingParts),
           type: "object",
         },
-        actual: {
-          value: JSON.stringify(coolantProducts[0]),
+        actualExtracted: {
+          value: JSON.stringify(coolantProducts),
           type: "object",
         },
       },
     });
     return {
       _success: false,
-      error: "First coolant product extracted does not match expected",
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  }
-
-  const lastItemMatches =
-    coolantProducts[coolantProducts.length - 1].part_number ===
-    expectedLastItem.part_number;
-
-  if (!lastItemMatches) {
-    logger.error({
-      message: "Last coolant product extracted does not match expected",
-      level: 0,
-      auxiliary: {
-        expected: {
-          value: JSON.stringify(expectedLastItem),
-          type: "object",
-        },
-        actual: {
-          value: JSON.stringify(coolantProducts[coolantProducts.length - 1]),
-          type: "object",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error: "Last coolant product extracted does not match expected",
+      error: `One or more expected part numbers were not found: ${missingParts.join(", ")}`,
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
