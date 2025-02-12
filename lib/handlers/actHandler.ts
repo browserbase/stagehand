@@ -29,6 +29,7 @@ export class StagehandActHandler {
     [key: string]: { result: string; action: string };
   };
   private readonly userProvidedInstructions?: string;
+  private readonly selfHeal: boolean;
 
   constructor({
     verbose,
@@ -37,6 +38,7 @@ export class StagehandActHandler {
     logger,
     stagehandPage,
     userProvidedInstructions,
+    selfHeal,
   }: {
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
@@ -46,6 +48,7 @@ export class StagehandActHandler {
     stagehandPage: StagehandPage;
     stagehandContext: StagehandContext;
     userProvidedInstructions?: string;
+    selfHeal: boolean;
   }) {
     this.verbose = verbose;
     this.llmProvider = llmProvider;
@@ -55,6 +58,7 @@ export class StagehandActHandler {
     this.actions = {};
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.selfHeal = selfHeal;
   }
 
   /**
@@ -90,9 +94,27 @@ export class StagehandActHandler {
         action: observe.description || `ObserveResult action (${method})`,
       };
     } catch (err) {
+      if (!this.selfHeal) {
+        this.logger({
+          category: "action",
+          message: "Error performing act from an ObserveResult",
+          level: 1,
+          auxiliary: {
+            error: { value: err.message, type: "string" },
+            trace: { value: err.stack, type: "string" },
+          },
+        });
+        return {
+          success: false,
+          message: `Failed to perform act: ${err.message}`,
+          action: observe.description || `ObserveResult action (${method})`,
+        };
+      }
+      // We will try to use regular act on a failed ObserveResult-act if selfHeal is true
       this.logger({
         category: "action",
-        message: "Error performing act from an ObserveResult",
+        message:
+          "Error performing act from an ObserveResult. Trying again with regular act method",
         level: 1,
         auxiliary: {
           error: { value: err.message, type: "string" },
@@ -100,11 +122,33 @@ export class StagehandActHandler {
           observeResult: { value: JSON.stringify(observe), type: "object" },
         },
       });
-      return {
-        success: false,
-        message: `Failed to perform act: ${err.message}`,
-        action: observe.description || `ObserveResult action (${method})`,
-      };
+      try {
+        // Remove redundancy from method-description
+        const actCommand = observe.description
+          .toLowerCase()
+          .startsWith(method.toLowerCase())
+          ? observe.description
+          : method
+            ? `${method} ${observe.description}`
+            : observe.description;
+        // Call act with the ObserveResult description
+        await this.stagehandPage.act(actCommand);
+      } catch (err) {
+        this.logger({
+          category: "action",
+          message: "Error performing act from an ObserveResult",
+          level: 1,
+          auxiliary: {
+            error: { value: err.message, type: "string" },
+            trace: { value: err.stack, type: "string" },
+          },
+        });
+        return {
+          success: false,
+          message: `Failed to perform act: ${err.message}`,
+          action: observe.description || `ObserveResult action (${method})`,
+        };
+      }
     }
   }
 
@@ -369,7 +413,7 @@ export class StagehandActHandler {
         const clickArg = args.length ? args[0] : undefined;
 
         if (isRadio) {
-          // if it’s a radio button, try to find a label to click
+          // if it's a radio button, try to find a label to click
           const inputId = await locator.evaluate((el) => el.id);
           let labelLocator;
 
@@ -380,7 +424,7 @@ export class StagehandActHandler {
             );
           }
           if (!labelLocator || (await labelLocator.count()) < 1) {
-            // if no label was found or the label doesn’t exist, check if
+            // if no label was found or the label doesn't exist, check if
             // there is an ancestor <label>
             labelLocator = this.stagehandPage.page
               .locator(`xpath=${xpath}/ancestor::label`)

@@ -26,6 +26,7 @@ export interface ConstructorParams {
    * Instructions for stagehand.
    */
   systemPrompt?: string;
+  selfHeal?: boolean;
 }
 
 export interface InitOptions {

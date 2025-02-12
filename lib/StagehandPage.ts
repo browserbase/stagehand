@@ -71,6 +71,7 @@ export class StagehandPage {
         stagehandContext: this.intContext,
         llmClient: llmClient,
         userProvidedInstructions,
+        selfHeal: this.stagehand.selfHeal,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
@@ -305,7 +306,7 @@ export class StagehandPage {
         return this.actHandler.actFromObserveResult(observeResult);
       } else {
         // If it's an object but no selector/method,
-        // check that it’s truly ActOptions (i.e., has an `action` field).
+        // check that it's truly ActOptions (i.e., has an `action` field).
         if (!("action" in actionOrOptions)) {
           throw new Error(
             "Invalid argument. Valid arguments are: a string, an ActOptions object, " +
@@ -509,7 +510,7 @@ export class StagehandPage {
       modelClientOptions,
       useVision, // still destructure but will not pass it on
       domSettleTimeoutMs,
-      returnAction = false,
+      returnAction = true,
       onlyVisible = false,
       useAccessibilityTree,
       drawOverlay,

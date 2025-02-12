@@ -327,6 +327,7 @@ export class Stagehand {
   private contextPath?: string;
   private llmClient: LLMClient;
   private userProvidedInstructions?: string;
+  public readonly selfHeal: boolean;
 
   constructor(
     {
@@ -346,6 +347,7 @@ export class Stagehand {
       modelName,
       modelClientOptions,
       systemPrompt,
+      selfHeal = true,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -380,6 +382,7 @@ export class Stagehand {
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
+    this.selfHeal = selfHeal;
   }
 
   public get logger(): (logLine: LogLine) => void {
