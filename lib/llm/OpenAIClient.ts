@@ -341,6 +341,8 @@ export class OpenAIClient extends LLMClient {
 
     const response = await this.client.chat.completions.create(body);
 
+    console.log("openai response", JSON.stringify(response, null, 2));
+
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {
       try {

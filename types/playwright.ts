@@ -6,7 +6,10 @@ export class PlaywrightCommandException extends Error {
 }
 
 export class PlaywrightCommandMethodNotSupportedException extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly availableMethods: string[],
+  ) {
     super(message);
     this.name = "PlaywrightCommandMethodNotSupportedException";
   }

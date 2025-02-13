@@ -430,3 +430,7 @@ export async function clearOverlays(page: Page) {
     });
   });
 }
+
+export function exhaustiveMatchingGuard(value: never) {
+  throw new Error(`Unhandled case: ${value}`);
+}

@@ -227,6 +227,11 @@ export class AnthropicClient extends LLMClient {
       anthropicTools.push(toolDefinition);
     }
 
+    console.log("sending messages to anthropic", {
+      anthropicTools: JSON.stringify(anthropicTools),
+      systemMessage: JSON.stringify(systemMessage),
+      formattedMessages: JSON.stringify(formattedMessages),
+    });
     const response = await this.client.messages.create({
       model: this.modelName,
       max_tokens: options.maxTokens || 8192,
@@ -265,7 +270,10 @@ export class AnthropicClient extends LLMClient {
           message: {
             role: "assistant",
             content:
-              response.content.find((c) => c.type === "text")?.text || null,
+              response.content
+                .filter((c) => c.type === "text")
+                ?.map((c) => c.text)
+                .join("\n") || null,
             tool_calls: response.content
               .filter((c) => c.type === "tool_use")
               .map((toolUse) => ({

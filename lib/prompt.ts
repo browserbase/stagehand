@@ -1,4 +1,5 @@
 import { LLMTool } from "../types/llm";
+import { actMethods } from "./actions";
 import { ChatMessage } from "./llm/LLMClient";
 
 // act
@@ -16,11 +17,13 @@ You will receive:
 
 
 ## Your Goal / Specification
-You have 2 tools that you can call: doAction, and skipSection. Do action only performs Playwright actions. Do exactly what the user's goal is. Do not perform any other actions or exceed the scope of the goal.
+You have 3 tools that you can call: doAction, returnPlan, returnResult, and skipSection. Do action performs Playwright actions and can record information found so far. Return Plan is used to return a plan for multiple steps. Return Result is used to return either an intermediate result or a final result. Skip Section is used to skip a section of the page. Do exactly what the user's goal is. Do not perform any other actions or exceed the scope of the goal. You can only make one tool call per step, you will get the result of the tool call in the next step.
+If you have the information needed to complete the goal, return a final result using the returnResult tool setting completed to true.
 If the user's goal will be accomplished after running the playwright action, set completed to true. Better to have completed set to true if your are not sure.
 
 Note 1: If there is a popup on the page for cookies or advertising that has nothing to do with the goal, try to close it first before proceeding. As this can block the goal from being completed.
 Note 2: Sometimes what your are looking for is hidden behind and element you need to interact with. For example, sliders, buttons, etc...
+Note 3: Avoid repeating actions that have already been taken, try something different.
 
 Again, if the user's goal will be accomplished after running the playwright action, set completed to true. Also, if the user provides custom instructions, it is imperative that you follow them no matter what.
 `;
@@ -74,26 +77,37 @@ export function buildVerifyActCompletionUserPrompt(
   goal: string,
   steps = "None",
   domElements: string | undefined,
-): ChatMessage {
-  let actUserPrompt = `
+): Array<ChatMessage> {
+  const actUserPrompt = `
 # My Goal
 ${goal}
-
-# Steps You've Taken So Far
+`;
+  const assistantResponse = `
+# Steps I've Taken So Far
 ${steps}
 `;
 
+  const messages: ChatMessage[] = [
+    {
+      role: "user",
+      content: actUserPrompt,
+    },
+    {
+      role: "assistant",
+      content: assistantResponse,
+    },
+  ];
   if (domElements) {
-    actUserPrompt += `
+    messages.push({
+      role: "user",
+      content: `
 # Active DOM Elements on the current page
 ${domElements}
-`;
+`,
+    });
   }
 
-  return {
-    role: "user",
-    content: actUserPrompt,
-  };
+  return messages;
 }
 
 export function buildUserInstructionsString(
@@ -130,20 +144,23 @@ export function buildActUserPrompt(
   steps = "None",
   domElements: string,
   variables?: Record<string, string>,
-): ChatMessage {
-  let actUserPrompt = `
+): Array<ChatMessage> {
+  const actUserPrompt = `
 # My Goal
 ${action}
-
-# Steps You've Taken So Far
+`;
+  const assistantResponse = `
+# Steps I've Taken So Far
 ${steps}
+`;
 
+  let currentInfoMessage = `
 # Current Active Dom Elements
 ${domElements}
 `;
 
   if (variables && Object.keys(variables).length > 0) {
-    actUserPrompt += `
+    currentInfoMessage += `
 # Variables
 ${Object.keys(variables)
   .map((key) => `<|${key.toUpperCase()}|>`)
@@ -151,10 +168,20 @@ ${Object.keys(variables)
 `;
   }
 
-  return {
-    role: "user",
-    content: actUserPrompt,
-  };
+  return [
+    {
+      role: "user",
+      content: actUserPrompt,
+    },
+    {
+      role: "assistant",
+      content: assistantResponse,
+    },
+    {
+      role: "user",
+      content: currentInfoMessage,
+    },
+  ];
 }
 
 export const actTools: LLMTool[] = [
@@ -165,11 +192,13 @@ export const actTools: LLMTool[] = [
       "execute the next playwright step that directly accomplishes the goal",
     parameters: {
       type: "object",
-      required: ["method", "element", "args", "step", "completed"],
+      required: ["method", "element", "args", "step", "completed", "findings"],
       properties: {
         method: {
           type: "string",
-          description: "The playwright function to call.",
+          description:
+            "The playwright function to call. Available methods are playwright Locator methods and the following custom methods: " +
+            actMethods.join(", "),
         },
         element: {
           type: "number",
@@ -196,6 +225,47 @@ export const actTools: LLMTool[] = [
           type: "boolean",
           description:
             "true if the goal should be accomplished after this step",
+        },
+        findings: {
+          type: "string",
+          description:
+            "Useful new information, including negative information such as 'foo not found on page'. Use null if no new useful information found",
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    name: "returnResult",
+    description: "return either an intermediate result or a final result",
+    parameters: {
+      type: "object",
+      required: ["result", "completed"],
+      properties: {
+        result: {
+          type: "string",
+          description:
+            "The result to return, information to record or a final result",
+        },
+        completed: {
+          type: "boolean",
+          description:
+            "true if this result is a final result and the goal should be considered completed",
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    name: "returnPlan",
+    description: "return a plan for multiple steps",
+    parameters: {
+      type: "object",
+      required: ["plan"],
+      properties: {
+        plan: {
+          type: "string",
+          description: "The plan for the next steps",
         },
       },
     },

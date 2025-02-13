@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ActCommandParams, ActCommandResult } from "../types/act";
+import {
+  ActCommandParams,
+  ActCommandResult,
+  ActCompletedResult,
+} from "../types/act";
 import { VerifyActCompletionParams } from "../types/inference";
 import { LogLine } from "../types/log";
 import { ChatMessage, LLMClient } from "./llm/LLMClient";
@@ -26,9 +30,13 @@ export async function verifyActCompletion({
   domElements,
   logger,
   requestId,
-}: VerifyActCompletionParams): Promise<boolean> {
+}: VerifyActCompletionParams): Promise<{
+  completed: boolean;
+  result?: string;
+}> {
   const verificationSchema = z.object({
     completed: z.boolean().describe("true if the goal is accomplished"),
+    result: z.string().optional().describe("a description of the result"),
   });
 
   type VerificationResponse = z.infer<typeof verificationSchema>;
@@ -37,7 +45,7 @@ export async function verifyActCompletion({
     options: {
       messages: [
         buildVerifyActCompletionSystemPrompt(),
-        buildVerifyActCompletionUserPrompt(goal, steps, domElements),
+        ...buildVerifyActCompletionUserPrompt(goal, steps, domElements),
       ],
       temperature: 0.1,
       top_p: 1,
@@ -57,7 +65,7 @@ export async function verifyActCompletion({
       category: "VerifyAct",
       message: "Unexpected response format: " + JSON.stringify(response),
     });
-    return false;
+    return { completed: false, result: undefined };
   }
 
   if (response.completed === undefined) {
@@ -65,10 +73,10 @@ export async function verifyActCompletion({
       category: "VerifyAct",
       message: "Missing 'completed' field in response",
     });
-    return false;
+    return { completed: false, result: undefined };
   }
 
-  return response.completed;
+  return { completed: response.completed, result: response.result };
 }
 
 export function fillInVariables(
@@ -93,10 +101,10 @@ export async function act({
   requestId,
   variables,
   userProvidedInstructions,
-}: ActCommandParams): Promise<ActCommandResult | null> {
+}: ActCommandParams): Promise<ActCommandResult | ActCompletedResult | null> {
   const messages: ChatMessage[] = [
     buildActSystemPrompt(userProvidedInstructions),
-    buildActUserPrompt(action, steps, domElements, variables),
+    ...buildActUserPrompt(action, steps, domElements, variables),
   ];
 
   const response = await llmClient.createChatCompletion({
@@ -113,6 +121,7 @@ export async function act({
     logger,
   });
 
+  const modelCommentary = response.choices[0].message.content;
   const toolCalls = response.choices[0].message.tool_calls;
 
   if (toolCalls && toolCalls.length > 0) {
@@ -120,7 +129,29 @@ export async function act({
       return null;
     }
 
-    return JSON.parse(toolCalls[0].function.arguments);
+    if (toolCalls[0].function.name === "returnPlan") {
+      const { plan } = JSON.parse(toolCalls[0].function.arguments);
+      return {
+        result: plan,
+        completed: false,
+        commentary: "This is my plan for the next steps",
+      };
+    }
+
+    if (toolCalls[0].function.name === "returnResult") {
+      const { result, completed } = JSON.parse(toolCalls[0].function.arguments);
+      return {
+        result,
+        completed,
+        commentary: modelCommentary,
+      };
+    }
+
+    // TODO: parse this response with zod
+    return {
+      ...JSON.parse(toolCalls[0].function.arguments),
+      commentary: modelCommentary,
+    };
   } else {
     if (retries >= 2) {
       logger({
