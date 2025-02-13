@@ -26,6 +26,10 @@ export interface ConstructorParams {
    * Instructions for stagehand.
    */
   systemPrompt?: string;
+  /**
+   * Offload Stagehand method calls to the Stagehand API.
+   */
+  useAPI?: boolean;
   selfHeal?: boolean;
 }
 

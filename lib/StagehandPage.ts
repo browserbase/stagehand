@@ -1,12 +1,11 @@
+import { Browserbase } from "@browserbasehq/sdk";
 import type {
-  Page as PlaywrightPage,
-  BrowserContext as PlaywrightContext,
   CDPSession,
+  BrowserContext as PlaywrightContext,
+  Page as PlaywrightPage,
 } from "@playwright/test";
-import { LLMClient } from "./llm/LLMClient";
-import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
-import { StagehandActHandler } from "./handlers/actHandler";
-import { StagehandContext } from "./StagehandContext";
+import { chromium } from "@playwright/test";
+import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
@@ -14,10 +13,21 @@ import {
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
-import { z } from "zod";
+import { StagehandAPI } from "./api";
+import { StagehandActHandler } from "./handlers/actHandler";
 import { StagehandExtractHandler } from "./handlers/extractHandler";
 import { StagehandObserveHandler } from "./handlers/observeHandler";
+import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
+import { LLMClient } from "./llm/LLMClient";
+import { StagehandContext } from "./StagehandContext";
 import { clearOverlays } from "./utils";
+
+const BROWSERBASE_REGION_DOMAIN = {
+  "us-west-2": "wss://connect.usw2.browserbase.com",
+  "us-east-1": "wss://connect.use1.browserbase.com",
+  "eu-central-1": "wss://connect.euc1.browserbase.com",
+  "ap-southeast-1": "wss://connect.apse1.browserbase.com",
+};
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -28,6 +38,8 @@ export class StagehandPage {
   private observeHandler: StagehandObserveHandler;
   private llmClient: LLMClient;
   private cdpClient: CDPSession | null = null;
+  private api: StagehandAPI;
+  private userProvidedInstructions?: string;
 
   constructor(
     page: PlaywrightPage,
@@ -35,6 +47,7 @@ export class StagehandPage {
     context: StagehandContext,
     llmClient: LLMClient,
     userProvidedInstructions?: string,
+    api?: StagehandAPI,
   ) {
     this.intPage = Object.assign(page, {
       act: () => {
@@ -61,6 +74,8 @@ export class StagehandPage {
     this.stagehand = stagehand;
     this.intContext = context;
     this.llmClient = llmClient;
+    this.api = api;
+    this.userProvidedInstructions = userProvidedInstructions;
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
         verbose: this.stagehand.verbose,
@@ -88,23 +103,72 @@ export class StagehandPage {
     }
   }
 
+  private async _refreshPageFromAPI() {
+    if (!this.api) return;
+
+    const sessionId = this.stagehand.browserbaseSessionID;
+    if (!sessionId) {
+      throw new Error("No Browserbase session ID found");
+    }
+
+    const browserbase = new Browserbase({
+      apiKey: process.env.BROWSERBASE_API_KEY,
+    });
+
+    const sessionStatus = await browserbase.sessions.retrieve(sessionId);
+    const browserbaseDomain =
+      BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
+      "wss://connect.browserbase.com";
+    const connectUrl = `${browserbaseDomain}?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`;
+
+    const browser = await chromium.connectOverCDP(connectUrl);
+    const context = browser.contexts()[0];
+    const newPage = context.pages()[0];
+
+    const newStagehandPage = await new StagehandPage(
+      newPage,
+      this.stagehand,
+      this.intContext,
+      this.llmClient,
+      this.userProvidedInstructions,
+      this.api,
+    ).init();
+
+    this.intPage = newStagehandPage.page;
+
+    if (this.stagehand.debugDom) {
+      await this.intPage.evaluate(
+        (debugDom) => (window.showChunks = debugDom),
+        this.stagehand.debugDom,
+      );
+    }
+    await this.intPage.waitForLoadState("domcontentloaded");
+    await this._waitForSettledDom();
+  }
+
   async init(): Promise<StagehandPage> {
     const page = this.intPage;
     const stagehand = this.stagehand;
     this.intPage = new Proxy(page, {
       get: (target, prop) => {
-        // Override the goto method to add debugDom and waitForSettledDom
         if (prop === "goto")
           return async (url: string, options: GotoOptions) => {
-            const result = await page.goto(url, options);
-            if (stagehand.debugDom) {
-              await page.evaluate(
-                (debugDom) => (window.showChunks = debugDom),
-                stagehand.debugDom,
-              );
+            const result = this.api
+              ? await this.api.goto(url, options)
+              : await page.goto(url, options);
+
+            if (this.api) {
+              await this._refreshPageFromAPI();
+            } else {
+              if (stagehand.debugDom) {
+                await page.evaluate(
+                  (debugDom) => (window.showChunks = debugDom),
+                  stagehand.debugDom,
+                );
+              }
+              await this.intPage.waitForLoadState("domcontentloaded");
+              await this._waitForSettledDom();
             }
-            await this.intPage.waitForLoadState("domcontentloaded");
-            await this._waitForSettledDom();
             return result;
           };
 
@@ -343,6 +407,12 @@ export class StagehandPage {
       });
     }
 
+    if (this.api) {
+      const result = await this.api.act(actionOrOptions);
+      await this._refreshPageFromAPI();
+      return result;
+    }
+
     const requestId = Math.random().toString(36).substring(2);
     const llmClient: LLMClient = modelName
       ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
@@ -430,6 +500,10 @@ export class StagehandPage {
       domSettleTimeoutMs,
       useTextExtract,
     } = options;
+
+    if (this.api) {
+      return this.api.extract<T>(options);
+    }
 
     const requestId = Math.random().toString(36).substring(2);
     const llmClient = modelName
@@ -538,6 +612,10 @@ export class StagehandPage {
           "Warning: vision is not supported in this version of Stagehand",
         level: 1,
       });
+    }
+
+    if (this.api) {
+      return this.api.observe(options);
     }
 
     const requestId = Math.random().toString(36).substring(2);
