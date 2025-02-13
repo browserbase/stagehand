@@ -1,5 +1,21 @@
 # @browserbasehq/stagehand
 
+## 1.13.0
+
+### Minor Changes
+
+- [#486](https://github.com/browserbase/stagehand/pull/486) [`33f2b3f`](https://github.com/browserbase/stagehand/commit/33f2b3f8deff86ac2073b6d35b7413b0aeaba2f9) Thanks [@sameelarif](https://github.com/sameelarif)! - [Unreleased] Parameterized offloading Stagehand method calls to the Stagehand API. In the future, this will allow for better observability and debugging experience.
+
+### Patch Changes
+
+- [#459](https://github.com/browserbase/stagehand/pull/459) [`62a29ee`](https://github.com/browserbase/stagehand/commit/62a29eea982bbb855e2f885c09ac4c1334f3e0dc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - create a11y + dom hybrid input for observe
+
+- [#463](https://github.com/browserbase/stagehand/pull/463) [`e40bf6f`](https://github.com/browserbase/stagehand/commit/e40bf6f517331fc9952c3c9f2683b7e02ffb9735) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - include 'Scrollable' annotations in a11y-dom hybrid
+
+- [#480](https://github.com/browserbase/stagehand/pull/480) [`4c07c44`](https://github.com/browserbase/stagehand/commit/4c07c444f0e71faf54413b2eeab760c7916a36e3) Thanks [@miguelg719](https://github.com/miguelg719)! - Adding a fallback try on actFromObserveResult to use the description from observe and call regular act.
+
+- [#487](https://github.com/browserbase/stagehand/pull/487) [`2c855cf`](https://github.com/browserbase/stagehand/commit/2c855cffdfa2b0af9924612b9c59df7b65df6443) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update refine extraction prompt to ensure correct schema is used
+
 ## 1.12.0
 
 ### Minor Changes
