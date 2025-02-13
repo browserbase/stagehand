@@ -20,7 +20,7 @@ async function example() {
   await stagehand.page.waitForTimeout(1000);
 
   const observation1 = await stagehand.page.observe({
-    instruction: "Go to Conceptual Guides section",
+    instruction: "Go to the Conceptual Guide section",
     returnAction: true,
   });
   if (observation1.length > 0) {
@@ -40,7 +40,7 @@ async function example() {
   await stagehand.page.waitForTimeout(1000);
 
   const result = await stagehand.page.extract({
-    instruction: "Extract the content of the page",
+    instruction: "Extract the first paragraph of the page",
     schema: z.object({
       content: z.string(),
     }),
