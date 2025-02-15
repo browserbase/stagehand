@@ -1,9 +1,10 @@
+import { Laminar, observe as laminarObserve } from "@lmnr-ai/lmnr";
 import { z } from "zod";
 import { LogLine } from "../../types/log";
 import { TextAnnotation } from "../../types/textannotation";
 import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
-import { formatText } from "../utils";
+import { formatText, cleanLLMClientForLaminarObserve } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand } from "../index";
 
@@ -149,6 +150,56 @@ export class StagehandExtractHandler {
   }
 
   private async textExtract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+    content = {},
+    llmClient,
+    requestId,
+    domSettleTimeoutMs,
+  }: {
+    instruction: string;
+    schema: T;
+    content?: z.infer<T>;
+    llmClient: LLMClient;
+    requestId?: string;
+    domSettleTimeoutMs?: number;
+  }): Promise<z.infer<T>> {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: "textExtract",
+          input: {
+            instruction,
+            schema,
+            content,
+            llmClient: cleanLLMClientForLaminarObserve(llmClient),
+            requestId,
+            domSettleTimeoutMs,
+          },
+        },
+        (extractProps) => this._textExtractInner(extractProps),
+        {
+          instruction,
+          schema,
+          content,
+          llmClient,
+          requestId,
+          domSettleTimeoutMs,
+        },
+      );
+    }
+
+    return this._textExtractInner({
+      instruction,
+      schema,
+      content,
+      llmClient,
+      requestId,
+      domSettleTimeoutMs,
+    });
+  }
+
+  private async _textExtractInner<T extends z.AnyZodObject>({
     instruction,
     schema,
     content = {},
@@ -363,6 +414,61 @@ export class StagehandExtractHandler {
   }
 
   private async domExtract<T extends z.AnyZodObject>({
+    instruction,
+    schema,
+    content = {},
+    chunksSeen = [],
+    llmClient,
+    requestId,
+    domSettleTimeoutMs,
+  }: {
+    instruction: string;
+    schema: T;
+    content?: z.infer<T>;
+    chunksSeen?: Array<number>;
+    llmClient: LLMClient;
+    requestId?: string;
+    domSettleTimeoutMs?: number;
+  }): Promise<z.infer<T>> {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: "domExtract",
+          input: {
+            instruction,
+            schema,
+            content,
+            chunksSeen,
+            llmClient: cleanLLMClientForLaminarObserve(llmClient),
+            requestId,
+            domSettleTimeoutMs,
+          },
+        },
+        (extractProps) => this._domExtractInner(extractProps),
+        {
+          instruction,
+          schema,
+          content,
+          chunksSeen,
+          llmClient,
+          requestId,
+          domSettleTimeoutMs,
+        },
+      );
+    }
+
+    return this._domExtractInner({
+      instruction,
+      schema,
+      content,
+      chunksSeen,
+      llmClient,
+      requestId,
+      domSettleTimeoutMs,
+    });
+  }
+
+  private async _domExtractInner<T extends z.AnyZodObject>({
     instruction,
     schema,
     content = {},

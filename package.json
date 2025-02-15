@@ -80,6 +80,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
     "@browserbasehq/sdk": "^2.0.0",
+    "@lmnr-ai/lmnr": "^0.4.40",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },

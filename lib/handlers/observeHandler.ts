@@ -1,9 +1,14 @@
+import { Laminar, observe as laminarObserve } from "@lmnr-ai/lmnr";
 import { LogLine } from "../../types/log";
 import { Stagehand } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { generateId, drawObserveOverlay } from "../utils";
+import {
+  generateId,
+  drawObserveOverlay,
+  cleanLLMClientForLaminarObserve,
+} from "../utils";
 import {
   getAccessibilityTree,
   getXPathByResolvedObjectId,
@@ -50,6 +55,55 @@ export class StagehandObserveHandler {
   }
 
   public async observe({
+    instruction,
+    llmClient,
+    requestId,
+    returnAction,
+    onlyVisible,
+    drawOverlay,
+  }: {
+    instruction: string;
+    llmClient: LLMClient;
+    requestId: string;
+    domSettleTimeoutMs?: number;
+    returnAction?: boolean;
+    onlyVisible?: boolean;
+    drawOverlay?: boolean;
+  }) {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: "observe",
+          input: {
+            instruction,
+            llmClient: cleanLLMClientForLaminarObserve(llmClient),
+            requestId,
+            returnAction,
+            onlyVisible,
+            drawOverlay,
+          },
+        },
+        (observeProps) => this._observe(observeProps),
+        {
+          instruction,
+          llmClient,
+          requestId,
+          returnAction,
+          onlyVisible,
+          drawOverlay,
+        },
+      );
+    }
+
+    return this._observe({
+      instruction,
+      llmClient,
+      requestId,
+      returnAction,
+    });
+  }
+
+  private async _observe({
     instruction,
     llmClient,
     requestId,

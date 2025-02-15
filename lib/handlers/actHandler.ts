@@ -1,3 +1,4 @@
+import { Laminar, observe as laminarObserve } from "@lmnr-ai/lmnr";
 import { Locator, Page } from "@playwright/test";
 import { LogLine } from "../../types/log";
 import {
@@ -10,7 +11,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
 import { StagehandContext } from "../StagehandContext";
 import { StagehandPage } from "../StagehandPage";
-import { generateId } from "../utils";
+import { generateId, cleanLLMClientForLaminarObserve } from "../utils";
 import { ObserveResult } from "@/types/stagehand";
 
 /**
@@ -66,6 +67,22 @@ export class StagehandActHandler {
    * that was returned from `page.observe(...)`.
    */
   public async actFromObserveResult(
+    observe: ObserveResult,
+  ): Promise<{ success: boolean; message: string; action: string }> {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: "actFromObserveResult",
+        },
+        (observeResult: ObserveResult) =>
+          this._actFromObserveResult(observeResult),
+        observe,
+      );
+    }
+    return this._actFromObserveResult(observe);
+  }
+
+  private async _actFromObserveResult(
     observe: ObserveResult,
   ): Promise<{ success: boolean; message: string; action: string }> {
     this.logger({
@@ -245,6 +262,38 @@ export class StagehandActHandler {
   }
 
   private async _performPlaywrightMethod(
+    method: string,
+    args: unknown[],
+    xpath: string,
+    domSettleTimeoutMs?: number,
+  ) {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: `playwright.${method}`,
+          input: {
+            method,
+            args,
+            xpath,
+            domSettleTimeoutMs,
+          },
+        },
+        (...props) => this._performPlaywrightMethodInner(...props),
+        method,
+        args,
+        xpath,
+        domSettleTimeoutMs,
+      );
+    }
+    return this._performPlaywrightMethodInner(
+      method,
+      args,
+      xpath,
+      domSettleTimeoutMs,
+    );
+  }
+
+  private async _performPlaywrightMethodInner(
     method: string,
     args: unknown[],
     xpath: string,
@@ -1054,6 +1103,75 @@ export class StagehandActHandler {
   }
 
   public async act({
+    action,
+    steps = "",
+    chunksSeen,
+    llmClient,
+    retries = 0,
+    requestId,
+    variables,
+    previousSelectors,
+    skipActionCacheForThisStep = false,
+    domSettleTimeoutMs,
+  }: {
+    action: string;
+    steps?: string;
+    chunksSeen: number[];
+    llmClient: LLMClient;
+    retries?: number;
+    requestId?: string;
+    variables: Record<string, string>;
+    previousSelectors: string[];
+    skipActionCacheForThisStep: boolean;
+    domSettleTimeoutMs?: number;
+  }): Promise<{ success: boolean; message: string; action: string }> {
+    if (Laminar.initialized()) {
+      return laminarObserve(
+        {
+          name: "act",
+          input: {
+            action,
+            steps,
+            chunksSeen,
+            llmClient: cleanLLMClientForLaminarObserve(llmClient),
+            retries,
+            requestId,
+            variables,
+            previousSelectors,
+            skipActionCacheForThisStep,
+            domSettleTimeoutMs,
+          },
+        },
+        (actProps) => this._act(actProps),
+        {
+          action,
+          steps,
+          chunksSeen,
+          llmClient,
+          retries,
+          requestId,
+          variables,
+          previousSelectors,
+          skipActionCacheForThisStep,
+          domSettleTimeoutMs,
+        },
+      );
+    }
+    return this._act({
+      action,
+      steps,
+      chunksSeen,
+      llmClient,
+      retries,
+      requestId,
+      variables,
+      previousSelectors,
+      skipActionCacheForThisStep,
+      domSettleTimeoutMs,
+    });
+  }
+
+  private async _act({
     action,
     steps = "",
     chunksSeen,
