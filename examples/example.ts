@@ -11,10 +11,9 @@ import StagehandConfig from "@/stagehand.config";
 async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
-    modelName: "o3-mini",
   });
   await stagehand.init();
-  await stagehand.page.goto("https://www.google.com");
+  await stagehand.page.goto("https://docs.stagehand.dev");
 }
 
 (async () => {
