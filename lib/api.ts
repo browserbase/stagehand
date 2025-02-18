@@ -37,6 +37,7 @@ export class StagehandAPI {
     verbose,
     debugDom,
     systemPrompt,
+    browserbaseSessionCreateParams,
   }: StartSessionParams): Promise<StartSessionResult> {
     const whitelistResponse = await this.request("/healthcheck");
 
@@ -56,6 +57,7 @@ export class StagehandAPI {
         verbose,
         debugDom,
         systemPrompt,
+        browserbaseSessionCreateParams,
       }),
       headers: {
         "x-model-api-key": modelApiKey,

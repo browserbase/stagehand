@@ -393,7 +393,12 @@ export class Stagehand {
 
     if (this.usingAPI && env === "LOCAL") {
       throw new Error("API mode can only be used with BROWSERBASE environment");
+    } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
+      throw new Error(
+        "STAGEHAND_API_URL is required when using the API. Please set it in your environment variables.",
+      );
     }
+
     this.selfHeal = selfHeal;
   }
 
@@ -457,6 +462,7 @@ export class Stagehand {
         verbose: this.verbose,
         debugDom: this.debugDom,
         systemPrompt: this.userProvidedInstructions,
+        browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
       });
       this.browserbaseSessionID = sessionId;
     }

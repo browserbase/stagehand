@@ -1,3 +1,4 @@
+import Browserbase from "@browserbasehq/sdk";
 import { LogLine } from "./log";
 
 export interface StagehandAPIConstructorParams {
@@ -19,6 +20,7 @@ export interface StartSessionParams {
   verbose: number;
   debugDom: boolean;
   systemPrompt?: string;
+  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
 }
 
 export interface StartSessionResult {
