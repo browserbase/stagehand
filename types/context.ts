@@ -24,4 +24,5 @@ export type AccessibilityNode = {
 export interface TreeResult {
   tree: AccessibilityNode[];
   simplified: string;
+  iframes?: AccessibilityNode[];
 }

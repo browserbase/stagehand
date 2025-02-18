@@ -8,6 +8,7 @@ import {
   getAccessibilityTree,
   getXPathByResolvedObjectId,
 } from "../a11y/utils";
+import { AccessibilityNode } from "../../types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -83,6 +84,7 @@ export class StagehandObserveHandler {
 
     let selectorMap: Record<string, string[]> = {};
     let outputString: string;
+    let iframes: AccessibilityNode[] = [];
     const useAccessibilityTree = !onlyVisible;
     if (useAccessibilityTree) {
       await this.stagehandPage._waitForSettledDom();
@@ -93,6 +95,7 @@ export class StagehandObserveHandler {
         level: 1,
       });
       outputString = tree.simplified;
+      iframes = tree.iframes;
     } else {
       const evalResult = await this.stagehand.page.evaluate(() => {
         return window.processAllOfDom().then((result) => result);
@@ -111,6 +114,18 @@ export class StagehandObserveHandler {
       isUsingAccessibilityTree: useAccessibilityTree,
       returnAction,
     });
+
+    //Add iframes to the observation response if there are any on the page
+    if (iframes.length > 0) {
+      iframes.forEach((iframe) => {
+        observationResponse.elements.push({
+          elementId: Number(iframe.nodeId),
+          description: "an iframe",
+          method: "not-supported",
+          arguments: [],
+        });
+      });
+    }
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;

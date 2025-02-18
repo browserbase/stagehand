@@ -156,6 +156,7 @@ export async function buildHierarchicalTree(
 ): Promise<TreeResult> {
   // Map to store processed nodes for quick lookup
   const nodeMap = new Map<string, AccessibilityNode>();
+  const iframe_list: AccessibilityNode[] = [];
 
   // First pass: Create nodes that are meaningful
   // We only keep nodes that either have a name or children to avoid cluttering the tree
@@ -194,6 +195,15 @@ export async function buildHierarchicalTree(
   // Second pass: Establish parent-child relationships
   // This creates the actual tree structure by connecting nodes based on parentId
   nodes.forEach((node) => {
+    // Add iframes to a list and include in the return object
+    const isIframe = node.role === "Iframe";
+    if (isIframe) {
+      const iframeNode = {
+        role: node.role,
+        nodeId: node.nodeId,
+      };
+      iframe_list.push(iframeNode);
+    }
     if (node.parentId && nodeMap.has(node.nodeId)) {
       const parentNode = nodeMap.get(node.parentId);
       const currentNode = nodeMap.get(node.nodeId);
@@ -228,6 +238,7 @@ export async function buildHierarchicalTree(
   return {
     tree: finalTree,
     simplified: simplifiedFormat,
+    iframes: iframe_list,
   };
 }
 
@@ -283,7 +294,6 @@ export async function getAccessibilityTree(
       message: `got accessibility tree in ${Date.now() - startTime}ms`,
       level: 1,
     });
-
     return hierarchicalTree;
   } catch (error) {
     logger({
