@@ -17,7 +17,7 @@ You will receive:
 
 
 ## Your Goal / Specification
-You have 3 tools that you can call: doAction, returnPlan, returnResult, and skipSection. Do action performs Playwright actions and can record information found so far. Return Plan is used to return a plan for multiple steps. Return Result is used to return either an intermediate result or a final result. Skip Section is used to skip a section of the page. Do exactly what the user's goal is. Do not perform any other actions or exceed the scope of the goal. You can only make one tool call per step, you will get the result of the tool call in the next step.
+You have 3 tools that you can call: doAction, returnResult, and skipSection. Do action performs Playwright actions and can record information found so far. Return Result is used to return either an intermediate result or a final result. Skip Section is used to skip a section of the page. Do exactly what the user's goal is. Do not perform any other actions or exceed the scope of the goal. You can only make one tool call per step, you will get the result of the tool call in the next step.
 If you have the information needed to complete the goal, return a final result using the returnResult tool setting completed to true.
 If the user's goal will be accomplished after running the playwright action, set completed to true. Better to have completed set to true if your are not sure.
 
@@ -251,21 +251,6 @@ export const actTools: LLMTool[] = [
           type: "boolean",
           description:
             "true if this result is a final result and the goal should be considered completed",
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    name: "returnPlan",
-    description: "return a plan for multiple steps",
-    parameters: {
-      type: "object",
-      required: ["plan"],
-      properties: {
-        plan: {
-          type: "string",
-          description: "The plan for the next steps",
         },
       },
     },

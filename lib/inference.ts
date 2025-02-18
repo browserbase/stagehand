@@ -125,17 +125,12 @@ export async function act({
   const toolCalls = response.choices[0].message.tool_calls;
 
   if (toolCalls && toolCalls.length > 0) {
-    if (toolCalls[0].function.name === "skipSection") {
-      return null;
+    if (!toolCalls[0].function) {
+      throw new Error("No function in tool call");
     }
 
-    if (toolCalls[0].function.name === "returnPlan") {
-      const { plan } = JSON.parse(toolCalls[0].function.arguments);
-      return {
-        result: plan,
-        completed: false,
-        commentary: "This is my plan for the next steps",
-      };
+    if (toolCalls[0].function.name === "skipSection") {
+      return null;
     }
 
     if (toolCalls[0].function.name === "returnResult") {
