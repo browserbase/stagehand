@@ -113,6 +113,36 @@ jobs:
       - name: Run E2E Tests (Deterministic Playwright)
         run: npm run e2e
 
+  run-e2e-local-tests:
+    needs: [run-lint, run-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      HEADLESS: true
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Build Stagehand
+        run: npm run build
+
+      - name: Run local E2E Tests (Deterministic Playwright)
+        run: npm run e2e:local
+
   run-e2e-bb-tests:
     needs: [run-e2e-tests]
     runs-on: ubuntu-latest

@@ -1,0 +1,243 @@
+import { test, expect } from "@playwright/test";
+import { Stagehand } from "@/dist";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import type { Cookie } from "@playwright/test";
+
+test.describe("Local browser launch options", () => {
+  test("launches with default options when no localBrowserLaunchOptions provided", async () => {
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+    });
+    await stagehand.init();
+
+    const context = stagehand.context;
+    expect(context.browser()).toBeDefined();
+    expect(context.pages().length).toBe(1);
+
+    await stagehand.close();
+  });
+
+  test("respects custom userDataDir", async () => {
+    const customUserDataDir = path.join(os.tmpdir(), "custom-user-data");
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        userDataDir: customUserDataDir,
+      },
+    });
+    await stagehand.init();
+
+    expect(fs.existsSync(customUserDataDir)).toBeTruthy();
+
+    await stagehand.close();
+
+    // Cleanup
+    fs.rmSync(customUserDataDir, { recursive: true, force: true });
+  });
+
+  test("applies custom viewport settings", async () => {
+    const customViewport = { width: 1920, height: 1080 };
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        viewport: customViewport,
+      },
+    });
+    await stagehand.init();
+
+    const page = await stagehand.context.newPage();
+    const viewport = page.viewportSize();
+
+    expect(viewport).toEqual(customViewport);
+
+    await stagehand.close();
+  });
+
+  test("applies custom cookies", async () => {
+    const testCookies: Cookie[] = [
+      {
+        name: "testCookie",
+        value: "testValue",
+        domain: "example.com",
+        path: "/",
+        expires: -1,
+        httpOnly: false,
+        secure: false,
+        sameSite: "Lax" as const,
+      },
+    ];
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        cookies: testCookies,
+      },
+    });
+    await stagehand.init();
+
+    const page = await stagehand.context.newPage();
+    await page.goto("https://example.com");
+    const cookies = await stagehand.context.cookies();
+
+    expect(cookies[0]).toMatchObject(
+      testCookies[0] as unknown as Record<string, unknown>,
+    );
+
+    await stagehand.close();
+  });
+
+  test("applies custom geolocation settings", async () => {
+    const customGeolocation = {
+      latitude: 40.7128,
+      longitude: -74.006,
+    };
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        geolocation: customGeolocation,
+        permissions: ["geolocation"],
+      },
+    });
+    await stagehand.init();
+
+    const page = await stagehand.context.newPage();
+    await page.goto("https://example.com");
+
+    const location = await page.evaluate(() => {
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          },
+          () => resolve(null),
+        );
+      });
+    });
+
+    expect(location).toEqual(customGeolocation);
+
+    await stagehand.close();
+  });
+
+  test("applies custom timezone and locale", async () => {
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        locale: "ja-JP",
+        timezoneId: "Asia/Tokyo",
+      },
+    });
+    await stagehand.init();
+
+    const page = await stagehand.context.newPage();
+    await page.goto("https://example.com");
+
+    const { locale, timezone } = await page.evaluate(() => ({
+      locale: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }));
+
+    expect(locale).toBe("ja-JP");
+    expect(timezone).toBe("Asia/Tokyo");
+
+    await stagehand.close();
+  });
+
+  test("records video when enabled", async () => {
+    const videoDir = path.join(os.tmpdir(), "test-videos");
+    fs.mkdirSync(videoDir, { recursive: true });
+
+    const stagehand = new Stagehand({
+      env: "LOCAL",
+      verbose: 1,
+      headless: true,
+      debugDom: true,
+      domSettleTimeoutMs: 30_000,
+      enableCaching: true,
+      modelName: "gpt-4o",
+      modelClientOptions: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+      localBrowserLaunchOptions: {
+        recordVideo: {
+          dir: videoDir,
+          size: { width: 800, height: 600 },
+        },
+      },
+    });
+    await stagehand.init();
+
+    const page = await stagehand.context.newPage();
+    await page.goto("https://example.com");
+    await stagehand.close();
+
+    const videos = fs.readdirSync(videoDir);
+    expect(videos.length).toBeGreaterThan(0);
+    expect(videos[0]).toMatch(/\.webm$/);
+
+    // Cleanup
+    fs.rmSync(videoDir, { recursive: true, force: true });
+  });
+});
