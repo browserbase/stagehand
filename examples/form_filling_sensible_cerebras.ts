@@ -8,7 +8,7 @@ async function formFillingSensible() {
     ...StagehandConfig,
     env: "LOCAL",
     llmClient: new CerebrasClient({
-      modelName: "llama-3.1-8b",
+      modelName: "llama-3.3-70b",
       clientOptions: {
         apiKey: process.env.CEREBRAS_API_KEY,
       },
