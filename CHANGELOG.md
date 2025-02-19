@@ -1,5 +1,18 @@
 # @browserbasehq/stagehand
 
+## 1.13.0
+
+### Minor Changes
+
+- Added Cerebras inference API support:
+  - Added CerebrasClient implementation with:
+    * Full function calling support for both llama-3.3-70b and llama-3.1-8b models
+    * Robust response parsing with fallbacks for different output formats
+    * Error handling and caching support
+  - Added "llama-3.3-70b" and "llama-3.1-8b" to modelToProviderMap
+  - Added Cerebras case to getClient switch statement in LLMProvider
+  - Added CEREBRAS_API_KEY to environment variables
+
 ## 1.12.0
 
 ### Minor Changes
