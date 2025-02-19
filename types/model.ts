@@ -13,8 +13,8 @@ export const AvailableModelSchema = z.enum([
   "o1-mini",
   "o1-preview",
   "o3-mini",
-  "llama-3.3-70b",
-  "llama-3.1-8b"
+  "cerebras-llama-3.3-70b",
+  "cerebras-llama-3.1-8b"
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;

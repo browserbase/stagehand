@@ -20,8 +20,8 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "claude-3-5-sonnet-latest": "anthropic",
   "claude-3-5-sonnet-20240620": "anthropic",
   "claude-3-5-sonnet-20241022": "anthropic",
-  "llama-3.3-70b": "cerebras",
-  "llama-3.1-8b": "cerebras",
+  "cerebras-llama-3.3-70b": "cerebras",
+  "cerebras-llama-3.1-8b": "cerebras",
 };
 
 export class LLMProvider {
