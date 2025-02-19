@@ -373,6 +373,7 @@ export class Stagehand {
   private usingAPI: boolean;
   private modelName: AvailableModel;
   private apiClient: StagehandAPI | undefined;
+  private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
 
@@ -397,6 +398,7 @@ export class Stagehand {
       useAPI,
       localBrowserLaunchOptions,
       selfHeal = true,
+      waitForCaptchaSolves = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -441,6 +443,8 @@ export class Stagehand {
         "STAGEHAND_API_URL is required when using the API. Please set it in your environment variables.",
       );
     }
+
+    this.waitForCaptchaSolves = waitForCaptchaSolves;
 
     this.selfHeal = selfHeal;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
@@ -543,6 +547,7 @@ export class Stagehand {
       this.llmClient,
       this.userProvidedInstructions,
       this.apiClient,
+      this.waitForCaptchaSolves,
     ).init();
 
     // Set the browser to headless mode if specified

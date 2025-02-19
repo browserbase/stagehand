@@ -33,6 +33,12 @@ export interface ConstructorParams {
    */
   useAPI?: boolean;
   selfHeal?: boolean;
+  /**
+   * Wait for captchas to be solved after navigation when using Browserbase environment.
+   *
+   * @default false
+   */
+  waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 }
 
