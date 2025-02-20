@@ -246,8 +246,11 @@ export class StagehandPage {
             };
           }
           if (prop === "extract") {
-            return async (options: ExtractOptions<z.AnyZodObject>) => {
-              return this.extract(options);
+            return async (
+              instructionOrOptions: string | ExtractOptions<z.AnyZodObject>,
+              observeResult?: ObserveResult,
+            ) => {
+              return this.extract(instructionOrOptions, observeResult);
             };
           }
           if (prop === "observe") {
@@ -544,6 +547,7 @@ export class StagehandPage {
 
   async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
     instructionOrOptions: string | ExtractOptions<T>,
+    observeResult?: ObserveResult,
   ): Promise<ExtractResult<T>> {
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
@@ -567,6 +571,14 @@ export class StagehandPage {
       domSettleTimeoutMs,
       useTextExtract,
     } = options;
+
+    // Throw a NotImplementedError if the user passed in an `ObserveResult`
+    // and `useTextExtract` is false
+    if (observeResult && useTextExtract !== true) {
+      throw new Error(
+        "NotImplementedError: Passing an ObserveResult into extract is only supported when `useTextExtract: true`.",
+      );
+    }
 
     if (this.api) {
       return this.api.extract<T>(options);
@@ -605,6 +617,7 @@ export class StagehandPage {
         requestId,
         domSettleTimeoutMs,
         useTextExtract,
+        observation: observeResult,
       })
       .catch((e) => {
         this.stagehand.log({
