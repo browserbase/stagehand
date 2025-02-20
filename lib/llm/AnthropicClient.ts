@@ -265,7 +265,10 @@ export class AnthropicClient extends LLMClient {
           message: {
             role: "assistant",
             content:
-              response.content.find((c) => c.type === "text")?.text || null,
+              response.content
+                .filter((c) => c.type === "text")
+                ?.map((c) => c.text)
+                .join("\n") || null,
             tool_calls: response.content
               .filter((c) => c.type === "tool_use")
               .map((toolUse) => ({

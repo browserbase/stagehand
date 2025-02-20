@@ -25,4 +25,12 @@ export interface ActCommandResult {
   completed: boolean;
   step: string;
   why?: string;
+  commentary?: string;
+  findings?: string;
+}
+
+export interface ActCompletedResult {
+  result: string;
+  completed: boolean;
+  commentary?: string;
 }
