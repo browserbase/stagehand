@@ -25,7 +25,7 @@ import {
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
-import { StagehandContext } from "./StagehandContext";
+import { StagehandContext, EnhancedContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
@@ -363,7 +363,6 @@ export class Stagehand {
 
   private apiKey: string | undefined;
   private projectId: string | undefined;
-  // We want external logger to accept async functions
   private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
@@ -376,6 +375,31 @@ export class Stagehand {
   private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+
+  public getLLMClient(): LLMClient {
+    return this.llmClient;
+  }
+
+  public getSystemPrompt(): string | undefined {
+    return this.userProvidedInstructions;
+  }
+
+  public getAPIClient(): StagehandAPI | undefined {
+    return this.apiClient;
+  }
+
+  public getWaitForCaptchaSolves(): boolean {
+    return this.waitForCaptchaSolves;
+  }
+
+  public get page(): Page {
+    if (!this.stagehandContext) {
+      throw new Error(
+        "Stagehand not initialized. Make sure to await stagehand.init() first.",
+      );
+    }
+    return this.stagehandPage.page;
+  }
 
   constructor(
     {
@@ -456,17 +480,6 @@ export class Stagehand {
     };
   }
 
-  public get page(): Page {
-    // End users should not be able to access the StagehandPage directly
-    // This is a proxy to the underlying Playwright Page
-    if (!this.stagehandPage) {
-      throw new Error(
-        "Stagehand not initialized. Make sure to await stagehand.init() first.",
-      );
-    }
-    return this.stagehandPage.page;
-  }
-
   public get env(): "LOCAL" | "BROWSERBASE" {
     if (this.intEnv === "BROWSERBASE" && this.apiKey && this.projectId) {
       return "BROWSERBASE";
@@ -474,7 +487,7 @@ export class Stagehand {
     return "LOCAL";
   }
 
-  public get context(): BrowserContext {
+  public get context(): EnhancedContext {
     if (!this.stagehandContext) {
       throw new Error(
         "Stagehand not initialized. Make sure to await stagehand.init() first.",
@@ -538,19 +551,12 @@ export class Stagehand {
       });
     this.intEnv = env;
     this.contextPath = contextPath;
-    this.stagehandContext = await StagehandContext.init(context, this);
-    const defaultPage = this.context.pages()[0];
-    this.stagehandPage = await new StagehandPage(
-      defaultPage,
-      this,
-      this.stagehandContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.apiClient,
-      this.waitForCaptchaSolves,
-    ).init();
 
-    // Set the browser to headless mode if specified
+    this.stagehandContext = await StagehandContext.init(context, this);
+
+    const defaultPage = (await this.stagehandContext.getStagehandPages())[0];
+    this.stagehandPage = defaultPage;
+
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
@@ -590,12 +596,10 @@ export class Stagehand {
       return result;
     };
 
-    // Set the browser to headless mode if specified
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
 
-    // Add initialization scripts
     await this.context.addInitScript({
       content: scriptContent,
     });
@@ -610,12 +614,10 @@ export class Stagehand {
   log(logObj: LogLine): void {
     logObj.level = logObj.level ?? 1;
 
-    // Normal Logging
     if (this.externalLogger) {
       this.externalLogger(logObj);
     }
 
-    // Add the logs to the browserbase session
     this.pending_logs_to_send_to_browserbase.push({
       ...logObj,
       id: randomUUID(),

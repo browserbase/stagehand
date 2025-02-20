@@ -1,9 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type {
-  CDPSession,
-  BrowserContext as PlaywrightContext,
-  Page as PlaywrightPage,
-} from "@playwright/test";
+import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
 import { chromium } from "@playwright/test";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
@@ -19,7 +15,7 @@ import { StagehandExtractHandler } from "./handlers/extractHandler";
 import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
-import { StagehandContext } from "./StagehandContext";
+import { StagehandContext, EnhancedContext } from "./StagehandContext";
 import { clearOverlays } from "./utils";
 
 const BROWSERBASE_REGION_DOMAIN = {
@@ -305,7 +301,7 @@ export class StagehandPage {
     return this.intPage;
   }
 
-  public get context(): PlaywrightContext {
+  public get context(): EnhancedContext {
     return this.intContext.context;
   }
 
