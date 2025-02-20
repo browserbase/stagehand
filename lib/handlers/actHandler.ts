@@ -502,7 +502,6 @@ export class StagehandActHandler {
         },
       });
 
-      // NAVIDNOTE: Should this happen before we wait for locator[method]?
       const newOpenedTab = await Promise.race([
         new Promise<Page | null>((resolve) => {
           // TODO: This is a hack to get the new page
@@ -544,7 +543,6 @@ export class StagehandActHandler {
 
       await Promise.race([
         this.stagehandPage.page.waitForLoadState("networkidle"),
-        new Promise((resolve) => setTimeout(resolve, 5_000)),
       ]).catch((e) => {
         this.logger({
           category: "action",
