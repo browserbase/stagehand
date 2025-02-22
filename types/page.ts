@@ -36,6 +36,13 @@ export interface Page extends Omit<PlaywrightPage, "on"> {
   on: {
     (event: "popup", listener: (page: Page) => unknown): Page;
   } & PlaywrightPage["on"];
+
+  saveScreenshot(options?: {
+    path?: string;
+    fullPage?: boolean;
+    type?: "png" | "jpeg";
+    quality?: number;
+  }): Promise<string>;
 }
 
 // Empty type for now, but will be used in the future

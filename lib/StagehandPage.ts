@@ -21,6 +21,8 @@ import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
 import { clearOverlays } from "./utils";
+import path from "path";
+import fs from "fs";
 
 const BROWSERBASE_REGION_DOMAIN = {
   "us-west-2": "wss://connect.usw2.browserbase.com",
@@ -31,7 +33,7 @@ const BROWSERBASE_REGION_DOMAIN = {
 
 export class StagehandPage {
   private stagehand: Stagehand;
-  private intPage: Page;
+  private intPage: PlaywrightPage;
   private intContext: StagehandContext;
   private actHandler: StagehandActHandler;
   private extractHandler: StagehandExtractHandler;
@@ -51,35 +53,13 @@ export class StagehandPage {
     api?: StagehandAPI,
     waitForCaptchaSolves?: boolean,
   ) {
-    this.intPage = Object.assign(page, {
-      act: () => {
-        throw new Error(
-          "You seem to be calling `act` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-      extract: () => {
-        throw new Error(
-          "You seem to be calling `extract` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-      observe: () => {
-        throw new Error(
-          "You seem to be calling `observe` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-      on: () => {
-        throw new Error(
-          "You seem to be referencing a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-    });
-
     this.stagehand = stagehand;
     this.intContext = context;
     this.llmClient = llmClient;
     this.api = api;
     this.userProvidedInstructions = userProvidedInstructions;
     this.waitForCaptchaSolves = waitForCaptchaSolves ?? false;
+    this.intPage = page;
 
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
@@ -89,22 +69,24 @@ export class StagehandPage {
         logger: this.stagehand.logger,
         stagehandPage: this,
         stagehandContext: this.intContext,
-        llmClient: llmClient,
-        userProvidedInstructions,
+        llmClient: this.llmClient,
+        userProvidedInstructions: this.userProvidedInstructions,
         selfHeal: this.stagehand.selfHeal,
         waitForCaptchaSolves: this.waitForCaptchaSolves,
       });
+
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
-        userProvidedInstructions,
+        userProvidedInstructions: this.userProvidedInstructions,
       });
+
       this.observeHandler = new StagehandObserveHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
-        userProvidedInstructions,
+        userProvidedInstructions: this.userProvidedInstructions,
       });
     }
   }
@@ -239,6 +221,34 @@ export class StagehandPage {
             }
             return result;
           };
+        } else if (prop === 'saveScreenshot') {
+          return async (options?: {
+            path?: string;
+            fullPage?: boolean;
+            type?: "png" | "jpeg";
+            quality?: number;
+          }): Promise<string> => {
+            const downloadsPath = (this.stagehand as unknown as {
+              localBrowserLaunchOptions?: { downloadsPath?: string };
+            }).localBrowserLaunchOptions?.downloadsPath || "downloads";
+
+            // Ensure downloads directory exists
+            if (!fs.existsSync(downloadsPath)) {
+              fs.mkdirSync(downloadsPath, { recursive: true });
+            }
+
+            const filename = options?.path || `screenshot-${Date.now()}.${options?.type || "png"}`;
+            const fullPath = path.join(downloadsPath, filename);
+
+            await target.screenshot({
+              path: fullPath,
+              type: options?.type,
+              quality: options?.quality,
+              fullPage: options?.fullPage,
+            });
+
+            return fullPath;
+          };
         } else if (this.llmClient) {
           if (prop === "act") {
             return async (options: ActOptions) => {
@@ -302,7 +312,43 @@ export class StagehandPage {
   }
 
   public get page(): Page {
-    return this.intPage;
+    return new Proxy(this.intPage, {
+      get: (target, prop) => {
+        if (prop === 'saveScreenshot') {
+          return async (options?: {
+            path?: string;
+            fullPage?: boolean;
+            type?: "png" | "jpeg";
+            quality?: number;
+          }): Promise<string> => {
+            const downloadsPath = (this.stagehand as unknown as {
+              localBrowserLaunchOptions?: { downloadsPath?: string };
+            }).localBrowserLaunchOptions?.downloadsPath || "downloads";
+
+            // Ensure downloads directory exists
+            if (!fs.existsSync(downloadsPath)) {
+              fs.mkdirSync(downloadsPath, { recursive: true });
+            }
+
+            const filename = options?.path || `screenshot-${Date.now()}.${options?.type || "png"}`;
+            const fullPath = path.join(downloadsPath, filename);
+
+            await target.screenshot({
+              path: fullPath,
+              type: options?.type,
+              quality: options?.quality,
+              fullPage: options?.fullPage,
+            });
+
+            return fullPath;
+          };
+        }
+        if (prop === 'on') {
+          return target.on.bind(target);
+        }
+        return target[prop as keyof typeof target];
+      },
+    }) as unknown as Page;
   }
 
   public get context(): PlaywrightContext {
@@ -782,5 +828,36 @@ export class StagehandPage {
 
   async disableCDP(domain: string): Promise<void> {
     await this.sendCDP(`${domain}.disable`, {});
+  }
+
+  async saveScreenshot(options?: {
+    path?: string;
+    fullPage?: boolean;
+    type?: "png" | "jpeg";
+    quality?: number;
+  }): Promise<string> {
+    const downloadsPath =
+      (
+        this.stagehand as unknown as {
+          localBrowserLaunchOptions?: { downloadsPath?: string };
+        }
+      ).localBrowserLaunchOptions?.downloadsPath || "downloads";
+    const filename =
+      options?.path || `screenshot-${Date.now()}.${options?.type || "png"}`;
+    const fullPath = path.join(downloadsPath, filename);
+
+    // Ensure downloads directory exists
+    if (!fs.existsSync(downloadsPath)) {
+      fs.mkdirSync(downloadsPath, { recursive: true });
+    }
+
+    await this.intPage.screenshot({
+      path: fullPath,
+      type: options?.type,
+      quality: options?.quality,
+      fullPage: options?.fullPage,
+    });
+
+    return fullPath;
   }
 }
