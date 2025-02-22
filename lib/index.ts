@@ -31,7 +31,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { logLineToString } from "./utils";
+import { logLineToString, isRunningInBun } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -487,6 +487,14 @@ export class Stagehand {
     /** @deprecated Use constructor options instead */
     initOptions?: InitOptions,
   ): Promise<InitResult> {
+    if (isRunningInBun()) {
+      throw new Error(
+        "Playwright does not currently support the Bun runtime environment. " +
+          "Please use Node.js instead. For more information, see: " +
+          "https://github.com/microsoft/playwright/issues/27139",
+      );
+    }
+
     if (initOptions) {
       console.warn(
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
