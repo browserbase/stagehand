@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 1.13.1
+
+### Patch Changes
+
+- [#509](https://github.com/browserbase/stagehand/pull/509) [`a7d345e`](https://github.com/browserbase/stagehand/commit/a7d345e75434aebb656e1aa5aa61caed00dc99a8) Thanks [@miguelg719](https://github.com/miguelg719)! - Bun runs will now throw a more informed error
+
 ## 1.13.0
 
 ### Minor Changes
