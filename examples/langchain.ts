@@ -10,8 +10,8 @@ async function example() {
     llmClient: new LangchainClient(
       new ChatOpenAI({
         model: "gpt-4o",
-      })
-    )
+      }),
+    ),
   });
 
   await stagehand.init();
