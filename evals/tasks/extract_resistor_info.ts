@@ -15,15 +15,15 @@ export const extract_resistor_info: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.seielect.com/?stockcheck=ASR1JA330R");
+  await stagehand.page.goto("https://vniva-3.surge.sh/vniva/");
 
   const result = await stagehand.page.extract({
     instruction:
-      "Extract the MOQ, tolerance percentage, ohmic value, and operating temperature range of the resistor.",
+      "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
     schema: z.object({
-      moq: z.string(),
+      manufacturer_standard_lead_time: z.string(),
       tolerance_percentage: z.string(),
-      ohmic_value: z.string(),
+      resistance: z.string(),
       operating_temperature_range: z.string(),
     }),
     modelName,
@@ -33,37 +33,42 @@ export const extract_resistor_info: EvalFunction = async ({
   await stagehand.close();
 
   const {
-    moq,
+    manufacturer_standard_lead_time,
     tolerance_percentage,
-    ohmic_value,
+    resistance,
     operating_temperature_range,
   } = result;
 
   const expected = {
-    moq: "500",
-    tolerance_percentage: "5%",
-    ohmic_value: "330 ohm",
-    operating_temperature_range: "-55 to +155",
+    manufacturer_standard_lead_time: "11 Weeks",
+    tolerance_percentage: "±5",
+    resistance: "330 ohms",
+    operating_temperature_range: "-55°C ~ 155°C",
   };
 
-  if (normalizeString(moq) !== normalizeString(expected.moq)) {
+  if (
+    normalizeString(manufacturer_standard_lead_time) !==
+    normalizeString(expected.manufacturer_standard_lead_time)
+  ) {
     logger.error({
-      message: "MOQ extracted does not match expected",
+      message:
+        "manufacturer standard lead time extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.moq),
+          value: normalizeString(expected.manufacturer_standard_lead_time),
           type: "string",
         },
         actual: {
-          value: normalizeString(moq),
+          value: normalizeString(manufacturer_standard_lead_time),
           type: "string",
         },
       },
     });
     return {
       _success: false,
-      error: "MOQ extracted does not match expected",
+      error:
+        "manufacturer standard lead time extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
@@ -97,24 +102,24 @@ export const extract_resistor_info: EvalFunction = async ({
     };
   }
 
-  if (normalizeString(ohmic_value) !== normalizeString(expected.ohmic_value)) {
+  if (normalizeString(resistance) !== normalizeString(expected.resistance)) {
     logger.error({
-      message: "Ohmic value extracted does not match expected",
+      message: "resistance extracted does not match expected",
       level: 0,
       auxiliary: {
         expected: {
-          value: normalizeString(expected.ohmic_value),
+          value: normalizeString(expected.resistance),
           type: "string",
         },
         actual: {
-          value: normalizeString(ohmic_value),
+          value: normalizeString(resistance),
           type: "string",
         },
       },
     });
     return {
       _success: false,
-      error: "Ohmic value extracted does not match expected",
+      error: "resistance extracted does not match expected",
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
