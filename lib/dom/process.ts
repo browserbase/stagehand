@@ -90,9 +90,9 @@ export async function processDom(chunksSeen: Array<number>) {
     container,
   );
 
-  console.log(
-    `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
-  );
+  // console.log(
+  //   `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
+  // );
 
   return {
     outputString,
@@ -103,8 +103,6 @@ export async function processDom(chunksSeen: Array<number>) {
 }
 
 export async function processAllOfDom() {
-  console.log("Stagehand (Browser Process): Processing all of DOM");
-
   const mainScrollableElements = getScrollableElements(1);
   const mainScrollable = mainScrollableElements[0];
 
@@ -134,9 +132,9 @@ export async function processAllOfDom() {
     {},
   );
 
-  console.log(
-    `Stagehand (Browser Process): All dom elements: ${allOutputString}`,
-  );
+  // console.log(
+  //   `Stagehand (Browser Process): All dom elements: ${allOutputString}`,
+  // );
 
   return {
     outputString: allOutputString,
@@ -155,8 +153,6 @@ export async function processElements(
   outputString: string;
   selectorMap: Record<number, string[]>;
 }> {
-  console.time("processElements:total");
-
   // If no container given, default to the entire page
   const stagehandContainer = container ?? createStagehandContainer(window);
 
@@ -168,12 +164,8 @@ export async function processElements(
   const offsetTop = Math.min(chunkHeight, maxScrollTop);
 
   if (scrollToChunk) {
-    console.time("processElements:scroll");
     await stagehandContainer.scrollTo(offsetTop);
-    console.timeEnd("processElements:scroll");
   }
-  console.log("Stagehand (Browser Process): Generating candidate elements");
-  console.time("processElements:findCandidates");
 
   // NOTE: we still gather candidate elems from the entire body
   const DOMQueue: ChildNode[] = [...document.body.childNodes];
@@ -216,17 +208,13 @@ export async function processElements(
     }
   }
 
-  console.timeEnd("processElements:findCandidates");
-
   const selectorMap: Record<number, string[]> = {};
   let outputString = "";
 
-  console.log(
-    `Stagehand (Browser Process): Processing candidate elements: ${candidateElements.length}`,
-  );
+  // console.log(
+  //   `Stagehand (Browser Process): Processing candidate elements: ${candidateElements.length}`,
+  // );
 
-  console.time("processElements:processCandidates");
-  console.time("processElements:generateXPaths");
   const xpathLists = await Promise.all(
     candidateElements.map(async (element) => {
       if (xpathCache.has(element)) {
@@ -238,7 +226,6 @@ export async function processElements(
       return xpaths;
     }),
   );
-  console.timeEnd("processElements:generateXPaths");
 
   candidateElements.forEach((element, index) => {
     const xpaths = xpathLists[index];
@@ -263,9 +250,7 @@ export async function processElements(
     outputString += elementOutput;
     selectorMap[index + indexOffset] = xpaths;
   });
-  console.timeEnd("processElements:processCandidates");
 
-  console.timeEnd("processElements:total");
   return {
     outputString,
     selectorMap,
@@ -312,17 +297,16 @@ function collectEssentialAttributes(element: Element): string {
 
 export function storeDOM(): string {
   const originalDOM = document.body.cloneNode(true) as HTMLElement;
-  console.log("DOM state stored.");
   return originalDOM.outerHTML;
 }
 
 export function restoreDOM(storedDOM: string): void {
-  console.log("Restoring DOM");
   if (storedDOM) {
     document.body.innerHTML = storedDOM;
-  } else {
-    console.error("No DOM state was provided.");
   }
+  // else {
+  //   console.error("No DOM state was provided.");
+  // }
 }
 
 export function createTextBoundingBoxes(): void {
@@ -398,8 +382,8 @@ export function createTextBoundingBoxes(): void {
   document.querySelectorAll("iframe").forEach((iframe) => {
     try {
       iframe.contentWindow?.postMessage({ action: "highlight" }, "*");
-    } catch (error) {
-      console.error("Error accessing iframe content: ", error);
+    } catch {
+      // console.error("Error accessing iframe content: ", error);
     }
   });
 }
