@@ -1,28 +1,5 @@
-import CerebrasCloud from "@cerebras/cerebras_cloud_sdk";
-import type { ClientOptions } from "@cerebras/cerebras_cloud_sdk";
-
-interface ChatCompletion {
-  id: string;
-  choices: Array<{
-    message?: {
-      content: string | null;
-      tool_calls?: Array<{
-        id: string;
-        type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
-    };
-    finish_reason?: string;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
+import OpenAI from "openai";
+import type { ClientOptions } from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
@@ -36,7 +13,7 @@ import {
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
-  private client: CerebrasCloud;
+  private client: OpenAI;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
   public clientOptions: ClientOptions;
@@ -57,7 +34,14 @@ export class CerebrasClient extends LLMClient {
     userProvidedInstructions?: string;
   }) {
     super(modelName, userProvidedInstructions);
-    this.client = new CerebrasCloud(clientOptions);
+
+    // Create OpenAI client with the base URL set to Cerebras API
+    this.client = new OpenAI({
+      baseURL: "https://api.cerebras.ai/v1",
+      apiKey: clientOptions?.apiKey || process.env.CEREBRAS_API_KEY,
+      ...clientOptions,
+    });
+
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
@@ -86,7 +70,7 @@ export class CerebrasClient extends LLMClient {
 
     // Try to get cached response
     const cacheOptions = {
-      model: this.modelName,
+      model: this.modelName.split("cerebras-")[1],
       messages: options.messages,
       temperature: options.temperature,
       response_model: options.response_model,
@@ -123,14 +107,17 @@ export class CerebrasClient extends LLMClient {
       }
     }
 
-    // Format messages for Cerebras API
+    // Format messages for Cerebras API (using OpenAI format)
     const formattedMessages = options.messages.map((msg: ChatMessage) => {
       const baseMessage = {
-        content: typeof msg.content === "string" 
-          ? msg.content 
-          : Array.isArray(msg.content) && msg.content.length > 0 && "text" in msg.content[0]
-            ? msg.content[0].text
-            : "",
+        content:
+          typeof msg.content === "string"
+            ? msg.content
+            : Array.isArray(msg.content) &&
+                msg.content.length > 0 &&
+                "text" in msg.content[0]
+              ? msg.content[0].text
+              : "",
       };
 
       // Cerebras only supports system, user, and assistant roles
@@ -146,7 +133,7 @@ export class CerebrasClient extends LLMClient {
 
     // Format tools if provided
     let tools = options.tools?.map((tool) => ({
-      type: "function",
+      type: "function" as const,
       function: {
         name: tool.name,
         description: tool.description,
@@ -168,10 +155,11 @@ export class CerebrasClient extends LLMClient {
       const schemaRequired = jsonSchema.required || [];
 
       const responseTool = {
-        type: "function",
+        type: "function" as const,
         function: {
           name: "print_extracted_data",
-          description: "Prints the extracted data based on the provided schema.",
+          description:
+            "Prints the extracted data based on the provided schema.",
           parameters: {
             type: "object",
             properties: schemaProperties,
@@ -184,15 +172,20 @@ export class CerebrasClient extends LLMClient {
     }
 
     try {
+      // Use OpenAI client with Cerebras API
       const apiResponse = await this.client.chat.completions.create({
-        model: this.modelName,
+        model: this.modelName.split("cerebras-")[1],
         messages: [
           ...formattedMessages,
           // Add explicit instruction to return JSON if we have a response model
-          ...(options.response_model ? [{
-            role: "system" as const,
-            content: `IMPORTANT: Your response must be valid JSON that matches this schema: ${JSON.stringify(options.response_model.schema)}`,
-          }] : []),
+          ...(options.response_model
+            ? [
+                {
+                  role: "system" as const,
+                  content: `IMPORTANT: Your response must be valid JSON that matches this schema: ${JSON.stringify(options.response_model.schema)}`,
+                },
+              ]
+            : []),
         ],
         temperature: options.temperature || 0.7,
         max_tokens: options.maxTokens,
@@ -200,26 +193,27 @@ export class CerebrasClient extends LLMClient {
         tool_choice: options.tool_choice || "auto",
       });
 
+      // Format the response to match the expected LLMResponse format
       const response: LLMResponse = {
-        id: (apiResponse as ChatCompletion).id,
+        id: apiResponse.id,
         object: "chat.completion",
         created: Date.now(),
-        model: this.modelName,
+        model: this.modelName.split("cerebras-")[1],
         choices: [
           {
             index: 0,
             message: {
               role: "assistant",
-              content: (apiResponse as ChatCompletion).choices[0]?.message?.content || null,
-              tool_calls: (apiResponse as ChatCompletion).choices[0]?.message?.tool_calls || [],
+              content: apiResponse.choices[0]?.message?.content || null,
+              tool_calls: apiResponse.choices[0]?.message?.tool_calls || [],
             },
-            finish_reason: (apiResponse as ChatCompletion).choices[0]?.finish_reason || "stop",
+            finish_reason: apiResponse.choices[0]?.finish_reason || "stop",
           },
         ],
         usage: {
-          prompt_tokens: (apiResponse as ChatCompletion).usage?.prompt_tokens || 0,
-          completion_tokens: (apiResponse as ChatCompletion).usage?.completion_tokens || 0,
-          total_tokens: (apiResponse as ChatCompletion).usage?.total_tokens || 0,
+          prompt_tokens: apiResponse.usage?.prompt_tokens || 0,
+          completion_tokens: apiResponse.usage?.completion_tokens || 0,
+          total_tokens: apiResponse.usage?.total_tokens || 0,
         },
       };
 
@@ -301,7 +295,7 @@ export class CerebrasClient extends LLMClient {
             retries: (retries ?? 0) + 1,
           });
         }
-        
+
         throw new Error(
           "Create Chat Completion Failed: Could not extract valid JSON from response",
         );
