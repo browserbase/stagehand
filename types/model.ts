@@ -1,6 +1,5 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
-import type { ClientOptions as CerebrasClientOptions } from "@cerebras/cerebras_cloud_sdk";
 import { z } from "zod";
 
 export const AvailableModelSchema = z.enum([
@@ -14,14 +13,14 @@ export const AvailableModelSchema = z.enum([
   "o1-preview",
   "o3-mini",
   "cerebras-llama-3.3-70b",
-  "cerebras-llama-3.1-8b"
+  "cerebras-llama-3.1-8b",
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;
 
 export type ModelProvider = "openai" | "anthropic" | "cerebras";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions | CerebrasClientOptions;
+export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
 export interface AnthropicJsonSchemaObject {
   definitions?: {
