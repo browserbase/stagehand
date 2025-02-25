@@ -1,98 +1,101 @@
-import { ZodType } from "zod";
-import { LLMTool } from "../../types/llm";
-import { AvailableModel, ClientOptions } from "../../types/model";
 import { LogLine } from "../../types/log";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelProvider,
+} from "../../types/model";
+import { LLMCache } from "../cache/LLMCache";
+import { AnthropicClient } from "./AnthropicClient";
+import { CerebrasClient } from "./CerebrasClient";
+import { LLMClient } from "./LLMClient";
+import { OpenAIClient } from "./OpenAIClient";
 
-export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: ChatMessageContent;
-}
-
-export type ChatMessageContent =
-  | string
-  | (ChatMessageImageContent | ChatMessageTextContent)[];
-
-export interface ChatMessageImageContent {
-  type: "image_url";
-  image_url: { url: string };
-  text?: string;
-}
-
-export interface ChatMessageTextContent {
-  type: string;
-  text: string;
-}
-
-export const AnnotatedScreenshotText =
-  "This is a screenshot of the current page state with the elements annotated on it. Each element id is annotated with a number to the top left of it. Duplicate annotations at the same location are under each other vertically.";
-
-export interface ChatCompletionOptions {
-  messages: ChatMessage[];
-  temperature?: number;
-  top_p?: number;
-  frequency_penalty?: number;
-  presence_penalty?: number;
-  image?: {
-    buffer: Buffer;
-    description?: string;
-  };
-  response_model?: {
-    name: string;
-    schema: ZodType;
-  };
-  tools?: LLMTool[];
-  tool_choice?: "auto" | "none" | "required";
-  maxTokens?: number;
-  requestId: string;
-}
-
-export type LLMResponse = {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: {
-    index: number;
-    message: {
-      role: string;
-      content: string | null;
-      tool_calls: {
-        id: string;
-        type: string;
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }[];
-    };
-    finish_reason: string;
-  }[];
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
+  "gpt-4o": "openai",
+  "gpt-4o-mini": "openai",
+  "gpt-4o-2024-08-06": "openai",
+  "o1-mini": "openai",
+  "o1-preview": "openai",
+  "o3-mini": "openai",
+  "claude-3-5-sonnet-latest": "anthropic",
+  "claude-3-5-sonnet-20240620": "anthropic",
+  "claude-3-5-sonnet-20241022": "anthropic",
+  "cerebras-llama-3.3-70b": "cerebras",
+  "cerebras-llama-3.1-8b": "cerebras",
 };
 
-export interface CreateChatCompletionOptions {
-  options: ChatCompletionOptions;
-  logger: (message: LogLine) => void;
-  retries?: number;
-}
+export class LLMProvider {
+  private logger: (message: LogLine) => void;
+  private enableCaching: boolean;
+  private cache: LLMCache | undefined;
 
-export abstract class LLMClient {
-  public type: "openai" | "anthropic" | "cerebras" | string;
-  public modelName: AvailableModel;
-  public hasVision: boolean;
-  public clientOptions: ClientOptions;
-  public userProvidedInstructions?: string;
-
-  constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
-    this.modelName = modelName;
-    this.userProvidedInstructions = userProvidedInstructions;
+  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
+    this.logger = logger;
+    this.enableCaching = enableCaching;
+    this.cache = enableCaching ? new LLMCache(logger) : undefined;
   }
 
-  abstract createChatCompletion<T = LLMResponse>(
-    options: CreateChatCompletionOptions,
-  ): Promise<T>;
+  cleanRequestCache(requestId: string): void {
+    if (!this.enableCaching) {
+      return;
+    }
+
+    this.logger({
+      category: "llm_cache",
+      message: "cleaning up cache",
+      level: 1,
+      auxiliary: {
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
+    this.cache.deleteCacheForRequestId(requestId);
+  }
+
+  getClient(
+    modelName: AvailableModel,
+    clientOptions?: ClientOptions,
+  ): LLMClient {
+    const provider = modelToProviderMap[modelName];
+    if (!provider) {
+      throw new Error(`Unsupported model: ${modelName}`);
+    }
+
+    switch (provider) {
+      case "openai":
+        return new OpenAIClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
+      case "anthropic":
+        return new AnthropicClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
+      case "cerebras":
+        return new CerebrasClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
+    }
+  }
+
+  static getModelProvider(modelName: AvailableModel): ModelProvider {
+    const provider = modelToProviderMap[modelName];
+
+    return provider;
+  }
 }
