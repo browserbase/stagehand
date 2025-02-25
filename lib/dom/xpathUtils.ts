@@ -1,5 +1,4 @@
-import { isTextNode } from "./process";
-import { isElementNode } from "./process";
+import { isElementNode, isTextNode } from "./elementCheckUtils";
 
 function getParentElement(node: ChildNode): Element | null {
   return isElementNode(node)

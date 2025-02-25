@@ -116,6 +116,7 @@ export class StagehandExtractHandler {
     requestId,
     domSettleTimeoutMs,
     useTextExtract = false,
+    selector,
   }: {
     instruction: string;
     schema: T;
@@ -125,6 +126,7 @@ export class StagehandExtractHandler {
     requestId?: string;
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
+    selector?: string;
   }): Promise<z.infer<T>> {
     if (useTextExtract) {
       return this.textExtract({
@@ -134,6 +136,7 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
+        selector,
       });
     } else {
       return this.domExtract({
@@ -155,6 +158,7 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
+    selector,
   }: {
     instruction: string;
     schema: T;
@@ -162,6 +166,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
+    selector?: string;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -179,20 +184,28 @@ export class StagehandExtractHandler {
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     await this.stagehandPage.startDomDebug();
 
+    const targetXpath = selector;
+
     // **2:** Store the original DOM before any mutations
     // we need to store the original DOM here because calling createTextBoundingBoxes()
     // will mutate the DOM by adding spans around every word
-    const originalDOM = await this.stagehandPage.page.evaluate(() =>
-      window.storeDOM(),
+    const originalDOM = await this.stagehandPage.page.evaluate(
+      (xp) => window.storeDOM(xp),
+      targetXpath,
     );
 
     // **3:** Process the DOM to generate a selector map of candidate elements
     const { selectorMap }: { selectorMap: Record<number, string[]> } =
-      await this.stagehand.page.evaluate(() => window.processAllOfDom());
+      await this.stagehand.page.evaluate(
+        (xp) => window.processAllOfDom(xp),
+        targetXpath,
+      );
 
     this.logger({
       category: "extraction",
-      message: `received output from processAllOfDom. selectorMap has ${Object.keys(selectorMap).length} entries`,
+      message: `received output from processAllOfDom. selectorMap has ${
+        Object.keys(selectorMap).length
+      } entries`,
       level: 1,
     });
 
@@ -200,60 +213,30 @@ export class StagehandExtractHandler {
     // calling createTextBoundingBoxes() will create a span around every word on the
     // webpage. The bounding boxes of these spans will be used to determine their
     // positions in the text rendered webpage
-    await this.stagehand.page.evaluate(() => window.createTextBoundingBoxes());
-    const pageWidth = await this.stagehand.page.evaluate(
-      () => window.innerWidth,
-    );
-    const pageHeight = await this.stagehand.page.evaluate(
-      () => window.innerHeight,
+    await this.stagehand.page.evaluate(
+      (xp) => window.createTextBoundingBoxes(xp),
+      targetXpath,
     );
 
-    // **5:** Collect all text annotations (with positions and dimensions) from the candidate elements
+    // **5:** Determine the container dimensions for either the entire page or the target element
+    const {
+      width: containerWidth,
+      height: containerHeight,
+      offsetLeft = 0,
+      offsetTop = 0,
+    } = await this.getTargetDimensions(targetXpath);
+
+    // **6:** Collect all text annotations (with positions and dimensions) from the candidate elements
     // allAnnotations will store all the TextAnnotations BEFORE deduplication
-    const allAnnotations: TextAnnotation[] = [];
+    const allAnnotations = await this.collectAllAnnotations(
+      selectorMap,
+      containerWidth,
+      containerHeight,
+      offsetLeft,
+      offsetTop,
+    );
 
-    // here we will loop through all the xpaths in the selectorMap,
-    // and get the bounding boxes for each one. These are xpaths to "candidate elements"
-    for (const xpaths of Object.values(selectorMap)) {
-      const xpath = xpaths[0];
-
-      // boundingBoxes is an array because there may be multiple bounding boxes within a single element
-      // (since each bounding box is around a single word)
-      const boundingBoxes: Array<{
-        text: string;
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-      }> = await this.stagehandPage.page.evaluate(
-        (xpath) => window.getElementBoundingBoxes(xpath),
-        xpath,
-      );
-
-      for (const box of boundingBoxes) {
-        const bottom_left = {
-          x: box.left,
-          y: box.top + box.height,
-        };
-        const bottom_left_normalized = {
-          x: box.left / pageWidth,
-          y: (box.top + box.height) / pageHeight,
-        };
-
-        const annotation: TextAnnotation = {
-          text: box.text,
-          bottom_left,
-          bottom_left_normalized,
-          width: box.width,
-          height: box.height,
-        };
-        if (annotation.text.length > 0) {
-          allAnnotations.push(annotation);
-        }
-      }
-    }
-
-    // **6:** Group annotations by text and deduplicate them based on proximity
+    // **7:** Group annotations by text and deduplicate them based on proximity
     const annotationsGroupedByText = new Map<string, TextAnnotation[]>();
 
     for (const annotation of allAnnotations) {
@@ -293,16 +276,19 @@ export class StagehandExtractHandler {
       }
     }
 
-    // **7:** Restore the original DOM after mutations
+    // **8:** Restore the original DOM after mutations
     await this.stagehandPage.page.evaluate(
-      (dom) => window.restoreDOM(dom),
-      originalDOM,
+      ({ dom, xp }) => window.restoreDOM(dom, xp),
+      { dom: originalDOM, xp: targetXpath },
     );
 
-    // **8:** Format the deduplicated annotations into a text representation
-    const formattedText = formatText(deduplicatedTextAnnotations, pageWidth);
+    // **9:** Format the deduplicated annotations into a text representation
+    const formattedText = formatText(
+      deduplicatedTextAnnotations,
+      containerWidth,
+    );
 
-    // **9:** Pass the formatted text to an LLM for extraction according to the given instruction and schema
+    // **10:** Pass the formatted text to an LLM for extraction according to the given instruction and schema
     const extractionResponse = await extract({
       instruction,
       previouslyExtractedContent: content,
@@ -320,9 +306,11 @@ export class StagehandExtractHandler {
       metadata: { completed },
       ...output
     } = extractionResponse;
+
+    // Clean up debug
     await this.stagehandPage.cleanupDomDebug();
 
-    // **10:** Handle the extraction response and log the results
+    // **11:** Handle the extraction response and log the results
     this.logger({
       category: "extraction",
       message: "received extraction response",
@@ -506,5 +494,121 @@ export class StagehandExtractHandler {
         domSettleTimeoutMs,
       });
     }
+  }
+
+  /**
+   * Get the width, height, and offsets of either the entire page or a specific element.
+   * (Matches your existing getTargetDimensions logic, just adapted to accept a string | undefined.)
+   */
+  private async getTargetDimensions(targetXpath?: string): Promise<{
+    width: number;
+    height: number;
+    offsetLeft: number;
+    offsetTop: number;
+  }> {
+    // If targetXpath is undefined, get entire page dimensions
+    if (!targetXpath) {
+      const { innerWidth, innerHeight } = await this.stagehand.page.evaluate(
+        () => ({
+          innerWidth: window.innerWidth,
+          innerHeight: window.innerHeight,
+        }),
+      );
+      return {
+        width: innerWidth,
+        height: innerHeight,
+        offsetLeft: 0,
+        offsetTop: 0,
+      };
+    }
+
+    // If targetXpath is present, get element-specific dimensions
+    const { elemWidth, elemHeight, offsetLeft, offsetTop } =
+      await this.stagehand.page.evaluate((xp) => {
+        const el = window.getNodeFromXpath(xp) as HTMLElement | null;
+
+        if (!el) {
+          return {
+            elemWidth: window.innerWidth,
+            elemHeight: window.innerHeight,
+            offsetLeft: 0,
+            offsetTop: 0,
+          };
+        }
+
+        const rect = el.getBoundingClientRect();
+        return {
+          elemWidth: rect.width,
+          elemHeight: rect.height,
+          offsetLeft: rect.left,
+          offsetTop: rect.top,
+        };
+      }, targetXpath);
+
+    return {
+      width: elemWidth,
+      height: elemHeight,
+      offsetLeft,
+      offsetTop,
+    };
+  }
+
+  /**
+   * Collects the bounding boxes for each word inside each of the candidate element in selectorMap,
+   * adjusting for container offsets, and producing an array of TextAnnotations.
+   */
+  private async collectAllAnnotations(
+    selectorMap: Record<number, string[]>,
+    containerWidth: number,
+    containerHeight: number,
+    offsetLeft: number,
+    offsetTop: number,
+  ): Promise<TextAnnotation[]> {
+    const allAnnotations: TextAnnotation[] = [];
+
+    // Loop over the candidate XPaths in the selector map
+    for (const xpaths of Object.values(selectorMap)) {
+      const xpath = xpaths[0];
+
+      // Evaluate in the browser to get bounding boxes
+      const boundingBoxes: Array<{
+        text: string;
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+      }> = await this.stagehandPage.page.evaluate(
+        (xp) => window.getElementBoundingBoxes(xp),
+        xpath,
+      );
+
+      for (const box of boundingBoxes) {
+        // 1. Subtract container offsets to get local coordinates
+        const localLeft = box.left - offsetLeft;
+        const localTop = box.top - offsetTop;
+
+        // 2. bottom_left is local x, plus local y + height
+        //    so the baseline is at the bottom edge of the box
+        const bottom_left = { x: localLeft, y: localTop + box.height };
+
+        // 3. Normalize by dividing local positions by container width/height
+        const bottom_left_normalized = {
+          x: localLeft / containerWidth,
+          y: (localTop + box.height) / containerHeight,
+        };
+
+        if (box.text.trim().length > 0) {
+          allAnnotations.push({
+            text: box.text,
+            bottom_left,
+            bottom_left_normalized,
+            width: box.width,
+            height: box.height,
+          });
+        }
+      }
+    }
+
+    return allAnnotations;
   }
 }

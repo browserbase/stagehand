@@ -1,15 +1,14 @@
 import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
-import { calculateViewportHeight, canElementScroll } from "./utils";
+import {
+  calculateViewportHeight,
+  canElementScroll,
+  getNodeFromXpath,
+} from "./utils";
 import { createStagehandContainer } from "./containerFactory";
 import { StagehandContainer } from "./StagehandContainer";
-
-export function isElementNode(node: Node): node is Element {
-  return node.nodeType === Node.ELEMENT_NODE;
-}
-
-export function isTextNode(node: Node): node is Text {
-  return node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim());
-}
+import { GlobalPageContainer } from "@/lib/dom/GlobalPageContainer";
+import { ElementContainer } from "@/lib/dom/ElementContainer";
+import { DomChunk } from "@/lib/dom/DomChunk";
 
 /**
  * Finds and returns a list of scrollable elements on the page,
@@ -79,253 +78,254 @@ export async function getScrollableElementXpaths(
   return xpaths;
 }
 
-export async function processDom(chunksSeen: Array<number>) {
+export function getNearestScrollableParent(el: HTMLElement): HTMLElement {
+  // 1) Get *all* scrollable elements on the page
+  //    (You could pass a large topN or omit it for “all”)
+  const allScrollables = getScrollableElements();
+
+  // 2) Climb up the DOM tree
+  let current: HTMLElement | null = el;
+  while (current) {
+    // If `current` is in the scrollable list, we have our nearest scrollable parent
+    if (allScrollables.includes(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  // 3) If we exhaust the ancestors, default to root
+  return document.documentElement;
+}
+
+/**
+ * processDom
+ * ----------
+ * This function now just picks a single chunk index,
+ * creates a container, and calls collectDomChunk to get a single DomChunk.
+ *
+ * @param chunksSeen - The chunks we've seen so far
+ */
+export async function processDom(chunksSeen: number[]) {
+  // 1) choose a chunk index from chunksSeen
   const { chunk, chunksArray } = await pickChunk(chunksSeen);
-  const container = createStagehandContainer(window);
 
-  const { outputString, selectorMap } = await processElements(
-    chunk,
+  // 2) create a container for the entire page
+  const container = new GlobalPageContainer();
+
+  // 3) pick a chunk size, e.g. container.getViewportHeight()
+  const chunkSize = container.getViewportHeight();
+
+  // 4) compute startOffset from `chunkIndex * chunkSize`
+  const startOffset = chunk * chunkSize;
+  // if we only want a single chunk, pass the same value for `endOffset`
+  const endOffset = startOffset;
+
+  // 5) collectAllDomChunks with identical start & end => exactly 1 iteration
+  const domChunks = await container.collectDomChunks(
+    startOffset,
+    endOffset,
+    chunkSize,
     true,
-    0,
-    container,
+    false, // scrollBackToTop
+    undefined, // BFS entire doc
   );
 
-  console.log(
-    `Stagehand (Browser Process): Extracted dom elements:\n${outputString}`,
-  );
+  // We expect exactly 1 chunk
+  const [domChunk] = domChunks;
+  if (!domChunk) {
+    // fallback, no chunk
+    return {
+      outputString: "",
+      selectorMap: {},
+      chunk,
+      chunks: chunksArray,
+    };
+  }
+
+  console.log("Extracted DOM chunk:\n", domChunk.outputString);
 
   return {
-    outputString,
-    selectorMap,
+    outputString: domChunk.outputString,
+    selectorMap: domChunk.selectorMap,
     chunk,
     chunks: chunksArray,
   };
 }
 
-export async function processAllOfDom() {
-  console.log("Stagehand (Browser Process): Processing all of DOM");
+/**
+ * processAllOfDom
+ * ---------------
+ * If an xpath is provided, we find that element and build an appropriate container
+ * (global or element) based on the nearest scrollable parent. Then we chunk from
+ * startOffset..endOffset. We BFS within the element's subtree (candidateContainer).
+ */
+export async function processAllOfDom(xpath?: string) {
+  let candidateElementContainer: HTMLElement | null = null;
+  let scrollTarget: StagehandContainer;
 
-  const mainScrollableElements = getScrollableElements(1);
-  const mainScrollable = mainScrollableElements[0];
+  if (xpath) {
+    // 1) Find the element
+    const node = getNodeFromXpath(xpath) as HTMLElement | null;
 
-  const container =
-    mainScrollable === document.documentElement
-      ? createStagehandContainer(window)
-      : createStagehandContainer(mainScrollable);
+    if (node) {
+      candidateElementContainer = node;
+      console.log(`Found element via XPath: ${xpath}`);
 
-  const viewportHeight = container.getViewportHeight();
-  const documentHeight = container.getScrollHeight();
-  const totalChunks = Math.ceil(documentHeight / viewportHeight);
+      // 2) Always find the nearest scrollable parent
+      const scrollableElem = getNearestScrollableParent(
+        candidateElementContainer,
+      );
+      if (scrollableElem === document.documentElement) {
+        scrollTarget = new GlobalPageContainer();
+      } else {
+        scrollTarget = new ElementContainer(scrollableElem);
+      }
 
-  let index = 0;
-  const results = [];
-  for (let chunk = 0; chunk < totalChunks; chunk++) {
-    // Pass the container to processElements
-    const result = await processElements(chunk, true, index, container);
-    results.push(result);
-    index += Object.keys(result.selectorMap).length;
+      // 3) Scroll the candidateElementContainer into view
+      //    (use the container's scroll logic)
+      await scrollTarget.scrollIntoView(candidateElementContainer);
+
+      // 4) Measure the container’s new scroll offset AFTER we've scrolled
+      const startOffset = scrollTarget.getScrollPosition();
+
+      // Now check if the element “fits” in the container’s viewport
+      const scrollTargetHeight = scrollTarget.getViewportHeight();
+      const rect = candidateElementContainer.getBoundingClientRect();
+
+      if (rect.height <= scrollTargetHeight) {
+        // Single-chunk approach
+        console.log(
+          "Element is smaller/equal to container’s viewport. Doing single chunk.",
+        );
+
+        // We'll define a "single-chunk" scenario by telling
+        // the container to gather from startOffset..startOffset
+        // so it only processes exactly one chunk iteration
+        const domChunks = await scrollTarget.collectDomChunks(
+          startOffset, // startOffset
+          startOffset, // endOffset => same as start => 1 chunk
+          1, // chunkSize=1 => doesn't matter, because start==end means exactly 1 iteration
+          true,
+          true,
+          candidateElementContainer,
+        );
+
+        const singleChunkOutput = combineChunks(domChunks);
+        console.log(
+          "Final output (single-chunk):",
+          singleChunkOutput.outputString,
+        );
+        return singleChunkOutput;
+      }
+
+      console.log("Element is bigger. Doing multi-chunk approach.");
+    } else {
+      console.warn(`XPath not found: ${xpath}. Using entire doc.`);
+    }
+  } else {
+    const scrollableElems = getScrollableElements(1);
+    const mainScrollable = scrollableElems[0];
+
+    scrollTarget =
+      mainScrollable === document.documentElement
+        ? createStagehandContainer(window)
+        : createStagehandContainer(mainScrollable);
   }
 
-  await container.scrollTo(0);
+  const startOffset = scrollTarget.getScrollPosition();
+  const viewportHeight = scrollTarget.getViewportHeight();
+  const maxScroll = candidateElementContainer
+    ? startOffset + candidateElementContainer.getBoundingClientRect().height
+    : scrollTarget.getScrollHeight();
+  const chunkSize = viewportHeight;
 
-  const allOutputString = results.map((result) => result.outputString).join("");
-  const allSelectorMap = results.reduce(
-    (acc, result) => ({ ...acc, ...result.selectorMap }),
-    {},
+  console.log("processAllOfDom chunk-based from", startOffset, "to", maxScroll);
+
+  const domChunks = await scrollTarget.collectDomChunks(
+    startOffset,
+    maxScroll,
+    chunkSize,
+    true,
+    true,
+    candidateElementContainer ?? undefined,
   );
 
+  const finalOutput = combineChunks(domChunks);
   console.log(
-    `Stagehand (Browser Process): All dom elements: ${allOutputString}`,
+    "All DOM elements combined (chunk-based):",
+    finalOutput.outputString,
   );
-
-  return {
-    outputString: allOutputString,
-    selectorMap: allSelectorMap,
-  };
+  return finalOutput;
 }
 
-const xpathCache: Map<Node, string[]> = new Map();
-
-export async function processElements(
-  chunk: number,
-  scrollToChunk: boolean = true,
-  indexOffset: number = 0,
-  container?: StagehandContainer,
-): Promise<{
+function combineChunks(domChunks: DomChunk[]): {
   outputString: string;
   selectorMap: Record<number, string[]>;
-}> {
-  console.time("processElements:total");
-
-  // If no container given, default to the entire page
-  const stagehandContainer = container ?? createStagehandContainer(window);
-
-  const viewportHeight = stagehandContainer.getViewportHeight();
-  const totalScrollHeight = stagehandContainer.getScrollHeight();
-
-  const chunkHeight = viewportHeight * chunk;
-  const maxScrollTop = totalScrollHeight - viewportHeight;
-  const offsetTop = Math.min(chunkHeight, maxScrollTop);
-
-  if (scrollToChunk) {
-    console.time("processElements:scroll");
-    await stagehandContainer.scrollTo(offsetTop);
-    console.timeEnd("processElements:scroll");
-  }
-  console.log("Stagehand (Browser Process): Generating candidate elements");
-  console.time("processElements:findCandidates");
-
-  // NOTE: we still gather candidate elems from the entire body
-  const DOMQueue: ChildNode[] = [...document.body.childNodes];
-  const candidateElements: ChildNode[] = [];
-
-  while (DOMQueue.length > 0) {
-    const element = DOMQueue.pop();
-
-    let shouldAddElement = false;
-
-    if (element && isElementNode(element)) {
-      const childrenCount = element.childNodes.length;
-
-      // Always traverse child nodes
-      for (let i = childrenCount - 1; i >= 0; i--) {
-        const child = element.childNodes[i];
-        DOMQueue.push(child as ChildNode);
-      }
-
-      // Check if element is interactive
-      if (isInteractiveElement(element)) {
-        if (isActive(element) && isVisible(element)) {
-          shouldAddElement = true;
-        }
-      }
-
-      if (isLeafElement(element)) {
-        if (isActive(element) && isVisible(element)) {
-          shouldAddElement = true;
-        }
-      }
-    }
-
-    if (element && isTextNode(element) && isTextVisible(element)) {
-      shouldAddElement = true;
-    }
-
-    if (shouldAddElement) {
-      candidateElements.push(element);
-    }
-  }
-
-  console.timeEnd("processElements:findCandidates");
-
-  const selectorMap: Record<number, string[]> = {};
-  let outputString = "";
-
-  console.log(
-    `Stagehand (Browser Process): Processing candidate elements: ${candidateElements.length}`,
-  );
-
-  console.time("processElements:processCandidates");
-  console.time("processElements:generateXPaths");
-  const xpathLists = await Promise.all(
-    candidateElements.map(async (element) => {
-      if (xpathCache.has(element)) {
-        return xpathCache.get(element);
-      }
-
-      const xpaths = await generateXPaths(element);
-      xpathCache.set(element, xpaths);
-      return xpaths;
-    }),
-  );
-  console.timeEnd("processElements:generateXPaths");
-
-  candidateElements.forEach((element, index) => {
-    const xpaths = xpathLists[index];
-    let elementOutput = "";
-
-    if (isTextNode(element)) {
-      const textContent = element.textContent?.trim();
-      if (textContent) {
-        elementOutput += `${index + indexOffset}:${textContent}\n`;
-      }
-    } else if (isElementNode(element)) {
-      const tagName = element.tagName.toLowerCase();
-      const attributes = collectEssentialAttributes(element);
-
-      const openingTag = `<${tagName}${attributes ? " " + attributes : ""}>`;
-      const closingTag = `</${tagName}>`;
-      const textContent = element.textContent?.trim() || "";
-
-      elementOutput += `${index + indexOffset}:${openingTag}${textContent}${closingTag}\n`;
-    }
-
-    outputString += elementOutput;
-    selectorMap[index + indexOffset] = xpaths;
+} {
+  const outputString = domChunks.map((c: DomChunk) => c.outputString).join("");
+  let finalSelectorMap: Record<number, string[]> = {};
+  domChunks.forEach((c: DomChunk) => {
+    finalSelectorMap = { ...finalSelectorMap, ...c.selectorMap };
   });
-  console.timeEnd("processElements:processCandidates");
-
-  console.timeEnd("processElements:total");
-  return {
-    outputString,
-    selectorMap,
-  };
+  return { outputString, selectorMap: finalSelectorMap };
 }
 
 /**
- * Collects essential attributes from an element.
- * @param element The DOM element.
- * @returns A string of formatted attributes.
+ * Stores either the entire DOM (if no `xpath` is given),
+ * or the specific element that `xpath` points to.
+ * Returns the outer HTML of what is stored.
  */
-function collectEssentialAttributes(element: Element): string {
-  const essentialAttributes = [
-    "id",
-    "class",
-    "href",
-    "src",
-    "aria-label",
-    "aria-name",
-    "aria-role",
-    "aria-description",
-    "aria-expanded",
-    "aria-haspopup",
-    "type",
-    "value",
-  ];
-
-  const attrs: string[] = essentialAttributes
-    .map((attr) => {
-      const value = element.getAttribute(attr);
-      return value ? `${attr}="${value}"` : "";
-    })
-    .filter((attr) => attr !== "");
-
-  // Collect data- attributes
-  Array.from(element.attributes).forEach((attr) => {
-    if (attr.name.startsWith("data-")) {
-      attrs.push(`${attr.name}="${attr.value}"`);
-    }
-  });
-
-  return attrs.join(" ");
-}
-
-export function storeDOM(): string {
-  const originalDOM = document.body.cloneNode(true) as HTMLElement;
-  console.log("DOM state stored.");
-  return originalDOM.outerHTML;
-}
-
-export function restoreDOM(storedDOM: string): void {
-  console.log("Restoring DOM");
-  if (storedDOM) {
-    document.body.innerHTML = storedDOM;
+export function storeDOM(xpath?: string): string {
+  if (!xpath) {
+    const originalDOM = document.body.cloneNode(true) as HTMLElement;
+    console.log("DOM state stored (root).");
+    return originalDOM.outerHTML;
   } else {
-    console.error("No DOM state was provided.");
+    const node = getNodeFromXpath(xpath) as HTMLElement | null;
+
+    if (!node) {
+      console.error(
+        `storeDOM: No element found for xpath: ${xpath}. Returning empty string.`,
+      );
+      return "";
+    }
+
+    console.log(`DOM state stored (element at xpath: ${xpath}).`);
+    return node.outerHTML;
   }
 }
 
-export function createTextBoundingBoxes(): void {
+/**
+ * Restores either the entire DOM (if no `xpath` is given),
+ * or the specific element that `xpath` points to, based on `storedDOM`.
+ */
+export function restoreDOM(storedDOM: string, xpath?: string): void {
+  console.log("Restoring DOM...");
+
+  if (!storedDOM) {
+    console.error("No DOM state was provided.");
+    return;
+  }
+
+  if (!xpath) {
+    document.body.innerHTML = storedDOM;
+    console.log("DOM restored (root).");
+  } else {
+    const node = getNodeFromXpath(xpath) as HTMLElement | null;
+
+    if (!node) {
+      console.error(
+        `restoreDOM: No element found for xpath: ${xpath}. Cannot restore.`,
+      );
+      return;
+    }
+
+    node.outerHTML = storedDOM;
+    console.log(`DOM restored (element at xpath: ${xpath}).`);
+  }
+}
+
+export function createTextBoundingBoxes(xpath?: string): void {
   const style = document.createElement("style");
   document.head.appendChild(style);
   if (style.sheet) {
@@ -352,9 +352,20 @@ export function createTextBoundingBoxes(): void {
     );
   }
 
+  /**
+   * Applies highlighting to every text node under `root`.
+   * If `root` is the entire `document`, we query "body *".
+   * If `root` is a specific `HTMLElement`, we query "*".
+   */
   function applyHighlighting(root: Document | HTMLElement): void {
-    root.querySelectorAll("body *").forEach((element) => {
-      if (element.closest(".stagehand-nav, .stagehand-marker")) {
+    // If root is a Document, highlight everything under <body>. Otherwise, highlight all children of that HTMLElement.
+    const containerSelector = root instanceof Document ? "body *" : "*";
+
+    root.querySelectorAll(containerSelector).forEach((element) => {
+      if (
+        element.closest &&
+        element.closest(".stagehand-nav, .stagehand-marker")
+      ) {
         return;
       }
       if (["SCRIPT", "STYLE", "IFRAME", "INPUT"].includes(element.tagName)) {
@@ -393,15 +404,28 @@ export function createTextBoundingBoxes(): void {
     });
   }
 
-  applyHighlighting(document);
+  if (!xpath) {
+    applyHighlighting(document);
 
-  document.querySelectorAll("iframe").forEach((iframe) => {
-    try {
-      iframe.contentWindow?.postMessage({ action: "highlight" }, "*");
-    } catch (error) {
-      console.error("Error accessing iframe content: ", error);
+    document.querySelectorAll("iframe").forEach((iframe) => {
+      try {
+        iframe.contentWindow?.postMessage({ action: "highlight" }, "*");
+      } catch (error) {
+        console.error("Error accessing iframe content: ", error);
+      }
+    });
+  } else {
+    const node = getNodeFromXpath(xpath) as HTMLElement | null;
+
+    if (!node) {
+      console.warn(
+        `createTextBoundingBoxes: No element found for xpath "${xpath}".`,
+      );
+      return;
     }
-  });
+
+    applyHighlighting(node);
+  }
 }
 
 export function getElementBoundingBoxes(xpath: string): Array<{
@@ -411,13 +435,7 @@ export function getElementBoundingBoxes(xpath: string): Array<{
   width: number;
   height: number;
 }> {
-  const element = document.evaluate(
-    xpath,
-    document,
-    null,
-    XPathResult.FIRST_ORDERED_NODE_TYPE,
-    null,
-  ).singleNodeValue as HTMLElement;
+  const element = getNodeFromXpath(xpath) as HTMLElement;
 
   if (!element) return [];
 
@@ -501,173 +519,13 @@ export function getElementBoundingBoxes(xpath: string): Array<{
 
 window.processDom = processDom;
 window.processAllOfDom = processAllOfDom;
-window.processElements = processElements;
 window.storeDOM = storeDOM;
 window.restoreDOM = restoreDOM;
 window.createTextBoundingBoxes = createTextBoundingBoxes;
 window.getElementBoundingBoxes = getElementBoundingBoxes;
 window.createStagehandContainer = createStagehandContainer;
 window.getScrollableElementXpaths = getScrollableElementXpaths;
-const leafElementDenyList = ["SVG", "IFRAME", "SCRIPT", "STYLE", "LINK"];
-
-const interactiveElementTypes = [
-  "A",
-  "BUTTON",
-  "DETAILS",
-  "EMBED",
-  "INPUT",
-  "LABEL",
-  "MENU",
-  "MENUITEM",
-  "OBJECT",
-  "SELECT",
-  "TEXTAREA",
-  "SUMMARY",
-];
-
-const interactiveRoles = [
-  "button",
-  "menu",
-  "menuitem",
-  "link",
-  "checkbox",
-  "radio",
-  "slider",
-  "tab",
-  "tabpanel",
-  "textbox",
-  "combobox",
-  "grid",
-  "listbox",
-  "option",
-  "progressbar",
-  "scrollbar",
-  "searchbox",
-  "switch",
-  "tree",
-  "treeitem",
-  "spinbutton",
-  "tooltip",
-];
-const interactiveAriaRoles = ["menu", "menuitem", "button"];
-
-/*
- * Checks if an element is visible and therefore relevant for LLMs to consider. We check:
- * - Size
- * - Display properties
- * - Opacity
- * If the element is a child of a previously hidden element, it should not be included, so we don't consider downstream effects of a parent element here
- */
-const isVisible = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  // Ensure the element is within the viewport
-  if (
-    rect.width === 0 ||
-    rect.height === 0 ||
-    rect.top < 0 ||
-    rect.top > window.innerHeight
-  ) {
-    return false;
-  }
-  if (!isTopElement(element, rect)) {
-    return false;
-  }
-
-  const visible = element.checkVisibility({
-    checkOpacity: true,
-    checkVisibilityCSS: true,
-  });
-
-  return visible;
-};
-
-const isTextVisible = (element: ChildNode) => {
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  const rect = range.getBoundingClientRect();
-
-  if (
-    rect.width === 0 ||
-    rect.height === 0 ||
-    rect.top < 0 ||
-    rect.top > window.innerHeight
-  ) {
-    return false;
-  }
-  const parent = element.parentElement;
-  if (!parent) {
-    return false;
-  }
-
-  const visible = parent.checkVisibility({
-    checkOpacity: true,
-    checkVisibilityCSS: true,
-  });
-
-  return visible;
-};
-
-function isTopElement(elem: ChildNode, rect: DOMRect) {
-  const points = [
-    { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.25 },
-    { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.25 },
-    { x: rect.left + rect.width * 0.25, y: rect.top + rect.height * 0.75 },
-    { x: rect.left + rect.width * 0.75, y: rect.top + rect.height * 0.75 },
-    { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-  ];
-
-  return points.some((point) => {
-    const topEl = document.elementFromPoint(point.x, point.y);
-    let current = topEl;
-    while (current && current !== document.body) {
-      if (current.isSameNode(elem)) {
-        return true;
-      }
-      current = current.parentElement;
-    }
-    return false;
-  });
-}
-
-const isActive = (element: Element) => {
-  if (
-    element.hasAttribute("disabled") ||
-    element.hasAttribute("hidden") ||
-    element.getAttribute("aria-disabled") === "true"
-  ) {
-    return false;
-  }
-
-  return true;
-};
-const isInteractiveElement = (element: Element) => {
-  const elementType = element.tagName;
-  const elementRole = element.getAttribute("role");
-  const elementAriaRole = element.getAttribute("aria-role");
-
-  return (
-    (elementType && interactiveElementTypes.includes(elementType)) ||
-    (elementRole && interactiveRoles.includes(elementRole)) ||
-    (elementAriaRole && interactiveAriaRoles.includes(elementAriaRole))
-  );
-};
-
-const isLeafElement = (element: Element) => {
-  if (element.textContent === "") {
-    return false;
-  }
-
-  if (element.childNodes.length === 0) {
-    return !leafElementDenyList.includes(element.tagName);
-  }
-
-  // This case ensures that extra context will be included for simple element nodes that contain only text
-  if (element.childNodes.length === 1 && isTextNode(element.childNodes[0])) {
-    return true;
-  }
-
-  return false;
-};
+window.getNodeFromXpath = getNodeFromXpath;
 
 async function pickChunk(chunksSeen: Array<number>) {
   const viewportHeight = calculateViewportHeight();

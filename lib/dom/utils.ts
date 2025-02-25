@@ -59,3 +59,13 @@ export function canElementScroll(elem: HTMLElement): boolean {
     return false;
   }
 }
+
+export function getNodeFromXpath(xpath: string) {
+  return document.evaluate(
+    xpath,
+    document.documentElement,
+    null,
+    XPathResult.FIRST_ORDERED_NODE_TYPE,
+    null,
+  ).singleNodeValue;
+}

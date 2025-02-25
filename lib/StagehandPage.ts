@@ -246,8 +246,10 @@ export class StagehandPage {
             };
           }
           if (prop === "extract") {
-            return async (options: ExtractOptions<z.AnyZodObject>) => {
-              return this.extract(options);
+            return async (
+              instructionOrOptions: string | ExtractOptions<z.AnyZodObject>,
+            ) => {
+              return this.extract(instructionOrOptions);
             };
           }
           if (prop === "observe") {
@@ -566,7 +568,16 @@ export class StagehandPage {
       modelClientOptions,
       domSettleTimeoutMs,
       useTextExtract,
+      selector,
     } = options;
+
+    // Throw a NotImplementedError if the user passed in an `xpath`
+    // and `useTextExtract` is false
+    if (selector && useTextExtract !== true) {
+      throw new Error(
+        "NotImplementedError: Passing an xpath into extract is only supported when `useTextExtract: true`.",
+      );
+    }
 
     if (this.api) {
       return this.api.extract<T>(options);
@@ -605,6 +616,7 @@ export class StagehandPage {
         requestId,
         domSettleTimeoutMs,
         useTextExtract,
+        selector,
       })
       .catch((e) => {
         this.stagehand.log({
