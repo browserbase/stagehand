@@ -6,6 +6,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand } from "../index";
+import { filterCharacters } from "../utils";
 
 const PROXIMITY_THRESHOLD = 15;
 
@@ -286,6 +287,7 @@ export class StagehandExtractHandler {
     const formattedText = formatText(
       deduplicatedTextAnnotations,
       containerWidth,
+      this.stagehand.getCharacterFilterConfig
     );
 
     // **10:** Pass the formatted text to an LLM for extraction according to the given instruction and schema
@@ -423,7 +425,7 @@ export class StagehandExtractHandler {
     const extractionResponse = await extract({
       instruction,
       previouslyExtractedContent: content,
-      domElements: outputString,
+      domElements: filterCharacters(outputString, this.stagehand.getCharacterFilterConfig),
       schema,
       llmClient,
       chunksSeen: chunksSeen.length,

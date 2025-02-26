@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
 import { TextAnnotation } from "../types/textannotation";
+import { CharacterFilterConfig } from "../types/stagehand";
 
 // This is a heuristic for the width of a character in pixels. It seems to work
 // better than attempting to calculate character widths dynamically, which sometimes
@@ -26,12 +27,22 @@ export function generateId(operation: string) {
  *
  * @param textAnnotations - An array of TextAnnotations describing text and their positions.
  * @param pageWidth - The width of the page in pixels, used to normalize positions.
+ * @param characterFilterConfig - Optional configuration for filtering unsafe Unicode characters
  * @returns A string representing the text layout of the page.
  */
 export function formatText(
   textAnnotations: TextAnnotation[],
   pageWidth: number,
+  characterFilterConfig?: CharacterFilterConfig,
 ): string {
+  // Filter unsafe characters from text annotations if config is provided
+  if (characterFilterConfig) {
+    textAnnotations = textAnnotations.map(annotation => ({
+      ...annotation,
+      text: filterCharacters(annotation.text, characterFilterConfig)
+    }));
+  }
+
   // **1: Sort annotations by vertical position (y-coordinate).**
   //    The topmost annotations appear first, the bottommost last.
   const sortedAnnotations = [...textAnnotations].sort(
@@ -106,7 +117,7 @@ export function formatText(
     }
   }
 
-  // **9: Add a 20-char buffer to ensure we don’t cut off text.**
+  // **9: Add a 20-char buffer to ensure we don't cut off text.**
   maxLineWidthInChars += 20;
 
   // **10: Determine the canvas width based on the measured maxLineWidthInChars.**
@@ -129,7 +140,7 @@ export function formatText(
   // **14: Create a 2D character canvas (array of arrays), filled with spaces.**
   let canvas: string[][] = [];
 
-  // **15: lineIndex tracks which row of the canvas we’re on; start at -1 so the first line is index 0.**
+  // **15: lineIndex tracks which row of the canvas we're on; start at -1 so the first line is index 0.**
   let lineIndex = -1;
 
   // **16: Render each line of text into our canvas.**
@@ -140,7 +151,7 @@ export function formatText(
       ensureLineExists(canvas, lineIndex, canvasWidth);
     } else {
       // **18: For subsequent lines, figure out how many blank lines to insert
-      //       based on the gap between this line’s baseline and the previous line’s baseline.**
+      //       based on the gap between this line's baseline and the previous line's baseline.**
       const gap = lineBaselines[i] - lineBaselines[i - 1];
 
       let extraLines = 0;
@@ -156,12 +167,12 @@ export function formatText(
         ensureLineExists(canvas, lineIndex, canvasWidth);
       }
 
-      // **21: Move to the next line (row) in the canvas for this line’s text.**
+      // **21: Move to the next line (row) in the canvas for this line's text.**
       lineIndex++;
       ensureLineExists(canvas, lineIndex, canvasWidth);
     }
 
-    // **22: Place each annotation’s text in the correct horizontal position for this line.**
+    // **22: Place each annotation's text in the correct horizontal position for this line.**
     const lineAnnotations = finalLines[i];
     for (const annotation of lineAnnotations) {
       const text = annotation.text;
@@ -175,7 +186,7 @@ export function formatText(
       // **24: Place each character of the annotation in the canvas.**
       for (let j = 0; j < text.length; j++) {
         const xPos = startXInChars + j;
-        // **25: Don’t write beyond the right edge of the canvas.**
+        // **25: Don't write beyond the right edge of the canvas.**
         if (xPos < canvasWidth) {
           canvas[lineIndex][xPos] = text[j];
         }
@@ -302,7 +313,7 @@ function createGroupedAnnotation(group: TextAnnotation[]): TextAnnotation {
   // insert a space between words, except when punctuation directly follows a word
   for (const word of group) {
     if (
-      [".", ",", '"', "'", ":", ";", "!", "?", "{", "}", "’", "”"].includes(
+      [".", ",", '"', "'", ":", ";", "!", "?", "{", "}", "’", ""].includes(
         word.text,
       )
     ) {
@@ -441,4 +452,57 @@ export function isRunningInBun(): boolean {
     typeof process.versions !== "undefined" &&
     "bun" in process.versions
   );
+}
+
+/**
+ * Filters potentially unsafe Unicode characters from text
+ * 
+ * Removes:
+ * - Language tag characters (U+E0001, U+E0020-U+E007F)
+ * - Emoji variation selectors (U+FE00-U+FE0F)
+ * - Supplementary variation selectors (U+E0100-U+E01EF)
+ * 
+ * @param text - The text to filter
+ * @param config - Configuration for which character ranges to filter
+ * @returns Filtered text with unsafe characters removed
+ */
+export function filterCharacters(
+  text: string,
+  config: CharacterFilterConfig = {},
+): string {
+  const {
+    blockLanguageTag = true,
+    blockEmojiVariationBase = true,
+    blockEmojiVariationModifier = true
+  } = config;
+
+  // If no filtering is enabled, return the original text
+  if (!blockLanguageTag && !blockEmojiVariationBase && !blockEmojiVariationModifier) {
+    return text;
+  }
+
+  // Process the text character by character using Array.from to correctly handle surrogate pairs
+  return Array.from(text)
+    .filter(char => {
+      const code = char.codePointAt(0);
+      if (code === undefined) return true;
+      
+      // Language tag characters (U+E0001, U+E0020-U+E007F)
+      if (blockLanguageTag && (code === 0xE0001 || (code >= 0xE0020 && code <= 0xE007F))) {
+        return false;
+      }
+      
+      // Emoji variation selectors (U+FE00-U+FE0F)
+      if (blockEmojiVariationBase && code >= 0xFE00 && code <= 0xFE0F) {
+        return false;
+      }
+      
+      // Supplementary variation selectors (U+E0100-U+E01EF)
+      if (blockEmojiVariationModifier && code >= 0xE0100 && code <= 0xE01EF) {
+        return false;
+      }
+      
+      return true;
+    })
+    .join('');
 }

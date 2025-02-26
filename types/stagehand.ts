@@ -7,6 +7,26 @@ import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "@playwright/test";
 
+export interface CharacterFilterConfig {
+  /**
+   * Block Unicode language tag characters (U+E0001, U+E0020-U+E007F)
+   * @default true
+   */
+  blockLanguageTag?: boolean;
+  
+  /**
+   * Block emoji variation selectors (U+FE00-U+FE0F)
+   * @default true
+   */
+  blockEmojiVariationBase?: boolean;
+  
+  /**
+   * Block supplementary variation selectors (U+E0100-U+E01EF)
+   * @default true
+   */
+  blockEmojiVariationModifier?: boolean;
+}
+
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
   apiKey?: string;
@@ -40,6 +60,10 @@ export interface ConstructorParams {
    */
   waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  /**
+   * Configuration for filtering potentially unsafe Unicode characters
+   */
+  characterFilterConfig?: CharacterFilterConfig;
 }
 
 export interface InitOptions {
