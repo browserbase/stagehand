@@ -502,7 +502,6 @@ export class StagehandActHandler {
         },
       });
 
-      // NAVIDNOTE: Should this happen before we wait for locator[method]?
       const newOpenedTab = await Promise.race([
         new Promise<Page | null>((resolve) => {
           // TODO: This is a hack to get the new page
@@ -542,13 +541,10 @@ export class StagehandActHandler {
         await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
       }
 
-      await Promise.race([
-        this.stagehandPage.page.waitForLoadState("networkidle"),
-        new Promise((resolve) => setTimeout(resolve, 5_000)),
-      ]).catch((e) => {
+      await this.stagehandPage._waitForSettledDom().catch((e) => {
         this.logger({
           category: "action",
-          message: "network idle timeout hit",
+          message: "wait for settled dom timeout hit",
           level: 1,
           auxiliary: {
             trace: {
