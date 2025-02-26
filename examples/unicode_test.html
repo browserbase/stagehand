@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unicode Character Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        .invisible {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-left: 3px solid #ff6b6b;
+        }
+        .normal {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-left: 3px solid #51cf66;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Unicode Character Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Language Tag Characters (U+E0001, U+E0020-U+E007F)</h2>
+        <div class="invisible">
+            <p>This text contains language tag characters: Hello&#xE0001; World&#xE0020;&#xE0021;&#xE0022;</p>
+            <p>These characters are invisible but can be used for prompt injection.</p>
+        </div>
+        <div class="normal">
+            <p>This is normal text without language tag characters: Hello World</p>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Emoji Variation Selectors (U+FE00-U+FE0F)</h2>
+        <div class="invisible">
+            <p>Text with emoji variation selectors: A&#xFE00; B&#xFE01; C&#xFE0F;</p>
+            <p>Emoji with variation selector: ☺&#xFE0F; (smiling face with presentation selector)</p>
+        </div>
+        <div class="normal">
+            <p>Normal text without variation selectors: A B C</p>
+            <p>Normal emoji: ☺</p>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Supplementary Variation Selectors (U+E0100-U+E01EF)</h2>
+        <div class="invisible">
+            <p>Text with supplementary variation selectors: X&#xDB40;&#xDD00; Y&#xDB40;&#xDD01; Z&#xDB40;&#xDDEF;</p>
+        </div>
+        <div class="normal">
+            <p>Normal text without supplementary variation selectors: X Y Z</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Input Test</h2>
+        <form id="testForm">
+            <div>
+                <label for="normalInput">Normal Input:</label>
+                <input type="text" id="normalInput" name="normalInput" placeholder="Type here">
+            </div>
+            <br>
+            <div>
+                <label for="unicodeInput">Input with Unicode (pre-filled):</label>
+                <input type="text" id="unicodeInput" name="unicodeInput" value="Test&#xE0001;&#xFE0F;&#xDB40;&#xDD00;">
+            </div>
+            <br>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+
+    <div class="test-section">
+        <h2>Results</h2>
+        <div id="results">
+            <p>Submit the form to see results here.</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('testForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const normalInput = document.getElementById('normalInput').value;
+            const unicodeInput = document.getElementById('unicodeInput').value;
+            
+            document.getElementById('results').innerHTML = `
+                <h3>Form Submission Results:</h3>
+                <pre>Normal Input: ${normalInput}</pre>
+                <pre>Unicode Input: ${unicodeInput}</pre>
+                <pre>Unicode Input Length: ${unicodeInput.length}</pre>
+                <pre>Unicode Input Code Points: ${Array.from(unicodeInput).map(c => c.codePointAt(0).toString(16)).join(', ')}</pre>
+            `;
+        });
+    </script>
+</body>
+</html> 

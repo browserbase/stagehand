@@ -24,6 +24,7 @@ import {
   LocalBrowserLaunchOptions,
   ObserveOptions,
   ObserveResult,
+  CharacterFilterConfig,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -31,7 +32,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { logLineToString, isRunningInBun } from "./utils";
+import { logLineToString, isRunningInBun, filterCharacters } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -376,6 +377,7 @@ export class Stagehand {
   private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+  private characterFilterConfig: CharacterFilterConfig;
 
   constructor(
     {
@@ -399,6 +401,7 @@ export class Stagehand {
       localBrowserLaunchOptions,
       selfHeal = true,
       waitForCaptchaSolves = false,
+      characterFilterConfig,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -448,6 +451,7 @@ export class Stagehand {
 
     this.selfHeal = selfHeal;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
+    this.characterFilterConfig = characterFilterConfig ?? {};
   }
 
   public get logger(): (logLine: LogLine) => void {
@@ -481,6 +485,13 @@ export class Stagehand {
       );
     }
     return this.stagehandContext.context;
+  }
+
+  /**
+   * Get the current character filter configuration
+   */
+  public get getCharacterFilterConfig(): CharacterFilterConfig {
+    return this.characterFilterConfig;
   }
 
   async init(
@@ -693,8 +704,22 @@ export class Stagehand {
   }
 
   /** @deprecated Use stagehand.page.act() instead. This will be removed in the next major release. */
-  async act(options: ActOptions): Promise<ActResult> {
-    return await this.stagehandPage.act(options);
+  async act(action: string, options: ActOptions = {}): Promise<ActResult> {
+    const messages = [
+      buildActSystemPrompt(this.userProvidedInstructions),
+      buildActUserPrompt(
+        action, 
+        options.steps, 
+        options.domElements, 
+        this.variables, 
+        this.characterFilterConfig
+      ),
+    ];
+    
+    return await this.stagehandPage.act({
+      ...options,
+      messages,
+    });
   }
 
   /** @deprecated Use stagehand.page.extract() instead. This will be removed in the next major release. */
@@ -724,6 +749,26 @@ export class Stagehand {
         console.error("Error deleting context directory:", e);
       }
     }
+  }
+
+  async verifyActCompletion(
+    goal: string,
+    options: VerifyActCompletionOptions = {}
+  ): Promise<VerifyActCompletionResponse> {
+    const messages = [
+      buildVerifyActCompletionSystemPrompt(),
+      buildVerifyActCompletionUserPrompt(
+        goal, 
+        options.steps, 
+        options.domElements, 
+        this.characterFilterConfig
+      ),
+    ];
+    
+    return await this.stagehandPage.verifyActCompletion({
+      ...options,
+      messages,
+    });
   }
 }
 

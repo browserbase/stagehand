@@ -1,5 +1,7 @@
 import { LLMTool } from "../types/llm";
 import { ChatMessage } from "./llm/LLMClient";
+import { filterCharacters } from "./utils";
+import { CharacterFilterConfig } from "../types/stagehand";
 
 // act
 const actSystemPrompt = `
@@ -74,6 +76,7 @@ export function buildVerifyActCompletionUserPrompt(
   goal: string,
   steps = "None",
   domElements: string | undefined,
+  characterFilterConfig?: CharacterFilterConfig,
 ): ChatMessage {
   let actUserPrompt = `
 # My Goal
@@ -89,7 +92,11 @@ ${steps}
 ${domElements}
 `;
   }
-
+  
+  if (characterFilterConfig) {
+    actUserPrompt = filterCharacters(actUserPrompt, characterFilterConfig);
+  }
+  
   return {
     role: "user",
     content: actUserPrompt,
@@ -130,6 +137,7 @@ export function buildActUserPrompt(
   steps = "None",
   domElements: string,
   variables?: Record<string, string>,
+  characterFilterConfig?: CharacterFilterConfig
 ): ChatMessage {
   let actUserPrompt = `
 # My Goal
@@ -149,6 +157,10 @@ ${Object.keys(variables)
   .map((key) => `<|${key.toUpperCase()}|>`)
   .join("\n")}
 `;
+  }
+  
+  if (characterFilterConfig) {
+    actUserPrompt = filterCharacters(actUserPrompt, characterFilterConfig);
   }
 
   return {
@@ -380,10 +392,15 @@ export function buildObserveUserMessage(
   instruction: string,
   domElements: string,
   isUsingAccessibilityTree = false,
+  characterFilterConfig?: CharacterFilterConfig
 ): ChatMessage {
+  const content = `instruction: ${instruction}
+${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${
+    characterFilterConfig ? filterCharacters(domElements, characterFilterConfig) : domElements
+  }`;
+
   return {
     role: "user",
-    content: `instruction: ${instruction}
-${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`,
+    content,
   };
 }
