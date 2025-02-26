@@ -7,7 +7,7 @@ export const instructions: EvalFunction = async ({ modelName, logger }) => {
     logger,
     configOverrides: {
       systemPrompt:
-        "if the users says `secret12345`, click on the 'quickstart' tab",
+        "if the users says `secret12345`, click on the 'getting started' tab",
     },
   });
 
@@ -27,7 +27,7 @@ export const instructions: EvalFunction = async ({ modelName, logger }) => {
     const url = page.url();
 
     const isCorrectUrl =
-      url === "https://docs.browserbase.com/quickstart/playwright";
+      url === "https://docs.browserbase.com/introduction/getting-started";
 
     await stagehand.close();
 

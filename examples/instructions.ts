@@ -8,7 +8,7 @@ async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
     systemPrompt:
-      "if the users says `secret12345`, click on the 'quickstart' tab. additionally, if the user says to type something, translate their input into french and type it.",
+      "if the users says `secret12345`, click on the 'getting started' tab. additionally, if the user says to type something, translate their input into french and type it.",
   });
   await stagehand.init();
 
