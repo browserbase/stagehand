@@ -40,6 +40,7 @@ export class StagehandPage {
   private cdpClient: CDPSession | null = null;
   private api: StagehandAPI;
   private userProvidedInstructions?: string;
+  private waitForCaptchaSolves: boolean;
 
   constructor(
     page: PlaywrightPage,
@@ -48,6 +49,7 @@ export class StagehandPage {
     llmClient: LLMClient,
     userProvidedInstructions?: string,
     api?: StagehandAPI,
+    waitForCaptchaSolves?: boolean,
   ) {
     this.intPage = Object.assign(page, {
       act: () => {
@@ -71,11 +73,14 @@ export class StagehandPage {
         );
       },
     });
+
     this.stagehand = stagehand;
     this.intContext = context;
     this.llmClient = llmClient;
     this.api = api;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.waitForCaptchaSolves = waitForCaptchaSolves ?? false;
+
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
         verbose: this.stagehand.verbose,
@@ -87,6 +92,7 @@ export class StagehandPage {
         llmClient: llmClient,
         userProvidedInstructions,
         selfHeal: this.stagehand.selfHeal,
+        waitForCaptchaSolves: this.waitForCaptchaSolves,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
@@ -146,16 +152,78 @@ export class StagehandPage {
     await this._waitForSettledDom();
   }
 
+  /**
+   * Waits for a captcha to be solved when using Browserbase environment.
+   *
+   * @param timeoutMs - Optional timeout in milliseconds. If provided, the promise will reject if the captcha solving hasn't started within the given time.
+   * @throws Error if called in a LOCAL environment
+   * @throws Error if the timeout is reached before captcha solving starts
+   * @returns Promise that resolves when the captcha is solved
+   */
+  public async waitForCaptchaSolve(timeoutMs?: number) {
+    if (this.stagehand.env === "LOCAL") {
+      throw new Error(
+        "The waitForCaptcha method may only be used when using the Browserbase environment.",
+      );
+    }
+
+    this.stagehand.log({
+      category: "captcha",
+      message: "Waiting for captcha",
+      level: 1,
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      let started = false;
+      let timeoutId: NodeJS.Timeout;
+
+      if (timeoutMs) {
+        timeoutId = setTimeout(() => {
+          if (!started) {
+            reject(new Error("Captcha timeout"));
+          }
+        }, timeoutMs);
+      }
+
+      this.intPage.on("console", (msg) => {
+        if (msg.text() === "browserbase-solving-finished") {
+          this.stagehand.log({
+            category: "captcha",
+            message: "Captcha solving finished",
+            level: 1,
+          });
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve();
+        } else if (msg.text() === "browserbase-solving-started") {
+          started = true;
+          this.stagehand.log({
+            category: "captcha",
+            message: "Captcha solving started",
+            level: 1,
+          });
+        }
+      });
+    });
+  }
+
   async init(): Promise<StagehandPage> {
     const page = this.intPage;
     const stagehand = this.stagehand;
     this.intPage = new Proxy(page, {
       get: (target, prop) => {
-        if (prop === "goto")
+        if (prop === "goto") {
           return async (url: string, options: GotoOptions) => {
             const result = this.api
               ? await this.api.goto(url, options)
               : await page.goto(url, options);
+
+            if (this.waitForCaptchaSolves) {
+              try {
+                await this.waitForCaptchaSolve(1000);
+              } catch {
+                // ignore
+              }
+            }
 
             if (this.api) {
               await this._refreshPageFromAPI();
@@ -171,16 +239,17 @@ export class StagehandPage {
             }
             return result;
           };
-
-        if (this.llmClient) {
+        } else if (this.llmClient) {
           if (prop === "act") {
             return async (options: ActOptions) => {
               return this.act(options);
             };
           }
           if (prop === "extract") {
-            return async (options: ExtractOptions<z.AnyZodObject>) => {
-              return this.extract(options);
+            return async (
+              instructionOrOptions: string | ExtractOptions<z.AnyZodObject>,
+            ) => {
+              return this.extract(instructionOrOptions);
             };
           }
           if (prop === "observe") {
@@ -499,7 +568,16 @@ export class StagehandPage {
       modelClientOptions,
       domSettleTimeoutMs,
       useTextExtract,
+      selector,
     } = options;
+
+    // Throw a NotImplementedError if the user passed in an `xpath`
+    // and `useTextExtract` is false
+    if (selector && useTextExtract !== true) {
+      throw new Error(
+        "NotImplementedError: Passing an xpath into extract is only supported when `useTextExtract: true`.",
+      );
+    }
 
     if (this.api) {
       return this.api.extract<T>(options);
@@ -538,6 +616,7 @@ export class StagehandPage {
         requestId,
         domSettleTimeoutMs,
         useTextExtract,
+        selector,
       })
       .catch((e) => {
         this.stagehand.log({

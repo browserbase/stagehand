@@ -21,6 +21,7 @@ import {
   InitFromPageResult,
   InitOptions,
   InitResult,
+  LocalBrowserLaunchOptions,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
@@ -30,7 +31,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { logLineToString } from "./utils";
+import { logLineToString, isRunningInBun } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -50,6 +51,7 @@ async function getBrowser(
   logger: (message: LogLine) => void,
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseSessionID?: string,
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
@@ -210,50 +212,89 @@ async function getBrowser(
       },
     });
 
-    const tmpDirPath = path.join(os.tmpdir(), "stagehand");
-    if (!fs.existsSync(tmpDirPath)) {
-      fs.mkdirSync(tmpDirPath, { recursive: true });
+    if (localBrowserLaunchOptions) {
+      logger({
+        category: "init",
+        message: "local browser launch options",
+        level: 0,
+        auxiliary: {
+          localLaunchOptions: {
+            value: JSON.stringify(localBrowserLaunchOptions),
+            type: "string",
+          },
+        },
+      });
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
-    fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
+    let userDataDir = localBrowserLaunchOptions?.userDataDir;
+    if (!userDataDir) {
+      const tmpDirPath = path.join(os.tmpdir(), "stagehand");
+      if (!fs.existsSync(tmpDirPath)) {
+        fs.mkdirSync(tmpDirPath, { recursive: true });
+      }
 
-    const defaultPreferences = {
-      plugins: {
-        always_open_pdf_externally: true,
-      },
-    };
+      const tmpDir = fs.mkdtempSync(path.join(tmpDirPath, "ctx_"));
+      fs.mkdirSync(path.join(tmpDir, "userdir/Default"), { recursive: true });
 
-    fs.writeFileSync(
-      path.join(tmpDir, "userdir/Default/Preferences"),
-      JSON.stringify(defaultPreferences),
-    );
-
-    const downloadsPath = path.join(process.cwd(), "downloads");
-    fs.mkdirSync(downloadsPath, { recursive: true });
-
-    const context = await chromium.launchPersistentContext(
-      path.join(tmpDir, "userdir"),
-      {
-        acceptDownloads: true,
-        headless: headless,
-        viewport: {
-          width: 1250,
-          height: 800,
+      const defaultPreferences = {
+        plugins: {
+          always_open_pdf_externally: true,
         },
-        locale: "en-US",
-        timezoneId: "America/New_York",
-        deviceScaleFactor: 1,
-        args: [
-          "--enable-webgl",
-          "--use-gl=swiftshader",
-          "--enable-accelerated-2d-canvas",
-          "--disable-blink-features=AutomationControlled",
-          "--disable-web-security",
-        ],
-        bypassCSP: true,
+      };
+
+      fs.writeFileSync(
+        path.join(tmpDir, "userdir/Default/Preferences"),
+        JSON.stringify(defaultPreferences),
+      );
+      userDataDir = path.join(tmpDir, "userdir");
+    }
+
+    let downloadsPath = localBrowserLaunchOptions?.downloadsPath;
+    if (!downloadsPath) {
+      downloadsPath = path.join(process.cwd(), "downloads");
+      fs.mkdirSync(downloadsPath, { recursive: true });
+    }
+
+    const context = await chromium.launchPersistentContext(userDataDir, {
+      acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
+      headless: localBrowserLaunchOptions?.headless ?? headless,
+      viewport: {
+        width: localBrowserLaunchOptions?.viewport?.width ?? 1250,
+        height: localBrowserLaunchOptions?.viewport?.height ?? 800,
       },
-    );
+      locale: localBrowserLaunchOptions?.locale ?? "en-US",
+      timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
+      deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+      args: localBrowserLaunchOptions?.args ?? [
+        "--enable-webgl",
+        "--use-gl=swiftshader",
+        "--enable-accelerated-2d-canvas",
+        "--disable-blink-features=AutomationControlled",
+        "--disable-web-security",
+      ],
+      bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
+      proxy: localBrowserLaunchOptions?.proxy,
+      geolocation: localBrowserLaunchOptions?.geolocation,
+      hasTouch: localBrowserLaunchOptions?.hasTouch ?? true,
+      ignoreHTTPSErrors: localBrowserLaunchOptions?.ignoreHTTPSErrors ?? true,
+      permissions: localBrowserLaunchOptions?.permissions,
+      recordHar: localBrowserLaunchOptions?.recordHar,
+      recordVideo: localBrowserLaunchOptions?.recordVideo,
+      tracesDir: localBrowserLaunchOptions?.tracesDir,
+      extraHTTPHeaders: localBrowserLaunchOptions?.extraHTTPHeaders,
+      chromiumSandbox: localBrowserLaunchOptions?.chromiumSandbox ?? false,
+      devtools: localBrowserLaunchOptions?.devtools ?? false,
+      env: localBrowserLaunchOptions?.env,
+      executablePath: localBrowserLaunchOptions?.executablePath,
+      handleSIGHUP: localBrowserLaunchOptions?.handleSIGHUP ?? true,
+      handleSIGINT: localBrowserLaunchOptions?.handleSIGINT ?? true,
+      handleSIGTERM: localBrowserLaunchOptions?.handleSIGTERM ?? true,
+      ignoreDefaultArgs: localBrowserLaunchOptions?.ignoreDefaultArgs,
+    });
+
+    if (localBrowserLaunchOptions?.cookies) {
+      context.addCookies(localBrowserLaunchOptions.cookies);
+    }
 
     logger({
       category: "init",
@@ -262,7 +303,7 @@ async function getBrowser(
 
     await applyStealthScripts(context);
 
-    return { context, contextPath: tmpDir, env: "LOCAL" };
+    return { context, contextPath: userDataDir, env: "LOCAL" };
   }
 }
 
@@ -332,6 +373,8 @@ export class Stagehand {
   private usingAPI: boolean;
   private modelName: AvailableModel;
   private apiClient: StagehandAPI | undefined;
+  private waitForCaptchaSolves: boolean;
+  private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
 
   constructor(
@@ -353,7 +396,9 @@ export class Stagehand {
       modelClientOptions,
       systemPrompt,
       useAPI,
+      localBrowserLaunchOptions,
       selfHeal = true,
+      waitForCaptchaSolves = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -399,7 +444,10 @@ export class Stagehand {
       );
     }
 
+    this.waitForCaptchaSolves = waitForCaptchaSolves;
+
     this.selfHeal = selfHeal;
+    this.localBrowserLaunchOptions = localBrowserLaunchOptions;
   }
 
   public get logger(): (logLine: LogLine) => void {
@@ -439,6 +487,14 @@ export class Stagehand {
     /** @deprecated Use constructor options instead */
     initOptions?: InitOptions,
   ): Promise<InitResult> {
+    if (isRunningInBun()) {
+      throw new Error(
+        "Playwright does not currently support the Bun runtime environment. " +
+          "Please use Node.js instead. For more information, see: " +
+          "https://github.com/microsoft/playwright/issues/27139",
+      );
+    }
+
     if (initOptions) {
       console.warn(
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
@@ -476,6 +532,7 @@ export class Stagehand {
         this.logger,
         this.browserbaseSessionCreateParams,
         this.browserbaseSessionID,
+        this.localBrowserLaunchOptions,
       ).catch((e) => {
         console.error("Error in init:", e);
         const br: BrowserResult = {
@@ -498,6 +555,7 @@ export class Stagehand {
       this.llmClient,
       this.userProvidedInstructions,
       this.apiClient,
+      this.waitForCaptchaSolves,
     ).init();
 
     // Set the browser to headless mode if specified

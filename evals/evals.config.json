@@ -21,10 +21,6 @@
       "categories": ["act"]
     },
     {
-      "name": "laroche_form",
-      "categories": ["act"]
-    },
-    {
       "name": "nonsense_action",
       "categories": ["act"]
     },
@@ -247,6 +243,14 @@
     {
       "name": "observe_iframes2",
       "categories": ["observe"]
+    },
+    {
+      "name": "extract_hamilton_weather",
+      "categories": ["text_extract"]
+    },
+    {
+      "name": "extract_regulations_table",
+      "categories": ["text_extract"]
     }
   ]
 }

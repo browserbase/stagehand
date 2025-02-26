@@ -1,10 +1,40 @@
+import { GlobalPageContainer } from "./GlobalPageContainer";
+import { getNodeFromXpath } from "./utils";
+
 export async function debugDom() {
   window.chunkNumber = 0;
 
-  const { selectorMap: multiSelectorMap } = await window.processElements(
-    window.chunkNumber,
+  // 1) Build a container for the entire page
+  const container = new GlobalPageContainer();
+
+  // 2) Determine chunk size (e.g. container’s viewport height)
+  const chunkSize = container.getViewportHeight();
+
+  // 3) If we only want one chunk,
+  //    define startOffset = chunkNumber * chunkSize,
+  //    and set endOffset = startOffset => exactly 1 iteration
+  const startOffset = container.getScrollPosition();
+  const endOffset = startOffset;
+
+  // 4) BFS with collectAllDomChunks for exactly 1 chunk
+  const singleChunks = await container.collectDomChunks(
+    startOffset,
+    endOffset,
+    chunkSize,
+    false,
+    false, // Don't scroll back to top
+    undefined, // BFS entire doc
   );
 
+  // We expect exactly 1 chunk
+  const [singleChunk] = singleChunks;
+  if (!singleChunk) {
+    console.warn("No chunk was returned. Possibly empty doc?");
+    return;
+  }
+
+  // 5) Extract the multiSelectorMap and convert to old single‐string format
+  const multiSelectorMap = singleChunk.selectorMap;
   const selectorMap = multiSelectorMapToSelectorMap(multiSelectorMap);
 
   drawChunk(selectorMap);
@@ -25,13 +55,7 @@ function drawChunk(selectorMap: Record<number, string>) {
   if (!window.showChunks) return;
   cleanupMarkers();
   Object.values(selectorMap).forEach((selector) => {
-    const element = document.evaluate(
-      selector as string,
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null,
-    ).singleNodeValue as Element;
+    const element = getNodeFromXpath(selector) as Element;
 
     if (element) {
       let rect;

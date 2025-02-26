@@ -30,6 +30,7 @@ export class StagehandActHandler {
   };
   private readonly userProvidedInstructions?: string;
   private readonly selfHeal: boolean;
+  private readonly waitForCaptchaSolves: boolean;
 
   constructor({
     verbose,
@@ -39,6 +40,7 @@ export class StagehandActHandler {
     stagehandPage,
     userProvidedInstructions,
     selfHeal,
+    waitForCaptchaSolves,
   }: {
     verbose: 0 | 1 | 2;
     llmProvider: LLMProvider;
@@ -49,6 +51,7 @@ export class StagehandActHandler {
     stagehandContext: StagehandContext;
     userProvidedInstructions?: string;
     selfHeal: boolean;
+    waitForCaptchaSolves: boolean;
   }) {
     this.verbose = verbose;
     this.llmProvider = llmProvider;
@@ -59,6 +62,7 @@ export class StagehandActHandler {
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
     this.selfHeal = selfHeal;
+    this.waitForCaptchaSolves = waitForCaptchaSolves;
   }
 
   /**
@@ -1379,6 +1383,14 @@ export class StagehandActHandler {
 
         if (this.stagehandPage.page.url() !== initialUrl) {
           steps += `  Result (Important): Page URL changed from ${initialUrl} to ${this.stagehandPage.page.url()}\n\n`;
+
+          if (this.waitForCaptchaSolves) {
+            try {
+              await this.stagehandPage.waitForCaptchaSolve(1000);
+            } catch {
+              // ignore
+            }
+          }
         }
 
         const actionCompleted = await this._verifyActionCompletion({

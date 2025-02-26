@@ -152,13 +152,13 @@ test.describe("StagehandPage - waitFor", () => {
     const page = stagehand.page;
     await page.goto("https://docs.browserbase.com");
 
-    const quickstartLink = page.locator(
-      "div.not-prose:nth-child(2) > a:nth-child(1) > div:nth-child(1)",
+    const getStartedLink = page.locator(
+      "div.not-prose:nth-child(3) > a:nth-child(1) > div:nth-child(1)",
     );
-    await quickstartLink.click();
+    await getStartedLink.click();
 
-    await page.waitForURL(/.*quickstart.*/);
-    expect(page.url()).toContain("/quickstart");
+    await page.waitForURL(/.*getting-started.*/);
+    expect(page.url()).toContain("/getting-started");
 
     await stagehand.close();
   });

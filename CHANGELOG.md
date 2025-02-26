@@ -1,17 +1,36 @@
 # @browserbasehq/stagehand
 
+## 1.13.1
+
+### Patch Changes
+
+- [#509](https://github.com/browserbase/stagehand/pull/509) [`a7d345e`](https://github.com/browserbase/stagehand/commit/a7d345e75434aebb656e1aa5aa61caed00dc99a8) Thanks [@miguelg719](https://github.com/miguelg719)! - Bun runs will now throw a more informed error
+
 ## 1.13.0
 
 ### Minor Changes
 
-- Added Cerebras inference API support:
-  - Added CerebrasClient implementation with:
-    * Full function calling support for Cerebras-hosted llama-3.3-70b and llama-3.1-8b models
-    * Robust response parsing with fallbacks for different output formats
-    * Error handling and caching support
-  - Added "cerebras-llama-3.3-70b" and "cerebras-llama-3.1-8b" to modelToProviderMap
-  - Added Cerebras case to getClient switch statement in LLMProvider
-  - Added CEREBRAS_API_KEY to environment variables
+- [#486](https://github.com/browserbase/stagehand/pull/486) [`33f2b3f`](https://github.com/browserbase/stagehand/commit/33f2b3f8deff86ac2073b6d35b7413b0aeaba2f9) Thanks [@sameelarif](https://github.com/sameelarif)! - [Unreleased] Parameterized offloading Stagehand method calls to the Stagehand API. In the future, this will allow for better observability and debugging experience.
+
+- [#494](https://github.com/browserbase/stagehand/pull/494) [`9ba4b0b`](https://github.com/browserbase/stagehand/commit/9ba4b0b563cbc77d40cac31c11e17e365a9d1749) Thanks [@pkiv](https://github.com/pkiv)! - Added LocalBrowserLaunchOptions to provide comprehensive configuration options for local browser instances. Deprecated the top-level headless option in favor of using localBrowserLaunchOptions.headless
+
+- [#500](https://github.com/browserbase/stagehand/pull/500) [`a683fab`](https://github.com/browserbase/stagehand/commit/a683fab9ca90c45d78f6602a228c2d3219b776dc) Thanks [@miguelg719](https://github.com/miguelg719)! - Including Iframes in ObserveResults. This appends any iframe(s) found in the page to the end of observe results on any observe call.
+
+- [#504](https://github.com/browserbase/stagehand/pull/504) [`577662e`](https://github.com/browserbase/stagehand/commit/577662e985a6a6b0477815853d98610f3a6b567d) Thanks [@sameelarif](https://github.com/sameelarif)! - Enabled support for Browserbase captcha solving after page navigations. This can be enabled with the new constructor parameter: `waitForCaptchaSolves`.
+
+- [#496](https://github.com/browserbase/stagehand/pull/496) [`28ca9fb`](https://github.com/browserbase/stagehand/commit/28ca9fbc6f3cdc88437001108a9a6c4388ba0303) Thanks [@sameelarif](https://github.com/sameelarif)! - Fixed browserbaseSessionCreateParams not being passed in to the API initialization payload.
+
+### Patch Changes
+
+- [#459](https://github.com/browserbase/stagehand/pull/459) [`62a29ee`](https://github.com/browserbase/stagehand/commit/62a29eea982bbb855e2f885c09ac4c1334f3e0dc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - create a11y + dom hybrid input for observe
+
+- [#463](https://github.com/browserbase/stagehand/pull/463) [`e40bf6f`](https://github.com/browserbase/stagehand/commit/e40bf6f517331fc9952c3c9f2683b7e02ffb9735) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - include 'Scrollable' annotations in a11y-dom hybrid
+
+- [#480](https://github.com/browserbase/stagehand/pull/480) [`4c07c44`](https://github.com/browserbase/stagehand/commit/4c07c444f0e71faf54413b2eeab760c7916a36e3) Thanks [@miguelg719](https://github.com/miguelg719)! - Adding a fallback try on actFromObserveResult to use the description from observe and call regular act.
+
+- [#487](https://github.com/browserbase/stagehand/pull/487) [`2c855cf`](https://github.com/browserbase/stagehand/commit/2c855cffdfa2b0af9924612b9c59df7b65df6443) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update refine extraction prompt to ensure correct schema is used
+
+- [#497](https://github.com/browserbase/stagehand/pull/497) [`945ed04`](https://github.com/browserbase/stagehand/commit/945ed0426d34d2cb833aec8ba67bd4cba6c3b660) Thanks [@kamath](https://github.com/kamath)! - add gpt 4o november snapshot
 
 ## 1.12.0
 

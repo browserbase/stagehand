@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "1.12.0",
+  "version": "1.13.1",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -23,6 +23,7 @@
     "evals": "npm run build-dom-scripts && tsx evals/index.eval.ts",
     "e2e": "npm run build-dom-scripts && cd evals/deterministic && npx playwright test --config=e2e.playwright.config.ts",
     "e2e:bb": "npm run build-dom-scripts && cd evals/deterministic && npx playwright test --config=bb.playwright.config.ts",
+    "e2e:local": "npm run build-dom-scripts && cd evals/deterministic && npx playwright test --config=local.playwright.config.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "tsup lib/index.ts --dts",

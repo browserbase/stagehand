@@ -5,6 +5,7 @@ import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
+import { Cookie } from "@playwright/test";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
@@ -13,6 +14,7 @@ export interface ConstructorParams {
   verbose?: 0 | 1 | 2;
   debugDom?: boolean;
   llmProvider?: LLMProvider;
+  /** @deprecated Please use `localBrowserLaunchOptions` instead. That will override this. */
   headless?: boolean;
   logger?: (message: LogLine) => void | Promise<void>;
   domSettleTimeoutMs?: number;
@@ -31,6 +33,13 @@ export interface ConstructorParams {
    */
   useAPI?: boolean;
   selfHeal?: boolean;
+  /**
+   * Wait for captchas to be solved after navigation when using Browserbase environment.
+   *
+   * @default false
+   */
+  waitForCaptchaSolves?: boolean;
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 }
 
 export interface InitOptions {
@@ -83,6 +92,7 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   useTextExtract?: boolean;
+  selector?: string;
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
@@ -107,4 +117,46 @@ export interface ObserveResult {
   backendNodeId?: number;
   method?: string;
   arguments?: string[];
+}
+
+export interface LocalBrowserLaunchOptions {
+  args?: string[];
+  chromiumSandbox?: boolean;
+  devtools?: boolean;
+  env?: Record<string, string | number | boolean>;
+  executablePath?: string;
+  handleSIGHUP?: boolean;
+  handleSIGINT?: boolean;
+  handleSIGTERM?: boolean;
+  headless?: boolean;
+  ignoreDefaultArgs?: boolean | Array<string>;
+  proxy?: {
+    server: string;
+    bypass?: string;
+    username?: string;
+    password?: string;
+  };
+  tracesDir?: string;
+  userDataDir?: string;
+  acceptDownloads?: boolean;
+  downloadsPath?: string;
+  extraHTTPHeaders?: Record<string, string>;
+  geolocation?: { latitude: number; longitude: number; accuracy?: number };
+  hasTouch?: boolean;
+  ignoreHTTPSErrors?: boolean;
+  locale?: string;
+  permissions?: Array<string>;
+  recordHar?: {
+    omitContent?: boolean;
+    content?: "omit" | "embed" | "attach";
+    path: string;
+    mode?: "full" | "minimal";
+    urlFilter?: string | RegExp;
+  };
+  recordVideo?: { dir: string; size?: { width: number; height: number } };
+  viewport?: { width: number; height: number };
+  deviceScaleFactor?: number;
+  timezoneId?: string;
+  bypassCSP?: boolean;
+  cookies?: Cookie[];
 }
