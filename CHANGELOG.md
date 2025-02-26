@@ -1,5 +1,25 @@
 # @browserbasehq/stagehand
 
+## 1.14.0
+
+### Minor Changes
+
+- [#483](https://github.com/browserbase/stagehand/pull/483) [`8c9445f`](https://github.com/browserbase/stagehand/commit/8c9445fde9724ae33eeeb1234fd5b9bbd418bfdb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now do targetted extraction by passing an xpath string into extract. This limits the dom processing step to a target element, reducing tokens and increasing speed.
+
+- [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kamath](https://github.com/kamath)! - Added CerebrasClient.ts:
+
+  - Handles API communication with Cerebras
+  - Supports function calling
+  - Includes robust response parsing with fallbacks
+  - Handles caching and error logging
+  - Infrastructure Changes:
+
+  Updated LLMClient.ts to support Cerebras provider type:
+
+  - Added Cerebras models to model.ts type definitions
+  - Added Cerebras case to LLMProvider.ts
+  - Added CEREBRAS_API_KEY to environment variables
+
 ## 1.13.1
 
 ### Patch Changes
