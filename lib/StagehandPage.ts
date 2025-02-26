@@ -465,6 +465,7 @@ export class StagehandPage {
       useVision, // still destructure this but will not pass it on
       variables = {},
       domSettleTimeoutMs,
+      slowDomBasedAct = false,
     } = actionOrOptions;
 
     if (typeof useVision !== "undefined") {
@@ -486,6 +487,25 @@ export class StagehandPage {
     const llmClient: LLMClient = modelName
       ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
+
+    if (!slowDomBasedAct) {
+      const observeResults = await this.observe({
+        instruction: `Find the action that is most relevant to the following action: ${action}. Only return one action.`,
+        modelName,
+        modelClientOptions,
+        domSettleTimeoutMs,
+        returnAction: true,
+        drawOverlay: true,
+      });
+
+      if (observeResults.length === 0) {
+        throw new Error("No observe results found");
+      }
+
+      const observeResult = observeResults[0];
+
+      return this.actHandler.actFromObserveResult(observeResult);
+    }
 
     this.stagehand.log({
       category: "act",

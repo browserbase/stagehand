@@ -77,6 +77,13 @@ export interface ActOptions {
   useVision?: boolean;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
+  /**
+   * If true, the action will be performed in a slow manner that allows the DOM to settle.
+   * This is useful for debugging.
+   *
+   * @default false
+   */
+  slowDomBasedAct?: boolean;
 }
 
 export interface ActResult {
