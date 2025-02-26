@@ -85,6 +85,29 @@ export class StagehandActHandler {
     });
 
     const method = observe.method;
+    if (method === "not-supported") {
+      this.logger({
+        category: "action",
+        message: "Cannot execute ObserveResult with unsupported method",
+        level: 1,
+        auxiliary: {
+          error: {
+            value:
+              "NotSupportedError: The method requested in this ObserveResult is not supported by Stagehand.",
+            type: "string",
+          },
+          trace: {
+            value: `Cannot execute act from ObserveResult with unsupported method: ${method}`,
+            type: "string",
+          },
+        },
+      });
+      return {
+        success: false,
+        message: `Unable to perform action: The method '${method}' is not supported in ObserveResult. Please use a supported Playwright locator method.`,
+        action: observe.description || `ObserveResult action (${method})`,
+      };
+    }
     const args = observe.arguments ?? [];
     // remove the xpath prefix on the selector
     const selector = observe.selector.replace("xpath=", "");
