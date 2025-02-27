@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { z } from "zod";
-import { ObserveResult, Page } from ".";
+import { LLMClient, ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
 import { TextAnnotation } from "../types/textannotation";
 
@@ -199,6 +199,25 @@ export function formatText(
 
   // **29: Return the final formatted text.**
   return pageText;
+}
+
+export function cleanLLMClientForLaminarObserve(
+  llmClient: LLMClient,
+): Omit<LLMClient, "client"> {
+  return Object.fromEntries(
+    Object.entries(llmClient)
+      .filter(([key]) => key !== "client")
+      .map(([key, value]) =>
+        key === "clientOptions"
+          ? [
+              key,
+              Object.fromEntries(
+                Object.entries(value).filter(([key]) => key !== "apiKey"),
+              ),
+            ]
+          : [key, value],
+      ),
+  ) as Omit<LLMClient, "client">;
 }
 
 /**
