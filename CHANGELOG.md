@@ -1,5 +1,31 @@
 # @browserbasehq/stagehand
 
+## 1.14.0
+
+### Minor Changes
+
+- [#483](https://github.com/browserbase/stagehand/pull/483) [`8c9445f`](https://github.com/browserbase/stagehand/commit/8c9445fde9724ae33eeeb1234fd5b9bbd418bfdb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now do targetted extraction by passing an xpath string into extract. This limits the dom processing step to a target element, reducing tokens and increasing speed.
+
+- [#518](https://github.com/browserbase/stagehand/pull/518) [`516725f`](https://github.com/browserbase/stagehand/commit/516725fc1c5d12d22caac0078a118c77bfe033a8) Thanks [@sameelarif](https://github.com/sameelarif)! - `act()` now uses `observe()` under the hood. This results in significant performance improvements.
+
+- [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kamath](https://github.com/kamath)! - Added CerebrasClient.ts:
+
+  - Handles API communication with Cerebras
+  - Supports function calling
+  - Includes robust response parsing with fallbacks
+  - Handles caching and error logging
+  - Infrastructure Changes:
+
+  Updated LLMClient.ts to support Cerebras provider type:
+
+  - Added Cerebras models to model.ts type definitions
+  - Added Cerebras case to LLMProvider.ts
+  - Added CEREBRAS_API_KEY to environment variables
+
+### Patch Changes
+
+- [#528](https://github.com/browserbase/stagehand/pull/528) [`c820bfc`](https://github.com/browserbase/stagehand/commit/c820bfcfc9571fea90afd1595775c5946118cfaf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle attempt to close session that has already been closed when using the api
+
 ## 1.13.1
 
 ### Patch Changes
