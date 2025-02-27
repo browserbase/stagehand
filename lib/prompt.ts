@@ -357,6 +357,7 @@ export function buildObserveSystemPrompt(
 ): ChatMessage {
   const observeSystemPrompt = `
 You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
+
 You will be given:
 1. a instruction of elements to observe
 2. ${
@@ -386,4 +387,27 @@ export function buildObserveUserMessage(
     content: `instruction: ${instruction}
 ${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`,
   };
+}
+
+/**
+ * Builds the instruction for the observeAct method to find the most relevant element for an action
+ */
+export function buildActObservePrompt(
+  action: string,
+  supportedActions: string[],
+  variables?: Record<string, string>,
+): string {
+  // Base instruction
+  let instruction = `Find the most relevant element to perform an action on given the following action: ${action}. 
+  Provide an action for this element such as ${supportedActions.join(", ")}, or any other playwright locator method. Remember that to users, buttons and links look the same in most cases.
+  If the action is completely unrelated to a potential action to be taken on the page, return an empty array. 
+  ONLY return one action. If multiple actions are relevant, return the most relevant one.`;
+
+  // Add variable names (not values) to the instruction if any
+  if (variables && Object.keys(variables).length > 0) {
+    const variablesPrompt = `The following variables are available to use in the action: ${Object.keys(variables).join(", ")}. Fill the argument variables with the variable name.`;
+    instruction += ` ${variablesPrompt}`;
+  }
+
+  return instruction;
 }

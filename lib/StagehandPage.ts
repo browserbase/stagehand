@@ -489,7 +489,7 @@ export class StagehandPage {
       : this.llmClient;
 
     if (!slowDomBasedAct) {
-      return this.actHandler.observeAct(action);
+      return this.actHandler.observeAct(actionOrOptions);
     }
 
     this.stagehand.log({
