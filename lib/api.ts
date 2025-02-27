@@ -112,9 +112,10 @@ export class StagehandAPI {
     });
   }
 
-  async end(): Promise<void> {
-    return this.execute<void>({
-      method: "end",
+  async end(): Promise<Response> {
+    const url = `/sessions/${this.sessionId}/end`;
+    return await this.request(url, {
+      method: "POST",
     });
   }
 
