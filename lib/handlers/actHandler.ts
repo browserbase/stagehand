@@ -11,7 +11,8 @@ import { LLMProvider } from "../llm/LLMProvider";
 import { StagehandContext } from "../StagehandContext";
 import { StagehandPage } from "../StagehandPage";
 import { generateId } from "../utils";
-import { ObserveResult } from "@/types/stagehand";
+import { ActResult, ObserveResult } from "@/types/stagehand";
+import { SupportedPlaywrightAction } from "@/types/act";
 
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
@@ -71,7 +72,7 @@ export class StagehandActHandler {
    */
   public async actFromObserveResult(
     observe: ObserveResult,
-  ): Promise<{ success: boolean; message: string; action: string }> {
+  ): Promise<ActResult> {
     this.logger({
       category: "action",
       message: "Performing act from an ObserveResult",
@@ -98,7 +99,10 @@ export class StagehandActHandler {
         action: observe.description || `ObserveResult action (${method})`,
       };
     } catch (err) {
-      if (!this.selfHeal) {
+      if (
+        !this.selfHeal ||
+        err instanceof PlaywrightCommandMethodNotSupportedException
+      ) {
         this.logger({
           category: "action",
           message: "Error performing act from an ObserveResult",
@@ -136,11 +140,14 @@ export class StagehandActHandler {
             ? `${method} ${observe.description}`
             : observe.description;
         // Call act with the ObserveResult description
-        await this.stagehandPage.act(actCommand);
+        await this.stagehandPage.act({
+          action: actCommand,
+          slowDomBasedAct: true,
+        });
       } catch (err) {
         this.logger({
           category: "action",
-          message: "Error performing act from an ObserveResult",
+          message: "Error performing act from an ObserveResult on fallback",
           level: 1,
           auxiliary: {
             error: { value: err.message, type: "string" },
@@ -154,6 +161,29 @@ export class StagehandActHandler {
         };
       }
     }
+  }
+
+  /**
+   * Perform an act based on an instruction.
+   * This method will observe the page and then perform the act on the first element returned.
+   */
+  public async observeAct(instruction: string): Promise<ActResult> {
+    const observeResults = await this.stagehandPage.observe(
+      `Find the most relevant element to perform an action on given the following action: ${instruction}. 
+      Provide an action for this element such as ${Object.values(SupportedPlaywrightAction).join(", ")}, or any other playwright locator method. Remember that to users, buttons and links look the same in most cases.
+      If the action is completely unrelated to a potential action to be taken on the page, return an empty array. 
+      ONLY return one action. If multiple actions are relevant, return the most relevant one.`,
+    );
+    if (observeResults.length === 0) {
+      return {
+        success: false,
+        message: `Failed to perform act: No observe results found for action"`,
+        action: instruction,
+      };
+    }
+    // Picking the first element observe returns
+    const element = observeResults[0];
+    return this.actFromObserveResult(element);
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {

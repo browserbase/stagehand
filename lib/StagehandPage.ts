@@ -465,6 +465,7 @@ export class StagehandPage {
       useVision, // still destructure this but will not pass it on
       variables = {},
       domSettleTimeoutMs,
+      slowDomBasedAct = false,
     } = actionOrOptions;
 
     if (typeof useVision !== "undefined") {
@@ -486,6 +487,10 @@ export class StagehandPage {
     const llmClient: LLMClient = modelName
       ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
       : this.llmClient;
+
+    if (!slowDomBasedAct) {
+      return this.actHandler.observeAct(action);
+    }
 
     this.stagehand.log({
       category: "act",
