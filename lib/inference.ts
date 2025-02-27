@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { ActCommandParams, ActCommandResult } from "../types/act";
-import { VerifyActCompletionParams } from "../types/inference";
 import { LogLine } from "../types/log";
 import { ChatMessage, LLMClient } from "./llm/LLMClient";
 import {
@@ -15,61 +14,7 @@ import {
   buildObserveUserMessage,
   buildRefineSystemPrompt,
   buildRefineUserPrompt,
-  buildVerifyActCompletionSystemPrompt,
-  buildVerifyActCompletionUserPrompt,
 } from "./prompt";
-
-export async function verifyActCompletion({
-  goal,
-  steps,
-  llmClient,
-  domElements,
-  logger,
-  requestId,
-}: VerifyActCompletionParams): Promise<boolean> {
-  const verificationSchema = z.object({
-    completed: z.boolean().describe("true if the goal is accomplished"),
-  });
-
-  type VerificationResponse = z.infer<typeof verificationSchema>;
-
-  const response = await llmClient.createChatCompletion<VerificationResponse>({
-    options: {
-      messages: [
-        buildVerifyActCompletionSystemPrompt(),
-        buildVerifyActCompletionUserPrompt(goal, steps, domElements),
-      ],
-      temperature: 0.1,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      response_model: {
-        name: "Verification",
-        schema: verificationSchema,
-      },
-      requestId,
-    },
-    logger,
-  });
-
-  if (!response || typeof response !== "object") {
-    logger({
-      category: "VerifyAct",
-      message: "Unexpected response format: " + JSON.stringify(response),
-    });
-    return false;
-  }
-
-  if (response.completed === undefined) {
-    logger({
-      category: "VerifyAct",
-      message: "Missing 'completed' field in response",
-    });
-    return false;
-  }
-
-  return response.completed;
-}
 
 export function fillInVariables(
   text: string,

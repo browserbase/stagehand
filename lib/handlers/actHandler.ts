@@ -5,7 +5,7 @@ import {
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
 import { ActionCache } from "../cache/ActionCache";
-import { act, fillInVariables, verifyActCompletion } from "../inference";
+import { act, fillInVariables } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { LLMProvider } from "../llm/LLMProvider";
 import { StagehandContext } from "../StagehandContext";
@@ -162,90 +162,6 @@ export class StagehandActHandler {
     this.actions[id] = { result, action };
 
     return id;
-  }
-
-  private async _verifyActionCompletion({
-    completed,
-    requestId,
-    action,
-    steps,
-    llmClient,
-    domSettleTimeoutMs,
-  }: {
-    completed: boolean;
-    requestId: string;
-    action: string;
-    steps: string;
-    llmClient: LLMClient;
-    domSettleTimeoutMs?: number;
-  }): Promise<boolean> {
-    if (!completed) {
-      return false;
-    }
-
-    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-
-    // o1 is overkill for this task + this task uses a lot of tokens. So we switch it 4o
-    let verifyLLmClient = llmClient;
-    if (
-      llmClient.modelName.startsWith("o1") ||
-      llmClient.modelName.startsWith("o3")
-    ) {
-      verifyLLmClient = this.llmProvider.getClient(
-        "gpt-4o",
-        llmClient.clientOptions,
-      );
-    }
-
-    const { outputString: domElements } =
-      await this.stagehandPage.page.evaluate(() => {
-        return window.processAllOfDom();
-      });
-
-    let actionCompleted = false;
-    if (completed) {
-      // Run action completion verifier
-      this.logger({
-        category: "action",
-        message: "action marked as completed, verifying if this is true...",
-        level: 1,
-        auxiliary: {
-          action: {
-            value: action,
-            type: "string",
-          },
-        },
-      });
-
-      // Always use text-based DOM verification (no vision).
-      actionCompleted = await verifyActCompletion({
-        goal: action,
-        steps,
-        llmProvider: this.llmProvider,
-        llmClient: verifyLLmClient,
-        domElements,
-        logger: this.logger,
-        requestId,
-      });
-
-      this.logger({
-        category: "action",
-        message: "action completion verification result",
-        level: 1,
-        auxiliary: {
-          action: {
-            value: action,
-            type: "string",
-          },
-          result: {
-            value: actionCompleted.toString(),
-            type: "boolean",
-          },
-        },
-      });
-    }
-
-    return actionCompleted;
   }
 
   private async _performPlaywrightMethod(
@@ -992,35 +908,11 @@ export class StagehandActHandler {
       );
 
       if (cachedStep.completed) {
-        // Verify the action was completed successfully
-        const actionCompleted = await this._verifyActionCompletion({
-          completed: true,
-          llmClient,
-          steps,
-          requestId,
+        return {
+          success: true,
+          message: "action completed successfully using cached step",
           action,
-          domSettleTimeoutMs,
-        });
-
-        this.logger({
-          category: "action",
-          message: "action completion verification result from cache",
-          level: 1,
-          auxiliary: {
-            actionCompleted: {
-              value: actionCompleted.toString(),
-              type: "boolean",
-            },
-          },
-        });
-
-        if (actionCompleted) {
-          return {
-            success: true,
-            message: "action completed successfully using cached step",
-            action,
-          };
-        }
+        };
       }
 
       return this.act({
@@ -1393,65 +1285,17 @@ export class StagehandActHandler {
           }
         }
 
-        const actionCompleted = await this._verifyActionCompletion({
-          completed: response.completed,
-          requestId,
-          action,
-          steps,
-          llmClient,
-          domSettleTimeoutMs,
-        }).catch((error) => {
-          this.logger({
-            category: "action",
-            message:
-              "error verifying action completion. Assuming action completed.",
-            level: 1,
-            auxiliary: {
-              error: {
-                value: error.message,
-                type: "string",
-              },
-              trace: {
-                value: error.stack,
-                type: "string",
-              },
-            },
-          });
-
-          return true;
+        this.logger({
+          category: "action",
+          message: "action completed successfully",
+          level: 1,
         });
-
-        if (!actionCompleted) {
-          this.logger({
-            category: "action",
-            message: "continuing to next action step",
-            level: 1,
-          });
-
-          return this.act({
-            action,
-            steps,
-            llmClient,
-            chunksSeen,
-            requestId,
-            variables,
-            previousSelectors: [...previousSelectors, foundXpath],
-            skipActionCacheForThisStep: false,
-            domSettleTimeoutMs,
-          });
-        } else {
-          this.logger({
-            category: "action",
-            message: "action completed successfully",
-            level: 1,
-          });
-          await this._recordAction(action, response.step);
-          return {
-            success: true,
-            message: `Action completed successfully: ${steps}${response.step}`,
-            action: action,
-          };
-        }
+        await this._recordAction(action, response.step);
+        return {
+          success: true,
+          message: `Action completed successfully: ${steps}${response.step}`,
+          action: action,
+        };
       } catch (error) {
         this.logger({
           category: "action",

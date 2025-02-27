@@ -15,7 +15,11 @@ export const simple_google_search: EvalFunction = async ({
   await stagehand.page.goto("https://www.google.com");
 
   await stagehand.page.act({
-    action: 'Search for "OpenAI"',
+    action: 'Type "OpenAI" into the search bar',
+  });
+
+  await stagehand.page.act({
+    action: "Click the search button",
   });
 
   const expectedUrl = "https://www.google.com/search?q=OpenAI";

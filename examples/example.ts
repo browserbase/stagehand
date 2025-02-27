@@ -14,6 +14,7 @@ async function example() {
   });
   await stagehand.init();
   await stagehand.page.goto("https://docs.stagehand.dev");
+  await stagehand.page.act("click on the quickstart");
 }
 
 (async () => {
