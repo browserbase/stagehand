@@ -377,6 +377,7 @@ export class Stagehand {
   private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+  private cleanupCalled = false;
 
   constructor(
     {
@@ -449,6 +450,30 @@ export class Stagehand {
 
     this.selfHeal = selfHeal;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
+
+    if (this.usingAPI) {
+      this.registerSignalHandlers();
+    }
+  }
+
+  private registerSignalHandlers() {
+    const cleanup = async (signal: string) => {
+      if (this.cleanupCalled) return;
+      this.cleanupCalled = true;
+
+      console.log(`[${signal}] received. Ending Browserbase session...`);
+      try {
+        await this.close();
+      } catch (err) {
+        console.error("Error ending Browserbase session:", err);
+      } finally {
+        // Exit explicitly once cleanup is done
+        process.exit(0);
+      }
+    };
+
+    process.once("SIGINT", () => void cleanup("SIGINT"));
+    process.once("SIGTERM", () => void cleanup("SIGTERM"));
   }
 
   public get logger(): (logLine: LogLine) => void {
