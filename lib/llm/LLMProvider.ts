@@ -7,6 +7,7 @@ import {
 import { LLMCache } from "../cache/LLMCache";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
+import { GoogleClient } from "./GoogleClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
 
@@ -23,6 +24,8 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "claude-3-7-sonnet-20250219": "anthropic",
   "cerebras-llama-3.3-70b": "cerebras",
   "cerebras-llama-3.1-8b": "cerebras",
+  "gemini-2.0-flash": "google",
+  "gemini-2.0-flash-lite": "google",
 };
 
 export class LLMProvider {
@@ -83,6 +86,14 @@ export class LLMProvider {
         });
       case "cerebras":
         return new CerebrasClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
+      case "google":
+        return new GoogleClient({
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
