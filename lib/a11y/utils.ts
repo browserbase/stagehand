@@ -1,7 +1,7 @@
 import { AccessibilityNode, TreeResult, AXNode } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { CDPSession, Page, Locator } from "playwright";
+import { CDPSession, Page, Locator } from "@playwright/test";
 import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,
