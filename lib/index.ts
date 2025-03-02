@@ -53,6 +53,7 @@ async function getBrowser(
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
+  localDebugPort?: number,
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
@@ -200,6 +201,14 @@ async function getBrowser(
     const context = browser.contexts()[0];
 
     return { browser, context, debugUrl, sessionUrl, sessionId, env };
+  } else if (localDebugPort) {
+    const browser = await chromium.connectOverCDP(
+      `http://localhost:${localDebugPort}`,
+    );
+    const context = browser.contexts()[0];
+    await applyStealthScripts(context);
+
+    return { context, contextPath: undefined, env: "LOCAL" };
   } else {
     logger({
       category: "init",
@@ -377,6 +386,7 @@ export class Stagehand {
   private waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+  private readonly localDebugPort?: number;
   private cleanupCalled = false;
 
   constructor(
@@ -399,6 +409,7 @@ export class Stagehand {
       systemPrompt,
       useAPI,
       localBrowserLaunchOptions,
+      localDebugPort,
       selfHeal = true,
       waitForCaptchaSolves = false,
     }: ConstructorParams = {
@@ -437,6 +448,7 @@ export class Stagehand {
     this.userProvidedInstructions = systemPrompt;
     this.usingAPI = useAPI ?? false;
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.localDebugPort = localDebugPort;
 
     if (this.usingAPI && env === "LOCAL") {
       throw new Error("API mode can only be used with BROWSERBASE environment");
@@ -559,6 +571,7 @@ export class Stagehand {
         this.browserbaseSessionCreateParams,
         this.browserbaseSessionID,
         this.localBrowserLaunchOptions,
+        this.localDebugPort,
       ).catch((e) => {
         console.error("Error in init:", e);
         const br: BrowserResult = {
@@ -573,7 +586,11 @@ export class Stagehand {
     this.intEnv = env;
     this.contextPath = contextPath;
     this.stagehandContext = await StagehandContext.init(context, this);
-    const defaultPage = this.context.pages()[0];
+    const pages = this.context.pages();
+    let defaultPage = pages[0];
+    if (!defaultPage) {
+      defaultPage = await this.context.newPage();
+    }
     this.stagehandPage = await new StagehandPage(
       defaultPage,
       this,

@@ -40,6 +40,12 @@ export interface ConstructorParams {
    */
   waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  /**
+   * The port to use for local debugging. Do not set this if you are using localBrowserLaunchOptions.
+   *
+   * @default 9222
+   */
+  localDebugPort?: number;
 }
 
 export interface InitOptions {
