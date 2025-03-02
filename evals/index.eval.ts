@@ -15,25 +15,35 @@
 import fs from "fs";
 import path from "path";
 import process from "process";
-import { env } from "./env";
-import { generateExperimentName } from "./utils";
-import { exactMatch, errorMatch } from "./scoring";
-import { tasksByName, MODELS } from "./taskConfig";
 import {
   filterByCategory,
   filterByEvalName,
   useTextExtract,
   useAccessibilityTree,
 } from "./args";
+
+import { generateExperimentName } from "./utils";
+import { exactMatch, errorMatch } from "./scoring";
+import { tasksByName, MODELS } from "./taskConfig";
 import { Eval } from "braintrust";
 import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
 import { AvailableModel } from "@/dist";
+import { env } from "./env";
 import dotenv from "dotenv";
 dotenv.config();
 
-const MAX_CONCURRENCY = 20;
-const TRIAL_COUNT = 5;
+/**
+ * Read max concurrency and trial count from environment variables set in args.ts.
+ * Fallback to defaults (20 and 5) if they're not provided.
+ */
+const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
+  ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
+  : 20;
+
+const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
+  ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
+  : 5;
 
 /**
  * generateSummary:
