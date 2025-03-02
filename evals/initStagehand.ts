@@ -61,10 +61,7 @@ export const initStagehand = async ({
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
 }) => {
-  let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
-  if (modelName.startsWith("claude")) {
-    chosenApiKey = process.env.ANTHROPIC_API_KEY;
-  }
+  const chosenApiKey = process.env.BRAINTRUST_API_KEY;
 
   const config = {
     ...StagehandConfig,
