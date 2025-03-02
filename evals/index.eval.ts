@@ -32,8 +32,8 @@ import { AvailableModel } from "@/dist";
 import dotenv from "dotenv";
 dotenv.config();
 
-const MAX_CONCURRENCY = 20;
-const TRIAL_COUNT = 5;
+const MAX_CONCURRENCY = 5;
+const TRIAL_COUNT = 1;
 
 /**
  * generateSummary:
