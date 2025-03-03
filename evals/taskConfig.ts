@@ -49,7 +49,17 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : ["gpt-4o", "claude-3-5-sonnet-latest"];
+  : [
+      "braintrust-gpt-4o",
+      "braintrust-gpt-4.5-preview",
+      "braintrust-gpt-4o-mini",
+      "braintrust-claude-3-5-sonnet-latest",
+      "braintrust-claude-3-7-sonnet-latest",
+      "braintrust-gemini-2.0-flash",
+      "braintrust-llama-3.3-70b-versatile",
+      "braintrust-llama-3.1-8b-instant",
+      "braintrust-deepseek-r1-distill-llama-70b",
+    ];
 
 /**
  * getModelList:
