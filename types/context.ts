@@ -1,3 +1,6 @@
+import type { BrowserContext as PlaywrightContext } from "@playwright/test";
+import { Page } from "../types/page";
+
 export interface AXNode {
   role?: { value: string };
   name?: { value: string };
@@ -25,4 +28,10 @@ export interface TreeResult {
   tree: AccessibilityNode[];
   simplified: string;
   iframes?: AccessibilityNode[];
+}
+
+export interface EnhancedContext
+  extends Omit<PlaywrightContext, "newPage" | "pages"> {
+  newPage(): Promise<Page>;
+  pages(): Page[];
 }
