@@ -15,11 +15,13 @@ export const AvailableModelSchema = z.enum([
   "o3-mini",
   "cerebras-llama-3.3-70b",
   "cerebras-llama-3.1-8b",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;
 
-export type ModelProvider = "openai" | "anthropic" | "cerebras";
+export type ModelProvider = "openai" | "anthropic" | "cerebras" | "google";
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
