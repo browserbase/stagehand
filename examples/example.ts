@@ -5,15 +5,20 @@
  * npx create-browser-app@latest my-browser-app
  */
 
-import { Stagehand } from "@/dist";
-import StagehandConfig from "@/stagehand.config";
+import { Stagehand } from "@/lib/index";
 
 async function example() {
   const stagehand = new Stagehand({
-    ...StagehandConfig,
+    env: "LOCAL",
+    localDebugPort: 9222,
   });
   await stagehand.init();
-  await stagehand.page.goto("https://docs.stagehand.dev");
+  const page = stagehand.page;
+  await page.act(
+    `type 'if you're seeing this tweet, get excited -- i'm using stagehand on arc!'`,
+  );
+  await page.act("click the post button");
+  await stagehand.close();
 }
 
 (async () => {
