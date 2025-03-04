@@ -23,7 +23,10 @@ const StagehandConfig: ConstructorParams = {
     undefined /* Session ID for resuming Browserbase sessions */,
   modelName: "gpt-4o" /* Name of the model to use */,
   modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.BRAINTRUST_API_KEY,
   } /* Configuration options for the model client */,
+  selfHeal: true /* Enable self-healing functionality */,
+  waitForCaptchaSolves:
+    true /* Wait for captchas to be solved after navigation when using Browserbase environment */,
 };
 export default StagehandConfig;

@@ -14,9 +14,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
     });
     await stagehand.init();
@@ -38,9 +38,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         userDataDir: customUserDataDir,
@@ -66,9 +66,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         viewport: customViewport,
@@ -105,9 +105,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         cookies: testCookies,
@@ -139,9 +139,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         geolocation: customGeolocation,
@@ -151,7 +151,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://docs.stagehand.dev");
 
     const location = await page.evaluate(() => {
       return new Promise((resolve) => {
@@ -180,9 +180,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         locale: "ja-JP",
@@ -192,7 +192,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://docs.stagehand.dev");
 
     const { locale, timezone } = await page.evaluate(() => ({
       locale: navigator.language,
@@ -216,9 +216,9 @@ test.describe("Local browser launch options", () => {
       debugDom: true,
       domSettleTimeoutMs: 30_000,
       enableCaching: true,
-      modelName: "gpt-4o",
+      modelName: "braintrust-gpt-4o",
       modelClientOptions: {
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.BRAINTRUST_API_KEY,
       },
       localBrowserLaunchOptions: {
         recordVideo: {
@@ -230,7 +230,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://docs.stagehand.dev");
     await stagehand.close();
 
     const videos = fs.readdirSync(videoDir);
