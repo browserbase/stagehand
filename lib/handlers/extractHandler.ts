@@ -184,7 +184,7 @@ export class StagehandExtractHandler {
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     await this.stagehandPage.startDomDebug();
 
-    const targetXpath = selector;
+    const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
 
     // **2:** Store the original DOM before any mutations
     // we need to store the original DOM here because calling createTextBoundingBoxes()
