@@ -190,9 +190,10 @@ export async function processAllOfDom(xpath?: string) {
 
       // Now check if the element “fits” in the container’s viewport
       const scrollTargetHeight = scrollTarget.getViewportHeight();
-      const rect = candidateElementContainer.getBoundingClientRect();
+      const candidateElementContainerHeight =
+        candidateElementContainer.scrollHeight;
 
-      if (rect.height <= scrollTargetHeight) {
+      if (candidateElementContainerHeight <= scrollTargetHeight) {
         // Single-chunk approach
         console.log(
           "Element is smaller/equal to container’s viewport. Doing single chunk.",
@@ -235,7 +236,7 @@ export async function processAllOfDom(xpath?: string) {
   const startOffset = scrollTarget.getScrollPosition();
   const viewportHeight = scrollTarget.getViewportHeight();
   const maxScroll = candidateElementContainer
-    ? startOffset + candidateElementContainer.getBoundingClientRect().height
+    ? startOffset + candidateElementContainer.scrollHeight
     : scrollTarget.getScrollHeight();
   const chunkSize = viewportHeight;
 

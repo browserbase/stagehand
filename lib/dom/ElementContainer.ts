@@ -51,6 +51,7 @@ export class ElementContainer extends StagehandContainer {
    * @returns A promise that resolves once scrolling is finished.
    */
   public async scrollTo(offset: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     this.el.scrollTo({ top: offset, behavior: "smooth" });
     await this.waitForScrollEnd();
   }
@@ -67,7 +68,7 @@ export class ElementContainer extends StagehandContainer {
     if (!element) {
       this.el.scrollTo({ top: 0, behavior: "smooth" });
     } else {
-      element.scrollIntoView({ behavior: "smooth", block: "end" });
+      element.scrollIntoView();
     }
     await this.waitForScrollEnd();
   }
