@@ -24,6 +24,7 @@ export const EvalCategorySchema = z.enum([
   "extract",
   "experimental",
   "text_extract",
+  "targeted_extract",
 ]);
 
 export type EvalCategory = z.infer<typeof EvalCategorySchema>;

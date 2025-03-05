@@ -254,11 +254,31 @@
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": ["text_extract"]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_regulations_table",
-      "categories": ["text_extract"]
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_recipe",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_aigrant_targeted",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_aigrant_targeted_2",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_geniusee",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_geniusee_2",
+      "categories": ["targeted_extract"]
     }
   ]
 }

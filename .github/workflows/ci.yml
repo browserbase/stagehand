@@ -24,6 +24,7 @@ jobs:
       run-act: ${{ steps.check-labels.outputs.run-act }}
       run-observe: ${{ steps.check-labels.outputs.run-observe }}
       run-text-extract: ${{ steps.check-labels.outputs.run-text-extract }}
+      run-targeted-extract: ${{ steps.check-labels.outputs.run-targeted-extract }}
     steps:
       - id: check-labels
         run: |
@@ -34,6 +35,7 @@ jobs:
             echo "run-act=true" >> $GITHUB_OUTPUT
             echo "run-observe=true" >> $GITHUB_OUTPUT
             echo "run-text-extract=true" >> $GITHUB_OUTPUT
+            echo "run-targeted-extract=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -42,6 +44,7 @@ jobs:
           echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-text-extract=${{ contains(github.event.pull_request.labels.*.name, 'text-extract') }}" >> $GITHUB_OUTPUT
+          echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
 
   run-lint:
     runs-on: ubuntu-latest
@@ -516,5 +519,73 @@ jobs:
             fi
           else
             echo "Eval summary not found for observe category. Failing CI."
+            exit 1
+          fi
+
+  run-targeted-extract-evals:
+    needs: [run-observe-evals, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Check for 'targeted-extract' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-targeted-extract }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for TARGETED-EXTRACT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+
+      - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm exec playwright install --with-deps
+
+      - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm run build
+
+      - name: Run targeted extract Evals
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm run evals category targeted_extract -- --extract-method=textExtract
+
+      - name: Log targeted extract Evals Performance
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            targeted_extract_score=$(jq '.categories.targeted_extract' eval-summary.json)
+            echo "Targeted extract category score: $targeted_extract_score%"
+            if (( $(echo "$targeted_extract_score < 80" | bc -l) )); then
+              echo "Targeted extract score is below 80%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for targeted_extract category. Failing CI."
             exit 1
           fi
