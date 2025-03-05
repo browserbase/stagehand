@@ -17,6 +17,10 @@ export const defaultExtractSchema = z.object({
   extraction: z.string(),
 });
 
+export const pageTextSchema = z.object({
+  page_text: z.string(),
+});
+
 export interface Page extends Omit<PlaywrightPage, "on"> {
   act(action: string): Promise<ActResult>;
   act(options: ActOptions): Promise<ActResult>;
@@ -28,6 +32,7 @@ export interface Page extends Omit<PlaywrightPage, "on"> {
   extract<T extends z.AnyZodObject>(
     options: ExtractOptions<T>,
   ): Promise<ExtractResult<T>>;
+  extract(): Promise<ExtractResult<typeof pageTextSchema>>;
 
   observe(): Promise<ObserveResult[]>;
   observe(instruction: string): Promise<ObserveResult[]>;

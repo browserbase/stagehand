@@ -574,13 +574,18 @@ export class StagehandPage {
   }
 
   async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
-    instructionOrOptions: string | ExtractOptions<T>,
+    instructionOrOptions?: string | ExtractOptions<T>,
   ): Promise<ExtractResult<T>> {
     if (!this.extractHandler) {
       throw new Error("Extract handler not initialized");
     }
 
     await clearOverlays(this.page);
+
+    // check if user called extract() with no arguments
+    if (!instructionOrOptions) {
+      return this.extractHandler.extract();
+    }
 
     const options: ExtractOptions<T> =
       typeof instructionOrOptions === "string"
