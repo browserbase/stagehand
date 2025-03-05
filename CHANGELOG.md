@@ -4,53 +4,70 @@
 
 ### Minor Changes
 
-- [#483](https://github.com/browserbase/stagehand/pull/483) [`8c9445f`](https://github.com/browserbase/stagehand/commit/8c9445fde9724ae33eeeb1234fd5b9bbd418bfdb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now do targetted extraction by passing an xpath string into extract. This limits the dom processing step to a target element, reducing tokens and increasing speed.
+-   [#518](https://github.com/browserbase/stagehand/pull/518) [`516725f`](https://github.com/browserbase/stagehand/commit/516725fc1c5d12d22caac0078a118c77bfe033a8) Thanks [@sameelarif](https://github.com/sameelarif)! - `act()` can now use `observe()` under the hood, resulting in significant performance improvements. To opt-in to this change, set `slowDomBasedAct: false` in `ActOptions`.
 
-- [#544](https://github.com/browserbase/stagehand/pull/544) [`55c9673`](https://github.com/browserbase/stagehand/commit/55c9673c5948743b804d70646f425a61818c7789) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deterministically get the full text representation of a webpage by calling `extract()` (with no arguments)
+-   [#483](https://github.com/browserbase/stagehand/pull/483) [`8c9445f`](https://github.com/browserbase/stagehand/commit/8c9445fde9724ae33eeeb1234fd5b9bbd418bfdb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - When using `textExtract`, you can now do targetted extraction by passing an xpath string into extract via the `selector` parameter. This limits the dom processing step to a target element, reducing tokens and increasing speed. For example:
 
-- [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@kamath](https://github.com/kamath)! - You can now run Groq LLMs! "groq-llama-3.3-70b-versatile" and "groq-llama-3.3-70b-specdec" are now valid AvailableModel names
+    ```typescript
+    const weatherData = await stagehand.page.extract({
+      instruction: "extract the weather data for Sun, Feb 23 at 11PM",
+      schema: z.object({
+        temperature: z.string(),
+        weather_description: z.string(),
+        wind: z.string(),
+        humidity: z.string(),
+        barometer: z.string(),
+        visibility: z.string(),
+      }),
+      modelName,
+      useTextExtract,
+      selector: xpath, // xpath of the element to extract from
+    });
+    ```
 
-- [#556](https://github.com/browserbase/stagehand/pull/556) [`499a72d`](https://github.com/browserbase/stagehand/commit/499a72dc56009791ce065270b854b12fc5570050) Thanks [@kamath](https://github.com/kamath)! - You can now set a timeout for dom-based stagehand act!
+-   [#556](https://github.com/browserbase/stagehand/pull/556) [`499a72d`](https://github.com/browserbase/stagehand/commit/499a72dc56009791ce065270b854b12fc5570050) Thanks [@kamath](https://github.com/kamath)! - You can now set a timeout for dom-based stagehand act! Do this in `act` with `timeoutMs` as a parameter, or set a global param to `actTimeoutMs` in Stagehand config.
 
-- [#538](https://github.com/browserbase/stagehand/pull/538) [`d898d5b`](https://github.com/browserbase/stagehand/commit/d898d5b9e1c3b80e62e72d36d1754b3e50d5a2b4) Thanks [@sameelarif](https://github.com/sameelarif)! - Added `gpt-4.5-preview` and `claude-3-7-sonnet-latest` as supported models.
+-   [#544](https://github.com/browserbase/stagehand/pull/544) [`55c9673`](https://github.com/browserbase/stagehand/commit/55c9673c5948743b804d70646f425a61818c7789) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now deterministically get the full text representation of a webpage by calling `extract()` (with no arguments)
 
-- [#518](https://github.com/browserbase/stagehand/pull/518) [`516725f`](https://github.com/browserbase/stagehand/commit/516725fc1c5d12d22caac0078a118c77bfe033a8) Thanks [@sameelarif](https://github.com/sameelarif)! - `act()` can now use `observe()` under the hood, resulting in significant performance improvements. To opt-in to this change, set `slowDomBasedAct: false` in `ActOptions`.
+-   [#538](https://github.com/browserbase/stagehand/pull/538) [`d898d5b`](https://github.com/browserbase/stagehand/commit/d898d5b9e1c3b80e62e72d36d1754b3e50d5a2b4) Thanks [@sameelarif](https://github.com/sameelarif)! - Added `gpt-4.5-preview` and `claude-3-7-sonnet-latest` as supported models.
 
-- [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kamath](https://github.com/kamath)! - Added CerebrasClient.ts:
+-   [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@kamath](https://github.com/kamath)! - You can now run Groq LLMs! "groq-llama-3.3-70b-versatile" and "groq-llama-3.3-70b-specdec" are now valid AvailableModel names
 
-  - Handles API communication with Cerebras
-  - Supports function calling
-  - Includes robust response parsing with fallbacks
-  - Handles caching and error logging
-  - Infrastructure Changes:
+-   [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kwt00](https://github.com/kwt00)! - Added CerebrasClient.ts:
 
-  Updated LLMClient.ts to support Cerebras provider type:
+    -   Handles API communication with Cerebras
+    -   Supports function calling
+    -   Includes robust response parsing with fallbacks
+    -   Handles caching and error logging
+    -   Infrastructure Changes:
 
-  - Added Cerebras models to model.ts type definitions
-  - Added Cerebras case to LLMProvider.ts
-  - Added CEREBRAS_API_KEY to environment variables
+    Updated LLMClient.ts to support Cerebras provider type:
+
+    -   Added Cerebras models to model.ts type definitions
+    -   Added Cerebras case to LLMProvider.ts
+    -   Added CEREBRAS_API_KEY to environment variables
 
 ### Patch Changes
 
-- [#506](https://github.com/browserbase/stagehand/pull/506) [`e521645`](https://github.com/browserbase/stagehand/commit/e5216455ce3fc2a4f4f7aa5614ecc92354eb670c) Thanks [@miguelg719](https://github.com/miguelg719)! - fixing 5s timeout on actHandler
+-   [#506](https://github.com/browserbase/stagehand/pull/506) [`e521645`](https://github.com/browserbase/stagehand/commit/e5216455ce3fc2a4f4f7aa5614ecc92354eb670c) Thanks [@miguelg719](https://github.com/miguelg719)! - fixing 5s timeout on actHandler
 
-- [#535](https://github.com/browserbase/stagehand/pull/535) [`3782054`](https://github.com/browserbase/stagehand/commit/3782054734dcd0346f84003ddd8e0e484b379459) Thanks [@miguelg719](https://github.com/miguelg719)! - Adding backwards compatibility to new act->observe pipeline by accepting actOptions
+-   [#535](https://github.com/browserbase/stagehand/pull/535) [`3782054`](https://github.com/browserbase/stagehand/commit/3782054734dcd0346f84003ddd8e0e484b379459) Thanks [@miguelg719](https://github.com/miguelg719)! - Adding backwards compatibility to new act->observe pipeline by accepting actOptions
 
-- [#508](https://github.com/browserbase/stagehand/pull/508) [`270f666`](https://github.com/browserbase/stagehand/commit/270f6669f1638f52fd5cd3f133f76446ced6ef9f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed stagehand to support multiple pages with an enhanced context
+-   [#508](https://github.com/browserbase/stagehand/pull/508) [`270f666`](https://github.com/browserbase/stagehand/commit/270f6669f1638f52fd5cd3f133f76446ced6ef9f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed stagehand to support multiple pages with an enhanced context
 
-- [#559](https://github.com/browserbase/stagehand/pull/559) [`18533ad`](https://github.com/browserbase/stagehand/commit/18533ad824722e4e699323248297e184bae9254e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: continuously adjusting chunk size inside `act`
+-   [#559](https://github.com/browserbase/stagehand/pull/559) [`18533ad`](https://github.com/browserbase/stagehand/commit/18533ad824722e4e699323248297e184bae9254e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: continuously adjusting chunk size inside `act`
 
-- [#554](https://github.com/browserbase/stagehand/pull/554) [`5f1868b`](https://github.com/browserbase/stagehand/commit/5f1868bd95478b3eb517319ebca7b0af4e91d144) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix targetted extract issue with scrollintoview and not chunking correctly
+-   [#554](https://github.com/browserbase/stagehand/pull/554) [`5f1868b`](https://github.com/browserbase/stagehand/commit/5f1868bd95478b3eb517319ebca7b0af4e91d144) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix targetted extract issue with scrollintoview and not chunking correctly
 
-- [#555](https://github.com/browserbase/stagehand/pull/555) [`fc5e8b6`](https://github.com/browserbase/stagehand/commit/fc5e8b6c5a606da96e6ed572dc8ffc6caef57576) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where processAllOfDom doesnt scroll to end of page when there is dynamic content
+-   [#555](https://github.com/browserbase/stagehand/pull/555) [`fc5e8b6`](https://github.com/browserbase/stagehand/commit/fc5e8b6c5a606da96e6ed572dc8ffc6caef57576) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where processAllOfDom doesnt scroll to end of page when there is dynamic content
 
-- [#552](https://github.com/browserbase/stagehand/pull/552) [`a25a4cb`](https://github.com/browserbase/stagehand/commit/a25a4cb538d64f50b5bd834dd88e8e6086a73078) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - accept xpaths with 'xpath=' prepended to the front in addition to xpaths without
+-   [#552](https://github.com/browserbase/stagehand/pull/552) [`a25a4cb`](https://github.com/browserbase/stagehand/commit/a25a4cb538d64f50b5bd834dd88e8e6086a73078) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - accept xpaths with 'xpath=' prepended to the front in addition to xpaths without
 
-- [#534](https://github.com/browserbase/stagehand/pull/534) [`f0c162a`](https://github.com/browserbase/stagehand/commit/f0c162a6b4d1ac72c42f26462d7241a08b5c4e0a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - call this.end() if the process exists
+-   [#534](https://github.com/browserbase/stagehand/pull/534) [`f0c162a`](https://github.com/browserbase/stagehand/commit/f0c162a6b4d1ac72c42f26462d7241a08b5c4e0a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - call this.end() if the process exists
 
-- [#528](https://github.com/browserbase/stagehand/pull/528) [`c820bfc`](https://github.com/browserbase/stagehand/commit/c820bfcfc9571fea90afd1595775c5946118cfaf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle attempt to close session that has already been closed when using the api
+-   [#528](https://github.com/browserbase/stagehand/pull/528) [`c820bfc`](https://github.com/browserbase/stagehand/commit/c820bfcfc9571fea90afd1595775c5946118cfaf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle attempt to close session that has already been closed when using the api
 
-- [#520](https://github.com/browserbase/stagehand/pull/520) [`f49eebd`](https://github.com/browserbase/stagehand/commit/f49eebd98c1d61413a3ea4c798595db601d55da8) Thanks [@miguelg719](https://github.com/miguelg719)! - Performing act from a 'not-supported' ObserveResult will now throw an informed error
+-   [#520](https://github.com/browserbase/stagehand/pull/520) [`f49eebd`](https://github.com/browserbase/stagehand/commit/f49eebd98c1d61413a3ea4c798595db601d55da8) Thanks [@miguelg719](https://github.com/miguelg719)! - Performing act from a 'not-supported' ObserveResult will now throw an informed error
 
 ## 1.13.1
 
