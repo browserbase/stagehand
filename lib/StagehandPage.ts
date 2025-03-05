@@ -1,9 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type {
-  CDPSession,
-  BrowserContext as PlaywrightContext,
-  Page as PlaywrightPage,
-} from "@playwright/test";
+import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
 import { chromium } from "@playwright/test";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
@@ -20,6 +16,7 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
+import { EnhancedContext } from "../types/context";
 import { clearOverlays } from "./utils";
 
 const BROWSERBASE_REGION_DOMAIN = {
@@ -41,6 +38,7 @@ export class StagehandPage {
   private api: StagehandAPI;
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
+  private initialized: boolean = false;
 
   constructor(
     page: PlaywrightPage,
@@ -51,28 +49,36 @@ export class StagehandPage {
     api?: StagehandAPI,
     waitForCaptchaSolves?: boolean,
   ) {
-    this.intPage = Object.assign(page, {
-      act: () => {
-        throw new Error(
-          "You seem to be calling `act` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
+    // Create a proxy to intercept all method calls and property access
+    this.intPage = new Proxy(page, {
+      get: (target: PlaywrightPage, prop: keyof PlaywrightPage) => {
+        // Special handling for our enhanced methods before initialization
+        if (
+          !this.initialized &&
+          (prop === ("act" as keyof Page) ||
+            prop === ("extract" as keyof Page) ||
+            prop === ("observe" as keyof Page) ||
+            prop === ("on" as keyof Page))
+        ) {
+          return () => {
+            throw new Error(
+              `You seem to be calling \`${String(prop)}\` on a page in an uninitialized \`Stagehand\` object. Ensure you are running \`await stagehand.init()\` on the Stagehand object before referencing the \`page\` object.`,
+            );
+          };
+        }
+
+        const value = target[prop];
+        // If the property is a function, wrap it to update active page before execution
+        if (typeof value === "function" && prop !== "on") {
+          return (...args: unknown[]) => {
+            // Update active page before executing the method
+            this.intContext.setActivePage(this);
+            return value.apply(target, args);
+          };
+        }
+        return value;
       },
-      extract: () => {
-        throw new Error(
-          "You seem to be calling `extract` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-      observe: () => {
-        throw new Error(
-          "You seem to be calling `observe` on a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-      on: () => {
-        throw new Error(
-          "You seem to be referencing a page in an uninitialized `Stagehand` object. Ensure you are running `await stagehand.init()` on the Stagehand object before referencing the `page` object.",
-        );
-      },
-    });
+    }) as Page;
 
     this.stagehand = stagehand;
     this.intContext = context;
@@ -209,13 +215,46 @@ export class StagehandPage {
   async init(): Promise<StagehandPage> {
     const page = this.intPage;
     const stagehand = this.stagehand;
-    this.intPage = new Proxy(page, {
-      get: (target, prop) => {
+
+    // Create a proxy that updates active page on method calls
+    const handler = {
+      get: (target: PlaywrightPage, prop: string | symbol) => {
+        const value = target[prop as keyof PlaywrightPage];
+
+        // Handle enhanced methods
+        if (prop === "act" || prop === "extract" || prop === "observe") {
+          if (!this.llmClient) {
+            return () => {
+              throw new Error(
+                "No LLM API key or LLM Client configured. An LLM API key or a custom LLM Client is required to use act, extract, or observe.",
+              );
+            };
+          }
+
+          // Use type assertion to safely call the method with proper typing
+          type EnhancedMethod = (
+            options:
+              | ActOptions
+              | ExtractOptions<z.AnyZodObject>
+              | ObserveOptions,
+          ) => Promise<
+            ActResult | ExtractResult<z.AnyZodObject> | ObserveResult[]
+          >;
+
+          const method = this[prop as keyof StagehandPage] as EnhancedMethod;
+          return async (options: unknown) => {
+            this.intContext.setActivePage(this);
+            return method.call(this, options);
+          };
+        }
+
+        // Handle goto specially
         if (prop === "goto") {
           return async (url: string, options: GotoOptions) => {
+            this.intContext.setActivePage(this);
             const result = this.api
               ? await this.api.goto(url, options)
-              : await page.goto(url, options);
+              : await target.goto(url, options);
 
             if (this.waitForCaptchaSolves) {
               try {
@@ -229,48 +268,26 @@ export class StagehandPage {
               await this._refreshPageFromAPI();
             } else {
               if (stagehand.debugDom) {
-                await page.evaluate(
+                await target.evaluate(
                   (debugDom) => (window.showChunks = debugDom),
                   stagehand.debugDom,
                 );
               }
-              await this.intPage.waitForLoadState("domcontentloaded");
+              await target.waitForLoadState("domcontentloaded");
               await this._waitForSettledDom();
             }
             return result;
           };
-        } else if (this.llmClient) {
-          if (prop === "act") {
-            return async (options: ActOptions) => {
-              return this.act(options);
-            };
-          }
-          if (prop === "extract") {
-            return async (
-              instructionOrOptions: string | ExtractOptions<z.AnyZodObject>,
-            ) => {
-              return this.extract(instructionOrOptions);
-            };
-          }
-          if (prop === "observe") {
-            return async (options: ObserveOptions) => {
-              return this.observe(options);
-            };
-          }
-        } else {
-          if (prop === "act" || prop === "extract" || prop === "observe") {
-            return () => {
-              throw new Error(
-                "No LLM API key or LLM Client configured. An LLM API key or a custom LLM Client is required to use act, extract, or observe.",
-              );
-            };
-          }
         }
 
+        // Handle event listeners
         if (prop === "on") {
-          return (event: string, listener: (param: unknown) => void) => {
+          return (
+            event: keyof PlaywrightPage["on"],
+            listener: Parameters<PlaywrightPage["on"]>[1],
+          ) => {
             if (event === "popup") {
-              return this.context.on("page", async (page) => {
+              return this.context.on("page", async (page: PlaywrightPage) => {
                 const newContext = await StagehandContext.init(
                   page.context(),
                   stagehand,
@@ -283,23 +300,28 @@ export class StagehandPage {
                 );
 
                 await newStagehandPage.init();
-
                 listener(newStagehandPage.page);
               });
             }
-
-            return this.context.on(
-              event as keyof PlaywrightPage["on"],
-              listener,
-            );
+            this.intContext.setActivePage(this);
+            return target.on(event, listener);
           };
         }
 
-        return target[prop as keyof PlaywrightPage];
-      },
-    });
+        // For all other method calls, update active page
+        if (typeof value === "function") {
+          return (...args: unknown[]) => {
+            this.intContext.setActivePage(this);
+            return value.apply(target, args);
+          };
+        }
 
-    await this._waitForSettledDom();
+        return value;
+      },
+    };
+
+    this.intPage = new Proxy(page, handler) as unknown as Page;
+    this.initialized = true;
     return this;
   }
 
@@ -307,7 +329,7 @@ export class StagehandPage {
     return this.intPage;
   }
 
-  public get context(): PlaywrightContext {
+  public get context(): EnhancedContext {
     return this.intContext.context;
   }
 
