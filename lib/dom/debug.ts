@@ -23,7 +23,7 @@ export async function debugDom() {
     chunkSize,
     false,
     false, // Don't scroll back to top
-    undefined, // BFS entire doc
+    container.getRootElement(), // BFS entire doc
   );
 
   // We expect exactly 1 chunk

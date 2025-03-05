@@ -127,7 +127,7 @@ export async function processDom(chunksSeen: number[]) {
     chunkSize,
     true,
     false, // scrollBackToTop
-    undefined, // BFS entire doc
+    container.getRootElement(), // BFS entire doc
   );
 
   // We expect exactly 1 chunk
