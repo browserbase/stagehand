@@ -31,21 +31,9 @@
 
 -   [#538](https://github.com/browserbase/stagehand/pull/538) [`d898d5b`](https://github.com/browserbase/stagehand/commit/d898d5b9e1c3b80e62e72d36d1754b3e50d5a2b4) Thanks [@sameelarif](https://github.com/sameelarif)! - Added `gpt-4.5-preview` and `claude-3-7-sonnet-latest` as supported models.
 
--   [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@kamath](https://github.com/kamath)! - You can now run Groq LLMs! "groq-llama-3.3-70b-versatile" and "groq-llama-3.3-70b-specdec" are now valid AvailableModel names
+-   [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kwt00](https://github.com/kwt00)! You can now natively run Cerebras LLMs! `cerebras-llama-3.3-70b` and `cerebras-llama-3.1-8b` are now supported models as long as `CEREBRAS_API_KEY` is set in your environment.
 
--   [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kwt00](https://github.com/kwt00)! - Added CerebrasClient.ts:
-
-    -   Handles API communication with Cerebras
-    -   Supports function calling
-    -   Includes robust response parsing with fallbacks
-    -   Handles caching and error logging
-    -   Infrastructure Changes:
-
-    Updated LLMClient.ts to support Cerebras provider type:
-
-    -   Added Cerebras models to model.ts type definitions
-    -   Added Cerebras case to LLMProvider.ts
-    -   Added CEREBRAS_API_KEY to environment variables
+-   [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@kamath](https://github.com/kamath)! You can now natively run Groq LLMs! `groq-llama-3.3-70b-versatile` and `groq-llama-3.3-70b-specdec` are now supported models as long as `GROQ_API_KEY` is set in your environment.
 
 ### Patch Changes
 
