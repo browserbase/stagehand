@@ -40,6 +40,7 @@ export const extract_professional_info: EvalFunction = async ({
       "Restructuring",
       "Finance",
       "Hybrid Capital & Special Situations",
+      "Private Credit",
     ],
     phone: "+1-212-373-3262",
     fax: "+1-212-492-0262",
