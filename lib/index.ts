@@ -378,7 +378,7 @@ export class Stagehand {
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
   private cleanupCalled = false;
-
+  public readonly actTimeoutMs: number;
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
   }
@@ -414,6 +414,7 @@ export class Stagehand {
       localBrowserLaunchOptions,
       selfHeal = true,
       waitForCaptchaSolves = false,
+      actTimeoutMs = 60_000,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -450,6 +451,7 @@ export class Stagehand {
     this.userProvidedInstructions = systemPrompt;
     this.usingAPI = useAPI ?? false;
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.actTimeoutMs = actTimeoutMs;
 
     if (this.usingAPI && env === "LOCAL") {
       throw new Error("API mode can only be used with BROWSERBASE environment");

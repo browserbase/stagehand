@@ -14,6 +14,10 @@ async function example() {
   });
   await stagehand.init();
   await stagehand.page.goto("https://docs.stagehand.dev");
+  /**
+   * Add your code here!
+   */
+  await stagehand.close();
 }
 
 (async () => {

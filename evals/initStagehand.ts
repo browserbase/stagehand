@@ -55,11 +55,13 @@ export const initStagehand = async ({
   domSettleTimeoutMs,
   logger,
   configOverrides,
+  actTimeoutMs,
 }: {
   modelName: AvailableModel;
   domSettleTimeoutMs?: number;
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
+  actTimeoutMs?: number;
 }) => {
   let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
   if (modelName.startsWith("claude")) {
@@ -73,6 +75,7 @@ export const initStagehand = async ({
     modelClientOptions: {
       apiKey: chosenApiKey,
     },
+    actTimeoutMs,
     logger: (logLine: LogLine) => {
       logger.log(logLine);
     },

@@ -25,5 +25,6 @@ const StagehandConfig: ConstructorParams = {
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY,
   } /* Configuration options for the model client */,
+  actTimeoutMs: 60_000,
 };
 export default StagehandConfig;

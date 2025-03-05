@@ -796,378 +796,6 @@ export class StagehandActHandler {
     });
   }
 
-  private async getElement(
-    xpath: string,
-    timeout: number = 5_000,
-  ): Promise<Locator | null> {
-    try {
-      const element = this.stagehandPage.page.locator(`xpath=${xpath}`).first();
-      await element.waitFor({ state: "attached", timeout });
-      return element;
-    } catch {
-      this.logger({
-        category: "action",
-        message: "element not found within timeout",
-        level: 1,
-        auxiliary: {
-          xpath: {
-            value: xpath,
-            type: "string",
-          },
-          timeout_ms: {
-            value: timeout.toString(),
-            type: "integer",
-          },
-        },
-      });
-      return null;
-    }
-  }
-
-  private async _checkIfCachedStepIsValid_oneXpath(cachedStep: {
-    xpath: string;
-    savedComponentString: string;
-  }) {
-    this.logger({
-      category: "action",
-      message: "checking if cached step is valid",
-      level: 1,
-      auxiliary: {
-        xpath: {
-          value: cachedStep.xpath,
-          type: "string",
-        },
-        savedComponentString: {
-          value: cachedStep.savedComponentString,
-          type: "string",
-        },
-      },
-    });
-    try {
-      const locator = await this.getElement(cachedStep.xpath);
-      if (!locator) {
-        this.logger({
-          category: "action",
-          message: "locator not found for xpath",
-          level: 1,
-          auxiliary: {
-            xpath: {
-              value: cachedStep.xpath,
-              type: "string",
-            },
-          },
-        });
-        return false;
-      }
-
-      this.logger({
-        category: "action",
-        message: "locator element",
-        level: 1,
-        auxiliary: {
-          componentString: {
-            value: await this._getComponentString(locator),
-            type: "string",
-          },
-        },
-      });
-
-      const currentComponent = await this._getComponentString(locator);
-
-      this.logger({
-        category: "action",
-        message: "current text",
-        level: 1,
-        auxiliary: {
-          componentString: {
-            value: currentComponent,
-            type: "string",
-          },
-        },
-      });
-
-      if (!currentComponent || !cachedStep.savedComponentString) {
-        this.logger({
-          category: "action",
-          message: "current text or cached text is undefined",
-          level: 1,
-        });
-        return false;
-      }
-
-      // Normalize whitespace and trim both strings before comparing
-      const normalizedCurrentText = currentComponent
-        .trim()
-        .replace(/\s+/g, " ");
-      const normalizedCachedText = cachedStep.savedComponentString
-        .trim()
-        .replace(/\s+/g, " ");
-
-      if (normalizedCurrentText !== normalizedCachedText) {
-        this.logger({
-          category: "action",
-          message: "current text and cached text do not match",
-          level: 1,
-          auxiliary: {
-            currentText: {
-              value: normalizedCurrentText,
-              type: "string",
-            },
-            cachedText: {
-              value: normalizedCachedText,
-              type: "string",
-            },
-          },
-        });
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      this.logger({
-        category: "action",
-        message: "error checking if cached step is valid",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
-          },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
-      });
-      return false; // Added explicit return false for error cases
-    }
-  }
-
-  private async _getValidCachedStepXpath(cachedStep: {
-    xpaths: string[];
-    savedComponentString: string;
-  }) {
-    const reversedXpaths = [...cachedStep.xpaths].reverse(); // We reverse the xpaths to try the most cachable ones first
-    for (const xpath of reversedXpaths) {
-      const isValid = await this._checkIfCachedStepIsValid_oneXpath({
-        xpath,
-        savedComponentString: cachedStep.savedComponentString,
-      });
-
-      if (isValid) {
-        return xpath;
-      }
-    }
-    return null;
-  }
-
-  private async _runCachedActionIfAvailable({
-    action,
-    previousSelectors,
-    requestId,
-    steps,
-    chunksSeen,
-    llmClient,
-    retries,
-    variables,
-    domSettleTimeoutMs,
-  }: {
-    action: string;
-    previousSelectors: string[];
-    requestId: string;
-    steps: string;
-    chunksSeen: number[];
-    llmClient: LLMClient;
-    retries: number;
-    variables: Record<string, string>;
-    domSettleTimeoutMs?: number;
-  }) {
-    if (!this.enableCaching) {
-      return null;
-    }
-
-    const cacheObj = {
-      url: this.stagehandPage.page.url(),
-      action,
-      previousSelectors,
-      requestId,
-    };
-
-    this.logger({
-      category: "action",
-      message: "checking action cache",
-      level: 1,
-      auxiliary: {
-        cacheObj: {
-          value: JSON.stringify(cacheObj),
-          type: "object",
-        },
-      },
-    });
-
-    const cachedStep = await this.actionCache.getActionStep(cacheObj);
-
-    if (!cachedStep) {
-      this.logger({
-        category: "action",
-        message: "action cache miss",
-        level: 1,
-        auxiliary: {
-          cacheObj: {
-            value: JSON.stringify(cacheObj),
-            type: "object",
-          },
-        },
-      });
-      return null;
-    }
-
-    this.logger({
-      category: "action",
-      message: "action cache semi-hit",
-      level: 1,
-      auxiliary: {
-        playwrightCommand: {
-          value: JSON.stringify(cachedStep.playwrightCommand),
-          type: "object",
-        },
-      },
-    });
-
-    try {
-      const validXpath = await this._getValidCachedStepXpath({
-        xpaths: cachedStep.xpaths,
-        savedComponentString: cachedStep.componentString,
-      });
-
-      this.logger({
-        category: "action",
-        message: "cached action step is valid",
-        level: 1,
-        auxiliary: {
-          validXpath: {
-            value: validXpath,
-            type: "string",
-          },
-        },
-      });
-
-      if (!validXpath) {
-        this.logger({
-          category: "action",
-          message: "cached action step is invalid, removing...",
-          level: 1,
-          auxiliary: {
-            cacheObj: {
-              value: JSON.stringify(cacheObj),
-              type: "object",
-            },
-          },
-        });
-
-        await this.actionCache?.removeActionStep(cacheObj);
-        return null;
-      }
-
-      this.logger({
-        category: "action",
-        message: "action cache hit",
-        level: 1,
-        auxiliary: {
-          playwrightCommand: {
-            value: JSON.stringify(cachedStep.playwrightCommand),
-            type: "object",
-          },
-        },
-      });
-
-      cachedStep.playwrightCommand.args = cachedStep.playwrightCommand.args.map(
-        (arg) => {
-          return fillInVariables(arg, variables);
-        },
-      );
-
-      await this._performPlaywrightMethod(
-        cachedStep.playwrightCommand.method,
-        cachedStep.playwrightCommand.args,
-        validXpath,
-        domSettleTimeoutMs,
-      );
-
-      steps = steps + cachedStep.newStepString;
-      await this.stagehandPage.page.evaluate(
-        ({ chunksSeen }: { chunksSeen: number[] }) => {
-          return window.processDom(chunksSeen);
-        },
-        { chunksSeen },
-      );
-
-      if (cachedStep.completed) {
-        // Verify the action was completed successfully
-        const actionCompleted = await this._verifyActionCompletion({
-          completed: true,
-          llmClient,
-          steps,
-          requestId,
-          action,
-          domSettleTimeoutMs,
-        });
-
-        this.logger({
-          category: "action",
-          message: "action completion verification result from cache",
-          level: 1,
-          auxiliary: {
-            actionCompleted: {
-              value: actionCompleted.toString(),
-              type: "boolean",
-            },
-          },
-        });
-
-        if (actionCompleted) {
-          return {
-            success: true,
-            message: "action completed successfully using cached step",
-            action,
-          };
-        }
-      }
-
-      return this.act({
-        action,
-        steps,
-        chunksSeen,
-        llmClient,
-        retries,
-        requestId,
-        variables,
-        previousSelectors: [...previousSelectors, cachedStep.xpaths[0]],
-        skipActionCacheForThisStep: false,
-        domSettleTimeoutMs,
-      });
-    } catch (exception) {
-      this.logger({
-        category: "action",
-        message: "error performing cached action step",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: exception.message,
-            type: "string",
-          },
-          trace: {
-            value: exception.stack,
-            type: "string",
-          },
-        },
-      });
-
-      await this.actionCache?.removeActionStep(cacheObj);
-      return null;
-    }
-  }
-
   public async act({
     action,
     steps = "",
@@ -1179,6 +807,8 @@ export class StagehandActHandler {
     previousSelectors,
     skipActionCacheForThisStep = false,
     domSettleTimeoutMs,
+    timeoutMs,
+    startTime = Date.now(),
   }: {
     action: string;
     steps?: string;
@@ -1190,39 +820,21 @@ export class StagehandActHandler {
     previousSelectors: string[];
     skipActionCacheForThisStep: boolean;
     domSettleTimeoutMs?: number;
+    timeoutMs?: number;
+    startTime?: number;
   }): Promise<{ success: boolean; message: string; action: string }> {
     try {
       await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
       await this.stagehandPage.startDomDebug();
 
-      if (this.enableCaching && !skipActionCacheForThisStep) {
-        const response = await this._runCachedActionIfAvailable({
-          action,
-          previousSelectors,
-          requestId,
-          steps,
-          chunksSeen,
-          llmClient,
-          retries,
-          variables,
-          domSettleTimeoutMs,
-        });
-
-        if (response !== null) {
-          return response;
-        } else {
-          return this.act({
-            action,
-            steps,
-            chunksSeen,
-            llmClient,
-            retries,
-            requestId,
-            variables,
-            previousSelectors,
-            skipActionCacheForThisStep: true,
-            domSettleTimeoutMs,
-          });
+      if (timeoutMs && startTime) {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime > timeoutMs) {
+          return {
+            success: false,
+            message: `Action timed out after ${timeoutMs}ms`,
+            action: action,
+          };
         }
       }
 
@@ -1335,6 +947,8 @@ export class StagehandActHandler {
             previousSelectors,
             skipActionCacheForThisStep,
             domSettleTimeoutMs,
+            timeoutMs,
+            startTime,
           });
         } else {
           if (this.enableCaching) {
@@ -1549,6 +1163,8 @@ export class StagehandActHandler {
             previousSelectors: [...previousSelectors, foundXpath],
             skipActionCacheForThisStep: false,
             domSettleTimeoutMs,
+            timeoutMs,
+            startTime,
           });
         } else {
           this.logger({
@@ -1596,6 +1212,8 @@ export class StagehandActHandler {
             previousSelectors,
             skipActionCacheForThisStep,
             domSettleTimeoutMs,
+            timeoutMs,
+            startTime,
           });
         }
 

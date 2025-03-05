@@ -488,6 +488,7 @@ export class StagehandPage {
       variables = {},
       domSettleTimeoutMs,
       slowDomBasedAct = true,
+      timeoutMs = this.stagehand.actTimeoutMs,
     } = actionOrOptions;
 
     if (typeof useVision !== "undefined") {
@@ -545,6 +546,7 @@ export class StagehandPage {
         previousSelectors: [],
         skipActionCacheForThisStep: false,
         domSettleTimeoutMs,
+        timeoutMs,
       })
       .catch((e) => {
         this.stagehand.log({
