@@ -33,7 +33,7 @@
 
 -   [#523](https://github.com/browserbase/stagehand/pull/523) [`44cf7cc`](https://github.com/browserbase/stagehand/commit/44cf7cc9ac1209c97d9153281970899b10a2ddc9) Thanks [@kwt00](https://github.com/kwt00)! You can now natively run Cerebras LLMs! `cerebras-llama-3.3-70b` and `cerebras-llama-3.1-8b` are now supported models as long as `CEREBRAS_API_KEY` is set in your environment.
 
--   [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@kamath](https://github.com/kamath)! You can now natively run Groq LLMs! `groq-llama-3.3-70b-versatile` and `groq-llama-3.3-70b-specdec` are now supported models as long as `GROQ_API_KEY` is set in your environment.
+-   [#542](https://github.com/browserbase/stagehand/pull/542) [`cf7fe66`](https://github.com/browserbase/stagehand/commit/cf7fe665e6d1eeda97582ee2816f1dc3a66c6152) Thanks [@sankalpgunturi](https://github.com/sankalpgunturi)! You can now natively run Groq LLMs! `groq-llama-3.3-70b-versatile` and `groq-llama-3.3-70b-specdec` are now supported models as long as `GROQ_API_KEY` is set in your environment.
 
 ### Patch Changes
 
