@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-`act()` now uses `observe()` under the hood. This results in significant performance improvements.
+`act()` can now use `observe()` under the hood, resulting in significant performance improvements. To opt-in to this change, set `slowDomBasedAct: true` in `ActOptions`.

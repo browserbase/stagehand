@@ -487,7 +487,7 @@ export class StagehandPage {
       useVision, // still destructure this but will not pass it on
       variables = {},
       domSettleTimeoutMs,
-      slowDomBasedAct = false,
+      slowDomBasedAct = true,
     } = actionOrOptions;
 
     if (typeof useVision !== "undefined") {
