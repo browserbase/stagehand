@@ -80,6 +80,7 @@ export const initStagehand = async ({
       logger.log(logLine);
     },
     ...configOverrides,
+    useAPI: true,
   };
 
   const stagehand = new Stagehand(config);
