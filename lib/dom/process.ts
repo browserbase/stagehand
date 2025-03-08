@@ -3,6 +3,7 @@ import {
   calculateViewportHeight,
   canElementScroll,
   getNodeFromXpath,
+  waitForDomSettle,
 } from "./utils";
 import { createStagehandContainer } from "./containerFactory";
 import { StagehandContainer } from "./StagehandContainer";
@@ -518,6 +519,7 @@ export function getElementBoundingBoxes(xpath: string): Array<{
   return boundingBoxes;
 }
 
+window.waitForDomSettle = waitForDomSettle;
 window.processDom = processDom;
 window.processAllOfDom = processAllOfDom;
 window.storeDOM = storeDOM;
