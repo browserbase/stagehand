@@ -12,6 +12,7 @@ import type {
   ObserveOptions,
   ObserveResult,
 } from "./stagehand";
+import { TreeResult as TreeResultType } from "./context";
 
 export const defaultExtractSchema = z.object({
   extraction: z.string(),
@@ -20,6 +21,9 @@ export const defaultExtractSchema = z.object({
 export const pageTextSchema = z.object({
   page_text: z.string(),
 });
+
+// Need to re-export TreeResult to make it into dist/types
+export type TreeResult = TreeResultType;
 
 export interface Page extends Omit<PlaywrightPage, "on"> {
   act(action: string): Promise<ActResult>;
@@ -34,13 +38,15 @@ export interface Page extends Omit<PlaywrightPage, "on"> {
   ): Promise<ExtractResult<T>>;
   extract(): Promise<ExtractResult<typeof pageTextSchema>>;
 
-  observe(): Promise<ObserveResult[]>;
+  observe(): Promise<TreeResult>;
   observe(instruction: string): Promise<ObserveResult[]>;
   observe(options?: ObserveOptions): Promise<ObserveResult[]>;
 
   on: {
     (event: "popup", listener: (page: Page) => unknown): Page;
   } & PlaywrightPage["on"];
+
+  getAccessibilityTree(): Promise<TreeResult>;
 }
 
 // Empty type for now, but will be used in the future

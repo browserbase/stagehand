@@ -16,8 +16,9 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
-import { EnhancedContext } from "../types/context";
+import { EnhancedContext, TreeResult } from "../types/context";
 import { clearOverlays } from "./utils";
+import { getAccessibilityTree } from "./a11y/utils";
 
 const BROWSERBASE_REGION_DOMAIN = {
   "us-west-2": "wss://connect.usw2.browserbase.com",
@@ -58,6 +59,7 @@ export class StagehandPage {
           (prop === ("act" as keyof Page) ||
             prop === ("extract" as keyof Page) ||
             prop === ("observe" as keyof Page) ||
+            prop === ("getAccessibilityTree" as keyof Page) ||
             prop === ("on" as keyof Page))
         ) {
           return () => {
@@ -245,6 +247,12 @@ export class StagehandPage {
           return async (options: unknown) => {
             this.intContext.setActivePage(this);
             return method.call(this, options);
+          };
+        }
+
+        if (prop === "getAccessibilityTree") {
+          return async () => {
+            return await this.getAccessibilityTree();
           };
         }
 
@@ -679,7 +687,7 @@ export class StagehandPage {
 
   async observe(
     instructionOrOptions?: string | ObserveOptions,
-  ): Promise<ObserveResult[]> {
+  ): Promise<TreeResult | ObserveResult[]> {
     if (!this.observeHandler) {
       throw new Error("Observe handler not initialized");
     }
@@ -828,5 +836,9 @@ export class StagehandPage {
 
   async disableCDP(domain: string): Promise<void> {
     await this.sendCDP(`${domain}.disable`, {});
+  }
+
+  async getAccessibilityTree(): Promise<TreeResult> {
+    return getAccessibilityTree(this, this.stagehand.logger);
   }
 }
