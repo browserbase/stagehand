@@ -15,6 +15,8 @@
     "instructions": "npm run build && tsx examples/instructions.ts",
     "ai-sdk-client": "npm run build && tsx examples/ai_sdk_example.ts",
     "actionable_observe_example": "npm run build && tsx examples/actionable_observe_example.ts",
+    "form-filling-sensible-cerebras": "npm run build && tsx examples/form_filling_sensible_cerebras.ts",
+    "form-filling-sensible-openai": "npm run build && tsx examples/form_filling_sensible_openai.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
