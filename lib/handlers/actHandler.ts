@@ -174,7 +174,7 @@ export class StagehandActHandler {
             ? `${method} ${observe.description}`
             : observe.description;
         // Call act with the ObserveResult description
-        await this.stagehandPage.act({
+        return await this.stagehandPage.act({
           action: actCommand,
           slowDomBasedAct: true,
         });
