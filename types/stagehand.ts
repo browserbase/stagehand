@@ -6,6 +6,7 @@ import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "@playwright/test";
+import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
@@ -168,4 +169,55 @@ export interface LocalBrowserLaunchOptions {
   timezoneId?: string;
   bypassCSP?: boolean;
   cookies?: Cookie[];
+}
+
+/**
+ * Options for executing a task with an agent
+ */
+export interface AgentExecuteParams {
+  /**
+   * The instruction to execute with the agent
+   */
+  instruction: string;
+  /**
+   * Maximum number of steps the agent can take to complete the task
+   * @default 10
+   */
+  maxSteps?: number;
+  /**
+   * Take a screenshot automatically before each agent step
+   * @default true
+   */
+  autoScreenshot?: boolean;
+  /**
+   * Wait time in milliseconds between agent actions
+   * @default 0
+   */
+  waitBetweenActions?: number;
+  /**
+   * Additional context to provide to the agent
+   */
+  context?: string;
+}
+
+/**
+ * Configuration for agent functionality
+ */
+export interface AgentConfig {
+  /**
+   * The provider to use for agent functionality
+   */
+  provider?: AgentProviderType;
+  /**
+   * The model to use for agent functionality
+   */
+  model?: string;
+  /**
+   * Custom instructions to provide to the agent
+   */
+  instructions?: string;
+  /**
+   * Additional options to pass to the agent client
+   */
+  options?: Record<string, unknown>;
 }

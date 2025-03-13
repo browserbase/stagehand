@@ -17,14 +17,20 @@ const StagehandConfig: ConstructorParams = {
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
+    browserSettings: {
+      blockAds: true,
+      viewport: {
+        width: 1024,
+        height: 768,
+      },
+    },
   },
-  enableCaching: true /* Enable caching functionality */,
+  enableCaching: false /* Enable caching functionality */,
   browserbaseSessionID:
     undefined /* Session ID for resuming Browserbase sessions */,
   modelName: "gpt-4o" /* Name of the model to use */,
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY,
   } /* Configuration options for the model client */,
-  actTimeoutMs: 60_000,
 };
 export default StagehandConfig;

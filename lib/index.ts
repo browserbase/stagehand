@@ -25,6 +25,7 @@ import {
   LocalBrowserLaunchOptions,
   ObserveOptions,
   ObserveResult,
+  AgentConfig,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -34,6 +35,8 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString, isRunningInBun } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
+import { StagehandAgentHandler } from "./handlers/agentHandler";
 
 dotenv.config({ path: ".env" });
 
@@ -261,8 +264,8 @@ async function getBrowser(
       acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
       headless: localBrowserLaunchOptions?.headless ?? headless,
       viewport: {
-        width: localBrowserLaunchOptions?.viewport?.width ?? 1250,
-        height: localBrowserLaunchOptions?.viewport?.height ?? 800,
+        width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
+        height: localBrowserLaunchOptions?.viewport?.height ?? 768,
       },
       locale: localBrowserLaunchOptions?.locale ?? "en-US",
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
@@ -379,6 +382,7 @@ export class Stagehand {
   public readonly selfHeal: boolean;
   private cleanupCalled = false;
   public readonly actTimeoutMs: number;
+
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
   }
@@ -737,6 +741,48 @@ export class Stagehand {
         console.error("Error deleting context directory:", e);
       }
     }
+  }
+
+  /**
+   * Create an agent instance that can be executed with different instructions
+   * @returns An agent instance with execute() method
+   */
+  agent(options: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  } {
+    const agentHandler = new StagehandAgentHandler(
+      this.stagehandPage,
+      this.logger,
+      {
+        modelName: options.model,
+        clientOptions: options.options,
+        userProvidedInstructions: options.instructions,
+        agentType: options.provider,
+      },
+    );
+
+    this.log({
+      category: "agent",
+      message: "Creating agent instance",
+      level: 1,
+    });
+
+    return {
+      execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        const executeOptions: AgentExecuteOptions =
+          typeof instructionOrOptions === "string"
+            ? { instruction: instructionOrOptions }
+            : instructionOrOptions;
+
+        if (!executeOptions.instruction) {
+          throw new Error("Instruction is required for agent execution");
+        }
+
+        return await agentHandler.execute(executeOptions);
+      },
+    };
   }
 }
 
