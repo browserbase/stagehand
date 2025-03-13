@@ -21,7 +21,6 @@
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
     "eslint": "eslint .",
-    "cache:clear": "rm -rf .cache",
     "evals": "npm run build && tsx evals/index.eval.ts",
     "e2e": "npm run build && cd evals/deterministic && npx playwright test --config=e2e.playwright.config.ts",
     "e2e:bb": "npm run build && cd evals/deterministic && npx playwright test --config=bb.playwright.config.ts",

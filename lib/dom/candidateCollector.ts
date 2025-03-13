@@ -9,8 +9,6 @@ import {
 } from "./elementCheckUtils";
 import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
 
-const xpathCache: Map<Node, string[]> = new Map();
-
 /**
  * `collectCandidateElements` performs a depth-first traversal (despite the BFS naming) of the given `candidateContainerRoot`
  * to find “candidate elements” or text nodes that meet certain criteria (e.g., visible, active,
@@ -66,11 +64,7 @@ export async function collectCandidateElements(
 
   const xpathLists = await Promise.all(
     candidateElements.map((elem) => {
-      if (xpathCache.has(elem)) {
-        return Promise.resolve(xpathCache.get(elem)!);
-      }
       return generateXPaths(elem).then((xpaths: string[]) => {
-        xpathCache.set(elem, xpaths);
         return xpaths;
       });
     }),
