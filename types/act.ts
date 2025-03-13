@@ -32,4 +32,5 @@ export enum SupportedPlaywrightAction {
   CLICK = "click",
   FILL = "fill",
   TYPE = "type",
+  SCROLL = "scrollTo",
 }

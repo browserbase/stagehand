@@ -19,6 +19,7 @@ import {
 } from "@/types/stagehand";
 import { SupportedPlaywrightAction } from "@/types/act";
 import { buildActObservePrompt } from "../prompt";
+import { getNodeFromXpath } from "@/lib/dom/utils";
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
  * If useVision or verifierUseVision is set to true, a warning is logged and
@@ -447,6 +448,82 @@ export class StagehandActHandler {
         });
 
         throw new PlaywrightCommandException(e.message);
+      }
+    } else if (
+      method === "scrollTo" ||
+      method === "scroll" ||
+      method === "mouse.wheel"
+    ) {
+      this.logger({
+        category: "action",
+        message: "scrolling element vertically to specified percentage",
+        level: 2,
+        auxiliary: {
+          xpath: { value: xpath, type: "string" },
+          coordinate: { value: JSON.stringify(args), type: "string" },
+        },
+      });
+
+      try {
+        const [yArg = "0%"] = args as string[];
+
+        await this.stagehandPage.page.evaluate(
+          ({ xpath, yArg }) => {
+            function parsePercent(val: string): number {
+              const cleaned = val.trim().replace("%", "");
+              const num = parseFloat(cleaned);
+              return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
+            }
+
+            const elementNode = getNodeFromXpath(xpath);
+            if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
+              console.warn(`Could not locate element to scroll on.`);
+              return;
+            }
+
+            const element = elementNode as HTMLElement;
+            const yPct = parsePercent(yArg);
+
+            // Determine if <html> is actually the scrolled container
+            if (element.tagName.toLowerCase() === "html") {
+              // Scroll the entire page (window)
+              const scrollHeight = document.body.scrollHeight;
+              const viewportHeight = window.innerHeight;
+              const scrollTop = (scrollHeight - viewportHeight) * (yPct / 100);
+
+              window.scrollTo({
+                top: scrollTop,
+                left: window.scrollX,
+                behavior: "smooth",
+              });
+            } else {
+              // Otherwise, scroll the element itself
+              const scrollHeight = element.scrollHeight;
+              const clientHeight = element.clientHeight;
+              const scrollTop = (scrollHeight - clientHeight) * (yPct / 100);
+
+              element.scrollTo({
+                top: scrollTop,
+                left: element.scrollLeft,
+                behavior: "smooth",
+              });
+            }
+          },
+          { xpath, yArg },
+        );
+      } catch (e) {
+        this.logger({
+          category: "action",
+          message: "error scrolling element vertically to percentage",
+          level: 1,
+          auxiliary: {
+            error: { value: (e as Error).message, type: "string" },
+            trace: { value: (e as Error).stack, type: "string" },
+            xpath: { value: xpath, type: "string" },
+            args: { value: JSON.stringify(args), type: "object" },
+          },
+        });
+        throw new PlaywrightCommandException((e as Error).message);
       }
     } else if (method === "fill" || method === "type") {
       try {
