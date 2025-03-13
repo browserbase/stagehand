@@ -544,7 +544,6 @@ export class StagehandPage {
         requestId,
         variables,
         previousSelectors: [],
-        skipActionCacheForThisStep: false,
         domSettleTimeoutMs,
         timeoutMs,
       })
@@ -669,10 +668,6 @@ export class StagehandPage {
           },
         });
 
-        if (this.stagehand.enableCaching) {
-          this.stagehand.llmProvider.cleanRequestCache(requestId);
-        }
-
         throw e;
       });
   }
@@ -794,10 +789,6 @@ export class StagehandPage {
             },
           },
         });
-
-        if (this.stagehand.enableCaching) {
-          this.stagehand.llmProvider.cleanRequestCache(requestId);
-        }
 
         throw e;
       });
