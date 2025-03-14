@@ -149,10 +149,12 @@ export class StagehandPage {
     this.intPage = newStagehandPage.page;
 
     if (this.stagehand.debugDom) {
-      await this.intPage.evaluate(
-        (debugDom) => (window.showChunks = debugDom),
-        this.stagehand.debugDom,
-      );
+      this.stagehand.log({
+        category: "deprecation",
+        message:
+          "Warning: debugDom is not supported in this version of Stagehand",
+        level: 1,
+      });
     }
     await this.intPage.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
@@ -268,10 +270,12 @@ export class StagehandPage {
               await this._refreshPageFromAPI();
             } else {
               if (stagehand.debugDom) {
-                await target.evaluate(
-                  (debugDom) => (window.showChunks = debugDom),
-                  stagehand.debugDom,
-                );
+                this.stagehand.log({
+                  category: "deprecation",
+                  message:
+                    "Warning: debugDom is not supported in this version of Stagehand",
+                  level: 1,
+                });
               }
               await target.waitForLoadState("domcontentloaded");
               await this._waitForSettledDom();
@@ -397,48 +401,6 @@ export class StagehandPage {
           },
         },
       });
-    }
-  }
-
-  public async startDomDebug() {
-    if (this.stagehand.debugDom) {
-      try {
-        await this.page
-          .evaluate(() => {
-            if (typeof window.debugDom === "function") {
-              window.debugDom();
-            } else {
-              this.stagehand.log({
-                category: "dom",
-                message: "debugDom is not defined",
-                level: 1,
-              });
-            }
-          })
-          .catch(() => {});
-      } catch (e) {
-        this.stagehand.log({
-          category: "dom",
-          message: "Error in startDomDebug",
-          level: 1,
-          auxiliary: {
-            error: {
-              value: e.message,
-              type: "string",
-            },
-            trace: {
-              value: e.stack,
-              type: "string",
-            },
-          },
-        });
-      }
-    }
-  }
-
-  public async cleanupDomDebug() {
-    if (this.stagehand.debugDom) {
-      await this.page.evaluate(() => window.cleanupDebug()).catch(() => {});
     }
   }
 

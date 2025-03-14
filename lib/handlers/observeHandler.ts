@@ -185,7 +185,6 @@ export class StagehandObserveHandler {
         };
       }),
     );
-    await this.stagehandPage.cleanupDomDebug();
 
     this.logger({
       category: "observation",

@@ -13,6 +13,7 @@ export interface ConstructorParams {
   apiKey?: string;
   projectId?: string;
   verbose?: 0 | 1 | 2;
+  /** @deprecated Dom Debugging is no longer supported in this version of Stagehand. */
   debugDom?: boolean;
   llmProvider?: LLMProvider;
   /** @deprecated Please use `localBrowserLaunchOptions` instead. That will override this. */
