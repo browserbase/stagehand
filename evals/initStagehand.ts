@@ -31,9 +31,9 @@ const StagehandConfig = {
   headless: false,
   enableCaching,
   domSettleTimeoutMs: 30_000,
-  modelName: "gpt-4o", // default model, can be overridden by initStagehand arguments
+  modelName: "braintrust-gpt-4o", // default model, can be overridden by initStagehand arguments
   modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.BRAINTRUST_API_KEY,
   },
   logger: (logLine: LogLine) =>
     console.log(`[stagehand::${logLine.category}] ${logLine.message}`),
@@ -63,10 +63,7 @@ export const initStagehand = async ({
   configOverrides?: Partial<ConstructorParams>;
   actTimeoutMs?: number;
 }) => {
-  let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
-  if (modelName.startsWith("claude")) {
-    chosenApiKey = process.env.ANTHROPIC_API_KEY;
-  }
+  const chosenApiKey = process.env.BRAINTRUST_API_KEY;
 
   const config = {
     ...StagehandConfig,
