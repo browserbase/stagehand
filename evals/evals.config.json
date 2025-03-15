@@ -26,7 +26,7 @@
     },
     {
       "name": "ionwave",
-      "categories": ["act"]
+      "categories": ["act", "regression_dom_extract"]
     },
     {
       "name": "nonsense_action",
@@ -79,7 +79,7 @@
     },
     {
       "name": "wichita",
-      "categories": ["combination"]
+      "categories": ["combination", "regression_dom_extract"]
     },
 
     {
@@ -104,7 +104,7 @@
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "regression_text_extract"]
     },
     {
       "name": "extract_capacitor_info",
@@ -153,7 +153,7 @@
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": ["extract"]
+      "categories": ["extract", "regression_dom_extract"]
     },
     {
       "name": "extract_nhl_stats",
@@ -222,11 +222,11 @@
     },
     {
       "name": "observe_github",
-      "categories": ["observe"]
+      "categories": ["observe", "regression_text_extract"]
     },
     {
       "name": "observe_vantechjournal",
-      "categories": ["observe"]
+      "categories": ["observe", "regression_text_extract"]
     },
     {
       "name": "observe_amazon_add_to_cart",
@@ -254,7 +254,7 @@
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": ["targeted_extract"]
+      "categories": ["targeted_extract", "regression_text_extract"]
     },
     {
       "name": "extract_regulations_table",
@@ -286,7 +286,7 @@
     },
     {
       "name": "scroll_75",
-      "categories": ["act"]
+      "categories": ["act", "regression_dom_extract"]
     }
   ]
 }
