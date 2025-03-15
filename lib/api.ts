@@ -91,6 +91,12 @@ export class StagehandAPI {
   async extract<T extends z.AnyZodObject>(
     options: ExtractOptions<T>,
   ): Promise<ExtractResult<T>> {
+    if (!options.schema) {
+      return this.execute<ExtractResult<T>>({
+        method: "extract",
+        args: {},
+      });
+    }
     const parsedSchema = zodToJsonSchema(options.schema);
     return this.execute<ExtractResult<T>>({
       method: "extract",

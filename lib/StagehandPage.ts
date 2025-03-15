@@ -547,6 +547,9 @@ export class StagehandPage {
 
     // check if user called extract() with no arguments
     if (!instructionOrOptions) {
+      if (this.api) {
+        return this.api.extract<T>({});
+      }
       return this.extractHandler.extract();
     }
 
