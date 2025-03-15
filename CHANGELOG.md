@@ -1,5 +1,23 @@
 # @browserbasehq/stagehand
 
+## 1.15.0
+
+### Minor Changes
+
+- [#571](https://github.com/browserbase/stagehand/pull/571) [`73d6736`](https://github.com/browserbase/stagehand/commit/73d67368b88002c17814e46e75a99456bf355c4e) Thanks [@miguelg719](https://github.com/miguelg719)! - You can now use Computer Using Agents (CUA) natively in Stagehand for both Anthropic and OpenAI models! This unlocks a brand new frontier of applications for Stagehand users 🤘
+
+### Patch Changes
+
+- [#580](https://github.com/browserbase/stagehand/pull/580) [`179e17c`](https://github.com/browserbase/stagehand/commit/179e17c2d1c9837de49c776d9850a330a759e73f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - refactor \_performPlaywrightMethod
+
+- [#569](https://github.com/browserbase/stagehand/pull/569) [`17e8b40`](https://github.com/browserbase/stagehand/commit/17e8b40f94b30f6e253443a4bbb8a3e364e58e38) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now call stagehand.metrics to get token usage metrics. you can also set logInferenceToFile in stagehand config to log the entire call/response history from stagehand & the LLM.
+
+- [#563](https://github.com/browserbase/stagehand/pull/563) [`98166d7`](https://github.com/browserbase/stagehand/commit/98166d76d30bc67d6b04b3d5c39f78f92c254b49) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support scrolling in `act`
+
+- [#577](https://github.com/browserbase/stagehand/pull/577) [`4fdbf63`](https://github.com/browserbase/stagehand/commit/4fdbf6324a0dc68568bba73ea4d9018b2ed67849) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove debugDom
+
+- [#573](https://github.com/browserbase/stagehand/pull/573) [`c24f3c9`](https://github.com/browserbase/stagehand/commit/c24f3c9a58873c3920fab0f9891c2bf5245c9b5e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - return act result in actFromObserve
+
 ## 1.14.0
 
 ### Minor Changes
