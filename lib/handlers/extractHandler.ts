@@ -5,7 +5,7 @@ import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
 import { StagehandPage } from "../StagehandPage";
-import { Stagehand } from "../index";
+import { Stagehand, StagehandFunctionName } from "../index";
 import { pageTextSchema } from "../../types/page";
 
 const PROXIMITY_THRESHOLD = 15;
@@ -353,12 +353,23 @@ export class StagehandExtractHandler {
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
+      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
 
     const {
       metadata: { completed },
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      inference_time_ms: inferenceTimeMs,
       ...output
     } = extractionResponse;
+
+    this.stagehand.updateMetrics(
+      StagehandFunctionName.EXTRACT,
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs,
+    );
 
     // **11:** Handle the extraction response and log the results
     this.logger({
@@ -481,12 +492,23 @@ export class StagehandExtractHandler {
       isUsingTextExtract: false,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
+      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
 
     const {
       metadata: { completed },
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      inference_time_ms: inferenceTimeMs,
       ...output
     } = extractionResponse;
+
+    this.stagehand.updateMetrics(
+      StagehandFunctionName.EXTRACT,
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs,
+    );
 
     this.logger({
       category: "extraction",

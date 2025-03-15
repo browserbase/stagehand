@@ -89,6 +89,7 @@ export class StagehandPage {
 
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
+        stagehand: this.stagehand,
         verbose: this.stagehand.verbose,
         llmProvider: this.stagehand.llmProvider,
         enableCaching: this.stagehand.enableCaching,

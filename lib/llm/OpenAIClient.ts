@@ -430,7 +430,10 @@ export class OpenAIClient extends LLMClient {
         );
       }
 
-      return parsedData;
+      return {
+        data: parsedData,
+        usage: response.usage,
+      } as T;
     }
 
     if (this.enableCaching) {

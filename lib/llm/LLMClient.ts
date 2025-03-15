@@ -92,7 +92,9 @@ export abstract class LLMClient {
     this.userProvidedInstructions = userProvidedInstructions;
   }
 
-  abstract createChatCompletion<T = LLMResponse>(
-    options: CreateChatCompletionOptions,
-  ): Promise<T>;
+  abstract createChatCompletion<
+    T = LLMResponse & {
+      usage?: LLMResponse["usage"];
+    },
+  >(options: CreateChatCompletionOptions): Promise<T>;
 }

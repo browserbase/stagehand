@@ -43,6 +43,7 @@ export interface ConstructorParams {
   waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   actTimeoutMs?: number;
+  logInferenceToFile?: boolean;
 }
 
 export interface InitOptions {
@@ -172,6 +173,21 @@ export interface LocalBrowserLaunchOptions {
   cookies?: Cookie[];
 }
 
+export interface StagehandMetrics {
+  actPromptTokens: number;
+  actCompletionTokens: number;
+  actInferenceTimeMs: number;
+  extractPromptTokens: number;
+  extractCompletionTokens: number;
+  extractInferenceTimeMs: number;
+  observePromptTokens: number;
+  observeCompletionTokens: number;
+  observeInferenceTimeMs: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalInferenceTimeMs: number;
+}
+
 /**
  * Options for executing a task with an agent
  */
@@ -221,4 +237,10 @@ export interface AgentConfig {
    * Additional options to pass to the agent client
    */
   options?: Record<string, unknown>;
+}
+
+export enum StagehandFunctionName {
+  ACT = "ACT",
+  EXTRACT = "EXTRACT",
+  OBSERVE = "OBSERVE",
 }

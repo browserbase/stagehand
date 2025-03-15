@@ -179,7 +179,6 @@ export class AnthropicClient extends LLMClient {
           },
         ],
       };
-
       if (
         options.image.description &&
         Array.isArray(screenshotMessage.content)
@@ -254,6 +253,13 @@ export class AnthropicClient extends LLMClient {
       },
     });
 
+    // We'll compute usage data from the response
+    const usageData = {
+      prompt_tokens: response.usage.input_tokens,
+      completion_tokens: response.usage.output_tokens,
+      total_tokens: response.usage.input_tokens + response.usage.output_tokens,
+    };
+
     const transformedResponse: LLMResponse = {
       id: response.id,
       object: "chat.completion",
@@ -280,12 +286,7 @@ export class AnthropicClient extends LLMClient {
           finish_reason: response.stop_reason,
         },
       ],
-      usage: {
-        prompt_tokens: response.usage.input_tokens,
-        completion_tokens: response.usage.output_tokens,
-        total_tokens:
-          response.usage.input_tokens + response.usage.output_tokens,
-      },
+      usage: usageData,
     };
 
     logger({
@@ -308,11 +309,17 @@ export class AnthropicClient extends LLMClient {
       const toolUse = response.content.find((c) => c.type === "tool_use");
       if (toolUse && "input" in toolUse) {
         const result = toolUse.input;
+
+        const finalParsedResponse = {
+          data: result,
+          usage: usageData,
+        } as unknown as T;
+
         if (this.enableCaching) {
-          this.cache.set(cacheOptions, result, options.requestId);
+          this.cache.set(cacheOptions, finalParsedResponse, options.requestId);
         }
 
-        return result as T; // anthropic returns this as `unknown`, so we need to cast
+        return finalParsedResponse;
       } else {
         if (!retries || retries < 5) {
           return this.createChatCompletion({

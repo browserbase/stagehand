@@ -26,6 +26,8 @@ import {
   ObserveOptions,
   ObserveResult,
   AgentConfig,
+  StagehandMetrics,
+  StagehandFunctionName,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -382,7 +384,7 @@ export class Stagehand {
   public readonly selfHeal: boolean;
   private cleanupCalled = false;
   public readonly actTimeoutMs: number;
-
+  public readonly logInferenceToFile?: boolean;
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
   }
@@ -394,6 +396,63 @@ export class Stagehand {
       );
     }
     return this.stagehandPage.page;
+  }
+
+  public stagehandMetrics: StagehandMetrics = {
+    actPromptTokens: 0,
+    actCompletionTokens: 0,
+    actInferenceTimeMs: 0,
+    extractPromptTokens: 0,
+    extractCompletionTokens: 0,
+    extractInferenceTimeMs: 0,
+    observePromptTokens: 0,
+    observeCompletionTokens: 0,
+    observeInferenceTimeMs: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalInferenceTimeMs: 0,
+  };
+
+  public get metrics(): StagehandMetrics {
+    return this.stagehandMetrics;
+  }
+
+  public updateMetrics(
+    functionName: StagehandFunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    switch (functionName) {
+      case StagehandFunctionName.ACT:
+        this.stagehandMetrics.actPromptTokens += promptTokens;
+        this.stagehandMetrics.actCompletionTokens += completionTokens;
+        this.stagehandMetrics.actInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.EXTRACT:
+        this.stagehandMetrics.extractPromptTokens += promptTokens;
+        this.stagehandMetrics.extractCompletionTokens += completionTokens;
+        this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.OBSERVE:
+        this.stagehandMetrics.observePromptTokens += promptTokens;
+        this.stagehandMetrics.observeCompletionTokens += completionTokens;
+        this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
+        break;
+    }
+    this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
+  }
+
+  private updateTotalMetrics(
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    this.stagehandMetrics.totalPromptTokens += promptTokens;
+    this.stagehandMetrics.totalCompletionTokens += completionTokens;
+    this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
   constructor(
@@ -419,6 +478,7 @@ export class Stagehand {
       selfHeal = true,
       waitForCaptchaSolves = false,
       actTimeoutMs = 60_000,
+      logInferenceToFile = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -473,6 +533,7 @@ export class Stagehand {
     if (this.usingAPI) {
       this.registerSignalHandlers();
     }
+    this.logInferenceToFile = logInferenceToFile;
   }
 
   private registerSignalHandlers() {
