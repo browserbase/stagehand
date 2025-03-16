@@ -853,4 +853,5 @@ export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
+export * from "../types/agent";
 export * from "./llm/LLMClient";
