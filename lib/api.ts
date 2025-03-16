@@ -37,18 +37,11 @@ export class StagehandAPI {
     verbose,
     debugDom,
     systemPrompt,
+    selfHeal,
+    waitForCaptchaSolves,
+    actionTimeoutMs,
     browserbaseSessionCreateParams,
   }: StartSessionParams): Promise<StartSessionResult> {
-    const whitelistResponse = await this.request("/healthcheck");
-
-    if (whitelistResponse.status === 401) {
-      throw new Error(
-        "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
-      );
-    } else if (whitelistResponse.status !== 200) {
-      throw new Error(`Unknown error: ${whitelistResponse.status}`);
-    }
-
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -57,6 +50,9 @@ export class StagehandAPI {
         verbose,
         debugDom,
         systemPrompt,
+        selfHeal,
+        waitForCaptchaSolves,
+        actionTimeoutMs,
         browserbaseSessionCreateParams,
       }),
       headers: {

@@ -21,6 +21,9 @@ export interface StartSessionParams {
   debugDom: boolean;
   systemPrompt?: string;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  selfHeal?: boolean;
+  waitForCaptchaSolves?: boolean;
+  actionTimeoutMs?: number;
 }
 
 export interface StartSessionResult {

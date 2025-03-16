@@ -523,8 +523,15 @@ export class Stagehand {
       throw new Error(
         "STAGEHAND_API_URL is required when using the API. Please set it in your environment variables.",
       );
+    } else if (
+      this.usingAPI &&
+      this.llmClient.type !== "openai" &&
+      this.llmClient.type !== "anthropic"
+    ) {
+      throw new Error(
+        "API mode requires an OpenAI or Anthropic LLM. Please provide a compatible model.",
+      );
     }
-
     this.waitForCaptchaSolves = waitForCaptchaSolves;
 
     this.selfHeal = selfHeal;
@@ -613,6 +620,9 @@ export class Stagehand {
         verbose: this.verbose,
         debugDom: this.debugDom,
         systemPrompt: this.userProvidedInstructions,
+        selfHeal: this.selfHeal,
+        waitForCaptchaSolves: this.waitForCaptchaSolves,
+        actionTimeoutMs: this.actTimeoutMs,
         browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
       });
       this.browserbaseSessionID = sessionId;
