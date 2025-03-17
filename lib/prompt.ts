@@ -381,11 +381,40 @@ export function buildObserveUserMessage(
   instruction: string,
   domElements: string,
   isUsingAccessibilityTree = false,
+  returnAction?: boolean,
+  fromAct?: boolean,
 ): ChatMessage {
+  const baseContent = `instruction: ${instruction}
+${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`;
+
+  if (returnAction || fromAct) {
+    let content = `instruction: Find the most relevant element to perform an action on given the following instruction: ${instruction}.
+
+You must provide an action for the most relevant element.
+
+${supportedActionsPrompt}
+`;
+
+    // If `fromAct` is true, add the extra instructions about returning an empty array, etc.
+    if (fromAct) {
+      content += `
+If the action is completely unrelated to a potential action to be taken on the page, return an empty array.
+
+ONLY return one action. If multiple actions are relevant, return the most relevant one. If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
+`;
+    }
+
+    content += `\n${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`;
+
+    return {
+      role: "user",
+      content,
+    };
+  }
+
   return {
     role: "user",
-    content: `instruction: ${instruction}
-${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`,
+    content: baseContent,
   };
 }
 
@@ -411,3 +440,29 @@ export function buildActObservePrompt(
 
   return instruction;
 }
+
+export const supportedActionsPrompt = `
+Here are the officially supported actions that you may choose from, each with a description of what the action does:
+
+action: scrollIntoView
+description: scrolls the chosen element into the viewport
+
+action: scrollTo
+description: scrolls the the chosen element based on a percentage of its total scroll height
+
+action: fill
+description: executes the playwright 'fill' method on the chosen element
+
+action: type
+description: executes the playwright 'type' method on the chosen element
+
+action: press
+description: executes the playwright 'press' method on the chosen element
+
+action: click
+description: executes the playwright 'click' method on the chosen element
+
+
+You are strongly encouraged to choose from one of the above actions. If none of the above actions are relevant to the instruction, you may also choose any other
+playwright locator method.
+Remember that to users, buttons and links look the same in most cases.`;

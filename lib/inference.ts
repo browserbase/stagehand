@@ -596,6 +596,7 @@ export async function observe({
   logger,
   returnAction = false,
   logInferenceToFile = false,
+  fromAct,
 }: {
   instruction: string;
   domElements: string;
@@ -606,6 +607,7 @@ export async function observe({
   isUsingAccessibilityTree?: boolean;
   returnAction?: boolean;
   logInferenceToFile?: boolean;
+  fromAct: boolean;
 }) {
   const observeSchema = z.object({
     elements: z
@@ -651,7 +653,13 @@ export async function observe({
       userProvidedInstructions,
       isUsingAccessibilityTree,
     ),
-    buildObserveUserMessage(instruction, domElements, isUsingAccessibilityTree),
+    buildObserveUserMessage(
+      instruction,
+      domElements,
+      isUsingAccessibilityTree,
+      returnAction,
+      fromAct,
+    ),
   ];
 
   let callTimestamp = "";
