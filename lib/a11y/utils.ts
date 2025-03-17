@@ -244,6 +244,9 @@ export async function buildHierarchicalTree(
 
 /**
  * Retrieves the full accessibility tree via CDP and transforms it into a hierarchical structure.
+ *
+ * DO NOT USE THIS FUNCTION DIRECTLY.
+ * Instead, use `StagehandPage.getAccessibilityTree()`
  */
 export async function getAccessibilityTree(
   page: StagehandPage,

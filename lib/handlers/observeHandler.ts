@@ -4,10 +4,7 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { generateId, drawObserveOverlay } from "../utils";
-import {
-  getAccessibilityTree,
-  getXPathByResolvedObjectId,
-} from "../a11y/utils";
+import { getXPathByResolvedObjectId } from "../a11y/utils";
 import { AccessibilityNode } from "../../types/context";
 
 export class StagehandObserveHandler {
@@ -67,7 +64,12 @@ export class StagehandObserveHandler {
     drawOverlay?: boolean;
   }) {
     if (!instruction) {
-      instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
+      this.logger({
+        category: "observation",
+        message: "No instruction provided, returning hybrid tree",
+        level: 1,
+      });
+      return await this.stagehandPage.getAccessibilityTree();
     }
 
     this.logger({
@@ -88,7 +90,7 @@ export class StagehandObserveHandler {
     const useAccessibilityTree = !onlyVisible;
     if (useAccessibilityTree) {
       await this.stagehandPage._waitForSettledDom();
-      const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+      const tree = await this.stagehandPage.getAccessibilityTree();
       this.logger({
         category: "observation",
         message: "Getting accessibility tree data",
