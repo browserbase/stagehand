@@ -98,8 +98,8 @@ export interface ActResult {
 }
 
 export interface ExtractOptions<T extends z.AnyZodObject> {
-  instruction: string;
-  schema: T;
+  instruction?: string;
+  schema?: T;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
