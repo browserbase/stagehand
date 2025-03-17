@@ -851,6 +851,32 @@ export class Stagehand {
           throw new Error("Instruction is required for agent execution");
         }
 
+        if (this.usingAPI) {
+          if (!this.apiClient) {
+            throw new Error(
+              "API client not initialized. Ensure that you have initialized Stagehand via `await stagehand.init()`.",
+            );
+          }
+
+          if (!options.options) {
+            options.options = {};
+          }
+
+          if (options.provider === "anthropic") {
+            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+          } else if (options.provider === "openai") {
+            options.options.apiKey = process.env.OPENAI_API_KEY;
+          }
+
+          if (!options.options.apiKey) {
+            throw new Error(
+              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+            );
+          }
+
+          return await this.apiClient.agentExecute(options, executeOptions);
+        }
+
         return await agentHandler.execute(executeOptions);
       },
     };

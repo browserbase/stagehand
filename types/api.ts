@@ -8,7 +8,7 @@ export interface StagehandAPIConstructorParams {
 }
 
 export interface ExecuteActionParams {
-  method: "act" | "extract" | "observe" | "navigate" | "end";
+  method: "act" | "extract" | "observe" | "navigate" | "end" | "agentExecute";
   args?: unknown;
   params?: unknown;
 }

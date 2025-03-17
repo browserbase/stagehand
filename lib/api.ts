@@ -12,11 +12,13 @@ import { GotoOptions } from "../types/playwright";
 import {
   ActOptions,
   ActResult,
+  AgentConfig,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
+import { AgentExecuteOptions, AgentResult } from ".";
 
 export class StagehandAPI {
   private apiKey: string;
@@ -115,6 +117,16 @@ export class StagehandAPI {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },
+    });
+  }
+
+  async agentExecute(
+    agentConfig: AgentConfig,
+    executeOptions: AgentExecuteOptions,
+  ): Promise<AgentResult> {
+    return this.execute<AgentResult>({
+      method: "agentExecute",
+      args: { agentConfig, executeOptions },
     });
   }
 
