@@ -8,7 +8,6 @@ import {
   StartSessionResult,
 } from "../types/api";
 import { LogLine } from "../types/log";
-import { GotoOptions } from "../types/playwright";
 import {
   ActOptions,
   ActResult,
@@ -17,6 +16,7 @@ import {
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
+import type { GoToOptions } from "puppeteer-core";
 
 export class StagehandAPI {
   private apiKey: string;
@@ -111,7 +111,7 @@ export class StagehandAPI {
     });
   }
 
-  async goto(url: string, options?: GotoOptions): Promise<void> {
+  async goto(url: string, options?: GoToOptions): Promise<void> {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },

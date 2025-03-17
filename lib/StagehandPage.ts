@@ -1,8 +1,15 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
-import { chromium } from "@playwright/test";
+import type {
+  CDPSession,
+  GoToOptions,
+  Page as PuppeteerPage,
+} from "puppeteer-core";
+import puppeteer from "puppeteer-core";
 import { z } from "zod";
-import { Page, defaultExtractSchema } from "../types/page";
+import {
+  Page as StagehandAugmentedPage,
+  defaultExtractSchema,
+} from "../types/page";
 import {
   ExtractOptions,
   ExtractResult,
@@ -13,11 +20,12 @@ import { StagehandAPI } from "./api";
 import { StagehandActHandler } from "./handlers/actHandler";
 import { StagehandExtractHandler } from "./handlers/extractHandler";
 import { StagehandObserveHandler } from "./handlers/observeHandler";
-import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
+import { ActOptions, ActResult, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
 import { EnhancedContext } from "../types/context";
 import { clearOverlays } from "./utils";
+import { scriptContent } from "./dom/build/scriptContent";
 
 const BROWSERBASE_REGION_DOMAIN = {
   "us-west-2": "wss://connect.usw2.browserbase.com",
@@ -28,7 +36,7 @@ const BROWSERBASE_REGION_DOMAIN = {
 
 export class StagehandPage {
   private stagehand: Stagehand;
-  private intPage: Page;
+  private intPage: StagehandAugmentedPage;
   private intContext: StagehandContext;
   private actHandler: StagehandActHandler;
   private extractHandler: StagehandExtractHandler;
@@ -41,7 +49,7 @@ export class StagehandPage {
   private initialized: boolean = false;
 
   constructor(
-    page: PlaywrightPage,
+    page: PuppeteerPage | StagehandAugmentedPage,
     stagehand: Stagehand,
     context: StagehandContext,
     llmClient: LLMClient,
@@ -51,14 +59,14 @@ export class StagehandPage {
   ) {
     // Create a proxy to intercept all method calls and property access
     this.intPage = new Proxy(page, {
-      get: (target: PlaywrightPage, prop: keyof PlaywrightPage) => {
+      get: (target: PuppeteerPage, prop: keyof PuppeteerPage) => {
         // Special handling for our enhanced methods before initialization
         if (
           !this.initialized &&
-          (prop === ("act" as keyof Page) ||
-            prop === ("extract" as keyof Page) ||
-            prop === ("observe" as keyof Page) ||
-            prop === ("on" as keyof Page))
+          (prop === ("act" as keyof StagehandAugmentedPage) ||
+            prop === ("extract" as keyof StagehandAugmentedPage) ||
+            prop === ("observe" as keyof StagehandAugmentedPage) ||
+            prop === ("on" as keyof StagehandAugmentedPage))
         ) {
           return () => {
             throw new Error(
@@ -78,7 +86,7 @@ export class StagehandPage {
         }
         return value;
       },
-    }) as Page;
+    }) as unknown as StagehandAugmentedPage;
 
     this.stagehand = stagehand;
     this.intContext = context;
@@ -134,9 +142,11 @@ export class StagehandPage {
       "wss://connect.browserbase.com";
     const connectUrl = `${browserbaseDomain}?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`;
 
-    const browser = await chromium.connectOverCDP(connectUrl);
-    const context = browser.contexts()[0];
-    const newPage = context.pages()[0];
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: connectUrl,
+    });
+    const pages = await browser.pages();
+    const newPage = pages[0];
 
     const newStagehandPage = await new StagehandPage(
       newPage,
@@ -157,7 +167,7 @@ export class StagehandPage {
         level: 1,
       });
     }
-    await this.intPage.waitForLoadState("domcontentloaded");
+    await this.intPage.waitForNetworkIdle();
     await this._waitForSettledDom();
   }
 
@@ -221,8 +231,8 @@ export class StagehandPage {
 
     // Create a proxy that updates active page on method calls
     const handler = {
-      get: (target: PlaywrightPage, prop: string | symbol) => {
-        const value = target[prop as keyof PlaywrightPage];
+      get: (target: PuppeteerPage, prop: string | symbol): unknown => {
+        const value = target[prop as keyof PuppeteerPage];
 
         // Handle enhanced methods
         if (prop === "act" || prop === "extract" || prop === "observe") {
@@ -288,7 +298,7 @@ export class StagehandPage {
 
         // Handle goto specially
         if (prop === "goto") {
-          return async (url: string, options: GotoOptions) => {
+          return async (url: string, options: GoToOptions) => {
             this.intContext.setActivePage(this);
             const result = this.api
               ? await this.api.goto(url, options)
@@ -313,7 +323,7 @@ export class StagehandPage {
                   level: 1,
                 });
               }
-              await target.waitForLoadState("domcontentloaded");
+              await target.waitForNetworkIdle();
               await this._waitForSettledDom();
             }
             return result;
@@ -323,13 +333,13 @@ export class StagehandPage {
         // Handle event listeners
         if (prop === "on") {
           return (
-            event: keyof PlaywrightPage["on"],
-            listener: Parameters<PlaywrightPage["on"]>[1],
+            event: keyof PuppeteerPage["on"],
+            listener: Parameters<PuppeteerPage["on"]>[1],
           ) => {
             if (event === "popup") {
-              return this.context.on("page", async (page: PlaywrightPage) => {
+              return target.on("popup", async (page: PuppeteerPage) => {
                 const newContext = await StagehandContext.init(
-                  page.context(),
+                  stagehand.context,
                   stagehand,
                 );
                 const newStagehandPage = new StagehandPage(
@@ -358,14 +368,50 @@ export class StagehandPage {
 
         return value;
       },
-    };
+    } as const;
 
-    this.intPage = new Proxy(page, handler) as unknown as Page;
+    await page.evaluateOnNewDocument(scriptContent);
+
+    // Apply stealth scripts to the page
+    await page.evaluateOnNewDocument(() => {
+      // Override the navigator.webdriver property
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => undefined,
+      });
+
+      // Mock languages and plugins to mimic a real browser
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["en-US", "en"],
+      });
+
+      Object.defineProperty(navigator, "plugins", {
+        get: () => [1, 2, 3, 4, 5],
+      });
+
+      // Redefine the headless property
+      Object.defineProperty(navigator, "headless", {
+        get: () => false,
+      });
+
+      // Override the permissions API
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters) =>
+        parameters.name === "notifications"
+          ? Promise.resolve({
+              state: Notification.permission,
+            } as PermissionStatus)
+          : originalQuery(parameters);
+    });
+
+    this.intPage = new Proxy(
+      page as unknown as PuppeteerPage,
+      handler,
+    ) as unknown as StagehandAugmentedPage;
     this.initialized = true;
     return this;
   }
 
-  public get page(): Page {
+  public get page(): StagehandAugmentedPage {
     return this.intPage;
   }
 
@@ -381,7 +427,7 @@ export class StagehandPage {
       const timeout = timeoutMs ?? this.stagehand.domSettleTimeoutMs;
       let timeoutHandle: NodeJS.Timeout;
 
-      await this.page.waitForLoadState("domcontentloaded");
+      await this.page.waitForNetworkIdle();
 
       const timeoutPromise = new Promise<void>((resolve) => {
         timeoutHandle = setTimeout(() => {
@@ -414,7 +460,7 @@ export class StagehandPage {
               }
             });
           }),
-          this.page.waitForLoadState("domcontentloaded"),
+          this.page.waitForNetworkIdle(),
           this.page.waitForSelector("body"),
           timeoutPromise,
         ]);

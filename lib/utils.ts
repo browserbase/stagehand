@@ -430,15 +430,3 @@ export async function clearOverlays(page: Page) {
     });
   });
 }
-
-/**
- * Detects if the code is running in the Bun runtime environment.
- * @returns {boolean} True if running in Bun, false otherwise.
- */
-export function isRunningInBun(): boolean {
-  return (
-    typeof process !== "undefined" &&
-    typeof process.versions !== "undefined" &&
-    "bun" in process.versions
-  );
-}

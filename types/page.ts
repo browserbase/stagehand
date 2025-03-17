@@ -1,8 +1,8 @@
 import type {
-  Browser as PlaywrightBrowser,
-  BrowserContext as PlaywrightContext,
-  Page as PlaywrightPage,
-} from "@playwright/test";
+  Browser as PuppeteerBrowser,
+  BrowserContext as PuppeteerContext,
+  Page as PuppeteerPage,
+} from "puppeteer-core";
 import { z } from "zod";
 import type {
   ActOptions,
@@ -21,7 +21,7 @@ export const pageTextSchema = z.object({
   page_text: z.string(),
 });
 
-export interface Page extends Omit<PlaywrightPage, "on"> {
+export interface Page extends Omit<PuppeteerPage, "on"> {
   act(action: string): Promise<ActResult>;
   act(options: ActOptions): Promise<ActResult>;
   act(observation: ObserveResult): Promise<ActResult>;
@@ -40,11 +40,11 @@ export interface Page extends Omit<PlaywrightPage, "on"> {
 
   on: {
     (event: "popup", listener: (page: Page) => unknown): Page;
-  } & PlaywrightPage["on"];
+  } & PuppeteerPage["on"];
 }
 
-// Empty type for now, but will be used in the future
-export type BrowserContext = PlaywrightContext;
+// Using Puppeteer browser context type
+export type BrowserContext = PuppeteerContext;
 
-// Empty type for now, but will be used in the future
-export type Browser = PlaywrightBrowser;
+// Using Puppeteer browser type
+export type Browser = PuppeteerBrowser;

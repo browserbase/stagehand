@@ -50,6 +50,7 @@
     "@eslint/js": "^9.16.0",
     "@langchain/core": "^0.3.40",
     "@langchain/openai": "^0.4.4",
+    "@playwright/test": "^1.51.1",
     "@types/adm-zip": "^0.5.7",
     "@types/cheerio": "^0.22.35",
     "@types/express": "^4.17.21",
@@ -75,7 +76,6 @@
     "typescript-eslint": "^8.17.0"
   },
   "peerDependencies": {
-    "@playwright/test": "^1.42.1",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
     "openai": "^4.87.1",
@@ -84,6 +84,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.0.0",
+    "puppeteer-core": "^24.4.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },
@@ -99,5 +100,6 @@
   "bugs": {
     "url": "https://github.com/browserbase/stagehand/issues"
   },
-  "homepage": "https://github.com/browserbase/stagehand#readme"
+  "homepage": "https://github.com/browserbase/stagehand#readme",
+  "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
 }

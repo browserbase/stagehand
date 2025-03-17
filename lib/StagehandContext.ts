@@ -1,27 +1,30 @@
 import type {
-  BrowserContext as PlaywrightContext,
-  Page as PlaywrightPage,
-} from "@playwright/test";
+  BrowserContext as PuppeteerContext,
+  Page as PuppeteerPage,
+} from "puppeteer-core";
 import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
-import { Page } from "../types/page";
+import { Page as StagehandAugmentedPage } from "../types/page";
 import { EnhancedContext } from "../types/context";
 
 export class StagehandContext {
   private readonly stagehand: Stagehand;
   private readonly intContext: EnhancedContext;
-  private pageMap: WeakMap<PlaywrightPage, StagehandPage>;
+  private pageMap: WeakMap<PuppeteerPage, StagehandPage>;
   private activeStagehandPage: StagehandPage | null = null;
 
-  private constructor(context: PlaywrightContext, stagehand: Stagehand) {
+  private constructor(
+    context: PuppeteerContext | EnhancedContext,
+    stagehand: Stagehand,
+  ) {
     this.stagehand = stagehand;
     this.pageMap = new WeakMap();
 
     // Create proxy around the context
     this.intContext = new Proxy(context, {
-      get: (target, prop) => {
+      get: (target: PuppeteerContext, prop) => {
         if (prop === "newPage") {
-          return async (): Promise<Page> => {
+          return async (): Promise<StagehandAugmentedPage> => {
             const pwPage = await target.newPage();
             const stagehandPage = await this.createStagehandPage(pwPage);
             // Set as active page when created
@@ -30,10 +33,10 @@ export class StagehandContext {
           };
         }
         if (prop === "pages") {
-          return (): Page[] => {
-            const pwPages = target.pages();
+          return async (): Promise<StagehandAugmentedPage[]> => {
+            const pwPages = await target.pages();
             // Convert all pages to StagehandPages synchronously
-            return pwPages.map((pwPage: PlaywrightPage) => {
+            return pwPages.map((pwPage: PuppeteerPage) => {
               let stagehandPage = this.pageMap.get(pwPage);
               if (!stagehandPage) {
                 // Create a new StagehandPage and store it in the map
@@ -52,13 +55,13 @@ export class StagehandContext {
             });
           };
         }
-        return target[prop as keyof PlaywrightContext];
+        return target[prop as keyof PuppeteerContext];
       },
     }) as unknown as EnhancedContext;
   }
 
   private async createStagehandPage(
-    page: PlaywrightPage,
+    page: PuppeteerPage,
   ): Promise<StagehandPage> {
     const stagehandPage = await new StagehandPage(
       page,
@@ -74,13 +77,13 @@ export class StagehandContext {
   }
 
   static async init(
-    context: PlaywrightContext,
+    context: EnhancedContext | PuppeteerContext,
     stagehand: Stagehand,
   ): Promise<StagehandContext> {
     const instance = new StagehandContext(context, stagehand);
 
     // Initialize existing pages
-    const existingPages = context.pages();
+    const existingPages = (await context.pages()) as unknown as PuppeteerPage[];
     for (const page of existingPages) {
       const stagehandPage = await instance.createStagehandPage(page);
       // Set the first page as active
@@ -96,7 +99,7 @@ export class StagehandContext {
     return this.intContext;
   }
 
-  public async getStagehandPage(page: PlaywrightPage): Promise<StagehandPage> {
+  public async getStagehandPage(page: PuppeteerPage): Promise<StagehandPage> {
     let stagehandPage = this.pageMap.get(page);
     if (!stagehandPage) {
       stagehandPage = await this.createStagehandPage(page);
@@ -107,9 +110,12 @@ export class StagehandContext {
   }
 
   public async getStagehandPages(): Promise<StagehandPage[]> {
-    const pwPages = this.intContext.pages();
+    const pwPages =
+      (await this.intContext.pages()) as unknown as PuppeteerPage[];
     return Promise.all(
-      pwPages.map((page: PlaywrightPage) => this.getStagehandPage(page)),
+      pwPages.map(
+        async (page: PuppeteerPage) => await this.getStagehandPage(page),
+      ),
     );
   }
 

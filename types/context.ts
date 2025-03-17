@@ -1,5 +1,6 @@
-import type { BrowserContext as PlaywrightContext } from "@playwright/test";
+import type { BrowserContext as PuppeteerContext } from "puppeteer-core";
 import { Page } from "../types/page";
+import { CDPSession } from "puppeteer-core";
 
 export interface AXNode {
   role?: { value: string };
@@ -31,7 +32,8 @@ export interface TreeResult {
 }
 
 export interface EnhancedContext
-  extends Omit<PlaywrightContext, "newPage" | "pages"> {
+  extends Omit<PuppeteerContext, "newPage" | "pages"> {
   newPage(): Promise<Page>;
   pages(): Page[];
+  newCDPSession(page: Page): Promise<CDPSession>;
 }

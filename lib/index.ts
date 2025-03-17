@@ -1,5 +1,4 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { chromium } from "@playwright/test";
 import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -10,16 +9,13 @@ import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
 import { AvailableModel } from "../types/model";
-import { BrowserContext, Page } from "../types/page";
-import { GotoOptions } from "../types/playwright";
+import { Page } from "../types/page";
 import {
   ActOptions,
   ActResult,
   ConstructorParams,
   ExtractOptions,
   ExtractResult,
-  InitFromPageOptions,
-  InitFromPageResult,
   InitOptions,
   InitResult,
   LocalBrowserLaunchOptions,
@@ -32,13 +28,13 @@ import {
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
 import { StagehandAPI } from "./api";
-import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { logLineToString, isRunningInBun } from "./utils";
+import { logLineToString } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
+import puppeteer from "puppeteer-core";
 
 dotenv.config({ path: ".env" });
 
@@ -175,7 +171,9 @@ async function getBrowser(
       });
     }
 
-    const browser = await chromium.connectOverCDP(connectUrl);
+    const browser = await puppeteer.connect({
+      browserWSEndpoint: connectUrl,
+    });
     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
 
     debugUrl = debuggerUrl;
@@ -203,7 +201,16 @@ async function getBrowser(
       },
     });
 
-    const context = browser.contexts()[0];
+    const context = await browser.createBrowserContext();
+
+    if (localBrowserLaunchOptions?.cookies) {
+      await context.setCookie(...localBrowserLaunchOptions.cookies);
+    }
+
+    logger({
+      category: "init",
+      message: "local browser started successfully.",
+    });
 
     return { browser, context, debugUrl, sessionUrl, sessionId, env };
   } else {
@@ -262,16 +269,13 @@ async function getBrowser(
       fs.mkdirSync(downloadsPath, { recursive: true });
     }
 
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
+    const browser = await puppeteer.launch({
+      userDataDir: userDataDir,
       headless: localBrowserLaunchOptions?.headless ?? headless,
-      viewport: {
+      defaultViewport: {
         width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
         height: localBrowserLaunchOptions?.viewport?.height ?? 768,
       },
-      locale: localBrowserLaunchOptions?.locale ?? "en-US",
-      timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
-      deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
       args: localBrowserLaunchOptions?.args ?? [
         "--enable-webgl",
         "--use-gl=swiftshader",
@@ -279,28 +283,26 @@ async function getBrowser(
         "--disable-blink-features=AutomationControlled",
         "--disable-web-security",
       ],
-      bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
-      proxy: localBrowserLaunchOptions?.proxy,
-      geolocation: localBrowserLaunchOptions?.geolocation,
-      hasTouch: localBrowserLaunchOptions?.hasTouch ?? true,
-      ignoreHTTPSErrors: localBrowserLaunchOptions?.ignoreHTTPSErrors ?? true,
-      permissions: localBrowserLaunchOptions?.permissions,
-      recordHar: localBrowserLaunchOptions?.recordHar,
-      recordVideo: localBrowserLaunchOptions?.recordVideo,
-      tracesDir: localBrowserLaunchOptions?.tracesDir,
-      extraHTTPHeaders: localBrowserLaunchOptions?.extraHTTPHeaders,
-      chromiumSandbox: localBrowserLaunchOptions?.chromiumSandbox ?? false,
       devtools: localBrowserLaunchOptions?.devtools ?? false,
-      env: localBrowserLaunchOptions?.env,
-      executablePath: localBrowserLaunchOptions?.executablePath,
+      env: localBrowserLaunchOptions?.env
+        ? Object.entries(localBrowserLaunchOptions.env).reduce(
+            (acc, [key, value]) => {
+              acc[key] = String(value);
+              return acc;
+            },
+            {} as Record<string, string>,
+          )
+        : undefined,
       handleSIGHUP: localBrowserLaunchOptions?.handleSIGHUP ?? true,
       handleSIGINT: localBrowserLaunchOptions?.handleSIGINT ?? true,
       handleSIGTERM: localBrowserLaunchOptions?.handleSIGTERM ?? true,
       ignoreDefaultArgs: localBrowserLaunchOptions?.ignoreDefaultArgs,
     });
 
+    const context = await browser.createBrowserContext();
+
     if (localBrowserLaunchOptions?.cookies) {
-      context.addCookies(localBrowserLaunchOptions.cookies);
+      await context.setCookie(...localBrowserLaunchOptions.cookies);
     }
 
     logger({
@@ -308,47 +310,8 @@ async function getBrowser(
       message: "local browser started successfully.",
     });
 
-    await applyStealthScripts(context);
-
     return { context, contextPath: userDataDir, env: "LOCAL" };
   }
-}
-
-async function applyStealthScripts(context: BrowserContext) {
-  await context.addInitScript(() => {
-    // Override the navigator.webdriver property
-    Object.defineProperty(navigator, "webdriver", {
-      get: () => undefined,
-    });
-
-    // Mock languages and plugins to mimic a real browser
-    Object.defineProperty(navigator, "languages", {
-      get: () => ["en-US", "en"],
-    });
-
-    Object.defineProperty(navigator, "plugins", {
-      get: () => [1, 2, 3, 4, 5],
-    });
-
-    // Remove Playwright-specific properties
-    delete window.__playwright;
-    delete window.__pw_manual;
-    delete window.__PW_inspect;
-
-    // Redefine the headless property
-    Object.defineProperty(navigator, "headless", {
-      get: () => false,
-    });
-
-    // Override the permissions API
-    const originalQuery = window.navigator.permissions.query;
-    window.navigator.permissions.query = (parameters) =>
-      parameters.name === "notifications"
-        ? Promise.resolve({
-            state: Notification.permission,
-          } as PermissionStatus)
-        : originalQuery(parameters);
-  });
 }
 
 const defaultLogger = async (logLine: LogLine) => {
@@ -395,6 +358,7 @@ export class Stagehand {
         "Stagehand not initialized. Make sure to await stagehand.init() first.",
       );
     }
+
     return this.stagehandPage.page;
   }
 
@@ -589,14 +553,6 @@ export class Stagehand {
     /** @deprecated Use constructor options instead */
     initOptions?: InitOptions,
   ): Promise<InitResult> {
-    if (isRunningInBun()) {
-      throw new Error(
-        "Playwright does not currently support the Bun runtime environment. " +
-          "Please use Node.js instead. For more information, see: " +
-          "https://github.com/microsoft/playwright/issues/27139",
-      );
-    }
-
     if (initOptions) {
       console.warn(
         "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
@@ -658,53 +614,12 @@ export class Stagehand {
     this.stagehandPage = defaultPage;
 
     if (this.headless) {
-      await this.page.setViewportSize({ width: 1280, height: 720 });
+      await this.page.setViewport({ width: 1280, height: 720 });
     }
-
-    await this.context.addInitScript({
-      content: scriptContent,
-    });
 
     this.browserbaseSessionID = sessionId;
 
     return { debugUrl, sessionUrl, sessionId };
-  }
-
-  /** @deprecated initFromPage is deprecated and will be removed in the next major version. */
-  async initFromPage({
-    page,
-  }: InitFromPageOptions): Promise<InitFromPageResult> {
-    console.warn(
-      "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
-    );
-    this.stagehandPage = await new StagehandPage(
-      page,
-      this,
-      this.stagehandContext,
-      this.llmClient,
-    ).init();
-    this.stagehandContext = await StagehandContext.init(page.context(), this);
-
-    const originalGoto = this.page.goto.bind(this.page);
-    this.page.goto = async (url: string, options?: GotoOptions) => {
-      const result = await originalGoto(url, options);
-      if (this.debugDom) {
-        await this.page.evaluate(() => (window.showChunks = this.debugDom));
-      }
-      await this.page.waitForLoadState("domcontentloaded");
-      await this.stagehandPage._waitForSettledDom();
-      return result;
-    };
-
-    if (this.headless) {
-      await this.page.setViewportSize({ width: 1280, height: 720 });
-    }
-
-    await this.context.addInitScript({
-      content: scriptContent,
-    });
-
-    return { context: this.context };
   }
 
   private pending_logs_to_send_to_browserbase: LogLine[] = [];
