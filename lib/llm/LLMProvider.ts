@@ -10,6 +10,7 @@ import { CerebrasClient } from "./CerebrasClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+import { BraintrustClient } from "../../evals/BraintrustClient";
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4o": "openai",
@@ -64,6 +65,15 @@ export class LLMProvider {
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
   ): LLMClient {
+    if (modelName.startsWith("braintrust-")) {
+      return new BraintrustClient({
+        logger: this.logger,
+        enableCaching: this.enableCaching,
+        cache: this.cache,
+        modelName: modelName.split("braintrust-")[1] as AvailableModel,
+        clientOptions,
+      });
+    }
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new Error(`Unsupported model: ${modelName}`);

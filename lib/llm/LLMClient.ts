@@ -81,7 +81,13 @@ export interface CreateChatCompletionOptions {
 }
 
 export abstract class LLMClient {
-  public type: "openai" | "anthropic" | "cerebras" | "groq" | string;
+  public type:
+    | "openai"
+    | "anthropic"
+    | "cerebras"
+    | "groq"
+    | "braintrust"
+    | string;
   public modelName: AvailableModel;
   public hasVision: boolean;
   public clientOptions: ClientOptions;
