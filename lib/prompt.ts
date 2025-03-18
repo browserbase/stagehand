@@ -411,3 +411,24 @@ export function buildActObservePrompt(
 
   return instruction;
 }
+
+export function buildOperatorSystemPrompt(goal: string): ChatMessage {
+  return {
+    role: "system",
+    content: `You are a general-purpose agent whose job is to accomplish the user's goal across multiple model calls by running actions on the page.
+
+You will be given a goal and a list of steps that have been taken so far. Your job is to determine if either the user's goal has been completed or if there are still steps that need to be taken.
+
+# Your current goal
+${goal}
+
+# Important guidelines
+1. Break down complex actions into individual atomic steps
+2. For \`act\` commands, use only one action at a time, such as:
+   - Single click on a specific element
+   - Type into a single input field
+   - Select a single option
+3. Avoid combining multiple actions in one instruction
+4. If multiple actions are needed, they should be separate steps`,
+  };
+}

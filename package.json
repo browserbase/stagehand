@@ -9,6 +9,7 @@
     "2048": "npm run build && tsx examples/2048.ts",
     "popup": "npm run build && tsx examples/popup.ts",
     "cua": "npm run build && tsx examples/cua-example.ts",
+    "operator": "npm run build && tsx examples/operator-example.ts",
     "example": "npm run build && tsx examples/example.ts",
     "langchain": "npm run build && tsx examples/langchain.ts",
     "debug-url": "npm run build && tsx examples/debugUrl.ts",

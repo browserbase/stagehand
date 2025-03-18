@@ -39,6 +39,7 @@ import { logLineToString, isRunningInBun } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
+import { StagehandOperatorHandler } from "./handlers/operatorHandler";
 
 dotenv.config({ path: ".env" });
 
@@ -818,18 +819,35 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method
    */
-  agent(options: AgentConfig): {
+  agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
+    if (!options || !options.provider) {
+      // use open operator agent
+      return {
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          return new StagehandOperatorHandler(
+            this.stagehandPage,
+            this.logger,
+            this.llmClient,
+          ).execute(instructionOrOptions);
+        },
+      };
+    }
+
     const agentHandler = new StagehandAgentHandler(
       this.stagehandPage,
       this.logger,
       {
         modelName: options.model,
         clientOptions: options.options,
-        userProvidedInstructions: options.instructions,
+        userProvidedInstructions:
+          options.instructions ??
+          `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
         agentType: options.provider,
       },
     );
@@ -889,5 +907,6 @@ export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
+export * from "../types/operator";
 export * from "../types/agent";
 export * from "./llm/LLMClient";

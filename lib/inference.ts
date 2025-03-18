@@ -48,7 +48,7 @@ interface LLMUsage {
 /**
  * For calls that use a schema: the LLMClient may return { data: T; usage?: LLMUsage }
  */
-interface LLMParsedResponse<T> {
+export interface LLMParsedResponse<T> {
   data: T;
   usage?: LLMUsage;
 }
