@@ -42,3 +42,9 @@ export const operatorResponseSchema = z.object({
 });
 
 export type OperatorResponse = z.infer<typeof operatorResponseSchema>;
+
+export const operatorSummarySchema = z.object({
+  answer: z.string().describe("The final answer to the original instruction."),
+});
+
+export type OperatorSummary = z.infer<typeof operatorSummarySchema>;

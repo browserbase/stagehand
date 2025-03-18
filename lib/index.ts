@@ -843,7 +843,11 @@ export class Stagehand {
       {
         modelName: options.model,
         clientOptions: options.options,
-        userProvidedInstructions: options.instructions,
+        userProvidedInstructions:
+          options.instructions ??
+          `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
         agentType: options.provider,
       },
     );

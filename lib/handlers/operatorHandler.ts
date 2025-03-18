@@ -1,23 +1,22 @@
-import {
-  AgentAction,
-  AgentExecuteOptions,
-  AgentResult,
-  ActionExecutionResult,
-} from "@/types/agent";
+import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { OperatorResponse, operatorResponseSchema } from "@/types/operator";
+import {
+  OperatorResponse,
+  operatorResponseSchema,
+  OperatorSummary,
+  operatorSummarySchema,
+} from "@/types/operator";
 import { LLMParsedResponse } from "../inference";
 import { ChatMessage, LLMClient } from "../llm/LLMClient";
 import { buildOperatorSystemPrompt } from "../prompt";
 import { StagehandPage } from "../StagehandPage";
+import { ObserveResult } from "@/types/stagehand";
 
 export class StagehandOperatorHandler {
   private stagehandPage: StagehandPage;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private messages: ChatMessage[];
-  private lastActionResult: ActionExecutionResult | null = null;
-  private lastMethod: string | null = null;
 
   constructor(
     stagehandPage: StagehandPage,
@@ -66,21 +65,18 @@ export class StagehandOperatorHandler {
 
         let messageText = `Here is a screenshot of the current page (URL: ${url}):`;
 
-        if (this.lastMethod && this.lastActionResult) {
-          const statusMessage = this.lastActionResult.success
-            ? "was successful"
-            : `failed with error: ${this.lastActionResult.error}`;
-
-          messageText = `Previous action '${this.lastMethod}' ${statusMessage}.\n\n${messageText}`;
-
-          if (
-            this.lastMethod === "extract" &&
-            this.lastActionResult.success &&
-            this.lastActionResult.data
-          ) {
-            messageText = `Previous extraction result: ${JSON.stringify(this.lastActionResult.data, null, 2)}\n\n${messageText}`;
-          }
-        }
+        messageText = `Previous actions were: ${actions
+          .map((action) => {
+            let result: string = "";
+            if (action.type === "act") {
+              const args = action.playwrightArguments as ObserveResult;
+              result = `Performed a "${args.method}" action ${args.arguments.length > 0 ? `with arguments: ${args.arguments.map((arg) => `"${arg}"`).join(", ")}` : ""} on "${args.description}"`;
+            } else if (action.type === "extract") {
+              result = `Extracted data: ${action.extractionResult}`;
+            }
+            return `[${action.type}] ${action.reasoning}. Result: ${result}`;
+          })
+          .join("\n")}\n\n${messageText}`;
 
         this.messages.push({
           role: "user",
@@ -103,33 +99,36 @@ export class StagehandOperatorHandler {
         completed = true;
       }
 
+      let playwrightArguments: ObserveResult | undefined;
+      if (result.method === "act") {
+        [playwrightArguments] = await this.stagehandPage.page.observe(
+          result.parameters,
+        );
+      }
+      let extractionResult: unknown | undefined;
+      if (result.method === "extract") {
+        extractionResult = await this.stagehandPage.page.extract(
+          result.parameters,
+        );
+      }
+
+      await this.executeAction(result, playwrightArguments, extractionResult);
+
       actions.push({
         type: result.method,
         reasoning: result.reasoning,
         taskCompleted: result.taskComplete,
+        parameters: result.parameters,
+        playwrightArguments,
+        extractionResult,
       });
 
       currentStep++;
-
-      try {
-        const actionResult = await this.executeAction(result);
-        this.lastActionResult = {
-          success: true,
-          data: actionResult,
-        };
-      } catch (error) {
-        this.lastActionResult = {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-
-      this.lastMethod = result.method;
     }
 
     return {
       success: true,
-      message: actions[actions.length - 1].reasoning as string,
+      message: await this.getSummary(options.instruction),
       actions,
       completed: actions[actions.length - 1].taskCompleted as boolean,
     };
@@ -152,7 +151,38 @@ export class StagehandOperatorHandler {
     return response;
   }
 
-  private async executeAction(action: OperatorResponse): Promise<unknown> {
+  private async getSummary(goal: string): Promise<string> {
+    const { data: response } =
+      (await this.llmClient.createChatCompletion<OperatorSummary>({
+        options: {
+          messages: [
+            ...this.messages,
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Now use the steps taken to answer the original instruction of ${goal}.`,
+                },
+              ],
+            },
+          ],
+          response_model: {
+            name: "operatorSummarySchema",
+            schema: operatorSummarySchema,
+          },
+          requestId: "operator-summary",
+        },
+        logger: this.logger,
+      })) as LLMParsedResponse<OperatorSummary>;
+
+    return response.answer;
+  }
+  private async executeAction(
+    action: OperatorResponse,
+    playwrightArguments?: ObserveResult,
+    extractionResult?: unknown,
+  ): Promise<unknown> {
     const { method, parameters } = action;
     const page = this.stagehandPage.page;
 
@@ -162,14 +192,16 @@ export class StagehandOperatorHandler {
 
     switch (method) {
       case "act":
-        await page.act({
-          action: parameters,
-          slowDomBasedAct: false,
-          timeoutMs: 5000,
-        });
+        if (!playwrightArguments) {
+          throw new Error("No playwright arguments provided");
+        }
+        await page.act(playwrightArguments);
         break;
       case "extract":
-        return await page.extract(parameters);
+        if (!extractionResult) {
+          throw new Error("No extraction result provided");
+        }
+        return extractionResult;
       case "goto":
         await page.goto(parameters, { waitUntil: "load" });
         break;
