@@ -3,7 +3,6 @@ import type { ClientOptions } from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import {
   ChatMessage,
   CreateChatCompletionOptions,
@@ -14,21 +13,15 @@ import {
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
   private client: OpenAI;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
   public clientOptions: ClientOptions;
   public hasVision = false;
 
   constructor({
-    enableCaching = false,
-    cache,
     modelName,
     clientOptions,
     userProvidedInstructions,
   }: {
     logger: (message: LogLine) => void;
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
     userProvidedInstructions?: string;
@@ -42,8 +35,6 @@ export class CerebrasClient extends LLMClient {
       ...clientOptions,
     });
 
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.clientOptions = clientOptions;
   }
@@ -67,45 +58,6 @@ export class CerebrasClient extends LLMClient {
         },
       },
     });
-
-    // Try to get cached response
-    const cacheOptions = {
-      model: this.modelName.split("cerebras-")[1],
-      messages: options.messages,
-      temperature: options.temperature,
-      response_model: options.response_model,
-      tools: options.tools,
-      retries: retries,
-    };
-
-    if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
-      );
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse as T;
-      }
-    }
 
     // Format messages for Cerebras API (using OpenAI format)
     const formattedMessages = options.messages.map((msg: ChatMessage) => {
@@ -239,9 +191,6 @@ export class CerebrasClient extends LLMClient {
         if (toolCall?.function?.arguments) {
           try {
             const result = JSON.parse(toolCall.function.arguments);
-            if (this.enableCaching) {
-              this.cache.set(cacheOptions, result, options.requestId);
-            }
             return result as T;
           } catch (e) {
             // If JSON parse fails, the model might be returning a different format
@@ -267,9 +216,6 @@ export class CerebrasClient extends LLMClient {
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const result = JSON.parse(jsonMatch[0]);
-              if (this.enableCaching) {
-                this.cache.set(cacheOptions, result, options.requestId);
-              }
               return result as T;
             }
           } catch (e) {
@@ -299,10 +245,6 @@ export class CerebrasClient extends LLMClient {
         throw new Error(
           "Create Chat Completion Failed: Could not extract valid JSON from response",
         );
-      }
-
-      if (this.enableCaching) {
-        this.cache.set(cacheOptions, response, options.requestId);
       }
 
       return response as T;
