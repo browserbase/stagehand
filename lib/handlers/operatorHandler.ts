@@ -85,10 +85,20 @@ export class StagehandOperatorHandler {
               type: "text",
               text: messageText,
             },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${base64Image}` },
-            },
+            this.llmClient.type === "anthropic"
+              ? {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: base64Image,
+                  },
+                  text: "the screenshot of the current page",
+                }
+              : {
+                  type: "image_url",
+                  image_url: { url: `data:image/png;base64,${base64Image}` },
+                },
           ],
         });
       }

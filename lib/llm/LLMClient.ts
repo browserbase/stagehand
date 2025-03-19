@@ -13,9 +13,14 @@ export type ChatMessageContent =
   | (ChatMessageImageContent | ChatMessageTextContent)[];
 
 export interface ChatMessageImageContent {
-  type: "image_url";
-  image_url: { url: string };
+  type: string;
+  image_url?: { url: string };
   text?: string;
+  source?: {
+    type: string;
+    media_type: string;
+    data: string;
+  };
 }
 
 export interface ChatMessageTextContent {
