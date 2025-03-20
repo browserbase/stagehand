@@ -59,7 +59,7 @@ export class GroqClient extends LLMClient {
     logger({
       category: "groq",
       message: "creating chat completion",
-      level: 1,
+      level: 2,
       auxiliary: {
         options: {
           value: JSON.stringify(optionsWithoutImage),
@@ -220,7 +220,7 @@ export class GroqClient extends LLMClient {
       logger({
         category: "groq",
         message: "response",
-        level: 1,
+        level: 2,
         auxiliary: {
           response: {
             value: JSON.stringify(response),
@@ -248,7 +248,7 @@ export class GroqClient extends LLMClient {
             logger({
               category: "groq",
               message: "failed to parse tool call arguments as JSON, retrying",
-              level: 1,
+              level: 0,
               auxiliary: {
                 error: {
                   value: e.message,
@@ -276,7 +276,7 @@ export class GroqClient extends LLMClient {
             logger({
               category: "groq",
               message: "failed to parse content as JSON",
-              level: 1,
+              level: 0,
               auxiliary: {
                 error: {
                   value: e.message,
@@ -310,7 +310,7 @@ export class GroqClient extends LLMClient {
       logger({
         category: "groq",
         message: "error creating chat completion",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: {
             value: error.message,
