@@ -25,6 +25,7 @@ import {
   fallbackLocatorMethod,
 } from "./handlerUtils/actHandlerUtils";
 import { Stagehand } from "@/lib";
+import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
  * If useVision or verifierUseVision is set to true, a warning is logged and
@@ -211,8 +212,13 @@ export class StagehandActHandler {
    * Perform an act based on an instruction.
    * This method will observe the page and then perform the act on the first element returned.
    */
-  public async observeAct(actionOrOptions: ActOptions): Promise<ActResult> {
-    // Extract action string and observe options
+  public async observeAct(
+    actionOrOptions: ActOptions,
+    observeHandler: StagehandObserveHandler,
+    llmClient: LLMClient,
+    requestId: string,
+  ): Promise<ActResult> {
+    // Extract the action string
     let action: string;
     const observeOptions: Partial<ObserveOptions> = {};
 
@@ -251,9 +257,13 @@ export class StagehandActHandler {
     );
 
     // Call observe with the instruction and extracted options
-    const observeResults = await this.stagehandPage.observe({
+    const observeResults = await observeHandler.observe({
       instruction,
-      ...observeOptions,
+      llmClient: llmClient,
+      requestId,
+      onlyVisible: false,
+      drawOverlay: false,
+      returnAction: true,
     });
 
     if (observeResults.length === 0) {
@@ -265,7 +275,7 @@ export class StagehandActHandler {
     }
 
     // Perform the action on the first observed element
-    const element = observeResults[0];
+    const element: ObserveResult = observeResults[0];
     // Replace the arguments with the variables if any
     if (actionOrOptions.variables) {
       Object.keys(actionOrOptions.variables).forEach((key) => {
