@@ -1,6 +1,10 @@
 {
   "tasks": [
     {
+      "name": "history",
+      "categories": ["combination"]
+    },
+    {
       "name": "expect_act_timeout",
       "categories": ["act"]
     },

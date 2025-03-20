@@ -6,6 +6,7 @@ import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
   ExtractResult,
+  HistoryEntry,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
@@ -39,6 +40,11 @@ export class StagehandPage {
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
+  private _history: Array<HistoryEntry> = [];
+
+  public get history(): ReadonlyArray<HistoryEntry> {
+    return this._history;
+  }
 
   constructor(
     page: PlaywrightPage,
@@ -294,6 +300,8 @@ export class StagehandPage {
               ? await this.api.goto(url, options)
               : await target.goto(url, options);
 
+            this.addToHistory("navigate", { url, options }, result);
+
             if (this.waitForCaptchaSolves) {
               try {
                 await this.waitForCaptchaSolve(1000);
@@ -440,6 +448,19 @@ export class StagehandPage {
     }
   }
 
+  private addToHistory(
+    method: HistoryEntry["method"],
+    parameters: unknown,
+    result?: unknown,
+  ): void {
+    this._history.push({
+      method,
+      parameters,
+      result: result ?? null,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   async act(
     actionOrOptions: string | ActOptions | ObserveResult,
   ): Promise<ActResult> {
@@ -501,6 +522,7 @@ export class StagehandPage {
     if (this.api) {
       const result = await this.api.act(actionOrOptions);
       await this._refreshPageFromAPI();
+      this.addToHistory("act", actionOrOptions, result);
       return result;
     }
 
@@ -539,7 +561,7 @@ export class StagehandPage {
     });
 
     // `useVision` is no longer passed to the handler
-    return this.actHandler
+    const result = await this.actHandler
       .act({
         action,
         llmClient,
@@ -574,6 +596,10 @@ export class StagehandPage {
           action: action,
         };
       });
+
+    this.addToHistory("act", actionOrOptions, result);
+
+    return result;
   }
 
   async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
@@ -587,10 +613,14 @@ export class StagehandPage {
 
     // check if user called extract() with no arguments
     if (!instructionOrOptions) {
+      let result: ExtractResult<T>;
       if (this.api) {
-        return this.api.extract<T>({});
+        result = await this.api.extract<T>({});
+      } else {
+        result = await this.extractHandler.extract();
       }
-      return this.extractHandler.extract();
+      this.addToHistory("extract", instructionOrOptions, result);
+      return result;
     }
 
     const options: ExtractOptions<T> =
@@ -620,7 +650,9 @@ export class StagehandPage {
     }
 
     if (this.api) {
-      return this.api.extract<T>(options);
+      const result = await this.api.extract<T>(options);
+      this.addToHistory("extract", instructionOrOptions, result);
+      return result;
     }
 
     const requestId = Math.random().toString(36).substring(2);
@@ -648,7 +680,7 @@ export class StagehandPage {
       },
     });
 
-    return this.extractHandler
+    const result = await this.extractHandler
       .extract({
         instruction,
         schema,
@@ -681,6 +713,10 @@ export class StagehandPage {
 
         throw e;
       });
+
+    this.addToHistory("extract", instructionOrOptions, result);
+
+    return result;
   }
 
   async observe(
@@ -734,7 +770,9 @@ export class StagehandPage {
     }
 
     if (this.api) {
-      return this.api.observe(options);
+      const result = await this.api.observe(options);
+      this.addToHistory("observe", instructionOrOptions, result);
+      return result;
     }
 
     const requestId = Math.random().toString(36).substring(2);
@@ -766,7 +804,7 @@ export class StagehandPage {
       },
     });
 
-    return this.observeHandler
+    const result = await this.observeHandler
       .observe({
         instruction,
         llmClient,
@@ -807,6 +845,10 @@ export class StagehandPage {
 
         throw e;
       });
+
+    this.addToHistory("observe", instructionOrOptions, result);
+
+    return result;
   }
 
   async getCDPClient(): Promise<CDPSession> {

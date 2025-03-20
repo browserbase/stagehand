@@ -28,6 +28,7 @@ import {
   AgentConfig,
   StagehandMetrics,
   StagehandFunctionName,
+  HistoryEntry,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -898,6 +899,16 @@ export class Stagehand {
         return await agentHandler.execute(executeOptions);
       },
     };
+  }
+
+  public get history(): ReadonlyArray<HistoryEntry> {
+    if (!this.stagehandPage) {
+      throw new Error(
+        "History is only available after a page has been initialized",
+      );
+    }
+
+    return this.stagehandPage.history;
   }
 }
 

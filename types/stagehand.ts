@@ -244,3 +244,10 @@ export enum StagehandFunctionName {
   EXTRACT = "EXTRACT",
   OBSERVE = "OBSERVE",
 }
+
+export interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate";
+  parameters: unknown;
+  result: unknown;
+  timestamp: string;
+}
