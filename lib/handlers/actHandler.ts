@@ -1,4 +1,4 @@
-import { Locator, Page } from "@playwright/test";
+import { Locator } from "@playwright/test";
 import { LogLine } from "../../types/log";
 import {
   PlaywrightCommandException,
@@ -493,110 +493,6 @@ export class StagehandActHandler {
       const outerHtml = clone.outerHTML;
       return outerHtml.trim().replace(/\s+/g, " ");
     });
-  }
-
-  private async handlePossiblePageNavigation(
-    actionDescription: string,
-    xpath: string,
-    initialUrl: string,
-    domSettleTimeoutMs: number,
-  ): Promise<void> {
-    // 1) Log that we’re about to check for page navigation
-    this.logger({
-      category: "action",
-      message: `${actionDescription}, checking for page navigation`,
-      level: 1,
-      auxiliary: {
-        xpath: {
-          value: xpath,
-          type: "string",
-        },
-      },
-    });
-
-    // 2) Race against a new page opening in a tab or timing out
-    const newOpenedTab = await Promise.race([
-      new Promise<Page | null>((resolve) => {
-        // TODO: This is a hack to get the new page.
-        // We should find a better way to do this.
-        this.stagehandPage.context.once("page", (page) => resolve(page));
-        setTimeout(() => resolve(null), 1_500);
-      }),
-    ]);
-
-    // 3) Log whether a new tab was opened
-    this.logger({
-      category: "action",
-      message: `${actionDescription} complete`,
-      level: 1,
-      auxiliary: {
-        newOpenedTab: {
-          value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
-          type: "string",
-        },
-      },
-    });
-
-    // 4) If new page opened in new tab, close the tab, then navigate our main page
-    if (newOpenedTab) {
-      this.logger({
-        category: "action",
-        message: "new page detected (new tab) with URL",
-        level: 1,
-        auxiliary: {
-          url: {
-            value: newOpenedTab.url(),
-            type: "string",
-          },
-        },
-      });
-      await newOpenedTab.close();
-      await this.stagehandPage.page.goto(newOpenedTab.url());
-      await this.stagehandPage.page.waitForLoadState("domcontentloaded");
-    }
-
-    // 5) Wait for the DOM to settle
-    await this.stagehandPage
-      ._waitForSettledDom(domSettleTimeoutMs)
-      .catch((e) => {
-        this.logger({
-          category: "action",
-          message: "wait for settled DOM timeout hit",
-          level: 1,
-          auxiliary: {
-            trace: {
-              value: e.stack,
-              type: "string",
-            },
-            message: {
-              value: e.message,
-              type: "string",
-            },
-          },
-        });
-      });
-
-    // 6) Log that we finished waiting for possible navigation
-    this.logger({
-      category: "action",
-      message: "finished waiting for (possible) page navigation",
-      level: 1,
-    });
-
-    // 7) If URL changed from initial, log the new URL
-    if (this.stagehandPage.page.url() !== initialUrl) {
-      this.logger({
-        category: "action",
-        message: "new page detected with URL",
-        level: 1,
-        auxiliary: {
-          url: {
-            value: this.stagehandPage.page.url(),
-            type: "string",
-          },
-        },
-      });
-    }
   }
 
   public async act({
