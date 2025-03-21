@@ -626,6 +626,7 @@ export class Stagehand {
         waitForCaptchaSolves: this.waitForCaptchaSolves,
         actionTimeoutMs: this.actTimeoutMs,
         browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
+        browserbaseSessionId: this.browserbaseSessionID,
       });
       this.browserbaseSessionID = sessionId;
     }
