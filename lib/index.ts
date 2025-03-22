@@ -53,12 +53,6 @@ import {
 dotenv.config({ path: ".env" });
 
 const DEFAULT_MODEL_NAME = "gpt-4o";
-const BROWSERBASE_REGION_DOMAIN = {
-  "us-west-2": "wss://connect.usw2.browserbase.com",
-  "us-east-1": "wss://connect.use1.browserbase.com",
-  "eu-central-1": "wss://connect.euc1.browserbase.com",
-  "ap-southeast-1": "wss://connect.apse1.browserbase.com",
-};
 
 async function getBrowser(
   apiKey: string | undefined,
@@ -109,7 +103,6 @@ async function getBrowser(
       try {
         const sessionStatus =
           await browserbase.sessions.retrieve(browserbaseSessionID);
-
         if (sessionStatus.status !== "RUNNING") {
           throw new StagehandError(
             `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
@@ -117,10 +110,7 @@ async function getBrowser(
         }
 
         sessionId = browserbaseSessionID;
-        const browserbaseDomain =
-          BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
-          "wss://connect.browserbase.com";
-        connectUrl = `${browserbaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
+        connectUrl = sessionStatus.connectUrl;
 
         logger({
           category: "init",
