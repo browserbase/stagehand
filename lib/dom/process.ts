@@ -10,6 +10,7 @@ import { StagehandContainer } from "./StagehandContainer";
 import { GlobalPageContainer } from "@/lib/dom/GlobalPageContainer";
 import { ElementContainer } from "@/lib/dom/ElementContainer";
 import { DomChunk } from "@/lib/dom/DomChunk";
+import { StagehandDomProcessError } from "@/types/stagehandErrors";
 
 /**
  * Finds and returns a list of scrollable elements on the page,
@@ -553,7 +554,9 @@ async function pickChunk(chunksSeen: Array<number>) {
   const chunk = closestChunk;
 
   if (chunk === undefined) {
-    throw new Error(`No chunks remaining to check: ${chunksRemaining}`);
+    throw new StagehandDomProcessError(
+      `No chunks remaining to check: ${chunksRemaining}`,
+    );
   }
   return {
     chunk,

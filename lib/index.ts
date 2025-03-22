@@ -42,6 +42,14 @@ import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
 import { StagehandOperatorHandler } from "./handlers/operatorHandler";
 
+import {
+  StagehandError,
+  StagehandNotInitializedError,
+  StagehandEnvironmentError,
+  MissingEnvironmentVariableError,
+  UnsupportedModelError,
+} from "../types/stagehandErrors";
+
 dotenv.config({ path: ".env" });
 
 const DEFAULT_MODEL_NAME = "gpt-4o";
@@ -84,7 +92,7 @@ async function getBrowser(
 
   if (env === "BROWSERBASE") {
     if (!apiKey) {
-      throw new Error("BROWSERBASE_API_KEY is required.");
+      throw new StagehandError("BROWSERBASE_API_KEY is required.");
     }
 
     let debugUrl: string | undefined = undefined;
@@ -103,7 +111,7 @@ async function getBrowser(
           await browserbase.sessions.retrieve(browserbaseSessionID);
 
         if (sessionStatus.status !== "RUNNING") {
-          throw new Error(
+          throw new StagehandError(
             `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
           );
         }
@@ -152,7 +160,7 @@ async function getBrowser(
       });
 
       if (!projectId) {
-        throw new Error(
+        throw new StagehandError(
           "BROWSERBASE_PROJECT_ID is required for new Browserbase sessions.",
         );
       }
@@ -393,9 +401,7 @@ export class Stagehand {
 
   public get page(): Page {
     if (!this.stagehandContext) {
-      throw new Error(
-        "Stagehand not initialized. Make sure to await stagehand.init() first.",
-      );
+      throw new StagehandNotInitializedError("page");
     }
     return this.stagehandPage.page;
   }
@@ -520,19 +526,19 @@ export class Stagehand {
     this.actTimeoutMs = actTimeoutMs;
 
     if (this.usingAPI && env === "LOCAL") {
-      throw new Error("API mode can only be used with BROWSERBASE environment");
+      throw new StagehandEnvironmentError("LOCAL", "BROWSERBASE", "API mode");
     } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
-      throw new Error(
-        "STAGEHAND_API_URL is required when using the API. Please set it in your environment variables.",
+      throw new MissingEnvironmentVariableError(
+        "STAGEHAND_API_URL",
+        "API mode",
       );
     } else if (
       this.usingAPI &&
+      this.llmClient &&
       this.llmClient.type !== "openai" &&
       this.llmClient.type !== "anthropic"
     ) {
-      throw new Error(
-        "API mode requires an OpenAI or Anthropic LLM. Please provide a compatible model.",
-      );
+      throw new UnsupportedModelError(["openai", "anthropic"], "API mode");
     }
     this.waitForCaptchaSolves = waitForCaptchaSolves;
 
@@ -580,9 +586,7 @@ export class Stagehand {
 
   public get context(): EnhancedContext {
     if (!this.stagehandContext) {
-      throw new Error(
-        "Stagehand not initialized. Make sure to await stagehand.init() first.",
-      );
+      throw new StagehandNotInitializedError("context");
     }
     return this.stagehandContext.context;
   }
@@ -592,7 +596,7 @@ export class Stagehand {
     initOptions?: InitOptions,
   ): Promise<InitResult> {
     if (isRunningInBun()) {
-      throw new Error(
+      throw new StagehandError(
         "Playwright does not currently support the Bun runtime environment. " +
           "Please use Node.js instead. For more information, see: " +
           "https://github.com/microsoft/playwright/issues/27139",
@@ -799,7 +803,7 @@ export class Stagehand {
             level: 0,
           });
         } else {
-          throw new Error((body as ErrorResponse).message);
+          throw new StagehandError((body as ErrorResponse).message);
         }
       }
       return;
@@ -867,14 +871,14 @@ export class Stagehand {
             : instructionOrOptions;
 
         if (!executeOptions.instruction) {
-          throw new Error("Instruction is required for agent execution");
+          throw new StagehandError(
+            "Instruction is required for agent execution",
+          );
         }
 
         if (this.usingAPI) {
           if (!this.apiClient) {
-            throw new Error(
-              "API client not initialized. Ensure that you have initialized Stagehand via `await stagehand.init()`.",
-            );
+            throw new StagehandNotInitializedError("API client");
           }
 
           if (!options.options) {
@@ -888,7 +892,7 @@ export class Stagehand {
           }
 
           if (!options.options.apiKey) {
-            throw new Error(
+            throw new StagehandError(
               `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
             );
           }
@@ -903,9 +907,7 @@ export class Stagehand {
 
   public get history(): ReadonlyArray<HistoryEntry> {
     if (!this.stagehandPage) {
-      throw new Error(
-        "History is only available after a page has been initialized",
-      );
+      throw new StagehandNotInitializedError("history()");
     }
 
     return this.stagehandPage.history;

@@ -10,6 +10,10 @@ import { CerebrasClient } from "./CerebrasClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+import {
+  UnsupportedModelError,
+  UnsupportedModelProviderError,
+} from "@/types/stagehandErrors";
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4o": "openai",
@@ -66,7 +70,7 @@ export class LLMProvider {
   ): LLMClient {
     const provider = modelToProviderMap[modelName];
     if (!provider) {
-      throw new Error(`Unsupported model: ${modelName}`);
+      throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
 
     switch (provider) {
@@ -103,7 +107,9 @@ export class LLMProvider {
           clientOptions,
         });
       default:
-        throw new Error(`Unsupported provider: ${provider}`);
+        throw new UnsupportedModelProviderError([
+          ...new Set(Object.values(modelToProviderMap)),
+        ]);
     }
   }
 

@@ -26,6 +26,10 @@ import {
 } from "./handlerUtils/actHandlerUtils";
 import { Stagehand } from "@/lib";
 import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
+import {
+  StagehandElementNotFoundError,
+  StagehandInvalidArgumentError,
+} from "@/types/stagehandErrors";
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
  * If useVision or verifierUseVision is set to true, a warning is logged and
@@ -224,7 +228,7 @@ export class StagehandActHandler {
 
     if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
       if (!("action" in actionOrOptions)) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "Invalid argument. Action options must have an `action` field.",
         );
       }
@@ -233,7 +237,9 @@ export class StagehandActHandler {
         typeof actionOrOptions.action !== "string" ||
         actionOrOptions.action.length === 0
       ) {
-        throw new Error("Invalid argument. No action provided.");
+        throw new StagehandInvalidArgumentError(
+          "Invalid argument. No action provided.",
+        );
       }
 
       action = actionOrOptions.action;
@@ -244,7 +250,7 @@ export class StagehandActHandler {
       if (actionOrOptions.modelClientOptions)
         observeOptions.modelClientOptions = actionOrOptions.modelClientOptions;
     } else {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         "Invalid argument. Valid arguments are: a string, an ActOptions object with an `action` field not empty, or an ObserveResult with a `selector` and `method` field.",
       );
     }
@@ -745,7 +751,7 @@ export class StagehandActHandler {
 
         // If no XPath was valid, we cannot proceed
         if (!foundXpath || !locator) {
-          throw new Error("None of the provided XPaths could be located.");
+          throw new StagehandElementNotFoundError(xpaths);
         }
 
         const originalUrl = this.stagehandPage.page.url();

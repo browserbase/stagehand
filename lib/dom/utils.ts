@@ -1,3 +1,5 @@
+import { StagehandDomProcessError } from "@/types/stagehandErrors";
+
 export async function waitForDomSettle() {
   return new Promise<void>((resolve) => {
     const createTimeout = () => {
@@ -41,7 +43,7 @@ export function canElementScroll(elem: HTMLElement): boolean {
 
     // If scrollTop never changed, consider it unscrollable
     if (elem.scrollTop === originalTop) {
-      throw new Error("scrollTop did not change");
+      throw new StagehandDomProcessError("scrollTop did not change");
     }
 
     // Scroll back to original place

@@ -10,6 +10,7 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
+import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 export class GroqClient extends LLMClient {
   public type = "groq" as const;
@@ -296,9 +297,7 @@ export class GroqClient extends LLMClient {
           });
         }
 
-        throw new Error(
-          "Create Chat Completion Failed: Could not extract valid JSON from response",
-        );
+        throw new CreateChatCompletionResponseError("Invalid response schema");
       }
 
       if (this.enableCaching) {

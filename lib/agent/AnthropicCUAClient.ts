@@ -12,6 +12,7 @@ import {
   AnthropicToolResult,
 } from "@/types/agent";
 import { AgentClient } from "./AgentClient";
+import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -853,6 +854,9 @@ export class AnthropicCUAClient extends AgentClient {
       }
     }
 
-    throw new Error("Screenshot provider not available");
+    throw new AgentScreenshotProviderError(
+      "`screenshotProvider` has not been set. " +
+        "Please call `setScreenshotProvider()` with a valid function that returns a base64-encoded image",
+    );
   }
 }

@@ -31,6 +31,7 @@ import { EvalLogger } from "./logger";
 import { AvailableModel } from "@/dist";
 import { env } from "./env";
 import dotenv from "dotenv";
+import { StagehandEvalError } from "@/types/stagehandErrors";
 dotenv.config();
 
 /**
@@ -226,8 +227,8 @@ const generateFilteredTestcases = (): Testcase[] => {
           const taskFunction = taskModule[input.name];
 
           if (typeof taskFunction !== "function") {
-            throw new Error(
-              `Task function for ${input.name} is not a function`,
+            throw new StagehandEvalError(
+              `No Eval function found for task name: ${input.name}`,
             );
           }
 

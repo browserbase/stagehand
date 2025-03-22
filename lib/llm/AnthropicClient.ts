@@ -14,6 +14,7 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
+import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
@@ -339,8 +340,8 @@ export class AnthropicClient extends LLMClient {
             },
           },
         });
-        throw new Error(
-          "Create Chat Completion Failed: No tool use with input in response",
+        throw new CreateChatCompletionResponseError(
+          "No tool use with input in response",
         );
       }
     }
