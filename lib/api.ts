@@ -51,6 +51,7 @@ export class StagehandAPI {
     waitForCaptchaSolves,
     actionTimeoutMs,
     browserbaseSessionCreateParams,
+    browserbaseSessionId,
   }: StartSessionParams): Promise<StartSessionResult> {
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
@@ -64,6 +65,7 @@ export class StagehandAPI {
         waitForCaptchaSolves,
         actionTimeoutMs,
         browserbaseSessionCreateParams,
+        browserbaseSessionId,
       }),
       headers: {
         "x-model-api-key": modelApiKey,
