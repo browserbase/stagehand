@@ -32,6 +32,7 @@ export class StagehandAPI {
   private apiKey: string;
   private projectId: string;
   private sessionId?: string;
+  private modelApiKey: string;
   private logger: (message: LogLine) => void;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
@@ -53,6 +54,10 @@ export class StagehandAPI {
     browserbaseSessionCreateParams,
     browserbaseSessionId,
   }: StartSessionParams): Promise<StartSessionResult> {
+    if (!modelApiKey) {
+      throw new StagehandAPIError("modelApiKey is required");
+    }
+    this.modelApiKey = modelApiKey;
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -67,9 +72,6 @@ export class StagehandAPI {
         browserbaseSessionCreateParams,
         browserbaseSessionId,
       }),
-      headers: {
-        "x-model-api-key": modelApiKey,
-      },
     });
 
     if (sessionResponse.status === 401) {
@@ -225,6 +227,7 @@ export class StagehandAPI {
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
+      "x-model-api-key": this.modelApiKey,
     };
 
     if (options.method === "POST" && options.body) {
