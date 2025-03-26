@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AdmZip from "adm-zip";
-import StagehandConfig from "@/evals/deterministic/stagehand.config";
+import StagehandConfig from "@/evals/deterministic/bb.stagehand.config";
 import { Stagehand } from "@/dist";
 import Browserbase from "@browserbasehq/sdk";
 

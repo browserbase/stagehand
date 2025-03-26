@@ -83,8 +83,8 @@
     "zod": "^3.23.8"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.39.0",
-    "@browserbasehq/sdk": "^2.0.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@browserbasehq/sdk": "^2.4.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
   },
@@ -100,5 +100,8 @@
   "bugs": {
     "url": "https://github.com/browserbase/stagehand/issues"
   },
-  "homepage": "https://github.com/browserbase/stagehand#readme"
+  "homepage": "https://github.com/browserbase/stagehand#readme",
+  "overrides": {
+    "whatwg-url": "13.0.0"
+  }
 }

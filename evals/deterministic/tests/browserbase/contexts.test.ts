@@ -1,6 +1,6 @@
 import Browserbase from "@browserbasehq/sdk";
 import { expect, test } from "@playwright/test";
-import StagehandConfig from "@/evals/deterministic/stagehand.config";
+import StagehandConfig from "@/evals/deterministic/bb.stagehand.config";
 import { Stagehand } from "@/dist";
 
 // Configuration
@@ -76,6 +76,7 @@ test.describe("Contexts", () => {
       // We will be adding cookies to the context in this session, so we need mark persist=true
       stagehand = new Stagehand({
         ...StagehandConfig,
+        env: "BROWSERBASE",
         browserbaseSessionCreateParams: {
           projectId: BROWSERBASE_PROJECT_ID,
           browserSettings: {

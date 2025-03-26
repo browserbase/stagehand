@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { Stagehand } from "@/dist";
-import StagehandConfig from "@/evals/deterministic/stagehand.config";
+import StagehandConfig from "@/evals/deterministic/e2e.stagehand.config";
 
 test.describe("StagehandPage - frame operations", () => {
   let stagehand: Stagehand;

@@ -5,12 +5,9 @@ dotenv.config({ path: "../../.env" });
 
 const StagehandConfig: ConstructorParams = {
   ...DefaultStagehandConfig,
-  env: "LOCAL" /* Environment to run Stagehand in */,
-  verbose: 1 /* Logging verbosity level (0=quiet, 1=normal, 2=verbose) */,
-  headless: true /* Run browser in headless mode */,
+  env: "BROWSERBASE" /* Environment to run Stagehand in */,
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID,
   },
-  enableCaching: false /* Enable caching functionality */,
 };
 export default StagehandConfig;
