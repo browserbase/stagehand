@@ -291,6 +291,14 @@
     {
       "name": "scroll_75",
       "categories": ["act", "regression_dom_extract"]
+    },
+    {
+      "name": "nextChunk",
+      "categories": ["act"]
+    },
+    {
+      "name": "prevChunk",
+      "categories": ["act"]
     }
   ]
 }

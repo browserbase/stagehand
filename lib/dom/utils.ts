@@ -69,3 +69,23 @@ export function getNodeFromXpath(xpath: string) {
     null,
   ).singleNodeValue;
 }
+
+export function waitForElementScrollEnd(
+  element: HTMLElement,
+  idleMs = 100,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let scrollEndTimer: number | undefined;
+
+    const handleScroll = () => {
+      clearTimeout(scrollEndTimer);
+      scrollEndTimer = window.setTimeout(() => {
+        element.removeEventListener("scroll", handleScroll);
+        resolve();
+      }, idleMs);
+    };
+
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+  });
+}

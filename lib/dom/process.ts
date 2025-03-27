@@ -4,6 +4,7 @@ import {
   canElementScroll,
   getNodeFromXpath,
   waitForDomSettle,
+  waitForElementScrollEnd,
 } from "./utils";
 import { createStagehandContainer } from "./containerFactory";
 import { StagehandContainer } from "./StagehandContainer";
@@ -530,6 +531,7 @@ window.getElementBoundingBoxes = getElementBoundingBoxes;
 window.createStagehandContainer = createStagehandContainer;
 window.getScrollableElementXpaths = getScrollableElementXpaths;
 window.getNodeFromXpath = getNodeFromXpath;
+window.waitForElementScrollEnd = waitForElementScrollEnd;
 
 async function pickChunk(chunksSeen: Array<number>) {
   const viewportHeight = calculateViewportHeight();

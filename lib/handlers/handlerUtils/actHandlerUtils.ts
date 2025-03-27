@@ -21,7 +21,136 @@ export const methodHandlerMap: Record<
   type: fillOrType,
   press: pressKey,
   click: clickElement,
+  nextChunk: scrollToNextChunk,
+  prevChunk: scrollToPreviousChunk,
 };
+
+export async function scrollToNextChunk(ctx: MethodHandlerContext) {
+  const { stagehandPage, xpath, logger } = ctx;
+
+  logger({
+    category: "action",
+    message: "scrolling to next chunk",
+    level: 2,
+    auxiliary: {
+      xpath: { value: xpath, type: "string" },
+    },
+  });
+
+  try {
+    await stagehandPage.page.evaluate(
+      ({ xpath }) => {
+        const elementNode = getNodeFromXpath(xpath);
+        if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
+          console.warn(`Could not locate element to scroll by its height.`);
+          return Promise.resolve();
+        }
+
+        const element = elementNode as HTMLElement;
+        const tagName = element.tagName.toLowerCase();
+        let height: number;
+
+        if (tagName === "html" || tagName === "body") {
+          height = window.visualViewport.height;
+          window.scrollBy({
+            top: height,
+            left: 0,
+            behavior: "smooth",
+          });
+
+          const scrollingEl =
+            document.scrollingElement || document.documentElement;
+          return window.waitForElementScrollEnd(scrollingEl as HTMLElement);
+        } else {
+          height = element.getBoundingClientRect().height;
+          element.scrollBy({
+            top: height,
+            left: 0,
+            behavior: "smooth",
+          });
+
+          return window.waitForElementScrollEnd(element);
+        }
+      },
+      { xpath },
+    );
+  } catch (e) {
+    logger({
+      category: "action",
+      message: "error scrolling to next chunk",
+      level: 1,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new PlaywrightCommandException(e.message);
+  }
+}
+
+export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
+  const { stagehandPage, xpath, logger } = ctx;
+
+  logger({
+    category: "action",
+    message: "scrolling to previous chunk",
+    level: 2,
+    auxiliary: {
+      xpath: { value: xpath, type: "string" },
+    },
+  });
+
+  try {
+    await stagehandPage.page.evaluate(
+      ({ xpath }) => {
+        const elementNode = getNodeFromXpath(xpath);
+        if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
+          console.warn(`Could not locate element to scroll by its height.`);
+          return Promise.resolve();
+        }
+
+        const element = elementNode as HTMLElement;
+        const tagName = element.tagName.toLowerCase();
+        let height: number;
+
+        if (tagName === "html" || tagName === "body") {
+          height = window.visualViewport.height;
+          window.scrollBy({
+            top: -height,
+            left: 0,
+            behavior: "smooth",
+          });
+
+          const scrollingEl =
+            document.scrollingElement || document.documentElement;
+          return window.waitForElementScrollEnd(scrollingEl as HTMLElement);
+        } else {
+          height = element.getBoundingClientRect().height;
+          element.scrollBy({
+            top: -height,
+            left: 0,
+            behavior: "smooth",
+          });
+          return window.waitForElementScrollEnd(element);
+        }
+      },
+      { xpath },
+    );
+  } catch (e) {
+    logger({
+      category: "action",
+      message: "error scrolling to previous chunk",
+      level: 1,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new PlaywrightCommandException(e.message);
+  }
+}
 
 export async function scrollElementIntoView(ctx: MethodHandlerContext) {
   const { locator, xpath, logger } = ctx;

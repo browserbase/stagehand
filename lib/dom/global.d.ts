@@ -32,5 +32,6 @@ declare global {
     }>;
     getScrollableElementXpaths: (topN?: number) => Promise<string[]>;
     getNodeFromXpath: (xpath: string) => Node | null;
+    waitForElementScrollEnd: (element: HTMLElement) => Promise<void>;
   }
 }
