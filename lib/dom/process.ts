@@ -3,12 +3,15 @@ import {
   calculateViewportHeight,
   canElementScroll,
   getNodeFromXpath,
+  waitForDomSettle,
+  waitForElementScrollEnd,
 } from "./utils";
 import { createStagehandContainer } from "./containerFactory";
 import { StagehandContainer } from "./StagehandContainer";
 import { GlobalPageContainer } from "@/lib/dom/GlobalPageContainer";
 import { ElementContainer } from "@/lib/dom/ElementContainer";
 import { DomChunk } from "@/lib/dom/DomChunk";
+import { StagehandDomProcessError } from "@/types/stagehandErrors";
 
 /**
  * Finds and returns a list of scrollable elements on the page,
@@ -127,7 +130,7 @@ export async function processDom(chunksSeen: number[]) {
     chunkSize,
     true,
     false, // scrollBackToTop
-    undefined, // BFS entire doc
+    container.getRootElement(), // BFS entire doc
   );
 
   // We expect exactly 1 chunk
@@ -190,9 +193,10 @@ export async function processAllOfDom(xpath?: string) {
 
       // Now check if the element “fits” in the container’s viewport
       const scrollTargetHeight = scrollTarget.getViewportHeight();
-      const rect = candidateElementContainer.getBoundingClientRect();
+      const candidateElementContainerHeight =
+        candidateElementContainer.scrollHeight;
 
-      if (rect.height <= scrollTargetHeight) {
+      if (candidateElementContainerHeight <= scrollTargetHeight) {
         // Single-chunk approach
         console.log(
           "Element is smaller/equal to container’s viewport. Doing single chunk.",
@@ -235,7 +239,7 @@ export async function processAllOfDom(xpath?: string) {
   const startOffset = scrollTarget.getScrollPosition();
   const viewportHeight = scrollTarget.getViewportHeight();
   const maxScroll = candidateElementContainer
-    ? startOffset + candidateElementContainer.getBoundingClientRect().height
+    ? startOffset + candidateElementContainer.scrollHeight
     : scrollTarget.getScrollHeight();
   const chunkSize = viewportHeight;
 
@@ -517,6 +521,7 @@ export function getElementBoundingBoxes(xpath: string): Array<{
   return boundingBoxes;
 }
 
+window.waitForDomSettle = waitForDomSettle;
 window.processDom = processDom;
 window.processAllOfDom = processAllOfDom;
 window.storeDOM = storeDOM;
@@ -526,6 +531,7 @@ window.getElementBoundingBoxes = getElementBoundingBoxes;
 window.createStagehandContainer = createStagehandContainer;
 window.getScrollableElementXpaths = getScrollableElementXpaths;
 window.getNodeFromXpath = getNodeFromXpath;
+window.waitForElementScrollEnd = waitForElementScrollEnd;
 
 async function pickChunk(chunksSeen: Array<number>) {
   const viewportHeight = calculateViewportHeight();
@@ -550,7 +556,9 @@ async function pickChunk(chunksSeen: Array<number>) {
   const chunk = closestChunk;
 
   if (chunk === undefined) {
-    throw new Error(`No chunks remaining to check: ${chunksRemaining}`);
+    throw new StagehandDomProcessError(
+      `No chunks remaining to check: ${chunksRemaining}`,
+    );
   }
   return {
     chunk,

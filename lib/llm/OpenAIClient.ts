@@ -21,6 +21,10 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
+import {
+  CreateChatCompletionResponseError,
+  StagehandError,
+} from "@/types/stagehandErrors";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -84,7 +88,7 @@ export class OpenAIClient extends LLMClient {
         role: "user",
       }));
       if (options.tools && options.response_model) {
-        throw new Error(
+        throw new StagehandError(
           "Cannot use both tool and response_model for o1 models",
         );
       }
@@ -113,7 +117,7 @@ export class OpenAIClient extends LLMClient {
       options.temperature &&
       (this.modelName.startsWith("o1") || this.modelName.startsWith("o3"))
     ) {
-      throw new Error("Temperature is not supported for o1 models");
+      throw new StagehandError("Temperature is not supported for o1 models");
     }
 
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
@@ -417,7 +421,7 @@ export class OpenAIClient extends LLMClient {
           });
         }
 
-        throw new Error("Invalid response schema");
+        throw new CreateChatCompletionResponseError("Invalid response schema");
       }
 
       if (this.enableCaching) {
@@ -430,7 +434,10 @@ export class OpenAIClient extends LLMClient {
         );
       }
 
-      return parsedData;
+      return {
+        data: parsedData,
+        usage: response.usage,
+      } as T;
     }
 
     if (this.enableCaching) {

@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "1.13.1",
+  "version": "1.14.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -8,6 +8,8 @@
   "scripts": {
     "2048": "npm run build && tsx examples/2048.ts",
     "popup": "npm run build && tsx examples/popup.ts",
+    "cua": "npm run build && tsx examples/cua-example.ts",
+    "operator": "npm run build && tsx examples/operator-example.ts",
     "example": "npm run build && tsx examples/example.ts",
     "langchain": "npm run build && tsx examples/langchain.ts",
     "debug-url": "npm run build && tsx examples/debugUrl.ts",
@@ -15,6 +17,8 @@
     "instructions": "npm run build && tsx examples/instructions.ts",
     "ai-sdk-client": "npm run build && tsx examples/ai_sdk_example.ts",
     "actionable_observe_example": "npm run build && tsx examples/actionable_observe_example.ts",
+    "form-filling-sensible-cerebras": "npm run build && tsx examples/form_filling_sensible_cerebras.ts",
+    "form-filling-sensible-openai": "npm run build && tsx examples/form_filling_sensible_openai.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
@@ -76,11 +80,11 @@
     "@playwright/test": "^1.42.1",
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
-    "openai": "^4.62.1",
+    "openai": "^4.87.1",
     "zod": "^3.23.8"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.3",
+    "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.0.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"

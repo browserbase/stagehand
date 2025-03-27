@@ -8,7 +8,7 @@ export interface StagehandAPIConstructorParams {
 }
 
 export interface ExecuteActionParams {
-  method: "act" | "extract" | "observe" | "navigate" | "end";
+  method: "act" | "extract" | "observe" | "navigate" | "end" | "agentExecute";
   args?: unknown;
   params?: unknown;
 }
@@ -21,6 +21,10 @@ export interface StartSessionParams {
   debugDom: boolean;
   systemPrompt?: string;
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  selfHeal?: boolean;
+  waitForCaptchaSolves?: boolean;
+  actionTimeoutMs?: number;
+  browserbaseSessionId?: string;
 }
 
 export interface StartSessionResult {

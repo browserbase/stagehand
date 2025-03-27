@@ -15,8 +15,6 @@ declare global {
       outputString: string;
       selectorMap: Record<number, string[]>;
     }>;
-    debugDom: () => Promise<void>;
-    cleanupDebug: () => void;
     createStagehandContainer: (obj: Window | HTMLElement) => StagehandContainer;
     waitForDomSettle: () => Promise<void>;
     __playwright?: unknown;
@@ -34,5 +32,6 @@ declare global {
     }>;
     getScrollableElementXpaths: (topN?: number) => Promise<string[]>;
     getNodeFromXpath: (xpath: string) => Node | null;
+    waitForElementScrollEnd: (element: HTMLElement) => Promise<void>;
   }
 }

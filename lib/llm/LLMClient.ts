@@ -1,7 +1,7 @@
 import { ZodType } from "zod";
 import { LLMTool } from "../../types/llm";
-import { AvailableModel, ClientOptions } from "../../types/model";
 import { LogLine } from "../../types/log";
+import { AvailableModel, ClientOptions } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -13,9 +13,14 @@ export type ChatMessageContent =
   | (ChatMessageImageContent | ChatMessageTextContent)[];
 
 export interface ChatMessageImageContent {
-  type: "image_url";
-  image_url: { url: string };
+  type: string;
+  image_url?: { url: string };
   text?: string;
+  source?: {
+    type: string;
+    media_type: string;
+    data: string;
+  };
 }
 
 export interface ChatMessageTextContent {
@@ -81,7 +86,7 @@ export interface CreateChatCompletionOptions {
 }
 
 export abstract class LLMClient {
-  public type: "openai" | "anthropic" | "cerebras" | string;
+  public type: "openai" | "anthropic" | "cerebras" | "groq" | string;
   public modelName: AvailableModel;
   public hasVision: boolean;
   public clientOptions: ClientOptions;
@@ -92,7 +97,9 @@ export abstract class LLMClient {
     this.userProvidedInstructions = userProvidedInstructions;
   }
 
-  abstract createChatCompletion<T = LLMResponse>(
-    options: CreateChatCompletionOptions,
-  ): Promise<T>;
+  abstract createChatCompletion<
+    T = LLMResponse & {
+      usage?: LLMResponse["usage"];
+    },
+  >(options: CreateChatCompletionOptions): Promise<T>;
 }

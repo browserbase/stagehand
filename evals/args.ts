@@ -1,13 +1,58 @@
 import process from "process";
 import { EvalCategorySchema } from "@/types/evals";
 
-// Extract command-line arguments passed to this script.
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
 
-/**
- * The default categories of evaluations to run if none is specified.
- * These categories represent different styles or types of tasks.
- */
+const parsedArgs: {
+  env?: string;
+  trials?: number;
+  concurrency?: number;
+  extractMethod?: string;
+  leftover: string[];
+} = {
+  leftover: [],
+};
+
+for (const arg of rawArgs) {
+  if (arg.startsWith("env=")) {
+    parsedArgs.env = arg.split("=")[1]?.toLowerCase();
+  } else if (arg.startsWith("trials=")) {
+    const val = parseInt(arg.split("=")[1], 10);
+    if (!isNaN(val)) {
+      parsedArgs.trials = val;
+    }
+  } else if (arg.startsWith("concurrency=")) {
+    const val = parseInt(arg.split("=")[1], 10);
+    if (!isNaN(val)) {
+      parsedArgs.concurrency = val;
+    }
+  } else if (arg.startsWith("--extract-method=")) {
+    parsedArgs.extractMethod = arg.split("=")[1];
+  } else {
+    parsedArgs.leftover.push(arg);
+  }
+}
+
+/** Apply environment defaults or overrides */
+if (parsedArgs.env === "browserbase") {
+  process.env.EVAL_ENV = "BROWSERBASE";
+} else if (parsedArgs.env === "local") {
+  process.env.EVAL_ENV = "LOCAL";
+}
+
+if (parsedArgs.trials !== undefined) {
+  process.env.EVAL_TRIAL_COUNT = String(parsedArgs.trials);
+}
+if (parsedArgs.concurrency !== undefined) {
+  process.env.EVAL_MAX_CONCURRENCY = String(parsedArgs.concurrency);
+}
+
+const extractMethod = parsedArgs.extractMethod || "domExtract";
+process.env.EXTRACT_METHOD = extractMethod;
+
+const useTextExtract = extractMethod === "textExtract";
+const useAccessibilityTree = extractMethod === "accessibilityTree";
+
 const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
   ? process.env.EVAL_CATEGORIES.split(",")
   : [
@@ -17,47 +62,20 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "extract",
       "experimental",
       "text_extract",
+      "targeted_extract",
     ];
 
-/**
- * Determine which extraction method to use for tasks that involve extraction.
- * By default, "domExtract" is used. However, if a `--extract-method=<method>`
- * argument is provided, it will override the default.
- */
-let extractMethod = "domExtract";
-const extractMethodArg = args.find((arg) =>
-  arg.startsWith("--extract-method="),
-);
-if (extractMethodArg) {
-  extractMethod = extractMethodArg.split("=")[1];
-}
-
-// Set the extraction method in the process environment so tasks can reference it.
-process.env.EXTRACT_METHOD = extractMethod;
-const useTextExtract = process.env.EXTRACT_METHOD === "textExtract";
-const useAccessibilityTree = process.env.EXTRACT_METHOD === "accessibilityTree";
-
-/**
- * Variables for filtering which tasks to run:
- * - `filterByCategory`: if provided, only tasks that belong to this category will be run.
- * - `filterByEvalName`: if provided, only the task with this name will be run.
- */
+// Finally, interpret leftover arguments to see if user typed "category X" or a single eval name
 let filterByCategory: string | null = null;
 let filterByEvalName: string | null = null;
 
-/**
- * Check the first argument:
- * - If it is "category", the next argument should be the category name.
- * - Otherwise, assume it is a specific evaluation (task) name.
- */
-if (args.length > 0) {
-  if (args[0].toLowerCase() === "category") {
-    filterByCategory = args[1];
+if (parsedArgs.leftover.length > 0) {
+  if (parsedArgs.leftover[0].toLowerCase() === "category") {
+    filterByCategory = parsedArgs.leftover[1];
     if (!filterByCategory) {
       console.error("Error: Category name not specified.");
       process.exit(1);
     }
-    // Validate that the category is one of the known ones.
     try {
       EvalCategorySchema.parse(filterByCategory);
     } catch {
@@ -67,8 +85,8 @@ if (args.length > 0) {
       process.exit(1);
     }
   } else {
-    // Otherwise, treat it as a filter by evaluation name.
-    filterByEvalName = args[0];
+    // If leftover[0] is not "category", interpret it as a task/eval name
+    filterByEvalName = parsedArgs.leftover[0];
   }
 }
 

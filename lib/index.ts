@@ -7,6 +7,7 @@ import os from "os";
 import path from "path";
 import { z } from "zod";
 import { BrowserResult } from "../types/browser";
+import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
 import { AvailableModel } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
@@ -24,6 +25,10 @@ import {
   LocalBrowserLaunchOptions,
   ObserveOptions,
   ObserveResult,
+  AgentConfig,
+  StagehandMetrics,
+  StagehandFunctionName,
+  HistoryEntry,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -33,6 +38,17 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { logLineToString, isRunningInBun } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
+import { StagehandAgentHandler } from "./handlers/agentHandler";
+import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+
+import {
+  StagehandError,
+  StagehandNotInitializedError,
+  StagehandEnvironmentError,
+  MissingEnvironmentVariableError,
+  UnsupportedModelError,
+} from "../types/stagehandErrors";
 
 dotenv.config({ path: ".env" });
 
@@ -76,7 +92,7 @@ async function getBrowser(
 
   if (env === "BROWSERBASE") {
     if (!apiKey) {
-      throw new Error("BROWSERBASE_API_KEY is required.");
+      throw new StagehandError("BROWSERBASE_API_KEY is required.");
     }
 
     let debugUrl: string | undefined = undefined;
@@ -95,7 +111,7 @@ async function getBrowser(
           await browserbase.sessions.retrieve(browserbaseSessionID);
 
         if (sessionStatus.status !== "RUNNING") {
-          throw new Error(
+          throw new StagehandError(
             `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
           );
         }
@@ -144,7 +160,7 @@ async function getBrowser(
       });
 
       if (!projectId) {
-        throw new Error(
+        throw new StagehandError(
           "BROWSERBASE_PROJECT_ID is required for new Browserbase sessions.",
         );
       }
@@ -260,8 +276,8 @@ async function getBrowser(
       acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
       headless: localBrowserLaunchOptions?.headless ?? headless,
       viewport: {
-        width: localBrowserLaunchOptions?.viewport?.width ?? 1250,
-        height: localBrowserLaunchOptions?.viewport?.height ?? 800,
+        width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
+        height: localBrowserLaunchOptions?.viewport?.height ?? 768,
       },
       locale: localBrowserLaunchOptions?.locale ?? "en-US",
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
@@ -364,19 +380,88 @@ export class Stagehand {
 
   private apiKey: string | undefined;
   private projectId: string | undefined;
-  // We want external logger to accept async functions
   private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   public variables: { [key: string]: unknown };
   private contextPath?: string;
-  private llmClient: LLMClient;
-  private userProvidedInstructions?: string;
+  public llmClient: LLMClient;
+  public readonly userProvidedInstructions?: string;
   private usingAPI: boolean;
   private modelName: AvailableModel;
-  private apiClient: StagehandAPI | undefined;
-  private waitForCaptchaSolves: boolean;
+  public apiClient: StagehandAPI | undefined;
+  public readonly waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
+  private cleanupCalled = false;
+  public readonly actTimeoutMs: number;
+  public readonly logInferenceToFile?: boolean;
+  protected setActivePage(page: StagehandPage): void {
+    this.stagehandPage = page;
+  }
+
+  public get page(): Page {
+    if (!this.stagehandContext) {
+      throw new StagehandNotInitializedError("page");
+    }
+    return this.stagehandPage.page;
+  }
+
+  public stagehandMetrics: StagehandMetrics = {
+    actPromptTokens: 0,
+    actCompletionTokens: 0,
+    actInferenceTimeMs: 0,
+    extractPromptTokens: 0,
+    extractCompletionTokens: 0,
+    extractInferenceTimeMs: 0,
+    observePromptTokens: 0,
+    observeCompletionTokens: 0,
+    observeInferenceTimeMs: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalInferenceTimeMs: 0,
+  };
+
+  public get metrics(): StagehandMetrics {
+    return this.stagehandMetrics;
+  }
+
+  public updateMetrics(
+    functionName: StagehandFunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    switch (functionName) {
+      case StagehandFunctionName.ACT:
+        this.stagehandMetrics.actPromptTokens += promptTokens;
+        this.stagehandMetrics.actCompletionTokens += completionTokens;
+        this.stagehandMetrics.actInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.EXTRACT:
+        this.stagehandMetrics.extractPromptTokens += promptTokens;
+        this.stagehandMetrics.extractCompletionTokens += completionTokens;
+        this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.OBSERVE:
+        this.stagehandMetrics.observePromptTokens += promptTokens;
+        this.stagehandMetrics.observeCompletionTokens += completionTokens;
+        this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
+        break;
+    }
+    this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
+  }
+
+  private updateTotalMetrics(
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    this.stagehandMetrics.totalPromptTokens += promptTokens;
+    this.stagehandMetrics.totalCompletionTokens += completionTokens;
+    this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
+  }
 
   constructor(
     {
@@ -400,6 +485,8 @@ export class Stagehand {
       localBrowserLaunchOptions,
       selfHeal = true,
       waitForCaptchaSolves = false,
+      actTimeoutMs = 60_000,
+      logInferenceToFile = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -436,36 +523,58 @@ export class Stagehand {
     this.userProvidedInstructions = systemPrompt;
     this.usingAPI = useAPI ?? false;
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.actTimeoutMs = actTimeoutMs;
 
     if (this.usingAPI && env === "LOCAL") {
-      throw new Error("API mode can only be used with BROWSERBASE environment");
+      throw new StagehandEnvironmentError("LOCAL", "BROWSERBASE", "API mode");
     } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
-      throw new Error(
-        "STAGEHAND_API_URL is required when using the API. Please set it in your environment variables.",
+      throw new MissingEnvironmentVariableError(
+        "STAGEHAND_API_URL",
+        "API mode",
       );
+    } else if (
+      this.usingAPI &&
+      this.llmClient &&
+      this.llmClient.type !== "openai" &&
+      this.llmClient.type !== "anthropic"
+    ) {
+      throw new UnsupportedModelError(["openai", "anthropic"], "API mode");
     }
-
     this.waitForCaptchaSolves = waitForCaptchaSolves;
 
     this.selfHeal = selfHeal;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
+
+    if (this.usingAPI) {
+      this.registerSignalHandlers();
+    }
+    this.logInferenceToFile = logInferenceToFile;
+  }
+
+  private registerSignalHandlers() {
+    const cleanup = async (signal: string) => {
+      if (this.cleanupCalled) return;
+      this.cleanupCalled = true;
+
+      console.log(`[${signal}] received. Ending Browserbase session...`);
+      try {
+        await this.close();
+      } catch (err) {
+        console.error("Error ending Browserbase session:", err);
+      } finally {
+        // Exit explicitly once cleanup is done
+        process.exit(0);
+      }
+    };
+
+    process.once("SIGINT", () => void cleanup("SIGINT"));
+    process.once("SIGTERM", () => void cleanup("SIGTERM"));
   }
 
   public get logger(): (logLine: LogLine) => void {
     return (logLine: LogLine) => {
       this.log(logLine);
     };
-  }
-
-  public get page(): Page {
-    // End users should not be able to access the StagehandPage directly
-    // This is a proxy to the underlying Playwright Page
-    if (!this.stagehandPage) {
-      throw new Error(
-        "Stagehand not initialized. Make sure to await stagehand.init() first.",
-      );
-    }
-    return this.stagehandPage.page;
   }
 
   public get env(): "LOCAL" | "BROWSERBASE" {
@@ -475,11 +584,9 @@ export class Stagehand {
     return "LOCAL";
   }
 
-  public get context(): BrowserContext {
+  public get context(): EnhancedContext {
     if (!this.stagehandContext) {
-      throw new Error(
-        "Stagehand not initialized. Make sure to await stagehand.init() first.",
-      );
+      throw new StagehandNotInitializedError("context");
     }
     return this.stagehandContext.context;
   }
@@ -489,7 +596,7 @@ export class Stagehand {
     initOptions?: InitOptions,
   ): Promise<InitResult> {
     if (isRunningInBun()) {
-      throw new Error(
+      throw new StagehandError(
         "Playwright does not currently support the Bun runtime environment. " +
           "Please use Node.js instead. For more information, see: " +
           "https://github.com/microsoft/playwright/issues/27139",
@@ -519,7 +626,11 @@ export class Stagehand {
         verbose: this.verbose,
         debugDom: this.debugDom,
         systemPrompt: this.userProvidedInstructions,
+        selfHeal: this.selfHeal,
+        waitForCaptchaSolves: this.waitForCaptchaSolves,
+        actionTimeoutMs: this.actTimeoutMs,
         browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
+        browserbaseSessionId: this.browserbaseSessionID,
       });
       this.browserbaseSessionID = sessionId;
     }
@@ -547,19 +658,12 @@ export class Stagehand {
       });
     this.intEnv = env;
     this.contextPath = contextPath;
-    this.stagehandContext = await StagehandContext.init(context, this);
-    const defaultPage = this.context.pages()[0];
-    this.stagehandPage = await new StagehandPage(
-      defaultPage,
-      this,
-      this.stagehandContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.apiClient,
-      this.waitForCaptchaSolves,
-    ).init();
 
-    // Set the browser to headless mode if specified
+    this.stagehandContext = await StagehandContext.init(context, this);
+
+    const defaultPage = (await this.stagehandContext.getStagehandPages())[0];
+    this.stagehandPage = defaultPage;
+
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
@@ -599,12 +703,10 @@ export class Stagehand {
       return result;
     };
 
-    // Set the browser to headless mode if specified
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
 
-    // Add initialization scripts
     await this.context.addInitScript({
       content: scriptContent,
     });
@@ -619,12 +721,10 @@ export class Stagehand {
   log(logObj: LogLine): void {
     logObj.level = logObj.level ?? 1;
 
-    // Normal Logging
     if (this.externalLogger) {
       this.externalLogger(logObj);
     }
 
-    // Add the logs to the browserbase session
     this.pending_logs_to_send_to_browserbase.push({
       ...logObj,
       id: randomUUID(),
@@ -670,26 +770,7 @@ export class Stagehand {
               (log) => log.id !== logObj.id,
             );
         })
-        .catch(() => {
-          // NAVIDTODO: Rerun the log call on the new page
-          // This is expected to happen when the user is changing pages
-          // console.error("Logging Error:", e);
-          // this.log({
-          //   category: "browserbase",
-          //   message: "error logging to browserbase",
-          //   level: 1,
-          //   auxiliary: {
-          //     trace: {
-          //       value: e.stack,
-          //       type: "string",
-          //     },
-          //     message: {
-          //       value: e.message,
-          //       type: "string",
-          //     },
-          //   },
-          // });
-        });
+        .catch(() => {});
     }
   }
 
@@ -723,7 +804,7 @@ export class Stagehand {
             level: 0,
           });
         } else {
-          throw new Error((body as ErrorResponse).message);
+          throw new StagehandError((body as ErrorResponse).message);
         }
       }
       return;
@@ -739,6 +820,99 @@ export class Stagehand {
       }
     }
   }
+
+  /**
+   * Create an agent instance that can be executed with different instructions
+   * @returns An agent instance with execute() method
+   */
+  agent(options?: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  } {
+    if (!options || !options.provider) {
+      // use open operator agent
+      return {
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          return new StagehandOperatorHandler(
+            this.stagehandPage,
+            this.logger,
+            this.llmClient,
+          ).execute(instructionOrOptions);
+        },
+      };
+    }
+
+    const agentHandler = new StagehandAgentHandler(
+      this.stagehandPage,
+      this.logger,
+      {
+        modelName: options.model,
+        clientOptions: options.options,
+        userProvidedInstructions:
+          options.instructions ??
+          `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
+        agentType: options.provider,
+      },
+    );
+
+    this.log({
+      category: "agent",
+      message: "Creating agent instance",
+      level: 1,
+    });
+
+    return {
+      execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        const executeOptions: AgentExecuteOptions =
+          typeof instructionOrOptions === "string"
+            ? { instruction: instructionOrOptions }
+            : instructionOrOptions;
+
+        if (!executeOptions.instruction) {
+          throw new StagehandError(
+            "Instruction is required for agent execution",
+          );
+        }
+
+        if (this.usingAPI) {
+          if (!this.apiClient) {
+            throw new StagehandNotInitializedError("API client");
+          }
+
+          if (!options.options) {
+            options.options = {};
+          }
+
+          if (options.provider === "anthropic") {
+            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+          } else if (options.provider === "openai") {
+            options.options.apiKey = process.env.OPENAI_API_KEY;
+          }
+
+          if (!options.options.apiKey) {
+            throw new StagehandError(
+              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+            );
+          }
+
+          return await this.apiClient.agentExecute(options, executeOptions);
+        }
+
+        return await agentHandler.execute(executeOptions);
+      },
+    };
+  }
+
+  public get history(): ReadonlyArray<HistoryEntry> {
+    if (!this.stagehandPage) {
+      throw new StagehandNotInitializedError("history()");
+    }
+
+    return this.stagehandPage.history;
+  }
 }
 
 export * from "../types/browser";
@@ -747,4 +921,6 @@ export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
+export * from "../types/operator";
+export * from "../types/agent";
 export * from "./llm/LLMClient";

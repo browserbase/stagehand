@@ -16,7 +16,9 @@ export const peeler_complex: EvalFunction = async ({
 
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
+    await stagehand.page.waitForLoadState("networkidle");
 
+    await stagehand.page.act("find the button to close the popup");
     await stagehand.page.act({
       action: "search for %search_query%",
       variables: {

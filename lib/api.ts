@@ -12,16 +12,27 @@ import { GotoOptions } from "../types/playwright";
 import {
   ActOptions,
   ActResult,
+  AgentConfig,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
+import { AgentExecuteOptions, AgentResult } from ".";
+import {
+  StagehandAPIUnauthorizedError,
+  StagehandHttpError,
+  StagehandAPIError,
+  StagehandServerError,
+  StagehandResponseBodyError,
+  StagehandResponseParseError,
+} from "../types/stagehandApiErrors";
 
 export class StagehandAPI {
   private apiKey: string;
   private projectId: string;
   private sessionId?: string;
+  private modelApiKey: string;
   private logger: (message: LogLine) => void;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
@@ -37,18 +48,16 @@ export class StagehandAPI {
     verbose,
     debugDom,
     systemPrompt,
+    selfHeal,
+    waitForCaptchaSolves,
+    actionTimeoutMs,
     browserbaseSessionCreateParams,
+    browserbaseSessionId,
   }: StartSessionParams): Promise<StartSessionResult> {
-    const whitelistResponse = await this.request("/healthcheck");
-
-    if (whitelistResponse.status === 401) {
-      throw new Error(
-        "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
-      );
-    } else if (whitelistResponse.status !== 200) {
-      throw new Error(`Unknown error: ${whitelistResponse.status}`);
+    if (!modelApiKey) {
+      throw new StagehandAPIError("modelApiKey is required");
     }
-
+    this.modelApiKey = modelApiKey;
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -57,23 +66,28 @@ export class StagehandAPI {
         verbose,
         debugDom,
         systemPrompt,
+        selfHeal,
+        waitForCaptchaSolves,
+        actionTimeoutMs,
         browserbaseSessionCreateParams,
+        browserbaseSessionId,
       }),
-      headers: {
-        "x-model-api-key": modelApiKey,
-      },
     });
 
-    if (sessionResponse.status !== 200) {
+    if (sessionResponse.status === 401) {
+      throw new StagehandAPIUnauthorizedError(
+        "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
+      );
+    } else if (sessionResponse.status !== 200) {
       console.log(await sessionResponse.text());
-      throw new Error(`Unknown error: ${sessionResponse.status}`);
+      throw new StagehandHttpError(`Unknown error: ${sessionResponse.status}`);
     }
 
     const sessionResponseBody =
       (await sessionResponse.json()) as ApiResponse<StartSessionResult>;
 
     if (sessionResponseBody.success === false) {
-      throw new Error(sessionResponseBody.message);
+      throw new StagehandAPIError(sessionResponseBody.message);
     }
 
     this.sessionId = sessionResponseBody.data.sessionId;
@@ -91,6 +105,12 @@ export class StagehandAPI {
   async extract<T extends z.AnyZodObject>(
     options: ExtractOptions<T>,
   ): Promise<ExtractResult<T>> {
+    if (!options.schema) {
+      return this.execute<ExtractResult<T>>({
+        method: "extract",
+        args: {},
+      });
+    }
     const parsedSchema = zodToJsonSchema(options.schema);
     return this.execute<ExtractResult<T>>({
       method: "extract",
@@ -109,6 +129,16 @@ export class StagehandAPI {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },
+    });
+  }
+
+  async agentExecute(
+    agentConfig: AgentConfig,
+    executeOptions: AgentExecuteOptions,
+  ): Promise<AgentResult> {
+    return this.execute<AgentResult>({
+      method: "agentExecute",
+      args: { agentConfig, executeOptions },
     });
   }
 
@@ -135,13 +165,13 @@ export class StagehandAPI {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(
+      throw new StagehandHttpError(
         `HTTP error! status: ${response.status}, body: ${errorBody}`,
       );
     }
 
     if (!response.body) {
-      throw new Error("Response body is null");
+      throw new StagehandResponseBodyError();
     }
 
     const reader = response.body.getReader();
@@ -167,7 +197,7 @@ export class StagehandAPI {
 
           if (eventData.type === "system") {
             if (eventData.data.status === "error") {
-              throw new Error(eventData.data.error);
+              throw new StagehandServerError(eventData.data.error);
             }
             if (eventData.data.status === "finished") {
               return eventData.data.result as T;
@@ -177,7 +207,9 @@ export class StagehandAPI {
           }
         } catch (e) {
           console.error("Error parsing event data:", e);
-          throw new Error("Failed to parse server response");
+          throw new StagehandResponseParseError(
+            "Failed to parse server response",
+          );
         }
       }
 
@@ -195,6 +227,7 @@ export class StagehandAPI {
       "x-bb-session-id": this.sessionId,
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
+      "x-model-api-key": this.modelApiKey,
     };
 
     if (options.method === "POST" && options.body) {

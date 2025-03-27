@@ -75,11 +75,13 @@ export abstract class StagehandContainer {
     candidateContainer?: HTMLElement,
   ): Promise<DomChunk[]> {
     const chunks: DomChunk[] = [];
-    const maxOffset = this.getScrollHeight();
-    const finalEnd = Math.min(endOffset, maxOffset);
+    let maxOffset = this.getScrollHeight();
+    let current = startOffset;
+    let finalEnd = endOffset;
+
     let index = 0;
 
-    for (let current = startOffset; current <= finalEnd; current += chunkSize) {
+    while (current <= finalEnd) {
       // Move the container's scroll position
       if (scrollTo) {
         await this.scrollTo(current);
@@ -101,6 +103,20 @@ export abstract class StagehandContainer {
       });
 
       index += Object.keys(selectorMap).length;
+      current += chunkSize;
+
+      // Only extend finalEnd if there is no candidateContainer
+      // (meaning we're looking at the entire scrollable area)
+      if (!candidateContainer && current > endOffset) {
+        // Check if new content extended the scroll height
+        const newScrollHeight = this.getScrollHeight();
+        if (newScrollHeight > maxOffset) {
+          maxOffset = newScrollHeight;
+        }
+        if (newScrollHeight > finalEnd) {
+          finalEnd = newScrollHeight;
+        }
+      }
     }
 
     if (scrollBackToTop) {

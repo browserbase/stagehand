@@ -6,12 +6,14 @@ import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "@playwright/test";
+import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
   env: "LOCAL" | "BROWSERBASE";
   apiKey?: string;
   projectId?: string;
   verbose?: 0 | 1 | 2;
+  /** @deprecated Dom Debugging is no longer supported in this version of Stagehand. */
   debugDom?: boolean;
   llmProvider?: LLMProvider;
   /** @deprecated Please use `localBrowserLaunchOptions` instead. That will override this. */
@@ -40,6 +42,8 @@ export interface ConstructorParams {
    */
   waitForCaptchaSolves?: boolean;
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  actTimeoutMs?: number;
+  logInferenceToFile?: boolean;
 }
 
 export interface InitOptions {
@@ -81,9 +85,10 @@ export interface ActOptions {
    * If true, the action will be performed in a slow manner that allows the DOM to settle.
    * This is useful for debugging.
    *
-   * @default false
+   * @default true
    */
   slowDomBasedAct?: boolean;
+  timeoutMs?: number;
 }
 
 export interface ActResult {
@@ -93,8 +98,8 @@ export interface ActResult {
 }
 
 export interface ExtractOptions<T extends z.AnyZodObject> {
-  instruction: string;
-  schema: T;
+  instruction?: string;
+  schema?: T;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
@@ -166,4 +171,83 @@ export interface LocalBrowserLaunchOptions {
   timezoneId?: string;
   bypassCSP?: boolean;
   cookies?: Cookie[];
+}
+
+export interface StagehandMetrics {
+  actPromptTokens: number;
+  actCompletionTokens: number;
+  actInferenceTimeMs: number;
+  extractPromptTokens: number;
+  extractCompletionTokens: number;
+  extractInferenceTimeMs: number;
+  observePromptTokens: number;
+  observeCompletionTokens: number;
+  observeInferenceTimeMs: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalInferenceTimeMs: number;
+}
+
+/**
+ * Options for executing a task with an agent
+ */
+export interface AgentExecuteParams {
+  /**
+   * The instruction to execute with the agent
+   */
+  instruction: string;
+  /**
+   * Maximum number of steps the agent can take to complete the task
+   * @default 10
+   */
+  maxSteps?: number;
+  /**
+   * Take a screenshot automatically before each agent step
+   * @default true
+   */
+  autoScreenshot?: boolean;
+  /**
+   * Wait time in milliseconds between agent actions
+   * @default 0
+   */
+  waitBetweenActions?: number;
+  /**
+   * Additional context to provide to the agent
+   */
+  context?: string;
+}
+
+/**
+ * Configuration for agent functionality
+ */
+export interface AgentConfig {
+  /**
+   * The provider to use for agent functionality
+   */
+  provider?: AgentProviderType;
+  /**
+   * The model to use for agent functionality
+   */
+  model?: string;
+  /**
+   * Custom instructions to provide to the agent
+   */
+  instructions?: string;
+  /**
+   * Additional options to pass to the agent client
+   */
+  options?: Record<string, unknown>;
+}
+
+export enum StagehandFunctionName {
+  ACT = "ACT",
+  EXTRACT = "EXTRACT",
+  OBSERVE = "OBSERVE",
+}
+
+export interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate";
+  parameters: unknown;
+  result: unknown;
+  timestamp: string;
 }

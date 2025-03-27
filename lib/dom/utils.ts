@@ -1,3 +1,5 @@
+import { StagehandDomProcessError } from "@/types/stagehandErrors";
+
 export async function waitForDomSettle() {
   return new Promise<void>((resolve) => {
     const createTimeout = () => {
@@ -13,8 +15,6 @@ export async function waitForDomSettle() {
     observer.observe(window.document.body, { childList: true, subtree: true });
   });
 }
-
-window.waitForDomSettle = waitForDomSettle;
 
 export function calculateViewportHeight() {
   return Math.ceil(window.innerHeight * 0.75);
@@ -43,7 +43,7 @@ export function canElementScroll(elem: HTMLElement): boolean {
 
     // If scrollTop never changed, consider it unscrollable
     if (elem.scrollTop === originalTop) {
-      throw new Error("scrollTop did not change");
+      throw new StagehandDomProcessError("scrollTop did not change");
     }
 
     // Scroll back to original place
@@ -68,4 +68,24 @@ export function getNodeFromXpath(xpath: string) {
     XPathResult.FIRST_ORDERED_NODE_TYPE,
     null,
   ).singleNodeValue;
+}
+
+export function waitForElementScrollEnd(
+  element: HTMLElement,
+  idleMs = 100,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let scrollEndTimer: number | undefined;
+
+    const handleScroll = () => {
+      clearTimeout(scrollEndTimer);
+      scrollEndTimer = window.setTimeout(() => {
+        element.removeEventListener("scroll", handleScroll);
+        resolve();
+      }, idleMs);
+    };
+
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+  });
 }

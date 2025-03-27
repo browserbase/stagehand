@@ -16,11 +16,11 @@ export const extract_regulations_table: EvalFunction = async ({
 
   try {
     await stagehand.page.goto(
-      "https://www.ncc.gov.ng/technical-regulation/standards/numbering",
+      "https://ncc-numberingplan-shortened.surge.sh/operators/",
     );
 
     const xpath =
-      "/html/body/div[2]/section[4]/div/div/div[1]/main/div[2]/div/div/div/div/div/div/div[2]/div[2]/div[3]/div[1]";
+      "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/table";
 
     const allottees = await stagehand.page.extract({
       instruction:
@@ -49,13 +49,13 @@ export const extract_regulations_table: EvalFunction = async ({
     };
 
     const allottees_expected_last = {
-      allottee_name: "21st Century Technologies Limited",
-      area: "Lagos",
-      area_code: "0201",
-      access_code: "278",
+      allottee_name: "Airtel Networks Limited",
+      area: "National",
+      area_code: "0708",
+      access_code: "708",
     };
 
-    const expected_length = 10;
+    const expected_length = 25;
 
     const allotteeList = allottees.allottee_list;
 

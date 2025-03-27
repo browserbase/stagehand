@@ -26,6 +26,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import { z } from "zod";
+import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   try {
@@ -226,7 +227,7 @@ export class OllamaClient extends LLMClient {
     if (options.response_model) {
       const extractedData = response.choices[0].message.content;
       if (!extractedData) {
-        throw new Error("No content in response");
+        throw new CreateChatCompletionResponseError("No content in response");
       }
       const parsedData = JSON.parse(extractedData);
 
@@ -239,7 +240,7 @@ export class OllamaClient extends LLMClient {
           });
         }
 
-        throw new Error("Invalid response schema");
+        throw new CreateChatCompletionResponseError("Invalid response schema");
       }
 
       return parsedData;

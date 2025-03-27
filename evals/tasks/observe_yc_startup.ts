@@ -32,8 +32,8 @@ export const observe_yc_startup: EvalFunction = async ({
   }
 
   const possibleLocators = [
-    `div._section_1pgsr_163._results_1pgsr_343`,
-    `div._rightCol_1pgsr_592`,
+    `div._rightCol_i9oky_592`,
+    `div._section_i9oky_163._results_i9oky_343`,
   ];
 
   const possibleHandles = [];

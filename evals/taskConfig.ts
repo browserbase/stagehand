@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 import { AvailableModel, AvailableModelSchema } from "@/dist";
 import { filterByEvalName } from "./args";
+import { UnsupportedModelError } from "@/types/stagehandErrors";
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
 const configPath = path.join(__dirname, "evals.config.json");
@@ -62,7 +63,7 @@ const getModelList = (): string[] => {
 };
 const MODELS: AvailableModel[] = getModelList().map((model) => {
   if (!AvailableModelSchema.safeParse(model).success) {
-    throw new Error(`Model ${model} is not a supported model`);
+    throw new UnsupportedModelError(getModelList(), "Running evals");
   }
   return model as AvailableModel;
 });

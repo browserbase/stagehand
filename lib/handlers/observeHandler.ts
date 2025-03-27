@@ -1,5 +1,5 @@
 import { LogLine } from "../../types/log";
-import { Stagehand } from "../index";
+import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
@@ -113,7 +113,21 @@ export class StagehandObserveHandler {
       logger: this.logger,
       isUsingAccessibilityTree: useAccessibilityTree,
       returnAction,
+      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
+
+    const {
+      prompt_tokens = 0,
+      completion_tokens = 0,
+      inference_time_ms = 0,
+    } = observationResponse;
+
+    this.stagehand.updateMetrics(
+      StagehandFunctionName.OBSERVE,
+      prompt_tokens,
+      completion_tokens,
+      inference_time_ms,
+    );
 
     //Add iframes to the observation response if there are any on the page
     if (iframes.length > 0) {
@@ -185,7 +199,6 @@ export class StagehandObserveHandler {
         };
       }),
     );
-    await this.stagehandPage.cleanupDomDebug();
 
     this.logger({
       category: "observation",

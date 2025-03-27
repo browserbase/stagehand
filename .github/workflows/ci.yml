@@ -20,28 +20,34 @@ jobs:
   determine-evals:
     runs-on: ubuntu-latest
     outputs:
+      run-combination: ${{ steps.check-labels.outputs.run-combination }}
       run-extract: ${{ steps.check-labels.outputs.run-extract }}
       run-act: ${{ steps.check-labels.outputs.run-act }}
       run-observe: ${{ steps.check-labels.outputs.run-observe }}
       run-text-extract: ${{ steps.check-labels.outputs.run-text-extract }}
+      run-targeted-extract: ${{ steps.check-labels.outputs.run-targeted-extract }}
     steps:
       - id: check-labels
         run: |
           # Default to running all tests on main branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Running all tests for main branch"
+            echo "run-combination=true" >> $GITHUB_OUTPUT
             echo "run-extract=true" >> $GITHUB_OUTPUT
             echo "run-act=true" >> $GITHUB_OUTPUT
             echo "run-observe=true" >> $GITHUB_OUTPUT
             echo "run-text-extract=true" >> $GITHUB_OUTPUT
+            echo "run-targeted-extract=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           # Check for specific labels
+          echo "run-combination=${{ contains(github.event.pull_request.labels.*.name, 'combination') }}" >> $GITHUB_OUTPUT
           echo "run-extract=${{ contains(github.event.pull_request.labels.*.name, 'extract') }}" >> $GITHUB_OUTPUT
           echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-text-extract=${{ contains(github.event.pull_request.labels.*.name, 'text-extract') }}" >> $GITHUB_OUTPUT
+          echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
 
   run-lint:
     runs-on: ubuntu-latest
@@ -144,7 +150,7 @@ jobs:
         run: npm run e2e:local
 
   run-e2e-bb-tests:
-    needs: [run-e2e-tests]
+    needs: [run-lint, run-build]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     if: >
@@ -180,10 +186,13 @@ jobs:
       - name: Run E2E Tests (browserbase)
         run: npm run e2e:bb
 
-  run-combination-evals:
-    needs: [run-e2e-bb-tests, run-e2e-tests, determine-evals]
+  run-regression-evals-dom-extract:
+    needs:
+      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 7
+    outputs:
+      regression_dom_score: ${{ steps.set-dom-score.outputs.regression_dom_score }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -213,10 +222,144 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
+      - name: Run Regression Evals (domExtract)
+        run: npm run evals category regression_dom_extract trials=2 concurrency=12 env=BROWSERBASE -- --extract-method=domExtract
+
+      - name: Save Regression domExtract Results
+        run: mv eval-summary.json eval-summary-regression-dom.json
+
+      - name: Log and Regression (domExtract) Evals Performance
+        id: set-dom-score
+        run: |
+          experimentNameRegressionDom=$(jq -r '.experimentName' eval-summary-regression-dom.json)
+          regression_dom_score=$(jq '.categories.regression_dom_extract' eval-summary-regression-dom.json)
+          echo "regression_dom_extract category score: ${regression_dom_score}%"
+          echo "View regression_dom_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionDom}"
+          echo "regression_dom_score=$regression_dom_score" >> "$GITHUB_OUTPUT"
+
+  run-regression-evals-text-extract:
+    needs:
+      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    outputs:
+      regression_text_score: ${{ steps.set-text-score.outputs.regression_text_score }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+
+      - name: Build Stagehand
+        run: npm run build
+
+      - name: Install Playwright browsers
+        run: npm exec playwright install --with-deps
+
+      - name: Run Regression Evals (textExtract)
+        run: npm run evals category regression_text_extract trials=2 concurrency=12 env=BROWSERBASE -- --extract-method=textExtract
+
+      - name: Save Regression textExtract Results
+        run: mv eval-summary.json eval-summary-regression-text.json
+
+      - name: Log Regression (textExtract) Evals Performance
+        id: set-text-score
+        run: |
+          experimentNameRegressionText=$(jq -r '.experimentName' eval-summary-regression-text.json)
+          regression_text_score=$(jq '.categories.regression_text_extract' eval-summary-regression-text.json)
+          echo "regression_text_extract category score: ${regression_text_score}%"
+          echo "View regression_text_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionText}"
+          echo "regression_text_score=$regression_text_score" >> "$GITHUB_OUTPUT"
+
+  check-regression-evals-score:
+    needs: [run-regression-evals-text-extract, run-regression-evals-dom-extract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Compare Overall Regression Evals Score
+        run: |
+          regression_dom_score="${{ needs.run-regression-evals-dom-extract.outputs.regression_dom_score }}"
+          regression_text_score="${{ needs.run-regression-evals-text-extract.outputs.regression_text_score }}"
+
+          overall_score=$(echo "(${regression_dom_score} + ${regression_text_score}) / 2" | bc -l)
+          echo "Overall regression score: ${overall_score}%"
+
+          # Fail if overall score is below 90%
+          if (( $(echo "${overall_score} < 90" | bc -l) )); then
+            echo "Overall regression score is below 90%. Failing CI."
+            exit 1
+          fi
+
+  run-combination-evals:
+    needs: [check-regression-evals-score, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Check for 'combination' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-combination }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for COMBINATION. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+
+      - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        run: npm run build
+
+      - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-combination == 'true'
+        run: npm exec playwright install --with-deps
+
       - name: Run Combination Evals
+        if: needs.determine-evals.outputs.run-combination == 'true'
         run: npm run evals category combination
 
       - name: Log Combination Evals Performance
+        if: needs.determine-evals.outputs.run-combination == 'true'
         run: |
           experimentName=$(jq -r '.experimentName' eval-summary.json)
           echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
@@ -516,5 +659,73 @@ jobs:
             fi
           else
             echo "Eval summary not found for observe category. Failing CI."
+            exit 1
+          fi
+
+  run-targeted-extract-evals:
+    needs: [run-observe-evals, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Check for 'targeted-extract' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-targeted-extract }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for TARGETED-EXTRACT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          rm -rf node_modules
+          rm -f package-lock.json
+          npm install
+
+      - name: Install Playwright browsers
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm exec playwright install --with-deps
+
+      - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm run build
+
+      - name: Run targeted extract Evals
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: npm run evals category targeted_extract -- --extract-method=textExtract
+
+      - name: Log targeted extract Evals Performance
+        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
+        run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            targeted_extract_score=$(jq '.categories.targeted_extract' eval-summary.json)
+            echo "Targeted extract category score: $targeted_extract_score%"
+            if (( $(echo "$targeted_extract_score < 80" | bc -l) )); then
+              echo "Targeted extract score is below 80%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for targeted_extract category. Failing CI."
             exit 1
           fi

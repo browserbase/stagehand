@@ -1,4 +1,7 @@
 import { LLMClient } from "../lib/llm/LLMClient";
+import { Locator } from "@playwright/test";
+import { Logger } from "@/types/log";
+import { StagehandPage } from "@/lib/StagehandPage";
 
 // WARNING: This is NOT to be confused with the ActParams type used in `page.act()`.
 // This is the type for the parameters passed to the `act` command in `inference.ts`.
@@ -32,4 +35,22 @@ export enum SupportedPlaywrightAction {
   CLICK = "click",
   FILL = "fill",
   TYPE = "type",
+  SCROLL = "scrollTo",
+  NEXT_CHUNK = "nextChunk",
+  PREV_CHUNK = "prevChunk",
+}
+
+/**
+ * A context object to hold all parameters that might be needed by
+ * any of the methods in the `methodHandlerMap`
+ */
+export interface MethodHandlerContext {
+  method: string;
+  locator: Locator;
+  xpath: string;
+  args: unknown[];
+  logger: Logger;
+  stagehandPage: StagehandPage;
+  initialUrl: string;
+  domSettleTimeoutMs?: number;
 }

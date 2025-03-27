@@ -5,7 +5,8 @@ import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { formatText } from "../utils";
 import { StagehandPage } from "../StagehandPage";
-import { Stagehand } from "../index";
+import { Stagehand, StagehandFunctionName } from "../index";
+import { pageTextSchema } from "../../types/page";
 
 const PROXIMITY_THRESHOLD = 15;
 
@@ -118,16 +119,26 @@ export class StagehandExtractHandler {
     useTextExtract = false,
     selector,
   }: {
-    instruction: string;
-    schema: T;
+    instruction?: string;
+    schema?: T;
     content?: z.infer<T>;
     chunksSeen?: Array<number>;
-    llmClient: LLMClient;
+    llmClient?: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
     selector?: string;
-  }): Promise<z.infer<T>> {
+  } = {}): Promise<z.infer<T>> {
+    const noArgsCalled = !instruction && !schema && !llmClient && !selector;
+    if (noArgsCalled) {
+      this.logger({
+        category: "extraction",
+        message: "Extracting the entire page text.",
+        level: 1,
+      });
+      return this.extractPageText();
+    }
+
     if (useTextExtract) {
       return this.textExtract({
         instruction,
@@ -151,6 +162,49 @@ export class StagehandExtractHandler {
     }
   }
 
+  private async extractPageText(): Promise<{ page_text?: string }> {
+    await this.stagehandPage._waitForSettledDom();
+
+    const originalDOM = await this.stagehandPage.page.evaluate(() =>
+      window.storeDOM(undefined),
+    );
+
+    const { selectorMap }: { selectorMap: Record<number, string[]> } =
+      await this.stagehand.page.evaluate(() =>
+        window.processAllOfDom(undefined),
+      );
+
+    await this.stagehand.page.evaluate(() =>
+      window.createTextBoundingBoxes(undefined),
+    );
+
+    const containerDims = await this.getTargetDimensions();
+
+    const allAnnotations = await this.collectAllAnnotations(
+      selectorMap,
+      containerDims.width,
+      containerDims.height,
+      containerDims.offsetLeft,
+      containerDims.offsetTop,
+    );
+
+    const deduplicatedTextAnnotations =
+      this.deduplicateAnnotations(allAnnotations);
+
+    await this.stagehandPage.page.evaluate(
+      (dom) => window.restoreDOM(dom, undefined),
+      originalDOM,
+    );
+
+    const formattedText = formatText(
+      deduplicatedTextAnnotations,
+      containerDims.width,
+    );
+
+    const result = { page_text: formattedText };
+    return pageTextSchema.parse(result);
+  }
+
   private async textExtract<T extends z.AnyZodObject>({
     instruction,
     schema,
@@ -160,10 +214,10 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs,
     selector,
   }: {
-    instruction: string;
-    schema: T;
+    instruction?: string;
+    schema?: T;
     content?: z.infer<T>;
-    llmClient: LLMClient;
+    llmClient?: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
     selector?: string;
@@ -182,9 +236,8 @@ export class StagehandExtractHandler {
 
     // **1:** Wait for the DOM to settle and start DOM debugging
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    await this.stagehandPage.startDomDebug();
 
-    const targetXpath = selector;
+    const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
 
     // **2:** Store the original DOM before any mutations
     // we need to store the original DOM here because calling createTextBoundingBoxes()
@@ -300,15 +353,23 @@ export class StagehandExtractHandler {
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
+      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
 
     const {
       metadata: { completed },
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      inference_time_ms: inferenceTimeMs,
       ...output
     } = extractionResponse;
 
-    // Clean up debug
-    await this.stagehandPage.cleanupDomDebug();
+    this.stagehand.updateMetrics(
+      StagehandFunctionName.EXTRACT,
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs,
+    );
 
     // **11:** Handle the extraction response and log the results
     this.logger({
@@ -382,7 +443,6 @@ export class StagehandExtractHandler {
     // **1:** Wait for the DOM to settle and start DOM debugging
     // This ensures the page is stable before extracting any data.
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    await this.stagehandPage.startDomDebug();
 
     // **2:** Call processDom() to handle chunk-based extraction
     // processDom determines which chunk of the page to process next.
@@ -432,14 +492,23 @@ export class StagehandExtractHandler {
       isUsingTextExtract: false,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
+      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
 
     const {
       metadata: { completed },
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      inference_time_ms: inferenceTimeMs,
       ...output
     } = extractionResponse;
 
-    await this.stagehandPage.cleanupDomDebug();
+    this.stagehand.updateMetrics(
+      StagehandFunctionName.EXTRACT,
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs,
+    );
 
     this.logger({
       category: "extraction",
@@ -610,5 +679,42 @@ export class StagehandExtractHandler {
     }
 
     return allAnnotations;
+  }
+
+  /**
+   * Deduplicate text annotations by grouping them by text, then removing duplicates
+   * within a certain proximity threshold.
+   */
+  private deduplicateAnnotations(
+    annotations: TextAnnotation[],
+  ): TextAnnotation[] {
+    const annotationsGroupedByText = new Map<string, TextAnnotation[]>();
+    const deduplicated: TextAnnotation[] = [];
+
+    for (const annotation of annotations) {
+      if (!annotationsGroupedByText.has(annotation.text)) {
+        annotationsGroupedByText.set(annotation.text, []);
+      }
+      annotationsGroupedByText.get(annotation.text)!.push(annotation);
+    }
+
+    for (const [text, group] of annotationsGroupedByText.entries()) {
+      for (const annotation of group) {
+        const isDuplicate = deduplicated.some((existing) => {
+          if (existing.text !== text) return false;
+
+          const dx = existing.bottom_left.x - annotation.bottom_left.x;
+          const dy = existing.bottom_left.y - annotation.bottom_left.y;
+          const distance = Math.hypot(dx, dy);
+          return distance < PROXIMITY_THRESHOLD;
+        });
+
+        if (!isDuplicate) {
+          deduplicated.push(annotation);
+        }
+      }
+    }
+
+    return deduplicated;
   }
 }

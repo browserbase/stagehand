@@ -1,6 +1,18 @@
 {
   "tasks": [
     {
+      "name": "history",
+      "categories": ["combination"]
+    },
+    {
+      "name": "expect_act_timeout",
+      "categories": ["act"]
+    },
+    {
+      "name": "expect_act_timeout_global",
+      "categories": ["act"]
+    },
+    {
       "name": "extract_repo_name",
       "categories": ["extract"]
     },
@@ -18,7 +30,7 @@
     },
     {
       "name": "ionwave",
-      "categories": ["act"]
+      "categories": ["act", "regression_dom_extract"]
     },
     {
       "name": "nonsense_action",
@@ -71,7 +83,7 @@
     },
     {
       "name": "wichita",
-      "categories": ["combination"]
+      "categories": ["combination", "regression_dom_extract"]
     },
 
     {
@@ -96,7 +108,7 @@
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental", "text_extract", "regression_text_extract"]
     },
     {
       "name": "extract_capacitor_info",
@@ -145,7 +157,7 @@
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": ["extract"]
+      "categories": ["extract", "regression_dom_extract"]
     },
     {
       "name": "extract_nhl_stats",
@@ -214,11 +226,11 @@
     },
     {
       "name": "observe_github",
-      "categories": ["observe"]
+      "categories": ["observe", "regression_text_extract"]
     },
     {
       "name": "observe_vantechjournal",
-      "categories": ["observe"]
+      "categories": ["observe", "regression_text_extract"]
     },
     {
       "name": "observe_amazon_add_to_cart",
@@ -246,11 +258,47 @@
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": ["text_extract"]
+      "categories": ["targeted_extract", "regression_text_extract"]
     },
     {
       "name": "extract_regulations_table",
-      "categories": ["text_extract"]
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_recipe",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_aigrant_targeted",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_aigrant_targeted_2",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_geniusee",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "extract_geniusee_2",
+      "categories": ["targeted_extract"]
+    },
+    {
+      "name": "scroll_50",
+      "categories": ["act"]
+    },
+    {
+      "name": "scroll_75",
+      "categories": ["act", "regression_dom_extract"]
+    },
+    {
+      "name": "nextChunk",
+      "categories": ["act"]
+    },
+    {
+      "name": "prevChunk",
+      "categories": ["act"]
     }
   ]
 }

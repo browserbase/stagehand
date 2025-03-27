@@ -7,13 +7,19 @@ import {
 import { LLMCache } from "../cache/LLMCache";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
+import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+import {
+  UnsupportedModelError,
+  UnsupportedModelProviderError,
+} from "@/types/stagehandErrors";
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4o": "openai",
   "gpt-4o-mini": "openai",
   "gpt-4o-2024-08-06": "openai",
+  "gpt-4.5-preview": "openai",
   "o1-mini": "openai",
   "o1-preview": "openai",
   "o3-mini": "openai",
@@ -21,8 +27,11 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "claude-3-5-sonnet-20240620": "anthropic",
   "claude-3-5-sonnet-20241022": "anthropic",
   "claude-3-7-sonnet-20250219": "anthropic",
+  "claude-3-7-sonnet-latest": "anthropic",
   "cerebras-llama-3.3-70b": "cerebras",
   "cerebras-llama-3.1-8b": "cerebras",
+  "groq-llama-3.3-70b-versatile": "groq",
+  "groq-llama-3.3-70b-specdec": "groq",
 };
 
 export class LLMProvider {
@@ -61,7 +70,7 @@ export class LLMProvider {
   ): LLMClient {
     const provider = modelToProviderMap[modelName];
     if (!provider) {
-      throw new Error(`Unsupported model: ${modelName}`);
+      throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
 
     switch (provider) {
@@ -89,8 +98,18 @@ export class LLMProvider {
           modelName,
           clientOptions,
         });
+      case "groq":
+        return new GroqClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
       default:
-        throw new Error(`Unsupported provider: ${provider}`);
+        throw new UnsupportedModelProviderError([
+          ...new Set(Object.values(modelToProviderMap)),
+        ]);
     }
   }
 

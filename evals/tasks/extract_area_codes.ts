@@ -16,7 +16,7 @@ export const extract_area_codes: EvalFunction = async ({
 
   await stagehand.init();
   await stagehand.page.goto(
-    "https://www.ncc.gov.ng/technical-regulation/standards/numbering#area-codes-by-zone-primary-centre",
+    "https://ncc-area-codes-clone.surge.sh/operators/",
     { waitUntil: "domcontentloaded" },
   );
 
@@ -60,7 +60,7 @@ export const extract_area_codes: EvalFunction = async ({
   };
 
   const expectedLastItem = {
-    zone_name: "South-East Zone",
+    zone_name: "South-East",
     primary_center_name: "Yenagoa",
     area_code: "089",
   };
