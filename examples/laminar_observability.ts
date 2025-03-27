@@ -5,28 +5,20 @@
 //    - You can alternatively spin up Laminar locally, see https://github.com/lmnr-ai/lmnr
 // 2. Run `export LMNR_PROJECT_API_KEY=<your-api-key>`
 // 3. Expose your OPENAI_API_KEY to the environment.
-// 4. IMPORTANT:
-//    - For automatic instrumentation to work, make sure you are importing
-//      Stagehand from `@browserbase/stagehand`.
-//    - That is, you need to first `npm install @browserbasehq/stagehand`
 
 import { Laminar } from "@lmnr-ai/lmnr";
+import { Stagehand } from "@/dist";
+import { z } from "zod";
 
-// It is important to initialize Laminar before importing Stagehand.
-// In real applications, this will probably happen in a different file, at the entry
-// point of your application.
-// For example, in Next.js, you would initialize laminar in
-// [instrumentation.ts](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation)
 Laminar.initialize({
   projectApiKey: process.env.LMNR_PROJECT_API_KEY,
+  // In some JS bundlers, you may not need to pass instrumentModules; it may
+  // be enough to initialize Laminar *before* importing Stagehand.
+  instrumentModules: {
+    stagehand: Stagehand,
+  }
 });
 
-// Comment out the following line (see point 4 above).
-import { Stagehand } from "@/dist";
-// And uncomment the following line (see point 4 above).
-// import { Stagehand } from "@browserbasehq/stagehand";
-
-import { z } from "zod";
 
 async function example() {
   const stagehand = new Stagehand({
