@@ -16,9 +16,8 @@ Laminar.initialize({
   // be enough to initialize Laminar *before* importing Stagehand.
   instrumentModules: {
     stagehand: Stagehand,
-  }
+  },
 });
-
 
 async function example() {
   const stagehand = new Stagehand({
