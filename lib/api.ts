@@ -52,7 +52,7 @@ export class StagehandAPI {
     waitForCaptchaSolves,
     actionTimeoutMs,
     browserbaseSessionCreateParams,
-    browserbaseSessionId,
+    browserbaseSessionID,
   }: StartSessionParams): Promise<StartSessionResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
@@ -70,7 +70,7 @@ export class StagehandAPI {
         waitForCaptchaSolves,
         actionTimeoutMs,
         browserbaseSessionCreateParams,
-        browserbaseSessionId,
+        browserbaseSessionID,
       }),
     });
 
