@@ -6,7 +6,6 @@ async function example() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 1,
-    debugDom: true,
     domSettleTimeoutMs: 100,
   });
   try {

@@ -191,7 +191,6 @@ export class StagehandActHandler {
         // Call act with the ObserveResult description
         return await this.stagehandPage.act({
           action: actCommand,
-          slowDomBasedAct: true,
         });
       } catch (err) {
         this.logger({
@@ -255,45 +254,69 @@ export class StagehandActHandler {
       );
     }
 
-    // Craft the instruction for observe
-    const instruction = buildActObservePrompt(
-      action,
-      Object.values(SupportedPlaywrightAction),
-      actionOrOptions.variables,
-    );
-
-    // Call observe with the instruction and extracted options
-    const observeResults = await observeHandler.observe({
-      instruction,
-      llmClient: llmClient,
-      requestId,
-      onlyVisible: false,
-      drawOverlay: false,
-      returnAction: true,
-    });
-
-    if (observeResults.length === 0) {
-      return {
-        success: false,
-        message: `Failed to perform act: No observe results found for action`,
+    // doObserveAndAct is just a wrapper of observeAct and actFromObserveResult.
+    // we did this so that we can cleanly call a Promise.race, and race
+    // doObserveAndAct against the user defined timeoutMs (if one was defined)
+    const doObserveAndAct = async (): Promise<ActResult> => {
+      const instruction = buildActObservePrompt(
         action,
-      };
+        Object.values(SupportedPlaywrightAction),
+        actionOrOptions.variables,
+      );
+
+      const observeResults = await observeHandler.observe({
+        instruction,
+        llmClient,
+        requestId,
+        onlyVisible: false,
+        drawOverlay: false,
+        returnAction: true,
+      });
+
+      if (observeResults.length === 0) {
+        return {
+          success: false,
+          message: `Failed to perform act: No observe results found for action`,
+          action,
+        };
+      }
+
+      const element: ObserveResult = observeResults[0];
+
+      if (actionOrOptions.variables) {
+        Object.keys(actionOrOptions.variables).forEach((key) => {
+          element.arguments = element.arguments.map((arg) =>
+            arg.replace(key, actionOrOptions.variables![key]),
+          );
+        });
+      }
+
+      return this.actFromObserveResult(
+        element,
+        actionOrOptions.domSettleTimeoutMs,
+      );
+    };
+
+    // if no user defined timeoutMs, just do observeAct + actFromObserveResult
+    // with no timeout
+    if (!actionOrOptions.timeoutMs) {
+      return doObserveAndAct();
     }
 
-    // Perform the action on the first observed element
-    const element: ObserveResult = observeResults[0];
-    // Replace the arguments with the variables if any
-    if (actionOrOptions.variables) {
-      Object.keys(actionOrOptions.variables).forEach((key) => {
-        element.arguments = element.arguments.map((arg) =>
-          arg.replace(key, actionOrOptions.variables[key]),
-        );
-      });
-    }
-    return this.actFromObserveResult(
-      element,
-      actionOrOptions.domSettleTimeoutMs,
-    );
+    // Race observeAct + actFromObserveResult vs. the timeoutMs
+    const { timeoutMs } = actionOrOptions;
+    return await Promise.race([
+      doObserveAndAct(),
+      new Promise<ActResult>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: false,
+            message: `Action timed out after ${timeoutMs}ms`,
+            action,
+          });
+        }, timeoutMs);
+      }),
+    ]);
   }
 
   private async _recordAction(action: string, result: string): Promise<string> {

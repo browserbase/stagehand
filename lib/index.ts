@@ -11,16 +11,12 @@ import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
 import { AvailableModel } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
-import { GotoOptions } from "../types/playwright";
 import {
   ActOptions,
   ActResult,
   ConstructorParams,
   ExtractOptions,
   ExtractResult,
-  InitFromPageOptions,
-  InitFromPageResult,
-  InitOptions,
   InitResult,
   LocalBrowserLaunchOptions,
   ObserveOptions,
@@ -53,12 +49,6 @@ import {
 dotenv.config({ path: ".env" });
 
 const DEFAULT_MODEL_NAME = "gpt-4o";
-const BROWSERBASE_REGION_DOMAIN = {
-  "us-west-2": "wss://connect.usw2.browserbase.com",
-  "us-east-1": "wss://connect.use1.browserbase.com",
-  "eu-central-1": "wss://connect.euc1.browserbase.com",
-  "ap-southeast-1": "wss://connect.apse1.browserbase.com",
-};
 
 async function getBrowser(
   apiKey: string | undefined,
@@ -117,10 +107,8 @@ async function getBrowser(
         }
 
         sessionId = browserbaseSessionID;
-        const browserbaseDomain =
-          BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
-          "wss://connect.browserbase.com";
-        connectUrl = `${browserbaseDomain}?apiKey=${apiKey}&sessionId=${sessionId}`;
+        const session = await browserbase.sessions.retrieve(sessionId);
+        connectUrl = session.connectUrl;
 
         logger({
           category: "init",
@@ -241,6 +229,26 @@ async function getBrowser(
           },
         },
       });
+    }
+
+    if (localBrowserLaunchOptions?.cdpUrl) {
+      logger({
+        category: "init",
+        message: "connecting to local browser via CDP URL",
+        level: 0,
+        auxiliary: {
+          cdpUrl: {
+            value: localBrowserLaunchOptions.cdpUrl,
+            type: "string",
+          },
+        },
+      });
+
+      const browser = await chromium.connectOverCDP(
+        localBrowserLaunchOptions.cdpUrl,
+      );
+      const context = browser.contexts()[0];
+      return { browser, context, env: "LOCAL" };
     }
 
     let userDataDir = localBrowserLaunchOptions?.userDataDir;
@@ -469,10 +477,8 @@ export class Stagehand {
       apiKey,
       projectId,
       verbose,
-      debugDom,
       llmProvider,
       llmClient,
-      headless,
       logger,
       browserbaseSessionCreateParams,
       domSettleTimeoutMs,
@@ -483,9 +489,7 @@ export class Stagehand {
       systemPrompt,
       useAPI,
       localBrowserLaunchOptions,
-      selfHeal = true,
       waitForCaptchaSolves = false,
-      actTimeoutMs = 60_000,
       logInferenceToFile = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
@@ -501,7 +505,6 @@ export class Stagehand {
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
     this.verbose = verbose ?? 0;
-    this.debugDom = debugDom ?? false;
     if (llmClient) {
       this.llmClient = llmClient;
     } else {
@@ -517,14 +520,12 @@ export class Stagehand {
     }
 
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
-    this.headless = headless ?? false;
+    this.headless = localBrowserLaunchOptions?.headless ?? false;
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
     this.usingAPI = useAPI ?? false;
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
-    this.actTimeoutMs = actTimeoutMs;
-
     if (this.usingAPI && env === "LOCAL") {
       throw new StagehandEnvironmentError("LOCAL", "BROWSERBASE", "API mode");
     } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
@@ -541,8 +542,6 @@ export class Stagehand {
       throw new UnsupportedModelError(["openai", "anthropic"], "API mode");
     }
     this.waitForCaptchaSolves = waitForCaptchaSolves;
-
-    this.selfHeal = selfHeal;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
 
     if (this.usingAPI) {
@@ -591,21 +590,12 @@ export class Stagehand {
     return this.stagehandContext.context;
   }
 
-  async init(
-    /** @deprecated Use constructor options instead */
-    initOptions?: InitOptions,
-  ): Promise<InitResult> {
+  async init(): Promise<InitResult> {
     if (isRunningInBun()) {
       throw new StagehandError(
         "Playwright does not currently support the Bun runtime environment. " +
           "Please use Node.js instead. For more information, see: " +
           "https://github.com/microsoft/playwright/issues/27139",
-      );
-    }
-
-    if (initOptions) {
-      console.warn(
-        "Passing parameters to init() is deprecated and will be removed in the next major version. Use constructor options instead.",
       );
     }
 
@@ -675,43 +665,6 @@ export class Stagehand {
     this.browserbaseSessionID = sessionId;
 
     return { debugUrl, sessionUrl, sessionId };
-  }
-
-  /** @deprecated initFromPage is deprecated and will be removed in the next major version. */
-  async initFromPage({
-    page,
-  }: InitFromPageOptions): Promise<InitFromPageResult> {
-    console.warn(
-      "initFromPage is deprecated and will be removed in the next major version. To instantiate from a page, use `browserbaseSessionID` in the constructor.",
-    );
-    this.stagehandPage = await new StagehandPage(
-      page,
-      this,
-      this.stagehandContext,
-      this.llmClient,
-    ).init();
-    this.stagehandContext = await StagehandContext.init(page.context(), this);
-
-    const originalGoto = this.page.goto.bind(this.page);
-    this.page.goto = async (url: string, options?: GotoOptions) => {
-      const result = await originalGoto(url, options);
-      if (this.debugDom) {
-        await this.page.evaluate(() => (window.showChunks = this.debugDom));
-      }
-      await this.page.waitForLoadState("domcontentloaded");
-      await this.stagehandPage._waitForSettledDom();
-      return result;
-    };
-
-    if (this.headless) {
-      await this.page.setViewportSize({ width: 1280, height: 720 });
-    }
-
-    await this.context.addInitScript({
-      content: scriptContent,
-    });
-
-    return { context: this.context };
   }
 
   private pending_logs_to_send_to_browserbase: LogLine[] = [];

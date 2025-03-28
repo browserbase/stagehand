@@ -32,7 +32,6 @@ export const prevChunk: EvalFunction = async ({ modelName, logger }) => {
   await new Promise((resolve) => setTimeout(resolve, 2000));
   await stagehand.page.act({
     action: "scroll up one chunk",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 5000));

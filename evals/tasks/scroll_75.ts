@@ -12,7 +12,6 @@ export const scroll_75: EvalFunction = async ({ modelName, logger }) => {
   await stagehand.page.goto("https://aigrant.com/");
   await stagehand.page.act({
     action: "Scroll 75% down the page",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 5000));
