@@ -60,7 +60,7 @@ export class CerebrasClient extends LLMClient {
     logger({
       category: "cerebras",
       message: "creating chat completion",
-      level: 1,
+      level: 2,
       auxiliary: {
         options: {
           value: JSON.stringify(optionsWithoutImage),
@@ -221,7 +221,7 @@ export class CerebrasClient extends LLMClient {
       logger({
         category: "cerebras",
         message: "response",
-        level: 1,
+        level: 2,
         auxiliary: {
           response: {
             value: JSON.stringify(response),
@@ -249,7 +249,7 @@ export class CerebrasClient extends LLMClient {
             logger({
               category: "cerebras",
               message: "failed to parse tool call arguments as JSON, retrying",
-              level: 1,
+              level: 0,
               auxiliary: {
                 error: {
                   value: e.message,
@@ -277,7 +277,7 @@ export class CerebrasClient extends LLMClient {
             logger({
               category: "cerebras",
               message: "failed to parse content as JSON",
-              level: 1,
+              level: 0,
               auxiliary: {
                 error: {
                   value: e.message,
@@ -309,7 +309,7 @@ export class CerebrasClient extends LLMClient {
       logger({
         category: "cerebras",
         message: "error creating chat completion",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: {
             value: error.message,

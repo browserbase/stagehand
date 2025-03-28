@@ -125,7 +125,7 @@ export class OpenAIClient extends LLMClient {
     logger({
       category: "openai",
       message: "creating chat completion",
-      level: 1,
+      level: 2,
       auxiliary: {
         options: {
           value: JSON.stringify({
@@ -259,7 +259,7 @@ export class OpenAIClient extends LLMClient {
     logger({
       category: "openai",
       message: "creating chat completion",
-      level: 1,
+      level: 2,
       auxiliary: {
         openAiOptions: {
           value: JSON.stringify(openAiOptions),
@@ -394,7 +394,7 @@ export class OpenAIClient extends LLMClient {
     logger({
       category: "openai",
       message: "response",
-      level: 1,
+      level: 2,
       auxiliary: {
         response: {
           value: JSON.stringify(response),
