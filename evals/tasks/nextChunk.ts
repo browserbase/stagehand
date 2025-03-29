@@ -13,7 +13,6 @@ export const nextChunk: EvalFunction = async ({ modelName, logger }) => {
   await stagehand.page.goto("https://www.apartments.com/san-francisco-ca/");
   await stagehand.page.act({
     action: "click on the all filters button",
-    slowDomBasedAct: false,
   });
 
   const { initialScrollTop, chunkHeight } = await stagehand.page.evaluate(
@@ -36,7 +35,6 @@ export const nextChunk: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.act({
     action: "scroll down one chunk on the filters modal",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 2000));

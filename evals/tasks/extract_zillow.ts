@@ -11,9 +11,6 @@ export const extract_zillow: EvalFunction = async ({
     modelName,
     logger,
     domSettleTimeoutMs: 3000,
-    configOverrides: {
-      debugDom: false,
-    },
   });
 
   const { debugUrl, sessionUrl } = initResponse;

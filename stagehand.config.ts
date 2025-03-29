@@ -10,8 +10,6 @@ const StagehandConfig: ConstructorParams = {
       : "LOCAL",
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
-  debugDom: false /* Enable DOM debugging features */,
-  headless: false /* Run browser in headless mode */,
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
@@ -30,5 +28,8 @@ const StagehandConfig: ConstructorParams = {
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY,
   } /* Configuration options for the model client */,
+  localBrowserLaunchOptions: {
+    headless: false,
+  },
 };
 export default StagehandConfig;

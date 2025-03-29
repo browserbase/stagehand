@@ -16,7 +16,6 @@ export const expect_act_timeout: EvalFunction = async ({
   const result = await stagehand.page.act({
     action: "search for 'Stagehand'",
     timeoutMs: 1_000,
-    slowDomBasedAct: true,
   });
 
   await stagehand.close();
