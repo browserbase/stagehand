@@ -102,5 +102,8 @@
   "bugs": {
     "url": "https://github.com/browserbase/stagehand/issues"
   },
-  "homepage": "https://github.com/browserbase/stagehand#readme"
+  "homepage": "https://stagehand.dev",
+  "overrides": {
+    "whatwg-url": "^14.0.0"
+  }
 }
