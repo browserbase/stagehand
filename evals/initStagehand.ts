@@ -11,8 +11,15 @@
  */
 
 import { enableCaching, env } from "./env";
-import { AvailableModel, ConstructorParams, LogLine, Stagehand } from "@/dist";
+import {
+  AvailableModel,
+  ConstructorParams,
+  LLMClient,
+  LogLine,
+  Stagehand,
+} from "@/dist";
 import { EvalLogger } from "./logger";
+import { StagehandEvalError } from "@/types/stagehandErrors";
 
 /**
  * StagehandConfig:
@@ -51,26 +58,37 @@ const StagehandConfig = {
  * - initResponse: Any response data returned by Stagehand initialization
  */
 export const initStagehand = async ({
+  llmClient,
   modelName,
   domSettleTimeoutMs,
   logger,
   configOverrides,
   actTimeoutMs,
 }: {
-  modelName: AvailableModel;
+  llmClient?: LLMClient;
+  modelName?: AvailableModel;
   domSettleTimeoutMs?: number;
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
   actTimeoutMs?: number;
 }) => {
+  if (llmClient && modelName) {
+    throw new StagehandEvalError("Cannot provide both llmClient and modelName");
+  }
+
+  if (!llmClient && !modelName) {
+    throw new StagehandEvalError("Must provide either llmClient or modelName");
+  }
+
   let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
-  if (modelName.startsWith("claude")) {
+  if (modelName?.startsWith("claude")) {
     chosenApiKey = process.env.ANTHROPIC_API_KEY;
   }
 
   const config = {
     ...StagehandConfig,
     modelName,
+    llmClient,
     ...(domSettleTimeoutMs && { domSettleTimeoutMs }),
     modelClientOptions: {
       apiKey: chosenApiKey,

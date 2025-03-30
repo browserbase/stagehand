@@ -1,36 +1,29 @@
-import { google } from "@ai-sdk/google";
-import { z } from "zod";
+import { openai } from "@ai-sdk/openai";
 import { Stagehand } from "@/dist";
 import { AISdkClient } from "./external_clients/aisdk";
 import StagehandConfig from "@/stagehand.config";
+import { z } from "zod";
 
 async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
     llmClient: new AISdkClient({
-      model: google("gemini-1.5-flash-latest"),
+      model: openai("gpt-4o"),
     }),
   });
 
   await stagehand.init();
   await stagehand.page.goto("https://news.ycombinator.com");
 
-  const headlines = await stagehand.page.extract({
-    instruction: "Extract only 3 stories from the Hacker News homepage.",
+  const { story } = await stagehand.page.extract({
     schema: z.object({
-      stories: z
-        .array(
-          z.object({
-            title: z.string(),
-            url: z.string(),
-            points: z.number(),
-          }),
-        )
-        .length(3),
+      story: z.string().describe("the top story on the page"),
     }),
   });
 
-  console.log(headlines);
+  console.log("The top story is:", story);
+
+  await stagehand.page.act("click the first story");
 
   await stagehand.close();
 }

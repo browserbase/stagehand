@@ -1,5 +1,4 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ChatGeneration } from "@langchain/core/outputs";
 import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
@@ -8,6 +7,7 @@ import {
   HumanMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import { ChatCompletion } from "openai/resources";
 
 export class LangchainClient extends LLMClient {
   public type = "langchainClient" as const;
@@ -18,7 +18,7 @@ export class LangchainClient extends LLMClient {
     this.model = model;
   }
 
-  async createChatCompletion<T = ChatGeneration>({
+  async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {
     const formattedMessages: BaseMessageLike[] = options.messages.map(
@@ -62,12 +62,26 @@ export class LangchainClient extends LLMClient {
       const structuredModel = this.model.withStructuredOutput(responseSchema);
       const response = await structuredModel.invoke(formattedMessages);
 
-      return response as T;
+      return {
+        data: response,
+        usage: {
+          prompt_tokens: 0, // Langchain doesn't provide token counts by default
+          completion_tokens: 0,
+          total_tokens: 0,
+        },
+      } as T;
     }
 
     const modelWithTools = this.model.bindTools(options.tools);
     const response = await modelWithTools.invoke(formattedMessages);
 
-    return response as T;
+    return {
+      data: response,
+      usage: {
+        prompt_tokens: 0, // Langchain doesn't provide token counts by default
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
+    } as T;
   }
 }

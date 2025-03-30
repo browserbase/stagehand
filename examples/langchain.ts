@@ -15,40 +15,17 @@ async function example() {
   });
 
   await stagehand.init();
-  await stagehand.page.goto("https://python.langchain.com/docs/introduction/");
+  await stagehand.page.goto("https://news.ycombinator.com");
 
-  await stagehand.page.waitForTimeout(1000);
-
-  const observation1 = await stagehand.page.observe({
-    instruction: "Go to the Conceptual Guide section",
-    returnAction: true,
-  });
-  if (observation1.length > 0) {
-    await stagehand.page.act(observation1[0]);
-  }
-
-  await stagehand.page.waitForTimeout(1000);
-
-  const observation2 = await stagehand.page.observe({
-    instruction: "Click on 'Why LangChain?' located in the content of the page",
-    returnAction: true,
-  });
-  if (observation2.length > 0) {
-    await stagehand.page.act(observation2[0]);
-  }
-
-  await stagehand.page.waitForTimeout(1000);
-
-  const result = await stagehand.page.extract({
-    instruction: "Extract the first paragraph of the page",
+  const { story } = await stagehand.page.extract({
     schema: z.object({
-      content: z.string(),
+      story: z.string().describe("the top story on the page"),
     }),
   });
 
-  console.log(result);
+  console.log("The top story is:", story);
 
-  await stagehand.page.waitForTimeout(5000);
+  await stagehand.page.act("click the first story");
 
   await stagehand.close();
 }

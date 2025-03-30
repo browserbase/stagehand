@@ -85,7 +85,14 @@
       "name": "wichita",
       "categories": ["combination", "regression_dom_extract"]
     },
-
+    {
+      "name": "hn_aisdk",
+      "categories": ["combination", "regression_dom_extract"]
+    },
+    {
+      "name": "hn_langchain",
+      "categories": ["combination", "regression_dom_extract"]
+    },
     {
       "name": "apple",
       "categories": ["experimental"]
