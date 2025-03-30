@@ -8,7 +8,7 @@ export class StagehandError extends Error {
 export class StagehandDefaultError extends StagehandError {
   constructor() {
     super(
-      `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or send us a Slack message: https://stagehand-dev.slack.com\n`,
+      `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or send us a Slack message: https://stagehand-dev.slack\n`,
     );
   }
 }

@@ -92,6 +92,10 @@ export interface ConstructorParams {
    */
   logInferenceToFile?: boolean;
   selfHeal?: boolean;
+  /**
+   * Disable Pino (helpful for Next.js or test environments)
+   */
+  disablePino?: boolean;
 }
 
 export interface InitResult {
