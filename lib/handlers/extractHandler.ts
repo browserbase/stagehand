@@ -7,6 +7,7 @@ import { formatText } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand, StagehandFunctionName } from "../index";
 import { pageTextSchema } from "../../types/page";
+import { getAccessibilityTree } from "@/lib/a11y/utils";
 
 const PROXIMITY_THRESHOLD = 15;
 
@@ -51,31 +52,6 @@ const PROXIMITY_THRESHOLD = 15;
  * **10. Handle the extraction response and logging the results.**
  *     - Processes the output from the LLM and logs relevant information.
  *
- *
- * Here is what `domExtract` does at a high level:
- *
- * **1. Wait for the DOM to settle and start DOM debugging.**
- *   - Ensures the page is fully loaded and stable before extraction.
- *
- * **2. Process the DOM in chunks.**
- *   - The `processDom` function:
- *     - Divides the page into vertical "chunks" based on viewport height.
- *     - Picks the next chunk that hasn't been processed yet.
- *     - Scrolls to that chunk and extracts candidate elements.
- *     - Returns `outputString` (HTML snippets of candidate elements),
- *       `selectorMap` (the XPaths of the candidate elements),
- *       `chunk` (the current chunk index), and `chunks` (the array of all chunk indices).
- *   - This chunk-based approach ensures that large or lengthy pages can be processed in smaller, manageable sections.
- *
- * **3. Pass the extracted DOM elements (in `outputString`) to the LLM for structured data extraction.**
- *   - Uses the instructions, schema, and previously extracted content as context to
- *     guide the LLM in extracting the structured data.
- *
- * **4. Check if extraction is complete.**
- *    - If the extraction is complete (all chunks have been processed or the LLM determines
- *      that we do not need to continue), return the final result.
- *    - If not, repeat steps 1-4 with the next chunk until extraction is complete or no more chunks remain.
- *
  * @remarks
  * Each step corresponds to specific code segments, as noted in the comments throughout the code.
  */
@@ -112,7 +88,6 @@ export class StagehandExtractHandler {
     instruction,
     schema,
     content = {},
-    chunksSeen = [],
     llmClient,
     requestId,
     domSettleTimeoutMs,
@@ -154,7 +129,6 @@ export class StagehandExtractHandler {
         instruction,
         schema,
         content,
-        chunksSeen,
         llmClient,
         requestId,
         domSettleTimeoutMs,
@@ -415,7 +389,6 @@ export class StagehandExtractHandler {
     instruction,
     schema,
     content = {},
-    chunksSeen = [],
     llmClient,
     requestId,
     domSettleTimeoutMs,
@@ -423,14 +396,13 @@ export class StagehandExtractHandler {
     instruction: string;
     schema: T;
     content?: z.infer<T>;
-    chunksSeen?: Array<number>;
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
-      message: "starting extraction using old approach",
+      message: "starting extraction using a11y tree",
       level: 1,
       auxiliary: {
         instruction: {
@@ -440,56 +412,24 @@ export class StagehandExtractHandler {
       },
     });
 
-    // **1:** Wait for the DOM to settle and start DOM debugging
-    // This ensures the page is stable before extracting any data.
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-
-    // **2:** Call processDom() to handle chunk-based extraction
-    // processDom determines which chunk of the page to process next.
-    // It will:
-    //   - Identify all chunks (vertical segments of the page),
-    //   - Pick the next unprocessed chunk,
-    //   - Scroll to that chunk's region,
-    //   - Extract candidate elements and their text,
-    //   - Return the extracted text (outputString), a selectorMap (for referencing elements),
-    //     the current chunk index, and the full list of chunks.
-    const { outputString, chunk, chunks } = await this.stagehand.page.evaluate(
-      (chunksSeen?: number[]) => window.processDom(chunksSeen ?? []),
-      chunksSeen,
-    );
-
+    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
     this.logger({
       category: "extraction",
-      message: "received output from processDom.",
-      auxiliary: {
-        chunk: {
-          value: chunk.toString(),
-          type: "integer",
-        },
-        chunks_left: {
-          value: (chunks.length - chunksSeen.length).toString(),
-          type: "integer",
-        },
-        chunks_total: {
-          value: chunks.length.toString(),
-          type: "integer",
-        },
-      },
+      message: "Getting accessibility tree data",
+      level: 1,
     });
+    const outputString = tree.simplified;
 
-    // **3:** Pass the list of candidate HTML snippets to the LLM
-    // The LLM uses the provided instruction and schema to parse and extract
-    // structured data.
     const extractionResponse = await extract({
       instruction,
       previouslyExtractedContent: content,
       domElements: outputString,
       schema,
+      chunksSeen: 1,
+      chunksTotal: 1,
       llmClient,
-      chunksSeen: chunksSeen.length,
-      chunksTotal: chunks.length,
       requestId,
-      isUsingTextExtract: false,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
       logInferenceToFile: this.stagehand.logInferenceToFile,
@@ -521,16 +461,11 @@ export class StagehandExtractHandler {
       },
     });
 
-    // Mark the current chunk as processed by adding it to chunksSeen
-    chunksSeen.push(chunk);
-
-    // **4:** Check if extraction is complete
-    // If the LLM deems the extraction complete or we've processed all chunks, return the final result.
-    // Otherwise, call domExtract again for the next chunk.
-    if (completed || chunksSeen.length === chunks.length) {
+    if (completed) {
       this.logger({
         category: "extraction",
-        message: "got response",
+        message: "extraction completed successfully",
+        level: 1,
         auxiliary: {
           extraction_response: {
             value: JSON.stringify(extractionResponse),
@@ -538,12 +473,11 @@ export class StagehandExtractHandler {
           },
         },
       });
-
-      return output;
     } else {
       this.logger({
         category: "extraction",
-        message: "continuing extraction",
+        message: "extraction incomplete after processing all data",
+        level: 1,
         auxiliary: {
           extraction_response: {
             value: JSON.stringify(extractionResponse),
@@ -551,18 +485,8 @@ export class StagehandExtractHandler {
           },
         },
       });
-      await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-
-      // Recursively continue with the next chunk
-      return this.domExtract({
-        instruction,
-        schema,
-        content: output,
-        chunksSeen,
-        llmClient,
-        domSettleTimeoutMs,
-      });
     }
+    return output;
   }
 
   /**
