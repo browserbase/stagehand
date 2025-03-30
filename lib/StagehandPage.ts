@@ -105,17 +105,9 @@ export class StagehandPage {
 
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
-        stagehand: this.stagehand,
-        verbose: this.stagehand.verbose,
-        llmProvider: this.stagehand.llmProvider,
-        enableCaching: this.stagehand.enableCaching,
         logger: this.stagehand.logger,
         stagehandPage: this,
-        stagehandContext: this.intContext,
-        llmClient: llmClient,
-        userProvidedInstructions,
         selfHeal: this.stagehand.selfHeal,
-        waitForCaptchaSolves: this.waitForCaptchaSolves,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,

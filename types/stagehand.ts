@@ -91,6 +91,7 @@ export interface ConstructorParams {
    * Log the inference to a file
    */
   logInferenceToFile?: boolean;
+  selfHeal?: boolean;
 }
 
 export interface InitResult {

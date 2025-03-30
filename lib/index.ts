@@ -506,6 +506,7 @@ export class Stagehand {
       localBrowserLaunchOptions,
       waitForCaptchaSolves = false,
       logInferenceToFile = false,
+      selfHeal = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -578,6 +579,7 @@ export class Stagehand {
       this.registerSignalHandlers();
     }
     this.logInferenceToFile = logInferenceToFile;
+    this.selfHeal = selfHeal;
   }
 
   private registerSignalHandlers() {
