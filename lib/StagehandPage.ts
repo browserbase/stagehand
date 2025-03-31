@@ -55,7 +55,7 @@ export class StagehandPage {
   private _history: Array<HistoryEntry> = [];
 
   public get history(): ReadonlyArray<HistoryEntry> {
-    return this._history;
+    return Object.freeze([...this._history]);
   }
 
   constructor(
@@ -457,9 +457,14 @@ export class StagehandPage {
     }
   }
 
-  private addToHistory(
+  public addToHistory(
     method: HistoryEntry["method"],
-    parameters: unknown,
+    parameters:
+      | ActOptions
+      | ExtractOptions<z.AnyZodObject>
+      | ObserveOptions
+      | { url: string; options: GotoOptions }
+      | string,
     result?: unknown,
   ): void {
     this._history.push({
@@ -543,13 +548,15 @@ export class StagehandPage {
         },
       });
 
-      // `useVision` is no longer passed to the handler
-      return this.actHandler.observeAct(
+      const result = await this.actHandler.observeAct(
         actionOrOptions,
         this.observeHandler,
         llmClient,
         requestId,
       );
+
+      this.addToHistory("act", actionOrOptions, result);
+      return result;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
