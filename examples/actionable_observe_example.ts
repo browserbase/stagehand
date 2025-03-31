@@ -59,7 +59,7 @@ async function example() {
     console.log("✅ Success! we made it to the correct page");
   } else {
     console.log(
-      "❌ Whoops, looks like we didnt make it to the correct page. " +
+      "❌ Whoops, looks like we didn't make it to the correct page. " +
         "\nThanks for testing out this new Stagehand feature!" +
         "\nReach us on Slack if you have any feedback/questions/suggestions!",
     );

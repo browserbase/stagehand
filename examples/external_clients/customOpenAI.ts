@@ -1,19 +1,12 @@
 /**
- * Welcome to the Stagehand Ollama client!
+ * Welcome to the Stagehand custom OpenAI client!
  *
- * This is a client for the Ollama API. It is a wrapper around the OpenAI API
- * that allows you to create chat completions with Ollama.
- *
- * To use this client, you need to have an Ollama instance running. You can
- * start an Ollama instance by running the following command:
- *
- * ```bash
- * ollama run llama3.2
- * ```
+ * This is a client for models that are compatible with the OpenAI API, like Ollama, Gemini, etc.
+ * You can just pass in an OpenAI instance to the client and it will work.
  */
 
 import { AvailableModel, CreateChatCompletionOptions, LLMClient } from "@/dist";
-import OpenAI, { type ClientOptions } from "openai";
+import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import type {
   ChatCompletion,
@@ -37,31 +30,13 @@ function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   }
 }
 
-export class OllamaClient extends LLMClient {
-  public type = "ollama" as const;
+export class CustomOpenAIClient extends LLMClient {
+  public type = "openai" as const;
   private client: OpenAI;
 
-  constructor({
-    modelName = "llama3.2",
-    clientOptions,
-    enableCaching = false,
-  }: {
-    modelName?: string;
-    clientOptions?: ClientOptions;
-    enableCaching?: boolean;
-  }) {
-    if (enableCaching) {
-      console.warn(
-        "Caching is not supported yet. Setting enableCaching to true will have no effect.",
-      );
-    }
-
+  constructor({ modelName, client }: { modelName: string; client: OpenAI }) {
     super(modelName as AvailableModel);
-    this.client = new OpenAI({
-      ...clientOptions,
-      baseURL: clientOptions?.baseURL || "http://localhost:11434/v1",
-      apiKey: "ollama",
-    });
+    this.client = client;
     this.modelName = modelName as AvailableModel;
   }
 
@@ -75,12 +50,12 @@ export class OllamaClient extends LLMClient {
     // TODO: Implement vision support
     if (image) {
       console.warn(
-        "Image provided. Vision is not currently supported for Ollama",
+        "Image provided. Vision is not currently supported for openai",
       );
     }
 
     logger({
-      category: "ollama",
+      category: "openai",
       message: "creating chat completion",
       level: 1,
       auxiliary: {
@@ -100,7 +75,7 @@ export class OllamaClient extends LLMClient {
 
     if (options.image) {
       console.warn(
-        "Image provided. Vision is not currently supported for Ollama",
+        "Image provided. Vision is not currently supported for openai",
       );
     }
 
@@ -114,18 +89,18 @@ export class OllamaClient extends LLMClient {
 
     /* eslint-disable */
     // Remove unsupported options
-    const { response_model, ...ollamaOptions } = {
+    const { response_model, ...openaiOptions } = {
       ...optionsWithoutImageAndRequestId,
       model: this.modelName,
     };
 
     logger({
-      category: "ollama",
+      category: "openai",
       message: "creating chat completion",
       level: 1,
       auxiliary: {
-        ollamaOptions: {
-          value: JSON.stringify(ollamaOptions),
+        openaiOptions: {
+          value: JSON.stringify(openaiOptions),
           type: "object",
         },
       },
@@ -191,7 +166,7 @@ export class OllamaClient extends LLMClient {
       });
 
     const body: ChatCompletionCreateParamsNonStreaming = {
-      ...ollamaOptions,
+      ...openaiOptions,
       model: this.modelName,
       messages: formattedMessages,
       response_format: responseFormat,
@@ -209,7 +184,7 @@ export class OllamaClient extends LLMClient {
     const response = await this.client.chat.completions.create(body);
 
     logger({
-      category: "ollama",
+      category: "openai",
       message: "response",
       level: 1,
       auxiliary: {
@@ -243,9 +218,23 @@ export class OllamaClient extends LLMClient {
         throw new CreateChatCompletionResponseError("Invalid response schema");
       }
 
-      return parsedData;
+      return {
+        data: parsedData,
+        usage: {
+          prompt_tokens: response.usage?.prompt_tokens ?? 0,
+          completion_tokens: response.usage?.completion_tokens ?? 0,
+          total_tokens: response.usage?.total_tokens ?? 0,
+        },
+      } as T;
     }
 
-    return response as T;
+    return {
+      data: response.choices[0].message.content,
+      usage: {
+        prompt_tokens: response.usage?.prompt_tokens ?? 0,
+        completion_tokens: response.usage?.completion_tokens ?? 0,
+        total_tokens: response.usage?.total_tokens ?? 0,
+      },
+    } as T;
   }
 }

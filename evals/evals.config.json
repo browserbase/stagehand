@@ -87,11 +87,15 @@
     },
     {
       "name": "hn_aisdk",
-      "categories": ["combination", "regression_dom_extract"]
+      "categories": ["regression_llm_providers"]
     },
     {
       "name": "hn_langchain",
-      "categories": ["combination", "regression_dom_extract"]
+      "categories": ["regression_llm_providers"]
+    },
+    {
+      "name": "hn_customOpenAI",
+      "categories": ["regression_llm_providers"]
     },
     {
       "name": "apple",

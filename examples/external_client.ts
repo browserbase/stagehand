@@ -1,31 +1,34 @@
 import { Stagehand } from "@/dist";
 import { z } from "zod";
-import { OllamaClient } from "./external_clients/ollama";
+import { CustomOpenAIClient } from "./external_clients/customOpenAI";
 import StagehandConfig from "@/stagehand.config";
+import OpenAI from "openai";
 
 async function example() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
-    llmClient: new OllamaClient({
-      modelName: "llama3.2",
+    llmClient: new CustomOpenAIClient({
+      modelName: "gpt-4o-mini",
+      client: new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      }),
     }),
   });
 
   await stagehand.init();
   await stagehand.page.goto("https://news.ycombinator.com");
+  await stagehand.page.act("click on the 'new' link");
 
   const headlines = await stagehand.page.extract({
-    instruction: "Extract only 3 stories from the Hacker News homepage.",
+    instruction: "Extract the top 3 stories from the Hacker News homepage.",
     schema: z.object({
-      stories: z
-        .array(
-          z.object({
-            title: z.string(),
-            url: z.string(),
-            points: z.number(),
-          }),
-        )
-        .length(3),
+      stories: z.array(
+        z.object({
+          title: z.string(),
+          url: z.string(),
+          points: z.number(),
+        }),
+      ),
     }),
   });
 
