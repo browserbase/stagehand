@@ -1,18 +1,19 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { LogLine } from "@/types/log";
 import {
   AgentAction,
+  AgentExecuteOptions,
+  AgentExecutionOptions,
   AgentResult,
   AgentType,
-  AgentExecutionOptions,
-  ToolUseItem,
-  AnthropicMessage,
   AnthropicContentBlock,
+  AnthropicMessage,
   AnthropicTextBlock,
   AnthropicToolResult,
+  ToolUseItem,
 } from "@/types/agent";
-import { AgentClient } from "./AgentClient";
+import { LogLine } from "@/types/log";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
+import Anthropic from "@anthropic-ai/sdk";
+import { AgentClient } from "./AgentClient";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -116,7 +117,7 @@ export class AnthropicCUAClient extends AgentClient {
           level: 2,
         });
 
-        const result = await this.executeStep(inputItems, logger);
+        const result = await this.executeStep(inputItems, logger, options);
 
         // Add actions to the list
         if (result.actions.length > 0) {
@@ -153,12 +154,16 @@ export class AnthropicCUAClient extends AgentClient {
       });
 
       // Return the final result
-      return {
+      const result = {
         success: completed,
         actions,
         message: finalMessage,
         completed,
       };
+
+      options.onSuccess?.(result);
+
+      return result;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -167,6 +172,8 @@ export class AnthropicCUAClient extends AgentClient {
         message: `Error executing agent task: ${errorMessage}`,
         level: 0,
       });
+
+      options.onFailure?.(error);
 
       return {
         success: false,
@@ -180,6 +187,7 @@ export class AnthropicCUAClient extends AgentClient {
   async executeStep(
     inputItems: ResponseInputItem[],
     logger: (message: LogLine) => void,
+    options: AgentExecuteOptions,
   ): Promise<{
     actions: AgentAction[];
     message: string;
@@ -270,6 +278,8 @@ export class AnthropicCUAClient extends AgentClient {
               message: `Executing action: ${action.type}`,
               level: 1,
             });
+
+            await options.onStep?.(action);
             await this.actionHandler(action);
           } catch (error) {
             const errorMessage =

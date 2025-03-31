@@ -1,11 +1,10 @@
 import Browserbase from "@browserbasehq/sdk";
+import { Cookie } from "@playwright/test";
 import { z } from "zod";
+import { LLMClient } from "../lib/llm/LLMClient";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "@playwright/test";
-import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
   /**
@@ -236,18 +235,24 @@ export interface AgentExecuteParams {
   context?: string;
 }
 
-/**
- * Configuration for agent functionality
- */
-export interface AgentConfig {
-  /**
-   * The provider to use for agent functionality
-   */
-  provider?: AgentProviderType;
+interface OpenAIAgentConfig {
+  provider: "openai";
   /**
    * The model to use for agent functionality
    */
-  model?: string;
+
+  model: "computer-use-preview";
+}
+
+type AnthropicAgentConfig = {
+  provider: "anthropic";
+  /**
+   * The model to use for agent functionality
+   */
+  model: "claude-3-5-sonnet-20240620" | "claude-3-7-sonnet-20250219";
+};
+
+type GenericAgentConfig = {
   /**
    * Custom instructions to provide to the agent
    */
@@ -256,7 +261,13 @@ export interface AgentConfig {
    * Additional options to pass to the agent client
    */
   options?: Record<string, unknown>;
-}
+};
+
+/**
+ * Configuration for agent functionality
+ */
+export type AgentConfig = (OpenAIAgentConfig | AnthropicAgentConfig) &
+  GenericAgentConfig;
 
 export enum StagehandFunctionName {
   ACT = "ACT",

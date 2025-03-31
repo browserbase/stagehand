@@ -1,17 +1,18 @@
-import OpenAI from "openai";
-import { LogLine } from "../../types/log";
 import {
   AgentAction,
+  AgentExecuteOptions,
+  AgentExecutionOptions,
   AgentResult,
   AgentType,
-  AgentExecutionOptions,
-  ResponseInputItem,
-  ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
+  ResponseInputItem,
+  ResponseItem,
 } from "@/types/agent";
-import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
+import OpenAI from "openai";
+import { LogLine } from "../../types/log";
+import { AgentClient } from "./AgentClient";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -111,6 +112,7 @@ export class OpenAICUAClient extends AgentClient {
           inputItems,
           previousResponseId,
           logger,
+          options,
         );
 
         // Add actions to the list
@@ -137,13 +139,17 @@ export class OpenAICUAClient extends AgentClient {
         currentStep++;
       }
 
-      // Return the final result
-      return {
+      const result = {
         success: completed,
         actions,
         message: finalMessage,
         completed,
       };
+
+      options.onSuccess?.(result);
+
+      // Return the final result
+      return result;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -152,6 +158,8 @@ export class OpenAICUAClient extends AgentClient {
         message: `Error executing agent task: ${errorMessage}`,
         level: 0,
       });
+
+      options.onFailure?.(error as Error);
 
       return {
         success: false,
@@ -170,6 +178,7 @@ export class OpenAICUAClient extends AgentClient {
     inputItems: ResponseInputItem[],
     previousResponseId: string | undefined,
     logger: (message: LogLine) => void,
+    options: AgentExecuteOptions,
   ): Promise<{
     actions: AgentAction[];
     message: string;
@@ -224,7 +233,7 @@ export class OpenAICUAClient extends AgentClient {
       }
 
       // Take actions and get results
-      const nextInputItems = await this.takeAction(output, logger);
+      const nextInputItems = await this.takeAction(output, logger, options);
 
       // Check if completed
       const completed =
@@ -334,11 +343,14 @@ export class OpenAICUAClient extends AgentClient {
   async takeAction(
     output: ResponseItem[],
     logger: (message: LogLine) => void,
+    options: AgentExecuteOptions,
   ): Promise<ResponseInputItem[]> {
     const nextInputItems: ResponseInputItem[] = [];
 
     // Add any computer calls to process
     for (const item of output) {
+      await options.onStep?.(item);
+
       if (item.type === "computer_call" && this.isComputerCallItem(item)) {
         // Execute the action
         try {

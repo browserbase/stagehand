@@ -22,6 +22,9 @@ export interface AgentOptions {
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
+  onStep?: (action: AgentAction) => void | Promise<void>;
+  onSuccess?: (result: AgentResult) => void | Promise<void>;
+  onFailure?: (error: Error) => void | Promise<void>;
 }
 
 export type AgentProviderType = "openai" | "anthropic";

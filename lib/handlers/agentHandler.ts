@@ -1,15 +1,15 @@
+import {
+  ActionExecutionResult,
+  AgentAction,
+  AgentExecuteOptions,
+  AgentHandlerOptions,
+  AgentResult,
+} from "@/types/agent";
+import { LogLine } from "../../types/log";
 import { StagehandPage } from "../StagehandPage";
+import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
-import { AgentClient } from "../agent/AgentClient";
-import { LogLine } from "../../types/log";
-import {
-  AgentExecuteOptions,
-  AgentAction,
-  AgentResult,
-  AgentHandlerOptions,
-  ActionExecutionResult,
-} from "@/types/agent";
 
 export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
@@ -27,7 +27,6 @@ export class StagehandAgentHandler {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.options = options;
-
     // Initialize the provider
     this.provider = new AgentProvider(logger);
 

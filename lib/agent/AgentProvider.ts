@@ -1,12 +1,12 @@
-import { LogLine } from "@/types/log";
-import { AgentClient } from "./AgentClient";
 import { AgentType } from "@/types/agent";
-import { OpenAICUAClient } from "./OpenAICUAClient";
-import { AnthropicCUAClient } from "./AnthropicCUAClient";
+import { LogLine } from "@/types/log";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
 } from "@/types/stagehandErrors";
+import { AgentClient } from "./AgentClient";
+import { AnthropicCUAClient } from "./AnthropicCUAClient";
+import { OpenAICUAClient } from "./OpenAICUAClient";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -22,7 +22,6 @@ const modelToAgentProviderMap: Record<string, AgentType> = {
  */
 export class AgentProvider {
   private logger: (message: LogLine) => void;
-
   /**
    * Create a new agent provider
    */

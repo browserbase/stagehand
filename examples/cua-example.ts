@@ -27,7 +27,7 @@ async function main() {
 
     const agent = stagehand.agent({
       provider: "openai",
-      model: "computer-use-preview-2025-02-04",
+      model: "computer-use-preview",
       instructions: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement.`,
