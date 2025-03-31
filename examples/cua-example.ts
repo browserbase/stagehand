@@ -27,7 +27,7 @@ async function main() {
 
     const agent = stagehand.agent({
       provider: "openai",
-      model: "computer-use-preview-2025-02-04",
+      model: "computer-use-preview",
       instructions: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement.`,
@@ -40,7 +40,6 @@ async function main() {
     await stagehand.page.goto("https://www.google.com");
     console.log(`${chalk.green("✓")} Loaded: ${chalk.dim(page.url())}`);
 
-    // Execute the agent again with a different instruction
     const firstInstruction =
       "Search for openai news on google and extract the name of the first 3 results";
     console.log(
@@ -62,7 +61,7 @@ async function main() {
     console.log(`${chalk.green("✓")} Loaded: ${chalk.dim(page.url())}`);
 
     const instruction =
-      "Apply for the full-stack engineer position with mock data. Don't submit the form.";
+      "Apply for the first engineer position with mock data. Don't submit the form.";
     console.log(`${chalk.cyan("↳")} Instruction: ${chalk.white(instruction)}`);
 
     const result = await agent.execute({

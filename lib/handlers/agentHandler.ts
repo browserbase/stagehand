@@ -3,6 +3,7 @@ import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
 import { AgentClient } from "../agent/AgentClient";
 import { LogLine } from "../../types/log";
+import { Page } from "playwright";
 import {
   AgentExecuteOptions,
   AgentAction,
@@ -190,6 +191,28 @@ export class StagehandAgentHandler {
           await this.stagehandPage.page.mouse.click(x as number, y as number, {
             button: button as "left" | "right",
           });
+          const newOpenedTab = await Promise.race([
+            new Promise<Page | null>((resolve) => {
+              this.stagehandPage.context.once("page", (page) => resolve(page));
+              setTimeout(() => resolve(null), 1500);
+            }),
+          ]);
+          if (newOpenedTab) {
+            this.logger({
+              category: "action",
+              message: `New page detected (new tab) with URL. Opening on current page...`,
+              level: 1,
+              auxiliary: {
+                url: {
+                  value: newOpenedTab.url(),
+                  type: "string",
+                },
+              },
+            });
+            await newOpenedTab.close();
+            await this.stagehandPage.page.goto(newOpenedTab.url());
+            await this.stagehandPage.page.waitForURL(newOpenedTab.url());
+          }
           return { success: true };
         }
 

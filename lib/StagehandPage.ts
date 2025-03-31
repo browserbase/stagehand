@@ -261,7 +261,7 @@ export class StagehandPage {
           }
 
           // Handle screenshots with CDP
-          if (prop === "screenshot") {
+          if (prop === "screenshot" && this.stagehand.env === "BROWSERBASE") {
             return async (
               options: {
                 type?: "png" | "jpeg";
