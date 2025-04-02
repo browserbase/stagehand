@@ -16,6 +16,7 @@ async function example() {
   await stagehand.page.goto("https://news.ycombinator.com");
 
   const { story } = await stagehand.page.extract({
+    instruction: "extract the title of the top story on the page",
     schema: z.object({
       story: z.string().describe("the top story on the page"),
     }),

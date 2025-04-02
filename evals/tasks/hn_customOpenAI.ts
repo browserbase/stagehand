@@ -20,6 +20,7 @@ export const hn_customOpenAI: EvalFunction = async ({ logger }) => {
   await stagehand.page.goto("https://news.ycombinator.com");
 
   let { story } = await stagehand.page.extract({
+    instruction: "extract the title of the top story on the page",
     schema: z.object({
       story: z.string().describe("the title of the top story on the page"),
     }),

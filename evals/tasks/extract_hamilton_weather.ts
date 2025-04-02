@@ -15,7 +15,9 @@ export const extract_hamilton_weather: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   try {
-    await stagehand.page.goto("https://hamilton-weather.surge.sh/");
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/",
+    );
     const xpath =
       "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
