@@ -42,7 +42,7 @@ const { someValue } = await page.extract({
 ## Initialize
 
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand-int";
 import StagehandConfig from "./stagehand.config";
 
 const stagehand = new Stagehand(StagehandConfig);
