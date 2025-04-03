@@ -17,7 +17,7 @@ export const extract_public_notices: EvalFunction = async ({
 
   await stagehand.init();
   await stagehand.page.goto(
-    "https://www.sars.gov.za/legal-counsel/secondary-legislation/public-notices/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/sars/",
     { waitUntil: "load" },
   );
 

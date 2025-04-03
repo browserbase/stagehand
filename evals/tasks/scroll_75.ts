@@ -9,7 +9,9 @@ export const scroll_75: EvalFunction = async ({ modelName, logger }) => {
   });
 
   const { debugUrl, sessionUrl } = initResponse;
-  await stagehand.page.goto("https://aigrant.com/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  );
   await stagehand.page.act({
     action: "Scroll 75% down the page",
   });

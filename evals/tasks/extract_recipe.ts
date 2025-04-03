@@ -15,7 +15,7 @@ export const extract_recipe: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.allrecipes.com/recipe/8539032/perfect-pan-seared-filet-mignon/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
     {
       waitUntil: "domcontentloaded",
     },

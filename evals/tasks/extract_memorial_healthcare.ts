@@ -16,7 +16,9 @@ export const extract_memorial_healthcare: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://www.mycmh.org/locations/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/",
+  );
 
   const result = await stagehand.page.extract({
     instruction:

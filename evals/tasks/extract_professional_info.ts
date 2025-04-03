@@ -16,7 +16,7 @@ export const extract_professional_info: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.paulweiss.com/professionals/partners-and-counsel/brian-bolin",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
   );
 
   const result = await stagehand.page.extract({

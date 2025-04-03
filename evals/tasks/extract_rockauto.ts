@@ -16,7 +16,7 @@ export const extract_rockauto: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.rockauto.com/en/catalog/alpine,1974,a310,1.6l+l4,1436055,cooling+system,coolant+/+antifreeze,11393",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
   );
   await new Promise((resolve) => setTimeout(resolve, 5000));
   const result = await stagehand.page.extract({
@@ -38,7 +38,14 @@ export const extract_rockauto: EvalFunction = async ({
   await stagehand.close();
 
   const coolantProducts = result.coolant_products;
-  const expectedLength = 4;
+  const expectedPartNumbers = [
+    "GREEN5050GAL",
+    "719009",
+    "AF3300",
+    "AF3100",
+    "MV5050GAL",
+  ];
+  const expectedLength = expectedPartNumbers.length;
 
   if (coolantProducts.length !== expectedLength) {
     logger.error({
@@ -63,7 +70,6 @@ export const extract_rockauto: EvalFunction = async ({
       sessionUrl,
     };
   }
-  const expectedPartNumbers = ["GREEN5050GAL", "719009", "AF3300", "MV5050GAL"];
 
   const missingParts = expectedPartNumbers.filter(
     (expectedPart) =>

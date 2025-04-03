@@ -16,7 +16,9 @@ export const hn_langchain: EvalFunction = async ({ logger }) => {
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://news.ycombinator.com");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/hackernews/",
+  );
 
   let { story } = await stagehand.page.extract({
     instruction: "extract the title of the top story on the page",

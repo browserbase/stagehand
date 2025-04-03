@@ -15,9 +15,12 @@ export const extract_jstor_news: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.init();
-  await stagehand.page.goto("http://jstor-eval.surge.sh", {
-    waitUntil: "load",
-  });
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/jstor/",
+    {
+      waitUntil: "load",
+    },
+  );
   await stagehand.page.act({ action: "close the cookie" });
 
   const result = await stagehand.page.extract({

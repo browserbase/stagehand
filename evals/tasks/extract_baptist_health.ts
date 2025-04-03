@@ -16,7 +16,7 @@ export const extract_baptist_health: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.baptistfirst.org/location/baptist-health-ent-partners",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/",
   );
 
   const result = await stagehand.page.extract({

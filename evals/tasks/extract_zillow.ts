@@ -15,7 +15,9 @@ export const extract_zillow: EvalFunction = async ({
 
   const { debugUrl, sessionUrl } = initResponse;
 
-  await stagehand.page.goto("https://zillow-eval.surge.sh/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
+  );
   // timeout for 5 seconds
   await stagehand.page.waitForTimeout(5000);
   const real_estate_listings = await stagehand.page.extract({

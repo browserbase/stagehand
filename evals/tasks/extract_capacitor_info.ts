@@ -16,7 +16,7 @@ export const extract_capacitor_info: EvalFunction = async ({
   const { debugUrl, sessionUrl } = initResponse;
 
   await stagehand.page.goto(
-    "https://www.jakelectronics.com/productdetail/panasonicelectroniccomponents-eeufm1a472l-2937406",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/",
   );
 
   const result = await stagehand.page.extract({
