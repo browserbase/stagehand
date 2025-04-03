@@ -95,7 +95,7 @@ export class StagehandAPI {
     return sessionResponseBody.data;
   }
 
-  async act(options: ActOptions): Promise<ActResult> {
+  async act(options: ActOptions): Promise<ActResult | null> {
     return this.execute<ActResult>({
       method: "act",
       args: { ...options },
@@ -104,7 +104,7 @@ export class StagehandAPI {
 
   async extract<T extends z.AnyZodObject>(
     options: ExtractOptions<T>,
-  ): Promise<ExtractResult<T>> {
+  ): Promise<ExtractResult<T> | null> {
     if (!options.schema) {
       return this.execute<ExtractResult<T>>({
         method: "extract",
@@ -118,14 +118,14 @@ export class StagehandAPI {
     });
   }
 
-  async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
+  async observe(options?: ObserveOptions): Promise<ObserveResult[] | null> {
     return this.execute<ObserveResult[]>({
       method: "observe",
       args: { ...options },
     });
   }
 
-  async goto(url: string, options?: GotoOptions): Promise<void> {
+  async goto(url: string, options?: GotoOptions): Promise<void | null> {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },
@@ -135,7 +135,7 @@ export class StagehandAPI {
   async agentExecute(
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions,
-  ): Promise<AgentResult> {
+  ): Promise<AgentResult | null> {
     return this.execute<AgentResult>({
       method: "agentExecute",
       args: { agentConfig, executeOptions },
@@ -162,6 +162,15 @@ export class StagehandAPI {
       method: "POST",
       body: JSON.stringify(args),
     });
+
+    if (response.status === 202) {
+      this.logger({
+        category: "execute",
+        level: 1,
+        message: "Action queued",
+      });
+      return null;
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();

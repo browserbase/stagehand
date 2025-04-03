@@ -299,9 +299,16 @@ export class StagehandPage {
           if (prop === "goto") {
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
-              const result = this.api
-                ? await this.api.goto(url, options)
-                : await target.goto(url, options);
+
+              if (this.api) {
+                const result = await this.api.goto(url, options);
+                if (result !== null) {
+                  this.addToHistory("navigate", { url, options }, result);
+                  return result;
+                }
+              }
+
+              const result = await target.goto(url, options);
 
               this.addToHistory("navigate", { url, options }, result);
 
@@ -518,9 +525,11 @@ export class StagehandPage {
 
       if (this.api) {
         const result = await this.api.act(actionOrOptions);
-        await this._refreshPageFromAPI();
-        this.addToHistory("act", actionOrOptions, result);
-        return result;
+        if (result !== null) {
+          await this._refreshPageFromAPI();
+          this.addToHistory("act", actionOrOptions, result);
+          return result;
+        }
       }
 
       const requestId = Math.random().toString(36).substring(2);
@@ -577,12 +586,15 @@ export class StagehandPage {
 
       // check if user called extract() with no arguments
       if (!instructionOrOptions) {
-        let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({});
-        } else {
-          result = await this.extractHandler.extract();
+          const result = await this.api.extract<T>({});
+          if (result !== null) {
+            this.addToHistory("extract", instructionOrOptions, result);
+            return result;
+          }
         }
+
+        const result = await this.extractHandler.extract();
         this.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
@@ -716,8 +728,10 @@ export class StagehandPage {
 
       if (this.api) {
         const result = await this.api.observe(options);
-        this.addToHistory("observe", instructionOrOptions, result);
-        return result;
+        if (result !== null) {
+          this.addToHistory("observe", instructionOrOptions, result);
+          return result;
+        }
       }
 
       const requestId = Math.random().toString(36).substring(2);
