@@ -918,3 +918,5 @@ export * from "../types/stagehand";
 export * from "../types/operator";
 export * from "../types/agent";
 export * from "./llm/LLMClient";
+export * from "../types/stagehandErrors";
+export * from "../types/stagehandApiErrors";
