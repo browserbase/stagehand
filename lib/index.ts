@@ -82,10 +82,9 @@ async function getBrowser(
       logger({
         category: "init",
         message:
-          "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
+          "BROWSERBASE_API_KEY is required to use BROWSERBASE env.",
         level: 0,
       });
-      env = "LOCAL";
     }
     if (!projectId) {
       logger({
@@ -94,12 +93,6 @@ async function getBrowser(
           "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
         level: 1,
       });
-    }
-  }
-
-  if (env === "BROWSERBASE") {
-    if (!apiKey) {
-      throw new StagehandError("BROWSERBASE_API_KEY is required.");
     }
 
     let debugUrl: string | undefined = undefined;
@@ -114,17 +107,16 @@ async function getBrowser(
     if (browserbaseSessionID) {
       // Validate the session status
       try {
-        const sessionStatus =
+        const session =
           await browserbase.sessions.retrieve(browserbaseSessionID);
 
-        if (sessionStatus.status !== "RUNNING") {
+        if (session.status !== "RUNNING") {
           throw new StagehandError(
-            `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
+            `Session ${browserbaseSessionID} is not running (status: ${session.status})`,
           );
         }
 
         sessionId = browserbaseSessionID;
-        const session = await browserbase.sessions.retrieve(sessionId);
         connectUrl = session.connectUrl;
 
         logger({
