@@ -11,37 +11,51 @@ import {
   ObserveResult,
   ActOptions,
   ObserveOptions,
+  StagehandFunctionName,
 } from "@/types/stagehand";
 import { MethodHandlerContext, SupportedPlaywrightAction } from "@/types/act";
-import { buildActObservePrompt } from "../prompt";
+import { buildActPrompt } from "../prompt";
 import {
   methodHandlerMap,
   fallbackLocatorMethod,
 } from "./handlerUtils/actHandlerUtils";
-import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
 import { StagehandInvalidArgumentError } from "@/types/stagehandErrors";
+import { actInference } from "@/lib/inference";
+import {
+  getAccessibilityTree,
+  getXPathByResolvedObjectId,
+} from "@/lib/a11y/utils";
+import { Stagehand } from "@/lib";
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
  * If useVision or verifierUseVision is set to true, a warning is logged and
  * the flow continues as if vision = false.
  */
 export class StagehandActHandler {
+  private readonly stagehand: Stagehand;
   private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
   private readonly selfHeal: boolean;
+  private readonly userProvidedInstructions?: string;
 
   constructor({
+    stagehand,
     logger,
     stagehandPage,
     selfHeal,
+    userProvidedInstructions,
   }: {
+    stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     selfHeal: boolean;
+    userProvidedInstructions: string;
   }) {
+    this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.selfHeal = selfHeal;
+    this.userProvidedInstructions = userProvidedInstructions;
   }
 
   /**
@@ -173,9 +187,8 @@ export class StagehandActHandler {
    * Perform an act based on an instruction.
    * This method will observe the page and then perform the act on the first element returned.
    */
-  public async observeAct(
+  public async act(
     actionOrOptions: ActOptions,
-    observeHandler: StagehandObserveHandler,
     llmClient: LLMClient,
     requestId: string,
   ): Promise<ActResult> {
@@ -212,50 +225,113 @@ export class StagehandActHandler {
       );
     }
 
-    // doObserveAndAct is just a wrapper of observeAct and actFromObserveResult.
+    // doObserveAndAct is just a wrapper of act and actFromObserveResult.
     // we did this so that we can cleanly call a Promise.race, and race
     // doObserveAndAct against the user defined timeoutMs (if one was defined)
     const doObserveAndAct = async (): Promise<ActResult> => {
-      const instruction = buildActObservePrompt(
+      const instruction = buildActPrompt(
         action,
         Object.values(SupportedPlaywrightAction),
         actionOrOptions.variables,
       );
 
-      const observeResults = await observeHandler.observe({
+      await this.stagehandPage._waitForSettledDom();
+      const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+      const hybridTree = tree.simplified;
+
+      const actInferenceResult = await actInference({
         instruction,
+        hybridTree,
         llmClient,
         requestId,
-        onlyVisible: false,
-        drawOverlay: false,
-        returnAction: true,
+        logger: this.logger,
+        userProvidedInstructions: this.userProvidedInstructions,
+        logInferenceToFile: this.stagehand.logInferenceToFile,
       });
 
-      if (observeResults.length === 0) {
+      const {
+        prompt_tokens = 0,
+        completion_tokens = 0,
+        inference_time_ms = 0,
+      } = actInferenceResult;
+
+      this.stagehand.updateMetrics(
+        StagehandFunctionName.ACT,
+        prompt_tokens,
+        completion_tokens,
+        inference_time_ms,
+      );
+
+      const { targetElement } = actInferenceResult || {};
+
+      if (!targetElement || Object.keys(targetElement).length === 0) {
         return {
           success: false,
-          message: `Failed to perform act: No observe results found for action`,
+          message: `Failed to perform act: No target elements found for action`,
           action,
         };
       }
 
-      const element: ObserveResult = observeResults[0];
+      this.logger({
+        category: "action",
+        message: "Getting xpath for target element",
+        level: 1,
+        auxiliary: {
+          elementId: {
+            value: targetElement.elementId.toString(),
+            type: "string",
+          },
+        },
+      });
+
+      const args = { backendNodeId: targetElement.elementId };
+      const { object } = await this.stagehandPage.sendCDP<{
+        object: { objectId: string };
+      }>("DOM.resolveNode", args);
+
+      if (!object || !object.objectId) {
+        this.logger({
+          category: "action",
+          message: `Invalid object ID returned for target element: ${targetElement.elementId}`,
+          level: 1,
+        });
+      }
+
+      const xpath = await getXPathByResolvedObjectId(
+        await this.stagehandPage.getCDPClient(),
+        object.objectId,
+      );
+
+      if (!xpath || xpath === "") {
+        this.logger({
+          category: "action",
+          message: `Empty xpath returned for target element: ${targetElement.elementId}`,
+          level: 1,
+        });
+      }
+
+      const observeResult: ObserveResult = {
+        selector: xpath,
+        description: targetElement.description,
+        method: targetElement.method,
+        arguments: targetElement.arguments,
+      };
 
       if (actionOrOptions.variables) {
         Object.keys(actionOrOptions.variables).forEach((key) => {
-          element.arguments = element.arguments.map((arg) =>
-            arg.replace(key, actionOrOptions.variables![key]),
+          observeResult.arguments = observeResult.arguments.map((arg) =>
+            arg.replace(`%${key}%`, actionOrOptions.variables![key]),
           );
         });
       }
 
       return this.actFromObserveResult(
-        element,
+        observeResult,
         actionOrOptions.domSettleTimeoutMs,
       );
     };
 
-    // if no user defined timeoutMs, just do observeAct + actFromObserveResult
+    // if no user defined timeoutMs, just do act + actFromObserveResult
     // with no timeout
     if (!actionOrOptions.timeoutMs) {
       return doObserveAndAct();

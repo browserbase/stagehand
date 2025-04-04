@@ -188,9 +188,9 @@ ${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`,
 }
 
 /**
- * Builds the instruction for the observeAct method to find the most relevant element for an action
+ * Builds the instruction for the act method to find the most relevant element for an action
  */
-export function buildActObservePrompt(
+export function buildActPrompt(
   action: string,
   supportedActions: string[],
   variables?: Record<string, string>,
@@ -230,5 +230,39 @@ ${goal}
    - Select a single option
 3. Avoid combining multiple actions in one instruction
 4. If multiple actions are needed, they should be separate steps`,
+  };
+}
+
+export function buildActSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
+  const actSystemPrompt = `
+You are helping the user automate the browser by finding elements based on an action that the user wants to take on the page.
+
+You will be given:
+1. a instruction of elements to observe
+2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
+
+Return an array of elements that match the instruction if they exist, otherwise return an empty array.`;
+
+  return {
+    role: "system",
+    content: [
+      actSystemPrompt,
+      buildUserInstructionsString(userProvidedInstructions),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  };
+}
+
+export function buildActUserMessage(
+  instruction: string,
+  domElements: string,
+): ChatMessage {
+  return {
+    role: "user",
+    content: `instruction: ${instruction}\n
+Accessibility Tree: ${domElements}`,
   };
 }

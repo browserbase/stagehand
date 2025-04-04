@@ -9,7 +9,7 @@ export const hn_langchain: EvalFunction = async ({ logger }) => {
     logger,
     llmClient: new LangchainClient(
       new ChatOpenAI({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
       }),
     ),
   });

@@ -105,9 +105,11 @@ export class StagehandPage {
 
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
+        stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         selfHeal: this.stagehand.selfHeal,
+        userProvidedInstructions,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
@@ -556,9 +558,8 @@ export class StagehandPage {
         },
       });
 
-      const result = await this.actHandler.observeAct(
+      const result = await this.actHandler.act(
         actionOrOptions,
-        this.observeHandler,
         llmClient,
         requestId,
       );
