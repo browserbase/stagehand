@@ -95,7 +95,7 @@ export class StagehandAPI {
     return sessionResponseBody.data;
   }
 
-  async act(options: ActOptions): Promise<ActResult> {
+  async act(options: ActOptions | ObserveResult): Promise<ActResult> {
     return this.execute<ActResult>({
       method: "act",
       args: { ...options },

@@ -491,6 +491,14 @@ export class StagehandPage {
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
+
+          if (this.api) {
+            const result = await this.api.act(observeResult);
+            await this._refreshPageFromAPI();
+            this.addToHistory("act", observeResult, result);
+            return result;
+          }
+
           // validate observeResult.method, etc.
           return this.actHandler.actFromObserveResult(observeResult);
         } else {
