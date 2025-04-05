@@ -229,6 +229,7 @@ export class StagehandActHandler {
         onlyVisible: false,
         drawOverlay: false,
         returnAction: true,
+        fromAct: true,
       });
 
       if (observeResults.length === 0) {

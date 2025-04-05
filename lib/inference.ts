@@ -349,6 +349,7 @@ export async function observe({
   logger,
   returnAction = false,
   logInferenceToFile = false,
+  fromAct,
 }: {
   instruction: string;
   domElements: string;
@@ -359,6 +360,7 @@ export async function observe({
   isUsingAccessibilityTree?: boolean;
   returnAction?: boolean;
   logInferenceToFile?: boolean;
+  fromAct?: boolean;
 }) {
   const observeSchema = z.object({
     elements: z
@@ -407,15 +409,16 @@ export async function observe({
     buildObserveUserMessage(instruction, domElements, isUsingAccessibilityTree),
   ];
 
+  const filePrefix = fromAct ? "act" : "observe";
   let callTimestamp = "";
   let callFile = "";
   if (logInferenceToFile) {
     const { fileName, timestamp } = writeTimestampedTxtFile(
-      "observe_summary",
-      "observe_call",
+      `${filePrefix}_summary`,
+      `${filePrefix}_call`,
       {
         requestId,
-        modelCall: "observe",
+        modelCall: filePrefix,
         messages,
       },
     );
@@ -450,18 +453,18 @@ export async function observe({
   let responseFile = "";
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
-      "observe_summary",
-      "observe_response",
+      `${filePrefix}_summary`,
+      `${filePrefix}_response`,
       {
         requestId,
-        modelResponse: "observe",
+        modelResponse: filePrefix,
         rawResponse: observeData,
       },
     );
     responseFile = responseFileName;
 
-    appendSummary("observe", {
-      observe_inference_type: "observe",
+    appendSummary(filePrefix, {
+      [`${filePrefix}_inference_type`]: filePrefix,
       timestamp: callTimestamp,
       LLM_input_file: callFile,
       LLM_output_file: responseFile,

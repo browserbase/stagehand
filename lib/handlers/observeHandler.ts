@@ -57,6 +57,7 @@ export class StagehandObserveHandler {
     returnAction,
     onlyVisible,
     drawOverlay,
+    fromAct,
   }: {
     instruction: string;
     llmClient: LLMClient;
@@ -65,6 +66,7 @@ export class StagehandObserveHandler {
     returnAction?: boolean;
     onlyVisible?: boolean;
     drawOverlay?: boolean;
+    fromAct?: boolean;
   }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -114,6 +116,7 @@ export class StagehandObserveHandler {
       isUsingAccessibilityTree: useAccessibilityTree,
       returnAction,
       logInferenceToFile: this.stagehand.logInferenceToFile,
+      fromAct: fromAct,
     });
 
     const {
@@ -123,7 +126,7 @@ export class StagehandObserveHandler {
     } = observationResponse;
 
     this.stagehand.updateMetrics(
-      StagehandFunctionName.OBSERVE,
+      fromAct ? StagehandFunctionName.ACT : StagehandFunctionName.OBSERVE,
       prompt_tokens,
       completion_tokens,
       inference_time_ms,
