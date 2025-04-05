@@ -86,6 +86,14 @@ export class MissingLLMConfigurationError extends StagehandError {
   }
 }
 
+export class InvalidLLMKeyError extends StagehandError {
+  constructor() {
+    super(
+      "Invalid LLM API key or LLM Client configured. Please check your configuration.",
+    );
+  }
+}
+
 export class HandlerNotInitializedError extends StagehandError {
   constructor(handlerType: string) {
     super(`${handlerType} handler not initialized`);
