@@ -126,6 +126,17 @@ export class StagehandAgentHandler {
         ? { instruction: optionsOrInstruction }
         : optionsOrInstruction;
 
+    //Redirect to Google if the URL is empty or about:blank
+    const currentUrl = this.stagehandPage.page.url();
+    if (!currentUrl || currentUrl === "about:blank") {
+      this.logger({
+        category: "agent",
+        message: `Page URL is empty or about:blank. Redirecting to www.google.com...`,
+        level: 0,
+      });
+      await this.stagehandPage.page.goto("https://www.google.com");
+    }
+
     this.logger({
       category: "agent",
       message: `Executing agent task: ${options.instruction}`,
