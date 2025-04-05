@@ -1,20 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_capacitor_info: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/",
   );
@@ -26,11 +20,8 @@ export const extract_capacitor_info: EvalFunction = async ({
       RoHS_Status: z.string(),
       Impedance: z.string(),
     }),
-    modelName,
     useTextExtract,
   });
-
-  await stagehand.close();
 
   const { ECCN_code, RoHS_Status, Impedance } = result;
 

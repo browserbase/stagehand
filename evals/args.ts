@@ -66,6 +66,8 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "regression_llm_providers",
       "regression_text_extract",
       "regression_dom_extract",
+      "llm_clients",
+      "unit",
     ];
 
 // Finally, interpret leftover arguments to see if user typed "category X" or a single eval name

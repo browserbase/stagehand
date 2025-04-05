@@ -378,7 +378,7 @@ export class StagehandPage {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -569,7 +569,7 @@ export class StagehandPage {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -693,7 +693,7 @@ export class StagehandPage {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -806,7 +806,7 @@ export class StagehandPage {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 

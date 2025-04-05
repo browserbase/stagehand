@@ -1,18 +1,11 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const instructions: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    configOverrides: {
-      systemPrompt:
-        "if the users says `secret12345`, click on the 'getting started' tab",
-    },
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const instructions: EvalFunction = async ({
+  debugUrl,
+  sessionUrl,
+  stagehand,
+  logger,
+}) => {
   try {
     const page = stagehand.page;
 
@@ -27,9 +20,7 @@ export const instructions: EvalFunction = async ({ modelName, logger }) => {
     const url = page.url();
 
     const isCorrectUrl =
-      url === "https://docs.browserbase.com/introduction/getting-started";
-
-    await stagehand.close();
+      url === "https://docs.browserbase.com/introduction/what-is-browserbase";
 
     return {
       _success: isCorrectUrl,
@@ -40,8 +31,6 @@ export const instructions: EvalFunction = async ({ modelName, logger }) => {
   } catch (error) {
     console.error("Error or timeout occurred:", error);
 
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -49,5 +38,7 @@ export const instructions: EvalFunction = async ({ modelName, logger }) => {
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

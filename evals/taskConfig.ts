@@ -12,9 +12,8 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel, AvailableModelSchema } from "@/dist";
+import { AvailableModel } from "@/dist";
 import { filterByEvalName } from "./args";
-import { UnsupportedModelError } from "@/types/stagehandErrors";
 
 // The configuration file `evals.config.json` contains a list of tasks and their associated categories.
 const configPath = path.join(__dirname, "evals.config.json");
@@ -50,7 +49,14 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : ["gpt-4o", "claude-3-5-sonnet-latest"];
+  : [
+      "gemini-2.0-flash",
+      //   "claude-3-5-sonnet-20240620",
+      //   "gpt-4o-mini",
+      //   "gpt-4o",
+      //   "llama-3.3-70b-versatile",
+      //   "llama3.3-70b",
+    ];
 
 /**
  * getModelList:
@@ -62,9 +68,6 @@ const getModelList = (): string[] => {
   return DEFAULT_EVAL_MODELS;
 };
 const MODELS: AvailableModel[] = getModelList().map((model) => {
-  if (!AvailableModelSchema.safeParse(model).success) {
-    throw new UnsupportedModelError(getModelList(), "Running evals");
-  }
   return model as AvailableModel;
 });
 

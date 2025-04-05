@@ -6,11 +6,7 @@
     },
     {
       "name": "expect_act_timeout",
-      "categories": ["act"]
-    },
-    {
-      "name": "expect_act_timeout_global",
-      "categories": ["act"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "extract_repo_name",
@@ -22,7 +18,7 @@
     },
     {
       "name": "instructions",
-      "categories": ["combination"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "bidnet",
@@ -75,7 +71,7 @@
     },
     {
       "name": "peeler_complex",
-      "categories": ["combination"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "sciquest",
@@ -87,15 +83,15 @@
     },
     {
       "name": "hn_aisdk",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_langchain",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_customOpenAI",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "apple",
@@ -261,11 +257,11 @@
     },
     {
       "name": "observe_iframes1",
-      "categories": ["observe"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "observe_iframes2",
-      "categories": ["observe"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "extract_hamilton_weather",
@@ -297,19 +293,19 @@
     },
     {
       "name": "scroll_50",
-      "categories": ["act"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "scroll_75",
-      "categories": ["act", "regression_dom_extract"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "nextChunk",
-      "categories": ["act"]
+      "categories": ["unit", "combination"]
     },
     {
       "name": "prevChunk",
-      "categories": ["act"]
+      "categories": ["unit", "combination"]
     }
   ]
 }

@@ -1,19 +1,13 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const extract_github_commits: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
@@ -32,7 +26,6 @@ export const extract_github_commits: EvalFunction = async ({
           }),
         ),
       }),
-      modelName,
       useTextExtract,
     });
 

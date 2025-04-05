@@ -1,20 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_rockauto: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 10000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
   );
@@ -30,9 +23,7 @@ export const extract_rockauto: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
-    domSettleTimeoutMs: 10000,
   });
 
   await stagehand.close();

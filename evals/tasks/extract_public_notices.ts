@@ -1,21 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 import { compareStrings } from "@/evals/utils";
 
 export const extract_public_notices: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.init();
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/sars/",
     { waitUntil: "load" },
@@ -43,7 +36,6 @@ export const extract_public_notices: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

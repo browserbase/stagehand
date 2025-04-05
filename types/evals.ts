@@ -1,15 +1,10 @@
 import { z } from "zod";
-import type { EvalLogger } from "../evals/logger";
 import type { AvailableModel } from "../types/model";
 import type { LogLine } from "../types/log";
 import type { EvalCase } from "braintrust";
+import { StagehandInitResult } from "@/evals/initStagehand";
 
-export type EvalFunction = (args: {
-  modelName: AvailableModel;
-  logger: EvalLogger;
-  useTextExtract: boolean;
-  useAccessibilityTree: boolean;
-}) => Promise<{
+export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
   _success: boolean;
   logs: LogLine[];
   debugUrl: string;
@@ -28,6 +23,8 @@ export const EvalCategorySchema = z.enum([
   "regression_text_extract",
   "regression_dom_extract",
   "regression_llm_providers",
+  "llm_clients",
+  "unit",
 ]);
 
 export type EvalCategory = z.infer<typeof EvalCategorySchema>;

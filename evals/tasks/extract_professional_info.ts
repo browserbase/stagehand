@@ -1,20 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { normalizeString } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_professional_info: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
   );
@@ -27,7 +21,6 @@ export const extract_professional_info: EvalFunction = async ({
       phone: z.string(),
       fax: z.string(),
     }),
-    modelName,
     useTextExtract,
   });
 

@@ -1,6 +1,6 @@
 /**
  * This script orchestrates the running of evaluations against a set of tasks.
- * It braintrust to run multiple testcases (each testcase representing a
+ * It uses Braintrust to run multiple testcases (each testcase representing a
  * given task-model combination) and then aggregates the results, producing
  * a summary of passes, failures, and categorized success rates.
  *
@@ -15,23 +15,23 @@
 import fs from "fs";
 import path from "path";
 import process from "process";
-import {
-  filterByCategory,
-  filterByEvalName,
-  useTextExtract,
-  useAccessibilityTree,
-} from "./args";
-
+import { filterByCategory, filterByEvalName, useTextExtract } from "./args";
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, MODELS } from "./taskConfig";
-import { Eval } from "braintrust";
+import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
 import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@/dist";
+import { AvailableModel, LLMClient } from "@/dist";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";
+import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
+import OpenAI from "openai";
+import { initStagehand } from "./initStagehand";
+import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { google } from "@ai-sdk/google";
+
 dotenv.config();
 
 /**
@@ -233,18 +233,36 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          const result = await taskFunction({
-            modelName: input.modelName,
-            logger,
-            useTextExtract,
-            useAccessibilityTree,
+          let llmClient: LLMClient = new CustomOpenAIClient({
+            modelName: input.modelName as AvailableModel,
+            client: wrapOpenAI(
+              new OpenAI({
+                apiKey: process.env.BRAINTRUST_API_KEY,
+                baseURL: "https://api.braintrust.dev/v1/proxy",
+              }),
+            ),
           });
-
-          // Log result to console
-          if (result && result._success) {
-            console.log(`✅ ${input.name}: Passed`);
-          } else {
-            console.log(`❌ ${input.name}: Failed`);
+          if (input.modelName.startsWith("gemini")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(google("gemini-2.0-flash")),
+            });
+          }
+          const taskInput = await initStagehand({
+            logger,
+            llmClient,
+            useTextExtract,
+          });
+          let result;
+          try {
+            result = await taskFunction(taskInput);
+            // Log result to console
+            if (result && result._success) {
+              console.log(`✅ ${input.name}: Passed`);
+            } else {
+              console.log(`❌ ${input.name}: Failed`);
+            }
+          } finally {
+            await taskInput.stagehand.close();
           }
           return result;
         } catch (error) {
@@ -256,7 +274,7 @@ const generateFilteredTestcases = (): Testcase[] => {
             auxiliary: {
               error: {
                 value: error.message,
-                type: "object",
+                type: "string",
               },
               trace: {
                 value: error.stack,

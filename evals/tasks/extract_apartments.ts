@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_apartments: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://www.apartments.com/san-francisco-ca/2-bedrooms/",
   );
@@ -29,7 +22,6 @@ export const extract_apartments: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

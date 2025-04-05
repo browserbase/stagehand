@@ -1,14 +1,17 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@/dist";
 import { EvalFunction } from "@/types/evals";
 
-export const nextChunk: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const nextChunk: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
     domSettleTimeoutMs: 3000,
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  await stagehand.init();
 
   await stagehand.page.goto("https://www.apartments.com/san-francisco-ca/");
   await stagehand.page.act({

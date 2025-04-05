@@ -1,13 +1,16 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@/dist";
 import { EvalFunction } from "@/types/evals";
 
-export const observe_iframes2: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const observe_iframes2: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  await stagehand.init();
 
   await stagehand.page.goto(
     "https://iframetester.com/?url=https://shopify.com",
