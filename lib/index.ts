@@ -79,14 +79,11 @@ async function getBrowser(
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
-      logger({
-        category: "init",
-        message:
-          "BROWSERBASE_API_KEY is required to use BROWSERBASE env. Defaulting to LOCAL.",
-        level: 0,
-      });
-      env = "LOCAL";
+      throw new Error(
+        'BROWSERBASE_API_KEY is required to use the BROWSERBASE environment. Please set it in your .env or pass it in.'
+      );
     }
+    
     if (!projectId) {
       logger({
         category: "init",
@@ -537,6 +534,14 @@ export class Stagehand {
     this.intEnv = env;
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
+
+    if (this.intEnv === "BROWSERBASE" && !this.apiKey) {
+      throw new Error(
+        'Stagehand is set to use "BROWSERBASE" but no BROWSERBASE_API_KEY was found. Please set it in your .env or pass it explicitly.'
+      );
+    }
+
+    
     this.verbose = verbose ?? 0;
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
