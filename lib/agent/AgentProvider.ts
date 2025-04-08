@@ -7,6 +7,7 @@ import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
 } from "@/types/stagehandErrors";
+import { ClientOptions } from "@/types/model";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -32,7 +33,7 @@ export class AgentProvider {
 
   getClient(
     modelName: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions & Record<string, unknown>,
     userProvidedInstructions?: string,
   ): AgentClient {
     const type = AgentProvider.getAgentProvider(modelName);

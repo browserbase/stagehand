@@ -1,4 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, {
+  type ClientOptions as AnthropicClientOptions,
+} from "@anthropic-ai/sdk";
 import { LogLine } from "@/types/log";
 import {
   AgentAction,
@@ -35,7 +37,7 @@ export class AnthropicCUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: AnthropicClientOptions & Record<string, unknown>,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -53,13 +55,7 @@ export class AnthropicCUAClient extends AgentClient {
     }
 
     // Store client options for reference
-    this.clientOptions = {
-      apiKey: this.apiKey,
-    };
-
-    if (this.baseURL) {
-      this.clientOptions.baseUrl = this.baseURL;
-    }
+    this.clientOptions = clientOptions;
 
     // Initialize the Anthropic client
     this.client = new Anthropic(this.clientOptions);
