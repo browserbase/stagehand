@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Support overriding baseURL for OpenAI CUA Agent
+Support overriding clientOptions for CUA Client
