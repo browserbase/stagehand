@@ -180,7 +180,17 @@ async function getBrowser(
         },
       });
     }
-
+    logger({
+      category: "init",
+      message: "connecting to browserbase session",
+      level: 1,
+      auxiliary: {
+        connectUrl: {
+          value: connectUrl,
+          type: "string",
+        },
+      },
+    });
     const browser = await chromium.connectOverCDP(connectUrl);
 
     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
