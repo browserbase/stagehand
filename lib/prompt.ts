@@ -201,7 +201,8 @@ export function buildActObservePrompt(
   If the action is completely unrelated to a potential action to be taken on the page, return an empty array. 
   ONLY return one action. If multiple actions are relevant, return the most relevant one. 
   If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
-  If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.`;
+  If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
+  If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys.`;
 
   // Add variable names (not values) to the instruction if any
   if (variables && Object.keys(variables).length > 0) {
