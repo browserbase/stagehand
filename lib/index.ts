@@ -78,24 +78,16 @@ async function getBrowser(
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
-      throw new Error(
-        'BROWSERBASE_API_KEY is required to use the BROWSERBASE environment. Please set it in your .env or pass it in.'
+      throw new MissingEnvironmentVariableError(
+        "BROWSERBASE_API_KEY",
+        "Browserbase",
       );
     }
-    
     if (!projectId) {
-      logger({
-        category: "init",
-        message:
-          "BROWSERBASE_PROJECT_ID is required for some Browserbase features that may not work without it.",
-        level: 1,
-      });
-    }
-  }
-
-  if (env === "BROWSERBASE") {
-    if (!apiKey) {
-      throw new StagehandError("BROWSERBASE_API_KEY is required.");
+      throw new MissingEnvironmentVariableError(
+        "BROWSERBASE_PROJECT_ID",
+        "Browserbase",
+      );
     }
 
     let debugUrl: string | undefined = undefined;
@@ -110,17 +102,16 @@ async function getBrowser(
     if (browserbaseSessionID) {
       // Validate the session status
       try {
-        const sessionStatus =
+        const session =
           await browserbase.sessions.retrieve(browserbaseSessionID);
 
-        if (sessionStatus.status !== "RUNNING") {
+        if (session.status !== "RUNNING") {
           throw new StagehandError(
-            `Session ${browserbaseSessionID} is not running (status: ${sessionStatus.status})`,
+            `Session ${browserbaseSessionID} is not running (status: ${session.status})`,
           );
         }
 
         sessionId = browserbaseSessionID;
-        const session = await browserbase.sessions.retrieve(sessionId);
         connectUrl = session.connectUrl;
 
         logger({
@@ -191,6 +182,7 @@ async function getBrowser(
     }
 
     const browser = await chromium.connectOverCDP(connectUrl);
+
     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
 
     debugUrl = debuggerUrl;
@@ -249,7 +241,7 @@ async function getBrowser(
       logger({
         category: "init",
         message: "connecting to local browser via CDP URL",
-        level: 0,
+        level: 1,
         auxiliary: {
           cdpUrl: {
             value: localBrowserLaunchOptions.cdpUrl,
@@ -386,8 +378,6 @@ async function applyStealthScripts(context: BrowserContext) {
 export class Stagehand {
   private stagehandPage!: StagehandPage;
   private stagehandContext!: StagehandContext;
-  private intEnv: "LOCAL" | "BROWSERBASE";
-
   public browserbaseSessionID?: string;
   public readonly domSettleTimeoutMs: number;
   public readonly debugDom: boolean;
@@ -395,7 +385,6 @@ export class Stagehand {
   public verbose: 0 | 1 | 2;
   public llmProvider: LLMProvider;
   public enableCaching: boolean;
-
   private apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
@@ -415,6 +404,7 @@ export class Stagehand {
   public readonly logInferenceToFile?: boolean;
   private stagehandLogger: StagehandLogger;
   private disablePino: boolean;
+  private _env: "LOCAL" | "BROWSERBASE";
 
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
@@ -530,17 +520,26 @@ export class Stagehand {
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
 
-    this.intEnv = env;
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 
-    if (this.intEnv === "BROWSERBASE" && !this.apiKey) {
-      throw new Error(
-        'Stagehand is set to use "BROWSERBASE" but no BROWSERBASE_API_KEY was found. Please set it in your .env or pass it explicitly.'
-      );
+    // Store the environment value
+    this._env = env ?? "BROWSERBASE";
+
+    if (this._env === "BROWSERBASE") {
+      if (!this.apiKey) {
+        throw new MissingEnvironmentVariableError(
+          "BROWSERBASE_API_KEY",
+          "Browserbase",
+        );
+      } else if (!this.projectId) {
+        throw new MissingEnvironmentVariableError(
+          "BROWSERBASE_PROJECT_ID",
+          "Browserbase",
+        );
+      }
     }
 
-    
     this.verbose = verbose ?? 0;
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
@@ -623,10 +622,22 @@ export class Stagehand {
   }
 
   public get env(): "LOCAL" | "BROWSERBASE" {
-    if (this.intEnv === "BROWSERBASE" && this.apiKey && this.projectId) {
+    if (this._env === "BROWSERBASE") {
+      if (!this.apiKey) {
+        throw new MissingEnvironmentVariableError(
+          "BROWSERBASE_API_KEY",
+          "Browserbase",
+        );
+      } else if (!this.projectId) {
+        throw new MissingEnvironmentVariableError(
+          "BROWSERBASE_PROJECT_ID",
+          "Browserbase",
+        );
+      }
       return "BROWSERBASE";
+    } else {
+      return "LOCAL";
     }
-    return "LOCAL";
   }
 
   public get context(): EnhancedContext {
@@ -671,7 +682,7 @@ export class Stagehand {
       this.browserbaseSessionID = sessionId;
     }
 
-    const { context, debugUrl, sessionUrl, contextPath, sessionId, env } =
+    const { context, debugUrl, sessionUrl, contextPath, sessionId } =
       await getBrowser(
         this.apiKey,
         this.projectId,
@@ -692,7 +703,6 @@ export class Stagehand {
         };
         return br;
       });
-    this.intEnv = env;
     this.contextPath = contextPath;
 
     this.stagehandContext = await StagehandContext.init(context, this);
