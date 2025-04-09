@@ -1,6 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
 import { chromium } from "@playwright/test";
-import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
@@ -32,7 +31,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { logLineToString, isRunningInBun } from "./utils";
+import { isRunningInBun } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
@@ -709,63 +708,11 @@ export class Stagehand {
     return { debugUrl, sessionUrl, sessionId };
   }
 
-  private pending_logs_to_send_to_browserbase: LogLine[] = [];
-
-  private is_processing_browserbase_logs: boolean = false;
-
   log(logObj: LogLine): void {
     logObj.level = logObj.level ?? 1;
 
     // Use our Pino-based logger
     this.stagehandLogger.log(logObj);
-
-    this.pending_logs_to_send_to_browserbase.push({
-      ...logObj,
-      id: randomUUID(),
-    });
-    this._run_browserbase_log_processing_cycle();
-  }
-
-  private async _run_browserbase_log_processing_cycle() {
-    if (this.is_processing_browserbase_logs) {
-      return;
-    }
-    this.is_processing_browserbase_logs = true;
-    const pending_logs = [...this.pending_logs_to_send_to_browserbase];
-    for (const logObj of pending_logs) {
-      await this._log_to_browserbase(logObj);
-    }
-    this.is_processing_browserbase_logs = false;
-  }
-
-  private async _log_to_browserbase(logObj: LogLine) {
-    logObj.level = logObj.level ?? 1;
-
-    if (!this.stagehandPage) {
-      return;
-    }
-
-    if (this.verbose >= logObj.level) {
-      await this.page
-        .evaluate((logObj) => {
-          const logMessage = logLineToString(logObj);
-          if (
-            logObj.message.toLowerCase().includes("trace") ||
-            logObj.message.toLowerCase().includes("error:")
-          ) {
-            console.error(logMessage);
-          } else {
-            console.log(logMessage);
-          }
-        }, logObj)
-        .then(() => {
-          this.pending_logs_to_send_to_browserbase =
-            this.pending_logs_to_send_to_browserbase.filter(
-              (log) => log.id !== logObj.id,
-            );
-        })
-        .catch(() => {});
-    }
   }
 
   /** @deprecated Use stagehand.page.act() instead. This will be removed in the next major release. */
