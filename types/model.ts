@@ -19,11 +19,22 @@ export const AvailableModelSchema = z.enum([
   "cerebras-llama-3.1-8b",
   "groq-llama-3.3-70b-versatile",
   "groq-llama-3.3-70b-specdec",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-1.5-flash-8b",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.5-pro-preview-03-25",
 ]);
 
 export type AvailableModel = z.infer<typeof AvailableModelSchema>;
 
-export type ModelProvider = "openai" | "anthropic" | "cerebras" | "groq";
+export type ModelProvider =
+  | "openai"
+  | "anthropic"
+  | "cerebras"
+  | "groq"
+  | "google";
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 

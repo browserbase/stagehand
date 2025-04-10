@@ -7,6 +7,7 @@ import {
 import { LLMCache } from "../cache/LLMCache";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
+import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
@@ -32,6 +33,12 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "cerebras-llama-3.1-8b": "cerebras",
   "groq-llama-3.3-70b-versatile": "groq",
   "groq-llama-3.3-70b-specdec": "groq",
+  "gemini-1.5-flash": "google",
+  "gemini-1.5-pro": "google",
+  "gemini-1.5-flash-8b": "google",
+  "gemini-2.0-flash-lite": "google",
+  "gemini-2.0-flash": "google",
+  "gemini-2.5-pro-preview-03-25": "google",
 };
 
 export class LLMProvider {
@@ -100,6 +107,14 @@ export class LLMProvider {
         });
       case "groq":
         return new GroqClient({
+          logger: this.logger,
+          enableCaching: this.enableCaching,
+          cache: this.cache,
+          modelName,
+          clientOptions,
+        });
+      case "google":
+        return new GoogleClient({
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
