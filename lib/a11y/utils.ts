@@ -6,24 +6,7 @@ import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,
 } from "@/types/playwright";
-
-// Parser function for str output
-export function formatSimplifiedTree(
-  node: AccessibilityNode,
-  level = 0,
-): string {
-  const indent = "  ".repeat(level);
-  let result = `${indent}[${node.nodeId}] ${node.role}${
-    node.name ? `: ${node.name}` : ""
-  }\n`;
-
-  if (node.children?.length) {
-    result += node.children
-      .map((child) => formatSimplifiedTree(child, level + 1))
-      .join("");
-  }
-  return result;
-}
+import { formatSimplifiedTree } from "./treeFormatUtils";
 
 /**
  * Helper function to remove or collapse unnecessary structural nodes
@@ -54,7 +37,7 @@ async function cleanStructuralNodes(
     cleanStructuralNodes(child, page, logger),
   );
   const resolvedChildren = await Promise.all(cleanedChildrenPromises);
-  const cleanedChildren = resolvedChildren.filter(
+  let cleanedChildren = resolvedChildren.filter(
     (child): child is AccessibilityNode => child !== null,
   );
 
@@ -136,11 +119,68 @@ async function cleanStructuralNodes(
     }
   }
 
-  // 6) Return the updated node.
-  //    If it has children, update them; otherwise keep it as-is.
-  return cleanedChildren.length > 0
-    ? { ...node, children: cleanedChildren }
-    : node;
+  // 6) Remove redundant StaticText children when the parent is a link
+  //
+  // Some pages produce a link node whose accessible name is duplicated
+  // by separate StaticText child nodes.
+  //
+  // Example:
+  //    parent (role=link, name="[6]")
+  //      child StaticText #1: "["
+  //      child StaticText #2: "6"
+  //      child StaticText #3: "]"
+  //
+  //    => combinedChildText = "[6]" which equals parentName ("[6]")
+  //    => remove all child StaticText
+  const roleParts = node.role ? node.role.split(",").map((r) => r.trim()) : [];
+  const nodeIsLink = roleParts.includes("link");
+
+  if (nodeIsLink && node.name) {
+    const parentName = node.name.replace(/\s+/g, " ").trim();
+
+    // Gather all StaticText children, combine them, compare with parent's name
+    const staticTextChildren = cleanedChildren.filter(
+      (child) => child.role === "StaticText" && child.name,
+    );
+    const combinedChildText = staticTextChildren
+      .map((child) => child.name?.replace(/\s+/g, " ").trim() || "")
+      .join("");
+
+    // If combined text equals the parent's link name, remove those child nodes
+    if (combinedChildText === parentName) {
+      cleanedChildren = cleanedChildren.filter(
+        (child) => child.role !== "StaticText",
+      );
+    }
+  }
+
+  // 7) If cleanedChildren is empty, replace children with [] or remove node if appropriate
+  if (cleanedChildren.length === 0) {
+    // If it's a container role with no children, we remove it
+    // or if it's an actual interactive element like link or button, keep it as an empty container.
+    if (node.role === "generic" || node.role === "none") {
+      return null;
+    } else {
+      return {
+        ...node,
+        children: [],
+      };
+    }
+  }
+
+  return {
+    ...node,
+    children: cleanedChildren,
+  };
+}
+
+function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
+  if (!axNode.properties) return undefined;
+  const urlProp = axNode.properties.find((prop) => prop.name === "url");
+  if (urlProp && urlProp.value && typeof urlProp.value.value === "string") {
+    return urlProp.value.value.trim();
+  }
+  return undefined;
 }
 
 /**
@@ -154,6 +194,9 @@ export async function buildHierarchicalTree(
   page?: StagehandPage,
   logger?: (logLine: LogLine) => void,
 ): Promise<TreeResult> {
+  // Map to store nodeId -> URL for only those nodes that do have a URL.
+  const idToUrl: Record<string, string> = {};
+
   // Map to store processed nodes for quick lookup
   const nodeMap = new Map<string, AccessibilityNode>();
   const iframe_list: AccessibilityNode[] = [];
@@ -165,6 +208,12 @@ export async function buildHierarchicalTree(
     const nodeIdValue = parseInt(node.nodeId, 10);
     if (nodeIdValue < 0) {
       return;
+    }
+
+    // Try to see if the original raw node had a 'properties' array, we can read the URL from there.
+    const url = extractUrlFromAXNode(node);
+    if (url) {
+      idToUrl[node.nodeId] = url;
     }
 
     const hasChildren = node.childIds && node.childIds.length > 0;
@@ -239,6 +288,7 @@ export async function buildHierarchicalTree(
     tree: finalTree,
     simplified: simplifiedFormat,
     iframes: iframe_list,
+    idToUrl,
   };
 }
 
@@ -283,6 +333,7 @@ export async function getAccessibilityTree(
           backendDOMNodeId: node.backendDOMNodeId,
           parentId: node.parentId,
           childIds: node.childIds,
+          properties: node.properties,
         };
       }),
       page,

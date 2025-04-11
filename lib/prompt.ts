@@ -183,6 +183,9 @@ export function buildObserveUserMessage(
   return {
     role: "user",
     content: `instruction: ${instruction}
+
+CRITICAL: links will be formatted as <[id of link element] (corresponding link text here)>
+
 ${isUsingAccessibilityTree ? "Accessibility Tree" : "DOM"}: ${domElements}`,
   };
 }
