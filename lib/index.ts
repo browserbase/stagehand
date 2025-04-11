@@ -180,17 +180,19 @@ async function getBrowser(
         },
       });
     }
-    logger({
-      category: "init",
-      message: "connecting to browserbase session",
-      level: 1,
-      auxiliary: {
-        connectUrl: {
-          value: connectUrl,
-          type: "string",
+    if (!connectUrl.includes("connect.connect")) {
+      logger({
+        category: "init",
+        message: "connecting to browserbase session",
+        level: 1,
+        auxiliary: {
+          connectUrl: {
+            value: connectUrl,
+            type: "string",
+          },
         },
-      },
-    });
+      });
+    }
     const browser = await chromium.connectOverCDP(connectUrl);
 
     const { debuggerUrl } = await browserbase.sessions.debug(sessionId);
@@ -248,17 +250,19 @@ async function getBrowser(
     }
 
     if (localBrowserLaunchOptions?.cdpUrl) {
-      logger({
-        category: "init",
-        message: "connecting to local browser via CDP URL",
-        level: 1,
-        auxiliary: {
-          cdpUrl: {
-            value: localBrowserLaunchOptions.cdpUrl,
-            type: "string",
+      if (!localBrowserLaunchOptions.cdpUrl.includes("connect.connect")) {
+        logger({
+          category: "init",
+          message: "connecting to local browser via CDP URL",
+          level: 1,
+          auxiliary: {
+            cdpUrl: {
+              value: localBrowserLaunchOptions.cdpUrl,
+              type: "string",
+            },
           },
-        },
-      });
+        });
+      }
 
       const browser = await chromium.connectOverCDP(
         localBrowserLaunchOptions.cdpUrl,
