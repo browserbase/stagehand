@@ -10,7 +10,7 @@ on:
 
 env:
   EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
-  EVAL_CATEGORIES: "observe,act,combination,extract,text_extract"
+  EVAL_CATEGORIES: "observe,act,combination,extract,text_extract,targeted_extract"
 
 concurrency:
   group: ${{ github.ref }}
@@ -186,64 +186,13 @@ jobs:
       - name: Run E2E Tests (browserbase)
         run: npm run e2e:bb
 
-  run-regression-evals-llm-providers:
+  run-regression-evals:
     needs:
       [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
-      regression_llm_providers_score: ${{ steps.set-llm-providers-score.outputs.regression_llm_providers_score }}
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-      EVAL_MODELS: "gpt-4o-mini"
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          rm -f package-lock.json
-          npm install
-
-      - name: Build Stagehand
-        run: npm run build
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Regression Evals (llmProviders)
-        run: npm run evals category regression_llm_providers trials=2 concurrency=8 env=BROWSERBASE
-
-      - name: Save Regression llmProviders Results
-        run: mv eval-summary.json eval-summary-regression-llm-providers.json
-
-      - name: Log and Regression (llmProviders) Evals Performance
-        id: set-llm-providers-score
-        run: |
-          experimentNameRegressionLlmProviders=$(jq -r '.experimentName' eval-summary-regression-llm-providers.json)
-          regression_llm_providers_score=$(jq '.categories.regression_llm_providers' eval-summary-regression-llm-providers.json)
-          echo "regression_llm_providers category score: ${regression_llm_providers_score}%"
-          echo "View regression_llm_providers results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionLlmProviders}"
-          echo "regression_llm_providers_score=$regression_llm_providers_score" >> "$GITHUB_OUTPUT"
-
-  run-regression-evals-dom-extract:
-    needs:
-      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
-    runs-on: ubuntu-latest
-    timeout-minutes: 9
-    outputs:
-      regression_dom_score: ${{ steps.set-dom-score.outputs.regression_dom_score }}
+      regression_score: ${{ steps.set-regression-score.outputs.regression_score }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -273,99 +222,27 @@ jobs:
       - name: Install Playwright browsers
         run: npm exec playwright install --with-deps
 
-      - name: Run Regression Evals (domExtract)
-        run: npm run evals category regression_dom_extract trials=2 concurrency=8 env=BROWSERBASE -- --extract-method=domExtract
+      - name: Run Regression Evals
+        run: npm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
 
-      - name: Save Regression domExtract Results
-        run: mv eval-summary.json eval-summary-regression-dom.json
-
-      - name: Log and Regression (domExtract) Evals Performance
-        id: set-dom-score
+      - name: Log Regression Evals Performance
         run: |
-          experimentNameRegressionDom=$(jq -r '.experimentName' eval-summary-regression-dom.json)
-          regression_dom_score=$(jq '.categories.regression_dom_extract' eval-summary-regression-dom.json)
-          echo "regression_dom_extract category score: ${regression_dom_score}%"
-          echo "View regression_dom_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionDom}"
-          echo "regression_dom_score=$regression_dom_score" >> "$GITHUB_OUTPUT"
-
-  run-regression-evals-text-extract:
-    needs:
-      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
-    runs-on: ubuntu-latest
-    timeout-minutes: 9
-    outputs:
-      regression_text_score: ${{ steps.set-text-score.outputs.regression_text_score }}
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          rm -f package-lock.json
-          npm install
-
-      - name: Build Stagehand
-        run: npm run build
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Regression Evals (textExtract)
-        run: npm run evals category regression_text_extract trials=2 concurrency=8 env=BROWSERBASE -- --extract-method=textExtract
-
-      - name: Save Regression textExtract Results
-        run: mv eval-summary.json eval-summary-regression-text.json
-
-      - name: Log Regression (textExtract) Evals Performance
-        id: set-text-score
-        run: |
-          experimentNameRegressionText=$(jq -r '.experimentName' eval-summary-regression-text.json)
-          regression_text_score=$(jq '.categories.regression_text_extract' eval-summary-regression-text.json)
-          echo "regression_text_extract category score: ${regression_text_score}%"
-          echo "View regression_text_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionText}"
-          echo "regression_text_score=$regression_text_score" >> "$GITHUB_OUTPUT"
-
-  check-regression-evals-score:
-    needs:
-      [
-        run-regression-evals-text-extract,
-        run-regression-evals-dom-extract,
-        run-regression-evals-llm-providers,
-      ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Compare Overall Regression Evals Score
-        run: |
-          regression_dom_score="${{ needs.run-regression-evals-dom-extract.outputs.regression_dom_score }}"
-          regression_text_score="${{ needs.run-regression-evals-text-extract.outputs.regression_text_score }}"
-          regression_llm_providers_score="${{ needs.run-regression-evals-llm-providers.outputs.regression_llm_providers_score }}"
-
-          overall_score=$(echo "(${regression_dom_score} + ${regression_text_score} + ${regression_llm_providers_score}) / 3" | bc -l)
-          echo "Overall regression score: ${overall_score}%"
-
-          # Fail if overall score is below 90%
-          if (( $(echo "${overall_score} < 90" | bc -l) )); then
-            echo "Overall regression score is below 90%. Failing CI."
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            regression_score=$(jq '.categories.regression' eval-summary.json)
+            echo "Regression category score: $regression_score%"
+            if (( $(echo "$regression_score < 90" | bc -l) )); then
+              echo "Regression category score is below 90%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for regression category. Failing CI."
             exit 1
           fi
 
   run-combination-evals:
-    needs: [check-regression-evals-score, determine-evals]
+    needs: [run-regression-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

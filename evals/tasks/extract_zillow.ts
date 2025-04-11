@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_zillow: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
   );
@@ -31,7 +24,6 @@ export const extract_zillow: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

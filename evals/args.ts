@@ -8,6 +8,7 @@ const parsedArgs: {
   trials?: number;
   concurrency?: number;
   extractMethod?: string;
+  provider?: string;
   leftover: string[];
 } = {
   leftover: [],
@@ -28,6 +29,8 @@ for (const arg of rawArgs) {
     }
   } else if (arg.startsWith("--extract-method=")) {
     parsedArgs.extractMethod = arg.split("=")[1];
+  } else if (arg.startsWith("provider=")) {
+    parsedArgs.provider = arg.split("=")[1]?.toLowerCase();
   } else {
     parsedArgs.leftover.push(arg);
   }
@@ -64,8 +67,8 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "text_extract",
       "targeted_extract",
       "regression_llm_providers",
-      "regression_text_extract",
-      "regression_dom_extract",
+      "regression",
+      "llm_clients",
     ];
 
 // Finally, interpret leftover arguments to see if user typed "category X" or a single eval name
@@ -93,10 +96,15 @@ if (parsedArgs.leftover.length > 0) {
   }
 }
 
+if (parsedArgs.provider !== undefined) {
+  process.env.EVAL_PROVIDER = parsedArgs.provider;
+}
+
 export {
   filterByCategory,
   filterByEvalName,
   useTextExtract,
   useAccessibilityTree,
   DEFAULT_EVAL_CATEGORIES,
+  parsedArgs,
 };

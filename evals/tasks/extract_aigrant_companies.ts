@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_aigrant_companies: EvalFunction = async ({
-  modelName,
   logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
   );
@@ -29,7 +22,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

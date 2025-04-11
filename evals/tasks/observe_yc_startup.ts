@@ -1,23 +1,17 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const observe_yc_startup: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.ycombinator.com/companies");
   await stagehand.page.waitForLoadState("networkidle");
 
   const observations = await stagehand.page.observe({
     instruction:
-      "Find the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
+      "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
   });
 
   if (observations.length === 0) {

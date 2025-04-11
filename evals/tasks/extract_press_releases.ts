@@ -1,21 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 import { compareStrings } from "@/evals/utils";
 
 export const extract_press_releases: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   const schema = z.object({
     items: z.array(
       z.object({
@@ -42,7 +35,6 @@ export const extract_press_releases: EvalFunction = async ({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema,
-      modelName,
       useTextExtract,
     });
 

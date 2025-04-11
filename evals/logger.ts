@@ -23,18 +23,27 @@ import { Stagehand, LogLine } from "@/dist";
  */
 function parseLogLine(logLine: LogLine): LogLineEval {
   try {
+    let parsedAuxiliary: Record<string, unknown> | undefined;
+
+    if (logLine.auxiliary) {
+      parsedAuxiliary = {};
+
+      for (const [key, entry] of Object.entries(logLine.auxiliary)) {
+        try {
+          parsedAuxiliary[key] =
+            entry.type === "object" ? JSON.parse(entry.value) : entry.value;
+        } catch (parseError) {
+          console.warn(`Failed to parse auxiliary entry ${key}:`, parseError);
+          // If parsing fails, use the raw value
+          parsedAuxiliary[key] = entry.value;
+        }
+      }
+    }
+
     return {
       ...logLine,
-      // Remove the original auxiliary field in favor of parsedAuxiliary
       auxiliary: undefined,
-      parsedAuxiliary: logLine.auxiliary
-        ? Object.fromEntries(
-            Object.entries(logLine.auxiliary).map(([key, entry]) => [
-              key,
-              entry.type === "object" ? JSON.parse(entry.value) : entry.value,
-            ]),
-          )
-        : undefined,
+      parsedAuxiliary,
     } as LogLineEval;
   } catch (e) {
     console.log("Error parsing log line", logLine);
@@ -56,10 +65,12 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  *   included in evaluation output.
  */
 export class EvalLogger {
-  logs: LogLineEval[] = [];
+  private logs: LogLineEval[] = [];
   stagehand?: Stagehand;
 
-  constructor() {}
+  constructor() {
+    this.logs = [];
+  }
 
   /**
    * init:
@@ -106,7 +117,7 @@ export class EvalLogger {
    * Retrieves the array of stored log lines.
    * Useful for returning logs after a task completes, for analysis or debugging.
    */
-  getLogs() {
-    return this.logs;
+  getLogs(): LogLineEval[] {
+    return this.logs || [];
   }
 }

@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_github_stars: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
 
@@ -22,7 +16,6 @@ export const extract_github_stars: EvalFunction = async ({
       schema: z.object({
         stars: z.number().describe("the number of stars for the project"),
       }),
-      modelName,
       useTextExtract,
     });
 

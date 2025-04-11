@@ -1,22 +1,38 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@/dist";
 import { EvalFunction } from "@/types/evals";
+import { ObserveResult } from "@/types/stagehand";
 
-export const observe_iframes2: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const observe_iframes2: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  await stagehand.init();
 
   await stagehand.page.goto(
     "https://iframetester.com/?url=https://shopify.com",
   );
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  const observations = await stagehand.page.observe({
-    instruction: "find the main header of the page",
-  });
+  let observations: ObserveResult[];
+  try {
+    observations = await stagehand.page.observe({
+      instruction: "find the main header of the page",
+    });
+  } catch (err) {
+    await stagehand.close();
+    return {
+      _success: false,
+      message: err.message,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  }
 
   if (observations.length === 0) {
     await stagehand.close();

@@ -1,18 +1,24 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
-import { openai } from "@ai-sdk/openai/dist";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { LangchainClient } from "@/examples/external_clients/langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { Stagehand } from "@/dist";
 
-export const hn_aisdk: EvalFunction = async ({ logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    logger,
-    llmClient: new AISdkClient({
-      model: openai("gpt-4o-mini"),
-    }),
+export const hn_langchain: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
+    llmClient: new LangchainClient(
+      new ChatOpenAI({
+        model: "gpt-4o-mini",
+      }),
+    ),
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  await stagehand.init();
 
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/hackernews/",

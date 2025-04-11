@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_hamilton_weather: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/",
@@ -31,7 +25,6 @@ export const extract_hamilton_weather: EvalFunction = async ({
         barometer: z.string(),
         visibility: z.string(),
       }),
-      modelName,
       useTextExtract,
       selector: xpath,
     });

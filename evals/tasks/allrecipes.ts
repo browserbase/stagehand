@@ -1,19 +1,13 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const allrecipes: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.allrecipes.com/", {
     waitUntil: "domcontentloaded",
   });
@@ -22,7 +16,7 @@ export const allrecipes: EvalFunction = async ({
     action: 'Type "chocolate chip cookies" in the search bar',
   });
   await stagehand.page.act({
-    action: "hit enter",
+    action: "press enter",
   });
 
   const recipeDetails = await stagehand.page.extract({
@@ -34,7 +28,6 @@ export const allrecipes: EvalFunction = async ({
         .string()
         .describe("Total number of ratings for the recipe"),
     }),
-    modelName,
     useTextExtract,
   });
 

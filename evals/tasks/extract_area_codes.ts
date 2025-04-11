@@ -1,20 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_area_codes: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.init();
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/",
     { waitUntil: "domcontentloaded" },
@@ -44,7 +37,6 @@ export const extract_area_codes: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const arxiv: EvalFunction = async ({
-  modelName,
   logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://arxiv.org/search/");
 
@@ -35,7 +29,6 @@ export const arxiv: EvalFunction = async ({
           )
           .describe("list of papers"),
       }),
-      modelName,
       useTextExtract,
     });
 
@@ -93,7 +86,6 @@ export const arxiv: EvalFunction = async ({
               )
               .nullable(),
           }),
-          modelName,
           useTextExtract,
         });
 

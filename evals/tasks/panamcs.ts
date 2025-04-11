@@ -1,19 +1,18 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const panamcs: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const panamcs: EvalFunction = async ({
+  debugUrl,
+  sessionUrl,
+  stagehand,
+  logger,
+}) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
   );
 
-  const observations = await stagehand.page.observe({ onlyVisible: true });
+  const observations = await stagehand.page.observe(
+    "click the 'about us' link",
+  );
 
   if (observations.length === 0) {
     await stagehand.close();
@@ -26,7 +25,7 @@ export const panamcs: EvalFunction = async ({ modelName, logger }) => {
     };
   }
 
-  const expectedLocator = `a.btn:nth-child(3)`;
+  const expectedLocator = `#menu > li:nth-child(1) > a`;
 
   const expectedResult = await stagehand.page
     .locator(expectedLocator)

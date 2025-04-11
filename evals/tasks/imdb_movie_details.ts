@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const imdb_movie_details: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.imdb.com/title/tt0111161/", {
     waitUntil: "domcontentloaded",
   });
@@ -28,7 +22,6 @@ export const imdb_movie_details: EvalFunction = async ({
         .array(z.string())
         .describe("List of countries with the most ratings"),
     }),
-    modelName,
     useTextExtract,
   });
 

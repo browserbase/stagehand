@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const StagehandConfig: ConstructorParams = {
-  verbose: 1 /* Verbosity level for logging: 0 = silent, 1 = info, 2 = all */,
+  verbose: 2 /* Verbosity level for logging: 0 = silent, 1 = info, 2 = all */,
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
 
   //   LLM configuration

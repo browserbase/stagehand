@@ -1,14 +1,11 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
-export const apple: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const apple: EvalFunction = async ({
+  logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
+}) => {
   await stagehand.page.goto("https://www.apple.com/iphone-16-pro/");
 
   await stagehand.page.act({ action: "click on the buy button" });

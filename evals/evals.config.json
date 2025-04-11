@@ -6,11 +6,7 @@
     },
     {
       "name": "expect_act_timeout",
-      "categories": ["act"]
-    },
-    {
-      "name": "expect_act_timeout_global",
-      "categories": ["act"]
+      "categories": ["regression"]
     },
     {
       "name": "extract_repo_name",
@@ -22,7 +18,7 @@
     },
     {
       "name": "instructions",
-      "categories": ["combination"]
+      "categories": ["regression", "combination"]
     },
     {
       "name": "bidnet",
@@ -30,7 +26,8 @@
     },
     {
       "name": "ionwave",
-      "categories": ["act", "regression_dom_extract"]
+      "categories": ["act", "regression"],
+      "extract_method": "domExtract"
     },
     {
       "name": "nonsense_action",
@@ -83,19 +80,20 @@
     },
     {
       "name": "wichita",
-      "categories": ["combination", "regression_dom_extract"]
+      "categories": ["combination", "regression"],
+      "extract_method": "domExtract"
     },
     {
       "name": "hn_aisdk",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_langchain",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_customOpenAI",
-      "categories": ["regression_llm_providers"]
+      "categories": ["llm_clients"]
     },
     {
       "name": "apple",
@@ -119,7 +117,8 @@
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": ["experimental", "text_extract", "regression_text_extract"]
+      "categories": ["text_extract", "regression"],
+      "extract_method": "textExtract"
     },
     {
       "name": "extract_capacitor_info",
@@ -168,7 +167,8 @@
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": ["extract", "regression_dom_extract"]
+      "categories": ["extract", "regression"],
+      "extract_method": "domExtract"
     },
     {
       "name": "extract_nhl_stats",
@@ -204,16 +204,8 @@
       "categories": ["observe"]
     },
     {
-      "name": "shopify_homepage",
-      "categories": ["observe"]
-    },
-    {
-      "name": "vanta",
-      "categories": ["observe"]
-    },
-    {
       "name": "vanta_h",
-      "categories": ["observe"]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_area_codes",
@@ -237,11 +229,13 @@
     },
     {
       "name": "observe_github",
-      "categories": ["observe", "regression_text_extract"]
+      "categories": ["observe", "regression"],
+      "extract_method": "textExtract"
     },
     {
       "name": "observe_vantechjournal",
-      "categories": ["observe", "regression_text_extract"]
+      "categories": ["observe", "regression"],
+      "extract_method": "textExtract"
     },
     {
       "name": "observe_amazon_add_to_cart",
@@ -261,15 +255,16 @@
     },
     {
       "name": "observe_iframes1",
-      "categories": ["observe"]
+      "categories": ["regression", "observe"]
     },
     {
       "name": "observe_iframes2",
-      "categories": ["observe"]
+      "categories": ["regression", "observe"]
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": ["targeted_extract", "regression_text_extract"]
+      "categories": ["targeted_extract", "regression"],
+      "extract_method": "textExtract"
     },
     {
       "name": "extract_regulations_table",
@@ -297,19 +292,19 @@
     },
     {
       "name": "scroll_50",
-      "categories": ["act"]
+      "categories": ["regression", "act"]
     },
     {
       "name": "scroll_75",
-      "categories": ["act", "regression_dom_extract"]
+      "categories": ["regression", "act"]
     },
     {
       "name": "nextChunk",
-      "categories": ["act"]
+      "categories": ["regression", "act"]
     },
     {
       "name": "prevChunk",
-      "categories": ["act"]
+      "categories": ["regression", "act"]
     }
   ]
 }

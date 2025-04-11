@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 
 export const amazon_add_to_cart: EvalFunction = async ({
-  modelName,
   logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
-    "https://www.amazon.com/Laptop-MacBook-Surface-Water-Resistant-Accessories/dp/B0D5M4H5CD",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
   );
 
   await stagehand.page.waitForTimeout(5000);
@@ -30,12 +24,13 @@ export const amazon_add_to_cart: EvalFunction = async ({
 
   await stagehand.page.waitForTimeout(2000);
   const currentUrl = stagehand.page.url();
-  const expectedUrlPrefix = "https://www.amazon.com/ap/signin";
+  const expectedUrl =
+    "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
   await stagehand.close();
 
   return {
-    _success: currentUrl.startsWith(expectedUrlPrefix),
+    _success: currentUrl === expectedUrl,
     currentUrl,
     debugUrl,
     sessionUrl,

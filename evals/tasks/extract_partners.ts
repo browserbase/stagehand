@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_partners: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://ramp.com");
 
@@ -44,7 +38,6 @@ export const extract_partners: EvalFunction = async ({
           .optional()
           .describe("Any explanation about partner listing or absence thereof"),
       }),
-      modelName,
       useTextExtract,
     });
 

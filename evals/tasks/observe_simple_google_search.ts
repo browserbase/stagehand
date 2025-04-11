@@ -1,23 +1,14 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { performPlaywrightMethod } from "@/lib/a11y/utils";
 
 export const observe_simple_google_search: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.google.com");
 
-  // await stagehand.page.act({
-  //   action: 'Search for "OpenAI"',
-  // });
   const observation1 = await stagehand.page.observe({
     instruction: "Find the search bar and enter 'OpenAI'",
     onlyVisible: false,

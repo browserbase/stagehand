@@ -1,20 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_staff_members: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
   );
@@ -30,7 +23,6 @@ export const extract_staff_members: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

@@ -1,18 +1,13 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const costar: EvalFunction = async ({
-  modelName,
   logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
   // TODO: fix this eval - does not work in headless mode
   try {
     await Promise.race([
@@ -33,7 +28,6 @@ export const costar: EvalFunction = async ({
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),
       }),
-      modelName,
       useTextExtract,
     });
 
