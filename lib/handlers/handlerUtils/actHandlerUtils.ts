@@ -1,4 +1,4 @@
-import { Page, Locator } from "@playwright/test";
+import { Page, Locator, errors as PlaywrightErrors } from "@playwright/test";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
@@ -348,8 +348,11 @@ export async function clickElement(ctx: MethodHandlerContext) {
       return el instanceof HTMLInputElement && el.type === "radio";
     });
 
-    const clickArg = args.length ? args[0] : undefined;
+    // Extract the click options (if any) from args[0]
+    const clickArg = (args[0] ?? {}) as Record<string, unknown>;
 
+    // Decide which locator we actually want to click (for radio inputs, prefer label if present)
+    let finalLocator = locator;
     if (isRadio) {
       const inputId = await locator.evaluate(
         (el) => (el as HTMLInputElement).id,
@@ -378,12 +381,44 @@ export async function clickElement(ctx: MethodHandlerContext) {
       }
 
       if ((await labelLocator.count()) > 0) {
-        await labelLocator.click(clickArg);
-      } else {
-        await locator.click(clickArg);
+        finalLocator = labelLocator;
       }
-    } else {
-      await locator.click(clickArg);
+    }
+
+    // Try clicking with a short (5s) timeout
+    try {
+      await finalLocator.click({
+        ...clickArg,
+        timeout: 5000,
+      });
+    } catch (error) {
+      // If it's a TimeoutError, retry with force: true
+      if (error instanceof PlaywrightErrors.TimeoutError) {
+        logger({
+          category: "action",
+          message: "First click attempt timed out, retrying with force...",
+          level: 2,
+        });
+        try {
+          await finalLocator.click({
+            ...clickArg,
+            force: true,
+          });
+        } catch (forceError) {
+          // If forced click also fails, throw a more descriptive error
+          throw new PlaywrightCommandException(
+            `Failed to click element at [${xpath}]. ` +
+              `Timeout after 5s, then force-click also failed. ` +
+              `Original timeout error: ${error.message}, ` +
+              `Force-click error: ${forceError.message}`,
+          );
+        }
+      } else {
+        // Non-timeout error on the first click
+        throw new PlaywrightCommandException(
+          `Failed to click element at [${xpath}]. ` + `Error: ${error.message}`,
+        );
+      }
     }
   } catch (e) {
     logger({
@@ -398,7 +433,10 @@ export async function clickElement(ctx: MethodHandlerContext) {
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
-    throw new PlaywrightCommandException(e.message);
+
+    throw new PlaywrightCommandException(
+      `Could not complete click action at [${xpath}]. Reason: ${e.message}`,
+    );
   }
 
   await handlePossiblePageNavigation(

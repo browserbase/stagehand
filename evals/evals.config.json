@@ -305,6 +305,10 @@
     {
       "name": "prevChunk",
       "categories": ["regression", "act"]
+    },
+    {
+      "name": "google_flights",
+      "categories": ["act"]
     }
   ]
 }
