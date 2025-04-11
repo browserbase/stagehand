@@ -10,7 +10,10 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
+import {
+  CreateChatCompletionResponseError,
+  InvalidLLMKeyError,
+} from "@/types/stagehandErrors";
 
 export class GroqClient extends LLMClient {
   public type = "groq" as const;
@@ -306,6 +309,24 @@ export class GroqClient extends LLMClient {
 
       return response as T;
     } catch (error) {
+      if (error instanceof OpenAI.AuthenticationError) {
+        logger({
+          category: "groq",
+          message: "Invalid Groq API key",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+          },
+        });
+        throw new InvalidLLMKeyError();
+      }
       logger({
         category: "groq",
         message: "error creating chat completion",
