@@ -420,6 +420,7 @@ export class StagehandExtractHandler {
       level: 1,
     });
     const outputString = tree.simplified;
+    const idToUrlMapping = tree.idToUrl;
 
     const extractionResponse = await extract({
       instruction,
@@ -436,7 +437,7 @@ export class StagehandExtractHandler {
     });
 
     const {
-      metadata: { completed },
+      metadata: { completed, urlField },
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: inferenceTimeMs,
@@ -486,9 +487,47 @@ export class StagehandExtractHandler {
         },
       });
     }
+
+    if (urlField) {
+      this.replaceIdsWithUrls(output, urlField, idToUrlMapping);
+    }
     return output;
   }
 
+  /**
+   * Recursively looks for all properties named `fieldKey`
+   * in `obj` (including nested objects/arrays).
+   * Replaces bracketed IDs in those fields if they are strings.
+   */
+  private replaceIdsWithUrls(
+    obj: unknown,
+    fieldKey: string,
+    idToUrlMapping: Record<string, string>,
+  ): void {
+    if (Array.isArray(obj)) {
+      // For arrays, recurse on each element
+      for (const item of obj) {
+        this.replaceIdsWithUrls(item, fieldKey, idToUrlMapping);
+      }
+      return;
+    }
+
+    // If it's a non-null object, iterate over its keys
+    if (obj && typeof obj === "object") {
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === fieldKey && typeof value === "string") {
+          // Use a regex that matches both bracketed and non bracketed IDs
+          // eg "[374]" and "374".
+          (obj as Record<string, unknown>)[key] = value.replace(
+            /\[?(\d+)\]?/g,
+            (match, p1) => idToUrlMapping[p1] ?? match,
+          );
+        } else {
+          this.replaceIdsWithUrls(value, fieldKey, idToUrlMapping);
+        }
+      }
+    }
+  }
   /**
    * Get the width, height, and offsets of either the entire page or a specific element.
    * (Matches your existing getTargetDimensions logic, just adapted to accept a string | undefined.)

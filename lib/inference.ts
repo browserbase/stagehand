@@ -84,6 +84,11 @@ export async function extract({
       .describe(
         "true if the goal is now accomplished. Use this conservatively, only when sure that the goal has been completed.",
       ),
+    url_field: z
+      .string()
+      .describe(
+        "the name of the field within the user defined schema that holds IDs that map to URLs or links that they are trying to extract.",
+      ),
   });
 
   type ExtractionResponse = z.infer<typeof schema>;
@@ -282,6 +287,7 @@ export async function extract({
     data: {
       completed: metadataResponseCompleted,
       progress: metadataResponseProgress,
+      url_field: metadataUrlField,
     },
     usage: metadataResponseUsage,
   } = metadataResponse as LLMParsedResponse<MetadataResponse>;
@@ -296,6 +302,7 @@ export async function extract({
         modelResponse: "metadata",
         completed: metadataResponseCompleted,
         progress: metadataResponseProgress,
+        urlField: metadataUrlField,
       },
     );
     metadataResponseFile = fileName;
@@ -332,6 +339,7 @@ export async function extract({
     metadata: {
       completed: metadataResponseCompleted,
       progress: metadataResponseProgress,
+      urlField: metadataUrlField,
     },
     prompt_tokens: totalPromptTokens,
     completion_tokens: totalCompletionTokens,

@@ -165,6 +165,9 @@ export async function buildHierarchicalTree(
   page?: StagehandPage,
   logger?: (logLine: LogLine) => void,
 ): Promise<TreeResult> {
+  // Map to store nodeId -> URL for only those nodes that do have a URL.
+  const idToUrl: Record<string, string> = {};
+
   // Map to store processed nodes for quick lookup
   const nodeMap = new Map<string, AccessibilityNode>();
   const iframe_list: AccessibilityNode[] = [];
@@ -176,6 +179,11 @@ export async function buildHierarchicalTree(
     const nodeIdValue = parseInt(node.nodeId, 10);
     if (nodeIdValue < 0) {
       return;
+    }
+
+    const url = extractUrlFromAXNode(node);
+    if (url) {
+      idToUrl[node.nodeId] = url;
     }
 
     const hasChildren = node.childIds && node.childIds.length > 0;
@@ -250,6 +258,7 @@ export async function buildHierarchicalTree(
     tree: finalTree,
     simplified: simplifiedFormat,
     iframes: iframe_list,
+    idToUrl: idToUrl,
   };
 }
 
@@ -294,6 +303,7 @@ export async function getAccessibilityTree(
           backendDOMNodeId: node.backendDOMNodeId,
           parentId: node.parentId,
           childIds: node.childIds,
+          properties: node.properties,
         };
       }),
       page,
@@ -491,6 +501,15 @@ function removeRedundantStaticTextChildren(
   }
 
   return children;
+}
+
+function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
+  if (!axNode.properties) return undefined;
+  const urlProp = axNode.properties.find((prop) => prop.name === "url");
+  if (urlProp && urlProp.value && typeof urlProp.value.value === "string") {
+    return urlProp.value.value.trim();
+  }
+  return undefined;
 }
 
 export async function performPlaywrightMethod(
