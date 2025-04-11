@@ -10,6 +10,13 @@ export interface AXNode {
   backendDOMNodeId?: number;
   parentId?: string;
   childIds?: string[];
+  properties?: {
+    name: string;
+    value: {
+      type: string;
+      value?: string;
+    };
+  }[];
 }
 
 export type AccessibilityNode = {
@@ -22,12 +29,20 @@ export type AccessibilityNode = {
   parentId?: string;
   nodeId?: string;
   backendDOMNodeId?: number;
+  properties?: {
+    name: string;
+    value: {
+      type: string;
+      value?: string;
+    };
+  }[];
 };
 
 export interface TreeResult {
   tree: AccessibilityNode[];
   simplified: string;
   iframes?: AccessibilityNode[];
+  idToUrl: Record<string, string>;
 }
 
 export interface EnhancedContext
