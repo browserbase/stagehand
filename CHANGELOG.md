@@ -1,5 +1,33 @@
 # @browserbasehq/stagehand
 
+## 2.1.0
+
+### Minor Changes
+
+- [#659](https://github.com/browserbase/stagehand/pull/659) [`f9a435e`](https://github.com/browserbase/stagehand/commit/f9a435e938daccfb2e54ca23fad8ef75128a4486) Thanks [@miguelg719](https://github.com/miguelg719)! - Added native support for Google Generative models (Gemini)
+
+### Patch Changes
+
+- [#647](https://github.com/browserbase/stagehand/pull/647) [`ca5467d`](https://github.com/browserbase/stagehand/commit/ca5467de7d31bfb270b6b625224a926c52c97900) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - collapse redundant text nodes into parent elements
+
+- [#636](https://github.com/browserbase/stagehand/pull/636) [`9037430`](https://github.com/browserbase/stagehand/commit/903743097367ba6bb12baa9f0fa8f7985f543fdc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix token act metrics and inference logging being misplaced as observe metrics and inference logging
+
+- [#648](https://github.com/browserbase/stagehand/pull/648) [`169e7ea`](https://github.com/browserbase/stagehand/commit/169e7ea9e229503ae5958eaa4511531578ee3841) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add mapping of node id -> url
+
+- [#654](https://github.com/browserbase/stagehand/pull/654) [`57a9853`](https://github.com/browserbase/stagehand/commit/57a98538381e0e54fbb734b43c50d61fd0d567df) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix repeated up & down scrolling bug for clicks inside `act`
+
+- [#624](https://github.com/browserbase/stagehand/pull/624) [`cf167a4`](https://github.com/browserbase/stagehand/commit/cf167a437865e8e8bdb8739d22c3b3bb84e185de) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - export stagehand error classes so they can be referenced from @dist
+
+- [#640](https://github.com/browserbase/stagehand/pull/640) [`178f5f0`](https://github.com/browserbase/stagehand/commit/178f5f0a8fecd876adfb4e29983853bdf7ec72fd) Thanks [@yash1744](https://github.com/yash1744)! - Added support for stagehand agents to automatically redirect to https://google.com when the page URL is empty or set to about:blank, preventing empty screenshots and saving tokens.
+
+- [#661](https://github.com/browserbase/stagehand/pull/661) [`bf823a3`](https://github.com/browserbase/stagehand/commit/bf823a36930b0686b416a42302ef8c021b4aba75) Thanks [@kamath](https://github.com/kamath)! - fix press enter
+
+- [#633](https://github.com/browserbase/stagehand/pull/633) [`86724f6`](https://github.com/browserbase/stagehand/commit/86724f6fb0abc7292423ac5bd0bebcd352f95940) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the getBrowser logic for redundant api calls and throw informed errors
+
+- [#656](https://github.com/browserbase/stagehand/pull/656) [`c630373`](https://github.com/browserbase/stagehand/commit/c630373dede4c775875834bfb860436ba2ea48d2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - parse out % signs from variables in act
+
+- [#637](https://github.com/browserbase/stagehand/pull/637) [`944bbbf`](https://github.com/browserbase/stagehand/commit/944bbbfe8bfb357b4910584447a93f6f402c3826) Thanks [@kamath](https://github.com/kamath)! - Fix: forward along the stack trace in StagehandDefaultError
+
 ## 2.0.0
 
 ### Major Changes
