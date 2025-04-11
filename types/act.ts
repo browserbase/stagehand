@@ -35,6 +35,7 @@ export enum SupportedPlaywrightAction {
   CLICK = "click",
   FILL = "fill",
   TYPE = "type",
+  PRESS = "press",
   SCROLL = "scrollTo",
   NEXT_CHUNK = "nextChunk",
   PREV_CHUNK = "prevChunk",
