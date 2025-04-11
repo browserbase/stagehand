@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { type ClientOptions as OpenAIClientOptions } from "openai";
 import { LogLine } from "../../types/log";
 import {
   AgentAction,
@@ -34,7 +34,7 @@ export class OpenAICUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: OpenAIClientOptions & Record<string, unknown>,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -43,6 +43,7 @@ export class OpenAICUAClient extends AgentClient {
       (clientOptions?.apiKey as string) || process.env.OPENAI_API_KEY || "";
     this.organization =
       (clientOptions?.organization as string) || process.env.OPENAI_ORG;
+    this.baseURL = (clientOptions?.baseURL as string) || undefined;
 
     // Get environment if specified
     if (
@@ -53,9 +54,11 @@ export class OpenAICUAClient extends AgentClient {
     }
 
     // Store client options for reference
-    this.clientOptions = {
-      apiKey: this.apiKey,
-    };
+    this.clientOptions = clientOptions;
+
+    if (this.baseURL) {
+      this.clientOptions.baseURL = this.baseURL;
+    }
 
     // Initialize the OpenAI client
     this.client = new OpenAI(this.clientOptions);
