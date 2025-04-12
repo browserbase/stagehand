@@ -236,19 +236,6 @@ async function getBrowser(
       },
     });
 
-    if (localBrowserLaunchOptions) {
-      logger({
-        category: "init",
-        message: "local browser launch options",
-        auxiliary: {
-          localLaunchOptions: {
-            value: JSON.stringify(localBrowserLaunchOptions),
-            type: "string",
-          },
-        },
-      });
-    }
-
     if (localBrowserLaunchOptions?.cdpUrl) {
       if (!localBrowserLaunchOptions.cdpUrl.includes("connect.connect")) {
         logger({
