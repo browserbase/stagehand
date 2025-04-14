@@ -39,6 +39,7 @@ export enum SupportedPlaywrightAction {
   SCROLL = "scrollTo",
   NEXT_CHUNK = "nextChunk",
   PREV_CHUNK = "prevChunk",
+  SELECTOPTION = "selectOption",
 }
 
 /**
