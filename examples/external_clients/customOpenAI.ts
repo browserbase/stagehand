@@ -20,6 +20,7 @@ import type {
 } from "openai/resources/chat/completions";
 import { z } from "zod";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
+import { GenerateTextOptions, LLMResponse, TextResponse } from "@/lib";
 
 function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   try {
@@ -229,12 +230,46 @@ export class CustomOpenAIClient extends LLMClient {
     }
 
     return {
-      data: response.choices[0].message.content,
+      choices: response.choices,
       usage: {
         prompt_tokens: response.usage?.prompt_tokens ?? 0,
         completion_tokens: response.usage?.completion_tokens ?? 0,
         total_tokens: response.usage?.total_tokens ?? 0,
       },
     } as T;
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create chat completion with single user message
+    const res = await (this.createChatCompletion({
+      options: {
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        ...chatOptions,
+        // Generate unique request ID if not provided
+        requestId: options.requestId || Date.now().toString(),
+      },
+      logger,
+      retries,
+    }) as Promise<LLMResponse>);
+    // Validate response and extract generated text
+    if (res.choices && res.choices.length > 0) {
+      return {
+        ...res,
+        text: res.choices[0].message.content,
+      } as T;
+    } else {
+      throw new CreateChatCompletionResponseError("No choices in response");
+    }
   }
 }

@@ -7,8 +7,10 @@ import { LLMCache } from "../cache/LLMCache";
 import {
   ChatMessage,
   CreateChatCompletionOptions,
+  GenerateTextOptions,
   LLMClient,
   LLMResponse,
+  TextResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
@@ -322,6 +324,139 @@ export class GroqClient extends LLMClient {
         },
       });
       throw error;
+    }
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {},
+      retries = 3,
+      requestId = Date.now().toString(),
+      ...chatOptions
+    } = options;
+
+    try {
+      // Log the generation attempt
+      logger({
+        category: "groq",
+        message: "Initiating text generation",
+        level: 2,
+        auxiliary: {
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          model: {
+            value: this.modelName,
+            type: "string",
+          },
+        },
+      });
+
+      // Create chat completion with the provided prompt
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMResponse;
+
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0) {
+        throw new CreateChatCompletionResponseError(
+          "API response contains no valid choices",
+        );
+      }
+
+      // Extract and validate the generated text
+      const generatedContent = response.choices[0].message.content;
+      if (generatedContent === null || generatedContent === undefined) {
+        throw new CreateChatCompletionResponseError(
+          "Generated text content is empty",
+        );
+      }
+
+      // Construct the final response
+      const textResponse = {
+        ...response,
+        text: generatedContent,
+        modelName: this.modelName,
+        timestamp: Date.now(),
+      } as T;
+
+      // Log successful generation
+      logger({
+        category: "groq",
+        message: "Text generation successful",
+        level: 2,
+        auxiliary: {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          responseLength: {
+            value: generatedContent.length.toString(),
+            type: "string",
+          },
+          usage: {
+            value: JSON.stringify(response.usage),
+            type: "object",
+          },
+        },
+      });
+
+      return textResponse;
+    } catch (error) {
+      // Log the error with detailed information
+      logger({
+        category: "groq",
+        message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          model: {
+            value: this.modelName,
+            type: "string",
+          },
+        },
+      });
+
+      // If it's a known error type, throw it directly
+      if (error instanceof CreateChatCompletionResponseError) {
+        throw error;
+      }
+
+      // Otherwise, wrap it in our custom error type
+      throw new CreateChatCompletionResponseError(
+        `Failed to generate text: ${error.message}`,
+      );
     }
   }
 }

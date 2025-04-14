@@ -11,8 +11,10 @@ import { AnthropicJsonSchemaObject, AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import {
   CreateChatCompletionOptions,
+  GenerateTextOptions,
   LLMClient,
   LLMResponse,
+  TextResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
@@ -372,6 +374,118 @@ export class AnthropicClient extends LLMClient {
     // if the function was called with a response model, it would have returned earlier
     // so we can safely cast here to T, which defaults to AnthropicTransformedResponse
     return transformedResponse as T;
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {},
+      retries = 3,
+      requestId = Date.now().toString(),
+      ...chatOptions
+    } = options;
+
+    try {
+      // Log the generation attempt
+      logger({
+        category: "anthropic",
+        message: "Initiating text generation",
+        level: 2,
+        auxiliary: {
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Create chat completion with the provided prompt
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMResponse;
+
+      // Validate response structure
+      if (!response.choices || response.choices.length === 0) {
+        throw new CreateChatCompletionResponseError(
+          "API response contains no valid choices",
+        );
+      }
+
+      // Extract and validate the generated text
+      const generatedText = response.choices[0].message.content;
+      if (generatedText === null || generatedText === undefined) {
+        throw new CreateChatCompletionResponseError(
+          "Generated text content is empty",
+        );
+      }
+
+      // Construct the final response
+      const textResponse = {
+        ...response,
+        text: generatedText,
+      } as T;
+
+      // Log successful generation
+      logger({
+        category: "anthropic",
+        message: "Text generation successful",
+        level: 2,
+        auxiliary: {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          responseLength: {
+            value: generatedText.length.toString(),
+            type: "string",
+          },
+        },
+      });
+
+      return textResponse;
+    } catch (error) {
+      // Log the error
+      logger({
+        category: "anthropic",
+        message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
   }
 }
 

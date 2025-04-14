@@ -18,8 +18,10 @@ import {
   ChatCompletionOptions,
   ChatMessage,
   CreateChatCompletionOptions,
+  GenerateTextOptions,
   LLMClient,
   LLMResponse,
+  TextResponse,
 } from "./LLMClient";
 import {
   CreateChatCompletionResponseError,
@@ -466,5 +468,84 @@ export class OpenAIClient extends LLMClient {
     // if the function was called with a response model, it would have returned earlier
     // so we can safely cast here to T, which defaults to ChatCompletion
     return response as T;
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Generate a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    try {
+      // Log the generation attempt
+      logger({
+        category: "openai",
+        message: "Initiating text generation",
+        level: 2,
+        auxiliary: {
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Create a chat completion with the prompt as a user message
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMResponse;
+
+      // Validate and extract the generated text from the response
+      if (response.choices && response.choices.length > 0) {
+        return {
+          ...response,
+          text: response.choices[0].message.content,
+        } as T;
+      }
+
+      // Throw error if no valid response was generated
+      throw new CreateChatCompletionResponseError(
+        "No valid choices found in API response",
+      );
+    } catch (error) {
+      // Log the error if a logger is provided
+      logger({
+        category: "openai",
+        message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
   }
 }

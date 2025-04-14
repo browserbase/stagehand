@@ -21,6 +21,7 @@
     "form-filling-sensible-openai": "npm run build && tsx examples/form_filling_sensible_openai.ts",
     "google-enter": "npm run build && tsx examples/google_enter.ts",
     "try-wordle": "npm run build && tsx examples/try_wordle.ts",
+    "llm-usage-wordle": "npm run build && tsx examples/llm_usage_wordle.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",

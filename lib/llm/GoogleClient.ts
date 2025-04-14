@@ -22,6 +22,8 @@ import {
   LLMClient,
   LLMResponse,
   AnnotatedScreenshotText,
+  TextResponse,
+  GenerateTextOptions,
 } from "./LLMClient";
 import {
   CreateChatCompletionResponseError,
@@ -527,6 +529,46 @@ export class GoogleClient extends LLMClient {
       }
       throw new StagehandError(
         `Google AI API request failed: ${error.message}`,
+      );
+    }
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {}, // Default no-op logger
+      retries = 3, // Default retry attempts
+      ...chatOptions // All other chat-specific options
+    } = options;
+
+    // Create a chat completion with a single user message
+    const response = (await this.createChatCompletion({
+      options: {
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        ...chatOptions,
+        requestId: options.requestId || Date.now().toString(), // Ensure unique request ID
+      },
+      logger,
+      retries,
+    })) as LLMResponse;
+
+    // Validate and extract the generated text from the response
+    if (response.choices && response.choices.length > 0) {
+      return {
+        ...response,
+        text: response.choices[0].message.content,
+      } as T;
+    } else {
+      throw new CreateChatCompletionResponseError(
+        "No choices available in the response",
       );
     }
   }

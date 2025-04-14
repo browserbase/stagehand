@@ -8,6 +8,12 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 import { ChatCompletion } from "openai/resources";
+import {
+  CreateChatCompletionResponseError,
+  GenerateTextOptions,
+  LLMResponse,
+  TextResponse,
+} from "@/lib";
 
 export class LangchainClient extends LLMClient {
   public type = "langchainClient" as const;
@@ -83,5 +89,40 @@ export class LangchainClient extends LLMClient {
         total_tokens: 0,
       },
     } as T;
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create chat completion with single user message
+    const res = await (this.createChatCompletion({
+      options: {
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        ...chatOptions,
+        // Generate unique request ID if not provided
+        requestId: options.requestId || Date.now().toString(),
+      },
+      logger,
+      retries,
+    }) as Promise<LLMResponse>);
+
+    // Validate and extract response
+    if (res.choices && res.choices.length > 0) {
+      return {
+        ...res,
+        text: res.choices[0].message.content,
+      } as T;
+    } else {
+      throw new CreateChatCompletionResponseError("No choices in response");
+    }
   }
 }

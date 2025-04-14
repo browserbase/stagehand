@@ -12,6 +12,7 @@ import {
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
 import { ChatCompletion } from "openai/resources";
+import { GenerateTextOptions, TextResponse } from "@/lib";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -112,6 +113,34 @@ export class AISdkClient extends LLMClient {
 
     return {
       data: response.text,
+      usage: {
+        prompt_tokens: response.usage.promptTokens ?? 0,
+        completion_tokens: response.usage.completionTokens ?? 0,
+        total_tokens: response.usage.totalTokens ?? 0,
+      },
+    } as T;
+  }
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    const tools: Record<string, CoreTool> = {};
+    if (options.tools) {
+      for (const rawTool of options.tools) {
+        tools[rawTool.name] = {
+          description: rawTool.description,
+          parameters: rawTool.parameters,
+        };
+      }
+    }
+
+    const response = await generateText({
+      model: this.model,
+      prompt: prompt,
+      tools,
+    });
+    return {
+      text: response.text,
       usage: {
         prompt_tokens: response.usage.promptTokens ?? 0,
         completion_tokens: response.usage.completionTokens ?? 0,
