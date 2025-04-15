@@ -11,9 +11,12 @@ import { AnthropicJsonSchemaObject, AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import {
   CreateChatCompletionOptions,
+  GenerateObjectOptions,
   GenerateTextOptions,
   LLMClient,
+  LLMObjectResponse,
   LLMResponse,
+  ObjectResponse,
   TextResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
@@ -466,6 +469,119 @@ export class AnthropicClient extends LLMClient {
       logger({
         category: "anthropic",
         message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
+  }
+
+  async generateObject<T = ObjectResponse>({
+    prompt,
+    schema,
+    options = {},
+  }: GenerateObjectOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {},
+      retries = 3,
+      requestId = Date.now().toString(),
+      ...chatOptions
+    } = options;
+
+    try {
+      // Log the generation attempt
+      logger({
+        category: "anthropic",
+        message: "Initiating object generation",
+        level: 2,
+        auxiliary: {
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Create chat completion with the provided prompt
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          response_model: {
+            name: "object",
+            schema: schema,
+          },
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMObjectResponse;
+
+      // Validate response structure
+      if (!response.data || response.data.length === 0) {
+        throw new CreateChatCompletionResponseError(
+          "API response contains no valid choices",
+        );
+      }
+
+      // Extract and validate the generated text
+      const generatedObject = response.data;
+      if (generatedObject === null || generatedObject === undefined) {
+        throw new CreateChatCompletionResponseError(
+          "Generated text content is empty",
+        );
+      }
+
+      // Construct the final response
+      const objResponse = {
+        ...response,
+        object: generatedObject,
+      } as T;
+
+      // Log successful generation
+      logger({
+        category: "anthropic",
+        message: "Text generation successful",
+        level: 2,
+        auxiliary: {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return objResponse;
+    } catch (error) {
+      // Log the error
+      logger({
+        category: "anthropic",
+        message: "Object generation failed",
         level: 0,
         auxiliary: {
           error: {

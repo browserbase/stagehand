@@ -96,9 +96,22 @@ export interface LLMResponse extends BaseResponse {
   usage: UsageMetrics;
 }
 
+// Main LLM Response type
+export interface LLMObjectResponse extends BaseResponse {
+  data: Record<string, unknown>;
+  usage: UsageMetrics;
+}
+
 // Text Response type that can include LLM properties
 export interface TextResponse extends BaseResponse {
   text: string;
+  choices?: LLMChoice[];
+  usage?: UsageMetrics;
+}
+
+// Object Response type that can include LLM properties
+export interface ObjectResponse extends BaseResponse {
+  object: string;
   choices?: LLMChoice[];
   usage?: UsageMetrics;
 }
@@ -111,6 +124,15 @@ export interface CreateChatCompletionOptions {
 
 export interface GenerateTextOptions {
   prompt: string;
+  options?: Partial<Omit<ChatCompletionOptions, "messages">> & {
+    logger?: (message: LogLine) => void;
+    retries?: number;
+  };
+}
+
+export interface GenerateObjectOptions {
+  prompt: string;
+  schema: ZodType;
   options?: Partial<Omit<ChatCompletionOptions, "messages">> & {
     logger?: (message: LogLine) => void;
     retries?: number;
@@ -140,4 +162,10 @@ export abstract class LLMClient {
       usage?: TextResponse["usage"];
     },
   >(input: GenerateTextOptions): Promise<T>;
+
+  abstract generateObject<
+    T = ObjectResponse & {
+      usage?: ObjectResponse["usage"];
+    },
+  >(input: GenerateObjectOptions): Promise<T>;
 }

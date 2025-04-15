@@ -12,7 +12,12 @@ import {
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
 import { ChatCompletion } from "openai/resources";
-import { GenerateTextOptions, TextResponse } from "@/lib";
+import {
+  GenerateObjectOptions,
+  GenerateTextOptions,
+  ObjectResponse,
+  TextResponse,
+} from "@/lib";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -141,6 +146,27 @@ export class AISdkClient extends LLMClient {
     });
     return {
       text: response.text,
+      usage: {
+        prompt_tokens: response.usage.promptTokens ?? 0,
+        completion_tokens: response.usage.completionTokens ?? 0,
+        total_tokens: response.usage.totalTokens ?? 0,
+      },
+    } as T;
+  }
+  async generateObject<T = ObjectResponse>({
+    prompt,
+    schema,
+    options = {},
+  }: GenerateObjectOptions): Promise<T> {
+    console.log(options);
+    const response = await generateObject({
+      model: this.model,
+      prompt: prompt,
+      schema: schema,
+      ...options,
+    });
+    return {
+      object: response.object,
       usage: {
         prompt_tokens: response.usage.promptTokens ?? 0,
         completion_tokens: response.usage.completionTokens ?? 0,
