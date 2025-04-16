@@ -18,7 +18,7 @@ ${userProvidedInstructions}`;
 // extract
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
-  useTextExtract: boolean = true,
+  useTextExtract: boolean = false,
   userProvidedInstructions?: string,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
@@ -51,7 +51,8 @@ ONLY print the content using the print_extracted_data tool provided.
     ? `Once you are given the text-rendered webpage, 
     you must thoroughly and meticulously analyze it. Be very careful to ensure that you
     do not miss any important information.`
-    : "";
+    : "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
+      "Do not attempt to extract links directly from the text unless absolutely necessary. ";
 
   const userInstructions = buildUserInstructionsString(
     userProvidedInstructions,
@@ -119,7 +120,6 @@ Refined content:`,
 
 const metadataSystemPrompt = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
 Analyze the extraction response and determine if the task is completed or if more information is needed.
-
 Strictly abide by the following criteria:
 1. Once the instruction has been satisfied by the current extraction response, ALWAYS set completion status to true and stop processing, regardless of remaining chunks.
 2. Only set completion status to false if BOTH of these conditions are true:
