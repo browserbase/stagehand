@@ -183,7 +183,6 @@ export class AISdkClient extends LLMClient {
     schema,
     options = {},
   }: GenerateObjectOptions): Promise<T> {
-    console.log(options);
     const response = await generateObject({
       model: this.model,
       prompt: prompt,

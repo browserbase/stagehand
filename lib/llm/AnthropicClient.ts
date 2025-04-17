@@ -386,7 +386,6 @@ export class AnthropicClient extends LLMClient {
     retries,
     logger,
   }: CreateChatCompletionOptions): Promise<T> {
-    console.log(options, logger, retries);
     const optionsWithoutImage = { ...options };
     delete optionsWithoutImage.image;
 
@@ -648,7 +647,7 @@ export class AnthropicClient extends LLMClient {
 
       logger({
         category: "anthropic",
-        message: "text streaming response",
+        message: "Text streaming response",
         level: 2,
         auxiliary: {
           response: {
@@ -699,24 +698,24 @@ export class AnthropicClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "anthropic",
-        message: "Initiating text generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "anthropic",
+      message: "Initiating text generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -734,7 +733,28 @@ export class AnthropicClient extends LLMClient {
       })) as LLMResponse;
 
       // Validate response structure
-      if (!response.choices || response.choices.length === 0) {
+      if (
+        !response.choices ||
+        response.choices.length === 0 ||
+        response.choices[0].message.content == undefined ||
+        response.choices[0].message.content == null
+      ) {
+        logger({
+          category: "anthropic",
+          message: "Text generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -742,11 +762,6 @@ export class AnthropicClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedText = response.choices[0].message.content;
-      if (generatedText === null || generatedText === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response
       const textResponse = {
@@ -812,24 +827,24 @@ export class AnthropicClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "anthropic",
-        message: "Initiating object generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "anthropic",
+      message: "Initiating object generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -851,7 +866,27 @@ export class AnthropicClient extends LLMClient {
       })) as LLMObjectResponse;
 
       // Validate response structure
-      if (!response.data || response.data.length === 0) {
+      if (
+        !response.data ||
+        response.data.length === 0 ||
+        response.data === undefined
+      ) {
+        logger({
+          category: "anthropic",
+          message: "Object generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -859,11 +894,6 @@ export class AnthropicClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedObject = response.data;
-      if (generatedObject === null || generatedObject === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response
       const objResponse = {
@@ -874,7 +904,7 @@ export class AnthropicClient extends LLMClient {
       // Log successful generation
       logger({
         category: "anthropic",
-        message: "Text generation successful",
+        message: "Object generation successful",
         level: 2,
         auxiliary: {
           requestId: {

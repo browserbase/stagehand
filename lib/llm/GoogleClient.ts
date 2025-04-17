@@ -635,20 +635,6 @@ export class GoogleClient extends LLMClient {
       formattedMessages.push({ role: "model", parts: [{ text: "{" }] }); // Prime the model
     }
 
-    logger({
-      category: "google",
-      message: "creating chat completion",
-      level: 2,
-      auxiliary: {
-        modelName: { value: this.modelName, type: "string" },
-        requestId: { value: requestId, type: "string" },
-        requestPayloadSummary: {
-          value: `Model: ${this.modelName}, Messages: ${formattedMessages.length}, Config Keys: ${Object.keys(generationConfig).join(", ")}, Tools: ${formattedTools ? formattedTools.length : 0}, Safety Categories: ${safetySettings.map((s) => s.category).join(", ")}`,
-          type: "string",
-        },
-      },
-    });
-
     // Construct the full request object
     const requestPayload = {
       model: this.modelName,
@@ -822,6 +808,22 @@ export class GoogleClient extends LLMClient {
         text: response.choices[0].message.content,
       } as T;
     } else {
+      logger({
+        category: "google",
+        message: "text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: "No choices available in the response",
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
       throw new CreateChatCompletionResponseError(
         "No choices available in the response",
       );
@@ -840,24 +842,24 @@ export class GoogleClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "anthropic",
-        message: "Initiating object generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "google",
+      message: "Initiating object generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -878,7 +880,27 @@ export class GoogleClient extends LLMClient {
         retries,
       })) as LLMObjectResponse;
       // Validate response structure
-      if (!response.data || response.data.length === 0) {
+      if (
+        !response.data ||
+        response.data.length === 0 ||
+        response.data === undefined
+      ) {
+        logger({
+          category: "google",
+          message: "Object generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -886,11 +908,6 @@ export class GoogleClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedObject = response.data;
-      if (generatedObject === null || generatedObject === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response
       const objResponse = {
@@ -900,8 +917,8 @@ export class GoogleClient extends LLMClient {
 
       // Log successful generation
       logger({
-        category: "anthropic",
-        message: "Text generation successful",
+        category: "google",
+        message: "Object generation successful",
         level: 2,
         auxiliary: {
           requestId: {
@@ -915,7 +932,7 @@ export class GoogleClient extends LLMClient {
     } catch (error) {
       // Log the error
       logger({
-        category: "anthropic",
+        category: "google",
         message: "Object generation failed",
         level: 0,
         auxiliary: {

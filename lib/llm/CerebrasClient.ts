@@ -594,32 +594,32 @@ export class CerebrasClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "cerebras",
-        message: "Initiating text generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
-          model: {
-            value: this.modelName,
-            type: "string",
-          },
-          options: {
-            value: JSON.stringify(chatOptions),
-            type: "object",
-          },
+    // Log the generation attempt
+    logger({
+      category: "cerebras",
+      message: "Initiating text generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+        model: {
+          value: this.modelName,
+          type: "string",
+        },
+        options: {
+          value: JSON.stringify(chatOptions),
+          type: "object",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -637,7 +637,28 @@ export class CerebrasClient extends LLMClient {
       })) as LLMResponse;
 
       // Validate response structure
-      if (!response.choices || response.choices.length === 0) {
+      if (
+        !response.choices ||
+        response.choices.length === 0 ||
+        response.choices[0].message.content === null ||
+        response.choices[0].message.content === undefined
+      ) {
+        logger({
+          category: "cerebras",
+          message: "Text generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -645,11 +666,6 @@ export class CerebrasClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedContent = response.choices[0].message.content;
-      if (generatedContent === null || generatedContent === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response with additional metadata
       const textResponse = {
@@ -745,24 +761,24 @@ export class CerebrasClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "anthropic",
-        message: "Initiating object generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "cerebras",
+      message: "Initiating object generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -782,8 +798,29 @@ export class CerebrasClient extends LLMClient {
         logger,
         retries,
       })) as LLMObjectResponse;
+
       // Validate response structure
-      if (!response.data || response.data.length === 0) {
+      if (
+        !response.data ||
+        response.data.length === 0 ||
+        response.data === undefined
+      ) {
+        logger({
+          category: "cerebras",
+          message: "Object generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -791,11 +828,6 @@ export class CerebrasClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedObject = response.data;
-      if (generatedObject === null || generatedObject === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response
       const objResponse = {
@@ -805,8 +837,8 @@ export class CerebrasClient extends LLMClient {
 
       // Log successful generation
       logger({
-        category: "anthropic",
-        message: "Text generation successful",
+        category: "cerebras",
+        message: "Object generation successful",
         level: 2,
         auxiliary: {
           requestId: {
@@ -820,7 +852,7 @@ export class CerebrasClient extends LLMClient {
     } catch (error) {
       // Log the error
       logger({
-        category: "anthropic",
+        category: "cerebras",
         message: "Object generation failed",
         level: 0,
         auxiliary: {

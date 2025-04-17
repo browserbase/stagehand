@@ -861,24 +861,24 @@ export class OpenAIClient extends LLMClient {
     // Generate a unique request ID if not provided
     const requestId = options.requestId || Date.now().toString();
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "openai",
-        message: "Initiating text generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "openai",
+      message: "Initiating text generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create a chat completion with the prompt as a user message
       const response = (await this.createChatCompletion({
         options: {
@@ -897,11 +897,45 @@ export class OpenAIClient extends LLMClient {
 
       // Validate and extract the generated text from the response
       if (response.choices && response.choices.length > 0) {
+        // Log successful generation
+        logger({
+          category: "openai",
+          message: "Text generation successful",
+          level: 2,
+          auxiliary: {
+            response: {
+              value: JSON.stringify(response.choices[0].message.content),
+              type: "object",
+            },
+            requestId: {
+              value: requestId,
+              type: "string",
+            },
+          },
+        });
+
         return {
           ...response,
           text: response.choices[0].message.content,
         } as T;
       }
+
+      // Log the error if a logger is provided
+      logger({
+        category: "openai",
+        message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: "No valid choices found in API response",
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
 
       // Throw error if no valid response was generated
       throw new CreateChatCompletionResponseError(
@@ -929,6 +963,7 @@ export class OpenAIClient extends LLMClient {
       throw error;
     }
   }
+
   async generateObject<T = ObjectResponse>({
     prompt,
     schema,
@@ -942,24 +977,24 @@ export class OpenAIClient extends LLMClient {
       ...chatOptions
     } = options;
 
-    try {
-      // Log the generation attempt
-      logger({
-        category: "openai",
-        message: "Initiating object generation",
-        level: 2,
-        auxiliary: {
-          prompt: {
-            value: prompt,
-            type: "string",
-          },
-          requestId: {
-            value: requestId,
-            type: "string",
-          },
+    // Log the generation attempt
+    logger({
+      category: "openai",
+      message: "Initiating object generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
         },
-      });
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
 
+    try {
       // Create chat completion with the provided prompt
       const response = (await this.createChatCompletion({
         options: {
@@ -981,7 +1016,31 @@ export class OpenAIClient extends LLMClient {
       })) as LLMObjectResponse;
 
       // Validate response structure
-      if (!response.data || response.data.length === 0) {
+      if (
+        !response.data ||
+        response.data.length === 0 ||
+        response.data == undefined
+      ) {
+        logger({
+          category: "openai",
+          message: "Object generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+            requestId: {
+              value: requestId,
+              type: "string",
+            },
+          },
+        });
+
         throw new CreateChatCompletionResponseError(
           "API response contains no valid choices",
         );
@@ -989,11 +1048,6 @@ export class OpenAIClient extends LLMClient {
 
       // Extract and validate the generated text
       const generatedObject = response.data;
-      if (generatedObject === null || generatedObject === undefined) {
-        throw new CreateChatCompletionResponseError(
-          "Generated text content is empty",
-        );
-      }
 
       // Construct the final response
       const objResponse = {
@@ -1008,7 +1062,7 @@ export class OpenAIClient extends LLMClient {
         level: 2,
         auxiliary: {
           response: {
-            value: JSON.stringify(generatedObject),
+            value: JSON.stringify(objResponse),
             type: "object",
           },
           requestId: {
