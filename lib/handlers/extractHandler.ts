@@ -1,5 +1,6 @@
-import { z } from "zod";
+import { z, ZodTypeAny } from "zod";
 import { LogLine } from "../../types/log";
+import { ZodPathSegments } from "../../types/stagehand";
 import { TextAnnotation } from "../../types/textannotation";
 import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
@@ -420,12 +421,18 @@ export class StagehandExtractHandler {
       level: 1,
     });
     const outputString = tree.simplified;
+    const idToUrlMapping = tree.idToUrl;
 
+    // Transform user defined schema to replace string().url() with .number()
+    const [transformedSchema, urlFieldPaths] =
+      transformUrlStringsToNumericIds(schema);
+
+    // call extract inference with transformed schema
     const extractionResponse = await extract({
       instruction,
       previouslyExtractedContent: content,
       domElements: outputString,
-      schema,
+      schema: transformedSchema,
       chunksSeen: 1,
       chunksTotal: 1,
       llmClient,
@@ -486,9 +493,14 @@ export class StagehandExtractHandler {
         },
       });
     }
-    return output;
-  }
 
+    // revert to original schema and populate with URLs
+    for (const { segments } of urlFieldPaths) {
+      injectUrls(output, segments, idToUrlMapping);
+    }
+
+    return output as z.infer<T>;
+  }
   /**
    * Get the width, height, and offsets of either the entire page or a specific element.
    * (Matches your existing getTargetDimensions logic, just adapted to accept a string | undefined.)
@@ -640,5 +652,245 @@ export class StagehandExtractHandler {
     }
 
     return deduplicated;
+  }
+}
+
+/**
+ * Scans the provided Zod schema for any `z.string().url()` fields and
+ * replaces them with `z.number()`.
+ *
+ * @param schema - The Zod object schema to transform.
+ * @returns A tuple containing:
+ *   1. The transformed schema (or the original schema if no changes were needed).
+ *   2. An array of {@link ZodPathSegments} objects representing all the replaced URL fields,
+ *      with each path segment showing where in the schema the replacement occurred.
+ */
+export function transformUrlStringsToNumericIds<
+  T extends z.ZodObject<z.ZodRawShape>,
+>(schema: T): [T, ZodPathSegments[]] {
+  const shape = schema._def.shape();
+  const newShape: Record<string, ZodTypeAny> = {};
+  const urlPaths: ZodPathSegments[] = [];
+  let changed = false;
+
+  for (const [key, value] of Object.entries(shape)) {
+    const [childTransformed, childPaths] = transformSchema(value, [key]);
+    newShape[key] = childTransformed;
+    if (childTransformed !== value) {
+      changed = true;
+    }
+    if (childPaths.length > 0) {
+      childPaths.forEach((cp) => {
+        urlPaths.push({ segments: [key, ...cp.segments] });
+      });
+    }
+  }
+
+  const finalSchema = changed ? z.object(newShape) : schema;
+  return [finalSchema as T, urlPaths];
+}
+
+/**
+ * Recursively traverses a given Zod schema, scanning for any fields of type `z.string().url()`.
+ * For each such field, it replaces the `z.string().url()` with `z.number()`.
+ *
+ * This function is used internally by higher-level utilities (e.g., transforming entire object schemas)
+ * and handles nested objects, arrays, unions, intersections, optionals.
+ *
+ * @param schema - The Zod schema to transform.
+ * @param currentPath - An array of string/number keys representing the current schema path (used internally for recursion).
+ * @returns A two-element tuple:
+ *   1. The updated Zod schema, with any `.url()` fields replaced by `z.number()`.
+ *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the path segments.
+ */
+export function transformSchema(
+  schema: ZodTypeAny,
+  currentPath: Array<string | number>,
+): [ZodTypeAny, ZodPathSegments[]] {
+  // 1) If it's a string with .url(), convert to z.number()
+  if (schema instanceof z.ZodString) {
+    const hasUrlCheck =
+      schema._def.checks?.some((check) => check.kind === "url") ?? false;
+    if (hasUrlCheck) {
+      return [
+        z.number().describe("ID of element that points to a URL"),
+        [{ segments: [] }],
+      ];
+    }
+    return [schema, []];
+  }
+
+  // 2) If it's an object, transform each field
+  if (schema instanceof z.ZodObject) {
+    // The shape is a raw object containing fields keyed by string (no symbols):
+    const shape = schema._def.shape() as Record<string, ZodTypeAny>;
+    const newShape: Record<string, ZodTypeAny> = {};
+    const urlPaths: ZodPathSegments[] = [];
+    let changed = false;
+
+    const shapeKeys = Object.keys(shape);
+
+    for (const key of shapeKeys) {
+      const child = shape[key];
+      const [transformedChild, childPaths] = transformSchema(child, [
+        ...currentPath,
+        key,
+      ]);
+
+      if (transformedChild !== child) {
+        changed = true;
+      }
+      newShape[key] = transformedChild;
+
+      if (childPaths.length > 0) {
+        for (const cp of childPaths) {
+          urlPaths.push({ segments: [key, ...cp.segments] });
+        }
+      }
+    }
+
+    if (changed) {
+      return [z.object(newShape), urlPaths];
+    }
+    return [schema, urlPaths];
+  }
+
+  // 3) If it's an array, transform its item type
+  if (schema instanceof z.ZodArray) {
+    const itemType = schema._def.type as ZodTypeAny;
+    const [transformedItem, childPaths] = transformSchema(itemType, [
+      ...currentPath,
+      "*",
+    ]);
+    const changed = transformedItem !== itemType;
+    const arrayPaths: ZodPathSegments[] = childPaths.map((cp) => ({
+      segments: ["*", ...cp.segments],
+    }));
+
+    if (changed) {
+      return [z.array(transformedItem), arrayPaths];
+    }
+    return [schema, arrayPaths];
+  }
+
+  // 4) If it's a union, transform each option
+  if (schema instanceof z.ZodUnion) {
+    // Cast the union’s options to an array of ZodTypeAny
+    const unionOptions = schema._def.options as ZodTypeAny[];
+    const newOptions: ZodTypeAny[] = [];
+    let changed = false;
+    let allPaths: ZodPathSegments[] = [];
+
+    unionOptions.forEach((option: ZodTypeAny, idx: number) => {
+      const [newOption, childPaths] = transformSchema(option, [
+        ...currentPath,
+        `union_${idx}`,
+      ]);
+      if (newOption !== option) {
+        changed = true;
+      }
+      newOptions.push(newOption);
+      allPaths = [...allPaths, ...childPaths];
+    });
+
+    if (changed) {
+      // We assume at least two options remain:
+      return [
+        z.union(newOptions as [ZodTypeAny, ZodTypeAny, ...ZodTypeAny[]]),
+        allPaths,
+      ];
+    }
+    return [schema, allPaths];
+  }
+
+  // 5) If it's an intersection, transform left and right
+  if (schema instanceof z.ZodIntersection) {
+    const leftType = schema._def.left as ZodTypeAny;
+    const rightType = schema._def.right as ZodTypeAny;
+
+    const [left, leftPaths] = transformSchema(leftType, [
+      ...currentPath,
+      "intersection_left",
+    ]);
+    const [right, rightPaths] = transformSchema(rightType, [
+      ...currentPath,
+      "intersection_right",
+    ]);
+    const changed = left !== leftType || right !== rightType;
+    const allPaths = [...leftPaths, ...rightPaths];
+    if (changed) {
+      return [z.intersection(left, right), allPaths];
+    }
+    return [schema, allPaths];
+  }
+
+  // 6) If it's optional, transform inner
+  if (schema instanceof z.ZodOptional) {
+    const innerType = schema._def.innerType as ZodTypeAny;
+    const [inner, innerPaths] = transformSchema(innerType, currentPath);
+    if (inner !== innerType) {
+      return [z.optional(inner), innerPaths];
+    }
+    return [schema, innerPaths];
+  }
+
+  // 7) If it's nullable, transform inner
+  if (schema instanceof z.ZodNullable) {
+    const innerType = schema._def.innerType as ZodTypeAny;
+    const [inner, innerPaths] = transformSchema(innerType, currentPath);
+    if (inner !== innerType) {
+      return [z.nullable(inner), innerPaths];
+    }
+    return [schema, innerPaths];
+  }
+
+  // 8) If it's an effect, transform base schema
+  if (schema instanceof z.ZodEffects) {
+    const baseSchema = schema._def.schema as ZodTypeAny;
+    const [newBaseSchema, basePaths] = transformSchema(baseSchema, currentPath);
+    if (newBaseSchema !== baseSchema) {
+      return [z.effect(newBaseSchema, schema._def.effect), basePaths];
+    }
+    return [schema, basePaths];
+  }
+
+  // 9) If none of the above, return as-is
+  return [schema, []];
+}
+
+/**
+ * Once we get the final extracted object that has numeric IDs in place of URLs,
+ * use `injectUrls` to walk the object and replace numeric IDs
+ * with the real URL strings from idToUrlMapping. The `path` may include `*`
+ * for array indices (indicating "all items in the array").
+ */
+export function injectUrls(
+  obj: unknown,
+  path: Array<string | number>,
+  idToUrlMapping: Record<string, string>,
+): void {
+  if (path.length === 0) return;
+  const [key, ...rest] = path;
+
+  if (key === "*") {
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        injectUrls(item, rest, idToUrlMapping);
+      }
+    }
+    return;
+  }
+
+  if (obj && typeof obj === "object") {
+    const record = obj as Record<string | number, unknown>;
+    if (path.length === 1) {
+      const fieldValue = record[key];
+      if (typeof fieldValue === "number") {
+        const mappedUrl = idToUrlMapping[String(fieldValue)];
+        record[key] = mappedUrl ?? ``;
+      }
+    } else {
+      injectUrls(record[key], rest, idToUrlMapping);
+    }
   }
 }
