@@ -18,7 +18,7 @@
     "ai-sdk-client": "npm run build && tsx examples/ai_sdk_example.ts",
     "actionable_observe_example": "npm run build && tsx examples/actionable_observe_example.ts",
     "form-filling-sensible-cerebras": "npm run build && tsx examples/form_filling_sensible_cerebras.ts",
-    "form-filling-sensible-openai": "npm run build && tsx examples/form_filling_sensible_openai.ts",
+    "form-filling-sensible": "npm run build && tsx examples/form_filling_sensible.ts",
     "google-enter": "npm run build && tsx examples/google_enter.ts",
     "try-wordle": "npm run build && tsx examples/try_wordle.ts",
     "format": "prettier --write .",
