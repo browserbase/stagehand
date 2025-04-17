@@ -13,6 +13,8 @@ import {
   LLMObjectResponse,
   LLMResponse,
   ObjectResponse,
+  StreamingChatResponse,
+  StreamingTextResponse,
   TextResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
@@ -326,6 +328,256 @@ export class GroqClient extends LLMClient {
           },
         },
       });
+      throw error;
+    }
+  }
+
+  async createChatCompletionStream<T = StreamingChatResponse>({
+    options,
+    logger,
+    retries = 3,
+  }: CreateChatCompletionOptions): Promise<T> {
+    const optionsWithoutImage = { ...options };
+    delete optionsWithoutImage.image;
+
+    logger({
+      category: "groq",
+      message: "creating chat completion stream",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify(optionsWithoutImage),
+          type: "object",
+        },
+      },
+    });
+
+    // Try to get cached response
+    const cacheOptions = {
+      model: this.modelName.split("groq-")[1],
+      messages: options.messages,
+      temperature: options.temperature,
+      response_model: options.response_model,
+      tools: options.tools,
+      retries: retries,
+    };
+
+    if (this.enableCaching) {
+      const cachedResponse = await this.cache.get<T>(
+        cacheOptions,
+        options.requestId,
+      );
+      if (cachedResponse) {
+        logger({
+          category: "llm_cache",
+          message: "LLM cache hit - returning cached response",
+          level: 1,
+          auxiliary: {
+            cachedResponse: {
+              value: JSON.stringify(cachedResponse),
+              type: "object",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+            cacheOptions: {
+              value: JSON.stringify(cacheOptions),
+              type: "object",
+            },
+          },
+        });
+        return cachedResponse as T;
+      }
+    }
+
+    // Format messages for Groq API (using OpenAI format)
+    const formattedMessages = options.messages.map((msg: ChatMessage) => {
+      const baseMessage = {
+        content:
+          typeof msg.content === "string"
+            ? msg.content
+            : Array.isArray(msg.content) &&
+                msg.content.length > 0 &&
+                "text" in msg.content[0]
+              ? msg.content[0].text
+              : "",
+      };
+
+      // Groq supports system, user, and assistant roles
+      if (msg.role === "system") {
+        return { ...baseMessage, role: "system" as const };
+      } else if (msg.role === "assistant") {
+        return { ...baseMessage, role: "assistant" as const };
+      } else {
+        // Default to user for any other role
+        return { ...baseMessage, role: "user" as const };
+      }
+    });
+
+    // Format tools if provided
+    let tools = options.tools?.map((tool) => ({
+      type: "function" as const,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: {
+          type: "object",
+          properties: tool.parameters.properties,
+          required: tool.parameters.required,
+        },
+      },
+    }));
+
+    // Add response model as a tool if provided
+    if (options.response_model) {
+      const jsonSchema = zodToJsonSchema(options.response_model.schema) as {
+        properties?: Record<string, unknown>;
+        required?: string[];
+      };
+      const schemaProperties = jsonSchema.properties || {};
+      const schemaRequired = jsonSchema.required || [];
+
+      const responseTool = {
+        type: "function" as const,
+        function: {
+          name: "print_extracted_data",
+          description:
+            "Prints the extracted data based on the provided schema.",
+          parameters: {
+            type: "object",
+            properties: schemaProperties,
+            required: schemaRequired,
+          },
+        },
+      };
+
+      tools = tools ? [...tools, responseTool] : [responseTool];
+    }
+
+    // Use OpenAI client with Groq API
+    const apiResponse = await this.client.chat.completions.create({
+      model: this.modelName.split("groq-")[1],
+      messages: [
+        ...formattedMessages,
+        // Add explicit instruction to return JSON if we have a response model
+        ...(options.response_model
+          ? [
+              {
+                role: "system" as const,
+                content: `IMPORTANT: Your response must be valid JSON that matches this schema: ${JSON.stringify(options.response_model.schema)}`,
+              },
+            ]
+          : []),
+      ],
+      temperature: options.temperature || 0.7,
+      max_tokens: options.maxTokens,
+      tools: tools,
+      tool_choice: options.tool_choice || "auto",
+      stream: true,
+    });
+
+    return apiResponse as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    logger({
+      category: "groq",
+      message: "Initiating text streaming",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify({
+            prompt,
+            requestId,
+          }),
+          type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create a chat completion with the prompt as a user message
+      const response = (await this.createChatCompletionStream({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as StreamingChatResponse;
+
+      // Restructure the response to return a stream of text
+      const textStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of response) {
+              const content = chunk.choices[0]?.delta?.content;
+              if (content !== undefined) {
+                controller.enqueue(content);
+              }
+            }
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+      });
+
+      logger({
+        category: "groq",
+        message: "text streaming response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(textStream),
+            type: "object",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return { textStream: textStream } as T;
+    } catch (error) {
+      logger({
+        category: "groq",
+        message: "Text streaming failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
       throw error;
     }
   }

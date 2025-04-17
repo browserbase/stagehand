@@ -14,6 +14,7 @@ import type {
   ChatCompletionContentPartImage,
   ChatCompletionContentPartText,
   ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
@@ -26,6 +27,8 @@ import {
   LLMObjectResponse,
   LLMResponse,
   ObjectResponse,
+  StreamingChatResponse,
+  StreamingTextResponse,
   TextResponse,
 } from "@/lib";
 
@@ -244,6 +247,241 @@ export class CustomOpenAIClient extends LLMClient {
         total_tokens: response.usage?.total_tokens ?? 0,
       },
     } as T;
+  }
+
+  async createChatCompletionStream<T = StreamingChatResponse>({
+    options,
+    logger,
+    retries = 3,
+  }: CreateChatCompletionOptions): Promise<T> {
+    const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
+
+    // TODO: Implement vision support
+    if (image) {
+      console.warn(
+        "Image provided. Vision is not currently supported for openai",
+      );
+    }
+
+    logger({
+      category: "openai",
+      message: "creating chat completion stream",
+      level: 1,
+      auxiliary: {
+        options: {
+          value: JSON.stringify({
+            ...optionsWithoutImageAndRequestId,
+            requestId,
+          }),
+          type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+      },
+    });
+
+    if (options.image) {
+      console.warn(
+        "Image provided. Vision is not currently supported for openai",
+      );
+    }
+
+    let responseFormat = undefined;
+    if (options.response_model) {
+      responseFormat = zodResponseFormat(
+        options.response_model.schema,
+        options.response_model.name,
+      );
+    }
+
+    /* eslint-disable */
+    // Remove unsupported options
+    const { response_model, ...openaiOptions } = {
+      ...optionsWithoutImageAndRequestId,
+      model: this.modelName,
+    };
+
+    const formattedMessages: ChatCompletionMessageParam[] =
+      options.messages.map((message) => {
+        if (Array.isArray(message.content)) {
+          const contentParts = message.content.map((content) => {
+            if ("image_url" in content) {
+              const imageContent: ChatCompletionContentPartImage = {
+                image_url: {
+                  url: content.image_url.url,
+                },
+                type: "image_url",
+              };
+              return imageContent;
+            } else {
+              const textContent: ChatCompletionContentPartText = {
+                text: content.text,
+                type: "text",
+              };
+              return textContent;
+            }
+          });
+
+          if (message.role === "system") {
+            const formattedMessage: ChatCompletionSystemMessageParam = {
+              ...message,
+              role: "system",
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
+            };
+            return formattedMessage;
+          } else if (message.role === "user") {
+            const formattedMessage: ChatCompletionUserMessageParam = {
+              ...message,
+              role: "user",
+              content: contentParts,
+            };
+            return formattedMessage;
+          } else {
+            const formattedMessage: ChatCompletionAssistantMessageParam = {
+              ...message,
+              role: "assistant",
+              content: contentParts.filter(
+                (content): content is ChatCompletionContentPartText =>
+                  content.type === "text",
+              ),
+            };
+            return formattedMessage;
+          }
+        }
+
+        const formattedMessage: ChatCompletionUserMessageParam = {
+          role: "user",
+          content: message.content,
+        };
+
+        return formattedMessage;
+      });
+
+    const body: ChatCompletionCreateParamsStreaming = {
+      ...openaiOptions,
+      model: this.modelName,
+      messages: formattedMessages,
+      response_format: responseFormat,
+      stream: true,
+      tools: options.tools?.map((tool) => ({
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+        type: "function",
+      })),
+    };
+
+    const response = await this.client.chat.completions.create(body);
+    return response as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    logger({
+      category: "openai",
+      message: "Initiating text streaming",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify({
+            prompt,
+            requestId,
+          }),
+          type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create a chat completion with the prompt as a user message
+      const response = (await this.createChatCompletionStream({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as StreamingChatResponse;
+
+      // Restructure the response to return a stream of text
+      const textStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of response) {
+              const content = chunk.choices[0]?.delta?.content;
+              if (content !== undefined) {
+                controller.enqueue(content);
+              }
+            }
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+      });
+
+      logger({
+        category: "openai",
+        message: "text streaming response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(textStream),
+            type: "object",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return { textStream: textStream } as T;
+    } catch (error) {
+      logger({
+        category: "openai",
+        message: "Text streaming failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
   }
 
   async generateText<T = TextResponse>({

@@ -96,6 +96,34 @@ export interface LLMResponse extends BaseResponse {
   usage: UsageMetrics;
 }
 
+// Stream text response type
+export interface StreamingTextResponse {
+  textStream: AsyncIterable<string>;
+}
+
+// Streaming chat chunk response type
+export interface StreamingChatResponseChunk {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: {
+    index: number;
+    delta: {
+      content?: string;
+      role?: string;
+      function_call?: {
+        name?: string;
+        arguments?: string;
+      };
+    };
+    finish_reason: string | null;
+  }[];
+}
+
+// Streaming chat response type
+export type StreamingChatResponse = AsyncIterable<StreamingChatResponseChunk>;
+
 // Main LLM Response type
 export interface LLMObjectResponse extends BaseResponse {
   data: Record<string, unknown>;
@@ -156,6 +184,10 @@ export abstract class LLMClient {
       usage?: LLMResponse["usage"];
     },
   >(options: CreateChatCompletionOptions): Promise<T>;
+
+  abstract streamText<T = StreamingTextResponse>(
+    input: GenerateTextOptions,
+  ): Promise<T>;
 
   abstract generateText<
     T = TextResponse & {

@@ -8,6 +8,7 @@ import {
   generateText,
   ImagePart,
   LanguageModel,
+  streamText,
   TextPart,
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
@@ -16,6 +17,7 @@ import {
   GenerateObjectOptions,
   GenerateTextOptions,
   ObjectResponse,
+  StreamingTextResponse,
   TextResponse,
 } from "@/lib";
 
@@ -125,6 +127,29 @@ export class AISdkClient extends LLMClient {
       },
     } as T;
   }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    const tools: Record<string, CoreTool> = {};
+    if (options.tools) {
+      for (const rawTool of options.tools) {
+        tools[rawTool.name] = {
+          description: rawTool.description,
+          parameters: rawTool.parameters,
+        };
+      }
+    }
+
+    const response = await streamText({
+      model: this.model,
+      prompt: prompt,
+      tools,
+    });
+    return response as T;
+  }
+
   async generateText<T = TextResponse>({
     prompt,
     options = {},

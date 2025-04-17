@@ -15,6 +15,8 @@ import {
   LLMObjectResponse,
   LLMResponse,
   ObjectResponse,
+  StreamingChatResponse,
+  StreamingTextResponse,
   TextResponse,
 } from "@/lib";
 
@@ -92,6 +94,96 @@ export class LangchainClient extends LLMClient {
         total_tokens: 0,
       },
     } as T;
+  }
+
+  async createChatCompletionStream<T = StreamingChatResponse>({
+    options,
+    logger,
+    retries = 3,
+  }: CreateChatCompletionOptions): Promise<T> {
+    console.log(logger, retries);
+    const formattedMessages: BaseMessageLike[] = options.messages.map(
+      (message) => {
+        if (Array.isArray(message.content)) {
+          if (message.role === "system") {
+            return new SystemMessage(
+              message.content
+                .map((c) => ("text" in c ? c.text : ""))
+                .join("\n"),
+            );
+          }
+
+          const content = message.content.map((content) =>
+            "image_url" in content
+              ? { type: "image", image: content.image_url.url }
+              : { type: "text", text: content.text },
+          );
+
+          if (message.role === "user") return new HumanMessage({ content });
+
+          const textOnlyParts = content.map((part) => ({
+            type: "text" as const,
+            text: part.type === "image" ? "[Image]" : part.text,
+          }));
+
+          return new AIMessage({ content: textOnlyParts });
+        }
+
+        return {
+          role: message.role,
+          content: message.content,
+        };
+      },
+    );
+    const modelWithTools = this.model.bindTools(options.tools);
+    const response = await modelWithTools._streamIterator(formattedMessages);
+    return response as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    // Create a chat completion with the prompt as a user message
+    const response = (await this.createChatCompletionStream({
+      options: {
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        ...chatOptions,
+        requestId,
+      },
+      logger,
+      retries,
+    })) as StreamingChatResponse;
+
+    // Restructure the response to return a stream of text
+    const textStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of response) {
+            const content = chunk.choices[0]?.delta?.content;
+            if (content !== undefined) {
+              controller.enqueue(content);
+            }
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
+
+    return { textStream: textStream } as T;
   }
 
   async generateText<T = TextResponse>({

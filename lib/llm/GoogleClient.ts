@@ -27,6 +27,8 @@ import {
   LLMObjectResponse,
   GenerateObjectOptions,
   ObjectResponse,
+  StreamingChatResponse,
+  StreamingTextResponse,
 } from "./LLMClient";
 import {
   CreateChatCompletionResponseError,
@@ -533,6 +535,256 @@ export class GoogleClient extends LLMClient {
       throw new StagehandError(
         `Google AI API request failed: ${error.message}`,
       );
+    }
+  }
+
+  async createChatCompletionStream<T = StreamingChatResponse>({
+    options,
+    logger,
+    retries = 3,
+  }: CreateChatCompletionOptions): Promise<T> {
+    const {
+      image,
+      requestId,
+      response_model,
+      tools,
+      temperature,
+      top_p,
+      maxTokens,
+    } = options;
+    console.log(retries);
+
+    logger({
+      category: "google",
+      message: "creating chat completion stream",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify(options),
+          type: "object",
+        },
+      },
+    });
+
+    const cacheKeyOptions = {
+      model: this.modelName,
+      messages: options.messages,
+      temperature: temperature,
+      top_p: top_p,
+      // frequency_penalty and presence_penalty are not directly supported in Gemini API
+      image: image
+        ? { description: image.description, bufferLength: image.buffer.length }
+        : undefined, // Use buffer length for caching key stability
+      response_model: response_model
+        ? {
+            name: response_model.name,
+            schema: JSON.stringify(zodToJsonSchema(response_model.schema)),
+          }
+        : undefined,
+      tools: tools,
+      maxTokens: maxTokens,
+    };
+
+    if (this.enableCaching) {
+      const cachedResponse = await this.cache.get<T>(
+        cacheKeyOptions,
+        requestId,
+      );
+      if (cachedResponse) {
+        logger({
+          category: "llm_cache",
+          message: "LLM cache hit - returning cached response",
+          level: 1,
+          auxiliary: { requestId: { value: requestId, type: "string" } },
+        });
+        return cachedResponse;
+      } else {
+        logger({
+          category: "llm_cache",
+          message: "LLM cache miss - proceeding with API call",
+          level: 1,
+          auxiliary: { requestId: { value: requestId, type: "string" } },
+        });
+      }
+    }
+
+    const formattedMessages = this.formatMessages(options.messages, image);
+    const formattedTools = this.formatTools(tools);
+
+    const generationConfig = {
+      maxOutputTokens: maxTokens,
+      temperature: temperature,
+      topP: top_p,
+      responseMimeType: response_model ? "application/json" : undefined,
+    };
+
+    // Handle JSON mode instructions
+    if (response_model) {
+      // Prepend instructions for JSON output if needed (similar to o1 handling)
+      const schemaString = JSON.stringify(
+        zodToJsonSchema(response_model.schema),
+      );
+      formattedMessages.push({
+        role: "user",
+        parts: [
+          {
+            text: `Please respond ONLY with a valid JSON object that strictly adheres to the following JSON schema. Do not include any other text, explanations, or markdown formatting like \`\`\`json ... \`\`\`. Just the JSON object.\n\nSchema:\n${schemaString}`,
+          },
+        ],
+      });
+      formattedMessages.push({ role: "model", parts: [{ text: "{" }] }); // Prime the model
+    }
+
+    logger({
+      category: "google",
+      message: "creating chat completion",
+      level: 2,
+      auxiliary: {
+        modelName: { value: this.modelName, type: "string" },
+        requestId: { value: requestId, type: "string" },
+        requestPayloadSummary: {
+          value: `Model: ${this.modelName}, Messages: ${formattedMessages.length}, Config Keys: ${Object.keys(generationConfig).join(", ")}, Tools: ${formattedTools ? formattedTools.length : 0}, Safety Categories: ${safetySettings.map((s) => s.category).join(", ")}`,
+          type: "string",
+        },
+      },
+    });
+
+    // Construct the full request object
+    const requestPayload = {
+      model: this.modelName,
+      contents: formattedMessages,
+      config: {
+        ...generationConfig,
+        safetySettings: safetySettings,
+        tools: formattedTools,
+      },
+    };
+
+    // Log the full payload safely
+    try {
+      logger({
+        category: "google",
+        message: "Full request payload",
+        level: 2,
+        auxiliary: {
+          requestId: { value: requestId, type: "string" },
+          fullPayload: {
+            value: JSON.stringify(requestPayload),
+            type: "object",
+          },
+        },
+      });
+    } catch (e) {
+      logger({
+        category: "google",
+        message: "Failed to stringify full request payload for logging",
+        level: 0,
+        auxiliary: {
+          requestId: { value: requestId, type: "string" },
+          error: { value: e.message, type: "string" },
+        },
+      });
+    }
+
+    const result =
+      await this.client.models.generateContentStream(requestPayload);
+
+    return new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result) {
+            controller.enqueue(chunk.candidates[0].content.parts[0].text);
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    }) as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    logger({
+      category: "google",
+      message: "Initiating text streaming",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify({
+            prompt,
+            requestId,
+          }),
+          type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create a chat completion with the prompt as a user message
+      const response = (await this.createChatCompletionStream({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as StreamingChatResponse;
+
+      logger({
+        category: "google",
+        message: "text streaming response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(response),
+            type: "object",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return { textStream: response } as T;
+    } catch (error) {
+      logger({
+        category: "google",
+        message: "Text streaming failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
     }
   }
 
