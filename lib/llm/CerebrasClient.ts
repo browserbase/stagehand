@@ -250,7 +250,7 @@ export class CerebrasClient extends LLMClient {
             if (this.enableCaching) {
               this.cache.set(cacheOptions, result, options.requestId);
             }
-            return result as T;
+            return { data: result, response: response } as T;
           } catch (e) {
             // If JSON parse fails, the model might be returning a different format
             logger({
@@ -278,7 +278,7 @@ export class CerebrasClient extends LLMClient {
               if (this.enableCaching) {
                 this.cache.set(cacheOptions, result, options.requestId);
               }
-              return result as T;
+              return { data: result, response: response } as T;
             }
           } catch (e) {
             logger({
@@ -474,6 +474,10 @@ export class CerebrasClient extends LLMClient {
       tools: tools,
       tool_choice: options.tool_choice || "auto",
     });
+
+    // TODO: transform response to required format
+    // TODO: Validate response model
+    // TODO: Enable caching
 
     return apiResponse as T;
   }
@@ -831,8 +835,10 @@ export class CerebrasClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        finishReason: response.response.choices[0].finish_reason,
+        usage: response.response.usage,
+        ...response,
       } as T;
 
       // Log successful generation

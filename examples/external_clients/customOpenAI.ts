@@ -231,22 +231,11 @@ export class CustomOpenAIClient extends LLMClient {
 
       return {
         data: parsedData,
-        usage: {
-          prompt_tokens: response.usage?.prompt_tokens ?? 0,
-          completion_tokens: response.usage?.completion_tokens ?? 0,
-          total_tokens: response.usage?.total_tokens ?? 0,
-        },
+        response: response,
       } as T;
     }
 
-    return {
-      choices: response.choices,
-      usage: {
-        prompt_tokens: response.usage?.prompt_tokens ?? 0,
-        completion_tokens: response.usage?.completion_tokens ?? 0,
-        total_tokens: response.usage?.total_tokens ?? 0,
-      },
-    } as T;
+    return response as T;
   }
 
   async createChatCompletionStream<T = StreamingChatResponse>({
@@ -510,8 +499,10 @@ export class CustomOpenAIClient extends LLMClient {
     // Validate response and extract generated text
     if (res.choices && res.choices.length > 0) {
       return {
-        ...res,
         text: res.choices[0].message.content,
+        finishReason: res.choices[0].finish_reason,
+        usage: res.usage,
+        response: res,
       } as T;
     } else {
       throw new CreateChatCompletionResponseError("No choices in response");
@@ -533,7 +524,7 @@ export class CustomOpenAIClient extends LLMClient {
     try {
       // Log the generation attempt
       logger({
-        category: "anthropic",
+        category: "openai",
         message: "Initiating object generation",
         level: 2,
         auxiliary: {
@@ -585,13 +576,15 @@ export class CustomOpenAIClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        finishReason: response.response.choices[0].finish_reason,
+        usage: response.response.usage,
+        ...response,
       } as T;
 
       // Log successful generation
       logger({
-        category: "anthropic",
+        category: "openai",
         message: "Text generation successful",
         level: 2,
         auxiliary: {
@@ -606,7 +599,7 @@ export class CustomOpenAIClient extends LLMClient {
     } catch (error) {
       // Log the error
       logger({
-        category: "anthropic",
+        category: "openai",
         message: "Object generation failed",
         level: 0,
         auxiliary: {

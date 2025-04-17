@@ -296,7 +296,6 @@ export class AnthropicClient extends LLMClient {
       ],
       usage: usageData,
     };
-
     logger({
       category: "anthropic",
       message: "transformed response",
@@ -321,12 +320,12 @@ export class AnthropicClient extends LLMClient {
         const finalParsedResponse = {
           data: result,
           usage: usageData,
+          ...response,
         } as unknown as T;
 
         if (this.enableCaching) {
           this.cache.set(cacheOptions, finalParsedResponse, options.requestId);
         }
-
         return finalParsedResponse;
       } else {
         if (!retries || retries < 5) {
@@ -578,7 +577,11 @@ export class AnthropicClient extends LLMClient {
       stream: true,
     });
 
-    // Restructure the response to match the expected format
+    // TODO: Transform response stream to preferred format
+    // TODO: Response model validation
+    // TODO: Enable caching
+
+    // Temporarily restructure the response to match the expected format
     return new ReadableStream({
       async start(controller) {
         try {
@@ -765,8 +768,12 @@ export class AnthropicClient extends LLMClient {
 
       // Construct the final response
       const textResponse = {
-        ...response,
         text: generatedText,
+        finishReason: response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
+        // reasoning: response.reasoning,
+        // sources: response.sources
       } as T;
 
       // Log successful generation
@@ -897,8 +904,10 @@ export class AnthropicClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        // finishReason: response.stop_reason,
+        // usage: response.response.usage,
+        response: response,
       } as T;
 
       // Log successful generation

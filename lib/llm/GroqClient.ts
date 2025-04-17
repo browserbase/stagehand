@@ -250,7 +250,7 @@ export class GroqClient extends LLMClient {
             if (this.enableCaching) {
               this.cache.set(cacheOptions, result, options.requestId);
             }
-            return { data: result } as T;
+            return { data: result, response: response } as T;
           } catch (e) {
             // If JSON parse fails, the model might be returning a different format
             logger({
@@ -278,7 +278,7 @@ export class GroqClient extends LLMClient {
               if (this.enableCaching) {
                 this.cache.set(cacheOptions, result, options.requestId);
               }
-              return { data: result } as T;
+              return { data: result, response: response } as T;
             }
           } catch (e) {
             logger({
@@ -477,6 +477,10 @@ export class GroqClient extends LLMClient {
       stream: true,
     });
 
+    // TODO: transform response to required format
+    // TODO: Validate response model
+    // TODO: Enable caching
+
     return apiResponse as T;
   }
 
@@ -665,10 +669,12 @@ export class GroqClient extends LLMClient {
 
       // Construct the final response
       const textResponse = {
-        ...response,
         text: generatedContent,
-        modelName: this.modelName,
-        timestamp: Date.now(),
+        finishReason: response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
+        // reasoning: response.reasoning,
+        // sources: response.sources
       } as T;
 
       // Log successful generation
@@ -812,8 +818,10 @@ export class GroqClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        finishReason: response.response.choices[0].finish_reason,
+        usage: response.response.usage,
+        ...response,
       } as T;
 
       // Log successful generation

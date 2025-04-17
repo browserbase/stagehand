@@ -169,14 +169,7 @@ export class AISdkClient extends LLMClient {
       prompt: prompt,
       tools,
     });
-    return {
-      text: response.text,
-      usage: {
-        prompt_tokens: response.usage.promptTokens ?? 0,
-        completion_tokens: response.usage.completionTokens ?? 0,
-        total_tokens: response.usage.totalTokens ?? 0,
-      },
-    } as T;
+    return response as T;
   }
   async generateObject<T = ObjectResponse>({
     prompt,
@@ -189,13 +182,6 @@ export class AISdkClient extends LLMClient {
       schema: schema,
       ...options,
     });
-    return {
-      object: response.object,
-      usage: {
-        prompt_tokens: response.usage.promptTokens ?? 0,
-        completion_tokens: response.usage.completionTokens ?? 0,
-        total_tokens: response.usage.totalTokens ?? 0,
-      },
-    } as T;
+    return response as T;
   }
 }

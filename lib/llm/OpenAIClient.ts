@@ -445,6 +445,7 @@ export class OpenAIClient extends LLMClient {
       return {
         data: parsedData,
         usage: response.usage,
+        response: response,
       } as T;
     }
 
@@ -744,6 +745,11 @@ export class OpenAIClient extends LLMClient {
       })),
     };
     const response = await this.client.chat.completions.create(body);
+
+    // TODO: O1 models - parse the tool call response manually and add it to the response
+    // TODO: Response model validation
+    // TODO: Caching
+
     return response as T;
   }
 
@@ -915,8 +921,12 @@ export class OpenAIClient extends LLMClient {
         });
 
         return {
-          ...response,
           text: response.choices[0].message.content,
+          finishReason: response.choices[0].finish_reason,
+          usage: response.usage,
+          response: response,
+          // reasoning: response.reasoning,
+          // sources: response.sources
         } as T;
       }
 
@@ -1014,7 +1024,6 @@ export class OpenAIClient extends LLMClient {
         logger,
         retries,
       })) as LLMObjectResponse;
-
       // Validate response structure
       if (
         !response.data ||
@@ -1051,8 +1060,12 @@ export class OpenAIClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        finishReason: response.response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
+        // reasoning: response.reasoning,
+        // sources: response.sources
       } as T;
 
       // Log successful generation

@@ -128,13 +128,17 @@ export type StreamingChatResponse = AsyncIterable<StreamingChatResponseChunk>;
 export interface LLMObjectResponse extends BaseResponse {
   data: Record<string, unknown>;
   usage: UsageMetrics;
+  response: LLMResponse;
 }
 
 // Text Response type that can include LLM properties
 export interface TextResponse extends BaseResponse {
   text: string;
-  choices?: LLMChoice[];
-  usage?: UsageMetrics;
+  finishReason: string;
+  usage: UsageMetrics;
+  response: LLMResponse;
+  // reasoning: string;
+  // sources: string[];
 }
 
 // Object Response type that can include LLM properties

@@ -483,6 +483,7 @@ export class GoogleClient extends LLMClient {
         const extractionResult = {
           data: parsedData,
           usage: llmResponse.usage,
+          response: llmResponse,
         };
 
         if (this.enableCaching) {
@@ -552,7 +553,6 @@ export class GoogleClient extends LLMClient {
       top_p,
       maxTokens,
     } = options;
-    console.log(retries);
 
     logger({
       category: "google",
@@ -583,6 +583,7 @@ export class GoogleClient extends LLMClient {
         : undefined,
       tools: tools,
       maxTokens: maxTokens,
+      retries: retries,
     };
 
     if (this.enableCaching) {
@@ -674,6 +675,10 @@ export class GoogleClient extends LLMClient {
 
     const result =
       await this.client.models.generateContentStream(requestPayload);
+
+    // TODO: transform response to required format
+    // TODO: Validate response model
+    // TODO: Enable caching
 
     return new ReadableStream({
       async start(controller) {
@@ -804,8 +809,10 @@ export class GoogleClient extends LLMClient {
     // Validate and extract the generated text from the response
     if (response.choices && response.choices.length > 0) {
       return {
-        ...response,
         text: response.choices[0].message.content,
+        finishReason: response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
       } as T;
     } else {
       logger({
@@ -911,8 +918,10 @@ export class GoogleClient extends LLMClient {
 
       // Construct the final response
       const objResponse = {
-        ...response,
         object: generatedObject,
+        finishReason: response.response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
       } as T;
 
       // Log successful generation

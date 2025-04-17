@@ -10,13 +10,13 @@ async function example() {
     "you are playing wordle. Return the 5-letter word that would be the best guess";
   await stagehand.init();
   console.log("---Generating Text---");
-  const { text } = await stagehand.llmClient.generateText({
+  const responseText = await stagehand.llmClient.generateText({
     prompt: prompt,
   });
-  console.log(text);
+  console.log(responseText);
 
   console.log("---Generating Object---");
-  const { object } = await stagehand.llmClient.generateObject({
+  const responseObj = await stagehand.llmClient.generateObject({
     prompt: prompt,
     schema: z.object({
       guess: z
@@ -24,7 +24,7 @@ async function example() {
         .describe("The 5-letter word that would be the best guess"),
     }),
   });
-  console.log(object);
+  console.log(responseObj);
 
   console.log("---Streaming Text---");
   const { textStream } = await stagehand.llmClient.streamText({
