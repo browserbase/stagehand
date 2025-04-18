@@ -1,5 +1,21 @@
 # @browserbasehq/stagehand
 
+## 2.2.0
+
+### Minor Changes
+
+- [#655](https://github.com/browserbase/stagehand/pull/655) [`8814af9`](https://github.com/browserbase/stagehand/commit/8814af9ece99fddc3dd9fb32671d0513a3a00c67) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - extract links
+
+- [#675](https://github.com/browserbase/stagehand/pull/675) [`35c55eb`](https://github.com/browserbase/stagehand/commit/35c55ebf6c2867801a0a6f6988a883c8cb90cf9a) Thanks [@tkattkat](https://github.com/tkattkat)! - Added Gemini 2.5 Flash to Google supported models
+
+### Patch Changes
+
+- [#664](https://github.com/browserbase/stagehand/pull/664) [`b5ca00a`](https://github.com/browserbase/stagehand/commit/b5ca00a25ad0c33a5f4d3198e1bc59edb9956e7c) Thanks [@miguelg719](https://github.com/miguelg719)! - remove unnecessary log
+
+- [#687](https://github.com/browserbase/stagehand/pull/687) [`edd6d3f`](https://github.com/browserbase/stagehand/commit/edd6d3feb47aac9f312a5edad78bf850ae1541db) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed the schema input for Gemini's response model
+
+- [#677](https://github.com/browserbase/stagehand/pull/677) [`bc5a731`](https://github.com/browserbase/stagehand/commit/bc5a731241f7f4c5040dd672d8e3787555766421) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixes a redundant unnecessary log
+
 ## 2.1.0
 
 ### Minor Changes
