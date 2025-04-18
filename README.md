@@ -128,7 +128,7 @@ For more information, please see our [Contributing Guide](https://docs.stagehand
 
 ## Acknowledgements
 
-This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), and [fuji-web](https://github.com/normal-computing/fuji-web).
+This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), [gemini-zod](https://github.com/jbeoris/gemini-zod), and [fuji-web](https://github.com/normal-computing/fuji-web).
 
 We'd like to thank the following people for their major contributions to Stagehand:
 - [Paul Klein](https://github.com/pkiv)

@@ -14,7 +14,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
-import { validateZodSchema } from "../utils";
+import { validateZodSchema, toGeminiSchema } from "../utils";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -290,24 +290,10 @@ export class GoogleClient extends LLMClient {
       temperature: temperature,
       topP: top_p,
       responseMimeType: response_model ? "application/json" : undefined,
+      responseSchema: response_model
+        ? toGeminiSchema(response_model.schema)
+        : undefined,
     };
-
-    // Handle JSON mode instructions
-    if (response_model) {
-      // Prepend instructions for JSON output if needed (similar to o1 handling)
-      const schemaString = JSON.stringify(
-        zodToJsonSchema(response_model.schema),
-      );
-      formattedMessages.push({
-        role: "user",
-        parts: [
-          {
-            text: `Please respond ONLY with a valid JSON object that strictly adheres to the following JSON schema. Do not include any other text, explanations, or markdown formatting like \`\`\`json ... \`\`\`. Just the JSON object.\n\nSchema:\n${schemaString}`,
-          },
-        ],
-      });
-      formattedMessages.push({ role: "model", parts: [{ text: "{" }] }); // Prime the model
-    }
 
     logger({
       category: "google",

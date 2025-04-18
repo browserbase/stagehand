@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
 import { TextAnnotation } from "../types/textannotation";
+import { Schema, Type } from "@google/genai";
 
 // This is a heuristic for the width of a character in pixels. It seems to work
 // better than attempting to calculate character widths dynamically, which sometimes
@@ -441,4 +442,124 @@ export function isRunningInBun(): boolean {
     typeof process.versions !== "undefined" &&
     "bun" in process.versions
   );
+}
+
+/*
+ * Helper functions for converting between Gemini and Zod schemas
+ */
+function decorateGeminiSchema(
+  geminiSchema: Schema,
+  zodSchema: z.ZodTypeAny,
+): Schema {
+  if (geminiSchema.nullable === undefined) {
+    geminiSchema.nullable = zodSchema.isOptional();
+  }
+
+  if (zodSchema.description) {
+    geminiSchema.description = zodSchema.description;
+  }
+
+  return geminiSchema;
+}
+
+export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
+  const zodType = getZodType(zodSchema);
+
+  switch (zodType) {
+    case "ZodArray": {
+      return decorateGeminiSchema(
+        {
+          type: Type.ARRAY,
+          items: toGeminiSchema(
+            (zodSchema as z.ZodArray<z.ZodTypeAny>).element,
+          ),
+        },
+        zodSchema,
+      );
+    }
+    case "ZodObject": {
+      const properties: Record<string, Schema> = {};
+      const required: string[] = [];
+
+      Object.entries((zodSchema as z.ZodObject<z.ZodRawShape>).shape).forEach(
+        ([key, value]: [string, z.ZodTypeAny]) => {
+          properties[key] = toGeminiSchema(value);
+          if (getZodType(value) !== "ZodOptional") {
+            required.push(key);
+          }
+        },
+      );
+
+      return decorateGeminiSchema(
+        {
+          type: Type.OBJECT,
+          properties,
+          required: required.length > 0 ? required : undefined,
+        },
+        zodSchema,
+      );
+    }
+    case "ZodString":
+      return decorateGeminiSchema(
+        {
+          type: Type.STRING,
+        },
+        zodSchema,
+      );
+    case "ZodNumber":
+      return decorateGeminiSchema(
+        {
+          type: Type.NUMBER,
+        },
+        zodSchema,
+      );
+    case "ZodBoolean":
+      return decorateGeminiSchema(
+        {
+          type: Type.BOOLEAN,
+        },
+        zodSchema,
+      );
+    case "ZodEnum":
+      return decorateGeminiSchema(
+        {
+          type: Type.STRING,
+          enum: zodSchema._def.values,
+        },
+        zodSchema,
+      );
+    case "ZodDefault":
+    case "ZodNullable":
+    case "ZodOptional": {
+      const innerSchema = toGeminiSchema(zodSchema._def.innerType);
+      return decorateGeminiSchema(
+        {
+          ...innerSchema,
+          nullable: true,
+        },
+        zodSchema,
+      );
+    }
+    case "ZodLiteral":
+      return decorateGeminiSchema(
+        {
+          type: Type.STRING,
+          enum: [zodSchema._def.value],
+        },
+        zodSchema,
+      );
+    default:
+      return decorateGeminiSchema(
+        {
+          type: Type.OBJECT,
+          nullable: true,
+        },
+        zodSchema,
+      );
+  }
+}
+
+// Helper function to check the type of Zod schema
+export function getZodType(schema: z.ZodTypeAny): string {
+  return schema._def.typeName;
 }
