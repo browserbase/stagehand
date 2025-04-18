@@ -77,3 +77,13 @@ export interface EvalResult {
 export type LogLineEval = LogLine & {
   parsedAuxiliary?: string | object;
 };
+
+export interface CreateLLMClientOptions {
+  modelName: AvailableModel;
+  useExternalClients?: boolean;
+  logger?: (msg: LogLine) => void;
+  openAiKey?: string;
+  googleKey?: string;
+  anthropicKey?: string;
+  togetherKey?: string;
+}

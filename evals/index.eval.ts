@@ -20,25 +20,19 @@ import {
   filterByCategory,
   filterByEvalName,
   useTextExtract,
+  parsedArgs,
 } from "./args";
-import { generateExperimentName } from "./utils";
+import { createLLMClient, generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, MODELS, tasksConfig } from "./taskConfig";
-import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
+import { Eval } from "braintrust";
 import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel, LLMClient } from "@/dist";
+import { AvailableModel } from "@/dist";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";
-import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
-import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
-import { google } from "@ai-sdk/google";
-import { anthropic } from "@ai-sdk/anthropic";
-import { groq } from "@ai-sdk/groq";
-import { cerebras } from "@ai-sdk/cerebras";
 dotenv.config();
 
 /**
@@ -273,51 +267,15 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          let llmClient: LLMClient;
-          if (input.modelName.startsWith("gpt")) {
-            llmClient = new CustomOpenAIClient({
-              modelName: input.modelName as AvailableModel,
-              client: wrapOpenAI(
-                new OpenAI({
-                  apiKey: process.env.OPENAI_API_KEY,
-                }),
-              ),
-            });
-          } else if (input.modelName.startsWith("gemini")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(google(input.modelName)),
-            });
-          } else if (input.modelName.startsWith("claude")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(anthropic(input.modelName)),
-            });
-          } else if (input.modelName.includes("groq")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(
-                groq(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
-                ),
-              ),
-            });
-          } else if (input.modelName.includes("cerebras")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(
-                cerebras(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
-                ),
-              ),
-            });
-          } else if (input.modelName.includes("/")) {
-            llmClient = new CustomOpenAIClient({
-              modelName: input.modelName as AvailableModel,
-              client: wrapOpenAI(
-                new OpenAI({
-                  apiKey: process.env.TOGETHER_AI_API_KEY,
-                  baseURL: "https://api.together.xyz/v1",
-                }),
-              ),
-            });
-          }
+          const llmClient = createLLMClient({
+            modelName: input.modelName,
+            useExternalClients: parsedArgs.useExternalClients === true,
+            logger: (msg) => logger.log(msg),
+            openAiKey: process.env.OPENAI_API_KEY,
+            googleKey: process.env.GOOGLE_API_KEY,
+            anthropicKey: process.env.ANTHROPIC_API_KEY,
+            togetherKey: process.env.TOGETHER_AI_API_KEY,
+          });
           const taskInput = await initStagehand({
             logger,
             llmClient,

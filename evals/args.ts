@@ -9,6 +9,7 @@ const parsedArgs: {
   concurrency?: number;
   extractMethod?: string;
   provider?: string;
+  useExternalClients?: boolean;
   leftover: string[];
 } = {
   leftover: [],
@@ -31,6 +32,9 @@ for (const arg of rawArgs) {
     parsedArgs.extractMethod = arg.split("=")[1];
   } else if (arg.startsWith("provider=")) {
     parsedArgs.provider = arg.split("=")[1]?.toLowerCase();
+  } else if (arg.startsWith("-useExternalClients=")) {
+    const val = arg.split("=")[1]?.toLowerCase();
+    parsedArgs.useExternalClients = val === "true";
   } else {
     parsedArgs.leftover.push(arg);
   }
