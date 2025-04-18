@@ -277,32 +277,65 @@ export class StagehandAgentHandler {
         case "keypress": {
           const { keys } = action;
           if (Array.isArray(keys)) {
-            for (const key of keys) {
-              // Handle special keys
-              if (key.includes("ENTER")) {
-                await this.stagehandPage.page.keyboard.press("Enter");
-              } else if (key.includes("SPACE")) {
-                await this.stagehandPage.page.keyboard.press(" ");
-              } else if (key.includes("TAB")) {
-                await this.stagehandPage.page.keyboard.press("Tab");
-              } else if (key.includes("ESCAPE") || key.includes("ESC")) {
-                await this.stagehandPage.page.keyboard.press("Escape");
-              } else if (key.includes("BACKSPACE")) {
-                await this.stagehandPage.page.keyboard.press("Backspace");
-              } else if (key.includes("DELETE")) {
-                await this.stagehandPage.page.keyboard.press("Delete");
-              } else if (key.includes("ARROW_UP")) {
-                await this.stagehandPage.page.keyboard.press("ArrowUp");
-              } else if (key.includes("ARROW_DOWN")) {
-                await this.stagehandPage.page.keyboard.press("ArrowDown");
-              } else if (key.includes("ARROW_LEFT")) {
-                await this.stagehandPage.page.keyboard.press("ArrowLeft");
-              } else if (key.includes("ARROW_RIGHT")) {
-                await this.stagehandPage.page.keyboard.press("ArrowRight");
-              } else {
-                // For other keys, use the existing conversion
-                const playwrightKey = this.convertKeyName(key);
-                await this.stagehandPage.page.keyboard.press(playwrightKey);
+            // Check if CTRL or CMD is present in the keys
+            const hasModifier = keys.some(
+              (key) =>
+                key.includes("CTRL") ||
+                key.includes("CMD") ||
+                key.includes("COMMAND"),
+            );
+
+            if (hasModifier) {
+              // Handle key combination - press all keys simultaneously
+              // Convert all keys first
+              const playwrightKeys = keys.map((key) => {
+                if (key.includes("CTRL")) return "Meta";
+                if (key.includes("CMD") || key.includes("COMMAND"))
+                  return "Meta";
+                return this.convertKeyName(key);
+              });
+
+              // Press all keys down in sequence
+              for (const key of playwrightKeys) {
+                await this.stagehandPage.page.keyboard.down(key);
+              }
+
+              // Small delay to ensure the combination is registered
+              await new Promise((resolve) => setTimeout(resolve, 100));
+
+              // Release all keys in reverse order
+              for (const key of playwrightKeys.reverse()) {
+                await this.stagehandPage.page.keyboard.up(key);
+              }
+            } else {
+              // Handle individual keys as before
+              for (const key of keys) {
+                // Handle special keys
+                if (key.includes("ENTER")) {
+                  await this.stagehandPage.page.keyboard.press("Enter");
+                } else if (key.includes("SPACE")) {
+                  await this.stagehandPage.page.keyboard.press(" ");
+                } else if (key.includes("TAB")) {
+                  await this.stagehandPage.page.keyboard.press("Tab");
+                } else if (key.includes("ESCAPE") || key.includes("ESC")) {
+                  await this.stagehandPage.page.keyboard.press("Escape");
+                } else if (key.includes("BACKSPACE")) {
+                  await this.stagehandPage.page.keyboard.press("Backspace");
+                } else if (key.includes("DELETE")) {
+                  await this.stagehandPage.page.keyboard.press("Delete");
+                } else if (key.includes("ARROW_UP")) {
+                  await this.stagehandPage.page.keyboard.press("ArrowUp");
+                } else if (key.includes("ARROW_DOWN")) {
+                  await this.stagehandPage.page.keyboard.press("ArrowDown");
+                } else if (key.includes("ARROW_LEFT")) {
+                  await this.stagehandPage.page.keyboard.press("ArrowLeft");
+                } else if (key.includes("ARROW_RIGHT")) {
+                  await this.stagehandPage.page.keyboard.press("ArrowRight");
+                } else {
+                  // For other keys, use the existing conversion
+                  const playwrightKey = this.convertKeyName(key);
+                  await this.stagehandPage.page.keyboard.press(playwrightKey);
+                }
               }
             }
           }
@@ -649,12 +682,12 @@ export class StagehandAgentHandler {
       LEFT: "ArrowLeft",
       RIGHT: "ArrowRight",
       SHIFT: "Shift",
-      CONTROL: "Control",
+      CONTROL: process.platform === "darwin" ? "Meta" : "Control", // Use Meta on macOS
       ALT: "Alt",
       META: "Meta",
       COMMAND: "Meta",
       CMD: "Meta",
-      CTRL: "Control",
+      CTRL: process.platform === "darwin" ? "Meta" : "Control", // Use Meta on macOS
       DELETE: "Delete",
       HOME: "Home",
       END: "End",
