@@ -317,6 +317,10 @@
     {
       "name": "extract_single_link",
       "categories": ["extract"]
+    },
+    {
+      "name": "dropdown",
+      "categories": ["act"]
     }
   ]
 }
