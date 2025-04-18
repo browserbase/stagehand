@@ -225,17 +225,6 @@ async function getBrowser(
 
     return { browser, context, debugUrl, sessionUrl, sessionId, env };
   } else {
-    logger({
-      category: "init",
-      message: "launching local browser",
-      auxiliary: {
-        headless: {
-          value: headless.toString(),
-          type: "boolean",
-        },
-      },
-    });
-
     if (localBrowserLaunchOptions?.cdpUrl) {
       if (!localBrowserLaunchOptions.cdpUrl.includes("connect.connect")) {
         logger({
