@@ -8,10 +8,18 @@ import {
   generateText,
   ImagePart,
   LanguageModel,
+  streamText,
   TextPart,
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
 import { ChatCompletion } from "openai/resources";
+import {
+  GenerateObjectOptions,
+  GenerateTextOptions,
+  ObjectResponse,
+  StreamingTextResponse,
+  TextResponse,
+} from "@/lib";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -118,5 +126,62 @@ export class AISdkClient extends LLMClient {
         total_tokens: response.usage.totalTokens ?? 0,
       },
     } as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    const tools: Record<string, CoreTool> = {};
+    if (options.tools) {
+      for (const rawTool of options.tools) {
+        tools[rawTool.name] = {
+          description: rawTool.description,
+          parameters: rawTool.parameters,
+        };
+      }
+    }
+
+    const response = await streamText({
+      model: this.model,
+      prompt: prompt,
+      tools,
+    });
+    return response as T;
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    const tools: Record<string, CoreTool> = {};
+    if (options.tools) {
+      for (const rawTool of options.tools) {
+        tools[rawTool.name] = {
+          description: rawTool.description,
+          parameters: rawTool.parameters,
+        };
+      }
+    }
+
+    const response = await generateText({
+      model: this.model,
+      prompt: prompt,
+      tools,
+    });
+    return response as T;
+  }
+  async generateObject<T = ObjectResponse>({
+    prompt,
+    schema,
+    options = {},
+  }: GenerateObjectOptions): Promise<T> {
+    const response = await generateObject({
+      model: this.model,
+      prompt: prompt,
+      schema: schema,
+      ...options,
+    });
+    return response as T;
   }
 }
