@@ -715,8 +715,14 @@ export class Stagehand {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
 
+    const guardedScript = `
+  if (!window.__stagehandInjected) {
+    window.__stagehandInjected = true;
+    ${scriptContent}
+  }
+`;
     await this.context.addInitScript({
-      content: scriptContent,
+      content: guardedScript,
     });
 
     this.browserbaseSessionID = sessionId;

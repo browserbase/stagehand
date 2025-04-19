@@ -31,9 +31,11 @@ import {
   StagehandDefaultError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
+import { scriptContent } from "@/lib/dom/build/scriptContent";
 
 export class StagehandPage {
   private stagehand: Stagehand;
+  private rawPage: PlaywrightPage;
   private intPage: Page;
   private intContext: StagehandContext;
   private actHandler: StagehandActHandler;
@@ -60,6 +62,7 @@ export class StagehandPage {
     api?: StagehandAPI,
     waitForCaptchaSolves?: boolean,
   ) {
+    this.rawPage = page;
     // Create a proxy to intercept all method calls and property access
     this.intPage = new Proxy(page, {
       get: (target: PlaywrightPage, prop: keyof PlaywrightPage) => {
@@ -113,6 +116,34 @@ export class StagehandPage {
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+      });
+    }
+  }
+
+  private async ensureStagehandScript(): Promise<void> {
+    try {
+      const injected = await this.rawPage.evaluate(
+        () => !!window.__stagehandInjected,
+      );
+
+      if (injected) return;
+
+      const guardedScript = `if (!window.__stagehandInjected) { \
+window.__stagehandInjected = true; \
+${scriptContent} \
+}`;
+
+      await this.rawPage.addInitScript({ content: guardedScript });
+      await this.rawPage.evaluate(guardedScript);
+    } catch (err) {
+      this.stagehand.log({
+        category: "dom",
+        message: "Failed to inject Stagehand helper script",
+        level: 1,
+        auxiliary: {
+          error: { value: (err as Error).message, type: "string" },
+          trace: { value: (err as Error).stack, type: "string" },
+        },
       });
     }
   }
@@ -217,13 +248,31 @@ export class StagehandPage {
 
   async init(): Promise<StagehandPage> {
     try {
-      const page = this.intPage;
+      const page = this.rawPage;
       const stagehand = this.stagehand;
 
       // Create a proxy that updates active page on method calls
       const handler = {
         get: (target: PlaywrightPage, prop: string | symbol) => {
           const value = target[prop as keyof PlaywrightPage];
+
+          // Inject-on-demand for evaluate
+          if (
+            prop === "evaluate" ||
+            prop === "evaluateHandle" ||
+            prop === "$eval" ||
+            prop === "$$eval"
+          ) {
+            return async (...args: unknown[]) => {
+              this.intContext.setActivePage(this);
+              // Make sure helpers exist before the user’s evaluation
+              await this.ensureStagehandScript();
+              return (value as (...a: unknown[]) => unknown).apply(
+                target,
+                args,
+              );
+            };
+          }
 
           // Handle enhanced methods
           if (prop === "act" || prop === "extract" || prop === "observe") {
