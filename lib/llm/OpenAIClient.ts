@@ -428,7 +428,7 @@ export class OpenAIClient extends LLMClient {
         }
 
         throw new CreateChatCompletionResponseValidationError(
-          JSON.stringify(validationResult.error),
+          validationResult.error,
         );
       }
 

@@ -133,14 +133,14 @@ export class StagehandMissingArgumentError extends StagehandError {
 }
 
 export class CreateChatCompletionResponseError extends StagehandError {
-  constructor(message: ZodValidationError) {
-    super(`CreateChatCompletionResponseError: ${message.format()}`);
+  constructor(message: string) {
+    super(`CreateChatCompletionResponseError: ${message}`);
   }
 }
 
 export class CreateChatCompletionResponseValidationError extends StagehandError {
-  constructor(message: string) {
-    super(`ResponseValidationError: ${message}`);
+  constructor(message: ZodValidationError) {
+    super(`ResponseValidationError: ${message.format()}`);
   }
 }
 
