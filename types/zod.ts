@@ -19,7 +19,7 @@ export function validateZodSchemaWithResult(
   } catch (error) {
     return {
       success: false,
-      error: error as ZodValidationError,
+      error: error instanceof z.ZodError ? error : new z.ZodError([]),
     };
   }
 }
