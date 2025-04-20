@@ -1,10 +1,14 @@
 # Twitter自动化脚本
 
+[English Documentation](./README_TWITTER_EN.md)
+
 这个脚本使用Stagehand框架自动登录Twitter并浏览指定用户的推文。通过集成Google的Gemini模型，脚本能够智能地处理登录流程、导航和内容提取，即使在Twitter界面发生变化时也能适应。
 
 > 注意：本脚本仅供学习和研究使用，请遵守Twitter的服务条款和使用政策。
 
 ## 功能
+
+### 基本功能
 
 - 自动登录Twitter账号
 - 导航到指定用户的Twitter页面
@@ -12,6 +16,14 @@
 - 提取用户最新推文
 - 滚动加载更多推文
 - 以友好的格式显示提取的信息
+
+### 多用户监控功能
+
+- **多账号管理**: 支持配置多个Twitter账号，轮流使用
+- **多目标监控**: 同时监控多个Twitter用户的推文更新
+- **自定义回复**: 支持文本、图片和视频回复
+- **代理IP配置**: 每个账号可使用独立的代理IP
+- **数据库记录**: 使用SQLite数据库记录监控和回复历史
 
 ## 前提条件
 
@@ -79,6 +91,8 @@
 
 ## 使用方法
 
+### 基本使用
+
 运行以下命令启动Twitter自动化脚本：
 
 ```bash
@@ -95,7 +109,23 @@ npm run twitter-auto -- --target=目标用户名
 npm run twitter-auto -- --target=twitter
 ```
 
-注意：登录凭证和2FA认证信息现在从.env文件中读取，而不是作为命令行参数传递，这提高了安全性。
+### 多用户监控
+
+运行以下命令启动多用户监控脚本：
+
+```bash
+npm run twitter-multi-monitor
+```
+
+这个命令会根据配置文件自动监控多个目标用户的推文，并使用多个账号进行回复。
+
+监控脚本需要以下配置文件：
+
+1. `config/targets.json` - 监控目标配置（可从 `examples/config/targets.json.example` 复制）
+2. `config/accounts.json` - 账号配置（可从 `examples/config/accounts.json.example` 复制）
+3. `config/replies.json` - 回复内容配置（可从 `examples/config/replies.json.example` 复制）
+
+注意：登录凭证和2FA认证信息现在从配置文件中读取，而不是作为命令行参数传递，这提高了安全性。
 
 ## 注意事项
 

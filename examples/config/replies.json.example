@@ -1,0 +1,20 @@
+[
+  {
+    "text": "这是一条自动回复消息，感谢您的分享！"
+  },
+  {
+    "text": "非常有趣的观点，谢谢分享！",
+    "image": "./data/images/response1.jpg"
+  },
+  {
+    "text": "这条推文很有价值，我已经收藏了！"
+  },
+  {
+    "text": "精彩的内容，期待您的更多分享！",
+    "video": "./data/videos/response_video.mp4"
+  },
+  {
+    "text": "这是一条指定账号回复的消息",
+    "accountUsername": "your_twitter_username1"
+  }
+]

@@ -33,83 +33,85 @@
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-# Stagehand Twitter 自动化工具
+# Stagehand Twitter Automation Tool
 
-这个项目使用 Stagehand 框架来自动化 Twitter/X 的登录和监控操作。Stagehand 是一个强大的自动化框架，它扩展了 Playwright，添加了 `act`、`extract` 和 `observe` 等功能，使得网页自动化变得更加简单。
+[中文文档](./README_CN.md)
 
-## 功能特点
+This project uses the Stagehand framework to automate Twitter/X login and monitoring operations. Stagehand is a powerful automation framework that extends Playwright, adding features like `act`, `extract`, and `observe`, making web automation much simpler.
 
-- **自动登录**: 支持用户名/密码登录，包括处理双因素认证(2FA)和账号验证
-- **Cookie 管理**: 保存和重用 Cookie 以避免频繁登录
-- **推文监控**: 定期检查指定用户的新推文
-- **数据提取**: 结构化提取推文内容、时间戳和互动数据
-- **错误恢复**: 对登录失败和网络问题的智能处理
+## Features
 
-## 项目结构
+- **Automated Login**: Supports username/password login, including handling two-factor authentication (2FA) and account verification
+- **Cookie Management**: Saves and reuses cookies to avoid frequent logins
+- **Tweet Monitoring**: Regularly checks for new tweets from specified users
+- **Data Extraction**: Structured extraction of tweet content, timestamps, and interaction data
+- **Error Recovery**: Intelligent handling of login failures and network issues
+
+## Project Structure
 
 ```
 examples/
-  ├── twitter_login_test.ts   # Twitter登录测试脚本
-  ├── twitter_monitor.ts      # Twitter推文监控脚本
-  ├── twitter_setup.md        # 环境变量配置说明
-  └── twitter_utils.ts        # 共享工具函数
+  ├── twitter_login_test.ts   # Twitter login test script
+  ├── twitter_monitor.ts      # Twitter tweet monitoring script
+  ├── twitter_setup.md        # Environment variable configuration guide
+  └── twitter_utils.ts        # Shared utility functions
 ```
 
-## 最近的代码重构
+## Recent Code Refactoring
 
-最近对代码进行了重构，主要改进包括：
+The code has recently been refactored, with major improvements including:
 
-1. **代码重复消除**: 将重复的功能（如登录、验证处理）提取到 `twitter_utils.ts` 中
-2. **类型安全改进**: 添加明确的类型注解，修复类型错误
-3. **错误处理优化**: 改进了错误恢复策略，使脚本在遇到问题时更加健壮
-4. **代码组织优化**: 更好的模块化设计，使功能更加清晰和可维护
+1. **Code Duplication Elimination**: Repetitive functionality (such as login, verification handling) extracted to `twitter_utils.ts`
+2. **Type Safety Improvements**: Added explicit type annotations, fixed type errors
+3. **Error Handling Optimization**: Improved error recovery strategies, making scripts more robust when encountering issues
+4. **Code Organization Optimization**: Better modular design, making functionality clearer and more maintainable
 
-## 使用方法
+## Usage
 
-### 环境设置
+### Environment Setup
 
-创建一个 `.env` 文件，包含所需的环境变量（详见 `examples/twitter_setup.md`）:
+Create a `.env` file containing the required environment variables (see `examples/twitter_setup.md` for details):
 
 ```
-# Twitter登录凭据
-TWITTER_USERNAME=你的Twitter用户名
-TWITTER_PASSWORD=你的Twitter密码
+# Twitter login credentials
+TWITTER_USERNAME=your_twitter_username
+TWITTER_PASSWORD=your_twitter_password
 
-# 双因素认证设置（如果启用了2FA）
-TWITTER_2FA_ENABLED=true或false
-TWITTER_2FA_SECRET=你的2FA密钥
+# Two-factor authentication settings (if 2FA is enabled)
+TWITTER_2FA_ENABLED=true_or_false
+TWITTER_2FA_SECRET=your_2fa_secret
 
-# 验证信息
-TWITTER_VERIFICATION_EMAIL=你的邮箱
-TWITTER_VERIFICATION_PHONE=你的手机号
+# Verification information
+TWITTER_VERIFICATION_EMAIL=your_email
+TWITTER_VERIFICATION_PHONE=your_phone_number
 
-# AI模型配置（用于数据提取）
-GOOGLE_API_KEY=你的Google_API密钥
+# AI model configuration (for data extraction)
+GOOGLE_API_KEY=your_google_api_key
 GEMINI_MODEL=gemini-1.5-pro
 ```
 
-### 运行登录测试
+### Run Login Test
 
 ```bash
 npx tsx examples/twitter_login_test.ts
 ```
 
-### 运行推文监控
+### Run Tweet Monitoring
 
 ```bash
 npx tsx examples/twitter_monitor.ts --target=elonmusk --interval=5
 ```
 
-参数说明:
-- `--target`: 要监控的Twitter用户名（默认: elonmusk）
-- `--interval`: 检查新推文的时间间隔，单位为分钟（默认: 1）
+Parameter explanation:
+- `--target`: Twitter username to monitor (default: elonmusk)
+- `--interval`: Time interval for checking new tweets, in minutes (default: 1)
 
-## 注意事项
+## Notes
 
-- 此脚本仅用于教育和学习目的
-- 请遵守Twitter/X的使用条款和API规定
-- 设置合理的监控间隔，避免过于频繁的请求
-- `.env` 文件中包含敏感信息，确保不要将其提交到版本控制系统中
+- This script is for educational and learning purposes only
+- Please comply with Twitter/X's terms of use and API regulations
+- Set reasonable monitoring intervals to avoid too frequent requests
+- The `.env` file contains sensitive information; ensure it is not committed to version control systems
 
 ## Why Stagehand?
 
@@ -197,7 +199,7 @@ nano .env # Edit the .env file to add API keys
 
 ## Contributing
 
-> [!NOTE]  
+> [!NOTE]
 > We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://stagehand.dev/slack).
 
 At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
