@@ -22,6 +22,7 @@
     "google-enter": "npm run build && tsx examples/google_enter.ts",
     "try-wordle": "npm run build && tsx examples/try_wordle.ts",
     "twitter-auto": "npm run build && tsx examples/twitter_automation.ts",
+    "twitter-monitor": "npm run build && tsx examples/twitter_monitor.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",

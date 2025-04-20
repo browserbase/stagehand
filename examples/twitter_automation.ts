@@ -74,7 +74,7 @@ async function twitterAutomation() {
       请按照用户的指示执行操作，不要询问后续问题。
       当浏览推文时，请提取推文的内容、发布时间和互动数据（点赞、转发、评论数）。`,
     localBrowserLaunchOptions: {
-      headless: false, // 设置为true可以在后台运行
+      headless: false, // 设置为false使用有头浏览器，便于观察和可能的手动干预
     },
   });
 
@@ -97,16 +97,74 @@ async function twitterAutomation() {
     console.log(chalk.blue("🔑 正在登录Twitter..."));
 
     try {
-      // 使用act方法进行登录，让AI自动分析页面并完成登录
-      await page.act(
-        `在登录页面上输入用户名 "${username}"，然后点击下一步或类似的按钮`,
-      );
+      // 等待登录按钮出现，确保页面已加载
+      await page
+        .waitForSelector('div[role="button"]:has-text("下一步")', {
+          timeout: 10000,
+        })
+        .catch(() =>
+          console.log(chalk.yellow("⚠️ 未找到下一步按钮，继续尝试登录")),
+        );
 
-      // 等待一下，确保页面加载完成
+      // 定位用户名输入框
+      const userIdentifierInput =
+        (await page.$('input[autocomplete="username"]')) ||
+        (await page.$('input[name="text"]')) ||
+        (await page.$('input[data-testid="text-input"]'));
+
+      if (userIdentifierInput) {
+        // 输入用户名
+        await userIdentifierInput.fill(username);
+        console.log(chalk.blue(`✅ 已输入用户名: ${username}`));
+
+        // 点击下一步按钮
+        const nextButton =
+          (await page.$('div[role="button"]:has-text("下一步")')) ||
+          (await page.$('div[role="button"]:has-text("Next")'));
+
+        if (nextButton) {
+          await nextButton.click();
+          console.log(chalk.blue("✅ 已点击下一步按钮"));
+        } else {
+          console.log(chalk.yellow("⚠️ 找不到下一步按钮，尝试使用Enter键"));
+          await page.keyboard.press("Enter");
+        }
+      } else {
+        console.log(chalk.yellow("⚠️ 找不到用户名输入框，尝试使用act方法"));
+        await page.act(
+          `在登录页面上输入用户名 "${username}"，然后点击下一步或类似的按钮`,
+        );
+      }
+
+      // 等待密码输入框出现
       await page.waitForTimeout(3000);
 
-      // 输入密码
-      await page.act(`输入密码 "${password}"，然后点击登录按钮`);
+      // 定位密码输入框
+      const passwordInput =
+        (await page.$('input[name="password"]')) ||
+        (await page.$('input[type="password"]'));
+
+      if (passwordInput) {
+        // 输入密码
+        await passwordInput.fill(password);
+        console.log(chalk.blue("✅ 已输入密码"));
+
+        // 点击登录按钮
+        const loginButton =
+          (await page.$('div[role="button"]:has-text("登录")')) ||
+          (await page.$('div[role="button"]:has-text("Log in")'));
+
+        if (loginButton) {
+          await loginButton.click();
+          console.log(chalk.blue("✅ 已点击登录按钮"));
+        } else {
+          console.log(chalk.yellow("⚠️ 找不到登录按钮，尝试使用Enter键"));
+          await page.keyboard.press("Enter");
+        }
+      } else {
+        console.log(chalk.yellow("⚠️ 找不到密码输入框，尝试使用act方法"));
+        await page.act(`输入密码 "${password}"，然后点击登录按钮`);
+      }
 
       // 如果启用了双因素认证，处理 2FA
       if (twoFAEnabled && twoFASecret) {
@@ -119,21 +177,59 @@ async function twitterAutomation() {
         // 等待一下，确保2FA页面加载完成
         await page.waitForTimeout(3000);
 
-        // 使用act方法输入验证码并点击验证按钮
-        await page.act(
-          `输入双因素验证码 "${totpCode}"，然后点击确认或下一步按钮`,
-        );
+        // 尝试定位2FA输入框
+        const twoFAInput =
+          (await page.$('input[data-testid="ocfEnterTextTextInput"]')) ||
+          (await page.$('input[aria-label="验证码"]')) ||
+          (await page.$('input[placeholder*="验证码"]')) ||
+          (await page.$('input[placeholder*="code"]'));
+
+        if (twoFAInput) {
+          // 输入验证码
+          await twoFAInput.fill(totpCode);
+          console.log(chalk.blue("✅ 已输入验证码"));
+
+          // 点击验证按钮
+          const verifyButton =
+            (await page.$('div[role="button"]:has-text("验证")')) ||
+            (await page.$('div[role="button"]:has-text("Verify")')) ||
+            (await page.$('div[role="button"]:has-text("Next")')) ||
+            (await page.$('div[role="button"]:has-text("下一步")'));
+
+          if (verifyButton) {
+            await verifyButton.click();
+            console.log(chalk.blue("✅ 已点击验证按钮"));
+          } else {
+            console.log(chalk.yellow("⚠️ 找不到验证按钮，尝试使用Enter键"));
+            await page.keyboard.press("Enter");
+          }
+        } else {
+          console.log(chalk.yellow("⚠️ 找不到验证码输入框，尝试使用act方法"));
+          // 使用act方法输入验证码并点击验证按钮
+          await page.act(
+            `输入双因素验证码 "${totpCode}"，然后点击确认或下一步按钮`,
+          );
+        }
       }
 
       // 等待登录完成
       console.log(chalk.blue("⏳ 等待登录完成..."));
 
       // 等待主页面加载
-      await page.waitForNavigation({ timeout: 30000 });
+      console.log(chalk.blue("🔍 等待页面导航..."));
+      await page
+        .waitForNavigation({ timeout: 30000 })
+        .then(() => console.log(chalk.green("✅ 页面导航完成")))
+        .catch((error) =>
+          console.log(chalk.yellow(`⚠️ 页面导航超时: ${error.message}`)),
+        );
 
       // 检查是否成功登录
       const currentUrl = await page.url();
-      if (currentUrl.includes("twitter.com/home")) {
+      if (
+        currentUrl.includes("twitter.com/home") ||
+        currentUrl.includes("x.com/home")
+      ) {
         console.log(chalk.green("✅ 登录成功!"));
       } else {
         console.log(
@@ -152,7 +248,10 @@ async function twitterAutomation() {
 
         // 再次检查是否登录成功
         const newUrl = await page.url();
-        if (newUrl.includes("twitter.com/home")) {
+        if (
+          newUrl.includes("twitter.com/home") ||
+          newUrl.includes("x.com/home")
+        ) {
           console.log(chalk.green("✅ 登录成功!"));
         } else {
           console.log(chalk.red("❌ 登录失败。请检查您的凭据或手动登录。"));
@@ -171,7 +270,10 @@ async function twitterAutomation() {
 
       // 检查是否已登录
       const currentUrl = await page.url();
-      if (!currentUrl.includes("twitter.com/home")) {
+      if (
+        !currentUrl.includes("twitter.com/home") &&
+        !currentUrl.includes("x.com/home")
+      ) {
         console.log(chalk.red("❌ 登录失败。请手动登录并重新运行脚本。"));
         throw new Error("登录失败");
       } else {
@@ -181,10 +283,11 @@ async function twitterAutomation() {
 
     // 3. 导航到目标用户的Twitter页面
     console.log(chalk.blue(`🔍 导航到用户 @${target} 的Twitter页面...`));
-    await page.goto(`https://twitter.com/${target}`);
+    await page.goto(`https://x.com/${target}`);
 
     // 4. 提取用户信息
     console.log(chalk.blue("📊 提取用户信息..."));
+    console.log(chalk.blue(`🔍 当前页面URL: ${await page.url()}`));
     const userInfo = await page.extract({
       instruction: `提取用户 @${target} 的个人资料信息`,
       schema: z.object({
@@ -208,39 +311,43 @@ async function twitterAutomation() {
 
     // 5. 提取最新推文
     console.log(chalk.blue("📜 提取最新推文..."));
-    const tweets = await page.extract({
-      instruction: `提取用户 @${target} 的最新5条推文`,
-      schema: z.object({
-        tweets: z
-          .array(
-            z.object({
-              content: z.string().describe("推文内容"),
-              timestamp: z.string().describe("发布时间").optional(),
-              likes: z.string().describe("点赞数").optional(),
-              retweets: z.string().describe("转发数").optional(),
-              replies: z.string().describe("回复数").optional(),
-            }),
-          )
-          .describe("推文列表"),
-      }),
-    });
+    try {
+      const tweets = await page.extract({
+        instruction: `提取用户 @${target} 的最新5条推文`,
+        schema: z.object({
+          tweets: z
+            .array(
+              z.object({
+                content: z.string().describe("推文内容"),
+                timestamp: z.string().describe("发布时间").optional(),
+                likes: z.string().describe("点赞数").optional(),
+                retweets: z.string().describe("转发数").optional(),
+                replies: z.string().describe("回复数").optional(),
+              }),
+            )
+            .describe("推文列表"),
+        }),
+      });
 
-    // 6. 显示提取的推文
-    console.log(chalk.green(`\n📱 ${userInfo.displayName} 的最新推文:`));
-    tweets.tweets.forEach((tweet, index) => {
-      console.log(chalk.yellow(`\n推文 #${index + 1}:`));
-      console.log(chalk.white(`${tweet.content}`));
+      // 6. 显示提取的推文
+      console.log(chalk.green(`\n📱 ${userInfo.displayName} 的最新推文:`));
+      tweets.tweets.forEach((tweet, index) => {
+        console.log(chalk.yellow(`\n推文 #${index + 1}:`));
+        console.log(chalk.white(`${tweet.content}`));
 
-      const stats = [];
-      if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
-      if (tweet.likes) stats.push(`❤️ ${tweet.likes}`);
-      if (tweet.retweets) stats.push(`🔄 ${tweet.retweets}`);
-      if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
+        const stats = [];
+        if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
+        if (tweet.likes) stats.push(`❤️ ${tweet.likes}`);
+        if (tweet.retweets) stats.push(`🔄 ${tweet.retweets}`);
+        if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
 
-      if (stats.length > 0) {
-        console.log(chalk.gray(stats.join(" | ")));
-      }
-    });
+        if (stats.length > 0) {
+          console.log(chalk.gray(stats.join(" | ")));
+        }
+      });
+    } catch (error) {
+      console.error(chalk.red("❌ 提取推文时出错:"), error);
+    }
 
     // 7. 滚动加载更多推文
     console.log(chalk.blue("\n📜 滚动加载更多推文..."));
@@ -250,39 +357,43 @@ async function twitterAutomation() {
     await page.waitForTimeout(3000); // 等待新推文加载
 
     // 提取新加载的推文
-    const moreTweets = await page.extract({
-      instruction: `提取新加载的推文，这些推文应该与之前提取的不同`,
-      schema: z.object({
-        tweets: z
-          .array(
-            z.object({
-              content: z.string().describe("推文内容"),
-              timestamp: z.string().describe("发布时间").optional(),
-              likes: z.string().describe("点赞数").optional(),
-              retweets: z.string().describe("转发数").optional(),
-              replies: z.string().describe("回复数").optional(),
-            }),
-          )
-          .describe("推文列表"),
-      }),
-    });
+    try {
+      const moreTweets = await page.extract({
+        instruction: `提取新加载的推文，这些推文应该与之前提取的不同`,
+        schema: z.object({
+          tweets: z
+            .array(
+              z.object({
+                content: z.string().describe("推文内容"),
+                timestamp: z.string().describe("发布时间").optional(),
+                likes: z.string().describe("点赞数").optional(),
+                retweets: z.string().describe("转发数").optional(),
+                replies: z.string().describe("回复数").optional(),
+              }),
+            )
+            .describe("推文列表"),
+        }),
+      });
 
-    // 显示新提取的推文
-    console.log(chalk.green(`\n📱 新加载的推文:`));
-    moreTweets.tweets.forEach((tweet, index) => {
-      console.log(chalk.yellow(`\n推文 #${index + 1}:`));
-      console.log(chalk.white(`${tweet.content}`));
+      // 显示新提取的推文
+      console.log(chalk.green(`\n📱 新加载的推文:`));
+      moreTweets.tweets.forEach((tweet, index) => {
+        console.log(chalk.yellow(`\n推文 #${index + 1}:`));
+        console.log(chalk.white(`${tweet.content}`));
 
-      const stats = [];
-      if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
-      if (tweet.likes) stats.push(`\u2764️ ${tweet.likes}`);
-      if (tweet.retweets) stats.push(`🔁 ${tweet.retweets}`);
-      if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
+        const stats = [];
+        if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
+        if (tweet.likes) stats.push(`\u2764️ ${tweet.likes}`);
+        if (tweet.retweets) stats.push(`🔁 ${tweet.retweets}`);
+        if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
 
-      if (stats.length > 0) {
-        console.log(chalk.gray(stats.join(" | ")));
-      }
-    });
+        if (stats.length > 0) {
+          console.log(chalk.gray(stats.join(" | ")));
+        }
+      });
+    } catch (error) {
+      console.error(chalk.red("❌ 提取新推文时出错:"), error);
+    }
 
     // 8. 完成任务
     console.log(chalk.green("\n✅ 自动化任务完成!"));
