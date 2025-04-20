@@ -177,8 +177,13 @@ export class StagehandExtractHandler {
     );
 
     const result = { page_text: formattedText };
-    return pageTextSchema.parse(result);
-  }
+    const res = pageTextSchema.safeParse(result);
+
+    if (!res.success) {
+      throw new Error(JSON.stringify(res.error.format()));
+    }
+    
+    return res.data;  }
 
   private async textExtract<T extends z.AnyZodObject>({
     instruction,

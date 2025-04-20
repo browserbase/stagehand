@@ -22,12 +22,8 @@ import { z } from "zod";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
-  try {
-    schema.parse(data);
-    return true;
-  } catch {
-    return false;
-  }
+  const result = schema.safeParse(data);
+  return result.success;
 }
 
 export class CustomOpenAIClient extends LLMClient {

@@ -38,7 +38,10 @@ export const extract_press_releases: EvalFunction = async ({
       useTextExtract,
     });
 
-    const parsed = schema.parse(rawResult);
+    const parsed = schema.safeParse(rawResult);
+    if(!parsed.success){
+      throw new Error(parsed.error.format());
+    }
     const { items } = parsed;
 
     await stagehand.close();

@@ -369,12 +369,8 @@ export function logLineToString(logLine: LogLine): string {
 }
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
-  try {
-    schema.parse(data);
-    return true;
-  } catch {
-    return false;
-  }
+  const result = schema.safeParse(data);
+  return result.success;
 }
 
 export async function drawObserveOverlay(page: Page, results: ObserveResult[]) {

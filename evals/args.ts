@@ -83,13 +83,20 @@ if (parsedArgs.leftover.length > 0) {
       process.exit(1);
     }
     try {
-      EvalCategorySchema.parse(filterByCategory);
+      const result = EvalCategorySchema.safeParse(filterByCategory);
+    
+      if (!result.success) {
+        throw new Error(JSON.stringify(result.error.format())); 
+      }
+    
+      const parsedCategory = result.data; =
     } catch {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${DEFAULT_EVAL_CATEGORIES.join(", ")}`,
+        `Error: Invalid category "${filterByCategory}". Valid categories are: ${DEFAULT_EVAL_CATEGORIES.join(", ")}`
       );
       process.exit(1);
     }
+    
   } else {
     // If leftover[0] is not "category", interpret it as a task/eval name
     filterByEvalName = parsedArgs.leftover[0];
