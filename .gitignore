@@ -18,3 +18,8 @@ tmp/
 eval-summary.json
 pnpm-lock.yaml
 evals/deterministic/tests/BrowserContext/tmp-test.har
+
+# Twitter自动化配置文件（包含敏感信息）
+examples/config/accounts.json
+config/accounts.json
+twitter-cookies-*.json

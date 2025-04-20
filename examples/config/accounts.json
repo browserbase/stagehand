@@ -1,18 +1,13 @@
 [
   {
-    "username": "your_twitter_username1",
-    "password": "use_env_variable",
+    "username": "dgshdjshjd",
+    "password": "nvOl7AaI9Md",
     "email": "your_email1@example.com",
     "phone": "+1234567890",
-    "totpSecret": "use_env_variable",
+    "twoFAEnabled": true,
+    "twoFASecret": "4A4V7TO4PX5BGPK2",
+    "verificationEmail": "julijomavias@hotmail.com",
+    "verificationPhone": "",
     "cookiesPath": "./data/cookies_account1.json"
-  },
-  {
-    "username": "your_twitter_username2",
-    "password": "use_env_variable",
-    "email": "your_email2@example.com", 
-    "phone": "+0987654321",
-    "totpSecret": "use_env_variable",
-    "cookiesPath": "./data/cookies_account2.json"
   }
-] 
+]

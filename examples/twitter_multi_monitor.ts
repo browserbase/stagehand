@@ -2,17 +2,19 @@
  * Twitter多用户监控与多账号回复脚本
  *
  * 使用方法:
- * 1. 确保已在.env文件中设置所有必要的环境变量
+ * 1. 确保已在.env文件中设置所有必要的环境变量（Gemini API密钥等）
  * 2. 在config目录下创建targets.json和accounts.json配置文件
- * 3. 运行前安装依赖: npm install better-sqlite3
- * 4. 运行: npm run twitter-multi-monitor
- * 
+ * 3. 在accounts.json中配置每个Twitter账号的登录凭证、双因素认证和代理IP
+ * 4. 运行前安装依赖: npm install better-sqlite3
+ * 5. 运行: npm run twitter-multi-monitor
+ *
  * 实现功能:
  * 1. 监控多个指定用户的推文
  * 2. 使用多个账号进行回复
  * 3. 支持回复文本、图片和视频
  * 4. 避免重复回复同一推文
  * 5. 自动清理浏览器资源
+ * 6. 每个账号使用独立的代理IP
  */
 
 import { Stagehand } from "@/dist";
@@ -21,11 +23,10 @@ import { z } from "zod";
 import chalk from "chalk";
 import { GoogleClient } from "@/lib/llm/GoogleClient";
 import * as dotenv from "dotenv";
-import type { Page as StagehandPage } from "@/types/page";
 import * as TwitterUtils from "./twitter_utils";
 import fs from "fs";
 import path from "path";
-import { Browser } from "playwright";
+// 不需要显式导入Page，因为TwitterUtils中已经导入
 // @ts-ignore - 请在使用此脚本前安装此依赖: npm install better-sqlite3
 import Database from "better-sqlite3";
 
@@ -35,6 +36,7 @@ dotenv.config();
 // 定义配置类型
 interface Target {
   username: string;
+  checkInterval: number; // 检查间隔（分钟）
   lastChecked?: Date;
 }
 
@@ -54,6 +56,13 @@ interface Account {
   inUse?: boolean;
   lastUsed?: Date;
   cookieValid?: boolean;
+  // 代理配置
+  proxy?: {
+    server: string;       // 代理服务器地址，如 http://myproxy.com:3128
+    bypass?: string;      // 绕过代理的地址
+    username?: string;    // 代理认证用户名
+    password?: string;    // 代理认证密码
+  };
 }
 
 interface ReplyContent {
@@ -96,11 +105,11 @@ function ensureConfigDir() {
 // 确保数据库初始化
 function initDatabase() {
   // 确保数据目录存在
-  const dataDir = TwitterUtils.ensureDataDir();
-  
+  TwitterUtils.ensureDataDir();
+
   // 创建数据库连接
   const db = new Database(DB_PATH);
-  
+
   // 创建已回复推文表
   db.exec(`
     CREATE TABLE IF NOT EXISTS replied_tweets (
@@ -110,7 +119,7 @@ function initDatabase() {
       reply_time TIMESTAMP NOT NULL,
       content TEXT
     );
-    
+
     CREATE TABLE IF NOT EXISTS monitor_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       target_username TEXT NOT NULL,
@@ -119,7 +128,7 @@ function initDatabase() {
       error TEXT
     );
   `);
-  
+
   return db;
 }
 
@@ -127,16 +136,16 @@ function initDatabase() {
 function loadTargets(): Target[] {
   const configDir = ensureConfigDir();
   const targetsPath = path.join(configDir, "targets.json");
-  
+
   // 如果配置文件不存在，创建默认配置
   if (!fs.existsSync(targetsPath)) {
     const defaultTargets: Target[] = [
-      { username: "elonmusk" }
+      { username: "elonmusk", checkInterval: 5 }
     ];
     fs.writeFileSync(targetsPath, JSON.stringify(defaultTargets, null, 2));
     return defaultTargets;
   }
-  
+
   try {
     return JSON.parse(fs.readFileSync(targetsPath, "utf-8")) as Target[];
   } catch (error) {
@@ -149,39 +158,33 @@ function loadTargets(): Target[] {
 function loadAccounts(): Account[] {
   const configDir = ensureConfigDir();
   const accountsPath = path.join(configDir, "accounts.json");
-  
-  // 如果配置文件不存在，创建默认配置
+
+  // 如果配置文件不存在，提示用户从示例文件创建
   if (!fs.existsSync(accountsPath)) {
-    // 从环境变量获取主账号
-    const { 
-      username, 
-      password, 
-      email,
-      phone,
-      totp_secret,
-      verification_email_subject,
-      verification_email_regex,
-      verification_email_index
-    } = TwitterUtils.getTwitterCredentials();
-    
-    const defaultAccounts: Account[] = [
-      { 
-        username, 
-        password, 
-        email,
-        phone,
-        totp_secret,
-        verification_email_subject,
-        verification_email_regex,
-        verification_email_index
-      }
-    ];
-    fs.writeFileSync(accountsPath, JSON.stringify(defaultAccounts, null, 2));
-    return defaultAccounts;
+    console.error(chalk.red("❌ 账号配置文件不存在"));
+    console.log(chalk.yellow(`请从示例文件创建配置：
+  cp ${path.join(__dirname, "config", "accounts.json.example")} ${accountsPath}
+  然后编辑 ${accountsPath} 文件，配置您的Twitter账号信息`));
+    process.exit(1);
   }
-  
+
   try {
-    return JSON.parse(fs.readFileSync(accountsPath, "utf-8")) as Account[];
+    const accounts = JSON.parse(fs.readFileSync(accountsPath, "utf-8")) as Account[];
+
+    // 验证账号配置是否完整
+    for (const account of accounts) {
+      if (!account.username || !account.password) {
+        console.error(chalk.red(`❌ 账号配置不完整，缺少必要的用户名或密码: ${account.username || '未知账号'}`));
+        process.exit(1);
+      }
+
+      if (account.twoFAEnabled && !account.twoFASecret) {
+        console.error(chalk.red(`❌ 账号 ${account.username} 启用了双因素认证，但未提供2FA密钥`));
+        process.exit(1);
+      }
+    }
+
+    return accounts;
   } catch (error) {
     console.error(chalk.red("❌ 无法加载账号配置:"), error);
     return [];
@@ -192,7 +195,7 @@ function loadAccounts(): Account[] {
 function loadReplyContent(): ReplyContent[] {
   const configDir = ensureConfigDir();
   const repliesPath = path.join(configDir, "replies.json");
-  
+
   // 如果配置文件不存在，创建默认配置
   if (!fs.existsSync(repliesPath)) {
     const defaultReplies: ReplyContent[] = [
@@ -201,10 +204,10 @@ function loadReplyContent(): ReplyContent[] {
     fs.writeFileSync(repliesPath, JSON.stringify(defaultReplies, null, 2));
     return defaultReplies;
   }
-  
+
   try {
     const replies = JSON.parse(fs.readFileSync(repliesPath, "utf-8")) as ReplyContent[];
-    
+
     // 验证所有文件路径是否存在
     return replies.map(reply => {
       if (reply.image && !fs.existsSync(reply.image)) {
@@ -233,10 +236,10 @@ function hasReplied(db: Database, tweetId: string): boolean {
 // 记录已回复推文
 function markReplied(db: Database, record: ReplyRecord): void {
   const stmt = db.prepare(`
-    INSERT INTO replied_tweets (tweet_id, author_username, reply_account, reply_time, content) 
+    INSERT INTO replied_tweets (tweet_id, author_username, reply_account, reply_time, content)
     VALUES (?, ?, ?, ?, ?)
   `);
-  
+
   stmt.run(
     record.tweetId,
     record.accountUsername,
@@ -252,7 +255,7 @@ function logMonitorActivity(db: Database, target: string, newTweetsCount: number
     INSERT INTO monitor_logs (target_username, check_time, new_tweets_count, error)
     VALUES (?, ?, ?, ?)
   `);
-  
+
   stmt.run(
     target,
     new Date().toISOString(),
@@ -271,7 +274,7 @@ function getAvailableAccount(accounts: Account[]): Account | undefined {
       if (!b.lastUsed) return 1;
       return a.lastUsed.getTime() - b.lastUsed.getTime();
     });
-  
+
   return sortedAccounts[0];
 }
 
@@ -281,12 +284,12 @@ function updateAccountStatus(account: Account, isInUse: boolean, wasSuccessful: 
   if (!isInUse && wasSuccessful) {
     account.lastUsed = new Date();
   }
-  
+
   // 保存账号状态到配置文件
   const configDir = ensureConfigDir();
   const accountsPath = path.join(configDir, "accounts.json");
   const accounts = loadAccounts();
-  
+
   const index = accounts.findIndex(a => a.username === account.username);
   if (index !== -1) {
     accounts[index] = account;
@@ -302,10 +305,10 @@ async function replyToTweet(
   replyContent: ReplyContent
 ): Promise<boolean> {
   console.log(chalk.blue(`🔄 使用账号 @${account.username} 回复推文...`));
-  
+
   // 标记账号为使用中
   updateAccountStatus(account, true);
-  
+
   try {
     // 初始化Stagehand
     const stagehand = new Stagehand({
@@ -325,27 +328,28 @@ async function replyToTweet(
         并上传指定的媒体文件（如果有）。确保操作稳定可靠。`,
       localBrowserLaunchOptions: {
         headless: true, // 为了效率使用无头模式
+        ...(account.proxy ? { proxy: account.proxy } : {}), // 如果账号配置了代理，则使用代理
       },
     });
-    
+
     console.log(chalk.blue(`🌐 启动浏览器...`));
     await stagehand.init();
     const page = stagehand.page;
-    
+
     // 尝试使用cookie登录
     const cookiePath = path.join(process.cwd(), `twitter-cookies-${account.username}.json`);
     let loginSuccessful = false;
-    
+
     if (fs.existsSync(cookiePath) && account.cookieValid) {
       console.log(chalk.blue(`🍪 使用 ${account.username} 的Cookie登录...`));
       const storage = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
       await stagehand.context.addCookies(storage.cookies);
-      
+
       // 验证cookie是否有效
       await page.goto("https://twitter.com/home");
       await page.waitForTimeout(5000);
-      
-      const currentUrl = await page.url();
+
+      const currentUrl = page.url();
       if (currentUrl.includes("twitter.com/home") || currentUrl.includes("x.com/home")) {
         console.log(chalk.green(`✅ 使用Cookie成功登录!`));
         loginSuccessful = true;
@@ -355,7 +359,7 @@ async function replyToTweet(
         account.cookieValid = false;
       }
     }
-    
+
     // 如果cookie登录失败，使用账号密码登录
     if (!loginSuccessful) {
       console.log(chalk.blue(`🔑 使用密码登录账号 ${account.username}...`));
@@ -368,29 +372,29 @@ async function replyToTweet(
         account.verificationEmail,
         account.verificationPhone
       );
-      
+
       // 登录成功后保存cookie
       await stagehand.context.storageState({ path: cookiePath });
       console.log(chalk.green(`✅ 已保存 ${account.username} 的Cookie`));
       account.cookieValid = true;
     }
-    
+
     // 导航到推文页面
     console.log(chalk.blue(`🔍 导航到推文页面...`));
     await page.goto(tweet.url);
     await page.waitForTimeout(5000);
-    
+
     // 点击回复按钮
     console.log(chalk.blue(`💬 找到并点击回复按钮...`));
     const [replyAction] = await page.observe(`找到并点击这条推文的回复按钮`);
     await page.act(replyAction);
     await page.waitForTimeout(2000);
-    
+
     // 输入回复内容
     console.log(chalk.blue(`✏️ 输入回复内容...`));
     await page.act(`在回复框中输入文本: "${replyContent.text}"`);
     await page.waitForTimeout(2000);
-    
+
     // 上传媒体文件（如果有）
     if (replyContent.image) {
       console.log(chalk.blue(`🖼️ 上传图片...`));
@@ -399,7 +403,7 @@ async function replyToTweet(
       await page.setInputFiles(fileInputSelector, replyContent.image);
       await page.waitForTimeout(3000);
     }
-    
+
     if (replyContent.video) {
       console.log(chalk.blue(`🎬 上传视频...`));
       const fileInputSelector = 'input[type="file"][multiple]';
@@ -407,21 +411,21 @@ async function replyToTweet(
       await page.setInputFiles(fileInputSelector, replyContent.video);
       await page.waitForTimeout(5000); // 视频上传需要更长时间
     }
-    
+
     // 点击发布按钮
     console.log(chalk.blue(`📤 发布回复...`));
     const [postAction] = await page.observe(`找到并点击发布回复按钮`);
     await page.act(postAction);
     await page.waitForTimeout(5000);
-    
+
     // 检查是否成功发布
     const replySuccess = await page.evaluate(() => {
       return !document.querySelector('div[data-testid="toast"]')?.textContent?.includes('error');
     });
-    
+
     if (replySuccess) {
       console.log(chalk.green(`✅ 成功回复推文!`));
-      
+
       // 记录回复
       markReplied(db, {
         tweetId: tweet.id,
@@ -433,20 +437,20 @@ async function replyToTweet(
     } else {
       console.log(chalk.red(`❌ 回复推文失败!`));
     }
-    
+
     // 关闭浏览器释放资源
     await stagehand.close();
-    
+
     // 更新账号状态
     updateAccountStatus(account, false, replySuccess);
-    
+
     return replySuccess;
   } catch (error) {
     console.error(chalk.red(`❌ 回复过程中出错:`), error);
-    
+
     // 更新账号状态为空闲，但标记为失败
     updateAccountStatus(account, false, false);
-    
+
     return false;
   }
 }
@@ -454,7 +458,7 @@ async function replyToTweet(
 // 检查用户的新推文
 async function checkUserTweets(db: Database, target: Target, accounts: Account[], replyContents: ReplyContent[]): Promise<void> {
   console.log(chalk.blue(`\n🔍 检查用户 @${target.username} 的推文...`));
-  
+
   // 初始化Stagehand
   const stagehand = new Stagehand({
     ...StagehandConfig,
@@ -473,19 +477,20 @@ async function checkUserTweets(db: Database, target: Target, accounts: Account[]
       确保提取的数据结构化且完整，这对于识别和回复新推文非常重要。`,
     localBrowserLaunchOptions: {
       headless: true, // 为了效率使用无头模式
+      // 监控阶段不使用代理，避免IP被封
     },
   });
-  
+
   try {
     console.log(chalk.blue(`🌐 启动浏览器...`));
     await stagehand.init();
     const page = stagehand.page;
-    
+
     // 无需登录，直接访问用户页面
     console.log(chalk.blue(`🔍 导航到用户 @${target.username} 页面...`));
     await page.goto(`https://x.com/${target.username}`);
     await page.waitForTimeout(5000);
-    
+
     // 提取推文
     console.log(chalk.blue(`📋 提取最新推文...`));
     const extractedData = await page.extract({
@@ -503,11 +508,11 @@ async function checkUserTweets(db: Database, target: Target, accounts: Account[]
           .describe("推文列表"),
       }),
     });
-    
+
     // 处理提取的推文
     if (extractedData?.tweets && extractedData.tweets.length > 0) {
       console.log(chalk.green(`✅ 成功提取 ${extractedData.tweets.length} 条推文`));
-      
+
       // 处理每条推文，确保所有必需字段都存在
       const newTweets = extractedData.tweets
         .filter(tweet => tweet.id && tweet.content && tweet.url) // 确保必需字段存在
@@ -519,29 +524,29 @@ async function checkUserTweets(db: Database, target: Target, accounts: Account[]
           authorUsername: target.username
         }))
         .filter(tweet => !hasReplied(db, tweet.id));
-      
+
       if (newTweets.length > 0) {
         console.log(chalk.green(`🔔 发现 ${newTweets.length} 条新推文!`));
-        
+
         // 记录日志
         logMonitorActivity(db, target.username, newTweets.length);
-        
+
         // 为每条新推文创建回复任务
         for (const tweet of newTweets) {
           console.log(chalk.yellow(`\n新推文:`));
           console.log(chalk.white(`${tweet.content}`));
           console.log(chalk.gray(`🔗 ${tweet.url}`));
-          
+
           // 获取一个可用账号
           const availableAccount = getAvailableAccount(accounts);
-          
+
           if (availableAccount) {
             // 随机选择一条回复内容
             const replyContent = replyContents[Math.floor(Math.random() * replyContents.length)];
-            
+
             // 回复推文
             const replySuccess = await replyToTweet(db, tweet, availableAccount, replyContent);
-            
+
             if (replySuccess) {
               console.log(chalk.green(`✅ 成功使用账号 @${availableAccount.username} 回复推文`));
             } else {
@@ -562,17 +567,17 @@ async function checkUserTweets(db: Database, target: Target, accounts: Account[]
       // 记录日志
       logMonitorActivity(db, target.username, 0, "无法提取推文");
     }
-    
+
     // 更新上次检查时间
     target.lastChecked = new Date();
-    
+
     // 关闭浏览器释放资源
     await stagehand.close();
   } catch (error) {
     console.error(chalk.red(`❌ 检查推文时出错:`), error);
     // 记录日志
     logMonitorActivity(db, target.username, 0, `错误: ${error.message}`);
-    
+
     // 关闭浏览器
     await stagehand.close();
   }
@@ -581,79 +586,80 @@ async function checkUserTweets(db: Database, target: Target, accounts: Account[]
 // 主函数
 async function monitorMultipleUsers() {
   console.log(chalk.blue(`🚀 启动Twitter多用户监控与多账号回复系统...`));
-  
+
   // 初始化数据库
   const db = initDatabase();
   console.log(chalk.green(`✅ 数据库已初始化`));
-  
+
   // 加载配置
   const targets = loadTargets();
   const accounts = loadAccounts();
   const replyContents = loadReplyContent();
-  
+
   console.log(chalk.green(`✅ 已加载 ${targets.length} 个目标用户, ${accounts.length} 个账号, ${replyContents.length} 条回复内容`));
-  
+
   // 显示配置信息
   console.log(chalk.blue(`\n📋 监控目标:`));
   targets.forEach(target => {
     console.log(chalk.white(`  - @${target.username} (每 ${target.checkInterval} 分钟检查一次)`));
   });
-  
+
   console.log(chalk.blue(`\n👤 回复账号:`));
   accounts.forEach(account => {
-    console.log(chalk.white(`  - @${account.username} (2FA: ${account.twoFAEnabled ? '启用' : '禁用'})`));
+    const proxyInfo = account.proxy ? chalk.cyan(`代理: ${account.proxy.server}`) : chalk.gray('不使用代理');
+    console.log(chalk.white(`  - @${account.username} (2FA: ${account.twoFAEnabled ? '启用' : '禁用'}) ${proxyInfo}`));
   });
-  
+
   // 检查配置完整性
   if (targets.length === 0) {
     console.error(chalk.red(`❌ 没有配置监控目标，请在config/targets.json中配置`));
     process.exit(1);
   }
-  
+
   if (accounts.length === 0) {
     console.error(chalk.red(`❌ 没有配置回复账号，请在config/accounts.json中配置`));
     process.exit(1);
   }
-  
+
   if (replyContents.length === 0) {
     console.error(chalk.red(`❌ 没有配置回复内容，请在config/replies.json中配置`));
     process.exit(1);
   }
-  
+
   // 设置检查间隔
   console.log(chalk.blue(`\n⏱️ 启动监控任务...`));
-  
+
   // 为每个目标创建定时器
   const checkTargetTweets = async (target: Target) => {
     // 更新上次检查时间
     target.lastChecked = new Date();
-    
+
     try {
       // 检查新推文并回复
       await checkUserTweets(db, target, accounts, replyContents);
     } catch (error) {
       console.error(chalk.red(`❌ 检查 @${target.username} 的推文时出错:`), error);
     }
-    
+
     // 安排下一次检查
     setTimeout(() => checkTargetTweets(target), target.checkInterval * 60 * 1000);
-    
+
     console.log(chalk.blue(`⏱️ 已安排 ${target.checkInterval} 分钟后再次检查 @${target.username} 的推文`));
   };
-  
+
   // 启动所有监控任务，错开启动时间避免并发问题
   targets.forEach((target, index) => {
     setTimeout(() => checkTargetTweets(target), index * 10000);
     console.log(chalk.green(`✅ 已安排 @${target.username} 的监控任务，将在 ${index * 10} 秒后开始`));
   });
-  
+
   // 处理退出信号
   process.on("SIGINT", async () => {
     console.log(chalk.yellow(`\n⚠️ 收到退出信号，正在清理资源...`));
-    
+
     // 关闭数据库连接
     db.close();
-    
+
     console.log(chalk.green(`✅ 资源已清理，监控已停止`));
     process.exit(0);
   });
@@ -662,4 +668,4 @@ async function monitorMultipleUsers() {
 // 执行主函数
 (async () => {
   await monitorMultipleUsers();
-})(); 
+})();

@@ -35,13 +35,36 @@
    # Gemini模型配置
    GOOGLE_API_KEY="你的Google API密钥"
    GEMINI_MODEL="gemini-2.5-flash-preview-04-17"
+   ```
 
-   # Twitter 登录凭证
-   TWITTER_USERNAME="你的Twitter用户名"
-   TWITTER_PASSWORD="你的Twitter密码"
-   # Twitter 2FA 认证 (如果开启了双重认证)
-   TWITTER_2FA_ENABLED=true  # 如果你启用了双因素认证，设置为true
-   TWITTER_2FA_SECRET="你的TOTP密钥"  # 如果使用 TOTP (基于时间的一次性密码)
+   Twitter账号配置现在已移至`config/accounts.json`文件中。首先复制示例文件：
+
+   ```bash
+   cp examples/config/accounts.json.example config/accounts.json
+   ```
+
+   然后编辑`config/accounts.json`文件，按照以下格式配置您的账号信息：
+
+   > 注意：`accounts.json`文件包含敏感信息，已添加到`.gitignore`中，不会被提交到Git仓库。
+
+   ```json
+   [
+     {
+       "username": "your_twitter_username1",
+       "password": "your_password1",
+       "email": "your_email1@example.com",
+       "phone": "+1234567890",
+       "twoFAEnabled": true,
+       "twoFASecret": "YOUR_2FA_SECRET_KEY",
+       "verificationEmail": "your_verification_email@example.com",
+       "verificationPhone": "+1234567890",
+       "proxy": {
+         "server": "http://proxy1.example.com:8080",
+         "username": "proxy_user1",
+         "password": "proxy_pass1"
+       }
+     }
+   ]
    ```
 
    可用的Gemini模型包括：
@@ -227,20 +250,56 @@ for (const target of targets) {
 
 ### Q1: 脚本能否处理双因素认证（2FA）？
 
-**A:** 是的，当前版本的脚本支持自动处理基于 TOTP 的双因素认证。你需要在 .env 文件中设置 `TWITTER_2FA_ENABLED=true` 并提供你的 TOTP 密钥 `TWITTER_2FA_SECRET`。脚本会自动生成验证码并完成登录流程。如果你使用其他类型的 2FA（如短信验证），脚本会等待你手动完成验证。
+**A:** 是的，当前版本的脚本支持自动处理基于 TOTP 的双因素认证。你需要在 `config/accounts.json` 文件中为每个账号设置 `twoFAEnabled: true` 并提供 TOTP 密钥 `twoFASecret`。脚本会自动生成验证码并完成登录流程。如果你使用其他类型的 2FA（如短信验证），脚本会等待你手动完成验证。
 
 ### Q2: 脚本是否支持代理服务器？
 
-**A:** 是的，你可以在`localBrowserLaunchOptions`中配置代理服务器：
+**A:** 是的，脚本支持两种代理配置方式：
+
+1. **全局代理配置**：在`localBrowserLaunchOptions`中配置代理服务器：
 
 ```typescript
 localBrowserLaunchOptions: {
   headless: false,
   proxy: {
-    server: 'http://myproxy.com:3128'
+    server: 'http://myproxy.com:3128',
+    username: 'proxy_user',  // 可选
+    password: 'proxy_pass'   // 可选
   }
 }
 ```
+
+2. **按账号配置代理**：在`accounts.json`中为每个账号配置不同的代理IP（可选）：
+
+```json
+[
+  {
+    "username": "your_twitter_username1",
+    "password": "your_password1",
+    "proxy": {
+      "server": "http://proxy1.example.com:8080",
+      "username": "proxy_user1",
+      "password": "proxy_pass1"
+    }
+  },
+  {
+    "username": "your_twitter_username2",
+    "password": "your_password2"
+    // 这个账号不使用代理，直接连接
+  },
+  {
+    "username": "your_twitter_username3",
+    "password": "your_password3",
+    "proxy": {
+      "server": "http://proxy3.example.com:8080"
+      // 代理可以只配置server，不需要用户名和密码
+    }
+  }
+]
+```
+
+这样每个账号在回复推文时会使用各自的代理IP（如果配置了），避免被平台限制。如果账号没有配置代理，则使用直接连接。
+
 
 ### Q3: 如何处理Twitter的验证码挑战？
 

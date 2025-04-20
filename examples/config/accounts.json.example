@@ -1,0 +1,45 @@
+[
+  {
+    "username": "your_twitter_username1",
+    "password": "your_password1",
+    "email": "your_email1@example.com",
+    "phone": "+1234567890",
+    "twoFAEnabled": true,
+    "twoFASecret": "YOUR_2FA_SECRET_KEY",
+    "verificationEmail": "your_verification_email@example.com",
+    "verificationPhone": "+1234567890",
+    "cookiesPath": "./data/cookies_account1.json",
+    "proxy": {
+      "server": "http://proxy1.example.com:8080",
+      "username": "proxy_user1",
+      "password": "proxy_pass1"
+    }
+  },
+  {
+    "username": "your_twitter_username2",
+    "password": "your_password2",
+    "email": "your_email2@example.com",
+    "phone": "+0987654321",
+    "twoFAEnabled": false,
+    "twoFASecret": "",
+    "verificationEmail": "your_verification_email2@example.com",
+    "verificationPhone": "+0987654321",
+    "cookiesPath": "./data/cookies_account2.json"
+    // 注意：这个账号没有配置代理，将使用直接连接
+  },
+  {
+    "username": "your_twitter_username3",
+    "password": "your_password3",
+    "email": "your_email3@example.com",
+    "phone": "+1122334455",
+    "twoFAEnabled": true,
+    "twoFASecret": "ANOTHER_2FA_SECRET_KEY",
+    "verificationEmail": "your_verification_email3@example.com",
+    "verificationPhone": "+1122334455",
+    "cookiesPath": "./data/cookies_account3.json",
+    "proxy": {
+      "server": "http://proxy3.example.com:8080"
+      // 代理可以只配置server，不需要用户名和密码
+    }
+  }
+]

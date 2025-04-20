@@ -1,6 +1,6 @@
 /**
  * Twitter自动化工具函数
- * 
+ *
  * 此文件包含Twitter自动化过程中使用的通用工具函数，
  * 减少Twitter登录测试和监控脚本中的代码重复
  */
@@ -16,41 +16,18 @@ export function generateTOTP(secret: string): string {
   return authenticator.generate(secret);
 }
 
-// 从环境变量获取Twitter登录凭据
+// 从环境变量获取Twitter登录凭据 - 已弃用，改为从配置文件读取
 export function getTwitterCredentials() {
-  // 从环境变量中获取登录凭据
-  const username = process.env.TWITTER_USERNAME;
-  const password = process.env.TWITTER_PASSWORD;
+  console.warn("警告: getTwitterCredentials 函数已弃用，请从 config/accounts.json 文件中读取账号信息");
 
-  // 2FA认证相关配置
-  const twoFAEnabled = process.env.TWITTER_2FA_ENABLED === "true";
-  const twoFASecret = process.env.TWITTER_2FA_SECRET;
-
-  // 账号验证相关配置
-  const verificationEmail =
-    process.env.TWITTER_VERIFICATION_EMAIL || process.env.TWITTER_EMAIL;
-  const verificationPhone =
-    process.env.TWITTER_VERIFICATION_PHONE || process.env.TWITTER_PHONE;
-
-  if (!username || !password) {
-    console.error("请在.env文件中设置Twitter登录凭据。");
-    process.exit(1);
-  }
-
-  if (twoFAEnabled && !twoFASecret) {
-    console.error(
-      "已启用双因素认证，但未提供2FA密钥。请在.env文件中设置TWITTER_2FA_SECRET。",
-    );
-    process.exit(1);
-  }
-
+  // 返回空对象，避免代码报错
   return {
-    username,
-    password,
-    twoFAEnabled,
-    twoFASecret,
-    verificationEmail,
-    verificationPhone,
+    username: "",
+    password: "",
+    twoFAEnabled: false,
+    twoFASecret: "",
+    verificationEmail: "",
+    verificationPhone: "",
   };
 }
 
@@ -66,20 +43,20 @@ export function ensureDataDir() {
 // 保存和加载Cookie
 export async function handleCookies(context: any, action: 'load' | 'save') {
   const cookiePath = path.join(process.cwd(), "twitter-cookies.json");
-  
+
   if (action === 'load' && fs.existsSync(cookiePath)) {
     console.log(chalk.blue("🍪 发现保存的Cookie文件，尝试使用Cookie登录..."));
     const storage = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
     await context.addCookies(storage.cookies);
     console.log(chalk.green(`✅ 已加载 ${storage.cookies.length} 条 Cookie`));
     return true;
-  } 
+  }
   else if (action === 'save') {
     await context.storageState({ path: cookiePath });
     console.log(chalk.green(`✅ 登录后Cookie已保存到 ${cookiePath}`));
     return true;
   }
-  
+
   return false;
 }
 
@@ -512,4 +489,4 @@ export async function clearInputField(page: Page, selector: string) {
       }
     });
   }, selector);
-} 
+}
