@@ -1,0 +1,29 @@
+[
+  {
+    "pattern": "AI|artificial intelligence|machine learning",
+    "responses": [
+      "很高兴看到你讨论AI！我们正在开发一些相关技术。",
+      "AI领域发展迅速，你有什么具体感兴趣的方向吗？",
+      "作为AI领域的关注者，我很想和你交流这方面的见解。"
+    ],
+    "mediaUrls": ["path/to/optional/image1.jpg"]
+  },
+  {
+    "pattern": "crypto|bitcoin|ethereum|blockchain",
+    "responses": [
+      "区块链技术确实很有前景，你对哪些应用最感兴趣？",
+      "加密货币市场总是充满变数，你是长期投资者还是短期交易者？",
+      "去中心化金融正在改变传统金融模式，这个话题值得深入探讨。"
+    ],
+    "mediaUrls": []
+  },
+  {
+    "pattern": "startup|entrepreneurship|venture capital",
+    "responses": [
+      "创业之路充满挑战与机遇，很高兴看到你关注这个领域！",
+      "我们团队也在创业阶段，很想听听你的想法和经验。",
+      "风险投资是创新生态系统中的重要一环，你有什么独特见解吗？"
+    ],
+    "mediaUrls": ["path/to/optional/image2.jpg", "path/to/optional/video1.mp4"]
+  }
+] 

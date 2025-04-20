@@ -13,6 +13,7 @@ import chalk from "chalk";
 import { GoogleClient } from "@/lib/llm/GoogleClient";
 import * as dotenv from "dotenv";
 import { authenticator } from "otplib";
+import type { Page } from "@/types/page";
 
 // 加载环境变量
 dotenv.config();
@@ -49,39 +50,56 @@ function getArgs() {
   }
 
   if (!verificationEmail) {
-    console.warn("⚠️ 未设置邮箱/手机号验证环境变量 TWITTER_VERIFICATION_EMAIL，可能无法通过验证流程");
+    console.warn(
+      "⚠️ 未设置邮箱/手机号验证环境变量 TWITTER_VERIFICATION_EMAIL，可能无法通过验证流程",
+    );
   }
 
-  return { username, password, target, twoFAEnabled, twoFASecret, verificationEmail };
+  return {
+    username,
+    password,
+    target,
+    twoFAEnabled,
+    twoFASecret,
+    verificationEmail,
+  };
 }
 
 // 新增：集中处理邮箱/手机号验证的 Helper
-async function handleEmailVerification(page: any, verificationEmail?: string) {
+async function handleEmailVerification(page: Page, verificationEmail?: string) {
   if (!verificationEmail) return;
   try {
-    const selector = 'input[name="text"], input[aria-label*="邮箱"], input[placeholder*="email"]';
+    const selector =
+      'input[name="text"], input[aria-label*="邮箱"], input[placeholder*="email"]';
     const inputEl = await page.waitForSelector(selector, { timeout: 5000 });
     if (inputEl) {
       await inputEl.fill(verificationEmail);
       console.log(chalk.blue(`✅ 已输入邮箱/手机号: ${verificationEmail}`));
       const btn = await page.$(
-        'div[role="button"]:has-text("下一步"), div[role="button"]:has-text("Next")'
+        'div[role="button"]:has-text("下一步"), div[role="button"]:has-text("Next")',
       );
       if (btn) {
         await btn.click();
-        console.log(chalk.blue('✅ 点击验证下一步'));
+        console.log(chalk.blue("✅ 点击验证下一步"));
       } else {
-        await page.keyboard.press('Enter');
+        await page.keyboard.press("Enter");
       }
       await page.waitForTimeout(2000);
     }
   } catch {
-    console.log(chalk.blue('ℹ️ 未检测到邮箱/手机号验证'));
+    console.log(chalk.blue("ℹ️ 未检测到邮箱/手机号验证"));
   }
 }
 
 async function twitterAutomation() {
-  const { username, password, target, twoFAEnabled, twoFASecret, verificationEmail } = getArgs();
+  const {
+    username,
+    password,
+    target,
+    twoFAEnabled,
+    twoFASecret,
+    verificationEmail,
+  } = getArgs();
 
   console.log(chalk.blue("🚀 初始化Twitter自动化..."));
 
@@ -361,7 +379,7 @@ async function twitterAutomation() {
               likes: z.string().describe("点赞数").optional(),
               retweets: z.string().describe("转发数").optional(),
               replies: z.string().describe("评论数").optional(),
-            })
+            }),
           ),
         }),
       });
@@ -401,7 +419,7 @@ async function twitterAutomation() {
             likes: z.string().describe("点赞数").optional(),
             retweets: z.string().describe("转发数").optional(),
             replies: z.string().describe("评论数").optional(),
-          })
+          }),
         ),
       }),
     });

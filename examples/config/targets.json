@@ -1,0 +1,14 @@
+[
+  {
+    "username": "elonmusk",
+    "checkInterval": 5
+  },
+  {
+    "username": "naval",
+    "checkInterval": 10
+  },
+  {
+    "username": "ycombinator",
+    "checkInterval": 15
+  }
+] 

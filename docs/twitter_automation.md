@@ -82,15 +82,19 @@ npm run twitter-monitor -- --target=elonmusk --interval=5
 根据不同的任务需求，我们推荐使用以下 AI 模型：
 
 ### 网页交互和导航
+
 - **推荐模型**: OpenAI 的 `gpt-4o` 或 `gpt-4-turbo`
 - **原因**: 这些模型在处理复杂网页交互和理解页面结构方面表现更好
 
 ### 内容提取和分析
+
 - **推荐模型**: OpenAI 的 `gpt-4o` 或 Anthropic 的 `claude-3-opus`
 - **原因**: 这些模型在结构化数据提取和遵循 schema 方面表现更好
 
 ### 替代选择
+
 如果无法使用上述模型，可以考虑：
+
 - **Google 的 `gemini-1.5-pro`**: 性能接近 GPT-4，但在某些结构化任务上可能需要更多调整
 - **Anthropic 的 `claude-3-sonnet`**: 性价比较高，在大多数任务上表现良好
 
@@ -107,11 +111,13 @@ npm run twitter-monitor -- --target=elonmusk --interval=5
 ## 故障排除
 
 1. **登录失败**：
+
    - 检查 `.env` 文件中的凭据是否正确
    - 如果使用 2FA，确保 2FA 密钥正确
    - 尝试增加超时时间或手动完成登录
 
 2. **提取失败**：
+
    - 检查网络连接
    - 尝试使用不同的 AI 模型
    - 查看控制台输出的详细错误信息

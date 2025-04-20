@@ -1,0 +1,20 @@
+[
+  {
+    "text": "很高兴看到你的推文！我们团队一直在关注这个领域的发展。",
+    "image": "path/to/optional/image1.jpg",
+    "video": "",
+    "accountUsername": "your_twitter_username1"
+  },
+  {
+    "text": "非常赞同你的观点！这确实是一个值得深入探讨的话题。",
+    "image": "",
+    "video": "",
+    "accountUsername": "your_twitter_username2"
+  },
+  {
+    "text": "感谢分享这些见解！我们最近也在做相关研究，期待与你交流。",
+    "image": "path/to/optional/image2.jpg",
+    "video": "path/to/optional/video1.mp4",
+    "accountUsername": ""
+  }
+] 

@@ -119,6 +119,23 @@ npm run twitter-auto -- --target=twitter
 
 ### 高级使用场景
 
+#### 0. 登录测试与Cookie管理
+
+你可以使用专门的登录测试脚本来测试登录流程并管理Cookie：
+
+```bash
+npm run twitter-login-test
+```
+
+这个命令会运行`examples/twitter_login_test.ts`脚本，它会：
+
+1. 尝试使用已保存的Cookie文件登录
+2. 如果Cookie不存在或已失效，执行完整的登录流程
+3. 登录成功后保存Cookie到项目根目录的`twitter-cookies.json`文件
+4. 下次运行时优先使用保存的Cookie，节省登录时间
+
+设置说明和环境变量配置请参考`examples/twitter_setup.md`文件。
+
 #### 1. 定期监控特定用户的推文
 
 你可以结合cron任务定期运行脚本，监控特定用户的推文更新：
