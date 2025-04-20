@@ -24,6 +24,8 @@ function getArgs() {
   // 从环境变量中获取登录凭据
   const username = process.env.TWITTER_USERNAME;
   const password = process.env.TWITTER_PASSWORD;
+  // 从环境变量中获取邮箱/手机号验证值
+  const verificationEmail = process.env.TWITTER_VERIFICATION_EMAIL;
 
   // 从命令行参数或默认值获取目标用户
   const target =
@@ -46,11 +48,40 @@ function getArgs() {
     process.exit(1);
   }
 
-  return { username, password, target, twoFAEnabled, twoFASecret };
+  if (!verificationEmail) {
+    console.warn("⚠️ 未设置邮箱/手机号验证环境变量 TWITTER_VERIFICATION_EMAIL，可能无法通过验证流程");
+  }
+
+  return { username, password, target, twoFAEnabled, twoFASecret, verificationEmail };
+}
+
+// 新增：集中处理邮箱/手机号验证的 Helper
+async function handleEmailVerification(page: any, verificationEmail?: string) {
+  if (!verificationEmail) return;
+  try {
+    const selector = 'input[name="text"], input[aria-label*="邮箱"], input[placeholder*="email"]';
+    const inputEl = await page.waitForSelector(selector, { timeout: 5000 });
+    if (inputEl) {
+      await inputEl.fill(verificationEmail);
+      console.log(chalk.blue(`✅ 已输入邮箱/手机号: ${verificationEmail}`));
+      const btn = await page.$(
+        'div[role="button"]:has-text("下一步"), div[role="button"]:has-text("Next")'
+      );
+      if (btn) {
+        await btn.click();
+        console.log(chalk.blue('✅ 点击验证下一步'));
+      } else {
+        await page.keyboard.press('Enter');
+      }
+      await page.waitForTimeout(2000);
+    }
+  } catch {
+    console.log(chalk.blue('ℹ️ 未检测到邮箱/手机号验证'));
+  }
 }
 
 async function twitterAutomation() {
-  const { username, password, target, twoFAEnabled, twoFASecret } = getArgs();
+  const { username, password, target, twoFAEnabled, twoFASecret, verificationEmail } = getArgs();
 
   console.log(chalk.blue("🚀 初始化Twitter自动化..."));
 
@@ -136,6 +167,9 @@ async function twitterAutomation() {
         );
       }
 
+      // 智能邮箱/手机号验证：如弹出验证则自动处理
+      await handleEmailVerification(page, verificationEmail);
+
       // 等待密码输入框出现
       await page.waitForTimeout(3000);
 
@@ -157,6 +191,9 @@ async function twitterAutomation() {
         if (loginButton) {
           await loginButton.click();
           console.log(chalk.blue("✅ 已点击登录按钮"));
+
+          // 智能邮箱/手机号验证：如弹出验证则自动处理
+          await handleEmailVerification(page, verificationEmail);
         } else {
           console.log(chalk.yellow("⚠️ 找不到登录按钮，尝试使用Enter键"));
           await page.keyboard.press("Enter");
@@ -312,35 +349,31 @@ async function twitterAutomation() {
     // 5. 提取最新推文
     console.log(chalk.blue("📜 提取最新推文..."));
     try {
-      const tweets = await page.extract({
-        instruction: `提取用户 @${target} 的最新5条推文`,
+      // 使用 Stagehand extract 提取最新5条推文
+      const { tweets } = await page.extract({
+        instruction: `提取页面前五条推文的内容、时间戳、点赞数、转发数和评论数`,
         schema: z.object({
-          tweets: z
-            .array(
-              z.object({
-                content: z.string().describe("推文内容"),
-                timestamp: z.string().describe("发布时间").optional(),
-                likes: z.string().describe("点赞数").optional(),
-                retweets: z.string().describe("转发数").optional(),
-                replies: z.string().describe("回复数").optional(),
-              }),
-            )
-            .describe("推文列表"),
+          tweets: z.array(
+            z.object({
+              id: z.string().describe("推文ID").optional(),
+              content: z.string().describe("推文内容"),
+              timestamp: z.string().describe("时间戳"),
+              likes: z.string().describe("点赞数").optional(),
+              retweets: z.string().describe("转发数").optional(),
+              replies: z.string().describe("评论数").optional(),
+            })
+          ),
         }),
       });
-
-      // 6. 显示提取的推文
       console.log(chalk.green(`\n📱 ${userInfo.displayName} 的最新推文:`));
-      tweets.tweets.forEach((tweet, index) => {
+      tweets.forEach((tweet, index) => {
         console.log(chalk.yellow(`\n推文 #${index + 1}:`));
-        console.log(chalk.white(`${tweet.content}`));
-
+        console.log(chalk.white(tweet.content));
         const stats = [];
         if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
         if (tweet.likes) stats.push(`❤️ ${tweet.likes}`);
         if (tweet.retweets) stats.push(`🔄 ${tweet.retweets}`);
         if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
-
         if (stats.length > 0) {
           console.log(chalk.gray(stats.join(" | ")));
         }
@@ -353,47 +386,38 @@ async function twitterAutomation() {
     console.log(chalk.blue("\n📜 滚动加载更多推文..."));
 
     // 滚动页面以加载更多推文
-    await page.act(`向下滚动页面以加载更多推文`);
+    await page.act("向下滚动页面以加载更多推文");
     await page.waitForTimeout(3000); // 等待新推文加载
 
-    // 提取新加载的推文
-    try {
-      const moreTweets = await page.extract({
-        instruction: `提取新加载的推文，这些推文应该与之前提取的不同`,
-        schema: z.object({
-          tweets: z
-            .array(
-              z.object({
-                content: z.string().describe("推文内容"),
-                timestamp: z.string().describe("发布时间").optional(),
-                likes: z.string().describe("点赞数").optional(),
-                retweets: z.string().describe("转发数").optional(),
-                replies: z.string().describe("回复数").optional(),
-              }),
-            )
-            .describe("推文列表"),
-        }),
-      });
-
-      // 显示新提取的推文
-      console.log(chalk.green(`\n📱 新加载的推文:`));
-      moreTweets.tweets.forEach((tweet, index) => {
-        console.log(chalk.yellow(`\n推文 #${index + 1}:`));
-        console.log(chalk.white(`${tweet.content}`));
-
-        const stats = [];
-        if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
-        if (tweet.likes) stats.push(`\u2764️ ${tweet.likes}`);
-        if (tweet.retweets) stats.push(`🔁 ${tweet.retweets}`);
-        if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
-
-        if (stats.length > 0) {
-          console.log(chalk.gray(stats.join(" | ")));
-        }
-      });
-    } catch (error) {
-      console.error(chalk.red("❌ 提取新推文时出错:"), error);
-    }
+    // 使用 Stagehand extract 提取第6至第10条推文
+    const { moreTweets } = await page.extract({
+      instruction: `提取页面第六到第十条推文的内容、时间戳、点赞数、转发数和评论数`,
+      schema: z.object({
+        moreTweets: z.array(
+          z.object({
+            id: z.string().describe("推文ID").optional(),
+            content: z.string().describe("推文内容"),
+            timestamp: z.string().describe("时间戳"),
+            likes: z.string().describe("点赞数").optional(),
+            retweets: z.string().describe("转发数").optional(),
+            replies: z.string().describe("评论数").optional(),
+          })
+        ),
+      }),
+    });
+    console.log(chalk.green("\n📱 新加载的推文:"));
+    moreTweets.forEach((tweet, index) => {
+      console.log(chalk.yellow(`\n推文 #${index + 6}:`));
+      console.log(chalk.white(tweet.content));
+      const stats = [];
+      if (tweet.timestamp) stats.push(`🕒 ${tweet.timestamp}`);
+      if (tweet.likes) stats.push(`❤️ ${tweet.likes}`);
+      if (tweet.retweets) stats.push(`🔄 ${tweet.retweets}`);
+      if (tweet.replies) stats.push(`💬 ${tweet.replies}`);
+      if (stats.length > 0) {
+        console.log(chalk.gray(stats.join(" | ")));
+      }
+    });
 
     // 8. 完成任务
     console.log(chalk.green("\n✅ 自动化任务完成!"));
