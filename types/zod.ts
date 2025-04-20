@@ -1,10 +1,8 @@
-import { z } from "zod";
-
-export type ZodValidationError = z.ZodError;
+import { z, ZodError } from "zod";
 
 export interface ZodValidationResult {
   success: boolean;
-  error?: ZodValidationError;
+  error?: ZodError;
 }
 
 export function validateZodSchemaWithResult(
@@ -19,7 +17,7 @@ export function validateZodSchemaWithResult(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof z.ZodError ? error : new z.ZodError([]),
+      error: error instanceof ZodError ? error : new ZodError([]),
     };
   }
 }
