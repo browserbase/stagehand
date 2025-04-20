@@ -22,9 +22,10 @@ import {
   LLMResponse,
 } from "./LLMClient";
 import {
-  CreateChatCompletionResponseError,
+  CreateChatCompletionResponseValidationError,
   StagehandError,
 } from "@/types/stagehandErrors";
+import { validateZodSchemaWithResult } from "@/types/zod";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
@@ -411,7 +412,12 @@ export class OpenAIClient extends LLMClient {
       const extractedData = response.choices[0].message.content;
       const parsedData = JSON.parse(extractedData);
 
-      if (!validateZodSchema(options.response_model.schema, parsedData)) {
+      const validationResult = validateZodSchemaWithResult(
+        options.response_model.schema,
+        parsedData,
+      );
+
+      if (!validationResult.success) {
         if (retries > 0) {
           // as-casting to account for o1 models not supporting all options
           return this.createChatCompletion({
@@ -421,7 +427,9 @@ export class OpenAIClient extends LLMClient {
           });
         }
 
-        throw new CreateChatCompletionResponseError("Invalid response schema");
+        throw new CreateChatCompletionResponseValidationError(
+          JSON.stringify(validationResult.error),
+        );
       }
 
       if (this.enableCaching) {

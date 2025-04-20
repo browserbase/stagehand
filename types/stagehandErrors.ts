@@ -136,6 +136,12 @@ export class CreateChatCompletionResponseError extends StagehandError {
   }
 }
 
+export class CreateChatCompletionResponseValidationError extends StagehandError {
+  constructor(message: string) {
+    super(`CreateChatCompletionResponseValidationError: ${message}`);
+  }
+}
+
 export class StagehandEvalError extends StagehandError {
   constructor(message: string) {
     super(`StagehandEvalError: ${message}`);

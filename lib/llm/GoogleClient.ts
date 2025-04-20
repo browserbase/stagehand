@@ -25,8 +25,10 @@ import {
 } from "./LLMClient";
 import {
   CreateChatCompletionResponseError,
+  CreateChatCompletionResponseValidationError,
   StagehandError,
 } from "@/types/stagehandErrors";
+import { validateZodSchemaWithResult } from "@/types/zod";
 
 // Mapping from generic roles to Gemini roles
 const roleMap: { [key in ChatMessage["role"]]: string } = {
@@ -440,7 +442,12 @@ export class GoogleClient extends LLMClient {
           );
         }
 
-        if (!validateZodSchema(response_model.schema, parsedData)) {
+        const validationResult = validateZodSchemaWithResult(
+          response_model.schema,
+          parsedData,
+        );
+
+        if (!validationResult.success) {
           logger({
             category: "google",
             message: "Response failed Zod schema validation",
@@ -453,8 +460,8 @@ export class GoogleClient extends LLMClient {
               retries: retries - 1,
             });
           }
-          throw new CreateChatCompletionResponseError(
-            "Invalid response schema",
+          throw new CreateChatCompletionResponseValidationError(
+            JSON.stringify(validationResult.error),
           );
         }
 
