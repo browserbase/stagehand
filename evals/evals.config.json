@@ -317,6 +317,14 @@
     {
       "name": "extract_single_link",
       "categories": ["extract"]
+    },
+    {
+      "name": "radio_btn",
+      "categories": ["act"]
+    },
+    {
+      "name": "checkboxes",
+      "categories": ["act"]
     }
   ]
 }
