@@ -1,38 +1,3 @@
-<div id="toc" align="center">
-  <ul style="list-style: none">
-    <a href="https://stagehand.dev">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
-        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
-      </picture>
-    </a>
-  </ul>
-</div>
-
-<p align="center">
-  The production-ready framework for AI browser automations.<br>
-  <a href="https://docs.stagehand.dev">Read the Docs</a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
-      <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
-    </picture>
-  </a>
-  <a href="https://stagehand.dev/slack">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/slack?mode=dark" />
-      <img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
 # Stagehand Twitter Automation Tool
 
 [中文文档](./README_CN.md)
@@ -43,17 +8,16 @@ This project uses the Stagehand framework to automate Twitter/X login and monito
 
 - **Automated Login**: Supports username/password login, including handling two-factor authentication (2FA) and account verification
 - **Cookie Management**: Saves and reuses cookies to avoid frequent logins
-- **Tweet Monitoring**: Regularly checks for new tweets from specified users
-- **Data Extraction**: Structured extraction of tweet content, timestamps, and interaction data
+- **Multi-Account Rotation**: Automatically rotates through multiple Twitter accounts for monitoring
+- **Tweet Monitoring**: Regularly checks for new tweets from specified users (every minute)
+- **Auto Reply**: Automatically replies to tweets with customizable content
 - **Error Recovery**: Intelligent handling of login failures and network issues
 
 ## Project Structure
 
 ```
 examples/
-  ├── twitter_login_test.ts   # Twitter login test script
-  ├── twitter_monitor.ts      # Twitter tweet monitoring script
-  ├── twitter_setup.md        # Environment variable configuration guide
+  ├── twitter_simple_monitor.ts # Simple Twitter monitoring script
   └── twitter_utils.ts        # Shared utility functions
 ```
 
@@ -61,57 +25,113 @@ examples/
 
 The code has recently been refactored, with major improvements including:
 
-1. **Code Duplication Elimination**: Repetitive functionality (such as login, verification handling) extracted to `twitter_utils.ts`
-2. **Type Safety Improvements**: Added explicit type annotations, fixed type errors
-3. **Error Handling Optimization**: Improved error recovery strategies, making scripts more robust when encountering issues
-4. **Code Organization Optimization**: Better modular design, making functionality clearer and more maintainable
+1. **Simplified Architecture**: Removed unnecessary complexity and database dependencies
+2. **Multi-Account Support**: Added support for multiple Twitter accounts with automatic rotation
+3. **Improved Multi-User Monitoring**: Enhanced monitoring of multiple Twitter users
+4. **Error Handling Optimization**: Improved error recovery strategies for more robust operation
+5. **Code Organization Optimization**: Better modular design for clarity and maintainability
 
 ## Usage
 
 ### Environment Setup
 
-Create a `.env` file containing the required environment variables (see `examples/twitter_setup.md` for details):
+Create a `.env` file containing the required environment variables:
 
 ```
-# Twitter login credentials
-TWITTER_USERNAME=your_twitter_username
-TWITTER_PASSWORD=your_twitter_password
-
-# Two-factor authentication settings (if 2FA is enabled)
-TWITTER_2FA_ENABLED=true_or_false
-TWITTER_2FA_SECRET=your_2fa_secret
-
-# Verification information
-TWITTER_VERIFICATION_EMAIL=your_email
-TWITTER_VERIFICATION_PHONE=your_phone_number
-
 # AI model configuration (for data extraction)
 GOOGLE_API_KEY=your_google_api_key
-GEMINI_MODEL=gemini-1.5-pro
 ```
 
-### Run Login Test
+### Run Twitter Monitoring
+
+**Recommended:** Use the npm script. This ensures the project is built correctly before running:
 
 ```bash
-npx tsx examples/twitter_login_test.ts
+npm run twitter-simple-monitor
 ```
 
-### Run Tweet Monitoring
+**Alternative (requires manual build first):** If you prefer to run directly with `tsx`, make sure you've built the project first (`npm run build`):
 
 ```bash
-npx tsx examples/twitter_monitor.ts --target=elonmusk --interval=5
+npm run build
+npx tsx examples/twitter_simple_monitor.ts
 ```
 
-Parameter explanation:
-- `--target`: Twitter username to monitor (default: elonmusk)
-- `--interval`: Time interval for checking new tweets, in minutes (default: 1)
+This script focuses on core functionality:
+- Multi-account rotation for monitoring
+- Monitoring multiple target users
+- Checking latest tweets and replying
+- Fixed 1-minute interval between cycles
+
+## Troubleshooting
+
+### Code Style Issues
+
+If you encounter Prettier code style warnings when running the script:
+
+```
+[warn] examples/twitter_simple_monitor.ts
+[warn] examples/twitter_utils.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.
+```
+
+Fix the formatting issues and run the script in one command:
+
+```bash
+# Fix formatting issues and run the script
+npx prettier --write examples/twitter_simple_monitor.ts examples/twitter_utils.ts && npm run twitter-simple-monitor
+
+# Or fix all files in the project
+npx prettier --write . && npm run twitter-simple-monitor
+```
+
+### Configuration Files
+
+The monitoring script requires the following configuration files:
+
+1. `examples/config/accounts.json` - Twitter account credentials
+2. `examples/config/targets.json` - List of Twitter users to monitor
+3. `examples/config/replies.json` - Reply content templates
+
+Example configurations:
+
+#### targets.json
+```json
+[
+  { "username": "elonmusk" },
+  { "username": "ycombinator" }
+]
+```
+
+#### accounts.json
+```json
+[
+  {
+    "username": "your_twitter_username",
+    "password": "your_password",
+    "twoFAEnabled": false,
+    "twoFASecret": "",
+    "cookiesPath": "./data/cookies_account1.json",
+    "verificationEmail": "your_email@example.com",
+    "verificationPhone": "+1234567890"
+  }
+]
+```
+
+#### replies.json
+```json
+[
+  { "text": "Great tweet!" },
+  { "text": "Interesting point!" }
+]
+```
 
 ## Notes
 
 - This script is for educational and learning purposes only
 - Please comply with Twitter/X's terms of use and API regulations
 - Set reasonable monitoring intervals to avoid too frequent requests
-- The `.env` file contains sensitive information; ensure it is not committed to version control systems
+- Keep your configuration files secure as they contain sensitive information
 
 ## Why Stagehand?
 

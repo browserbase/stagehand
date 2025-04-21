@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Running Scripts
+
+To run the main Twitter monitoring script ([examples/twitter_simple_monitor.ts](mdc:examples/twitter_simple_monitor.ts)), please use the following command:
+
+```bash
+npm run twitter-simple-monitor
+```
+
+This is the recommended method because the script defined in [package.json](mdc:package.json) includes the necessary build step (`npm run build`) before executing the script with `tsx`. Running the script directly with `tsx` or `ts-node` might fail if the project hasn't been built recently.

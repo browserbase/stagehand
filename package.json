@@ -25,6 +25,7 @@
     "twitter-monitor": "npm run build && tsx examples/twitter_monitor.ts",
     "twitter-login-test": "npm run build && tsx examples/twitter_login_test.ts",
     "twitter-multi-monitor": "npm run build && tsx examples/twitter_multi_monitor.ts",
+    "twitter-simple-monitor": "npm run build && tsx examples/twitter_simple_monitor.ts",
     "twitter-smart-reply": "npm run build && tsx examples/utils/smartReplyExample.ts",
     "format": "prettier --write .",
     "prettier": "prettier --check .",

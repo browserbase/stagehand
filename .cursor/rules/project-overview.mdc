@@ -1,0 +1,36 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Overview
+
+This is a Twitter monitoring and auto-reply system based on the Stagehand framework. The system can automatically monitor tweets from multiple Twitter users and use multiple Twitter accounts for intelligent replies.
+
+## Core File Structure
+
+- **Main Monitoring Script**: [examples/twitter_multi_monitor.ts](mdc:examples/twitter_multi_monitor.ts) - Implements the core logic for multi-user monitoring and multi-account replies.
+- **Smart Reply Selector**: [examples/utils/smartReplySelector.ts](mdc:examples/utils/smartReplySelector.ts) - Logic for matching the best reply based on tweet content.
+- **Smart Reply Example**: [examples/utils/smartReplyExample.ts](mdc:examples/utils/smartReplyExample.ts) - Demonstrates how to use the smart reply selector.
+
+## Configuration Files
+
+System behavior is configured through the following JSON files:
+
+- **Monitoring Targets**: [examples/config/targets.json](mdc:examples/config/targets.json) - Defines the Twitter users to monitor and the check frequency.
+- **Reply Accounts**: [examples/config/accounts.json](mdc:examples/config/accounts.json) - Stores credentials for the Twitter accounts used for replying.
+- **Smart Reply Rules**: [examples/config/responses.json](mdc:examples/config/responses.json) - Defines reply patterns based on regular expressions.
+- **Default Replies**: [examples/config/replies.json](mdc:examples/config/replies.json) - Generic replies used when no smart reply matches.
+
+## Documentation
+
+- **Development Guide**: [examples/development.md](mdc:examples/development.md) - Contains system architecture, feature descriptions, and configuration guide.
+- **Development Plan**: [development.md](mdc:development.md) - Contains feature planning and prioritization.
+
+## Key Interfaces and Concepts
+
+- **Stagehand**: The underlying automation framework, providing methods like `act`, `extract`, `observe` to simplify browser operations.
+- `ReplyContent`: Defines the structure of reply content (text, image, video).
+- `SmartResponse`: Defines the structure of smart reply patterns.
+- `Target`: Defines the structure of monitoring targets.
+- `Account`: Defines the structure of reply accounts.

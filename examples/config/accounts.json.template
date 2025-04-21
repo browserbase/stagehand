@@ -1,0 +1,28 @@
+[
+  {
+    "username": "your_twitter_username",
+    "password": "your_password",
+    "twoFAEnabled": false,
+    "twoFASecret": "",
+    "cookiesPath": "./data/cookies_account1.json",
+    "cookieValid": true,
+    "verificationEmail": "your_verification_email@example.com",
+    "verificationPhone": "+1234567890",
+    "proxy": {
+      "server": "http://proxy.example.com:8080",
+      "username": "proxy_user",
+      "password": "proxy_pass"
+    }
+  },
+  {
+    "username": "your_second_account",
+    "password": "second_password",
+    "twoFAEnabled": true,
+    "twoFASecret": "YOUR_2FA_SECRET_KEY",
+    "cookiesPath": "./data/cookies_account2.json",
+    "cookieValid": true,
+    "verificationEmail": "your_second_email@example.com",
+    "verificationPhone": "+0987654321"
+    // 注意：这个账号没有配置代理，将使用直接连接
+  }
+]

@@ -1,38 +1,3 @@
-<div id="toc" align="center">
-  <ul style="list-style: none">
-    <a href="https://stagehand.dev">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
-        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
-      </picture>
-    </a>
-  </ul>
-</div>
-
-<p align="center">
-  用于AI浏览器自动化的生产级框架<br>
-  <a href="https://docs.stagehand.dev">阅读文档</a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
-      <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
-    </picture>
-  </a>
-  <a href="https://stagehand.dev/slack">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/slack?mode=dark" />
-      <img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
 # Stagehand Twitter 自动化工具
 
 [English Documentation](./README.md)
@@ -42,18 +7,17 @@
 ## 功能特点
 
 - **自动登录**: 支持用户名/密码登录，包括处理双因素认证(2FA)和账号验证
-- **Cookie 管理**: 保存和重用 Cookie 以避免频繁登录
-- **推文监控**: 定期检查指定用户的新推文
-- **数据提取**: 结构化提取推文内容、时间戳和互动数据
-- **错误恢复**: 对登录失败和网络问题的智能处理
+- **Cookie 管理**: 保存和重用Cookie以避免频繁登录
+- **多账号轮询**: 自动在多个Twitter账号之间轮换进行监控操作
+- **推文监控**: 定期检查指定用户的最新推文（每分钟一次）
+- **自动回复**: 使用自定义内容自动回复推文
+- **错误恢复**: 智能处理登录失败和网络问题
 
 ## 项目结构
 
 ```
 examples/
-  ├── twitter_login_test.ts   # Twitter登录测试脚本
-  ├── twitter_monitor.ts      # Twitter推文监控脚本
-  ├── twitter_setup.md        # 环境变量配置说明
+  ├── twitter_simple_monitor.ts # 简易Twitter监控脚本
   └── twitter_utils.ts        # 共享工具函数
 ```
 
@@ -61,58 +25,111 @@ examples/
 
 最近对代码进行了重构，主要改进包括：
 
-1. **代码重复消除**: 将重复的功能（如登录、验证处理）提取到 `twitter_utils.ts` 中
-2. **类型安全改进**: 添加明确的类型注解，修复类型错误
-3. **错误处理优化**: 改进了错误恢复策略，使脚本在遇到问题时更加健壮
-4. **代码组织优化**: 更好的模块化设计，使功能更加清晰和可维护
+1. **架构简化**: 移除了不必要的复杂性和数据库依赖
+2. **多账号支持**: 增加了对多个Twitter账号的支持，实现自动轮换
+3. **改进了多用户监控**: 增强了对多个Twitter用户的监控能力
+4. **错误处理优化**: 改进了错误恢复策略，使操作更加稳健
+5. **代码组织优化**: 更好的模块化设计，提高了清晰度和可维护性
 
 ## 使用方法
 
 ### 环境设置
 
-创建一个 `.env` 文件，包含所需的环境变量（详见 `examples/twitter_setup.md`）:
+创建一个 `.env` 文件，包含所需的环境变量：
 
 ```
-# Twitter登录凭据
-TWITTER_USERNAME=你的Twitter用户名
-TWITTER_PASSWORD=你的Twitter密码
-
-# 双因素认证设置（如果启用了2FA）
-TWITTER_2FA_ENABLED=true或false
-TWITTER_2FA_SECRET=你的2FA密钥
-
-# 验证信息
-TWITTER_VERIFICATION_EMAIL=你的邮箱
-TWITTER_VERIFICATION_PHONE=你的手机号
-
 # AI模型配置（用于数据提取）
 GOOGLE_API_KEY=你的Google_API密钥
-GEMINI_MODEL=gemini-1.5-pro
 ```
 
-### 运行登录测试
+### 运行Twitter监控
+
+**推荐方式：** 使用 npm 脚本。这能确保在运行前项目已正确构建：
 
 ```bash
-npx tsx examples/twitter_login_test.ts
+npm run twitter-simple-monitor
 ```
 
-### 运行推文监控
+**替代方式（需要先手动构建）：** 如果你倾向于直接使用 `tsx` 运行，请确保你已经先构建了项目 (`npm run build`):
 
 ```bash
-npx tsx examples/twitter_monitor.ts --target=elonmusk --interval=5
+npm run build
+npx tsx examples/twitter_simple_monitor.ts
 ```
 
-参数说明:
+该脚本专注于核心功能：
 
-- `--target`: 要监控的Twitter用户名（默认: elonmusk）
-- `--interval`: 检查新推文的时间间隔，单位为分钟（默认: 1）
+- 多账号轮询监控
+- 监控多个目标用户
+- 检查最新推文并回复
+- 固定1分钟间隔的监控周期
+
+## 故障排除
+
+### 代码样式问题
+
+如果在运行脚本时遇到Prettier代码格式警告：
+
+```
+[warn] examples/twitter_simple_monitor.ts
+[warn] examples/twitter_utils.ts
+[warn] Code style issues found in 2 files. Run Prettier with --write to fix.
+```
+
+使用以下命令修复格式问题并运行脚本：
+
+```bash
+# 修复特定文件的格式问题并运行脚本
+npx prettier --write examples/twitter_simple_monitor.ts examples/twitter_utils.ts && npm run twitter-simple-monitor
+
+# 或修复项目中所有文件
+npx prettier --write . && npm run twitter-simple-monitor
+```
+
+### 配置文件
+
+监控脚本需要以下配置文件：
+
+1. `examples/config/accounts.json` - Twitter账号凭据
+2. `examples/config/targets.json` - 要监控的Twitter用户列表
+3. `examples/config/replies.json` - 回复内容模板
+
+配置示例：
+
+#### targets.json
+
+```json
+[{ "username": "elonmusk" }, { "username": "ycombinator" }]
+```
+
+#### accounts.json
+
+```json
+[
+  {
+    "username": "你的Twitter用户名",
+    "password": "你的密码",
+    "twoFAEnabled": false,
+    "twoFASecret": "",
+    "cookiesPath": "./data/cookies_account1.json",
+    "verificationEmail": "你的邮箱@example.com",
+    "verificationPhone": "+1234567890"
+  }
+]
+```
+
+#### replies.json
+
+```json
+[{ "text": "精彩的推文！" }, { "text": "有趣的观点！" }]
+```
 
 ## 注意事项
 
 - 此脚本仅用于教育和学习目的
 - 请遵守Twitter/X的使用条款和API规定
 - 设置合理的监控间隔，避免过于频繁的请求
-- `.env` 文件中包含敏感信息，确保不要将其提交到版本控制系统中
+- 保持配置文件安全，因为它们包含敏感信息
 
 ## 为什么选择 Stagehand？
 
@@ -123,41 +140,6 @@ npx tsx examples/twitter_monitor.ts --target=elonmusk --interval=5
 2. **预览和缓存操作**：Stagehand 允许您在运行 AI 操作前预览它们，并且还可以轻松缓存可重复的操作以节省时间和令牌。
 
 3. **一行代码集成计算机使用模型**：Stagehand 允许您通过一行代码将 OpenAI 和 Anthropic 的最先进计算机使用模型集成到浏览器中。
-
-## 示例
-
-以下是如何使用 Stagehand 构建示例浏览器自动化：
-
-<div align="center">
-  <div style="max-width:300px;">
-    <img src="/media/github_demo.gif" alt="查看 Stagehand 实际操作">
-  </div>
-</div>
-
-```typescript
-// 在 page 对象上使用 Playwright 函数
-const page = stagehand.page;
-await page.goto("https://github.com/browserbase");
-
-// 使用 act() 执行单个操作
-await page.act("点击 stagehand 仓库");
-
-// 使用计算机使用代理进行更大的操作
-const agent = stagehand.agent({
-  provider: "openai",
-  model: "computer-use-preview",
-});
-await agent.execute("前往最新的 PR");
-
-// 使用 extract() 从页面读取数据
-const { author, title } = await page.extract({
-  instruction: "提取 PR 的作者和标题",
-  schema: z.object({
-    author: z.string().describe("PR 作者的用户名"),
-    title: z.string().describe("PR 的标题"),
-  }),
-});
-```
 
 ## 文档
 

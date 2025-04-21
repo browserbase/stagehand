@@ -312,7 +312,35 @@ export async function loginToTwitter(
   verificationEmail?: string,
 ) {
   console.log(chalk.blue("🔍 导航到Twitter登录页面..."));
-  await page.goto("https://twitter.com/login");
+  try {
+    // 将超时时间从60秒改为5秒
+    await page.goto("https://twitter.com/login", {
+      timeout: 5000,
+      waitUntil: "domcontentloaded",
+    });
+  } catch (error) {
+    console.error(chalk.red(`❌ 访问Twitter登录页面失败: ${error}`));
+
+    // 尝试访问主域名
+    try {
+      console.log(chalk.yellow("⚠️ 尝试访问Twitter主页..."));
+      await page.goto("https://twitter.com", {
+        timeout: 5000,
+        waitUntil: "domcontentloaded",
+      });
+
+      // 尝试点击登录按钮
+      console.log(chalk.blue("🔍 寻找登录入口..."));
+      const loginButton = await page.$('a[href="/login"]');
+      if (loginButton) {
+        await loginButton.click();
+        await page.waitForTimeout(5000);
+      }
+    } catch (secondError) {
+      console.error(chalk.red(`❌ 访问Twitter主页也失败: ${secondError}`));
+      throw new Error(`无法访问Twitter: ${error}`);
+    }
+  }
 
   console.log(chalk.blue("🔑 正在登录Twitter..."));
 
@@ -425,7 +453,7 @@ export async function loginToTwitter(
     // 等待主页面加载
     console.log(chalk.blue("🔍 等待页面导航..."));
     await page
-      .waitForNavigation({ timeout: 30000 })
+      .waitForNavigation({ timeout: 5000 })
       .then(() => console.log(chalk.green("✅ 页面导航完成")))
       .catch((error: Error) =>
         console.log(chalk.yellow(`⚠️ 页面导航超时: ${error.message}`)),
@@ -447,10 +475,10 @@ export async function loginToTwitter(
       // 如果需要手动干预，给用户一些时间
       console.log(
         chalk.yellow(
-          "⚠️ 如果需要手动干预，请在浏览器中完成登录流程。等待 30 秒...",
+          "⚠️ 如果需要手动干预，请在浏览器中完成登录流程。等待 5 秒...",
         ),
       );
-      await page.waitForTimeout(30000);
+      await page.waitForTimeout(5000);
 
       // 再次检查是否登录成功
       const newUrl = await page.url();
@@ -470,8 +498,8 @@ export async function loginToTwitter(
     console.log(chalk.yellow("⚠️ 尝试等待手动登录完成..."));
 
     // 给用户一些时间手动登录
-    console.log(chalk.yellow("⚠️ 请在浏览器中手动完成登录流程。等待 60 秒..."));
-    await page.waitForTimeout(60000);
+    console.log(chalk.yellow("⚠️ 请在浏览器中手动完成登录流程。等待 5 秒..."));
+    await page.waitForTimeout(5000);
 
     // 检查是否已登录
     const currentUrl = await page.url();
@@ -509,6 +537,12 @@ export async function loginAccountOnPage(
     twoFASecret?: string;
     verificationEmail?: string;
     cookieValid?: boolean;
+    proxy?: {
+      server: string;
+      bypass?: string;
+      username?: string;
+      password?: string;
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any; // 允许其他属性
   },
@@ -525,6 +559,16 @@ export async function loginAccountOnPage(
   );
   let loginSuccessful = false;
 
+  // 先检查一下代理配置
+  if (account.proxy) {
+    console.log(chalk.blue(`🌐 使用代理: ${account.proxy.server}`));
+
+    // 检查代理是否包含用户名和密码
+    if (account.proxy.username && account.proxy.password) {
+      console.log(chalk.blue(`🔐 代理需要认证`));
+    }
+  }
+
   // 尝试使用cookie登录
   if (fs.existsSync(cookiePath) && account.cookieValid !== false) {
     // 检查 cookieValid 是否明确为 false
@@ -534,21 +578,30 @@ export async function loginAccountOnPage(
       await context.addCookies(storage.cookies);
 
       // 验证cookie是否有效
-      await page.goto("https://twitter.com/home");
-      await page.waitForTimeout(5000);
+      try {
+        await page.goto("https://twitter.com/home", {
+          timeout: 5000,
+          waitUntil: "domcontentloaded",
+        });
+        await page.waitForTimeout(5000);
 
-      const currentUrl = page.url();
-      if (
-        currentUrl.includes("twitter.com/home") ||
-        currentUrl.includes("x.com/home")
-      ) {
-        console.log(chalk.green(`✅ 使用Cookie成功登录!`));
-        loginSuccessful = true;
-        account.cookieValid = true; // 确认Cookie有效
-      } else {
-        console.log(chalk.yellow(`⚠️ Cookie无效，切换到密码登录...`));
-        account.cookieValid = false; // 标记Cookie无效
-        await context.addCookies([]); // 清除无效Cookie
+        const currentUrl = page.url();
+        if (
+          currentUrl.includes("twitter.com/home") ||
+          currentUrl.includes("x.com/home")
+        ) {
+          console.log(chalk.green(`✅ 使用Cookie成功登录!`));
+          loginSuccessful = true;
+          account.cookieValid = true; // 确认Cookie有效
+        } else {
+          console.log(chalk.yellow(`⚠️ Cookie无效，切换到密码登录...`));
+          account.cookieValid = false; // 标记Cookie无效
+          await context.addCookies([]); // 清除无效Cookie
+        }
+      } catch (navError) {
+        console.error(chalk.red(`❌ 使用Cookie导航时出错: ${navError}`));
+        account.cookieValid = false;
+        await context.addCookies([]);
       }
     } catch (error) {
       console.error(chalk.red("❌ 加载或验证Cookie时出错:"), error);
@@ -569,11 +622,22 @@ export async function loginAccountOnPage(
         account.twoFASecret,
         account.verificationEmail,
       );
-      loginSuccessful = true;
-      // 登录成功后保存cookie
-      await context.storageState({ path: cookiePath });
-      console.log(chalk.green(`✅ 已保存 ${account.username} 的Cookie`));
-      account.cookieValid = true; // 新登录成功，Cookie有效
+
+      // 检查是否真的登录成功
+      const currentUrl = page.url();
+      if (
+        currentUrl.includes("twitter.com/home") ||
+        currentUrl.includes("x.com/home")
+      ) {
+        loginSuccessful = true;
+        // 登录成功后保存cookie
+        await context.storageState({ path: cookiePath });
+        console.log(chalk.green(`✅ 已保存 ${account.username} 的Cookie`));
+        account.cookieValid = true; // 新登录成功，Cookie有效
+      } else {
+        console.log(chalk.yellow(`⚠️ 登录后URL不是主页: ${currentUrl}`));
+        loginSuccessful = false;
+      }
     } catch (error) {
       console.error(chalk.red(`❌ 使用密码登录时出错:`), error);
       loginSuccessful = false;
