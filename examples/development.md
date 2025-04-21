@@ -64,7 +64,7 @@ GOOGLE_API_KEY=your_google_api_key
 [
   {
     "username": "target_username",
-    "checkInterval": 5  // 检查间隔（分钟）
+    "checkInterval": 5 // 检查间隔（分钟）
   }
 ]
 ```
@@ -91,7 +91,7 @@ GOOGLE_API_KEY=your_google_api_key
 ```json
 [
   {
-    "text": "回复文本内容", 
+    "text": "回复文本内容",
     "image": "图片路径（可选）",
     "video": "视频路径（可选）",
     "accountUsername": "指定使用的账号（可选）"
@@ -109,12 +109,12 @@ GOOGLE_API_KEY=your_google_api_key
 async function monitorMultipleUsers() {
   // 初始化数据库
   const db = initDatabase();
-  
+
   // 加载配置
   const targets = loadTargets();
   const accounts = loadAccounts();
   const replyContents = loadReplyContent();
-  
+
   // 为每个目标创建定时任务
   targets.forEach((target, index) => {
     setTimeout(() => checkTargetTweets(target), index * 10000);
@@ -131,23 +131,23 @@ async function checkUserTweets(db, target, accounts, replyContents) {
   // 初始化Stagehand
   const stagehand = new Stagehand({...});
   await stagehand.init();
-  
+
   // 提取最新推文
   const extractedData = await page.extract({
     instruction: `提取用户 @${target.username} 的最新推文`,
     schema: z.object({...})
   });
-  
+
   // 处理新推文
   const newTweets = extractedData.tweets
     .filter(...)
     .filter(tweet => !hasReplied(db, tweet.id));
-  
+
   // 回复新推文
   for (const tweet of newTweets) {
     const availableAccount = getAvailableAccount(accounts);
     const replyContent = replyContents[Math.floor(Math.random() * replyContents.length)];
-    
+
     await replyToTweet(db, tweet, availableAccount, replyContent);
   }
 }
@@ -161,41 +161,41 @@ async function checkUserTweets(db, target, accounts, replyContents) {
 async function replyToTweet(db, tweet, account, replyContent) {
   // 更新账号状态
   updateAccountStatus(account, true);
-  
+
   // 初始化Stagehand
   const stagehand = new Stagehand({...});
   await stagehand.init();
-  
+
   // 尝试使用cookie登录
   let loginSuccess = await tryLoginWithCookies(stagehand.page, account);
-  
+
   // 如cookie失效，尝试完整登录
   if (!loginSuccess) {
     loginSuccess = await fullLoginProcess(stagehand.page, account);
   }
-  
+
   // 导航到推文页面并回复
   await stagehand.page.goto(tweet.url);
   await stagehand.page.act("点击回复框");
   await stagehand.page.act(`输入回复内容: ${replyContent.text}`);
-  
+
   // 上传媒体（如果有）
   if (replyContent.image) {
     await uploadMedia(stagehand.page, replyContent.image);
   }
-  
+
   // 发布回复
   await stagehand.page.act("点击发布按钮");
-  
+
   // 记录回复
   markReplied(db, {...});
-  
+
   // 关闭浏览器
   await stagehand.close();
-  
+
   // 更新账号状态
   updateAccountStatus(account, false, true);
-  
+
   return true;
 }
 ```
@@ -203,14 +203,17 @@ async function replyToTweet(db, tweet, account, replyContent) {
 ## 系统扩展建议
 
 1. **回复策略优化**：
+
    - 实现智能回复选择，根据推文内容选择合适的回复
    - 加入回复频率控制，避免过度回复被平台限制
 
 2. **错误处理优化**：
+
    - 增加重试机制，处理临时性网络问题
    - 添加账号轮换策略，当某账号频繁失败时自动切换
 
 3. **数据分析功能**：
+
    - 添加回复效果统计分析
    - 实现监控数据可视化展示
 
@@ -234,4 +237,4 @@ npm run twitter:login-test
 2. 合理设置检查间隔，避免被Twitter限制访问
 3. 定期检查并更新cookie文件，提高登录成功率
 4. 遵循Twitter平台规则，避免过度频繁的自动化操作
-5. 定期备份数据库，避免数据丢失 
+5. 定期备份数据库，避免数据丢失

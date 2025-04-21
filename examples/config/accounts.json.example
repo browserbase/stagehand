@@ -2,8 +2,6 @@
   {
     "username": "your_twitter_username1",
     "password": "your_password1",
-    "email": "your_email1@example.com",
-    "phone": "+1234567890",
     "twoFAEnabled": true,
     "twoFASecret": "YOUR_2FA_SECRET_KEY",
     "verificationEmail": "your_verification_email@example.com",
@@ -18,8 +16,6 @@
   {
     "username": "your_twitter_username2",
     "password": "your_password2",
-    "email": "your_email2@example.com",
-    "phone": "+0987654321",
     "twoFAEnabled": false,
     "twoFASecret": "",
     "verificationEmail": "your_verification_email2@example.com",
@@ -30,8 +26,6 @@
   {
     "username": "your_twitter_username3",
     "password": "your_password3",
-    "email": "your_email3@example.com",
-    "phone": "+1122334455",
     "twoFAEnabled": true,
     "twoFASecret": "ANOTHER_2FA_SECRET_KEY",
     "verificationEmail": "your_verification_email3@example.com",

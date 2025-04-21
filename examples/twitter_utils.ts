@@ -18,7 +18,9 @@ export function generateTOTP(secret: string): string {
 
 // 从环境变量获取Twitter登录凭据 - 已弃用，改为从配置文件读取
 export function getTwitterCredentials() {
-  console.warn("警告: getTwitterCredentials 函数已弃用，请从 config/accounts.json 文件中读取账号信息");
+  console.warn(
+    "警告: getTwitterCredentials 函数已弃用，请从 config/accounts.json 文件中读取账号信息",
+  );
 
   // 返回空对象，避免代码报错
   return {
@@ -26,8 +28,6 @@ export function getTwitterCredentials() {
     password: "",
     twoFAEnabled: false,
     twoFASecret: "",
-    verificationEmail: "",
-    verificationPhone: "",
   };
 }
 
@@ -41,17 +41,24 @@ export function ensureDataDir() {
 }
 
 // 保存和加载Cookie
-export async function handleCookies(context: any, action: 'load' | 'save') {
+export async function handleCookies(
+  context: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addCookies: (cookies: any[]) => Promise<void>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storageState: (options: { path: string }) => Promise<any>;
+  },
+  action: "load" | "save",
+) {
   const cookiePath = path.join(process.cwd(), "twitter-cookies.json");
 
-  if (action === 'load' && fs.existsSync(cookiePath)) {
+  if (action === "load" && fs.existsSync(cookiePath)) {
     console.log(chalk.blue("🍪 发现保存的Cookie文件，尝试使用Cookie登录..."));
     const storage = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
     await context.addCookies(storage.cookies);
     console.log(chalk.green(`✅ 已加载 ${storage.cookies.length} 条 Cookie`));
     return true;
-  }
-  else if (action === 'save') {
+  } else if (action === "save") {
     await context.storageState({ path: cookiePath });
     console.log(chalk.green(`✅ 登录后Cookie已保存到 ${cookiePath}`));
     return true;
@@ -283,7 +290,9 @@ export async function handle2FAVerification(page: Page, tfaSecret?: string) {
     console.log(chalk.yellow("⚠️ 找不到验证码输入框，尝试使用act方法"));
     try {
       // @ts-expect-error - act方法可能不存在于标准Page类型
-      await page.act(`输入双因素验证码 "${totpCode}"，然后点击确认或下一步按钮`);
+      await page.act(
+        `输入双因素验证码 "${totpCode}"，然后点击确认或下一步按钮`,
+      );
       await page.waitForTimeout(3000);
       return true;
     } catch (error) {
@@ -301,7 +310,6 @@ export async function loginToTwitter(
   twoFAEnabled: boolean,
   twoFASecret: string | undefined,
   verificationEmail?: string,
-  verificationPhone?: string,
 ) {
   console.log(chalk.blue("🔍 导航到Twitter登录页面..."));
   await page.goto("https://twitter.com/login");
@@ -345,11 +353,11 @@ export async function loginToTwitter(
       // 等待可能出现的账号验证页面
       await page.waitForTimeout(3000);
 
-      // 处理可能出现的账号验证流程（邮箱或手机号验证）
+      // 处理可能出现的账号验证流程（邮箱验证）
       await handleAccountVerification(
         page,
         verificationEmail,
-        verificationPhone,
+        undefined, // 不再使用手机号验证
       );
     } else {
       console.log(chalk.yellow("⚠️ 找不到用户名输入框，尝试使用act方法"));
@@ -404,7 +412,7 @@ export async function loginToTwitter(
     await page.waitForTimeout(3000);
 
     // 处理可能出现的账号验证流程
-    await handleAccountVerification(page, verificationEmail, verificationPhone);
+    await handleAccountVerification(page, verificationEmail, undefined);
 
     // 如果启用了2FA并且有密钥，处理2FA验证
     if (twoFAEnabled && twoFASecret) {
@@ -485,8 +493,93 @@ export async function clearInputField(page: Page, selector: string) {
   await page.evaluate((sel) => {
     document.querySelectorAll(sel).forEach((el) => {
       if (el instanceof HTMLInputElement) {
-        el.value = '';
+        el.value = "";
       }
     });
   }, selector);
+}
+
+// 新增：在现有页面上登录Twitter账号
+export async function loginAccountOnPage(
+  page: Page,
+  account: {
+    username: string;
+    password: string;
+    twoFAEnabled: boolean;
+    twoFASecret?: string;
+    verificationEmail?: string;
+    cookieValid?: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any; // 允许其他属性
+  },
+  context: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addCookies: (cookies: any[]) => Promise<void>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    storageState: (options: { path: string }) => Promise<any>;
+  },
+): Promise<boolean> {
+  const cookiePath = path.join(
+    process.cwd(),
+    `twitter-cookies-${account.username}.json`,
+  );
+  let loginSuccessful = false;
+
+  // 尝试使用cookie登录
+  if (fs.existsSync(cookiePath) && account.cookieValid !== false) {
+    // 检查 cookieValid 是否明确为 false
+    console.log(chalk.blue(`🍪 尝试使用 ${account.username} 的Cookie登录...`));
+    try {
+      const storage = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
+      await context.addCookies(storage.cookies);
+
+      // 验证cookie是否有效
+      await page.goto("https://twitter.com/home");
+      await page.waitForTimeout(5000);
+
+      const currentUrl = page.url();
+      if (
+        currentUrl.includes("twitter.com/home") ||
+        currentUrl.includes("x.com/home")
+      ) {
+        console.log(chalk.green(`✅ 使用Cookie成功登录!`));
+        loginSuccessful = true;
+        account.cookieValid = true; // 确认Cookie有效
+      } else {
+        console.log(chalk.yellow(`⚠️ Cookie无效，切换到密码登录...`));
+        account.cookieValid = false; // 标记Cookie无效
+        await context.addCookies([]); // 清除无效Cookie
+      }
+    } catch (error) {
+      console.error(chalk.red("❌ 加载或验证Cookie时出错:"), error);
+      account.cookieValid = false; // 出错也标记为无效
+      await context.addCookies([]); // 清除可能存在的无效Cookie
+    }
+  }
+
+  // 如果cookie登录失败，使用账号密码登录
+  if (!loginSuccessful) {
+    console.log(chalk.blue(`🔑 使用密码登录账号 ${account.username}...`));
+    try {
+      await loginToTwitter(
+        page,
+        account.username,
+        account.password,
+        account.twoFAEnabled,
+        account.twoFASecret,
+        account.verificationEmail,
+      );
+      loginSuccessful = true;
+      // 登录成功后保存cookie
+      await context.storageState({ path: cookiePath });
+      console.log(chalk.green(`✅ 已保存 ${account.username} 的Cookie`));
+      account.cookieValid = true; // 新登录成功，Cookie有效
+    } catch (error) {
+      console.error(chalk.red(`❌ 使用密码登录时出错:`), error);
+      loginSuccessful = false;
+      account.cookieValid = false; // 登录失败，标记无效
+    }
+  }
+
+  return loginSuccessful;
 }

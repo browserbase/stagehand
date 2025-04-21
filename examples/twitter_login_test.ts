@@ -15,23 +15,23 @@ import { Stagehand } from "@/dist";
 import StagehandConfig from "@/stagehand.config";
 import chalk from "chalk";
 import * as dotenv from "dotenv";
-import type { Page as StagehandPage } from "@/types/page";
+// import type { Page as StagehandPage } from "@/types/page";
 import * as TwitterUtils from "./twitter_utils";
 
 // 加载环境变量
 dotenv.config();
 
+// 测试账号信息（请根据需要修改或从配置文件加载）
+const testAccount = {
+  username: process.env.TWITTER_USERNAME || "testuser", // 从环境变量或使用占位符
+  password: process.env.TWITTER_PASSWORD || "testpass",
+  twoFAEnabled: !!process.env.TWITTER_2FA_SECRET,
+  twoFASecret: process.env.TWITTER_2FA_SECRET || undefined,
+  verificationEmail: process.env.TWITTER_VERIFICATION_EMAIL || undefined,
+};
+
 // 测试验证cookie登录
 async function testLoginWithCookies() {
-  const {
-    username,
-    password,
-    twoFAEnabled,
-    twoFASecret,
-    verificationEmail,
-    verificationPhone,
-  } = TwitterUtils.getTwitterCredentials();
-
   console.log(chalk.blue("🚀 开始测试Twitter自动化登录..."));
 
   // 初始化Stagehand
@@ -54,8 +54,11 @@ async function testLoginWithCookies() {
     const page = stagehand.page;
 
     // 尝试加载Cookie
-    const cookiesLoaded = await TwitterUtils.handleCookies(stagehand.context, 'load');
-    
+    const cookiesLoaded = await TwitterUtils.handleCookies(
+      stagehand.context,
+      "load",
+    );
+
     if (cookiesLoaded) {
       // 访问Twitter主页验证是否已登录
       await page.goto("https://twitter.com/home");
@@ -71,35 +74,33 @@ async function testLoginWithCookies() {
       } else {
         console.log(chalk.yellow("⚠️ Cookie登录失败，尝试使用账号密码登录..."));
 
-        // Cookie登录失败，尝试正常登录
+        // Cookie登录失败，尝试正常登录 - 修正参数
         await TwitterUtils.loginToTwitter(
           page,
-          username,
-          password,
-          twoFAEnabled,
-          twoFASecret,
-          verificationEmail,
-          verificationPhone,
+          testAccount.username,
+          testAccount.password,
+          testAccount.twoFAEnabled,
+          testAccount.twoFASecret,
+          testAccount.verificationEmail,
         );
 
         // 登录成功后保存新的Cookie
-        await TwitterUtils.handleCookies(stagehand.context, 'save');
+        await TwitterUtils.handleCookies(stagehand.context, "save");
       }
     } else {
       console.log(chalk.blue("🔑 未发现Cookie文件，使用账号密码登录..."));
-      // 首次运行，执行登录并保存 Cookie
+      // 首次运行，执行登录并保存 Cookie - 修正参数
       await TwitterUtils.loginToTwitter(
         page,
-        username,
-        password,
-        twoFAEnabled,
-        twoFASecret,
-        verificationEmail,
-        verificationPhone,
+        testAccount.username,
+        testAccount.password,
+        testAccount.twoFAEnabled,
+        testAccount.twoFASecret,
+        testAccount.verificationEmail,
       );
 
       // 登录成功后保存Cookie
-      await TwitterUtils.handleCookies(stagehand.context, 'save');
+      await TwitterUtils.handleCookies(stagehand.context, "save");
     }
 
     // 验证登录状态

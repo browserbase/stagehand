@@ -2,12 +2,16 @@
   {
     "username": "dgshdjshjd",
     "password": "nvOl7AaI9Md",
-    "email": "your_email1@example.com",
-    "phone": "+1234567890",
     "twoFAEnabled": true,
     "twoFASecret": "4A4V7TO4PX5BGPK2",
     "verificationEmail": "julijomavias@hotmail.com",
     "verificationPhone": "",
-    "cookiesPath": "./data/cookies_account1.json"
+    "cookiesPath": "./data/cookies_account1.json",
+    "proxy": {
+      "server": "http://us21.kookeey.info:26332",
+      "username": "561ef900",
+      "password": "a65f61f0"
+    },
+    "cookieValid": true
   }
 ]

@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 项目概览
+
+这是一个基于Stagehand框架的Twitter监控与自动回复系统。该系统可以自动监控多个Twitter用户的推文，并使用多个Twitter账号进行智能回复。
+
+## 核心文件结构
+
+- [examples/twitter_multi_monitor.ts](mdc:examples/twitter_multi_monitor.ts) - 主监控脚本，实现多用户监控与多账号回复
+- [examples/utils/smartReplySelector.ts](mdc:examples/utils/smartReplySelector.ts) - 智能回复选择器，根据推文内容匹配最佳回复
+- [examples/utils/smartReplyExample.ts](mdc:examples/utils/smartReplyExample.ts) - 智能回复选择器的使用示例
+
+## 配置文件
+
+- [examples/config/targets.json](mdc:examples/config/targets.json) - 监控目标配置，定义要监控的Twitter用户和检查间隔
+- [examples/config/accounts.json](mdc:examples/config/accounts.json) - 账号配置，存储用于回复的Twitter账号凭据
+- [examples/config/responses.json](mdc:examples/config/responses.json) - 智能回复模式配置，基于正则表达式匹配推文内容
+- [examples/config/replies.json](mdc:examples/config/replies.json) - 默认回复内容配置，当没有匹配的智能回复时使用
+
+## 文档
+
+- [examples/development.md](mdc:examples/development.md) - 开发指南，包含系统架构、功能说明和配置指南
+- [development.md](mdc:development.md) - 开发计划，包含功能规划和优先级
+
+## 系统流程
+
+1. 系统从配置文件加载监控目标、账号信息和回复内容
+2. 按照指定的时间间隔检查每个目标用户的最新推文
+3. 通过SmartReplySelector为新推文选择最合适的回复内容
+4. 使用可用账号回复新推文，支持文本、图片和视频内容
+5. 将已回复的推文记录到数据库，避免重复回复
+
+## 主要接口
+
+1. `ReplyContent` - 定义回复内容的接口，包括文本、图片、视频和账号
+2. `SmartResponse` - 定义智能回复模式的接口，包括匹配模式、回复列表和媒体URL
+3. `Target` - 定义监控目标的接口，包括用户名和检查间隔
+4. `Account` - 定义账号的接口，包括登录凭据和代理配置
+
+## 扩展功能
+
+系统设计为易于扩展，可以通过以下方式增强功能：
+1. 添加新的回复选择算法到smartReplySelector.ts
+2. 扩展twitter_multi_monitor.ts以支持更多监控和回复策略
+3. 添加更多配置选项到各配置文件

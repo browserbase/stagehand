@@ -103,6 +103,7 @@ npx tsx examples/twitter_monitor.ts --target=elonmusk --interval=5
 ```
 
 参数说明:
+
 - `--target`: 要监控的Twitter用户名（默认: elonmusk）
 - `--interval`: 检查新推文的时间间隔，单位为分钟（默认: 1）
 
@@ -143,8 +144,8 @@ await page.act("点击 stagehand 仓库");
 
 // 使用计算机使用代理进行更大的操作
 const agent = stagehand.agent({
-    provider: "openai",
-    model: "computer-use-preview",
+  provider: "openai",
+  model: "computer-use-preview",
 });
 await agent.execute("前往最新的 PR");
 
@@ -211,6 +212,7 @@ nano .env # 编辑 .env 文件以添加 API 密钥
 本项目严重依赖 [Playwright](https://playwright.dev/) 作为自动化网页的弹性骨干。如果没有 [tarsier](https://github.com/reworkd/tarsier)、[gemini-zod](https://github.com/jbeoris/gemini-zod) 和 [fuji-web](https://github.com/normal-computing/fuji-web) 所做的出色技术和发现，这也是不可能的。
 
 我们要感谢以下人员对 Stagehand 的重大贡献：
+
 - [Paul Klein](https://github.com/pkiv)
 - [Anirudh Kamath](https://github.com/kamath)
 - [Sean McGuire](https://github.com/seanmcguire12)

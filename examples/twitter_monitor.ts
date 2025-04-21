@@ -6,7 +6,7 @@
  * 2. 运行: npm run twitter-monitor -- --target=目标用户名 --interval=监控间隔(分钟)
  */
 
-import { Page } from "playwright";
+// import { Page } from "playwright";
 import { Stagehand } from "@/dist";
 import StagehandConfig from "@/stagehand.config";
 import { z } from "zod";
@@ -53,25 +53,18 @@ function getArgs() {
     ?.split("=")[1];
   const interval = intervalStr ? parseInt(intervalStr) : 1; // 默认每1分钟检查一次
 
-  // 获取Twitter凭据
-  const {
-    username,
-    password,
-    twoFAEnabled,
-    twoFASecret,
-    verificationEmail,
-    verificationPhone,
-  } = TwitterUtils.getTwitterCredentials();
+  // 获取Twitter凭据 - 移除对 getTwitterCredentials 的调用
+  // const { username, password, twoFAEnabled, twoFASecret, verificationEmail } =
+  //   TwitterUtils.getTwitterCredentials(); // 已弃用
 
   return {
-    username,
-    password,
+    // username, // 移除
+    // password, // 移除
     target,
     interval,
-    twoFAEnabled,
-    twoFASecret,
-    verificationEmail,
-    verificationPhone,
+    // twoFAEnabled, // 移除
+    // twoFASecret, // 移除
+    // verificationEmail, // 移除
   };
 }
 
@@ -125,15 +118,15 @@ function extractTweetId(tweet: Tweet): string | undefined {
 
 // 主要监控函数
 async function monitorTwitter() {
+  // 移除从 getArgs 解构的凭据
   const {
-    username,
-    password,
+    // username,
+    // password,
     target,
     interval,
-    twoFAEnabled,
-    twoFASecret,
-    verificationEmail,
-    verificationPhone,
+    // twoFAEnabled,
+    // twoFASecret,
+    // verificationEmail,
   } = getArgs();
 
   console.log(
@@ -177,20 +170,27 @@ async function monitorTwitter() {
     const page = stagehand.page;
 
     // 加载或保存 Cookie，跳过多次登录
-    const cookiesLoaded = await TwitterUtils.handleCookies(stagehand.context, 'load');
-    
+    const cookiesLoaded = await TwitterUtils.handleCookies(
+      stagehand.context,
+      "load",
+    );
+
     if (!cookiesLoaded) {
-      // 首次运行，执行登录并保存 Cookie
-      await TwitterUtils.loginToTwitter(
-        page,
-        username,
-        password,
-        twoFAEnabled,
-        twoFASecret,
-        verificationEmail,
-        verificationPhone,
+      // 首次运行，执行登录并保存 Cookie - 移除调用，因为缺少凭据
+      console.warn(
+        chalk.yellow(
+          "⚠️ 缺少账号凭据，无法执行登录。脚本将只在已登录状态下工作。",
+        ),
       );
-      await TwitterUtils.handleCookies(stagehand.context, 'save');
+      // await TwitterUtils.loginToTwitter(
+      //   page,
+      //   username,
+      //   password,
+      //   twoFAEnabled,
+      //   twoFASecret,
+      //   verificationEmail,
+      // );
+      // await TwitterUtils.handleCookies(stagehand.context, "save");
     } else {
       console.log(chalk.green("✅ 已加载 Cookie，跳过登录"));
     }
@@ -248,7 +248,11 @@ async function monitorTwitter() {
 }
 
 // 检查新推文
-async function checkNewTweets(page: StagehandPage, target: string, state: MonitorState) {
+async function checkNewTweets(
+  page: StagehandPage,
+  target: string,
+  state: MonitorState,
+) {
   console.log(chalk.blue(`\n🔍 检查 @${target} 的新推文...`));
   console.log(
     chalk.gray(`上次检查时间: ${state.lastCheckedAt.toLocaleString()}`),

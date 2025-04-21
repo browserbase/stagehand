@@ -5,10 +5,10 @@
   },
   {
     "username": "naval",
-    "checkInterval": 10
+    "checkInterval": 5
   },
   {
     "username": "ycombinator",
-    "checkInterval": 15
+    "checkInterval": 5
   }
 ] 
