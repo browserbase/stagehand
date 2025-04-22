@@ -23,6 +23,8 @@ const ALL_EVAL_MODELS = [
   "gemini-2.5-pro-exp-03-25",
   "gemini-1.5-pro",
   "gemini-1.5-flash-8b",
+  "gemini-2.5-flash-preview-04-17",
+  "gemini-2.5-pro-preview-03-25",
   // ANTHROPIC
   "claude-3-5-sonnet-latest",
   "claude-3-7-sonnet-latest",
@@ -30,6 +32,9 @@ const ALL_EVAL_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
   "gpt-4.5-preview",
+  "o3",
+  "o3-mini",
+  "o4-mini",
   // TOGETHER - META
   "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
   "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -95,7 +100,7 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : ["claude-3-5-sonnet-latest", "gpt-4o-mini", "gpt-4o"];
+  : ["gemini-2.5-pro-preview-03-25", "o3"];
 
 /**
  * getModelList:
