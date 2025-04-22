@@ -39,6 +39,7 @@ import { google } from "@ai-sdk/google";
 import { anthropic } from "@ai-sdk/anthropic";
 import { groq } from "@ai-sdk/groq";
 import { cerebras } from "@ai-sdk/cerebras";
+import { openai } from "@ai-sdk/openai";
 dotenv.config();
 
 /**
@@ -274,14 +275,12 @@ const generateFilteredTestcases = (): Testcase[] => {
 
           // Execute the task
           let llmClient: LLMClient;
-          if (input.modelName.startsWith("gpt")) {
-            llmClient = new CustomOpenAIClient({
-              modelName: input.modelName as AvailableModel,
-              client: wrapOpenAI(
-                new OpenAI({
-                  apiKey: process.env.OPENAI_API_KEY,
-                }),
-              ),
+          if (
+            input.modelName.startsWith("gpt") ||
+            input.modelName.startsWith("o")
+          ) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(openai(input.modelName)),
             });
           } else if (input.modelName.startsWith("gemini")) {
             llmClient = new AISdkClient({
