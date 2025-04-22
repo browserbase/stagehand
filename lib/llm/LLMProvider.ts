@@ -17,13 +17,21 @@ import {
 } from "@/types/stagehandErrors";
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
+  "gpt-4.1": "openai",
+  "gpt-4.1-mini": "openai",
+  "gpt-4.1-nano": "openai",
+  "o4-mini": "openai",
+  //prettier-ignore
+  "o3": "openai",
+  "o3-mini": "openai",
+  //prettier-ignore
+  "o1": "openai",
+  "o1-mini": "openai",
   "gpt-4o": "openai",
   "gpt-4o-mini": "openai",
   "gpt-4o-2024-08-06": "openai",
   "gpt-4.5-preview": "openai",
-  "o1-mini": "openai",
   "o1-preview": "openai",
-  "o3-mini": "openai",
   "claude-3-5-sonnet-latest": "anthropic",
   "claude-3-5-sonnet-20240620": "anthropic",
   "claude-3-5-sonnet-20241022": "anthropic",

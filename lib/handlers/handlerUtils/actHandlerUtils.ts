@@ -1,9 +1,10 @@
-import { Page, Locator, errors as PlaywrightErrors } from "@playwright/test";
+import { Page, Locator } from "@playwright/test";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
 import { Logger } from "../../../types/log";
 import { MethodHandlerContext } from "@/types/act";
+import { StagehandClickError } from "@/types/stagehandErrors";
 
 /**
  * A mapping of playwright methods that may be chosen by the LLM to their
@@ -258,15 +259,9 @@ export async function fillOrType(ctx: MethodHandlerContext) {
   const { locator, xpath, args, logger } = ctx;
 
   try {
-    await locator.fill("");
-    await locator.click();
-
+    await locator.fill("", { force: true });
     const text = args[0]?.toString() || "";
-    for (const char of text) {
-      await locator.page().keyboard.type(char, {
-        delay: Math.random() * 50 + 25,
-      });
-    }
+    await locator.fill(text, { force: true });
   } catch (e) {
     logger({
       category: "action",
@@ -343,83 +338,9 @@ export async function clickElement(ctx: MethodHandlerContext) {
   });
 
   try {
-    // If it's a radio input, try to click its label
-    const isRadio = await locator.evaluate((el) => {
-      return el instanceof HTMLInputElement && el.type === "radio";
+    await locator.evaluate((el) => {
+      (el as HTMLElement).click();
     });
-
-    // Extract the click options (if any) from args[0]
-    const clickArg = (args[0] ?? {}) as Record<string, unknown>;
-
-    // Decide which locator we actually want to click (for radio inputs, prefer label if present)
-    let finalLocator = locator;
-    if (isRadio) {
-      const inputId = await locator.evaluate(
-        (el) => (el as HTMLInputElement).id,
-      );
-      let labelLocator = null;
-
-      if (inputId) {
-        labelLocator = stagehandPage.page.locator(`label[for="${inputId}"]`);
-      }
-      if (!labelLocator || (await labelLocator.count()) < 1) {
-        // Check ancestor <label>
-        labelLocator = stagehandPage.page
-          .locator(`xpath=${xpath}/ancestor::label`)
-          .first();
-      }
-      if ((await labelLocator.count()) < 1) {
-        // Check sibling <label>
-        labelLocator = locator
-          .locator("xpath=following-sibling::label")
-          .first();
-        if ((await labelLocator.count()) < 1) {
-          labelLocator = locator
-            .locator("xpath=preceding-sibling::label")
-            .first();
-        }
-      }
-
-      if ((await labelLocator.count()) > 0) {
-        finalLocator = labelLocator;
-      }
-    }
-
-    // Try clicking with a short (5s) timeout
-    try {
-      await finalLocator.click({
-        ...clickArg,
-        timeout: 5000,
-      });
-    } catch (error) {
-      // If it's a TimeoutError, retry with force: true
-      if (error instanceof PlaywrightErrors.TimeoutError) {
-        logger({
-          category: "action",
-          message: "First click attempt timed out, retrying with force...",
-          level: 2,
-        });
-        try {
-          await finalLocator.click({
-            ...clickArg,
-            force: true,
-          });
-        } catch (forceError) {
-          // If forced click also fails, throw a more descriptive error
-          throw new PlaywrightCommandException(
-            `Failed to click element at [${xpath}]. ` +
-              `Timeout after 5s, then force-click also failed. ` +
-              `Original timeout error: ${error.message}, ` +
-              `Force-click error: ${forceError.message}`,
-          );
-        }
-      } else {
-        // Non-timeout error on the first click
-        throw new PlaywrightCommandException(
-          `Failed to click element at [${xpath}]. ` + `Error: ${error.message}`,
-        );
-      }
-    }
   } catch (e) {
     logger({
       category: "action",
@@ -433,10 +354,7 @@ export async function clickElement(ctx: MethodHandlerContext) {
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
-
-    throw new PlaywrightCommandException(
-      `Could not complete click action at [${xpath}]. Reason: ${e.message}`,
-    );
+    throw new StagehandClickError(xpath, e.message);
   }
 
   await handlePossiblePageNavigation(
