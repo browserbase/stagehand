@@ -329,6 +329,26 @@
     {
       "name": "checkboxes",
       "categories": ["act"]
+    },
+    {
+      "name": "agent/iframe_form",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/iframe_form_multiple",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/google_flights",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/sf_library_card",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/sf_library_card_multiple",
+      "categories": ["agent"]
     }
   ]
 }

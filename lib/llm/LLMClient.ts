@@ -48,7 +48,7 @@ export interface ChatCompletionOptions {
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
   maxTokens?: number;
-  requestId: string;
+  requestId?: string;
 }
 
 export type LLMResponse = {

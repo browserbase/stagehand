@@ -102,44 +102,62 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
   : ["gemini-2.5-pro-preview-03-25", "o3"];
 
+const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
+  ? process.env.EVAL_AGENT_MODELS.split(",")
+  : ["computer-use-preview", "claude-3-7-sonnet-20250219"];
+
 /**
  * getModelList:
  * Returns a list of models to be used for the given category.
  * If category is "experimental", it merges DEFAULT_EVAL_MODELS and EXPERIMENTAL_EVAL_MODELS.
  * Otherwise, returns DEFAULT_EVAL_MODELS filtered by provider if specified.
  */
-const getModelList = (): string[] => {
+const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
-  if (!provider) {
-    return DEFAULT_EVAL_MODELS;
+  if (category === "agent") {
+    return DEFAULT_AGENT_MODELS;
   }
 
-  return ALL_EVAL_MODELS.filter((model) => {
-    const modelLower = model.toLowerCase();
-    if (provider === "openai") {
-      return modelLower.startsWith("gpt");
-    } else if (provider === "anthropic") {
-      return modelLower.startsWith("claude");
-    } else if (provider === "google") {
-      return modelLower.startsWith("gemini");
-    } else if (provider === "together") {
-      return (
-        modelLower.startsWith("meta-llama") ||
-        modelLower.startsWith("llama") ||
-        modelLower.startsWith("deepseek") ||
-        modelLower.startsWith("qwen")
-      );
-    } else if (provider === "groq") {
-      return modelLower.startsWith("groq");
-    } else if (provider === "cerebras") {
-      return modelLower.startsWith("cerebras");
-    }
-    return true;
-  });
+  if (provider) {
+    return ALL_EVAL_MODELS.filter((model) =>
+      filterModelByProvider(model, provider),
+    );
+  }
+
+  // If no agent category and no provider, return default eval models
+  return DEFAULT_EVAL_MODELS;
 };
+
+// Helper function to contain the provider filtering logic
+const filterModelByProvider = (model: string, provider: string): boolean => {
+  const modelLower = model.toLowerCase();
+  if (provider === "openai") {
+    return modelLower.startsWith("gpt");
+  } else if (provider === "anthropic") {
+    return modelLower.startsWith("claude");
+  } else if (provider === "google") {
+    return modelLower.startsWith("gemini");
+  } else if (provider === "together") {
+    return (
+      modelLower.startsWith("meta-llama") ||
+      modelLower.startsWith("llama") ||
+      modelLower.startsWith("deepseek") ||
+      modelLower.startsWith("qwen")
+    );
+  } else if (provider === "groq") {
+    return modelLower.startsWith("groq");
+  } else if (provider === "cerebras") {
+    return modelLower.startsWith("cerebras");
+  }
+  console.warn(
+    `Unknown provider specified or model doesn't match: ${provider}`,
+  );
+  return false;
+};
+
 const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-export { tasksByName, MODELS, tasksConfig };
+export { tasksByName, MODELS, tasksConfig, getModelList };

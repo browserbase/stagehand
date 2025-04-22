@@ -155,3 +155,9 @@ export class StagehandClickError extends StagehandError {
     );
   }
 }
+
+export class LLMResponseError extends StagehandError {
+  constructor(primitive: string, message: string) {
+    super(`${primitive} LLM response error: ${message}`);
+  }
+}
