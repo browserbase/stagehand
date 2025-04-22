@@ -319,6 +319,10 @@
       "categories": ["extract"]
     },
     {
+      "name": "dropdown",
+      "categories": ["act"]
+    },
+    {
       "name": "radio_btn",
       "categories": ["act"]
     },

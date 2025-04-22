@@ -259,15 +259,9 @@ export async function fillOrType(ctx: MethodHandlerContext) {
   const { locator, xpath, args, logger } = ctx;
 
   try {
-    await locator.fill("");
-    await locator.click();
-
+    await locator.fill("", { force: true });
     const text = args[0]?.toString() || "";
-    for (const char of text) {
-      await locator.page().keyboard.type(char, {
-        delay: Math.random() * 50 + 25,
-      });
-    }
+    await locator.fill(text, { force: true });
   } catch (e) {
     logger({
       category: "action",
