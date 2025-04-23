@@ -11,8 +11,15 @@ import { AnthropicJsonSchemaObject, AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import {
   CreateChatCompletionOptions,
+  GenerateObjectOptions,
+  GenerateTextOptions,
   LLMClient,
+  LLMObjectResponse,
   LLMResponse,
+  ObjectResponse,
+  StreamingChatResponse,
+  StreamingTextResponse,
+  TextResponse,
 } from "./LLMClient";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
@@ -289,7 +296,6 @@ export class AnthropicClient extends LLMClient {
       ],
       usage: usageData,
     };
-
     logger({
       category: "anthropic",
       message: "transformed response",
@@ -314,12 +320,12 @@ export class AnthropicClient extends LLMClient {
         const finalParsedResponse = {
           data: result,
           usage: usageData,
+          ...response,
         } as unknown as T;
 
         if (this.enableCaching) {
           this.cache.set(cacheOptions, finalParsedResponse, options.requestId);
         }
-
         return finalParsedResponse;
       } else {
         if (!retries || retries < 5) {
@@ -372,6 +378,577 @@ export class AnthropicClient extends LLMClient {
     // if the function was called with a response model, it would have returned earlier
     // so we can safely cast here to T, which defaults to AnthropicTransformedResponse
     return transformedResponse as T;
+  }
+
+  async createChatCompletionStream<T = StreamingChatResponse>({
+    options,
+    retries,
+    logger,
+  }: CreateChatCompletionOptions): Promise<T> {
+    const optionsWithoutImage = { ...options };
+    delete optionsWithoutImage.image;
+
+    logger({
+      category: "anthropic",
+      message: "creating chat completion stream",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify(optionsWithoutImage),
+          type: "object",
+        },
+      },
+    });
+
+    // Try to get cached response
+    const cacheOptions = {
+      model: this.modelName,
+      messages: options.messages,
+      temperature: options.temperature,
+      image: options.image,
+      response_model: options.response_model,
+      tools: options.tools,
+      retries: retries,
+    };
+
+    if (this.enableCaching) {
+      const cachedResponse = await this.cache.get<T>(
+        cacheOptions,
+        options.requestId,
+      );
+      if (cachedResponse) {
+        logger({
+          category: "llm_cache",
+          message: "LLM cache hit - returning cached response",
+          level: 1,
+          auxiliary: {
+            cachedResponse: {
+              value: JSON.stringify(cachedResponse),
+              type: "object",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+            cacheOptions: {
+              value: JSON.stringify(cacheOptions),
+              type: "object",
+            },
+          },
+        });
+        return cachedResponse as T;
+      } else {
+        logger({
+          category: "llm_cache",
+          message: "LLM cache miss - no cached response found",
+          level: 1,
+          auxiliary: {
+            cacheOptions: {
+              value: JSON.stringify(cacheOptions),
+              type: "object",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+          },
+        });
+      }
+    }
+
+    const systemMessage = options.messages.find((msg) => {
+      if (msg.role === "system") {
+        if (typeof msg.content === "string") {
+          return true;
+        } else if (Array.isArray(msg.content)) {
+          return msg.content.every((content) => content.type !== "image_url");
+        }
+      }
+      return false;
+    });
+
+    const userMessages = options.messages.filter(
+      (msg) => msg.role !== "system",
+    );
+
+    const formattedMessages: MessageParam[] = userMessages.map((msg) => {
+      if (typeof msg.content === "string") {
+        return {
+          role: msg.role as "user" | "assistant", // ensure its not checking for system types
+          content: msg.content,
+        };
+      } else {
+        return {
+          role: msg.role as "user" | "assistant",
+          content: msg.content.map((content) => {
+            if ("image_url" in content) {
+              const formattedContent: ImageBlockParam = {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: content.image_url.url,
+                },
+              };
+
+              return formattedContent;
+            } else {
+              return { type: "text", text: content.text };
+            }
+          }),
+        };
+      }
+    });
+
+    if (options.image) {
+      const screenshotMessage: MessageParam = {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/jpeg",
+              data: options.image.buffer.toString("base64"),
+            },
+          },
+        ],
+      };
+      if (
+        options.image.description &&
+        Array.isArray(screenshotMessage.content)
+      ) {
+        screenshotMessage.content.push({
+          type: "text",
+          text: options.image.description,
+        });
+      }
+
+      formattedMessages.push(screenshotMessage);
+    }
+
+    let anthropicTools: Tool[] = options.tools?.map((tool) => {
+      return {
+        name: tool.name,
+        description: tool.description,
+        input_schema: {
+          type: "object",
+          properties: tool.parameters.properties,
+          required: tool.parameters.required,
+        },
+      };
+    });
+
+    let toolDefinition: Tool | undefined;
+
+    // Check if a response model is provided
+    if (options.response_model) {
+      const jsonSchema = zodToJsonSchema(options.response_model.schema);
+      const { properties: schemaProperties, required: schemaRequired } =
+        extractSchemaProperties(jsonSchema);
+
+      toolDefinition = {
+        name: "print_extracted_data",
+        description: "Prints the extracted data based on the provided schema.",
+        input_schema: {
+          type: "object",
+          properties: schemaProperties,
+          required: schemaRequired,
+        },
+      };
+    }
+
+    // Add the tool definition to the tools array if it exists
+    if (toolDefinition) {
+      anthropicTools = anthropicTools ?? [];
+      anthropicTools.push(toolDefinition);
+    }
+
+    // Create the chat completion stream with the provided messages
+    const response = await this.client.messages.create({
+      model: this.modelName,
+      max_tokens: options.maxTokens || 8192,
+      messages: formattedMessages,
+      tools: anthropicTools,
+      system: systemMessage
+        ? (systemMessage.content as string | TextBlockParam[])
+        : undefined,
+      temperature: options.temperature,
+      stream: true,
+    });
+
+    // TODO: Transform response stream to preferred format
+    // TODO: Response model validation
+    // TODO: Enable caching
+
+    // Temporarily restructure the response to match the expected format
+    return new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of response) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              controller.enqueue(chunk.delta.text);
+            }
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    }) as T;
+  }
+
+  async streamText<T = StreamingTextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const { logger = () => {}, retries = 3, ...chatOptions } = options;
+
+    // Create a unique request ID if not provided
+    const requestId = options.requestId || Date.now().toString();
+
+    // Log the generation attempt
+    logger({
+      category: "anthropic",
+      message: "Initiating text streaming",
+      level: 2,
+      auxiliary: {
+        options: {
+          value: JSON.stringify({
+            prompt,
+            requestId,
+          }),
+          type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create a chat completion stream with the prompt as a user message
+      const response = (await this.createChatCompletionStream({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as StreamingChatResponse;
+
+      logger({
+        category: "anthropic",
+        message: "Text streaming response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(response),
+            type: "object",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return {
+        textStream: response,
+      } as T;
+    } catch (error) {
+      logger({
+        category: "anthropic",
+        message: "Text streaming failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
+  }
+
+  async generateText<T = TextResponse>({
+    prompt,
+    options = {},
+  }: GenerateTextOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {},
+      retries = 3,
+      requestId = Date.now().toString(),
+      ...chatOptions
+    } = options;
+
+    // Log the generation attempt
+    logger({
+      category: "anthropic",
+      message: "Initiating text generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create chat completion with the provided prompt
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMResponse;
+
+      // Validate response structure
+      if (
+        !response.choices ||
+        response.choices.length === 0 ||
+        response.choices[0].message.content == undefined ||
+        response.choices[0].message.content == null
+      ) {
+        logger({
+          category: "anthropic",
+          message: "Text generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
+        throw new CreateChatCompletionResponseError(
+          "API response contains no valid choices",
+        );
+      }
+
+      // Extract and validate the generated text
+      const generatedText = response.choices[0].message.content;
+
+      // Construct the final response
+      const textResponse = {
+        text: generatedText,
+        finishReason: response.choices[0].finish_reason,
+        usage: response.usage,
+        response: response,
+        // reasoning: response.reasoning,
+        // sources: response.sources
+      } as T;
+
+      // Log successful generation
+      logger({
+        category: "anthropic",
+        message: "Text generation successful",
+        level: 2,
+        auxiliary: {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+          responseLength: {
+            value: generatedText.length.toString(),
+            type: "string",
+          },
+        },
+      });
+
+      return textResponse;
+    } catch (error) {
+      // Log the error
+      logger({
+        category: "anthropic",
+        message: "Text generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
+  }
+
+  async generateObject<T = ObjectResponse>({
+    prompt,
+    schema,
+    options = {},
+  }: GenerateObjectOptions): Promise<T> {
+    // Destructure options with defaults
+    const {
+      logger = () => {},
+      retries = 3,
+      requestId = Date.now().toString(),
+      ...chatOptions
+    } = options;
+
+    // Log the generation attempt
+    logger({
+      category: "anthropic",
+      message: "Initiating object generation",
+      level: 2,
+      auxiliary: {
+        prompt: {
+          value: prompt,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // Create chat completion with the provided prompt
+      const response = (await this.createChatCompletion({
+        options: {
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          response_model: {
+            name: "object",
+            schema: schema,
+          },
+          ...chatOptions,
+          requestId,
+        },
+        logger,
+        retries,
+      })) as LLMObjectResponse;
+
+      // Validate response structure
+      if (
+        !response.data ||
+        response.data.length === 0 ||
+        response.data === undefined
+      ) {
+        logger({
+          category: "anthropic",
+          message: "Object generation failed",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: "API response contains no valid choices",
+              type: "string",
+            },
+            prompt: {
+              value: prompt,
+              type: "string",
+            },
+          },
+        });
+
+        throw new CreateChatCompletionResponseError(
+          "API response contains no valid choices",
+        );
+      }
+
+      // Extract and validate the generated text
+      const generatedObject = response.data;
+
+      // Construct the final response
+      const objResponse = {
+        object: generatedObject,
+        // finishReason: response.stop_reason,
+        // usage: response.response.usage,
+        response: response,
+      } as T;
+
+      // Log successful generation
+      logger({
+        category: "anthropic",
+        message: "Object generation successful",
+        level: 2,
+        auxiliary: {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      return objResponse;
+    } catch (error) {
+      // Log the error
+      logger({
+        category: "anthropic",
+        message: "Object generation failed",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error.message,
+            type: "string",
+          },
+          prompt: {
+            value: prompt,
+            type: "string",
+          },
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      // Re-throw the error to be handled by the caller
+      throw error;
+    }
   }
 }
 
