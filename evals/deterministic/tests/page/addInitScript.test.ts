@@ -37,4 +37,32 @@ test.describe("StagehandPage - addInitScript", () => {
 
     await stagehand.close();
   });
+
+  test("checks if init scripts are re-added and available even if they've been deleted", async () => {
+    const stagehand = new Stagehand(StagehandConfig);
+    await stagehand.init();
+
+    const page = stagehand.page;
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+    );
+
+    // delete the __stagehandInjected flag, and delete the
+    // getScrollableElementXpaths function
+    await page.evaluate(() => {
+      delete window.getScrollableElementXpaths;
+      delete window.__stagehandInjected;
+    });
+
+    // attempt to call the getScrollableElementXpaths function
+    // which we previously deleted. page.evaluate should realize
+    // its been deleted and re-inject it
+    const xpaths = await page.evaluate(() => {
+      return window.getScrollableElementXpaths();
+    });
+
+    await stagehand.close();
+    // this is the only scrollable element on the page
+    expect(xpaths).toContain("/html");
+  });
 });
