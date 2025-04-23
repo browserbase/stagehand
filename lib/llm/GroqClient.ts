@@ -183,7 +183,9 @@ export class GroqClient extends LLMClient {
             ? [
                 {
                   role: "system" as const,
-                  content: `IMPORTANT: Your response must be valid JSON that matches this schema: ${JSON.stringify(options.response_model.schema)}`,
+                  content: `IMPORTANT: Your response must be valid JSON that matches this schema: ${JSON.stringify(
+                    options.response_model.schema,
+                  )}`,
                 },
               ]
             : []),
@@ -234,77 +236,92 @@ export class GroqClient extends LLMClient {
         },
       });
 
-      if (options.response_model) {
-        // First try standard function calling format
-        const toolCall = response.choices[0]?.message?.tool_calls?.[0];
-        if (toolCall?.function?.arguments) {
-          try {
-            const result = JSON.parse(toolCall.function.arguments);
-            if (this.enableCaching) {
-              this.cache.set(cacheOptions, result, options.requestId);
-            }
-            return result as T;
-          } catch (e) {
-            // If JSON parse fails, the model might be returning a different format
-            logger({
-              category: "groq",
-              message: "failed to parse tool call arguments as JSON, retrying",
-              level: 0,
-              auxiliary: {
-                error: {
-                  value: e.message,
-                  type: "string",
-                },
-              },
-            });
-          }
+      // If there's no response model, return the entire response object
+      if (!options.response_model) {
+        if (this.enableCaching) {
+          await this.cache.set(cacheOptions, response, options.requestId);
         }
+        return response as T;
+      }
 
-        // If we have content but no tool calls, try to parse the content as JSON
-        const content = response.choices[0]?.message?.content;
-        if (content) {
-          try {
-            // Try to extract JSON from the content
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const result = JSON.parse(jsonMatch[0]);
-              if (this.enableCaching) {
-                this.cache.set(cacheOptions, result, options.requestId);
-              }
-              return result as T;
-            }
-          } catch (e) {
-            logger({
-              category: "groq",
-              message: "failed to parse content as JSON",
-              level: 0,
-              auxiliary: {
-                error: {
-                  value: e.message,
-                  type: "string",
-                },
-              },
-            });
+      // Otherwise, try parsing the JSON from the tool call or content
+      const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        try {
+          const result = JSON.parse(toolCall.function.arguments);
+          const finalResponse = {
+            data: result,
+            usage: response.usage,
+          };
+          if (this.enableCaching) {
+            await this.cache.set(
+              cacheOptions,
+              finalResponse,
+              options.requestId,
+            );
           }
-        }
-
-        // If we still haven't found valid JSON and have retries left, try again
-        if (!retries || retries < 5) {
-          return this.createChatCompletion({
-            options,
-            logger,
-            retries: (retries ?? 0) + 1,
+          return finalResponse as T;
+        } catch (e) {
+          logger({
+            category: "groq",
+            message: "failed to parse tool call arguments as JSON, retrying",
+            level: 0,
+            auxiliary: {
+              error: {
+                value: e.message,
+                type: "string",
+              },
+            },
           });
         }
-
-        throw new CreateChatCompletionResponseError("Invalid response schema");
       }
 
-      if (this.enableCaching) {
-        this.cache.set(cacheOptions, response, options.requestId);
+      // If we have content but no tool calls, try to parse the content as JSON
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        try {
+          // Try to extract JSON from the content
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const result = JSON.parse(jsonMatch[0]);
+            const finalResponse = {
+              data: result,
+              usage: response.usage,
+            };
+            if (this.enableCaching) {
+              await this.cache.set(
+                cacheOptions,
+                finalResponse,
+                options.requestId,
+              );
+            }
+            return finalResponse as T;
+          }
+        } catch (e) {
+          logger({
+            category: "groq",
+            message: "failed to parse content as JSON",
+            level: 0,
+            auxiliary: {
+              error: {
+                value: e.message,
+                type: "string",
+              },
+            },
+          });
+        }
       }
 
-      return response as T;
+      // If we still haven't found valid JSON and have retries left, try again
+      if (!retries || retries < 5) {
+        return this.createChatCompletion({
+          options,
+          logger,
+          retries: (retries ?? 0) + 1,
+        });
+      }
+
+      throw new CreateChatCompletionResponseError("Invalid response schema");
     } catch (error) {
       logger({
         category: "groq",
