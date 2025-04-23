@@ -9,7 +9,7 @@ on:
       - unlabeled
 
 env:
-  EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
+  EVAL_MODELS: "gpt-4.1,gemini-2.0-flash,claude-3-5-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,text_extract,targeted_extract"
 
 concurrency:
@@ -159,6 +159,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
@@ -196,6 +197,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -248,6 +250,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -313,6 +316,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -381,6 +385,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -466,6 +471,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -535,6 +541,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -603,6 +610,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
