@@ -202,6 +202,9 @@ export interface StagehandMetrics {
   observePromptTokens: number;
   observeCompletionTokens: number;
   observeInferenceTimeMs: number;
+  agentPromptTokens: number;
+  agentCompletionTokens: number;
+  agentInferenceTimeMs: number;
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalInferenceTimeMs: number;
@@ -262,6 +265,7 @@ export enum StagehandFunctionName {
   ACT = "ACT",
   EXTRACT = "EXTRACT",
   OBSERVE = "OBSERVE",
+  AGENT = "AGENT",
 }
 
 export interface HistoryEntry {

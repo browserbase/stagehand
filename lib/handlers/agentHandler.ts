@@ -11,8 +11,10 @@ import {
   AgentHandlerOptions,
   ActionExecutionResult,
 } from "@/types/agent";
+import { Stagehand, StagehandFunctionName } from "@/lib";
 
 export class StagehandAgentHandler {
+  private stagehand: Stagehand;
   private stagehandPage: StagehandPage;
   private agent: StagehandAgent;
   private provider: AgentProvider;
@@ -21,10 +23,12 @@ export class StagehandAgentHandler {
   private options: AgentHandlerOptions;
 
   constructor(
+    stagehand: Stagehand,
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     options: AgentHandlerOptions,
   ) {
+    this.stagehand = stagehand;
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.options = options;
@@ -175,6 +179,14 @@ export class StagehandAgentHandler {
 
     // Execute the task
     const result = await this.agent.execute(optionsOrInstruction);
+    if (result.usage) {
+      this.stagehand.updateMetrics(
+        StagehandFunctionName.AGENT,
+        result.usage.input_tokens,
+        result.usage.output_tokens,
+        result.usage.inference_time_ms,
+      );
+    }
 
     // The actions are now executed during the agent's execution flow
     // We don't need to execute them again here

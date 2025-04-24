@@ -11,6 +11,11 @@ export interface AgentResult {
   actions: AgentAction[];
   completed: boolean;
   metadata?: Record<string, unknown>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    inference_time_ms: number;
+  };
 }
 
 export interface AgentOptions {

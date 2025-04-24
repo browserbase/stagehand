@@ -417,6 +417,9 @@ export class Stagehand {
     observePromptTokens: 0,
     observeCompletionTokens: 0,
     observeInferenceTimeMs: 0,
+    agentPromptTokens: 0,
+    agentCompletionTokens: 0,
+    agentInferenceTimeMs: 0,
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
     totalInferenceTimeMs: 0,
@@ -449,6 +452,12 @@ export class Stagehand {
         this.stagehandMetrics.observePromptTokens += promptTokens;
         this.stagehandMetrics.observeCompletionTokens += completionTokens;
         this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.AGENT:
+        this.stagehandMetrics.agentPromptTokens += promptTokens;
+        this.stagehandMetrics.agentCompletionTokens += completionTokens;
+        this.stagehandMetrics.agentInferenceTimeMs += inferenceTimeMs;
         break;
     }
     this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
@@ -807,6 +816,7 @@ export class Stagehand {
     }
 
     const agentHandler = new StagehandAgentHandler(
+      this,
       this.stagehandPage,
       this.logger,
       {
