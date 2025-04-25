@@ -16,21 +16,6 @@ import {
   writeTimestampedTxtFile,
 } from "@/lib/inferenceLogUtils";
 
-/**
- * Replaces <|VARIABLE|> placeholders in a text with user-provided values.
- */
-export function fillInVariables(
-  text: string,
-  variables: Record<string, string>,
-) {
-  let processedText = text;
-  Object.entries(variables).forEach(([key, value]) => {
-    const placeholder = `<|${key.toUpperCase()}|>`;
-    processedText = processedText.replace(placeholder, value);
-  });
-  return processedText;
-}
-
 /** Simple usage shape if your LLM returns usage tokens. */
 interface LLMUsage {
   prompt_tokens: number;
