@@ -42,7 +42,7 @@ export const extract_press_releases: EvalFunction = async ({
     if(!parsed.success){
       throw new Error(parsed.error.format());
     }
-    const { items } = parsed;
+    const { items } = parsed.data;
 
     await stagehand.close();
 
