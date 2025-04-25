@@ -4,22 +4,15 @@ import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
 import { AvailableModel } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
 import {
-  ActOptions,
-  ActResult,
   ConstructorParams,
-  ExtractOptions,
-  ExtractResult,
   InitResult,
   LocalBrowserLaunchOptions,
-  ObserveOptions,
-  ObserveResult,
   AgentConfig,
   StagehandMetrics,
   StagehandFunctionName,
@@ -744,23 +737,6 @@ export class Stagehand {
 
     // Use our Pino-based logger
     this.stagehandLogger.log(logObj);
-  }
-
-  /** @deprecated Use stagehand.page.act() instead. This will be removed in the next major release. */
-  async act(options: ActOptions): Promise<ActResult> {
-    return await this.stagehandPage.act(options);
-  }
-
-  /** @deprecated Use stagehand.page.extract() instead. This will be removed in the next major release. */
-  async extract<T extends z.AnyZodObject>(
-    options: ExtractOptions<T>,
-  ): Promise<ExtractResult<T>> {
-    return await this.stagehandPage.extract(options);
-  }
-
-  /** @deprecated Use stagehand.page.observe() instead. This will be removed in the next major release. */
-  async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
-    return await this.stagehandPage.observe(options);
   }
 
   async close(): Promise<void> {
