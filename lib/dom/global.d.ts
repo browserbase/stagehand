@@ -3,6 +3,7 @@ import { StagehandContainer } from "./StagehandContainer";
 export {};
 declare global {
   interface Window {
+    __stagehandInjected?: boolean;
     chunkNumber: number;
     showChunks?: boolean;
     processDom: (chunksSeen: Array<number>) => Promise<{

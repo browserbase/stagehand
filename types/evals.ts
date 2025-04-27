@@ -13,6 +13,7 @@ export type StagehandInitResult = {
   sessionUrl: string;
   useTextExtract: boolean;
   stagehandConfig: ConstructorParams;
+  modelName: AvailableModel;
 };
 
 export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
@@ -34,6 +35,7 @@ export const EvalCategorySchema = z.enum([
   "regression",
   "regression_llm_providers",
   "llm_clients",
+  "agent",
 ]);
 
 export type EvalCategory = z.infer<typeof EvalCategorySchema>;

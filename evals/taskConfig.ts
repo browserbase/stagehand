@@ -23,6 +23,8 @@ const ALL_EVAL_MODELS = [
   "gemini-2.5-pro-exp-03-25",
   "gemini-1.5-pro",
   "gemini-1.5-flash-8b",
+  "gemini-2.5-flash-preview-04-17",
+  "gemini-2.5-pro-preview-03-25",
   // ANTHROPIC
   "claude-3-5-sonnet-latest",
   "claude-3-7-sonnet-latest",
@@ -30,6 +32,9 @@ const ALL_EVAL_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
   "gpt-4.5-preview",
+  "o3",
+  "o3-mini",
+  "o4-mini",
   // TOGETHER - META
   "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
   "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -95,7 +100,11 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : ["claude-3-5-sonnet-latest", "gpt-4o-mini", "gpt-4o"];
+  : ["gemini-2.0-flash", "gpt-4.1-mini", "claude-3-5-sonnet-latest"];
+
+const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
+  ? process.env.EVAL_AGENT_MODELS.split(",")
+  : ["computer-use-preview", "claude-3-7-sonnet-20250219"];
 
 /**
  * getModelList:
@@ -103,38 +112,52 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
  * If category is "experimental", it merges DEFAULT_EVAL_MODELS and EXPERIMENTAL_EVAL_MODELS.
  * Otherwise, returns DEFAULT_EVAL_MODELS filtered by provider if specified.
  */
-const getModelList = (): string[] => {
+const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
-  if (!provider) {
-    return DEFAULT_EVAL_MODELS;
+  if (category === "agent") {
+    return DEFAULT_AGENT_MODELS;
   }
 
-  return ALL_EVAL_MODELS.filter((model) => {
-    const modelLower = model.toLowerCase();
-    if (provider === "openai") {
-      return modelLower.startsWith("gpt");
-    } else if (provider === "anthropic") {
-      return modelLower.startsWith("claude");
-    } else if (provider === "google") {
-      return modelLower.startsWith("gemini");
-    } else if (provider === "together") {
-      return (
-        modelLower.startsWith("meta-llama") ||
-        modelLower.startsWith("llama") ||
-        modelLower.startsWith("deepseek") ||
-        modelLower.startsWith("qwen")
-      );
-    } else if (provider === "groq") {
-      return modelLower.startsWith("groq");
-    } else if (provider === "cerebras") {
-      return modelLower.startsWith("cerebras");
-    }
-    return true;
-  });
+  if (provider) {
+    return ALL_EVAL_MODELS.filter((model) =>
+      filterModelByProvider(model, provider),
+    );
+  }
+
+  // If no agent category and no provider, return default eval models
+  return DEFAULT_EVAL_MODELS;
 };
+
+// Helper function to contain the provider filtering logic
+const filterModelByProvider = (model: string, provider: string): boolean => {
+  const modelLower = model.toLowerCase();
+  if (provider === "openai") {
+    return modelLower.startsWith("gpt");
+  } else if (provider === "anthropic") {
+    return modelLower.startsWith("claude");
+  } else if (provider === "google") {
+    return modelLower.startsWith("gemini");
+  } else if (provider === "together") {
+    return (
+      modelLower.startsWith("meta-llama") ||
+      modelLower.startsWith("llama") ||
+      modelLower.startsWith("deepseek") ||
+      modelLower.startsWith("qwen")
+    );
+  } else if (provider === "groq") {
+    return modelLower.startsWith("groq");
+  } else if (provider === "cerebras") {
+    return modelLower.startsWith("cerebras");
+  }
+  console.warn(
+    `Unknown provider specified or model doesn't match: ${provider}`,
+  );
+  return false;
+};
+
 const MODELS: AvailableModel[] = getModelList().map((model) => {
   return model as AvailableModel;
 });
 
-export { tasksByName, MODELS, tasksConfig };
+export { tasksByName, MODELS, tasksConfig, getModelList };

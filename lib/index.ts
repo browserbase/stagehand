@@ -4,22 +4,15 @@ import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { z } from "zod";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
 import { AvailableModel } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
 import {
-  ActOptions,
-  ActResult,
   ConstructorParams,
-  ExtractOptions,
-  ExtractResult,
   InitResult,
   LocalBrowserLaunchOptions,
-  ObserveOptions,
-  ObserveResult,
   AgentConfig,
   StagehandMetrics,
   StagehandFunctionName,
@@ -417,6 +410,9 @@ export class Stagehand {
     observePromptTokens: 0,
     observeCompletionTokens: 0,
     observeInferenceTimeMs: 0,
+    agentPromptTokens: 0,
+    agentCompletionTokens: 0,
+    agentInferenceTimeMs: 0,
     totalPromptTokens: 0,
     totalCompletionTokens: 0,
     totalInferenceTimeMs: 0,
@@ -449,6 +445,12 @@ export class Stagehand {
         this.stagehandMetrics.observePromptTokens += promptTokens;
         this.stagehandMetrics.observeCompletionTokens += completionTokens;
         this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case StagehandFunctionName.AGENT:
+        this.stagehandMetrics.agentPromptTokens += promptTokens;
+        this.stagehandMetrics.agentCompletionTokens += completionTokens;
+        this.stagehandMetrics.agentInferenceTimeMs += inferenceTimeMs;
         break;
     }
     this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
@@ -715,8 +717,14 @@ export class Stagehand {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
 
+    const guardedScript = `
+  if (!window.__stagehandInjected) {
+    window.__stagehandInjected = true;
+    ${scriptContent}
+  }
+`;
     await this.context.addInitScript({
-      content: scriptContent,
+      content: guardedScript,
     });
 
     this.browserbaseSessionID = sessionId;
@@ -729,23 +737,6 @@ export class Stagehand {
 
     // Use our Pino-based logger
     this.stagehandLogger.log(logObj);
-  }
-
-  /** @deprecated Use stagehand.page.act() instead. This will be removed in the next major release. */
-  async act(options: ActOptions): Promise<ActResult> {
-    return await this.stagehandPage.act(options);
-  }
-
-  /** @deprecated Use stagehand.page.extract() instead. This will be removed in the next major release. */
-  async extract<T extends z.AnyZodObject>(
-    options: ExtractOptions<T>,
-  ): Promise<ExtractResult<T>> {
-    return await this.stagehandPage.extract(options);
-  }
-
-  /** @deprecated Use stagehand.page.observe() instead. This will be removed in the next major release. */
-  async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
-    return await this.stagehandPage.observe(options);
   }
 
   async close(): Promise<void> {
@@ -801,6 +792,7 @@ export class Stagehand {
     }
 
     const agentHandler = new StagehandAgentHandler(
+      this,
       this.stagehandPage,
       this.logger,
       {

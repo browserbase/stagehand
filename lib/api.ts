@@ -228,6 +228,7 @@ export class StagehandAPI {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
+      "x-sent-at": new Date().toISOString(),
     };
 
     if (options.method === "POST" && options.body) {

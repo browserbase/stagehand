@@ -3,7 +3,7 @@ import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { generateId, drawObserveOverlay } from "../utils";
+import { drawObserveOverlay } from "../utils";
 import {
   getAccessibilityTree,
   getXPathByResolvedObjectId,
@@ -14,12 +14,7 @@ export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
   private readonly stagehandPage: StagehandPage;
-  private observations: {
-    [key: string]: {
-      result: { selector: string; description: string }[];
-      instruction: string;
-    };
-  };
+
   private readonly userProvidedInstructions?: string;
   constructor({
     stagehand,
@@ -36,18 +31,6 @@ export class StagehandObserveHandler {
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
-    this.observations = {};
-  }
-
-  private async _recordObservation(
-    instruction: string,
-    result: { selector: string; description: string }[],
-  ): Promise<string> {
-    const id = generateId(instruction);
-
-    this.observations[id] = { result, instruction };
-
-    return id;
   }
 
   public async observe({
@@ -219,7 +202,6 @@ export class StagehandObserveHandler {
       await drawObserveOverlay(this.stagehandPage.page, elementsWithSelectors);
     }
 
-    await this._recordObservation(instruction, elementsWithSelectors);
     return elementsWithSelectors;
   }
 }
