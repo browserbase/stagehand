@@ -44,7 +44,6 @@ export const extract_press_releases: EvalFunction = async ({
     }
     const { items } = parsed.data;
 
-    await stagehand.close();
 
     const expectedLength = 28;
     const expectedFirstItem: PressRelease = {
