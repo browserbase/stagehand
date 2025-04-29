@@ -1,3 +1,8 @@
+import {
+  UnsupportedAISDKModelProviderError,
+  UnsupportedModelError,
+  UnsupportedModelProviderError,
+} from "@/types/stagehandErrors";
 import { LogLine } from "../../types/log";
 import {
   AvailableModel,
@@ -5,16 +10,41 @@ import {
   ModelProvider,
 } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
+import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
 import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
-import {
-  UnsupportedModelError,
-  UnsupportedModelProviderError,
-} from "@/types/stagehandErrors";
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { xai } from "@ai-sdk/xai";
+import { azure } from "@ai-sdk/azure";
+import { groq } from "@ai-sdk/groq";
+import { cerebras } from "@ai-sdk/cerebras";
+import { togetherai } from "@ai-sdk/togetherai";
+import { mistral } from "@ai-sdk/mistral";
+import { deepseek } from "@ai-sdk/deepseek";
+import { perplexity } from "@ai-sdk/perplexity";
+import { ollama } from "ollama-ai-provider";
+import { AISDKProvider } from "@/types/llm";
+
+const AISDKProviders: Record<string, AISDKProvider> = {
+  openai,
+  anthropic,
+  google,
+  xai,
+  azure,
+  groq,
+  cerebras,
+  togetherai,
+  mistral,
+  deepseek,
+  perplexity,
+  ollama,
+};
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4.1": "openai",
@@ -84,18 +114,44 @@ export class LLMProvider {
     modelName: AvailableModel,
     clientOptions?: ClientOptions,
   ): LLMClient {
+    if (modelName.includes("/")) {
+      const firstSlashIndex = modelName.indexOf("/");
+      const subProvider = modelName.substring(0, firstSlashIndex);
+      const subModelName = modelName.substring(firstSlashIndex + 1);
+
+      const languageModel = getAISDKLanguageModel(subProvider, subModelName);
+
+      return new AISdkClient({
+        model: languageModel,
+        logger: this.logger,
+        enableCaching: this.enableCaching,
+        cache: this.cache,
+      });
+    }
+
+    function getAISDKLanguageModel(subProvider: string, subModelName: string) {
+      const aiSDKLanguageModel = AISDKProviders[subProvider];
+      if (!aiSDKLanguageModel) {
+        throw new UnsupportedAISDKModelProviderError(
+          subProvider,
+          Object.keys(AISDKProviders),
+        );
+      }
+      return aiSDKLanguageModel(subModelName);
+    }
+
     const provider = modelToProviderMap[modelName];
     if (!provider) {
       throw new UnsupportedModelError(Object.keys(modelToProviderMap));
     }
-
+    const availableModel = modelName as AvailableModel;
     switch (provider) {
       case "openai":
         return new OpenAIClient({
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
-          modelName,
+          modelName: availableModel,
           clientOptions,
         });
       case "anthropic":
@@ -103,7 +159,7 @@ export class LLMProvider {
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
-          modelName,
+          modelName: availableModel,
           clientOptions,
         });
       case "cerebras":
@@ -111,7 +167,7 @@ export class LLMProvider {
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
-          modelName,
+          modelName: availableModel,
           clientOptions,
         });
       case "groq":
@@ -119,7 +175,7 @@ export class LLMProvider {
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
-          modelName,
+          modelName: availableModel,
           clientOptions,
         });
       case "google":
@@ -127,7 +183,7 @@ export class LLMProvider {
           logger: this.logger,
           enableCaching: this.enableCaching,
           cache: this.cache,
-          modelName,
+          modelName: availableModel,
           clientOptions,
         });
       default:

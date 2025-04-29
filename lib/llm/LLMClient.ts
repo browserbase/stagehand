@@ -2,6 +2,17 @@ import { ZodType } from "zod";
 import { LLMTool } from "../../types/llm";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
+import {
+  generateObject,
+  generateText,
+  streamText,
+  streamObject,
+  experimental_generateImage,
+  embed,
+  embedMany,
+  experimental_transcribe,
+  experimental_generateSpeech,
+} from "ai";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -102,4 +113,14 @@ export abstract class LLMClient {
       usage?: LLMResponse["usage"];
     },
   >(options: CreateChatCompletionOptions): Promise<T>;
+
+  public generateObject = generateObject;
+  public generateText = generateText;
+  public streamText = streamText;
+  public streamObject = streamObject;
+  public generateImage = experimental_generateImage;
+  public embed = embed;
+  public embedMany = embedMany;
+  public transcribe = experimental_transcribe;
+  public generateSpeech = experimental_generateSpeech;
 }

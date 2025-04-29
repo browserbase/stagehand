@@ -1,7 +1,5 @@
 import { Stagehand } from "@/dist";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
 import { EvalFunction } from "@/types/evals";
-import { openai } from "@ai-sdk/openai/dist";
 import { z } from "zod";
 
 export const hn_aisdk: EvalFunction = async ({
@@ -12,9 +10,7 @@ export const hn_aisdk: EvalFunction = async ({
 }) => {
   const stagehand = new Stagehand({
     ...stagehandConfig,
-    llmClient: new AISdkClient({
-      model: openai("gpt-4o-mini"),
-    }),
+    modelName: "openai/gpt-4o-mini",
   });
   await stagehand.init();
   await stagehand.page.goto(

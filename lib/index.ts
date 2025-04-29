@@ -37,6 +37,8 @@ import {
   StagehandEnvironmentError,
   MissingEnvironmentVariableError,
   UnsupportedModelError,
+  UnsupportedAISDKModelProviderError,
+  InvalidAISDKModelFormatError,
 } from "../types/stagehandErrors";
 
 dotenv.config({ path: ".env" });
@@ -545,7 +547,13 @@ export class Stagehand {
           modelName ?? DEFAULT_MODEL_NAME,
           modelClientOptions,
         );
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof UnsupportedAISDKModelProviderError ||
+          error instanceof InvalidAISDKModelFormatError
+        ) {
+          throw error;
+        }
         this.llmClient = undefined;
       }
     }
@@ -658,6 +666,7 @@ export class Stagehand {
         projectId: this.projectId,
         logger: this.logger,
       });
+
       const modelApiKey =
         LLMProvider.getModelProvider(this.modelName) === "openai"
           ? process.env.OPENAI_API_KEY || this.llmClient.clientOptions.apiKey

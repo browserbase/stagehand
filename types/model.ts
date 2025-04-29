@@ -34,14 +34,15 @@ export const AvailableModelSchema = z.enum([
   "gemini-2.5-pro-preview-03-25",
 ]);
 
-export type AvailableModel = z.infer<typeof AvailableModelSchema>;
+export type AvailableModel = z.infer<typeof AvailableModelSchema> | string;
 
 export type ModelProvider =
   | "openai"
   | "anthropic"
   | "cerebras"
   | "groq"
-  | "google";
+  | "google"
+  | "aisdk";
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
