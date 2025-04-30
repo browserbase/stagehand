@@ -1,5 +1,43 @@
 # @browserbasehq/stagehand
 
+## 2.2.0
+
+### Minor Changes
+
+- [#655](https://github.com/browserbase/stagehand/pull/655) [`8814af9`](https://github.com/browserbase/stagehand/commit/8814af9ece99fddc3dd9fb32671d0513a3a00c67) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - extract links
+
+- [#675](https://github.com/browserbase/stagehand/pull/675) [`35c55eb`](https://github.com/browserbase/stagehand/commit/35c55ebf6c2867801a0a6f6988a883c8cb90cf9a) Thanks [@tkattkat](https://github.com/tkattkat)! - Added Gemini 2.5 Flash to Google supported models
+
+- [#668](https://github.com/browserbase/stagehand/pull/668) [`5c6d2cf`](https://github.com/browserbase/stagehand/commit/5c6d2cf89c9fbf198485506ed9ed75e07aec5cd4) Thanks [@miguelg719](https://github.com/miguelg719)! - Added a new class - Stagehand Evaluator - that wraps around a Stagehand object to determine whether a task is successful or not. Currently used for agent evals
+
+### Patch Changes
+
+- [#706](https://github.com/browserbase/stagehand/pull/706) [`18ac6fb`](https://github.com/browserbase/stagehand/commit/18ac6fba30f45b7557cecb890f4e84c75de8383c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove unused fillInVariables fn
+
+- [#692](https://github.com/browserbase/stagehand/pull/692) [`6b95248`](https://github.com/browserbase/stagehand/commit/6b95248d6e02e5304ce4dd60499e31fc42af57eb) Thanks [@miguelg719](https://github.com/miguelg719)! - Updated the list of OpenAI models (4.1, o3...)
+
+- [#688](https://github.com/browserbase/stagehand/pull/688) [`7d81b3c`](https://github.com/browserbase/stagehand/commit/7d81b3c951c1f3dfc46845aefcc26ff175299bca) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - wrap page.evaluate to make sure we have injected browser side scripts before calling them
+
+- [#664](https://github.com/browserbase/stagehand/pull/664) [`b5ca00a`](https://github.com/browserbase/stagehand/commit/b5ca00a25ad0c33a5f4d3198e1bc59edb9956e7c) Thanks [@miguelg719](https://github.com/miguelg719)! - remove unnecessary log
+
+- [#683](https://github.com/browserbase/stagehand/pull/683) [`8f0f97b`](https://github.com/browserbase/stagehand/commit/8f0f97bc491e23ff0078c802aaf509fd04173c37) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use javsacript click instead of playwright
+
+- [#705](https://github.com/browserbase/stagehand/pull/705) [`346ef5d`](https://github.com/browserbase/stagehand/commit/346ef5d0132dc1418dac18d26640a8df0435af57) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed removing a hanging observation map that is no longer used
+
+- [#698](https://github.com/browserbase/stagehand/pull/698) [`c145bc1`](https://github.com/browserbase/stagehand/commit/c145bc1d90ffd0d71c412de3af1c26c121e0b101) Thanks [@sameelarif](https://github.com/sameelarif)! - Fixing LLM client support to natively integrate with AI SDK
+
+- [#687](https://github.com/browserbase/stagehand/pull/687) [`edd6d3f`](https://github.com/browserbase/stagehand/commit/edd6d3feb47aac9f312a5edad78bf850ae1541db) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed the schema input for Gemini's response model
+
+- [#678](https://github.com/browserbase/stagehand/pull/678) [`5ec43d8`](https://github.com/browserbase/stagehand/commit/5ec43d8b9568c0f86b3e24bd83d1826c837656ed) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - allow form filling when form is not top-most element
+
+- [#694](https://github.com/browserbase/stagehand/pull/694) [`b8cc164`](https://github.com/browserbase/stagehand/commit/b8cc16405b712064a54c8cd591750368a47f35ea) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add telemetry for cua agents to stagehand.metrics
+
+- [#699](https://github.com/browserbase/stagehand/pull/699) [`d9f4243`](https://github.com/browserbase/stagehand/commit/d9f4243f6a8c8d4f3003ad6589f7eb4da6d23d0f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm deprecated primitives from stagehand object
+
+- [#710](https://github.com/browserbase/stagehand/pull/710) [`9f4ab76`](https://github.com/browserbase/stagehand/commit/9f4ab76a0c1f0c2171290765c48c3bcea5b50e0f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support targeted extract for domExtract
+
+- [#677](https://github.com/browserbase/stagehand/pull/677) [`bc5a731`](https://github.com/browserbase/stagehand/commit/bc5a731241f7f4c5040dd672d8e3787555766421) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixes a redundant unnecessary log
+
 ## 2.1.0
 
 ### Minor Changes
