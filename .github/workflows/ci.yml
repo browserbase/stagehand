@@ -11,6 +11,8 @@ on:
 env:
   EVAL_MODELS: "gpt-4.1,gemini-2.0-flash,claude-3-5-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,text_extract,targeted_extract"
+  EVAL_MAX_CONCURRENCY: 25
+  EVAL_TRIAL_COUNT: 5
 
 concurrency:
   group: ${{ github.ref }}
@@ -653,7 +655,7 @@ jobs:
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm run evals category targeted_extract -- --extract-method=textExtract
+        run: npm run evals category targeted_extract
 
       - name: Log targeted extract Evals Performance
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'

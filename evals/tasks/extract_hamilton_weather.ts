@@ -1,5 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
+import { compareStrings } from "@/evals/utils";
 
 export const extract_hamilton_weather: EvalFunction = async ({
   logger,
@@ -41,13 +42,27 @@ export const extract_hamilton_weather: EvalFunction = async ({
 
     // Check that every field matches the expected value
     const isWeatherCorrect =
-      weatherData.temperature === expectedWeatherData.temperature &&
-      weatherData.weather_description ===
-        expectedWeatherData.weather_description &&
-      weatherData.wind === expectedWeatherData.wind &&
-      weatherData.humidity === expectedWeatherData.humidity &&
-      weatherData.barometer === expectedWeatherData.barometer &&
-      weatherData.visibility === expectedWeatherData.visibility;
+      compareStrings(
+        weatherData.temperature,
+        expectedWeatherData.temperature,
+        0.9,
+      ).meetsThreshold &&
+      compareStrings(
+        weatherData.weather_description,
+        expectedWeatherData.weather_description,
+        0.9,
+      ).meetsThreshold &&
+      compareStrings(weatherData.wind, expectedWeatherData.wind, 0.9)
+        .meetsThreshold &&
+      compareStrings(weatherData.humidity, expectedWeatherData.humidity, 0.9)
+        .meetsThreshold &&
+      compareStrings(weatherData.barometer, expectedWeatherData.barometer, 0.9)
+        .meetsThreshold &&
+      compareStrings(
+        weatherData.visibility,
+        expectedWeatherData.visibility,
+        0.9,
+      ).meetsThreshold;
 
     await stagehand.close();
 

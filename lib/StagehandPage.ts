@@ -24,7 +24,6 @@ import {
   StagehandNotInitializedError,
   StagehandEnvironmentError,
   CaptchaTimeoutError,
-  StagehandNotImplementedError,
   BrowserbaseSessionNotFoundError,
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
@@ -652,14 +651,6 @@ ${scriptContent} \
         useTextExtract,
         selector,
       } = options;
-
-      // Throw a NotImplementedError if the user passed in an `xpath`
-      // and `useTextExtract` is false
-      if (selector && useTextExtract !== true) {
-        throw new StagehandNotImplementedError(
-          "Passing an xpath into extract is only supported when `useTextExtract: true`.",
-        );
-      }
 
       if (this.api) {
         const result = await this.api.extract<T>(options);

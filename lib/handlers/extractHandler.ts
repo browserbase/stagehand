@@ -133,6 +133,7 @@ export class StagehandExtractHandler {
         llmClient,
         requestId,
         domSettleTimeoutMs,
+        selector,
       });
     }
   }
@@ -393,6 +394,7 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
+    selector,
   }: {
     instruction: string;
     schema: T;
@@ -400,6 +402,7 @@ export class StagehandExtractHandler {
     llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
+    selector?: string;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -414,7 +417,12 @@ export class StagehandExtractHandler {
     });
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+    const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
+    const tree = await getAccessibilityTree(
+      this.stagehandPage,
+      this.logger,
+      targetXpath,
+    );
     this.logger({
       category: "extraction",
       message: "Getting accessibility tree data",

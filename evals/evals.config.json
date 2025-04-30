@@ -263,8 +263,7 @@
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": ["targeted_extract", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["targeted_extract", "regression"]
     },
     {
       "name": "extract_regulations_table",

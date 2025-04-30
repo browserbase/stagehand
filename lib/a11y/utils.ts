@@ -6,6 +6,10 @@ import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,
 } from "@/types/playwright";
+import {
+  StagehandDomProcessError,
+  StagehandElementNotFoundError,
+} from "@/types/stagehandErrors";
 
 // Parser function for str output
 export function formatSimplifiedTree(
@@ -268,17 +272,61 @@ export async function buildHierarchicalTree(
 export async function getAccessibilityTree(
   page: StagehandPage,
   logger: (logLine: LogLine) => void,
+  selector?: string,
 ): Promise<TreeResult> {
   await page.enableCDP("Accessibility");
 
   try {
-    // Identify which elements are scrollable and get their backendNodeIds
-    const scrollableBackendIds = await findScrollableElementIds(page);
-
-    // Fetch the full accessibility tree from Chrome DevTools Protocol
-    const { nodes } = await page.sendCDP<{ nodes: AXNode[] }>(
+    const { nodes: fullNodes } = await page.sendCDP<{ nodes: AXNode[] }>(
       "Accessibility.getFullAXTree",
     );
+    const scrollableBackendIds = await findScrollableElementIds(page);
+
+    let nodes = fullNodes;
+
+    if (selector) {
+      const objectId = await resolveObjectIdForXPath(page, selector);
+
+      const { node } = await page.sendCDP<{
+        node: { backendNodeId: number };
+      }>("DOM.describeNode", { objectId: objectId });
+
+      if (!node?.backendNodeId) {
+        throw new StagehandDomProcessError(
+          `Unable to resolve backendNodeId for XPath "${selector}"`,
+        );
+      }
+
+      const target = fullNodes.find(
+        (n) => n.backendDOMNodeId === node.backendNodeId,
+      );
+      if (!target) {
+        throw new StagehandDomProcessError(
+          `No AX node found for backendNodeId ${node.backendNodeId} (XPath "${selector}")`,
+        );
+      }
+
+      const keep = new Set<string>([target.nodeId]);
+      const queue = [target];
+
+      while (queue.length) {
+        const current = queue.shift()!;
+        for (const childId of current.childIds ?? []) {
+          if (!keep.has(childId)) {
+            keep.add(childId);
+            const child = fullNodes.find((n) => n.nodeId === childId);
+            if (child) queue.push(child);
+          }
+        }
+      }
+
+      nodes = fullNodes
+        .filter((n) => keep.has(n.nodeId))
+        .map((n) =>
+          n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
+        );
+    }
+
     const startTime = Date.now();
 
     // Transform into hierarchical structure
@@ -438,26 +486,14 @@ export async function findScrollableElementIds(
     if (!xpath) continue;
 
     // evaluate the XPath in the stagehandPage
-    const { result } = await stagehandPage.sendCDP<{
-      result?: { objectId?: string };
-    }>("Runtime.evaluate", {
-      expression: `
-        (function() {
-          const res = document.evaluate(${JSON.stringify(
-            xpath,
-          )}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-          return res.singleNodeValue;
-        })();
-      `,
-      returnByValue: false,
-    });
+    const objectId = await resolveObjectIdForXPath(stagehandPage, xpath);
 
     // if we have an objectId, call DOM.describeNode to get backendNodeId
-    if (result?.objectId) {
+    if (objectId) {
       const { node } = await stagehandPage.sendCDP<{
         node?: { backendNodeId?: number };
       }>("DOM.describeNode", {
-        objectId: result.objectId,
+        objectId: objectId,
       });
 
       if (node?.backendNodeId) {
@@ -467,6 +503,40 @@ export async function findScrollableElementIds(
   }
 
   return scrollableBackendIds;
+}
+
+/**
+ * Resolve an XPath to a Chrome-DevTools-Protocol (CDP) remote-object ID.
+ *
+ * @param page     A StagehandPage (or Playwright.Page with .sendCDP)
+ * @param xpath    An absolute or relative XPath
+ * @returns        The remote objectId for the matched node, or null
+ */
+export async function resolveObjectIdForXPath(
+  page: StagehandPage,
+  xpath: string,
+): Promise<string | null> {
+  const { result } = await page.sendCDP<{
+    result?: { objectId?: string };
+  }>("Runtime.evaluate", {
+    expression: `
+      (function () {
+        const res = document.evaluate(
+          ${JSON.stringify(xpath)},
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
+        return res.singleNodeValue;
+      })();
+    `,
+    returnByValue: false,
+  });
+  if (!result?.objectId) {
+    throw new StagehandElementNotFoundError([xpath]);
+  }
+  return result.objectId;
 }
 
 /**
