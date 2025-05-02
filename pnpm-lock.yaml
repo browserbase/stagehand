@@ -170,6 +170,14 @@ importers:
         specifier: ^8.17.0
         version: 8.31.1(eslint@9.25.1)(typescript@5.8.3)
 
+  evals: {}
+
+  examples:
+    dependencies:
+      tsx:
+        specifier: ^4.10.5
+        version: 4.19.4
+
 packages:
 
   '@ai-sdk/anthropic@1.2.10':

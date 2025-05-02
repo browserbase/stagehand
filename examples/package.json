@@ -1,0 +1,11 @@
+{
+  "name": "examples",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx example.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5"
+  }
+}

@@ -17,6 +17,8 @@ async function example() {
   /**
    * Add your code here!
    */
+  await stagehand.page.act("click the quickstart button");
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await stagehand.close();
 }
 
