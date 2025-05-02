@@ -92,13 +92,13 @@ Removing node_modules/
 Let's reinstall dependencies and build the artifacts:
 
 ```
-npm install && npm run build
+pnpm install && pnpm run build
 ```
 
 Now we're ready to publish to NPM. You have to be logged in via the `npm` CLI and have to be part of the `@browserbasehq` org:
 
 ```
-npx changeset publish
+pnpm changeset publish
 ```
 
 Congratulations! You just published a new version of `@browserbasehq/stagehand`. 🤘

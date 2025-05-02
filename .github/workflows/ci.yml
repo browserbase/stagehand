@@ -65,11 +65,11 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Run Lint
-        run: npm run lint
+        run: pnpm run lint
 
   run-build:
     runs-on: ubuntu-latest
@@ -85,11 +85,11 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Run Build
-        run: npm run build
+        run: pnpm run build
 
   run-e2e-tests:
     needs: [run-lint, run-build]
@@ -109,17 +109,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run E2E Tests (Deterministic Playwright)
-        run: npm run e2e
+        run: pnpm run e2e
 
   run-e2e-local-tests:
     needs: [run-lint, run-build]
@@ -139,17 +139,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run local E2E Tests (Deterministic Playwright)
-        run: npm run e2e:local
+        run: pnpm run e2e:local
 
   run-e2e-bb-tests:
     needs: [run-lint, run-build]
@@ -177,17 +177,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run E2E Tests (browserbase)
-        run: npm run e2e:bb
+        run: pnpm run e2e:bb
 
   run-regression-evals:
     needs:
@@ -217,17 +217,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run Regression Evals
-        run: npm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
+        run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
 
       - name: Log Regression Evals Performance
         run: |
@@ -282,20 +282,20 @@ jobs:
         if: needs.determine-evals.outputs.run-combination == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm run evals category combination
+        run: pnpm run evals category combination
 
       - name: Log Combination Evals Performance
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -348,20 +348,20 @@ jobs:
         if: needs.determine-evals.outputs.run-act == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm run evals category act
+        run: pnpm run evals category act
 
       - name: Log Act Evals Performance
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -417,21 +417,21 @@ jobs:
         if: needs.determine-evals.outputs.run-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run evals category extract -- --extract-method=domExtract
+        run: pnpm run evals category extract -- --extract-method=domExtract
 
       - name: Save Extract Dom Results
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -440,7 +440,7 @@ jobs:
       # 2. Then run extract category with textExtract
       - name: Run Extract Evals (textExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run evals category extract -- --extract-method=textExtract
+        run: pnpm run evals category extract -- --extract-method=textExtract
 
       - name: Save Extract Text Results
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -503,20 +503,20 @@ jobs:
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run text_extract Evals (textExtract)
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm run evals category text_extract -- --extract-method=textExtract
+        run: pnpm run evals category text_extract -- --extract-method=textExtract
 
       - name: Save text_extract Results
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -573,20 +573,20 @@ jobs:
         if: needs.determine-evals.outputs.run-observe == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm run evals category observe
+        run: pnpm run evals category observe
 
       - name: Log Observe Evals Performance
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -642,20 +642,20 @@ jobs:
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm run evals category targeted_extract
+        run: pnpm run evals category targeted_extract
 
       - name: Log targeted extract Evals Performance
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'

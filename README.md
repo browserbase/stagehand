@@ -104,10 +104,10 @@ npx create-browser-app
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-npm install
-npx playwright install
-npm run build
-npm run example # run the blank script at ./examples/example.ts
+pnpm install
+pnpm playwright install
+pnpm run build
+pnpm run example # run the blank script at ./examples/example.ts
 ```
 
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
