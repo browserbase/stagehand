@@ -1,9 +1,29 @@
 {
-  "name": "examples",
-  "version": "1.0.0",
+  "name": "stagehand-examples",
+  "version": "0.1.0",
   "private": true,
+  "description": "Example scripts for Stagehand",
   "scripts": {
-    "start": "tsx example.ts"
+    "start": "tsx example.ts",
+    "2048": "tsx 2048.ts",
+    "popup": "tsx popup.ts",
+    "cua": "tsx cua-example.ts",
+    "operator": "tsx operator-example.ts",
+    "example": "tsx example.ts",
+    "langchain": "tsx langchain.ts",
+    "debug-url": "tsx debugUrl.ts",
+    "external-client": "tsx external_client.ts",
+    "instructions": "tsx instructions.ts",
+    "ai-sdk-client": "tsx ai_sdk_example.ts",
+    "actionable_observe_example": "tsx actionable_observe_example.ts",
+    "form-filling-sensible-cerebras": "tsx form_filling_sensible_cerebras.ts",
+    "form-filling-sensible": "tsx form_filling_sensible.ts",
+    "google-enter": "tsx google_enter.ts",
+    "try-wordle": "tsx try_wordle.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "@browserbasehq/stagehand": "workspace:^"
   },
   "devDependencies": {
     "tsx": "^4.10.5"

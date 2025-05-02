@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { AvailableModel } from "../types/model";
-import type { LogLine } from "../types/log";
+import type { AvailableModel } from "./model";
+import type { LogLine } from "./log";
 import type { EvalCase } from "braintrust";
 import { Stagehand } from "@/dist";
 import { ConstructorParams } from "@/dist";

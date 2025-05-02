@@ -1,126 +1,20 @@
 {
-  "name": "@browserbasehq/stagehand",
-  "version": "2.2.0",
-  "description": "An AI web browsing framework focused on simplicity and extensibility.",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "2048": "pnpm run build && tsx examples/2048.ts",
-    "popup": "pnpm run build && tsx examples/popup.ts",
-    "cua": "pnpm run build && tsx examples/cua-example.ts",
-    "operator": "pnpm run build && tsx examples/operator-example.ts",
-    "example": "pnpm run build && tsx examples/example.ts",
-    "langchain": "pnpm run build && tsx examples/langchain.ts",
-    "debug-url": "pnpm run build && tsx examples/debugUrl.ts",
-    "external-client": "pnpm run build && tsx examples/external_client.ts",
-    "instructions": "pnpm run build && tsx examples/instructions.ts",
-    "ai-sdk-client": "pnpm run build && tsx examples/ai_sdk_example.ts",
-    "actionable_observe_example": "pnpm run build && tsx examples/actionable_observe_example.ts",
-    "form-filling-sensible-cerebras": "pnpm run build && tsx examples/form_filling_sensible_cerebras.ts",
-    "form-filling-sensible": "pnpm run build && tsx examples/form_filling_sensible.ts",
-    "google-enter": "pnpm run build && tsx examples/google_enter.ts",
-    "try-wordle": "pnpm run build && tsx examples/try_wordle.ts",
-    "format": "prettier --write .",
-    "prettier": "prettier --check .",
-    "prettier:fix": "prettier --write .",
-    "eslint": "eslint .",
-    "cache:clear": "rm -rf .cache",
-    "evals": "pnpm run build && tsx evals/index.eval.ts",
-    "e2e": "pnpm run build && cd evals/deterministic && playwright test --config=e2e.playwright.config.ts",
-    "e2e:bb": "pnpm run build && cd evals/deterministic && playwright test --config=bb.playwright.config.ts",
-    "e2e:local": "pnpm run build && cd evals/deterministic && playwright test --config=local.playwright.config.ts",
-    "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
-    "build-types": "tsc --emitDeclarationOnly --outDir dist",
-    "build-js": "tsup lib/index.ts --dts",
-    "build": "pnpm run lint && pnpm run build-dom-scripts && pnpm run build-js && pnpm run build-types",
-    "prepare": "pnpm run build",
-    "lint": "pnpm run prettier && pnpm run eslint",
-    "release": "pnpm run build && changeset publish",
-    "release-canary": "pnpm run build && changeset version --snapshot && changeset publish --tag alpha"
-  },
-  "files": [
-    "dist/**"
+  "name": "stagehand-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "lib",
+    "evals",
+    "examples"
   ],
-  "keywords": [],
-  "author": "Browserbase",
-  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "lint": "pnpm -r --if-present run lint",
+    "format": "pnpm -r --if-present run format",
+    "test": "pnpm -r --if-present test"
+  },
+  "packageManager": "pnpm@9.15.0",
   "devDependencies": {
-    "@changesets/changelog-github": "^0.5.0",
-    "@changesets/cli": "^2.27.9",
-    "@eslint/js": "^9.16.0",
-    "@langchain/core": "^0.3.40",
-    "@langchain/openai": "^0.4.4",
-    "@types/adm-zip": "^0.5.7",
-    "@types/cheerio": "^0.22.35",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.11.30",
-    "@types/ws": "^8.5.13",
-    "adm-zip": "^0.5.16",
-    "autoevals": "^0.0.64",
-    "braintrust": "^0.0.171",
-    "chalk": "^5.4.1",
-    "cheerio": "^1.0.0",
-    "chromium-bidi": "^0.10.0",
-    "esbuild": "^0.21.4",
-    "eslint": "^9.16.0",
-    "express": "^4.21.0",
-    "globals": "^15.13.0",
-    "multer": "^1.4.5-lts.1",
-    "prettier": "^3.2.5",
-    "string-comparison": "^1.3.0",
-    "tsup": "^8.2.1",
-    "tsx": "^4.10.5",
-    "typescript": "^5.2.2",
-    "typescript-eslint": "^8.17.0"
-  },
-  "peerDependencies": {
-    "@playwright/test": "^1.42.1",
-    "deepmerge": "^4.3.1",
-    "dotenv": "^16.4.5",
-    "zod": "^3.23.8"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "0.39.0",
-    "@browserbasehq/sdk": "^2.4.0",
-    "@google/genai": "^0.8.0",
-    "ai": "^4.3.9",
-    "openai": "^4.87.1",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
-    "playwright": "^1.52.0",
-    "ws": "^8.18.0",
-    "zod-to-json-schema": "^3.23.5"
-  },
-  "optionalDependencies": {
-    "@ai-sdk/anthropic": "^1.2.6",
-    "@ai-sdk/azure": "^1.3.19",
-    "@ai-sdk/cerebras": "^0.2.6",
-    "@ai-sdk/deepseek": "^0.2.13",
-    "@ai-sdk/google": "^1.2.6",
-    "@ai-sdk/groq": "^1.2.4",
-    "@ai-sdk/mistral": "^1.2.7",
-    "@ai-sdk/openai": "^1.0.14",
-    "@ai-sdk/perplexity": "^1.1.7",
-    "@ai-sdk/togetherai": "^0.2.6",
-    "@ai-sdk/xai": "^1.2.15",
-    "ollama-ai-provider": "^1.2.0"
-  },
-  "directories": {
-    "doc": "docs",
-    "example": "examples",
-    "lib": "lib"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git"
-  },
-  "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
-  },
-  "homepage": "https://stagehand.dev",
-  "overrides": {
-    "whatwg-url": "^14.0.0"
-  },
-  "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
+    "globals": "^16.0.0"
+  }
 }
