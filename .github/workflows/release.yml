@@ -28,17 +28,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm install -g pnpm
+          pnpm install
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npm run release
+          publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -46,9 +46,9 @@ jobs:
       - name: Publish Canary
         if: github.ref == 'refs/heads/main'
         run: |
-          npm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+          pnpm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
           git checkout main
-          npm run release-canary
+          pnpm run release-canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
