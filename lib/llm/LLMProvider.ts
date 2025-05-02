@@ -17,19 +17,19 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
-import { openai } from "@ai-sdk/openai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { xai } from "@ai-sdk/xai";
-import { azure } from "@ai-sdk/azure";
-import { groq } from "@ai-sdk/groq";
-import { cerebras } from "@ai-sdk/cerebras";
-import { togetherai } from "@ai-sdk/togetherai";
-import { mistral } from "@ai-sdk/mistral";
-import { deepseek } from "@ai-sdk/deepseek";
-import { perplexity } from "@ai-sdk/perplexity";
+import { openai, createOpenAI } from "@ai-sdk/openai";
+import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
+import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
+import { xai, createXai } from "@ai-sdk/xai";
+import { azure, createAzure } from "@ai-sdk/azure";
+import { groq, createGroq } from "@ai-sdk/groq";
+import { cerebras, createCerebras } from "@ai-sdk/cerebras";
+import { togetherai, createTogetherAI } from "@ai-sdk/togetherai";
+import { mistral, createMistral } from "@ai-sdk/mistral";
+import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
+import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider";
-import { AISDKProvider } from "@/types/llm";
+import { AISDKProvider, AISDKCustomProvider } from "@/types/llm";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -44,6 +44,19 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   deepseek,
   perplexity,
   ollama,
+};
+const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
+  openai: createOpenAI,
+  anthropic: createAnthropic,
+  google: createGoogleGenerativeAI,
+  xai: createXai,
+  azure: createAzure,
+  groq: createGroq,
+  cerebras: createCerebras,
+  togetherai: createTogetherAI,
+  mistral: createMistral,
+  deepseek: createDeepSeek,
+  perplexity: createPerplexity,
 };
 
 const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
@@ -79,6 +92,35 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
 };
+
+function getAISDKLanguageModel(
+  subProvider: string,
+  subModelName: string,
+  apiKey?: string,
+) {
+  if (apiKey) {
+    const creator = AISDKProvidersWithAPIKey[subProvider];
+    if (!creator) {
+      throw new UnsupportedAISDKModelProviderError(
+        subProvider,
+        Object.keys(AISDKProvidersWithAPIKey),
+      );
+    }
+    // Create the provider instance with the API key
+    const provider = creator({ apiKey });
+    // Get the specific model from the provider
+    return provider(subModelName);
+  } else {
+    const provider = AISDKProviders[subProvider];
+    if (!provider) {
+      throw new UnsupportedAISDKModelProviderError(
+        subProvider,
+        Object.keys(AISDKProviders),
+      );
+    }
+    return provider(subModelName);
+  }
+}
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
@@ -119,7 +161,11 @@ export class LLMProvider {
       const subProvider = modelName.substring(0, firstSlashIndex);
       const subModelName = modelName.substring(firstSlashIndex + 1);
 
-      const languageModel = getAISDKLanguageModel(subProvider, subModelName);
+      const languageModel = getAISDKLanguageModel(
+        subProvider,
+        subModelName,
+        clientOptions?.apiKey,
+      );
 
       return new AISdkClient({
         model: languageModel,
@@ -127,17 +173,6 @@ export class LLMProvider {
         enableCaching: this.enableCaching,
         cache: this.cache,
       });
-    }
-
-    function getAISDKLanguageModel(subProvider: string, subModelName: string) {
-      const aiSDKLanguageModel = AISDKProviders[subProvider];
-      if (!aiSDKLanguageModel) {
-        throw new UnsupportedAISDKModelProviderError(
-          subProvider,
-          Object.keys(AISDKProviders),
-        );
-      }
-      return aiSDKLanguageModel(subModelName);
     }
 
     const provider = modelToProviderMap[modelName];
@@ -194,8 +229,14 @@ export class LLMProvider {
   }
 
   static getModelProvider(modelName: AvailableModel): ModelProvider {
+    if (modelName.includes("/")) {
+      const firstSlashIndex = modelName.indexOf("/");
+      const subProvider = modelName.substring(0, firstSlashIndex);
+      if (AISDKProviders[subProvider]) {
+        return "aisdk";
+      }
+    }
     const provider = modelToProviderMap[modelName];
-
     return provider;
   }
 }

@@ -14,7 +14,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
-import { validateZodSchema, toGeminiSchema } from "../utils";
+import { validateZodSchema, toGeminiSchema, loadApiKeyFromEnv } from "../utils";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -79,13 +79,8 @@ export class GoogleClient extends LLMClient {
   }) {
     super(modelName);
     if (!clientOptions?.apiKey) {
-      // Ensure logger is passed if throwing an error
-      logger({
-        category: "google",
-        message: "Google API key is missing in clientOptions",
-        level: 0, // Error level
-      });
-      throw new StagehandError("Google API key is required.");
+      // Try to get the API key from the environment variable GOOGLE_API_KEY
+      clientOptions.apiKey = loadApiKeyFromEnv("google_legacy", logger);
     }
     this.clientOptions = clientOptions;
     this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });

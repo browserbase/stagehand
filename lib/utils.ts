@@ -5,6 +5,7 @@ import { LogLine } from "../types/log";
 import { ZodPathSegments } from "../types/stagehand";
 import { TextAnnotation } from "../types/textannotation";
 import { Schema, Type } from "@google/genai";
+import { ModelProvider } from "../types/model";
 
 // This is a heuristic for the width of a character in pixels. It seems to work
 // better than attempting to calculate character widths dynamically, which sometimes
@@ -142,7 +143,7 @@ export function formatText(
       ensureLineExists(canvas, lineIndex, canvasWidth);
     } else {
       // **18: For subsequent lines, figure out how many blank lines to insert
-      //       based on the gap between this line’s baseline and the previous line’s baseline.**
+      //       based on the gap between this line's baseline and the previous line’s baseline.**
       const gap = lineBaselines[i] - lineBaselines[i - 1];
 
       let extraLines = 0;
@@ -774,4 +775,62 @@ export function injectUrls(
 
 function isKind(s: z.ZodTypeAny, kind: Kind): boolean {
   return (s as z.ZodTypeAny)._def.typeName === kind;
+}
+
+/**
+ * Mapping from LLM provider names to their corresponding environment variable names for API keys.
+ */
+export const providerEnvVarMap: Partial<
+  Record<ModelProvider | string, string>
+> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  groq: "GROQ_API_KEY",
+  cerebras: "CEREBRAS_API_KEY",
+  togetherai: "TOGETHER_AI_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  perplexity: "PERPLEXITY_API_KEY",
+  azure: "AZURE_API_KEY",
+  xai: "XAI_API_KEY",
+  google_legacy: "GOOGLE_API_KEY",
+};
+
+/**
+ * Loads an API key for a provider, checking environment variables.
+ * @param provider The name of the provider (e.g., 'openai', 'anthropic')
+ * @param logger Optional logger for info/error messages
+ * @returns The API key if found, undefined otherwise
+ */
+export function loadApiKeyFromEnv(
+  provider: string | undefined,
+  logger: (logLine: LogLine) => void,
+): string | undefined {
+  if (!provider) {
+    return undefined;
+  }
+
+  const envVarName = providerEnvVarMap[provider];
+  if (!envVarName) {
+    logger({
+      category: "init",
+      message: `No known environment variable for provider '${provider}'`,
+      level: 0,
+    });
+    return undefined;
+  }
+
+  const apiKeyFromEnv = process.env[envVarName];
+  if (typeof apiKeyFromEnv === "string" && apiKeyFromEnv.length > 0) {
+    return apiKeyFromEnv;
+  }
+
+  logger({
+    category: "init",
+    message: `API key for ${provider} not found in environment variable ${envVarName}`,
+    level: 0,
+  });
+
+  return undefined;
 }
