@@ -1,6 +1,6 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type { CDPSession, Page as PlaywrightPage } from "playwright-core";
-import { chromium } from "playwright-core";
+import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
+import { chromium } from "@playwright/test";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
 import {

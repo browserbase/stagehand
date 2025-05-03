@@ -13,5 +13,8 @@
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5"
   }
 }
