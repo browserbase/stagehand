@@ -27,7 +27,7 @@ import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
 import { SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel, LLMClient } from "@/dist";
+import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";

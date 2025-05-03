@@ -1,7 +1,7 @@
 import Browserbase from "@browserbasehq/sdk";
 import { expect, test } from "@playwright/test";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 // Configuration
 const CONTEXT_TEST_URL = "https://docs.browserbase.com";

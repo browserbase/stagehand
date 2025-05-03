@@ -2,7 +2,7 @@ import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 export const hn_customOpenAI: EvalFunction = async ({
   logger,

@@ -1,5 +1,5 @@
 import { default as DefaultStagehandConfig } from "@/stagehand.config";
-import type { ConstructorParams } from "@/dist";
+import type { ConstructorParams } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 dotenv.config({ path: "../../.env" });
 
