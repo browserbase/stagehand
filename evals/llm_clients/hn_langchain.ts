@@ -2,7 +2,7 @@ import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 import { LangchainClient } from "@/examples/external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 export const hn_langchain: EvalFunction = async ({
   logger,

@@ -10,5 +10,11 @@
     "e2e": "pnpm run build && playwright test --config deterministic/e2e.playwright.config.ts",
     "e2e:bb": "pnpm run build && playwright test --config deterministic/bb.playwright.config.ts",
     "e2e:local": "pnpm run build && playwright test --config deterministic/local.playwright.config.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5"
   }
 }

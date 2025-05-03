@@ -5,7 +5,11 @@
  * The evaluator will reply with YES or NO given the state of the provided task.
  */
 
-import { AvailableModel, ClientOptions, Stagehand } from "@/dist";
+import {
+  AvailableModel,
+  ClientOptions,
+  Stagehand,
+} from "@browserbasehq/stagehand";
 import { LLMResponseError } from "@/types/stagehandErrors";
 import dotenv from "dotenv";
 import {
