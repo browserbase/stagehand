@@ -11,14 +11,31 @@ import {
   StagehandElementNotFoundError,
 } from "@/types/stagehandErrors";
 
+const CLEAN_RULES: ReadonlyArray<[RegExp, string]> = [
+  // Font-Awesome / Material-Icons placeholders (Private-Use Area)
+  [/[\u{E000}-\u{F8FF}]/gu, ""],
+
+  // NBSP family to regular space
+  [/[\u00A0\u202F\u2007\uFEFF]/g, " "],
+];
+
+// returns the input string with each of the CLEAN_RULES applied
+function cleanText(input: string): string {
+  return CLEAN_RULES.reduce(
+    (txt, [pattern, replacement]) => txt.replace(pattern, replacement),
+    input,
+  ).trim();
+}
+
 // Parser function for str output
 export function formatSimplifiedTree(
   node: AccessibilityNode,
   level = 0,
 ): string {
   const indent = "  ".repeat(level);
+  const cleanName = node.name ? cleanText(node.name) : "";
   let result = `${indent}[${node.nodeId}] ${node.role}${
-    node.name ? `: ${node.name}` : ""
+    cleanName ? `: ${cleanName}` : ""
   }\n`;
 
   if (node.children?.length) {
