@@ -170,9 +170,25 @@ importers:
         specifier: ^8.17.0
         version: 8.31.1(eslint@9.25.1)(typescript@5.8.3)
 
-  evals: {}
+  evals:
+    dependencies:
+      '@browserbasehq/stagehand':
+        specifier: workspace:*
+        version: link:..
+    devDependencies:
+      tsx:
+        specifier: ^4.10.5
+        version: 4.19.4
 
-  examples: {}
+  examples:
+    dependencies:
+      '@browserbasehq/stagehand':
+        specifier: workspace:*
+        version: link:..
+    devDependencies:
+      tsx:
+        specifier: ^4.10.5
+        version: 4.19.4
 
   lib: {}
 

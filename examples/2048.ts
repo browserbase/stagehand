@@ -1,4 +1,4 @@
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
 
 async function example() {

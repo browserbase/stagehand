@@ -5,7 +5,11 @@
  * You can just pass in an OpenAI instance to the client and it will work.
  */
 
-import { AvailableModel, CreateChatCompletionOptions, LLMClient } from "@/dist";
+import {
+  AvailableModel,
+  CreateChatCompletionOptions,
+  LLMClient,
+} from "@browserbasehq/stagehand";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import type {

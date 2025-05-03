@@ -1,11 +1,10 @@
 /**
- * This file is meant to be used as a scratchpad for developing new evals.
- * To create a Stagehand project with best practices and configuration, run:
+ * This example shows how to use nested Stagehand pages within event listeners
  *
- * npx create-browser-app@latest my-browser-app
+ * It also shows how to wait for something to happen on a page before continuing.
  */
 
-import { ObserveResult, Stagehand } from "@/dist";
+import { ObserveResult, Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 
 async function example() {

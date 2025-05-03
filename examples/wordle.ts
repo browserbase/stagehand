@@ -1,4 +1,4 @@
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 
 async function example() {

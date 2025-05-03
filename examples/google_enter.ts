@@ -1,11 +1,10 @@
 /**
- * This file is meant to be used as a scratchpad for developing new evals.
- * To create a Stagehand project with best practices and configuration, run:
+ * This example shows how to use the Stagehand agent to navigate to Google and search for "Browserbase".
  *
- * npx create-browser-app@latest my-browser-app
+ * It's mainly meant to sanity check using page.act() to press enter, since some LLMs have issues with it.
  */
 
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 
 async function example() {

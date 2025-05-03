@@ -66,7 +66,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Run Lint
         run: pnpm run lint
@@ -86,7 +86,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Run Build
         run: pnpm run build
@@ -110,7 +110,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
@@ -140,7 +140,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
@@ -178,7 +178,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
@@ -218,7 +218,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         run: pnpm run build
@@ -283,7 +283,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -349,7 +349,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -418,7 +418,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -504,7 +504,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -574,7 +574,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -643,7 +643,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'

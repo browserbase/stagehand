@@ -6,6 +6,12 @@
   "main": "./",
   "scripts": {
     "build": "pnpm --filter @browserbasehq/stagehand run build",
-    "start": "pnpm run build && tsx example.ts"
+    "start": "pnpm run build && sh -c 'if [ -n \"$1\" ]; then tsx \"$1.ts\"; else tsx example.ts; fi' --"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5"
   }
 }

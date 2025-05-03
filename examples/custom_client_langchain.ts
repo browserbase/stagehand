@@ -1,5 +1,10 @@
+/**
+ * This example shows how to use the Langchain client with Stagehand.
+ *
+ * You will need to reference the Langchain Client in /external_clients/langchain.ts
+ */
 import { z } from "zod";
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 import { LangchainClient } from "./external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";

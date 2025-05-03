@@ -10,7 +10,11 @@ import {
   LanguageModel,
   TextPart,
 } from "ai";
-import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
+import {
+  CreateChatCompletionOptions,
+  LLMClient,
+  AvailableModel,
+} from "@browserbasehq/stagehand";
 import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {

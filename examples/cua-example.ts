@@ -1,10 +1,14 @@
-import { Stagehand } from "@/dist";
-import dotenv from "dotenv";
+/**
+ * This example shows how to use a computer use agent (CUA) to navigate a web page and extract data.
+ *
+ * To learn more about the CUA, see: https://docs.stagehand.dev/examples/computer_use
+ *
+ * NOTE: YOU MUST CONFIGURE BROWSER DIMENSIONS TO USE COMPUTER USE!
+ * Check out stagehand.config.ts for more information.
+ */
+import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 import chalk from "chalk";
-
-// Load environment variables
-dotenv.config();
 
 async function main() {
   console.log(
@@ -12,21 +16,18 @@ async function main() {
   );
 
   // Initialize Stagehand
-  console.log(`${chalk.cyan("→")} Initializing Stagehand...`);
   const stagehand = new Stagehand({
     ...StagehandConfig,
   });
-
   await stagehand.init();
-  console.log(`${chalk.green("✓")} Stagehand initialized`);
 
   try {
     const page = stagehand.page;
 
-    console.log(`\n${chalk.magenta.bold("⚡ First Agent Execution")}`);
-
+    // Create a computer use agent
     const agent = stagehand.agent({
       provider: "openai",
+      // For Anthropic, use claude-3-7-sonnet-20250219 or claude-3-5-sonnet-20240620
       model: "computer-use-preview",
       instructions: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
@@ -36,34 +37,15 @@ async function main() {
       },
     });
 
-    console.log(`${chalk.yellow("→")} Navigating to Google...`);
-    await stagehand.page.goto("https://www.google.com");
-    console.log(`${chalk.green("✓")} Loaded: ${chalk.dim(page.url())}`);
-
-    const firstInstruction =
-      "Search for openai news on google and extract the name of the first 3 results";
-    console.log(
-      `${chalk.cyan("↳")} Instruction: ${chalk.white(firstInstruction)}`,
-    );
-
-    const result1 = await agent.execute(firstInstruction);
-
-    console.log(`${chalk.green("✓")} Execution complete`);
-    console.log(`${chalk.yellow("⤷")} Result:`);
-    console.log(chalk.white(JSON.stringify(result1, null, 2)));
-
-    console.log(`\n${chalk.magenta.bold("⚡ Second Agent Execution")}`);
-
-    console.log(
-      `\n${chalk.yellow("→")} Navigating to Browserbase careers page...`,
-    );
+    // Navigate to the Browserbase careers page
     await page.goto("https://www.browserbase.com/careers");
-    console.log(`${chalk.green("✓")} Loaded: ${chalk.dim(page.url())}`);
 
+    // Define the instruction for the CUA
     const instruction =
       "Apply for the first engineer position with mock data. Don't submit the form.";
-    console.log(`${chalk.cyan("↳")} Instruction: ${chalk.white(instruction)}`);
+    console.log(`Instruction: ${chalk.white(instruction)}`);
 
+    // Execute the instruction
     const result = await agent.execute({
       instruction,
       maxSteps: 20,
@@ -79,9 +61,7 @@ async function main() {
     }
   } finally {
     // Close the browser
-    console.log(`\n${chalk.yellow("→")} Closing browser...`);
     await stagehand.close();
-    console.log(`${chalk.green("✓")} Browser closed\n`);
   }
 }
 

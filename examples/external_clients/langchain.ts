@@ -1,5 +1,9 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
+import {
+  CreateChatCompletionOptions,
+  LLMClient,
+  AvailableModel,
+} from "@browserbasehq/stagehand";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   AIMessage,
