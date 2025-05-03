@@ -7,7 +7,7 @@
  */
 import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
-import { CustomOpenAIClient } from "./external_clients/customOpenAI";
+import { CustomOpenAIClient } from "../external_clients/customOpenAI";
 import StagehandConfig from "@/stagehand.config";
 import OpenAI from "openai";
 

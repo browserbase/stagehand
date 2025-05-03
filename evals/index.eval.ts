@@ -31,7 +31,7 @@ import { AvailableModel, LLMClient } from "@/dist";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";
-import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
+import { CustomOpenAIClient } from "@/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
 import { google } from "@ai-sdk/google";
@@ -39,7 +39,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { groq } from "@ai-sdk/groq";
 import { cerebras } from "@ai-sdk/cerebras";
 import { openai } from "@ai-sdk/openai";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { AISdkClient } from "@/external_clients/aisdk";
 dotenv.config();
 
 /**

@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
-import { LangchainClient } from "@/examples/external_clients/langchain";
+import { LangchainClient } from "@/external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";
 import { Stagehand } from "@/dist";
 
