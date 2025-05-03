@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
-import { CustomOpenAIClient } from "@/external_clients/customOpenAI";
+import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { Stagehand } from "@/dist";
 
