@@ -1,0 +1,11 @@
+{
+  "name": "@browserbasehq/stagehand-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example scripts for Stagehand",
+  "main": "./",
+  "scripts": {
+    "build": "pnpm --filter @browserbasehq/stagehand run build",
+    "start": "pnpm run build && tsx example.ts"
+  }
+}

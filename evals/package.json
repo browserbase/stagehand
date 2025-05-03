@@ -1,0 +1,14 @@
+{
+  "name": "@browserbasehq/stagehand-evals",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Evaluation suite for Stagehand",
+  "main": "./",
+  "scripts": {
+    "build": "pnpm --filter @browserbasehq/stagehand run build",
+    "evals": "pnpm run build && tsx index.eval.ts",
+    "e2e": "pnpm run build && playwright test --config deterministic/e2e.playwright.config.ts",
+    "e2e:bb": "pnpm run build && playwright test --config deterministic/bb.playwright.config.ts",
+    "e2e:local": "pnpm run build && playwright test --config deterministic/local.playwright.config.ts"
+  }
+}

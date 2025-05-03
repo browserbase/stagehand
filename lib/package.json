@@ -1,0 +1,17 @@
+{
+  "name": "@browserbasehq/stagehand-lib",
+  "version": "2.2.0",
+  "private": true,
+  "description": "Core Stagehand library sources",
+  "main": "../dist/index.js",
+  "module": "../dist/index.js",
+  "types": "../dist/index.d.ts",
+  "scripts": {
+    "build-dom-scripts": "tsx dom/genDomScripts.ts",
+    "build-js": "tsup index.ts --dts",
+    "build-types": "tsc --emitDeclarationOnly --outDir ../dist",
+    "build": "pnpm run build-dom-scripts && pnpm run build-js && pnpm run build-types",
+    "lint": "prettier --check . && eslint .",
+    "format": "prettier --write ."
+  }
+}

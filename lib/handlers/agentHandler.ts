@@ -11,7 +11,8 @@ import {
   AgentHandlerOptions,
   ActionExecutionResult,
 } from "@/types/agent";
-import { Stagehand, StagehandFunctionName } from "@/lib";
+import { Stagehand } from "../index";
+import { StagehandFunctionName } from "@/types/stagehand";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;

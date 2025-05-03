@@ -13,10 +13,11 @@ async function example() {
     ...StagehandConfig,
   });
   await stagehand.init();
-  await stagehand.page.goto("https://docs.stagehand.dev");
   /**
    * Add your code here!
    */
+  await stagehand.page.goto("https://docs.stagehand.dev");
+  await stagehand.page.act("click the quickstart button");
   await stagehand.close();
 }
 

@@ -1,0 +1,5 @@
+packages:
+  - "./"
+  - "lib"
+  - "examples"
+  - "evals"
