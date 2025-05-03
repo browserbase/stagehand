@@ -590,10 +590,7 @@ export function transformSchema(
         (check: { kind: string }) => check.kind === "url",
       ) ?? false;
     if (hasUrlCheck) {
-      return [
-        z.number().describe("ID of element that points to a URL"),
-        [{ segments: [] }],
-      ];
+      return [makeIdNumberSchema(schema as z.ZodString), [{ segments: [] }]];
     }
     return [schema, []];
   }
@@ -775,6 +772,24 @@ export function injectUrls(
 
 function isKind(s: z.ZodTypeAny, kind: Kind): boolean {
   return (s as z.ZodTypeAny)._def.typeName === kind;
+}
+
+function makeIdNumberSchema(orig: z.ZodString): z.ZodNumber {
+  const userDesc =
+    // Zod ≥3.23 exposes .description directly; fall back to _def for older minor versions
+    (orig as unknown as { description?: string }).description ??
+    (orig as unknown as { _def?: { description?: string } })._def
+      ?.description ??
+    "";
+
+  const base =
+    "This field must be filled with the numerical ID of the link element";
+  const composed =
+    userDesc.trim().length > 0
+      ? `${base} that follows this user-defined description: ${userDesc}`
+      : base;
+
+  return z.number().describe(composed);
 }
 
 /**
