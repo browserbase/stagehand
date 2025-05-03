@@ -89,35 +89,6 @@ ONLY print the content using the print_extracted_data tool provided.`;
   };
 }
 
-const refineSystemPrompt = `You are tasked with refining and filtering information for the final output based on newly extracted and previously extracted content. Your responsibilities are:
-1. Remove exact duplicates for elements in arrays and objects.
-2. For text fields, append or update relevant text if the new content is an extension, replacement, or continuation.
-3. For non-text fields (e.g., numbers, booleans), update with new values if they differ.
-4. Add any completely new fields or objects ONLY IF they correspond to the provided schema.
-
-Return the updated content that includes both the previous content and the new, non-duplicate, or extended information.`;
-
-export function buildRefineSystemPrompt(): ChatMessage {
-  return {
-    role: "system",
-    content: refineSystemPrompt,
-  };
-}
-
-export function buildRefineUserPrompt(
-  instruction: string,
-  previouslyExtractedContent: object,
-  newlyExtractedContent: object,
-): ChatMessage {
-  return {
-    role: "user",
-    content: `Instruction: ${instruction}
-Previously extracted content: ${JSON.stringify(previouslyExtractedContent, null, 2)}
-Newly extracted content: ${JSON.stringify(newlyExtractedContent, null, 2)}
-Refined content:`,
-  };
-}
-
 const metadataSystemPrompt = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
 Analyze the extraction response and determine if the task is completed or if more information is needed.
 Strictly abide by the following criteria:

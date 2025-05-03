@@ -8,8 +8,6 @@ import {
   buildMetadataSystemPrompt,
   buildObserveSystemPrompt,
   buildObserveUserMessage,
-  buildRefineSystemPrompt,
-  buildRefineUserPrompt,
 } from "./prompt";
 import {
   appendSummary,
@@ -33,7 +31,6 @@ export interface LLMParsedResponse<T> {
 
 export async function extract({
   instruction,
-  previouslyExtractedContent,
   domElements,
   schema,
   llmClient,
@@ -46,7 +43,6 @@ export async function extract({
   logInferenceToFile = false,
 }: {
   instruction: string;
-  previouslyExtractedContent: object;
   domElements: string;
   schema: z.ZodObject<z.ZodRawShape>;
   llmClient: LLMClient;
@@ -147,85 +143,9 @@ export async function extract({
     });
   }
 
-  const refineCallMessages: ChatMessage[] = [
-    buildRefineSystemPrompt(),
-    buildRefineUserPrompt(
-      instruction,
-      previouslyExtractedContent,
-      extractedData,
-    ),
-  ];
-
-  let refineCallFile = "";
-  let refineCallTimestamp = "";
-  if (logInferenceToFile) {
-    const { fileName, timestamp } = writeTimestampedTxtFile(
-      "extract_summary",
-      "refine_call",
-      {
-        requestId,
-        modelCall: "refine",
-        messages: refineCallMessages,
-      },
-    );
-    refineCallFile = fileName;
-    refineCallTimestamp = timestamp;
-  }
-
-  const refineStartTime = Date.now();
-  const refinedResponse =
-    await llmClient.createChatCompletion<ExtractionResponse>({
-      options: {
-        messages: refineCallMessages,
-        response_model: {
-          schema,
-          name: "RefinedExtraction",
-        },
-        temperature: 0.1,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-        requestId,
-      },
-      logger,
-    });
-  const refineEndTime = Date.now();
-
-  const { data: refinedResponseData, usage: refinedResponseUsage } =
-    refinedResponse as LLMParsedResponse<ExtractionResponse>;
-
-  let refineResponseFile = "";
-  if (logInferenceToFile) {
-    const { fileName } = writeTimestampedTxtFile(
-      "extract_summary",
-      "refine_response",
-      {
-        requestId,
-        modelResponse: "refine",
-        rawResponse: refinedResponseData,
-      },
-    );
-    refineResponseFile = fileName;
-
-    appendSummary("extract", {
-      extract_inference_type: "refine",
-      timestamp: refineCallTimestamp,
-      LLM_input_file: refineCallFile,
-      LLM_output_file: refineResponseFile,
-      prompt_tokens: refinedResponseUsage?.prompt_tokens ?? 0,
-      completion_tokens: refinedResponseUsage?.completion_tokens ?? 0,
-      inference_time_ms: refineEndTime - refineStartTime,
-    });
-  }
-
   const metadataCallMessages: ChatMessage[] = [
     buildMetadataSystemPrompt(),
-    buildMetadataPrompt(
-      instruction,
-      refinedResponseData,
-      chunksSeen,
-      chunksTotal,
-    ),
+    buildMetadataPrompt(instruction, extractedData, chunksSeen, chunksTotal),
   ];
 
   let metadataCallFile = "";
@@ -298,22 +218,17 @@ export async function extract({
 
   const totalPromptTokens =
     (extractUsage?.prompt_tokens ?? 0) +
-    (refinedResponseUsage?.prompt_tokens ?? 0) +
     (metadataResponseUsage?.prompt_tokens ?? 0);
 
   const totalCompletionTokens =
     (extractUsage?.completion_tokens ?? 0) +
-    (refinedResponseUsage?.completion_tokens ?? 0) +
     (metadataResponseUsage?.completion_tokens ?? 0);
 
   const totalInferenceTimeMs =
-    extractEndTime -
-    extractStartTime +
-    (refineEndTime - refineStartTime) +
-    (metadataEndTime - metadataStartTime);
+    extractEndTime - extractStartTime + (metadataEndTime - metadataStartTime);
 
   return {
-    ...refinedResponseData,
+    ...extractedData,
     metadata: {
       completed: metadataResponseCompleted,
       progress: metadataResponseProgress,

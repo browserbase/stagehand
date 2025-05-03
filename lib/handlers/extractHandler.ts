@@ -184,7 +184,6 @@ export class StagehandExtractHandler {
   private async textExtract<T extends z.AnyZodObject>({
     instruction,
     schema,
-    content = {},
     llmClient,
     requestId,
     domSettleTimeoutMs,
@@ -320,7 +319,6 @@ export class StagehandExtractHandler {
     // **10:** Pass the formatted text to an LLM for extraction according to the given instruction and schema
     const extractionResponse = await extract({
       instruction,
-      previouslyExtractedContent: content,
       domElements: formattedText,
       schema,
       chunksSeen: 1,
@@ -390,7 +388,6 @@ export class StagehandExtractHandler {
   private async domExtract<T extends z.AnyZodObject>({
     instruction,
     schema,
-    content = {},
     llmClient,
     requestId,
     domSettleTimeoutMs,
@@ -438,7 +435,6 @@ export class StagehandExtractHandler {
     // call extract inference with transformed schema
     const extractionResponse = await extract({
       instruction,
-      previouslyExtractedContent: content,
       domElements: outputString,
       schema: transformedSchema,
       chunksSeen: 1,
