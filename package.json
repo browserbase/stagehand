@@ -23,21 +23,7 @@
     "prepare": "pnpm run build",
     "lint": "pnpm run prettier && pnpm run eslint",
     "release": "pnpm run build && changeset publish",
-    "release-canary": "pnpm run build && changeset version --snapshot && changeset publish --tag alpha",
-    "2048": "pnpm --filter @browserbasehq/stagehand-examples run start 2048",
-    "popup": "pnpm --filter @browserbasehq/stagehand-examples run start popup",
-    "cua": "pnpm --filter @browserbasehq/stagehand-examples run start cua",
-    "operator": "pnpm --filter @browserbasehq/stagehand-examples run start operator",
-    "langchain": "pnpm --filter @browserbasehq/stagehand-examples run start custom_client_langchain",
-    "external-client": "pnpm --filter @browserbasehq/stagehand-examples run start custom_client_openai",
-    "ai-sdk-client": "pnpm --filter @browserbasehq/stagehand-examples run start custom_client_aisdk",
-    "debug-url": "pnpm --filter @browserbasehq/stagehand-examples run start debug-url",
-    "instructions": "pnpm --filter @browserbasehq/stagehand-examples run start instructions",
-    "actionable_observe_example": "pnpm --filter @browserbasehq/stagehand-examples run start actionable_observe_example",
-    "form-filling-sensible-cerebras": "pnpm --filter @browserbasehq/stagehand-examples run start form-filling-sensible-cerebras",
-    "form-filling-sensible": "pnpm --filter @browserbasehq/stagehand-examples run start form-filling-sensible",
-    "google-enter": "pnpm --filter @browserbasehq/stagehand-examples run start google-enter",
-    "try-wordle": "pnpm --filter @browserbasehq/stagehand-examples run start try-wordle"
+    "release-canary": "pnpm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "files": [
     "dist/**"
