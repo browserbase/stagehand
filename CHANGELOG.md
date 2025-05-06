@@ -1,5 +1,25 @@
 # @browserbasehq/stagehand
 
+## 2.2.1
+
+### Patch Changes
+
+- [#721](https://github.com/browserbase/stagehand/pull/721) [`be8652e`](https://github.com/browserbase/stagehand/commit/be8652e770b57fdb3299fa0b2efa4eb0e816434e) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix stagehand.close() functionality to include calling browser.close()
+
+- [#724](https://github.com/browserbase/stagehand/pull/724) [`6b413b7`](https://github.com/browserbase/stagehand/commit/6b413b7ad00b13ca0bd53ee2e7393023821408b6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm refine step in extract
+
+- [#712](https://github.com/browserbase/stagehand/pull/712) [`7eafbd9`](https://github.com/browserbase/stagehand/commit/7eafbd9b1a73b37effa444929767df7c592caf02) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecated `onlyVisible` param and remove its functionality
+
+- [#725](https://github.com/browserbase/stagehand/pull/725) [`1b50aa6`](https://github.com/browserbase/stagehand/commit/1b50aa61cf0a429dd6cb2760a08f7f698a50454b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - dont overwrite .describe() when user defines a zod schema with z.string().url().describe()
+
+- [#717](https://github.com/browserbase/stagehand/pull/717) [`f2b7f1f`](https://github.com/browserbase/stagehand/commit/f2b7f1f284eef1f96753319b66c7d0b273a6f8cd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - don't publish uncompiled ts to npm
+
+- [#719](https://github.com/browserbase/stagehand/pull/719) [`c8d672f`](https://github.com/browserbase/stagehand/commit/c8d672f7c410c256defbc2e87ead99239837aa28) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix `Invalid schema for response_format` error when extracting links
+
+- [#722](https://github.com/browserbase/stagehand/pull/722) [`bebf204`](https://github.com/browserbase/stagehand/commit/bebf2044502333c694743078c5b0c9deae11fb79) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - replace NBSP with regular space & remove special characters from dom+a11y tree
+
+- [#714](https://github.com/browserbase/stagehand/pull/714) [`37d6810`](https://github.com/browserbase/stagehand/commit/37d6810a704773d0383a86f98f5f17c7d5b21975) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the native AI SDK client implementation to optionally take in an API key
+
 ## 2.2.0
 
 ### Minor Changes

@@ -1,12 +1,12 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-	"example": "pnpm --filter @browserbasehq/stagehand-examples run start",
+    "example": "pnpm --filter @browserbasehq/stagehand-examples run start",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
