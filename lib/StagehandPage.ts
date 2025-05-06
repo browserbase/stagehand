@@ -135,16 +135,18 @@ ${scriptContent} \
       await this.rawPage.addInitScript({ content: guardedScript });
       await this.rawPage.evaluate(guardedScript);
     } catch (err) {
-      this.stagehand.log({
-        category: "dom",
-        message: "Failed to inject Stagehand helper script",
-        level: 1,
-        auxiliary: {
-          error: { value: (err as Error).message, type: "string" },
-          trace: { value: (err as Error).stack, type: "string" },
-        },
-      });
-      throw err;
+      if (!this.stagehand.isClosed) {
+        this.stagehand.log({
+          category: "dom",
+          message: "Failed to inject Stagehand helper script",
+          level: 1,
+          auxiliary: {
+            error: { value: (err as Error).message, type: "string" },
+            trace: { value: (err as Error).stack, type: "string" },
+          },
+        });
+        throw err;
+      }
     }
   }
 

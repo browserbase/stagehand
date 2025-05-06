@@ -395,6 +395,7 @@ export class Stagehand {
   private modelClientOptions: ClientOptions;
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
+  private _isClosed: boolean = false;
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
   }
@@ -426,6 +427,10 @@ export class Stagehand {
 
   public get metrics(): StagehandMetrics {
     return this.stagehandMetrics;
+  }
+
+  public get isClosed(): boolean {
+    return this._isClosed;
   }
 
   public updateMetrics(
@@ -772,6 +777,7 @@ export class Stagehand {
   }
 
   async close(): Promise<void> {
+    this._isClosed = true;
     if (this.apiClient) {
       const response = await this.apiClient.end();
       const body: ApiResponse<unknown> = await response.json();
