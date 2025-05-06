@@ -138,46 +138,19 @@ export class StagehandExtractHandler {
     }
   }
 
-  private async extractPageText(): Promise<{ page_text?: string }> {
-    await this.stagehandPage._waitForSettledDom();
+  private async extractPageText(
+    domSettleTimeoutMs?: number,
+  ): Promise<{ page_text?: string }> {
+    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
+    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+    this.logger({
+      category: "extraction",
+      message: "Getting accessibility tree data",
+      level: 1,
+    });
+    const outputString = tree.simplified;
 
-    const originalDOM = await this.stagehandPage.page.evaluate(() =>
-      window.storeDOM(undefined),
-    );
-
-    const { selectorMap }: { selectorMap: Record<number, string[]> } =
-      await this.stagehand.page.evaluate(() =>
-        window.processAllOfDom(undefined),
-      );
-
-    await this.stagehand.page.evaluate(() =>
-      window.createTextBoundingBoxes(undefined),
-    );
-
-    const containerDims = await this.getTargetDimensions();
-
-    const allAnnotations = await this.collectAllAnnotations(
-      selectorMap,
-      containerDims.width,
-      containerDims.height,
-      containerDims.offsetLeft,
-      containerDims.offsetTop,
-    );
-
-    const deduplicatedTextAnnotations =
-      this.deduplicateAnnotations(allAnnotations);
-
-    await this.stagehandPage.page.evaluate(
-      (dom) => window.restoreDOM(dom, undefined),
-      originalDOM,
-    );
-
-    const formattedText = formatText(
-      deduplicatedTextAnnotations,
-      containerDims.width,
-    );
-
-    const result = { page_text: formattedText };
+    const result = { page_text: outputString };
     return pageTextSchema.parse(result);
   }
 
