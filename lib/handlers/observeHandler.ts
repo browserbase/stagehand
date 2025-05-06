@@ -47,6 +47,9 @@ export class StagehandObserveHandler {
     requestId: string;
     domSettleTimeoutMs?: number;
     returnAction?: boolean;
+    /**
+     * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
+     */
     onlyVisible?: boolean;
     drawOverlay?: boolean;
     fromAct?: boolean;
@@ -67,26 +70,26 @@ export class StagehandObserveHandler {
       },
     });
 
-    let selectorMap: Record<string, string[]> = {};
-    let outputString: string;
     let iframes: AccessibilityNode[] = [];
-    const useAccessibilityTree = !onlyVisible;
-    if (useAccessibilityTree) {
-      await this.stagehandPage._waitForSettledDom();
-      const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+
+    if (onlyVisible !== undefined) {
       this.logger({
         category: "observation",
-        message: "Getting accessibility tree data",
+        message:
+          "Warning: the `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in future versions.",
         level: 1,
       });
-      outputString = tree.simplified;
-      iframes = tree.iframes;
-    } else {
-      const evalResult = await this.stagehand.page.evaluate(() => {
-        return window.processAllOfDom().then((result) => result);
-      });
-      ({ outputString, selectorMap } = evalResult);
     }
+
+    await this.stagehandPage._waitForSettledDom();
+    this.logger({
+      category: "observation",
+      message: "Getting accessibility tree data",
+      level: 1,
+    });
+    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+    const outputString = tree.simplified;
+    iframes = tree.iframes;
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
@@ -96,7 +99,6 @@ export class StagehandObserveHandler {
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       logger: this.logger,
-      isUsingAccessibilityTree: useAccessibilityTree,
       returnAction,
       logInferenceToFile: this.stagehand.logInferenceToFile,
       fromAct: fromAct,
@@ -130,58 +132,50 @@ export class StagehandObserveHandler {
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
 
-        if (useAccessibilityTree) {
-          // Generate xpath for the given element if not found in selectorMap
+        // Generate xpath for the given element if not found in selectorMap
+        this.logger({
+          category: "observation",
+          message: "Getting xpath for element",
+          level: 1,
+          auxiliary: {
+            elementId: {
+              value: elementId.toString(),
+              type: "string",
+            },
+          },
+        });
+
+        const args = { backendNodeId: elementId };
+        const { object } = await this.stagehandPage.sendCDP<{
+          object: { objectId: string };
+        }>("DOM.resolveNode", args);
+
+        if (!object || !object.objectId) {
           this.logger({
             category: "observation",
-            message: "Getting xpath for element",
+            message: `Invalid object ID returned for element: ${elementId}`,
             level: 1,
-            auxiliary: {
-              elementId: {
-                value: elementId.toString(),
-                type: "string",
-              },
-            },
           });
+        }
 
-          const args = { backendNodeId: elementId };
-          const { object } = await this.stagehandPage.sendCDP<{
-            object: { objectId: string };
-          }>("DOM.resolveNode", args);
+        const xpath = await getXPathByResolvedObjectId(
+          await this.stagehandPage.getCDPClient(),
+          object.objectId,
+        );
 
-          if (!object || !object.objectId) {
-            this.logger({
-              category: "observation",
-              message: `Invalid object ID returned for element: ${elementId}`,
-              level: 1,
-            });
-          }
-
-          const xpath = await getXPathByResolvedObjectId(
-            await this.stagehandPage.getCDPClient(),
-            object.objectId,
-          );
-
-          if (!xpath || xpath === "") {
-            this.logger({
-              category: "observation",
-              message: `Empty xpath returned for element: ${elementId}`,
-              level: 1,
-            });
-          }
-
-          return {
-            ...rest,
-            selector: `xpath=${xpath}`,
-            // Provisioning or future use if we want to use direct CDP
-            // backendNodeId: elementId,
-          };
+        if (!xpath || xpath === "") {
+          this.logger({
+            category: "observation",
+            message: `Empty xpath returned for element: ${elementId}`,
+            level: 1,
+          });
         }
 
         return {
           ...rest,
-          selector: `xpath=${selectorMap[elementId][0]}`,
-          // backendNodeId: backendNodeIdMap[elementId],
+          selector: `xpath=${xpath}`,
+          // Provisioning or future use if we want to use direct CDP
+          // backendNodeId: elementId,
         };
       }),
     );

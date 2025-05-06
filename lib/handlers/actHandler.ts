@@ -226,7 +226,6 @@ export class StagehandActHandler {
         instruction,
         llmClient,
         requestId,
-        onlyVisible: false,
         drawOverlay: false,
         returnAction: true,
         fromAct: true,

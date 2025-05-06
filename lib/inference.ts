@@ -244,7 +244,6 @@ export async function observe({
   domElements,
   llmClient,
   requestId,
-  isUsingAccessibilityTree,
   userProvidedInstructions,
   logger,
   returnAction = false,
@@ -257,7 +256,6 @@ export async function observe({
   requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
-  isUsingAccessibilityTree?: boolean;
   returnAction?: boolean;
   logInferenceToFile?: boolean;
   fromAct?: boolean;
@@ -270,9 +268,7 @@ export async function observe({
           description: z
             .string()
             .describe(
-              isUsingAccessibilityTree
-                ? "a description of the accessible element and its purpose"
-                : "a description of the element and what it is relevant for",
+              "a description of the accessible element and its purpose",
             ),
           ...(returnAction
             ? {
@@ -292,21 +288,14 @@ export async function observe({
             : {}),
         }),
       )
-      .describe(
-        isUsingAccessibilityTree
-          ? "an array of accessible elements that match the instruction"
-          : "an array of elements that match the instruction",
-      ),
+      .describe("an array of accessible elements that match the instruction"),
   });
 
   type ObserveResponse = z.infer<typeof observeSchema>;
 
   const messages: ChatMessage[] = [
-    buildObserveSystemPrompt(
-      userProvidedInstructions,
-      isUsingAccessibilityTree,
-    ),
-    buildObserveUserMessage(instruction, domElements, isUsingAccessibilityTree),
+    buildObserveSystemPrompt(userProvidedInstructions),
+    buildObserveUserMessage(instruction, domElements),
   ];
 
   const filePrefix = fromAct ? "act" : "observe";

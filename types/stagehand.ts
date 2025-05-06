@@ -137,6 +137,9 @@ export interface ObserveOptions {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
+  /**
+   * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
   onlyVisible?: boolean;
   drawOverlay?: boolean;
 }
