@@ -1,0 +1,160 @@
+---
+title: LLM Customization
+description: Stagehand supports a wide variety of LLMs. You can use any LLM that supports structured outputs with our existing clients, or by writing a custom LLM provider.
+---
+
+<Tip>
+Small models on **Ollama** are really difficult to get consistent structured outputs from. Though these models are "supported" via an OpenAI-compatible API, we do not recommend them yet for Stagehand.
+</Tip>
+
+## Supported LLMs
+Out of the box, Stagehand supports LLMs from Google, Anthropic, OpenAI, Groq, and Cerebras. The full list of supported models is below:
+
+<Expandable title="supported LLMs">
+- `gpt-4o`
+- `gpt-4o-mini`
+- `gpt-4o-2024-08-06`
+- `gpt-4.5-preview`
+- `claude-3-5-sonnet-latest`
+- `claude-3-5-sonnet-20241022`
+- `claude-3-5-sonnet-20240620`
+- `claude-3-7-sonnet-latest`
+- `claude-3-7-sonnet-20250219`
+- `o1-mini`
+- `o1-preview`
+- `o3-mini`
+- `gemini-2.0-flash`
+- `gemini-1.5-flash`
+- `gemini-1.5-pro`
+- `gemini-1.5-flash-8b`
+- `gemini-2.0-flash-lite`
+- `gemini-2.0-flash`
+- `gemini-2.5-pro-preview-03-25`
+- `cerebras-llama-3.3-70b`
+- `cerebras-llama-3.1-8b`
+- `groq-llama-3.3-70b-versatile`
+- `groq-llama-3.3-70b-specdec`
+</Expandable>
+
+You can pass in one of these LLMs to the `llm` property in the `Stagehand` constructor.
+
+```ts
+const stagehand = new Stagehand({
+  modelName: "gemini-2.0-flash",
+  modelClientOptions: {
+    apiKey: process.env.GOOGLE_API_KEY,
+  },
+});
+```
+
+## Custom LLMs
+If you'd like to use a custom LLM, you can do so by providing a custom `llmProvider` function to the `Stagehand` constructor.
+
+The only requirement for an LLM to be used with Stagehand is that it supports structured outputs.
+
+### OpenAI-compatible APIs
+Most LLMs are OpenAI-compatible, and thus can be used with Stagehand as long as they support structured outputs. This includes models like Google Gemini, Ollama, and most Llama models including Groq, Cerebras, and more.
+
+To get started, you can use the [OpenAI external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/customOpenAI.ts) as a template to create a client for your model.
+```ts {7-13}
+import { Stagehand } from "@browserbasehq/stagehand";
+import { CustomOpenAIClient } from "./external_clients/customOpenAI";
+import OpenAI from "openai";
+
+const stagehand = new Stagehand({
+	...StagehandConfig,
+	llmClient: new CustomOpenAIClient({
+		modelName: "llama3.3",
+		client: new OpenAI({
+			apiKey: "ollama",
+			baseURL: "http://localhost:11434/v1",
+		}),
+	}),
+});
+
+await stagehand.init();
+```
+
+### Vercel AI SDK
+The [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) is a popular library for interacting with LLMs. You can use any of the providers supported by the Vercel AI SDK to create a client for your model, **as long as they support structured outputs**.
+
+Vercel AI SDK supports providers for OpenAI, Anthropic, and Google, along with support for **Amazon Bedrock** and **Azure OpenAI**.
+
+To get started, you'll need to install the `ai` package and the provider you want to use. For example, to use Amazon Bedrock, you'll need to install the `@ai-sdk/amazon-bedrock` package.
+
+You'll also need to use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/aisdk.ts) as a template to create a client for your model.
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npm install ai @ai-sdk/amazon-bedrock
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm install ai @ai-sdk/amazon-bedrock
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn add ai @ai-sdk/amazon-bedrock
+	```
+	</Tab>
+</Tabs>
+
+To get started, you can use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/aisdk.ts) as a template to create a client for your model.
+
+```ts
+// Install/import the provider you want to use.
+// For example, to use OpenAI, import `openai` from @ai-sdk/openai
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { AISdkClient } from "./aisdkClient.ts";
+
+const stagehand = new Stagehand({
+  llmClient: new AISdkClient({
+	model: bedrock("anthropic.claude-3-7-sonnet-20250219-v1:0"),
+  }),
+});
+```
+
+### LangChain
+LangChain is a popular library for building LLM applications. You can use any of the providers supported by LangChain to create a client for your model, **as long as they support structured outputs**.
+
+To get started, you'll need to install the `langchain` package and the provider you want to use. For example, to use OpenAI, you'll need to install the `@langchain/openai` package. You'll also need to install the `zod-to-json-schema` package to convert your Zod schema to a JSON schema.
+
+You'll also want to add the [LangChain external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/langchain.ts) to your Stagehand project.
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npm install langchain @langchain/openai zod-to-json-schema
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm install langchain @langchain/openai zod-to-json-schema
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn add langchain @langchain/openai zod-to-json-schema
+	```
+	</Tab>
+</Tabs>
+
+Next, you can use the [LangChain external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/langchain.ts) as a template to create a Stagehand LLM client for your model.
+
+```ts
+import { ChatOpenAI } from "@langchain/openai";
+import { LangchainClient } from "./external_clients/langchain";
+
+const stagehand = new Stagehand({
+  llmClient: new LangchainClient(
+	new ChatOpenAI({ model: "gpt-4o" }),
+  ),
+});
+```
+

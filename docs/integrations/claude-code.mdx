@@ -1,0 +1,114 @@
+---
+title: "Claude Code"
+description: "Use the Stagehand MCP in Claude Code"
+icon: "terminal"
+---
+
+**Claude Code** is Anthropic's AI-powered command line tool that can be extended with Model Context Protocol (MCP) plugins. This guide explains how to integrate Stagehand's MCP server with Claude Code to enable web automation capabilities directly from your terminal.
+
+## Integrating Stagehand MCP Server with Claude Code
+
+By adding Stagehand's MCP server to Claude Code, you can enable your AI terminal assistant to interact with web browsers, perform web automation tasks, and extract data from websites.
+
+## Prerequisites
+
+- [**Claude Code**](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) installed and configured in your terminal environment
+- A [**Browserbase account**](https://www.browserbase.com/) with API key and project ID
+- OpenAI API key
+- Node.js and npm installed
+
+## Setup Instructions
+
+1. Install the Stagehand MCP server from the GitHub repository:
+
+```bash
+# Clone the Stagehand MCP server repository
+git clone https://github.com/browserbase/mcp-server-browserbase
+cd stagehand
+
+# Install dependencies
+npm install
+
+# Build Dist
+npm run build
+```
+
+1. Enter the directory that you want to use Stagehand MCP in, and run the following with your API keys set (replace the quotes with your keys).
+
+```bash
+# Setup MCP Server in Claude Code config
+  claude mcp add stagehand -e BROWSERBASE_API_KEY="" BROWSERBASE_PROJECT_ID="" -e OPENAI_API_KEY="" -- node /path/to/mcp-server-browserbase/stagehand/dist/index.js
+```
+
+1. Start Claude Code within that directory
+
+```bash
+  # Start Claude Code
+  claude
+
+  # Check if MCP Server is connected (run this in Claude Code)
+  /mcp
+```
+
+It'll look like this:
+
+![Claude Code Stagehand MCP Server](/images/claude-code-mcp.png)
+
+1. That's it\! You can now use Stagehand's MCP server with Claude Code.
+
+You can say things like: "Go to stagehand.dev and tell me why they're goated\!" or "Check what the weather is in San Francisco".
+
+## Available Commands
+
+When integrated with Claude Code, your AI assistant can use the following Stagehand commands:
+
+- **stagehand_navigate**: Navigate to any URL in the browser
+- **stagehand_act**: Perform an action on a web page
+- **stagehand_extract**: Extract data from a web page based on instructions
+- **stagehand_observe**: Observe actions that can be performed on a web page
+
+## Example Usage
+
+Here's an example of how to use Stagehand with Claude Code in your workflow:
+
+1. In your terminal, ask Claude Code to perform a web task:
+
+```bash
+"Can you search for the latest Node.js documentation and extract the main API changes in the newest version?"
+```
+
+Claude will use Stagehand's MCP commands to:
+
+- Navigate to the Node.js documentation website
+- Interact with the search functionality
+- Extract the relevant information
+- Return the results directly in your terminal
+
+## Benefits of Integration
+
+- Perform web research without leaving your terminal
+- Automate repetitive web tasks from your command line
+- Extract data from websites to use in your scripts or applications
+- Build more powerful AI-assisted workflows in your terminal environment
+
+## View the browser session in Browserbase
+
+You can view the browser session in Browserbase by going to the **Browserbase dashboard** and clicking on the "Sessions" tab.
+
+## Troubleshooting
+
+If you encounter issues with the integration:
+
+1. Ensure the MCP server is running
+2. Check that your environment variables are set correctly
+3. Verify that Claude Code is properly configured to use the MCP server, you can use the --mcp-debug flag to help debug [here](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/tutorials#set-up-model-context-protocol-mcp).
+4. Check the MCP server logs for any error messages
+
+[Here's Anthropic's Official Documentation on installing MCP servers on Claude Code.](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/tutorials#set-up-model-context-protocol-mcp)
+
+## Further Resources
+
+- [Claude Code Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
+- [Stagehand GitHub Repository](https://github.com/browserbase/mcp-server-browserbase/tree/main/stagehand)
+- [Model Context Protocol (MCP)](https://github.com/anthropics/anthropic-cookbook/blob/main/model_context_protocol)
+- Join our [Slack community](https://slack.browserbase.com) for support

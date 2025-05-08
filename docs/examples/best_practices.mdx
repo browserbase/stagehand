@@ -1,0 +1,118 @@
+---
+title: 'Best Practices'
+description: 'Prompting Stagehand places an emphasis on being atomic and specific. Here are some guidelines to help you use Stagehand effectively.'
+---
+
+### Use Cursor rules for better AI suggestions
+
+Most of the Stagehand team uses [Cursor](https://www.cursor.com/) to write code. Cursor has a feature called [rules](https://docs.cursor.com/context/rules-for-ai) that allows you to customize the AI's behavior. You can use these rules to make the AI more accurate when suggesting actions.
+
+For Stagehand's Cursor rules, check out [this file](https://github.com/browserbase/stagehand-scaffold/blob/main/.cursorrules). 
+
+If you're using Windsurf, you can use the same rules by adding them to your `.windsurfrules` file.
+
+
+
+### Avoid sending sensitive information to LLMs
+
+You can use `variables` in an `act` call to avoid sending sensitive information to LLMs.
+```typescript
+await page.act({
+	action: "Type %email% into the email field",
+	variables: {
+		email: "john.doe@example.com",
+	},
+});
+```
+
+### Preview actions before running them
+You can use `observe()` to get an action to run without running it.
+If you're satisfied with the action, you can run it with `act()` without any LLM inference.
+
+```typescript
+const [topAction] = await page.observe("Click the quickstart link");
+
+/** The action will map 1:1 with a Playwright action:
+{
+	description: "The quickstart link",
+	action: "click",
+	selector: "/html/body/div[1]/div[1]/a",
+	arguments: [],
+}
+**/
+
+// NO LLM INFERENCE on observe results
+await page.act(topAction)
+```
+
+You can also use `observe()` with sensitive information, like below.
+```javascript
+const [topAction] = await page.observe("Type %email% into the email field");
+
+/** The observe result will be an object with the following shape:
+{
+	description: "The email input field",
+	action: "type",
+	selector: "/html/body/div[1]/div[1]/input",
+	arguments: ["%email%"],
+}
+*/
+
+await page.act({
+	...topAction,
+	// This prevents LLMs from seeing sensitive information
+	// No LLM inference is taken on observe results
+	arguments: [sensitiveEmail],
+})
+```
+
+**Use `observe()` to get actionable suggestions from the current page**
+
+```javascript
+const actions = await page.observe();
+console.log("Possible actions:", actions);
+
+// You can also use `observe()` with a custom prompt
+const buttons = await page.observe({
+	instruction: "find all the buttons on the page",
+});
+```
+
+### Avoid broad or ambiguous instructions
+Avoid instructions that aren't specific to the current page or try to do multiple things at once.
+
+```javascript
+// Too vague
+await page.act({ action: "find something interesting on the page" });
+
+// Avoid combining actions
+await page.act({ action: "fill out the form and submit it" });
+```
+
+### Use `observe()` to get entire form values
+
+```javascript
+const formValues = await page.observe("get the text inputs on the page");
+```
+
+This will return an array of objects with the following shape:
+```javascript
+{
+	description: "The text input field",
+	action: "type",
+	selector: "/html/body/div[1]/div[1]/input",
+	arguments: ["some text"],
+}
+```
+
+You can then use these actions directly in your code.
+```javascript
+for (const formValue of formValues) {
+	await page.act({
+		...formValue,
+		arguments: [yourValueHere],
+	});
+}
+```
+
+For a full example, check out the example in the Stagehand repo [here](https://github.com/browserbase/stagehand/blob/main/examples/form_filling_sensible.ts).

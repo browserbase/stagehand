@@ -1,0 +1,102 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "willow",
+  "name": "🤘 Stagehand",
+  "colors": {
+    "primary": "#B88100",
+    "light": "#FFC83C",
+    "dark": "#FFC83C"
+  },
+  "favicon": "/images/favicon.svg",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "get_started/introduction",
+          "get_started/quickstart",
+          "get_started/integrate_stagehand"
+        ]
+      },
+      {
+        "group": "Concepts",
+        "pages": ["concepts/act", "concepts/agent"]
+      },
+      {
+        "group": "Playbooks",
+        "pages": [
+          "examples/best_practices",
+          "examples/caching",
+          "examples/running_evals",
+          "examples/nextjs",
+          "examples/custom_llms",
+          "examples/customize_browser",
+          "examples/computer_use",
+          "examples/contributing"
+        ]
+      },
+      {
+        "group": "Integrations",
+        "pages": [
+          "integrations/langchain",
+          "integrations/windsurf",
+          "integrations/mcp-server",
+          "integrations/cursor",
+          "integrations/cline",
+          "integrations/claude-code"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/initialization_config",
+          "reference/agent",
+          "reference/act",
+          "reference/extract",
+          "reference/observe",
+          "reference/playwright_interop"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Changelog",
+          "href": "https://github.com/browserbase/stagehand/releases",
+          "icon": "scroll"
+        },
+        {
+          "anchor": "Reference",
+          "href": "https://docs.stagehand.dev/reference/introduction",
+          "icon": "code"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/images/logo_light.svg",
+    "dark": "/images/logo_dark.svg",
+    "href": "https://docs.stagehand.dev"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@browserbase.com"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/stagehanddev",
+      "github": "https://github.com/browserbase/stagehand",
+      "linkedin": "https://linkedin.com/company/browserbasehq",
+      "slack": "https://stagehand.dev/slack"
+    }
+  },
+  "integrations": {
+    "koala": {
+      "publicApiKey": "pk_6e508a479e95d94298f034e98ec54590ccf4"
+    }
+  }
+}

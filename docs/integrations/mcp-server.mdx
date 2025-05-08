@@ -1,0 +1,106 @@
+---
+title: 'MCP Server'
+description: 'Integrate Stagehand with MCP Server'
+icon: 'code-fork'
+---
+
+![Stagehand MCP Server](/media/stagehand-mcp.png)
+
+A Model Context Protocol (MCP) server provides AI-powered web automation capabilities using [Stagehand](https://github.com/browserbase/stagehand) into [Claude Desktop](https://claude.ai/download).
+
+## Running the MCP Server
+
+1. Clone or download the [Stagehand MCP server repository](https://github.com/browserbase/mcp-server-browserbase).  
+
+2. In the project directory, install dependencies:
+   
+   ```bash
+   npm install
+   npm run build
+   ```
+
+3. Set up your Claude Desktop configuration to use the server.  
+
+```json
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "node",
+      "args": ["path/to/mcp-server-browserbase/stagehand/dist/index.js"],
+      "env": {
+        "BROWSERBASE_API_KEY": "<YOUR_BROWSERBASE_API_KEY>",
+        "BROWSERBASE_PROJECT_ID": "<YOUR_BROWSERBASE_PROJECT_ID>",
+        "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>",
+      }
+    }
+  }
+}
+```
+
+4. Then run the server:
+
+```bash
+node dist/index.js
+```
+
+5. Restart your Claude Desktop app and you should see the tools available clicking the 🔨 icon.
+   
+
+6. Start using the tools! Below is a demo video of Claude doing a Google search for OpenAI using Stagehand MCP server and Browserbase for a remote headless browser.
+
+<iframe
+  width="560"
+  height="315"
+  src="https://www.loom.com/embed/9fe52fd9ab24421191223645366ec1c5"
+  title="YouTube video player"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+  muted
+></iframe>
+
+
+##  Stagehand commands via MCP Server
+
+- **stagehand_navigate**
+  - Navigate to any URL in the browser
+  - Input:
+    - `url` (string): The URL to navigate to
+
+- **stagehand_act**
+  - Perform an action on the web page
+  - Inputs:
+    - `action` (string): The action to perform (e.g., "click the login button")
+    - `variables` (object, optional): Variables used in the action template
+
+- **stagehand_extract**
+  - Extract data from the web page based on an instruction and schema
+  - Inputs:
+    - `instruction` (string): Instruction for extraction (e.g., "extract the price of the item")
+    - `schema` (object): JSON schema for the extracted data
+
+- **stagehand_observe**
+  - Observe actions that can be performed on the web page
+  - Input:
+    - `instruction` (string, optional): Instruction for observation
+
+### Resources
+
+The server provides access to two types of resources:
+
+1. **Console Logs** (`console://logs`)
+
+   - Browser console output in text format
+   - Includes all console messages from the browser
+
+2. **Screenshots** (`screenshot://<name>`)
+   - PNG images of captured screenshots
+   - Accessible via the screenshot name specified during capture
+
+
+## Further Reading
+
+For more in-depth coverage, usage patterns, or troubleshooting:
+
+• Model Context Protocol (MCP): https://modelcontextprotocol.io/introduction  
+• Join our Slack community: https://stagehand.dev/slack  

@@ -3,3 +3,4 @@ packages:
   - "lib"
   - "examples"
   - "evals"
+  - "docs"

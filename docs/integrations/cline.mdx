@@ -1,0 +1,272 @@
+---
+title: 'Cline Integration'
+description: 'Integrate Stagehand with Cline AI Coding Assistant via MCP'
+icon: 'code'
+---
+
+[Cline](https://cline.bot/) is an AI-powered coding assistant that can be extended with Model Context Protocol (MCP) plugins. This guide explains how to integrate Stagehand's MCP server with Cline to enable web automation capabilities directly from your coding environment.
+
+## Integrating Stagehand MCP Server with Cline
+
+By adding Stagehand's MCP server to Cline, you can enable your AI coding assistant Cline to interact with web browsers, perform web automation tasks, and extract data from websites.
+
+### Prerequisites
+
+- [Cline](https://cline.bot/) installed and configured in your development environment (extension installed in VSCode)
+- A [Browserbase account](https://browserbase.com/) with API key and project ID
+- LLM API key (e.g., OpenAI API key, Anthropic API key, etc.)
+- Node.js and npm installed
+
+### Setup Instructions
+
+1. Ask Cline to install the Stagehand MCP server from the GitHub link.
+
+```typescript
+Cline, I want to add the Stagehand  MCP server for AI-powered web automation. Here's the GitHub link: @https://github.com/browserbase/mcp-server-browserbase/tree/main/stagehand
+Can you add it?
+```
+
+Cline will pull and install the Stagehand MCP server. It will also ask you to add the necessary environment variables.
+```
+BROWSERBASE_API_KEY=your_browserbase_api_key
+BROWSERBASE_PROJECT_ID=your_browserbase_project_id
+OPENAI_API_KEY=your_openai_api_key
+# Alternatively, you can use Anthropic API key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+2. Add Cline rules
+
+Since Cline has more tools than Stagehand, we need to add rules to Cline to use the Stagehand tools for web automation.
+
+Add the following rules to Cline (`.clinerules` file):
+
+<Accordion title="Cline rules for Stagehand">
+
+```typescript
+If you are asked to do any web automation tasks, use the Stagehand MCP server.
+
+This is how you should call it.
+// Define the Stagehand tools
+export const TOOLS: Tool[] = [
+  {
+    name: "stagehand_navigate",
+    description: "Navigate to a URL in the browser. Only use this tool with URLs you're confident will work and stay up to date. Otheriwse use https://google.com as the starting point",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The URL to navigate to" },
+      },
+      required: ["url"],
+    },
+  },
+  {
+    name: "stagehand_act",
+    description: `Performs an action on a web page element. Act actions should be as atomic and 
+      specific as possible, i.e. "Click the sign in button" or "Type 'hello' into the search input". 
+      AVOID actions that are more than one step, i.e. "Order me pizza" or "Send an email to Paul 
+      asking him to call me". `,
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", description: `The action to perform. Should be as atomic and specific as possible, 
+          i.e. 'Click the sign in button' or 'Type 'hello' into the search input'. AVOID actions that are more than one 
+          step, i.e. 'Order me pizza' or 'Send an email to Paul asking him to call me'. The instruction should be just as specific as possible, 
+          and have a strong correlation to the text on the page. If unsure, use observe before using act."` },
+        variables: {
+          type: "object",
+          additionalProperties: true,
+          description: `Variables used in the action template. ONLY use variables if you're dealing 
+            with sensitive data or dynamic content. For example, if you're logging in to a website, 
+            you can use a variable for the password. When using variables, you MUST have the variable
+            key in the action template. For example: {"action": "Fill in the password", "variables": {"password": "123456"}}`,
+        },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "stagehand_extract",
+    description: `Extracts structured data from the web page based on an instruction and a JSON schema (Zod schema). Extract works best for extracting TEXT in a structured format.`,
+    inputSchema: {
+      type: "object",
+      description: `**Instructions for providing the schema:**
+  
+  - The \`schema\` should be a valid JSON Schema (Zod) object that defines the structure of the data to extract.
+  - Use standard JSON Schema syntax.
+  - The server will convert the JSON Schema to a Zod schema internally.
+  
+  **Example schemas:**
+  
+  1. **Extracting a list of search result titles:**
+  
+  \`\`\`json
+  {
+    "type": "object",
+    "properties": {
+      "searchResults": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "description": "Title of a search result"
+        }
+      }
+    },
+    "required": ["searchResults"]
+  }
+  \`\`\`
+  
+  2. **Extracting product details:**
+  
+  \`\`\`json
+  {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string" },
+      "price": { "type": "string" },
+      "rating": { "type": "number" },
+      "reviews": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "required": ["name", "price", "rating", "reviews"]
+  }
+  \`\`\`
+  
+  **Example usage:**
+  
+  - **Instruction**: "Extract the titles and URLs of the main search results, excluding any ads."
+  - **Schema**:
+    \`\`\`json
+    {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "The title of the search result" },
+              "url": { "type": "string", "description": "The URL of the search result" }
+            },
+            "required": ["title", "url"]
+          }
+        }
+      },
+      "required": ["results"]
+    }
+    \`\`\`
+  
+  **Note:**
+  
+  - Ensure the schema is valid JSON.
+  - Use standard JSON Schema types like \`string\`, \`number\`, \`array\`, \`object\`, etc.
+  - You can add descriptions to help clarify the expected data.
+  `,
+      properties: {
+        instruction: {
+          type: "string",
+          description:
+            "Clear instruction for what data to extract from the page",
+        },
+        schema: {
+          type: "object",
+          description:
+            "A JSON Schema object defining the structure of data to extract",
+          additionalProperties: true,
+        },
+      },
+      required: ["instruction", "schema"],
+    },
+  },
+  {
+    name: "stagehand_observe",
+    description: "Observes elements on the web page. Use this tool to observe elements that you can later use in an action. Use observe instead of extract when dealing with actionable (interactable) elements rather than text. More often than not, you'll want to use extract instead of observe when dealing with scraping or extracting structured text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        instruction: {
+          type: "string",
+          description: "Instruction for observation (e.g., 'find the login button'). This instruction must be extremely specific.",
+        },
+      },
+      required: ["instruction"],
+    },
+  },
+  {
+    name: "screenshot",
+    description: "Take a screenshot of the current page. Use this tool to learn where you are on the page when controlling the browser with Stagehand.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fullPage: { 
+          type: "boolean", 
+          description: "Whether to take a screenshot of the full page (true) or just the visible viewport (false). Default is false." 
+        },
+        path: {
+          type: "string",
+          description: "Optional. Custom file path where the screenshot should be saved. If not provided, a default path will be used."
+        }
+      }
+    },
+  },
+];
+
+
+```
+</Accordion>
+
+3. Restart Cline or reload your editor extension.
+
+
+That's it! You can now use Stagehand's MCP server in Cline.
+
+## Available Commands
+
+When integrated with Cline, your AI assistant can use the following Stagehand commands:
+
+- **stagehand_navigate**: Navigate to any URL in the browser
+- **stagehand_act**: Perform an action on a web page
+- **stagehand_extract**: Extract data from a web page based on instructions
+- **stagehand_observe**: Observe actions that can be performed on a web page
+
+## Example Usage
+
+Here's an example of how to use Stagehand with Cline in your workflow:
+
+1. Ask your AI assistant in Cline to perform a web task, such as:
+   "Can you search for the latest React documentation and extract the main concepts?"
+
+2. The AI will use Stagehand's MCP commands to:
+   - Navigate to the React documentation website
+   - Interact with the search functionality
+   - Extract the relevant information
+   - Return the results directly in your coding environment
+
+## Benefits of Integration
+
+- Perform web research without leaving your code editor
+- Automate repetitive web tasks from your development environment
+- Extract data from websites to use in your code
+- Build more powerful AI-assisted coding workflows
+
+## View the browser session in Browserbase
+
+You can view the browser session in Browserbase by going to the [Browserbase dashboard](https://browserbase.com/dashboard) and clicking on the "Sessions" tab.
+
+## Troubleshooting
+
+If you encounter issues with the integration:
+
+1. Ensure the MCP server is running
+2. Check that your environment variables are set correctly
+3. Verify that Cline is properly configured to use the MCP server
+4. Check the MCP server logs for any error messages
+
+## Further Resources
+
+- [Cline Documentation](https://cline.bot/docs)
+- [Stagehand GitHub Repository](https://github.com/browserbase/stagehand)
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
+- Join our [Slack community](https://stagehand.dev/slack) for support 

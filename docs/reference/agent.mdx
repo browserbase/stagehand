@@ -1,0 +1,75 @@
+---
+title: 'Agent'
+description: 'Web AI agents for any task'
+icon: 'robot'
+---
+ ```javascript
+  const agent = stagehand.agent();
+  await agent.execute("Sign me up for a library card");
+  ```
+Software has always been deterministic and repeatable, but with AI agents it's difficult to replicate a workflow. **Stagehand combines the best of both worlds: intelligence and determinism**.
+
+Web Agents in Stagehand are fully customizable. You can use any LLM / VLM / Computer Use provider, set system prompts, add custom tools, and more.
+
+```javascript
+// For Computer Use Agent (CUA) models
+const agent = stagehand.agent({
+  provider: "openai",
+  model: "computer-use-preview",
+  instructions: "You are a helpful assistant that can use a web browser.",
+  options: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+```
+
+### **Arguments:** [`AgentOptions`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
+
+<ParamField path="provider" type="string" required>
+  Specifies the LLM provider.
+  Currently supporting:
+  - **OpenAI**:  `openai`
+  - **Anthropic**:  `anthropic`
+</ParamField>
+
+<ParamField path="model" type="string" required>
+  Specifies the LLM model.
+  Currently supporting:
+  - **OpenAI**:  `computer-use-preview`
+  - **Anthropic**:  `claude-3-7-sonnet-20250219` and `claude-3-5-sonnet-20240620`
+</ParamField>
+
+<ParamField path="instructions" type="string">
+  Specifies the system prompt
+</ParamField>
+
+<ParamField path="options" type="object">
+  Configuration options for the LLM provider. Currently supports OpenAI and Anthropic SDK client options. 
+</ParamField>
+
+### **Returns:** [`Promise<AgentResult>`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
+
+  <ParamField path="success" type="boolean">
+    If the agent execution completed without errors
+  </ParamField>
+
+  <ParamField path="message" type="string">
+    Summary or error message from the agent
+  </ParamField>
+
+  <ParamField path="actions" type="AgentAction[]">
+    List of actions performed during execution
+  </ParamField>
+
+  <ParamField path="completed" type="boolean">
+    Whether the agent fully completed its task (can be false even if success is true)
+  </ParamField>
+
+  <ParamField path="metadata" type="Record<string, unknown>">
+    Optional additional data about the execution
+  </ParamField>
+
+
+
+
+

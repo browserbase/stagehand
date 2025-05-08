@@ -1,0 +1,121 @@
+---
+title: Browser Customization
+description: Stagehand can run on any Chromium-based browser, like Chrome, Edge, Arc, and Brave.
+---
+
+## Browserbase
+
+Stagehand is built and maintained by [Browserbase](https://www.browserbase.com/). As a result, Stagehand has supreme performance and reliability on Browserbase.
+
+The [Browserbase SDK](https://docs.browserbase.com/reference/sdk/nodejs) is very powerful, and allows you to handle a wide variety of use cases such as:
+
+- Captcha solving
+- Custom contexts and extensions
+- Live browser view
+- Proxy rotation
+- Session recordings
+- Uploads/downloads
+
+Using Browserbase is as easy as setting `env: "BROWSERBASE"` in your Stagehand constructor:
+
+```ts
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  // Stagehand will automatically read your Browserbase API key and project ID from your environment variables
+  // If you'd like to pass in your own API key and project ID, you can do so like this:
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+});
+```
+
+### Create a Browserbase session
+To create a custom Browserbase session, you can pass in `browserbaseSessionCreateParams` to the `Stagehand` constructor. For full documentation on the `browserbaseSessionCreateParams` object, see the [Browserbase API documentation](https://docs.browserbase.com/reference/api/create-a-session).
+
+```ts
+const stagehand = new Stagehand({
+	env: "BROWSERBASE",
+ 	browserbaseSessionCreateParams: {
+		projectId: "your-project-id",
+		extensionId: 'your-extension-id',
+		browserSettings: {
+			viewport: {
+				width: 1920,
+				height: 1080,
+			},
+			proxies: [
+				{
+					type: 'external',
+					server: 'your-proxy-server',
+					username: 'your-proxy-username',
+					password: 'your-proxy-password',
+				},
+			],
+			context: {
+				id: 'your-context-id',
+			},
+		},
+	},
+});
+```
+
+### Resume an existing Browserbase session
+You can reconnect to an existing Browserbase session by passing in the `browserbaseSessionId` to the `Stagehand` constructor.
+
+```ts
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionId: "your-session-id",
+});
+```
+
+You can also pass in `browserbaseSessionCreateParams`, but it will be ignored if `browserbaseSessionId` is provided.
+
+```ts
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionId: "your-session-id",
+  
+  // This will be ignored because we're providing a browserbaseSessionId
+  browserbaseSessionCreateParams: {
+	projectId: "your-project-id",
+  },
+});
+```
+
+## Local Browser Customization
+
+Stagehand allows you to customize your local browser in a few different ways.
+
+You can use [`localBrowserLaunchOptions` type](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/types/stagehand.ts#L134-L174) to customize the browser you want Stagehand to use.
+
+```ts
+const stagehand = new Stagehand({
+  localBrowserLaunchOptions: {
+	cdpUrl: 'your-cdp-url',
+  }
+})
+```
+
+### Use your personal browser
+
+<Tip>
+`cdpUrl` is **only supported in Stagehand 2.0**.
+</Tip>
+
+You can use Stagehand with any Chromium-based browser, like Arc, Brave, Chrome, Dia, and Edge! To do so, you can pass in a `cdpUrl` to connect to a remote browser, or pass in an `executablePath` to use a local browser executable.
+
+You'll also need to open your browser in "debug" mode. For example, if you're using Chrome on a Mac, you can open it with the following command:
+
+```bash
+open -a "Google Chrome" --args --remote-debugging-port=9222
+```
+
+This will open Chrome with remote debugging enabled on port 9222. You can then pass in the `cdpUrl` to Stagehand like so:
+
+```ts
+const stagehand = new Stagehand({
+  localBrowserLaunchOptions: {
+	cdpUrl: 'http://localhost:9222',
+  },
+});
+```

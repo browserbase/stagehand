@@ -1,0 +1,121 @@
+---
+title: 'Extract'
+description: 'Extract structured data from the page'
+icon: 'brain-circuit'
+---
+
+`extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data.
+
+<Tip>We strongly suggest you set `useTextExtract` to `true` if you are extracting data from a longer body of text.</Tip>
+
+### `extract` a single object
+
+Here is how an `extract` call might look for a single object:
+```javascript
+  const item = await page.extract({
+    instruction: "extract the price of the item",
+    schema: z.object({
+      price: z.number(),
+    }),
+  });
+
+```
+Your output schema will look like:
+```
+{ price: number }
+```
+
+### `extract` a list of objects
+
+Here is how an `extract` call might look for a list of objects. Note that you need to wrap the `z.array` in an outer `z.object`.
+```javascript
+  const apartments = await stagehand.page.extract({
+    instruction:
+      "Extract ALL the apartment listings and their details, including address, price, and square feet."
+    schema: z.object({
+      list_of_apartments: z.array(
+        z.object({
+          address: z.string(),
+          price: z.string(),
+          square_feet: z.string(),
+        }),
+      ),
+    }}
+  })
+
+  console.log("the apartment data is: ", apartments));
+```
+
+Your output schema will look like:
+```
+  list_of_apartments: [
+      {
+        address: "street address here",
+        price: "$1234.00",
+        square_feet: "700"
+      },
+      {
+         address: "another address here",
+         price: "1010.00",
+         square_feet: "500"
+      },
+      .
+      .
+      .
+  ]
+```
+
+<Tip>To provide some additional context at the field level within your schema, you can use `.describe()`. See the snippet below: </Tip>
+
+```javascript
+const apartments = await stagehand.page.extract({
+ instruction:
+   "Extract ALL the apartment listings and their details, including address, price, and square feet."
+ schema: z.object({
+   list_of_apartments: z.array(
+     z.object({
+       address: z.string().describe("the address of the apartment"),
+       price: z.string().describe("the price of the apartment"),
+       square_feet: z.string().describe("the square footage of the apartment"),
+     }),
+   ),
+ }}
+})
+```
+
+### **Arguments:** [`ExtractOptions<T extends z.AnyZodObject>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+
+  <ParamField path="instruction" type="string" required>
+    Provides instructions for extraction
+  </ParamField>
+
+  <ParamField path="schema" type="z.AnyZodObject" required>
+    Defines the structure of the data to extract
+  </ParamField>
+
+  <ParamField path="useTextExtract" type="boolean" optional>
+  
+    This method converts the page to text, which is much cleaner for LLMs than the DOM. However, it may not work for use cases that involve DOM metadata elements.
+  </ParamField>
+
+  <ParamField path="selector" type="string" optional>
+      An xpath that can be used to reduce the scope of an extraction. If an xpath is passed in, `extract` will only process
+      the contents of the HTML element that the xpath points to. Useful for reducing input tokens and increasing extraction
+      accuracy. Only works when `useTextExtract: true`.
+  </ParamField>
+
+  <ParamField path="modelName" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="modelClientOptions" type="object" optional>
+    Configuration options for the model client. See [`ClientOptions`](https://github.com/browserbase/stagehand/blob/main/types/model.ts).
+  </ParamField>
+
+  <ParamField path="domSettleTimeoutMs" type="number" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+
+### **Returns:** [`Promise<ExtractResult<T extends z.AnyZodObject>>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+
+Resolves to the structured data as defined by the provided `schema`.

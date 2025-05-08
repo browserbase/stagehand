@@ -1,0 +1,101 @@
+---
+title: Install Stagehand
+description: Add Stagehand to an existing Node.js project
+icon: 'download'
+---
+
+<Tip>
+
+We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
+
+**Bun does not support Stagehand** since it doesn't support [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright&type=issues).
+
+</Tip>
+
+We strongly recommend using Stagehand in a new project with `npx create-browser-app`. Check out our [quickstart guide](https://docs.stagehand.dev/get_started/quickstart) to get started. 
+
+However, if you have an existing project, you can install Stagehand by installing the `@browserbasehq/stagehand` package and `zod` (for structured output).
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npm install @browserbasehq/stagehand zod
+	```
+	</Tab>
+	<Tab title="pnpm">
+	```bash
+	pnpm add @browserbasehq/stagehand zod
+	```
+	</Tab>
+	<Tab title="yarn">
+	```bash
+	yarn add @browserbasehq/stagehand zod
+	```
+	</Tab>
+</Tabs>
+
+You may also need to install the Playwright browser to run your Stagehand scripts, especially if you're running locally.
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	# Useful for local development
+	npx playwright install
+	```
+	</Tab>
+	<Tab title="pnpm">
+	```bash
+	# Useful for local development
+	pnpm add playwright
+	pnpm playwright install
+	```
+	</Tab>
+	<Tab title="yarn">
+	```bash
+	# Useful for local development
+	yarn add playwright
+	yarn playwright install
+	```
+	</Tab>
+</Tabs>
+
+Then, you can use Stagehand in your project by importing the `Stagehand` class.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+async function main() {
+	const stagehand = new Stagehand({
+		/**
+		 * With npx create-browser-app, this config is found 
+		 * in a separate stagehand.config.ts file
+		*/
+		env: "LOCAL",
+		modelName: "gpt-4o",
+		modelClientOptions: {
+			apiKey: process.env.OPENAI_API_KEY,
+		},
+	});
+	await stagehand.init();
+
+	const page = stagehand.page;
+
+	await page.goto("https://www.google.com");
+	await page.act("Type in 'Browserbase' into the search bar");
+
+	const { title } = await page.extract({
+		instruction: "The title of the first search result",
+		schema: z.object({
+			title: z.string(),
+		}),
+	});
+	
+
+	await stagehand.close();
+}
+
+main();
+```
+
+
+
