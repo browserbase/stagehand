@@ -751,7 +751,7 @@ ${scriptContent} \
         modelClientOptions,
         domSettleTimeoutMs,
         returnAction = true,
-        onlyVisible = false,
+        onlyVisible,
         drawOverlay,
       } = options;
 
@@ -783,10 +783,12 @@ ${scriptContent} \
             value: llmClient.modelName,
             type: "string",
           },
-          onlyVisible: {
-            value: onlyVisible ? "true" : "false",
-            type: "boolean",
-          },
+          ...(onlyVisible !== undefined && {
+            onlyVisible: {
+              value: onlyVisible ? "true" : "false",
+              type: "boolean",
+            },
+          }),
         },
       });
 
