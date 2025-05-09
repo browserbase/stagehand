@@ -229,6 +229,7 @@ export class StagehandAPI {
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
       "x-sent-at": new Date().toISOString(),
+      "x-language": "typescript",
     };
 
     if (options.method === "POST" && options.body) {
