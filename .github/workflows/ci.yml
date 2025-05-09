@@ -7,6 +7,8 @@ on:
       - synchronize
       - labeled
       - unlabeled
+    paths-ignore:
+      - "docs/**"
 
 env:
   EVAL_MODELS: "gpt-4.1,gemini-2.0-flash,claude-3-5-sonnet-latest"
