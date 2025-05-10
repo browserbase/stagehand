@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.3.0
+
+### Minor Changes
+
+- [#737](https://github.com/browserbase/stagehand/pull/737) [`6ef6073`](https://github.com/browserbase/stagehand/commit/6ef60730cab0ad9025f44b6eeb2c83751d1dcd35) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecate useTextExtract and remove functionality
+
 ## 2.2.1
 
 ### Patch Changes
