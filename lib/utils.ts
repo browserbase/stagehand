@@ -5,6 +5,7 @@ import { LogLine } from "../types/log";
 import { ZodPathSegments } from "../types/stagehand";
 import { Schema, Type } from "@google/genai";
 import { ModelProvider } from "../types/model";
+import { ZodSchemaValidationError } from "@/types/stagehandErrors";
 
 export function generateId(operation: string) {
   return crypto.createHash("sha256").update(operation).digest("hex");
@@ -26,12 +27,12 @@ export function logLineToString(logLine: LogLine): string {
 }
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
-  try {
-    schema.parse(data);
+  const result = schema.safeParse(data);
+
+  if (result.success) {
     return true;
-  } catch {
-    return false;
   }
+  throw new ZodSchemaValidationError(data, result.error.format());
 }
 
 export async function drawObserveOverlay(page: Page, results: ObserveResult[]) {

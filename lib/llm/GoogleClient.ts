@@ -435,7 +435,9 @@ export class GoogleClient extends LLMClient {
           );
         }
 
-        if (!validateZodSchema(response_model.schema, parsedData)) {
+        try {
+          validateZodSchema(response_model.schema, parsedData);
+        } catch (err) {
           logger({
             category: "google",
             message: "Response failed Zod schema validation",
@@ -448,9 +450,7 @@ export class GoogleClient extends LLMClient {
               retries: retries - 1,
             });
           }
-          throw new CreateChatCompletionResponseError(
-            "Invalid response schema",
-          );
+          throw err;
         }
 
         // If schema validation passes, structure the response for extraction use case
