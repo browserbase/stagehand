@@ -1,4 +1,4 @@
-import { Locator } from "@playwright/test";
+import { Locator } from "patchright";
 import { LogLine } from "../../types/log";
 import {
   PlaywrightCommandException,

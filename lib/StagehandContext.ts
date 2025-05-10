@@ -1,7 +1,7 @@
 import type {
   BrowserContext as PlaywrightContext,
   Page as PlaywrightPage,
-} from "@playwright/test";
+} from "patchright";
 import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";
