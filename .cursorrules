@@ -105,7 +105,6 @@ const data = await page.extract({
   schema: z.object({
     text: z.array(z.string()),
   }),
-  useTextExtract: true, // Set true for larger-scale extractions (multiple paragraphs), or set false for small extractions (name, birthday, etc)
 });
 ```
 
