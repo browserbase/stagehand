@@ -125,6 +125,9 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
+  /**
+   * @deprecated The `useTextExtract` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
   useTextExtract?: boolean;
   selector?: string;
 }

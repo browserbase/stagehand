@@ -18,7 +18,6 @@ ${userProvidedInstructions}`;
 // extract
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
-  useTextExtract: boolean = false,
   userProvidedInstructions?: string,
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
@@ -29,14 +28,10 @@ export function buildExtractSystemPrompt(
 1. An instruction
 2. `;
 
-  const contentDetail = useTextExtract
-    ? `A text representation of a webpage to extract information from.`
-    : `A list of DOM elements to extract from.`;
+  const contentDetail = `A list of DOM elements to extract from.`;
 
   const instructions = `
-Print the exact text from the ${
-    useTextExtract ? "text-rendered webpage" : "DOM elements"
-  } with all symbols, characters, and endlines as is.
+Print the exact text from the DOM elements with all symbols, characters, and endlines as is.
 Print null or an empty string if no new information is found.
   `.trim();
 
@@ -47,12 +42,9 @@ ONLY print the content using the print_extracted_data tool provided.
   `.trim()
     : "";
 
-  const additionalInstructions = useTextExtract
-    ? `Once you are given the text-rendered webpage, 
-    you must thoroughly and meticulously analyze it. Be very careful to ensure that you
-    do not miss any important information.`
-    : "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
-      "Do not attempt to extract links directly from the text unless absolutely necessary. ";
+  const additionalInstructions =
+    "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
+    "Do not attempt to extract links directly from the text unless absolutely necessary. ";
 
   const userInstructions = buildUserInstructionsString(
     userProvidedInstructions,

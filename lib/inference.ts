@@ -38,7 +38,6 @@ export async function extract({
   chunksTotal,
   requestId,
   logger,
-  isUsingTextExtract,
   userProvidedInstructions,
   logInferenceToFile = false,
 }: {
@@ -49,7 +48,6 @@ export async function extract({
   chunksSeen: number;
   chunksTotal: number;
   requestId: string;
-  isUsingTextExtract?: boolean;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -73,11 +71,7 @@ export async function extract({
   const isUsingAnthropic = llmClient.type === "anthropic";
 
   const extractCallMessages: ChatMessage[] = [
-    buildExtractSystemPrompt(
-      isUsingAnthropic,
-      isUsingTextExtract,
-      userProvidedInstructions,
-    ),
+    buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
     buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
   ];
 

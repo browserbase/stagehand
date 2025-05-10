@@ -16,10 +16,6 @@ export async function waitForDomSettle() {
   });
 }
 
-export function calculateViewportHeight() {
-  return Math.ceil(window.innerHeight * 0.75);
-}
-
 /**
  * Tests if the element actually responds to .scrollTo(...)
  * and that scrollTop changes as expected.

@@ -107,9 +107,8 @@ const apartments = await stagehand.page.extract({
     Defines the structure of the data to extract
   </ParamField>
 
-  <ParamField path="useTextExtract" type="boolean" optional>
-  
-    This method converts the page to text, which is much cleaner for LLMs than the DOM. However, it may not work for use cases that involve DOM metadata elements.
+  <ParamField path="useTextExtract" type="boolean" deprecated>
+    This field is now **deprecated** and has no effect.
   </ParamField>
 
   <ParamField path="selector" type="string" optional>
