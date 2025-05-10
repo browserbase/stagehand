@@ -24,6 +24,7 @@ import {
 import {
   CreateChatCompletionResponseError,
   StagehandError,
+  InvalidLLMKeyError,
 } from "@/types/stagehandErrors";
 
 export class OpenAIClient extends LLMClient {
@@ -342,129 +343,152 @@ export class OpenAIClient extends LLMClient {
         type: "function",
       })),
     };
+    try {
+      const response = await this.client.chat.completions.create(body);
 
-    const response = await this.client.chat.completions.create(body);
+      // For O1 models, we need to parse the tool call response manually and add it to the response.
+      if (isToolsOverridedForO1) {
+        try {
+          const parsedContent = JSON.parse(response.choices[0].message.content);
 
-    // For O1 models, we need to parse the tool call response manually and add it to the response.
-    if (isToolsOverridedForO1) {
-      try {
-        const parsedContent = JSON.parse(response.choices[0].message.content);
-
-        response.choices[0].message.tool_calls = [
-          {
-            function: {
-              name: parsedContent["name"],
-              arguments: JSON.stringify(parsedContent["arguments"]),
+          response.choices[0].message.tool_calls = [
+            {
+              function: {
+                name: parsedContent["name"],
+                arguments: JSON.stringify(parsedContent["arguments"]),
+              },
+              type: "function",
+              id: "-1",
             },
-            type: "function",
-            id: "-1",
+          ];
+          response.choices[0].message.content = null;
+        } catch (error) {
+          logger({
+            category: "openai",
+            message: "Failed to parse tool call response",
+            level: 0,
+            auxiliary: {
+              error: {
+                value: error.message,
+                type: "string",
+              },
+              content: {
+                value: response.choices[0].message.content,
+                type: "string",
+              },
+            },
+          });
+
+          if (retries > 0) {
+            // as-casting to account for o1 models not supporting all options
+            return this.createChatCompletion({
+              options: options as ChatCompletionOptions,
+              logger,
+              retries: retries - 1,
+            });
+          }
+
+          throw error;
+        }
+      }
+
+      logger({
+        category: "openai",
+        message: "response",
+        level: 2,
+        auxiliary: {
+          response: {
+            value: JSON.stringify(response),
+            type: "object",
           },
-        ];
-        response.choices[0].message.content = null;
-      } catch (error) {
+          requestId: {
+            value: requestId,
+            type: "string",
+          },
+        },
+      });
+
+      if (options.response_model) {
+        const extractedData = response.choices[0].message.content;
+        const parsedData = JSON.parse(extractedData);
+
+        if (!validateZodSchema(options.response_model.schema, parsedData)) {
+          if (retries > 0) {
+            // as-casting to account for o1 models not supporting all options
+            return this.createChatCompletion({
+              options: options as ChatCompletionOptions,
+              logger,
+              retries: retries - 1,
+            });
+          }
+
+          throw new CreateChatCompletionResponseError(
+            "Invalid response schema",
+          );
+        }
+
+        if (this.enableCaching) {
+          this.cache.set(
+            cacheOptions,
+            {
+              ...parsedData,
+            },
+            options.requestId,
+          );
+        }
+
+        return {
+          data: parsedData,
+          usage: response.usage,
+        } as T;
+      }
+
+      if (this.enableCaching) {
+        logger({
+          category: "llm_cache",
+          message: "caching response",
+          level: 1,
+          auxiliary: {
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+            cacheOptions: {
+              value: JSON.stringify(cacheOptions),
+              type: "object",
+            },
+            response: {
+              value: JSON.stringify(response),
+              type: "object",
+            },
+          },
+        });
+        this.cache.set(cacheOptions, response, options.requestId);
+      }
+
+      // if the function was called with a response model, it would have returned earlier
+      // so we can safely cast here to T, which defaults to ChatCompletion
+      return response as T;
+    } catch (error) {
+      if (error instanceof OpenAI.AuthenticationError) {
         logger({
           category: "openai",
-          message: "Failed to parse tool call response",
+          message: "Invalid OpenAI API key",
           level: 0,
           auxiliary: {
             error: {
               value: error.message,
               type: "string",
             },
-            content: {
-              value: response.choices[0].message.content,
+            requestId: {
+              value: options.requestId,
               type: "string",
             },
           },
         });
-
-        if (retries > 0) {
-          // as-casting to account for o1 models not supporting all options
-          return this.createChatCompletion({
-            options: options as ChatCompletionOptions,
-            logger,
-            retries: retries - 1,
-          });
-        }
-
-        throw error;
+        throw new InvalidLLMKeyError();
       }
+      throw error;
     }
-
-    logger({
-      category: "openai",
-      message: "response",
-      level: 2,
-      auxiliary: {
-        response: {
-          value: JSON.stringify(response),
-          type: "object",
-        },
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-      },
-    });
-
-    if (options.response_model) {
-      const extractedData = response.choices[0].message.content;
-      const parsedData = JSON.parse(extractedData);
-
-      if (!validateZodSchema(options.response_model.schema, parsedData)) {
-        if (retries > 0) {
-          // as-casting to account for o1 models not supporting all options
-          return this.createChatCompletion({
-            options: options as ChatCompletionOptions,
-            logger,
-            retries: retries - 1,
-          });
-        }
-
-        throw new CreateChatCompletionResponseError("Invalid response schema");
-      }
-
-      if (this.enableCaching) {
-        this.cache.set(
-          cacheOptions,
-          {
-            ...parsedData,
-          },
-          options.requestId,
-        );
-      }
-
-      return {
-        data: parsedData,
-        usage: response.usage,
-      } as T;
-    }
-
-    if (this.enableCaching) {
-      logger({
-        category: "llm_cache",
-        message: "caching response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-          response: {
-            value: JSON.stringify(response),
-            type: "object",
-          },
-        },
-      });
-      this.cache.set(cacheOptions, response, options.requestId);
-    }
-
-    // if the function was called with a response model, it would have returned earlier
-    // so we can safely cast here to T, which defaults to ChatCompletion
-    return response as T;
   }
 }
