@@ -6,8 +6,6 @@ icon: 'brain-circuit'
 
 `extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data.
 
-<Tip>We strongly suggest you set `useTextExtract` to `true` if you are extracting data from a longer body of text.</Tip>
-
 ### `extract` a single object
 
 Here is how an `extract` call might look for a single object:
@@ -24,6 +22,22 @@ Your output schema will look like:
 ```
 { price: number }
 ```
+
+### `extract` a link
+<Note>To extract links or URLs, the relevant field in your schema needs to be defined using `z.string().url()`. See the snippet below: </Note>
+
+Here is how an `extract` call might look for extracting a link or URL.
+```javascript
+  const extraction = await stagehand.page.extract({
+    instruction: "extract the link to the 'contact us' page",
+    schema: z.object({
+      link: z.string().url(),
+    }),
+  });
+
+  console.log("the link to the contact us page is: ", extraction.link);
+```
+
 
 ### `extract` a list of objects
 
@@ -101,7 +115,7 @@ const apartments = await stagehand.page.extract({
   <ParamField path="selector" type="string" optional>
       An xpath that can be used to reduce the scope of an extraction. If an xpath is passed in, `extract` will only process
       the contents of the HTML element that the xpath points to. Useful for reducing input tokens and increasing extraction
-      accuracy. Only works when `useTextExtract: true`.
+      accuracy.
   </ParamField>
 
   <ParamField path="modelName" type="AvailableModel" optional>
