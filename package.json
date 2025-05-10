@@ -22,7 +22,7 @@
     "build-js": "tsup lib/index.ts --dts",
     "build": "pnpm run lint && pnpm run build-dom-scripts && pnpm run build-js && pnpm run build-types",
     "prepare": "pnpm run build",
-    "lint": "pnpm run prettier && pnpm run eslint",
+    "lint": "pnpm run prettier:fix && pnpm run eslint",
     "release": "pnpm run build && changeset publish",
     "release-canary": "pnpm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
