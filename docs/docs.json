@@ -43,7 +43,8 @@
           "integrations/mcp-server",
           "integrations/cursor",
           "integrations/cline",
-          "integrations/claude-code"
+          "integrations/claude-code",
+          "integrations/crew-ai"
         ]
       },
       {
