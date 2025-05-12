@@ -24,6 +24,7 @@ import {
 import {
   CreateChatCompletionResponseError,
   StagehandError,
+  ZodSchemaValidationError,
 } from "@/types/stagehandErrors";
 
 export class OpenAIClient extends LLMClient {
@@ -411,7 +412,14 @@ export class OpenAIClient extends LLMClient {
       const extractedData = response.choices[0].message.content;
       const parsedData = JSON.parse(extractedData);
 
-      if (!validateZodSchema(options.response_model.schema, parsedData)) {
+      try {
+        validateZodSchema(options.response_model.schema, parsedData);
+      } catch (e) {
+        logger({
+          category: "openai",
+          message: "Response failed Zod schema validation",
+          level: 0,
+        });
         if (retries > 0) {
           // as-casting to account for o1 models not supporting all options
           return this.createChatCompletion({
@@ -421,7 +429,22 @@ export class OpenAIClient extends LLMClient {
           });
         }
 
-        throw new CreateChatCompletionResponseError("Invalid response schema");
+        if (e instanceof ZodSchemaValidationError) {
+          logger({
+            category: "openai",
+            message: `Error during OpenAI chat completion: ${e.message}`,
+            level: 0,
+            auxiliary: {
+              errorDetails: {
+                value: `Message: ${e.message}${e.stack ? "\nStack: " + e.stack : ""}`,
+                type: "string",
+              },
+              requestId: { value: requestId, type: "string" },
+            },
+          });
+          throw new CreateChatCompletionResponseError(e.message);
+        }
+        throw e;
       }
 
       if (this.enableCaching) {

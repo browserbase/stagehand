@@ -1,3 +1,5 @@
+import { ZodError } from "zod";
+
 export class StagehandError extends Error {
   constructor(message: string) {
     super(message);
@@ -175,5 +177,21 @@ export class StagehandClickError extends StagehandError {
 export class LLMResponseError extends StagehandError {
   constructor(primitive: string, message: string) {
     super(`${primitive} LLM response error: ${message}`);
+  }
+}
+
+export class ZodSchemaValidationError extends Error {
+  constructor(
+    public readonly received: unknown,
+    public readonly issues: ReturnType<ZodError["format"]>,
+  ) {
+    super(`Zod schema validation failed
+
+— Received —
+${JSON.stringify(received, null, 2)}
+
+— Issues —
+${JSON.stringify(issues, null, 2)}`);
+    this.name = "ZodSchemaValidationError";
   }
 }
