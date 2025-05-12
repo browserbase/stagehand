@@ -25,7 +25,7 @@ Before using this tool, you will need:
 Install the dependencies:
 
 ```bash
-pip install stagehand-py
+pip install stagehand-py crewai crewai-tools
 ```
 
 ## Usage
@@ -232,13 +232,13 @@ form_submission_task = Task(
     3. Submit the form
     4. Confirm the submission was successful
     """,
-    agent=form_agent,
+    agent=researcher,
 )
 
 # Run the crew
 crew = Crew(
     agents=[researcher],
-    tasks=[research_task],
+    tasks=[form_submission_task],
     verbose=True,
 )
 
