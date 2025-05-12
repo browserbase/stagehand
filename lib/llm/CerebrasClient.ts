@@ -10,7 +10,10 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
+import {
+  CreateChatCompletionResponseError,
+  InvalidLLMKeyError,
+} from "@/types/stagehandErrors";
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
@@ -322,6 +325,24 @@ export class CerebrasClient extends LLMClient {
 
       throw new CreateChatCompletionResponseError("Invalid response schema");
     } catch (error) {
+      if (error instanceof OpenAI.AuthenticationError) {
+        logger({
+          category: "cerebras",
+          message: "Invalid Cerebras API key",
+          level: 0,
+          auxiliary: {
+            error: {
+              value: error.message,
+              type: "string",
+            },
+            requestId: {
+              value: options.requestId,
+              type: "string",
+            },
+          },
+        });
+        throw new InvalidLLMKeyError();
+      }
       logger({
         category: "cerebras",
         message: "error creating chat completion",
