@@ -125,7 +125,7 @@ nano .env # Edit the .env file to add API keys
 
 At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
 
-For more information, please see our [Contributing Guide](https://docs.stagehand.dev/contributions/contributing).
+For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing).
 
 ## Acknowledgements
 
