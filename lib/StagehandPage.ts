@@ -6,7 +6,6 @@ import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
   ExtractResult,
-  HistoryEntry,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
@@ -46,11 +45,6 @@ export class StagehandPage {
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
-  private _history: Array<HistoryEntry> = [];
-
-  public get history(): ReadonlyArray<HistoryEntry> {
-    return Object.freeze([...this._history]);
-  }
 
   constructor(
     page: PlaywrightPage,
@@ -338,13 +332,15 @@ ${scriptContent} \
 
           // Handle goto specially
           if (prop === "goto") {
+            const rawGoto: typeof target.goto =
+              Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
               const result = this.api
                 ? await this.api.goto(url, options)
-                : await target.goto(url, options);
+                : await rawGoto(url, options);
 
-              this.addToHistory("navigate", { url, options }, result);
+              this.stagehand.addToHistory("navigate", { url, options }, result);
 
               if (this.waitForCaptchaSolves) {
                 try {
@@ -498,24 +494,6 @@ ${scriptContent} \
     }
   }
 
-  public addToHistory(
-    method: HistoryEntry["method"],
-    parameters:
-      | ActOptions
-      | ExtractOptions<z.AnyZodObject>
-      | ObserveOptions
-      | { url: string; options: GotoOptions }
-      | string,
-    result?: unknown,
-  ): void {
-    this._history.push({
-      method,
-      parameters,
-      result: result ?? null,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
   async act(
     actionOrOptions: string | ActOptions | ObserveResult,
   ): Promise<ActResult> {
@@ -536,7 +514,7 @@ ${scriptContent} \
           if (this.api) {
             const result = await this.api.act(observeResult);
             await this._refreshPageFromAPI();
-            this.addToHistory("act", observeResult, result);
+            this.stagehand.addToHistory("act", observeResult, result);
             return result;
           }
 
@@ -568,7 +546,7 @@ ${scriptContent} \
       if (this.api) {
         const result = await this.api.act(actionOrOptions);
         await this._refreshPageFromAPI();
-        this.addToHistory("act", actionOrOptions, result);
+        this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
 
@@ -603,8 +581,7 @@ ${scriptContent} \
         llmClient,
         requestId,
       );
-
-      this.addToHistory("act", actionOrOptions, result);
+      this.stagehand.addToHistory("act", actionOrOptions, result);
       return result;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
@@ -632,7 +609,7 @@ ${scriptContent} \
         } else {
           result = await this.extractHandler.extract();
         }
-        this.addToHistory("extract", instructionOrOptions, result);
+        this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
 
@@ -656,7 +633,7 @@ ${scriptContent} \
 
       if (this.api) {
         const result = await this.api.extract<T>(options);
-        this.addToHistory("extract", instructionOrOptions, result);
+        this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
 
@@ -719,7 +696,7 @@ ${scriptContent} \
           throw e;
         });
 
-      this.addToHistory("extract", instructionOrOptions, result);
+      this.stagehand.addToHistory("extract", instructionOrOptions, result);
 
       return result;
     } catch (err: unknown) {
@@ -757,7 +734,7 @@ ${scriptContent} \
 
       if (this.api) {
         const result = await this.api.observe(options);
-        this.addToHistory("observe", instructionOrOptions, result);
+        this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;
       }
 
@@ -834,7 +811,7 @@ ${scriptContent} \
           throw e;
         });
 
-      this.addToHistory("observe", instructionOrOptions, result);
+      this.stagehand.addToHistory("observe", instructionOrOptions, result);
 
       return result;
     } catch (err: unknown) {

@@ -17,6 +17,9 @@ import {
   StagehandMetrics,
   StagehandFunctionName,
   HistoryEntry,
+  ActOptions,
+  ExtractOptions,
+  ObserveOptions,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
@@ -41,6 +44,8 @@ import {
   UnsupportedAISDKModelProviderError,
   InvalidAISDKModelFormatError,
 } from "../types/stagehandErrors";
+import { z } from "zod";
+import { GotoOptions } from "@/types/playwright";
 
 dotenv.config({ path: ".env" });
 
@@ -396,6 +401,10 @@ export class Stagehand {
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
+  private _history: Array<HistoryEntry> = [];
+  public get history(): ReadonlyArray<HistoryEntry> {
+    return Object.freeze([...this._history]);
+  }
   protected setActivePage(page: StagehandPage): void {
     this.stagehandPage = page;
   }
@@ -810,6 +819,24 @@ export class Stagehand {
     }
   }
 
+  public addToHistory(
+    method: HistoryEntry["method"],
+    parameters:
+      | ActOptions
+      | ExtractOptions<z.AnyZodObject>
+      | ObserveOptions
+      | { url: string; options: GotoOptions }
+      | string,
+    result?: unknown,
+  ): void {
+    this._history.push({
+      method,
+      parameters,
+      result: result ?? null,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   /**
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method
@@ -896,14 +923,6 @@ export class Stagehand {
         return await agentHandler.execute(executeOptions);
       },
     };
-  }
-
-  public get history(): ReadonlyArray<HistoryEntry> {
-    if (!this.stagehandPage) {
-      throw new StagehandNotInitializedError("history()");
-    }
-
-    return this.stagehandPage.history;
   }
 }
 
