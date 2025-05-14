@@ -1,4 +1,9 @@
-import { AccessibilityNode, TreeResult, AXNode } from "../../types/context";
+import {
+  AccessibilityNode,
+  TreeResult,
+  AXNode,
+  DOMNode,
+} from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
 import { CDPSession, Page, Locator } from "playwright";
@@ -47,6 +52,41 @@ export function formatSimplifiedTree(
 }
 
 /**
+ * Builds a map of `backendNodeId to tagName` with a single CDP round-trip.
+ */
+async function buildBackendIdTagNameMap(
+  page: StagehandPage,
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+
+  await page.enableCDP("DOM");
+  try {
+    const { root } = await page.sendCDP<{ root: DOMNode }>("DOM.getDocument", {
+      depth: -1,
+      pierce: true,
+    });
+
+    /* Recursively walk the DOM tree */
+    const walk = (node: DOMNode): void => {
+      if (node.backendNodeId && node.nodeName) {
+        map.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+      }
+
+      // Children, shadow roots, template content, etc.
+      if (node.children) node.children.forEach(walk);
+      if (node.shadowRoots) node.shadowRoots.forEach(walk);
+      if (node.contentDocument) walk(node.contentDocument);
+    };
+
+    walk(root);
+  } finally {
+    await page.disableCDP("DOM");
+  }
+
+  return map;
+}
+
+/**
  * Helper function to remove or collapse unnecessary structural nodes
  * Handles three cases:
  * 1. Removes generic/none nodes with no children
@@ -56,7 +96,7 @@ export function formatSimplifiedTree(
  */
 async function cleanStructuralNodes(
   node: AccessibilityNode,
-  page?: StagehandPage,
+  tagNameMap: Map<number, string>,
   logger?: (logLine: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
   // 1) Filter out nodes with negative IDs
@@ -72,7 +112,7 @@ async function cleanStructuralNodes(
 
   // 3) Recursively clean children
   const cleanedChildrenPromises = node.children.map((child) =>
-    cleanStructuralNodes(child, page, logger),
+    cleanStructuralNodes(child, tagNameMap, logger),
   );
   const resolvedChildren = await Promise.all(cleanedChildrenPromises);
   let cleanedChildren = resolvedChildren.filter(
@@ -94,67 +134,14 @@ async function cleanStructuralNodes(
   }
 
   // 5) If we still have a "generic"/"none" node after pruning
-  //    (i.e., because it had multiple children), now we try
-  //    to resolve and replace its role with the DOM tag name.
+  //    (i.e., because it had multiple children), replace the role
+  //    with the DOM tag name.
   if (
-    page &&
-    logger &&
-    node.backendDOMNodeId !== undefined &&
-    (node.role === "generic" || node.role === "none")
+    (node.role === "generic" || node.role === "none") &&
+    node.backendDOMNodeId !== undefined
   ) {
-    try {
-      const { object } = await page.sendCDP<{
-        object: { objectId?: string };
-      }>("DOM.resolveNode", {
-        backendNodeId: node.backendDOMNodeId,
-      });
-
-      if (object && object.objectId) {
-        try {
-          // Get the tagName for the node
-          const { result } = await page.sendCDP<{
-            result: { type: string; value?: string };
-          }>("Runtime.callFunctionOn", {
-            objectId: object.objectId,
-            functionDeclaration: `
-              function() {
-                return this.tagName ? this.tagName.toLowerCase() : "";
-              }
-            `,
-            returnByValue: true,
-          });
-
-          // If we got a tagName, update the node's role
-          if (result?.value) {
-            node.role = result.value;
-          }
-        } catch (tagNameError) {
-          logger({
-            category: "observation",
-            message: `Could not fetch tagName for node ${node.backendDOMNodeId}`,
-            level: 2,
-            auxiliary: {
-              error: {
-                value: tagNameError.message,
-                type: "string",
-              },
-            },
-          });
-        }
-      }
-    } catch (resolveError) {
-      logger({
-        category: "observation",
-        message: `Could not resolve DOM node ID ${node.backendDOMNodeId}`,
-        level: 2,
-        auxiliary: {
-          error: {
-            value: resolveError.message,
-            type: "string",
-          },
-        },
-      });
-    }
+    const tagName = tagNameMap.get(node.backendDOMNodeId);
+    if (tagName) node.role = tagName;
   }
 
   // rm redundant StaticText children
@@ -183,7 +170,7 @@ async function cleanStructuralNodes(
  */
 export async function buildHierarchicalTree(
   nodes: AccessibilityNode[],
-  page?: StagehandPage,
+  tagNameMap: Map<number, string>,
   logger?: (logLine: LogLine) => void,
 ): Promise<TreeResult> {
   // Map to store nodeId -> URL for only those nodes that do have a URL.
@@ -264,7 +251,7 @@ export async function buildHierarchicalTree(
     .filter(Boolean) as AccessibilityNode[];
 
   const cleanedTreePromises = rootNodes.map((node) =>
-    cleanStructuralNodes(node, page, logger),
+    cleanStructuralNodes(node, tagNameMap, logger),
   );
   const finalTree = (await Promise.all(cleanedTreePromises)).filter(
     Boolean,
@@ -291,6 +278,9 @@ export async function getAccessibilityTree(
   logger: (logLine: LogLine) => void,
   selector?: string,
 ): Promise<TreeResult> {
+  /* Build tag-name map once, reuse everywhere */
+  const tagNameMap = await buildBackendIdTagNameMap(page);
+
   await page.enableCDP("Accessibility");
 
   try {
@@ -371,7 +361,7 @@ export async function getAccessibilityTree(
           properties: node.properties,
         };
       }),
-      page,
+      tagNameMap,
       logger,
     );
 

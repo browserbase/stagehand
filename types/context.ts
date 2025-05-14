@@ -45,6 +45,14 @@ export interface TreeResult {
   idToUrl: Record<string, string>;
 }
 
+export type DOMNode = {
+  backendNodeId?: number;
+  nodeName?: string;
+  children?: DOMNode[];
+  shadowRoots?: DOMNode[];
+  contentDocument?: DOMNode;
+};
+
 export interface EnhancedContext
   extends Omit<PlaywrightContext, "newPage" | "pages"> {
   newPage(): Promise<Page>;
