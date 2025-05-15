@@ -112,18 +112,6 @@ export class HandlerNotInitializedError extends StagehandError {
   }
 }
 
-export class StagehandNotImplementedError extends StagehandError {
-  constructor(message: string) {
-    super(`NotImplementedError: ${message}`);
-  }
-}
-
-export class StagehandDeprecationError extends StagehandError {
-  constructor(message: string) {
-    super(`DeprecationError: ${message}`);
-  }
-}
-
 export class StagehandInvalidArgumentError extends StagehandError {
   constructor(message: string) {
     super(`InvalidArgumentError: ${message}`);
