@@ -3,10 +3,11 @@ import {
   TreeResult,
   AXNode,
   DOMNode,
+  BackendIdMaps,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { CDPSession, Page, Locator } from "playwright";
+import { Page, Locator } from "playwright";
 import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,
@@ -52,38 +53,55 @@ export function formatSimplifiedTree(
 }
 
 /**
- * Builds a map of `backendNodeId to tagName` with a single CDP round-trip.
+ * Returns a `BackendIdMaps` object, which contains two mappings:
+ * 1. a `tagNameMap`, which is a mapping of `backendNodeId`s -> `nodeName`s
+ * 2. an `xpathMap`, which is a mapping of `backendNodeId`s -> `xPaths`s
  */
-async function buildBackendIdTagNameMap(
-  page: StagehandPage,
-): Promise<Map<number, string>> {
-  const map = new Map<number, string>();
-
+async function buildBackendIdMaps(page: StagehandPage): Promise<BackendIdMaps> {
   await page.enableCDP("DOM");
+
   try {
     const { root } = await page.sendCDP<{ root: DOMNode }>("DOM.getDocument", {
       depth: -1,
       pierce: true,
     });
 
-    /* Recursively walk the DOM tree */
-    const walk = (node: DOMNode): void => {
-      if (node.backendNodeId && node.nodeName) {
-        map.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+    const tagNameMap: Record<number, string> = {};
+    const xpathMap: Record<number, string> = {};
+
+    /* Recursively walk the DOM tree, carrying the XPath built so far. */
+    const walk = (node: DOMNode, path: string): void => {
+      if (node.backendNodeId) {
+        const tag = String(node.nodeName).toLowerCase();
+        tagNameMap[node.backendNodeId] = tag;
+        xpathMap[node.backendNodeId] = path;
       }
 
-      // Children, shadow roots, template content, etc.
-      if (node.children) node.children.forEach(walk);
-      if (node.shadowRoots) node.shadowRoots.forEach(walk);
-      if (node.contentDocument) walk(node.contentDocument);
+      if (!node.children?.length) return;
+      const counters: Record<string, number> = {};
+
+      for (const child of node.children) {
+        const name = String(child.nodeName).toLowerCase();
+        const counterKey = `${child.nodeType}:${name}`;
+        const idx = (counters[counterKey] = (counters[counterKey] ?? 0) + 1);
+
+        const seg =
+          child.nodeType === 3
+            ? `text()[${idx}]`
+            : child.nodeType === 8
+              ? `comment()[${idx}]`
+              : `${name}[${idx}]`;
+
+        walk(child, `${path}/${seg}`);
+      }
     };
 
-    walk(root);
+    walk(root, "");
+
+    return { tagNameMap, xpathMap };
   } finally {
     await page.disableCDP("DOM");
   }
-
-  return map;
 }
 
 /**
@@ -96,7 +114,7 @@ async function buildBackendIdTagNameMap(
  */
 async function cleanStructuralNodes(
   node: AccessibilityNode,
-  tagNameMap: Map<number, string>,
+  tagNameMap: Record<number, string>,
   logger?: (logLine: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
   // 1) Filter out nodes with negative IDs
@@ -140,7 +158,7 @@ async function cleanStructuralNodes(
     (node.role === "generic" || node.role === "none") &&
     node.backendDOMNodeId !== undefined
   ) {
-    const tagName = tagNameMap.get(node.backendDOMNodeId);
+    const tagName = tagNameMap[node.backendDOMNodeId];
     if (tagName) node.role = tagName;
   }
 
@@ -170,8 +188,9 @@ async function cleanStructuralNodes(
  */
 export async function buildHierarchicalTree(
   nodes: AccessibilityNode[],
-  tagNameMap: Map<number, string>,
+  tagNameMap: Record<number, string>,
   logger?: (logLine: LogLine) => void,
+  xpathMap?: Record<number, string>,
 ): Promise<TreeResult> {
   // Map to store nodeId -> URL for only those nodes that do have a URL.
   const idToUrl: Record<string, string> = {};
@@ -267,6 +286,7 @@ export async function buildHierarchicalTree(
     simplified: simplifiedFormat,
     iframes: iframe_list,
     idToUrl: idToUrl,
+    xpathMap: xpathMap,
   };
 }
 
@@ -278,8 +298,7 @@ export async function getAccessibilityTree(
   logger: (logLine: LogLine) => void,
   selector?: string,
 ): Promise<TreeResult> {
-  /* Build tag-name map once, reuse everywhere */
-  const tagNameMap = await buildBackendIdTagNameMap(page);
+  const { tagNameMap, xpathMap } = await buildBackendIdMaps(page);
 
   await page.enableCDP("Accessibility");
 
@@ -363,6 +382,7 @@ export async function getAccessibilityTree(
       }),
       tagNameMap,
       logger,
+      xpathMap,
     );
 
     logger({
@@ -391,74 +411,6 @@ export async function getAccessibilityTree(
   } finally {
     await page.disableCDP("Accessibility");
   }
-}
-
-// This function is wrapped into a string and sent as a CDP command
-// It is not meant to be actually executed here
-const functionString = `
-function getNodePath(el) {
-  if (!el || (el.nodeType !== Node.ELEMENT_NODE && el.nodeType !== Node.TEXT_NODE)) {
-    console.log("el is not a valid node type");
-    return "";
-  }
-
-  const parts = [];
-  let current = el;
-
-  while (current && (current.nodeType === Node.ELEMENT_NODE || current.nodeType === Node.TEXT_NODE)) {
-    let index = 0;
-    let hasSameTypeSiblings = false;
-    const siblings = current.parentElement
-      ? Array.from(current.parentElement.childNodes)
-      : [];
-
-    for (let i = 0; i < siblings.length; i++) {
-      const sibling = siblings[i];
-      if (
-        sibling.nodeType === current.nodeType &&
-        sibling.nodeName === current.nodeName
-      ) {
-        index = index + 1;
-        hasSameTypeSiblings = true;
-        if (sibling.isSameNode(current)) {
-          break;
-        }
-      }
-    }
-
-    if (!current || !current.parentNode) break;
-    if (current.nodeName.toLowerCase() === "html"){
-      parts.unshift("html");
-      break;
-    }
-
-    // text nodes are handled differently in XPath
-    if (current.nodeName !== "#text") {
-      const tagName = current.nodeName.toLowerCase();
-      const pathIndex = hasSameTypeSiblings ? \`[\${index}]\` : "";
-      parts.unshift(\`\${tagName}\${pathIndex}\`);
-    }
-    
-    current = current.parentElement;
-  }
-
-  return parts.length ? \`/\${parts.join("/")}\` : "";
-}`;
-
-export async function getXPathByResolvedObjectId(
-  cdpClient: CDPSession,
-  resolvedObjectId: string,
-): Promise<string> {
-  const { result } = await cdpClient.send("Runtime.callFunctionOn", {
-    objectId: resolvedObjectId,
-    functionDeclaration: `function() {
-      ${functionString}
-      return getNodePath(this);
-    }`,
-    returnByValue: true,
-  });
-
-  return result.value || "";
 }
 
 /**

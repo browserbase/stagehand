@@ -43,6 +43,7 @@ export interface TreeResult {
   simplified: string;
   iframes?: AccessibilityNode[];
   idToUrl: Record<string, string>;
+  xpathMap: Record<number, string>;
 }
 
 export type DOMNode = {
@@ -51,6 +52,12 @@ export type DOMNode = {
   children?: DOMNode[];
   shadowRoots?: DOMNode[];
   contentDocument?: DOMNode;
+  nodeType: number;
+};
+
+export type BackendIdMaps = {
+  tagNameMap: Record<number, string>;
+  xpathMap: Record<number, string>;
 };
 
 export interface EnhancedContext

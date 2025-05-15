@@ -4,10 +4,7 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
-import {
-  getAccessibilityTree,
-  getXPathByResolvedObjectId,
-} from "../a11y/utils";
+import { getAccessibilityTree } from "../a11y/utils";
 import { AccessibilityNode } from "../../types/context";
 
 export class StagehandObserveHandler {
@@ -90,6 +87,7 @@ export class StagehandObserveHandler {
     const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
     const outputString = tree.simplified;
     iframes = tree.iframes;
+    const xpathMap = tree.xpathMap;
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
@@ -145,23 +143,7 @@ export class StagehandObserveHandler {
           },
         });
 
-        const args = { backendNodeId: elementId };
-        const { object } = await this.stagehandPage.sendCDP<{
-          object: { objectId: string };
-        }>("DOM.resolveNode", args);
-
-        if (!object || !object.objectId) {
-          this.logger({
-            category: "observation",
-            message: `Invalid object ID returned for element: ${elementId}`,
-            level: 1,
-          });
-        }
-
-        const xpath = await getXPathByResolvedObjectId(
-          await this.stagehandPage.getCDPClient(),
-          object.objectId,
-        );
+        const xpath = xpathMap[elementId];
 
         if (!xpath || xpath === "") {
           this.logger({
