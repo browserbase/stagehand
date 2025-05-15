@@ -6,7 +6,6 @@ import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "@playwright/test";
 import { AgentProviderType } from "./agent";
-import type { TelemetrySettings } from "ai";
 
 export interface ConstructorParams {
   /**
@@ -97,11 +96,6 @@ export interface ConstructorParams {
    * Disable Pino (helpful for Next.js or test environments)
    */
   disablePino?: boolean;
-
-  /**
-   * Configuration passed to the AI SDK for telemetry
-   */
-  aiSdkExperimentalTelemetry?: TelemetrySettings;
 }
 
 export interface InitResult {
