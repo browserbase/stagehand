@@ -1,0 +1,27 @@
+---
+title: 'Playwright Interoperability'
+description: 'How Stagehand interacts with Playwright'
+icon: 'right-to-bracket'
+---
+
+Stagehand is built on top of [Playwright](https://playwright.dev/), so you can use Playwright methods directly through the Stagehand instance.
+
+## `page` and `context`
+
+`stagehand.page` and `stagehand.context` are instances of Playwright's `Page` and `BrowserContext` respectively. Use these methods to interact with the Playwright instance that Stagehand is using.
+
+```javascript
+const page = stagehand.page;
+// Base Playwright methods work
+await page.goto("https://github.com/browserbase/stagehand");
+
+// Stagehand overrides Playwright objects
+await page.act({
+	action: "click on the contributors"
+})
+```
+
+## Stagehand v. Playwright
+Below is an example of how to extract a list of companies from the AI Grant website using both Stagehand and Playwright.
+
+<img src="/images/stagehand-playwright.png" alt="Stagehand v. Playwright" />

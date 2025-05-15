@@ -1,26 +1,20 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_regulations_table: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(
-      "https://ncc-numberingplan-shortened.surge.sh/operators/",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
     );
 
     const xpath =
-      "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/table";
+      "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
 
     const allottees = await stagehand.page.extract({
       instruction:
@@ -35,7 +29,6 @@ export const extract_regulations_table: EvalFunction = async ({
           }),
         ),
       }),
-      modelName,
       useTextExtract,
       selector: xpath,
     });

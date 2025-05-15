@@ -6,7 +6,6 @@ import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
   ExtractResult,
-  HistoryEntry,
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
@@ -24,24 +23,17 @@ import {
   StagehandNotInitializedError,
   StagehandEnvironmentError,
   CaptchaTimeoutError,
-  StagehandNotImplementedError,
-  StagehandDeprecationError,
   BrowserbaseSessionNotFoundError,
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
   StagehandDefaultError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
-
-const BROWSERBASE_REGION_DOMAIN = {
-  "us-west-2": "wss://connect.usw2.browserbase.com",
-  "us-east-1": "wss://connect.use1.browserbase.com",
-  "eu-central-1": "wss://connect.euc1.browserbase.com",
-  "ap-southeast-1": "wss://connect.apse1.browserbase.com",
-};
+import { scriptContent } from "@/lib/dom/build/scriptContent";
 
 export class StagehandPage {
   private stagehand: Stagehand;
+  private rawPage: PlaywrightPage;
   private intPage: Page;
   private intContext: StagehandContext;
   private actHandler: StagehandActHandler;
@@ -53,11 +45,6 @@ export class StagehandPage {
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
-  private _history: Array<HistoryEntry> = [];
-
-  public get history(): ReadonlyArray<HistoryEntry> {
-    return this._history;
-  }
 
   constructor(
     page: PlaywrightPage,
@@ -68,6 +55,7 @@ export class StagehandPage {
     api?: StagehandAPI,
     waitForCaptchaSolves?: boolean,
   ) {
+    this.rawPage = page;
     // Create a proxy to intercept all method calls and property access
     this.intPage = new Proxy(page, {
       get: (target: PlaywrightPage, prop: keyof PlaywrightPage) => {
@@ -106,17 +94,9 @@ export class StagehandPage {
 
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
-        stagehand: this.stagehand,
-        verbose: this.stagehand.verbose,
-        llmProvider: this.stagehand.llmProvider,
-        enableCaching: this.stagehand.enableCaching,
         logger: this.stagehand.logger,
         stagehandPage: this,
-        stagehandContext: this.intContext,
-        llmClient: llmClient,
-        userProvidedInstructions,
         selfHeal: this.stagehand.selfHeal,
-        waitForCaptchaSolves: this.waitForCaptchaSolves,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
@@ -133,6 +113,37 @@ export class StagehandPage {
     }
   }
 
+  private async ensureStagehandScript(): Promise<void> {
+    try {
+      const injected = await this.rawPage.evaluate(
+        () => !!window.__stagehandInjected,
+      );
+
+      if (injected) return;
+
+      const guardedScript = `if (!window.__stagehandInjected) { \
+window.__stagehandInjected = true; \
+${scriptContent} \
+}`;
+
+      await this.rawPage.addInitScript({ content: guardedScript });
+      await this.rawPage.evaluate(guardedScript);
+    } catch (err) {
+      if (!this.stagehand.isClosed) {
+        this.stagehand.log({
+          category: "dom",
+          message: "Failed to inject Stagehand helper script",
+          level: 1,
+          auxiliary: {
+            error: { value: (err as Error).message, type: "string" },
+            trace: { value: (err as Error).stack, type: "string" },
+          },
+        });
+        throw err;
+      }
+    }
+  }
+
   private async _refreshPageFromAPI() {
     if (!this.api) return;
 
@@ -146,11 +157,8 @@ export class StagehandPage {
     });
 
     const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-    const browserbaseDomain =
-      BROWSERBASE_REGION_DOMAIN[sessionStatus.region] ||
-      "wss://connect.browserbase.com";
-    const connectUrl = `${browserbaseDomain}?apiKey=${process.env.BROWSERBASE_API_KEY}&sessionId=${sessionId}`;
 
+    const connectUrl = sessionStatus.connectUrl;
     const browser = await chromium.connectOverCDP(connectUrl);
     const context = browser.contexts()[0];
     const newPage = context.pages()[0];
@@ -236,13 +244,31 @@ export class StagehandPage {
 
   async init(): Promise<StagehandPage> {
     try {
-      const page = this.intPage;
+      const page = this.rawPage;
       const stagehand = this.stagehand;
 
       // Create a proxy that updates active page on method calls
       const handler = {
         get: (target: PlaywrightPage, prop: string | symbol) => {
           const value = target[prop as keyof PlaywrightPage];
+
+          // Inject-on-demand for evaluate
+          if (
+            prop === "evaluate" ||
+            prop === "evaluateHandle" ||
+            prop === "$eval" ||
+            prop === "$$eval"
+          ) {
+            return async (...args: unknown[]) => {
+              this.intContext.setActivePage(this);
+              // Make sure helpers exist
+              await this.ensureStagehandScript();
+              return (value as (...a: unknown[]) => unknown).apply(
+                target,
+                args,
+              );
+            };
+          }
 
           // Handle enhanced methods
           if (prop === "act" || prop === "extract" || prop === "observe") {
@@ -270,7 +296,7 @@ export class StagehandPage {
           }
 
           // Handle screenshots with CDP
-          if (prop === "screenshot") {
+          if (prop === "screenshot" && this.stagehand.env === "BROWSERBASE") {
             return async (
               options: {
                 type?: "png" | "jpeg";
@@ -306,13 +332,15 @@ export class StagehandPage {
 
           // Handle goto specially
           if (prop === "goto") {
+            const rawGoto: typeof target.goto =
+              Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
               const result = this.api
                 ? await this.api.goto(url, options)
-                : await target.goto(url, options);
+                : await rawGoto(url, options);
 
-              this.addToHistory("navigate", { url, options }, result);
+              this.stagehand.addToHistory("navigate", { url, options }, result);
 
               if (this.waitForCaptchaSolves) {
                 try {
@@ -387,7 +415,7 @@ export class StagehandPage {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -466,19 +494,6 @@ export class StagehandPage {
     }
   }
 
-  private addToHistory(
-    method: HistoryEntry["method"],
-    parameters: unknown,
-    result?: unknown,
-  ): void {
-    this._history.push({
-      method,
-      parameters,
-      result: result ?? null,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
   async act(
     actionOrOptions: string | ActOptions | ObserveResult,
   ): Promise<ActResult> {
@@ -495,6 +510,14 @@ export class StagehandPage {
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
+
+          if (this.api) {
+            const result = await this.api.act(observeResult);
+            await this._refreshPageFromAPI();
+            this.stagehand.addToHistory("act", observeResult, result);
+            return result;
+          }
+
           // validate observeResult.method, etc.
           return this.actHandler.actFromObserveResult(observeResult);
         } else {
@@ -518,30 +541,12 @@ export class StagehandPage {
         );
       }
 
-      const {
-        action,
-        modelName,
-        modelClientOptions,
-        useVision, // still destructure this but will not pass it on
-        variables = {},
-        domSettleTimeoutMs,
-        slowDomBasedAct = true,
-        timeoutMs = this.stagehand.actTimeoutMs,
-      } = actionOrOptions;
-
-      if (typeof useVision !== "undefined") {
-        this.stagehand.log({
-          category: "deprecation",
-          message:
-            "Warning: vision is not supported in this version of Stagehand",
-          level: 1,
-        });
-      }
+      const { action, modelName, modelClientOptions } = actionOrOptions;
 
       if (this.api) {
         const result = await this.api.act(actionOrOptions);
         await this._refreshPageFromAPI();
-        this.addToHistory("act", actionOrOptions, result);
+        this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
 
@@ -549,15 +554,6 @@ export class StagehandPage {
       const llmClient: LLMClient = modelName
         ? this.stagehand.llmProvider.getClient(modelName, modelClientOptions)
         : this.llmClient;
-
-      if (!slowDomBasedAct) {
-        return this.actHandler.observeAct(
-          actionOrOptions,
-          this.observeHandler,
-          llmClient,
-          requestId,
-        );
-      }
 
       this.stagehand.log({
         category: "act",
@@ -579,51 +575,19 @@ export class StagehandPage {
         },
       });
 
-      // `useVision` is no longer passed to the handler
-      const result = await this.actHandler
-        .act({
-          action,
-          llmClient,
-          chunksSeen: [],
-          requestId,
-          variables,
-          previousSelectors: [],
-          skipActionCacheForThisStep: false,
-          domSettleTimeoutMs,
-          timeoutMs,
-        })
-        .catch((e) => {
-          this.stagehand.log({
-            category: "act",
-            message: "error acting",
-            level: 1,
-            auxiliary: {
-              error: {
-                value: e.message,
-                type: "string",
-              },
-              trace: {
-                value: e.stack,
-                type: "string",
-              },
-            },
-          });
-
-          return {
-            success: false,
-            message: `Internal error: Error acting: ${e.message}`,
-            action: action,
-          };
-        });
-
-      this.addToHistory("act", actionOrOptions, result);
-
+      const result = await this.actHandler.observeAct(
+        actionOrOptions,
+        this.observeHandler,
+        llmClient,
+        requestId,
+      );
+      this.stagehand.addToHistory("act", actionOrOptions, result);
       return result;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -645,7 +609,7 @@ export class StagehandPage {
         } else {
           result = await this.extractHandler.extract();
         }
-        this.addToHistory("extract", instructionOrOptions, result);
+        this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
 
@@ -667,17 +631,9 @@ export class StagehandPage {
         selector,
       } = options;
 
-      // Throw a NotImplementedError if the user passed in an `xpath`
-      // and `useTextExtract` is false
-      if (selector && useTextExtract !== true) {
-        throw new StagehandNotImplementedError(
-          "Passing an xpath into extract is only supported when `useTextExtract: true`.",
-        );
-      }
-
       if (this.api) {
         const result = await this.api.extract<T>(options);
-        this.addToHistory("extract", instructionOrOptions, result);
+        this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
 
@@ -740,14 +696,14 @@ export class StagehandPage {
           throw e;
         });
 
-      this.addToHistory("extract", instructionOrOptions, result);
+      this.stagehand.addToHistory("extract", instructionOrOptions, result);
 
       return result;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 
@@ -770,41 +726,15 @@ export class StagehandPage {
         instruction,
         modelName,
         modelClientOptions,
-        useVision, // still destructure but will not pass it on
         domSettleTimeoutMs,
         returnAction = true,
-        onlyVisible = false,
-        useAccessibilityTree,
+        onlyVisible,
         drawOverlay,
       } = options;
 
-      if (useAccessibilityTree !== undefined) {
-        this.stagehand.log({
-          category: "deprecation",
-          message:
-            "useAccessibilityTree is deprecated.\n" +
-            "  To use accessibility tree as context:\n" +
-            "    1. Set onlyVisible to false (default)\n" +
-            "    2. Don't declare useAccessibilityTree",
-          level: 1,
-        });
-        throw new StagehandDeprecationError(
-          "useAccessibilityTree is deprecated. Use onlyVisible instead.",
-        );
-      }
-
-      if (typeof useVision !== "undefined") {
-        this.stagehand.log({
-          category: "deprecation",
-          message:
-            "Warning: vision is not supported in this version of Stagehand",
-          level: 1,
-        });
-      }
-
       if (this.api) {
         const result = await this.api.observe(options);
-        this.addToHistory("observe", instructionOrOptions, result);
+        this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;
       }
 
@@ -830,10 +760,12 @@ export class StagehandPage {
             value: llmClient.modelName,
             type: "string",
           },
-          onlyVisible: {
-            value: onlyVisible ? "true" : "false",
-            type: "boolean",
-          },
+          ...(onlyVisible !== undefined && {
+            onlyVisible: {
+              value: onlyVisible ? "true" : "false",
+              type: "boolean",
+            },
+          }),
         },
       });
 
@@ -879,14 +811,14 @@ export class StagehandPage {
           throw e;
         });
 
-      this.addToHistory("observe", instructionOrOptions, result);
+      this.stagehand.addToHistory("observe", instructionOrOptions, result);
 
       return result;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
         throw err;
       }
-      throw new StagehandDefaultError();
+      throw new StagehandDefaultError(err);
     }
   }
 

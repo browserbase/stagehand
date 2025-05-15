@@ -1,5 +1,4 @@
 import Browserbase from "@browserbasehq/sdk";
-import { Page, BrowserContext } from "../types/page";
 import { z } from "zod";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
@@ -9,50 +8,94 @@ import { Cookie } from "@playwright/test";
 import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
+  /**
+   * The environment to use for Stagehand
+   */
   env: "LOCAL" | "BROWSERBASE";
+  /**
+   * Your Browserbase API key
+   */
   apiKey?: string;
+  /**
+   * Your Browserbase project ID
+   */
   projectId?: string;
+  /**
+   * The verbosity of the Stagehand logger
+   * 0 - No logs
+   * 1 - Only errors
+   * 2 - All logs
+   */
   verbose?: 0 | 1 | 2;
-  /** @deprecated Dom Debugging is no longer supported in this version of Stagehand. */
-  debugDom?: boolean;
+  /**
+   * The LLM provider to use for Stagehand
+   * See
+   */
   llmProvider?: LLMProvider;
-  /** @deprecated Please use `localBrowserLaunchOptions` instead. That will override this. */
-  headless?: boolean;
+  /**
+   * The logger to use for Stagehand
+   */
   logger?: (message: LogLine) => void | Promise<void>;
+  /**
+   * The timeout to use for the DOM to settle
+   * @default 10000
+   */
   domSettleTimeoutMs?: number;
+  /**
+   * The parameters to use for creating a Browserbase session
+   * See https://docs.browserbase.com/reference/api/create-a-session
+   */
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  /**
+   * Enable caching of LLM responses
+   * @default true
+   */
   enableCaching?: boolean;
+  /**
+   * The ID of a Browserbase session to resume
+   */
   browserbaseSessionID?: string;
+  /**
+   * The model to use for Stagehand
+   */
   modelName?: AvailableModel;
+  /**
+   * The LLM client to use for Stagehand
+   */
   llmClient?: LLMClient;
+  /**
+   * The parameters to use for the LLM client
+   * Useful for parameterizing LLM API Keys
+   */
   modelClientOptions?: ClientOptions;
   /**
-   * Instructions for stagehand.
+   * Customize the Stagehand system prompt
    */
   systemPrompt?: string;
   /**
    * Offload Stagehand method calls to the Stagehand API.
+   * Must have a valid API key to use
    */
   useAPI?: boolean;
-  selfHeal?: boolean;
   /**
    * Wait for captchas to be solved after navigation when using Browserbase environment.
    *
    * @default false
    */
   waitForCaptchaSolves?: boolean;
+  /**
+   * The parameters to use for launching a local browser
+   */
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
-  actTimeoutMs?: number;
+  /**
+   * Log the inference to a file
+   */
   logInferenceToFile?: boolean;
-}
-
-export interface InitOptions {
-  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
-  modelName?: AvailableModel;
-  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
-  modelClientOptions?: ClientOptions;
-  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
-  domSettleTimeoutMs?: number;
+  selfHeal?: boolean;
+  /**
+   * Disable Pino (helpful for Next.js or test environments)
+   */
+  disablePino?: boolean;
 }
 
 export interface InitResult {
@@ -61,33 +104,12 @@ export interface InitResult {
   sessionId: string;
 }
 
-export interface InitFromPageOptions {
-  page: Page;
-  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
-  modelName?: AvailableModel;
-  /** @deprecated Pass this into the Stagehand constructor instead. This will be removed in the next major version. */
-  modelClientOptions?: ClientOptions;
-}
-
-export interface InitFromPageResult {
-  context: BrowserContext;
-}
-
 export interface ActOptions {
   action: string;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  /** @deprecated Vision is not supported in this version of Stagehand. */
-  useVision?: boolean;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
-  /**
-   * If true, the action will be performed in a slow manner that allows the DOM to settle.
-   * This is useful for debugging.
-   *
-   * @default true
-   */
-  slowDomBasedAct?: boolean;
   timeoutMs?: number;
 }
 
@@ -103,6 +125,9 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
+  /**
+   * @deprecated The `useTextExtract` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
   useTextExtract?: boolean;
   selector?: string;
 }
@@ -113,13 +138,12 @@ export interface ObserveOptions {
   instruction?: string;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  /** @deprecated Vision is not supported in this version of Stagehand. */
-  useVision?: boolean;
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
+  /**
+   * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
   onlyVisible?: boolean;
-  /** @deprecated `useAccessibilityTree` is now deprecated. Use `onlyVisible` instead. */
-  useAccessibilityTree?: boolean;
   drawOverlay?: boolean;
 }
 
@@ -171,6 +195,7 @@ export interface LocalBrowserLaunchOptions {
   timezoneId?: string;
   bypassCSP?: boolean;
   cookies?: Cookie[];
+  cdpUrl?: string;
 }
 
 export interface StagehandMetrics {
@@ -183,6 +208,9 @@ export interface StagehandMetrics {
   observePromptTokens: number;
   observeCompletionTokens: number;
   observeInferenceTimeMs: number;
+  agentPromptTokens: number;
+  agentCompletionTokens: number;
+  agentInferenceTimeMs: number;
   totalPromptTokens: number;
   totalCompletionTokens: number;
   totalInferenceTimeMs: number;
@@ -243,6 +271,7 @@ export enum StagehandFunctionName {
   ACT = "ACT",
   EXTRACT = "EXTRACT",
   OBSERVE = "OBSERVE",
+  AGENT = "AGENT",
 }
 
 export interface HistoryEntry {
@@ -250,4 +279,22 @@ export interface HistoryEntry {
   parameters: unknown;
   result: unknown;
   timestamp: string;
+}
+
+/**
+ * Represents a path through a Zod schema from the root object down to a
+ * particular field. The `segments` array describes the chain of keys/indices.
+ *
+ * - **String** segments indicate object property names.
+ * - **Number** segments indicate array indices.
+ *
+ * For example, `["users", 0, "homepage"]` might describe reaching
+ * the `homepage` field in `schema.users[0].homepage`.
+ */
+export interface ZodPathSegments {
+  /**
+   * The ordered list of keys/indices leading from the schema root
+   * to the targeted field.
+   */
+  segments: Array<string | number>;
 }

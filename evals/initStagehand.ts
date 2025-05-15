@@ -11,8 +11,14 @@
  */
 
 import { enableCaching, env } from "./env";
-import { AvailableModel, ConstructorParams, LogLine, Stagehand } from "@/dist";
+import {
+  ConstructorParams,
+  LLMClient,
+  Stagehand,
+} from "@browserbasehq/stagehand";
 import { EvalLogger } from "./logger";
+import type { StagehandInitResult } from "@/types/evals";
+import { AvailableModel } from "@browserbasehq/stagehand";
 
 /**
  * StagehandConfig:
@@ -31,12 +37,16 @@ const StagehandConfig = {
   headless: false,
   enableCaching,
   domSettleTimeoutMs: 30_000,
-  modelName: "gpt-4o", // default model, can be overridden by initStagehand arguments
-  modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
+  disablePino: true,
+  browserbaseSessionCreateParams: {
+    projectId: process.env.BROWSERBASE_PROJECT_ID!,
+    browserSettings: {
+      viewport: {
+        width: 1024,
+        height: 768,
+      },
+    },
   },
-  logger: (logLine: LogLine) =>
-    console.log(`[stagehand::${logLine.category}] ${logLine.message}`),
 };
 
 /**
@@ -51,35 +61,29 @@ const StagehandConfig = {
  * - initResponse: Any response data returned by Stagehand initialization
  */
 export const initStagehand = async ({
-  modelName,
+  llmClient,
   domSettleTimeoutMs,
   logger,
   configOverrides,
   actTimeoutMs,
+  useTextExtract,
+  modelName,
 }: {
-  modelName: AvailableModel;
+  llmClient: LLMClient;
   domSettleTimeoutMs?: number;
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
   actTimeoutMs?: number;
-}) => {
-  let chosenApiKey: string | undefined = process.env.OPENAI_API_KEY;
-  if (modelName.startsWith("claude")) {
-    chosenApiKey = process.env.ANTHROPIC_API_KEY;
-  }
-
+  useTextExtract?: boolean;
+  modelName: AvailableModel;
+}): Promise<StagehandInitResult> => {
   const config = {
     ...StagehandConfig,
-    modelName,
+    llmClient,
     ...(domSettleTimeoutMs && { domSettleTimeoutMs }),
-    modelClientOptions: {
-      apiKey: chosenApiKey,
-    },
     actTimeoutMs,
-    logger: (logLine: LogLine) => {
-      logger.log(logLine);
-    },
     ...configOverrides,
+    logger: logger.log.bind(logger),
   };
 
   const stagehand = new Stagehand(config);
@@ -87,6 +91,14 @@ export const initStagehand = async ({
   // Associate the logger with the Stagehand instance
   logger.init(stagehand);
 
-  const initResponse = await stagehand.init();
-  return { stagehand, logger, initResponse };
+  const { debugUrl, sessionUrl } = await stagehand.init();
+  return {
+    stagehand,
+    stagehandConfig: config,
+    logger,
+    debugUrl,
+    sessionUrl,
+    useTextExtract,
+    modelName,
+  };
 };

@@ -1,21 +1,16 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_geniusee_2: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.page.goto("https://geniusee-blog.surge.sh/single-blog/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
+  );
   const selector = "/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]";
   const scalability = await stagehand.page.extract({
     instruction:
@@ -23,7 +18,6 @@ export const extract_geniusee_2: EvalFunction = async ({
     schema: z.object({
       scalability: z.string(),
     }),
-    modelName,
     useTextExtract,
     selector: selector,
   });

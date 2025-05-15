@@ -1,0 +1,70 @@
+---
+title: 'Observe'
+description: 'Get candidate DOM elements for actions'
+icon: 'lightbulb'
+---
+
+`observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
+```javascript
+  const observations = await page.observe();
+```
+
+`observe()` returns an array of objects, each with an XPath `selector` and short `description`.
+
+If you are looking for a specific element, you can also pass in an instruction to observe via: `observe({ instruction: "your instruction"})`.
+```javascript
+  const observations = await page.observe({
+    instruction: "Find the buttons on this page",
+  });
+```
+Observe can also return a suggested action for the candidate element by setting the `returnAction` option to true. Here is a sample `ObserveResult`:
+```json
+  {
+    "description": "A brief description of the component",
+    "method": 'click',
+    "arguments": [],
+    "selector": 'xpath=/html/body[1]/div[1]/main[1]/button[1]'
+  }
+```
+
+### **Arguments:** [`ObserveOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+
+  <ParamField path="instruction" type="string" optional>
+    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
+  </ParamField>
+
+  <ParamField path="returnAction" type="boolean" optional>
+    Returns an observe result object that contains a suggested action for the candidate element. The suggestion includes method, and arguments (if any). Defaults to `true`.
+  </ParamField>
+
+  <ParamField path="modelName" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="modelClientOptions" type="object" optional>
+    Configuration options for the model client
+  </ParamField>
+
+  <ParamField path="domSettleTimeoutMs" type="number" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+
+### **Returns:** [`Promise<ObserveResult[]>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+
+Each `ObserveResult` object contains a `selector` and `description`.
+  <ParamField path="selector" type="string" required>
+    A string representing the element selector
+  </ParamField>
+
+  <ParamField path="description" type="string" required>
+    A string describing the possible action
+  </ParamField>
+
+ **If the `returnAction` option is set to `true`, the following fields will be included in the result:**
+  <ParamField path="method" type="string" optional>
+    The method to call on the element
+  </ParamField>
+
+  <ParamField path="arguments" type="object" optional>
+    The arguments to pass to the method
+  </ParamField>

@@ -97,6 +97,9 @@ export class OpenAICUAClient extends AgentClient {
     // Start with the initial instruction
     let inputItems = this.createInitialInputItems(instruction);
     let previousResponseId: string | undefined = undefined;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalInferenceTime = 0;
 
     try {
       // Execute steps until completion or max steps reached
@@ -112,6 +115,9 @@ export class OpenAICUAClient extends AgentClient {
           previousResponseId,
           logger,
         );
+        totalInputTokens += result.usage.input_tokens;
+        totalOutputTokens += result.usage.output_tokens;
+        totalInferenceTime += result.usage.inference_time_ms;
 
         // Add actions to the list
         actions.push(...result.actions);
@@ -143,6 +149,11 @@ export class OpenAICUAClient extends AgentClient {
         actions,
         message: finalMessage,
         completed,
+        usage: {
+          input_tokens: totalInputTokens,
+          output_tokens: totalOutputTokens,
+          inference_time_ms: totalInferenceTime,
+        },
       };
     } catch (error) {
       const errorMessage =
@@ -158,6 +169,11 @@ export class OpenAICUAClient extends AgentClient {
         actions,
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
+        usage: {
+          input_tokens: totalInputTokens,
+          output_tokens: totalOutputTokens,
+          inference_time_ms: totalInferenceTime,
+        },
       };
     }
   }
@@ -176,12 +192,22 @@ export class OpenAICUAClient extends AgentClient {
     completed: boolean;
     nextInputItems: ResponseInputItem[];
     responseId: string;
+    usage: {
+      input_tokens: number;
+      output_tokens: number;
+      inference_time_ms: number;
+    };
   }> {
     try {
       // Get response from the model
       const result = await this.getAction(inputItems, previousResponseId);
       const output = result.output;
       const responseId = result.responseId;
+      const usage = {
+        input_tokens: result.usage.input_tokens,
+        output_tokens: result.usage.output_tokens,
+        inference_time_ms: result.usage.inference_time_ms,
+      };
 
       // Add any reasoning items to our map
       for (const item of output) {
@@ -239,6 +265,7 @@ export class OpenAICUAClient extends AgentClient {
         completed,
         nextInputItems,
         responseId,
+        usage: usage,
       };
     } catch (error) {
       const errorMessage =
@@ -291,6 +318,7 @@ export class OpenAICUAClient extends AgentClient {
   ): Promise<{
     output: ResponseItem[];
     responseId: string;
+    usage: Record<string, number>;
   }> {
     try {
       // Create the request parameters
@@ -313,9 +341,19 @@ export class OpenAICUAClient extends AgentClient {
         requestParams.previous_response_id = previousResponseId;
       }
 
+      const startTime = Date.now();
       // Create the response using the OpenAI Responses API
       // @ts-expect-error - Force type to match what the OpenAI SDK expects
       const response = await this.client.responses.create(requestParams);
+      const endTime = Date.now();
+      const elapsedMs = endTime - startTime;
+
+      // Extract only the input_tokens and output_tokens
+      const usage = {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+        inference_time_ms: elapsedMs,
+      };
 
       // Store the response ID for future use
       this.lastResponseId = response.id;
@@ -324,6 +362,7 @@ export class OpenAICUAClient extends AgentClient {
       return {
         output: response.output as unknown as ResponseItem[],
         responseId: response.id,
+        usage,
       };
     } catch (error) {
       console.error("Error getting action from OpenAI:", error);

@@ -1,3 +1,5 @@
+import { ZodError } from "zod";
+
 export class StagehandError extends Error {
   constructor(message: string) {
     super(message);
@@ -6,10 +8,12 @@ export class StagehandError extends Error {
 }
 
 export class StagehandDefaultError extends StagehandError {
-  constructor() {
-    super(
-      `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or send us a Slack message: https://stagehand-dev.slack.com\n`,
-    );
+  constructor(error?: unknown) {
+    if (error instanceof Error || error instanceof StagehandError) {
+      super(
+        `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
+      );
+    }
   }
 }
 
@@ -55,6 +59,22 @@ export class UnsupportedModelProviderError extends StagehandError {
   }
 }
 
+export class UnsupportedAISDKModelProviderError extends StagehandError {
+  constructor(provider: string, supportedProviders: string[]) {
+    super(
+      `${provider} is not currently supported for aiSDK. please use one of the supported model providers: ${supportedProviders}`,
+    );
+  }
+}
+
+export class InvalidAISDKModelFormatError extends StagehandError {
+  constructor(modelName: string) {
+    super(
+      `${modelName} does not follow correct format for specifying aiSDK models. Please define your modelName as 'provider/model-name'. For example: \`modelName: 'openai/gpt-4o-mini'\``,
+    );
+  }
+}
+
 export class StagehandNotInitializedError extends StagehandError {
   constructor(prop: string) {
     super(
@@ -89,18 +109,6 @@ export class MissingLLMConfigurationError extends StagehandError {
 export class HandlerNotInitializedError extends StagehandError {
   constructor(handlerType: string) {
     super(`${handlerType} handler not initialized`);
-  }
-}
-
-export class StagehandNotImplementedError extends StagehandError {
-  constructor(message: string) {
-    super(`NotImplementedError: ${message}`);
-  }
-}
-
-export class StagehandDeprecationError extends StagehandError {
-  constructor(message: string) {
-    super(`DeprecationError: ${message}`);
   }
 }
 
@@ -143,5 +151,35 @@ export class StagehandEvalError extends StagehandError {
 export class StagehandDomProcessError extends StagehandError {
   constructor(message: string) {
     super(`Error Processing Dom: ${message}`);
+  }
+}
+
+export class StagehandClickError extends StagehandError {
+  constructor(message: string, selector: string) {
+    super(
+      `Error Clicking Element with selector: ${selector} Reason: ${message}`,
+    );
+  }
+}
+
+export class LLMResponseError extends StagehandError {
+  constructor(primitive: string, message: string) {
+    super(`${primitive} LLM response error: ${message}`);
+  }
+}
+
+export class ZodSchemaValidationError extends Error {
+  constructor(
+    public readonly received: unknown,
+    public readonly issues: ReturnType<ZodError["format"]>,
+  ) {
+    super(`Zod schema validation failed
+
+— Received —
+${JSON.stringify(received, null, 2)}
+
+— Issues —
+${JSON.stringify(issues, null, 2)}`);
+    this.name = "ZodSchemaValidationError";
   }
 }

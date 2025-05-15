@@ -1,45 +1,54 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_collaborators: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://github.com/facebook/react");
     await stagehand.page.act({
-      action: "find the contributors section",
+      action: "find and click the contributors section",
     });
 
+    await stagehand.page.waitForLoadState("domcontentloaded");
+    await stagehand.page.waitForLoadState("networkidle");
+    await stagehand.page.waitForTimeout(5000);
+
     const { contributors } = await stagehand.page.extract({
-      instruction: "Extract top 20 contributors of this repository",
+      instruction: "Extract top 5 contributors of this repository",
       schema: z.object({
         contributors: z.array(
           z.object({
             github_username: z
               .string()
               .describe("the github username of the contributor"),
-            information: z.string().describe("number of commits contributed"),
+            commits: z.number().describe("number of commits contributed"),
           }),
         ),
       }),
-      modelName,
       useTextExtract,
     });
 
     await stagehand.close();
 
+    const EXPECTED_CONTRIBUTORS = [
+      "zpao",
+      "gaearon",
+      "sebmarkbage",
+      "acdlite",
+      "sophiebits",
+    ];
     return {
-      _success: contributors.length === 20,
+      _success:
+        contributors.length === EXPECTED_CONTRIBUTORS.length &&
+        contributors.every(
+          (c, i) =>
+            EXPECTED_CONTRIBUTORS[i] === c.github_username && c.commits >= 1000,
+        ),
       contributors,
       debugUrl,
       sessionUrl,

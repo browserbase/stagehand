@@ -2,6 +2,17 @@ import { ZodType } from "zod";
 import { LLMTool } from "../../types/llm";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
+import {
+  generateObject,
+  generateText,
+  streamText,
+  streamObject,
+  experimental_generateImage,
+  embed,
+  embedMany,
+  experimental_transcribe,
+  experimental_generateSpeech,
+} from "ai";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -48,7 +59,7 @@ export interface ChatCompletionOptions {
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
   maxTokens?: number;
-  requestId: string;
+  requestId?: string;
 }
 
 export type LLMResponse = {
@@ -86,8 +97,8 @@ export interface CreateChatCompletionOptions {
 }
 
 export abstract class LLMClient {
-  public type: "openai" | "anthropic" | "cerebras" | "groq" | string;
-  public modelName: AvailableModel;
+  public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
+  public modelName: AvailableModel | (string & {});
   public hasVision: boolean;
   public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
@@ -102,4 +113,14 @@ export abstract class LLMClient {
       usage?: LLMResponse["usage"];
     },
   >(options: CreateChatCompletionOptions): Promise<T>;
+
+  public generateObject = generateObject;
+  public generateText = generateText;
+  public streamText = streamText;
+  public streamObject = streamObject;
+  public generateImage = experimental_generateImage;
+  public embed = embed;
+  public embedMany = embedMany;
+  public transcribe = experimental_transcribe;
+  public generateSpeech = experimental_generateSpeech;
 }

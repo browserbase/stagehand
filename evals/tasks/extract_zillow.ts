@@ -1,24 +1,16 @@
 import { z } from "zod";
-import { initStagehand } from "../initStagehand";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_zillow: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-    configOverrides: {
-      debugDom: false,
-    },
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.page.goto("https://zillow-eval.surge.sh/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
+  );
   // timeout for 5 seconds
   await stagehand.page.waitForTimeout(5000);
   const real_estate_listings = await stagehand.page.extract({
@@ -32,7 +24,6 @@ export const extract_zillow: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

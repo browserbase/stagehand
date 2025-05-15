@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const wichita: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
   await stagehand.page.act({
@@ -25,7 +19,6 @@ export const wichita: EvalFunction = async ({
     schema: z.object({
       total_results: z.string(),
     }),
-    modelName,
     useTextExtract,
   });
 

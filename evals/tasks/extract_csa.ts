@@ -1,22 +1,16 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_csa: EvalFunction = async ({
-  modelName,
-  logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
+  logger,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  const { page } = stagehand;
+  const page = stagehand.page;
   await page.goto(
-    "https://clerk.assembly.ca.gov/weekly-histories?from_date=&to_date=2025-01-09",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/csa/",
   );
 
   const result = await page.extract({
@@ -32,7 +26,6 @@ export const extract_csa: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

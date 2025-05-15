@@ -1,0 +1,52 @@
+---
+title: 'Contribute to Stagehand'
+description: 'Best practices for making a meaningful contribution to Stagehand'
+---
+
+# Codeowners and Subject-Matter Experts
+
+Any contribution must be explicitly approved by a codeowner. Officially, Stagehand codeowners are as follows:
+
+- [**Paul Klein**](https://github.com/pkiv)
+- [**Anirudh Kamath**](https://github.com/kamath)
+- [**Sean McGuire**](https://github.com/seanmcguire12)
+- [**Miguel Gonzalez**](https://github.com/miguelg719)
+- [**Sameel Arif**](https://github.com/sameelarif)
+- [**Filip Michalsky**](https://github.com/filip-michalsky)
+
+Special thanks to [Jeremy Press](https://github.com/jeremypress), [Navid Pour](https://github.com/navidkpr), and [all the contributors](https://github.com/browserbase/stagehand/graphs/contributors) for your help in making Stagehand the best browser automation framework.
+
+***Please do not hesitate to reach out to anyone listed here in the [public Slack channel](https://stagehand.dev/slack)***
+
+## General Workflow
+
+Get listed as [one of our beloved contributors](https://github.com/browserbase/stagehand/graphs/contributors)!
+
+1. **Discuss your proposed contribution before starting.** Not doing this runs you the risk of entirely discarding something you put considerable time and effort into. You can DM Anirudh on [Slack](https://stagehand.dev/slack) for a 1on1 call.
+2. **Open a Pull Request.** Create a fork of this repository, and follow [GitHub’s instructions to create a Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork). This allows our team to review your contribution and leave comments. 
+3. **Wait for Review**. We’ll do our best to get to your contribution as soon as possible. If it’s been 2-3 days and you have yet to receive any comments, DM Anirudh on [Slack](https://stagehand.dev/slack)
+4. **Merge into `evals` branch.** We don’t let external contributors [run our CI via GitHub Actions](https://github.com/browserbase/stagehand/blob/main/.github/workflows/ci.yml) to prevent spam and misuse. If your contribution passes an initial screen, we’ll run our evals on it
+    1. By default, all PRs run the following tests that you can also run from the repo source:
+        1. Lint (`npm run lint`) - Runs `prettier` and `eslint`. If this fails, you can most likely run `npm run format` to fix some simple linting errors.
+        2. Build (`npm run build`) - Lints and builds TS → JS in `dist/` via `tsup`
+        3. End-to-End (`npm run e2e`) - These are deterministic end-to-end Playwright tests to ensure the integrity of basic Playwright functionality of [`stagehand.page`](http://stagehand.page) and `stagehand.context` as well as compatibility with the Browserbase API
+        4. Combination (`npm run evals category combination`) - This runs AI-based end-to-end tests using combinations of `act`, `extract`, and `observe` 
+    2. If you’re changing anything about `act`, `extract`, or `observe` itself, we might also run specific act/extract/observe evals to ensure existing functionality doesn’t significantly drop.
+    
+    ![CI](/images/CI.png)
+    
+5. **Cleanup and merge to main**. Once it’s in `evals`, unfortunately the original contributor can’t make any further changes. The internal Stagehand team will be responsible for cleaning up the code and bringing it into main. 
+
+## Contribution Guidelines
+
+1. **Use draft PRs.** If your PR is a work in progress, please convert it to a draft (see below) while you’re working on it, and mark it for review/add reviewers when you’re ready. This helps us prevent clutter in the review queue.
+    
+    ![Draft PR](/images/pr_draft.png)
+    
+2. **Provide a reproducible test plan.** Include an eval (preferred) or example. We can’t merge your PR if we can’t run anything that specifically highlights your contribution. 
+    1. Write a script in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks) as `someTask.ts` 
+    2. Add your script to [`evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json) with default category `combination` (*or act/extract/observe if you’re* *only* *testing* *act/extract/observe*).
+3. **Add a changeset.** Run `npx changeset` to add a changeset that will directly reflect in the `CHANGELOG` in the upcoming release.
+    1. `patch` - no net new functionality to an end-user
+    2. `minor` - some net new functionality to an end-user (new function parameter, new exposed type, etc.)
+    3. `major` - you shouldn’t be committing a major change

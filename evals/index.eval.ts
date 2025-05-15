@@ -1,6 +1,6 @@
 /**
  * This script orchestrates the running of evaluations against a set of tasks.
- * It braintrust to run multiple testcases (each testcase representing a
+ * It uses Braintrust to run multiple testcases (each testcase representing a
  * given task-model combination) and then aggregates the results, producing
  * a summary of passes, failures, and categorized success rates.
  *
@@ -16,22 +16,30 @@ import fs from "fs";
 import path from "path";
 import process from "process";
 import {
+  DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
   filterByEvalName,
   useTextExtract,
-  useAccessibilityTree,
 } from "./args";
-
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
-import { tasksByName, MODELS } from "./taskConfig";
-import { Eval } from "braintrust";
-import { EvalFunction, SummaryResult, Testcase } from "@/types/evals";
+import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
+import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
+import { SummaryResult, Testcase } from "@/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@/dist";
+import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";
+import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
+import OpenAI from "openai";
+import { initStagehand } from "./initStagehand";
+import { google } from "@ai-sdk/google";
+import { anthropic } from "@ai-sdk/anthropic";
+import { groq } from "@ai-sdk/groq";
+import { cerebras } from "@ai-sdk/cerebras";
+import { openai } from "@ai-sdk/openai";
+import { AISdkClient } from "@/examples/external_clients/aisdk";
 dotenv.config();
 
 /**
@@ -40,11 +48,11 @@ dotenv.config();
  */
 const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
   ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
-  : 20;
+  : 3;
 
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
-  : 5;
+  : 3;
 
 /**
  * generateSummary:
@@ -135,39 +143,75 @@ const generateSummary = async (
  * of a task and a model.
  *
  * Steps:
- * - Start with all combinations of tasks (from `tasksByName`) and models (`MODELS`).
+ * - Dynamically determine the list of models based on filters.
+ * - Start with all combinations of tasks (from `tasksByName`) and the determined models.
  * - Filter by category if a category filter was specified.
  * - Filter by evaluation name if specified.
  * - In the BROWSERBASE environment, exclude certain tasks that are not suitable.
  */
 const generateFilteredTestcases = (): Testcase[] => {
-  // Create a list of all testcases for each model-task combination.
-  let allTestcases = MODELS.flatMap((model) =>
-    Object.keys(tasksByName).map((testName) => ({
-      input: { name: testName, modelName: model },
+  let taskNamesToRun: string[];
+  let effectiveCategory: string | null = filterByCategory; // Start with the command-line filter
+
+  if (filterByEvalName) {
+    // If a specific task name is given, that's the only one we run
+    taskNamesToRun = [filterByEvalName];
+    // Check if this single task belongs *only* to the agent category to override models
+    const taskCategories = tasksByName[filterByEvalName]?.categories || [];
+    if (taskCategories.length === 1 && taskCategories[0] === "agent") {
+      // Treat this run as an 'agent' category run for model selection
+      effectiveCategory = "agent";
+      console.log(
+        `Task ${filterByEvalName} is agent-specific, using agent models.`,
+      );
+    }
+  } else if (filterByCategory) {
+    // If filtering by category, get all tasks in that category
+    taskNamesToRun = Object.keys(tasksByName).filter((name) =>
+      tasksByName[name].categories.includes(filterByCategory!),
+    );
+  } else {
+    // If no specific task or category filter, run tasks from default categories
+    taskNamesToRun = Object.keys(tasksByName).filter((name) =>
+      DEFAULT_EVAL_CATEGORIES.some((category) =>
+        tasksByName[name].categories.includes(category),
+      ),
+    );
+  }
+
+  // Dynamically determine the MODELS based on the effective category
+  const currentModels = getModelList(effectiveCategory);
+
+  console.log(
+    `Using models for this run (${effectiveCategory || "default"}):`,
+    currentModels,
+  );
+
+  // Create a list of all testcases using the determined task names and models
+  let allTestcases = currentModels.flatMap((model) =>
+    taskNamesToRun.map((testName) => ({
+      input: { name: testName, modelName: model as AvailableModel },
       name: testName,
-      tags: [model, testName],
-      metadata: {
+      tags: [
         model,
+        testName,
+        ...(tasksConfig.find((t) => t.name === testName)?.categories || []).map(
+          (x) => `category/${x}`,
+        ),
+      ],
+      metadata: {
+        model: model as AvailableModel,
         test: testName,
+        categories: tasksConfig.find((t) => t.name === testName)?.categories,
       },
       expected: true,
     })),
   );
 
-  // Filter by category if a category is specified
+  // This filtering step might now be redundant if taskNamesToRun is already filtered
   if (filterByCategory) {
     allTestcases = allTestcases.filter((testcase) =>
       tasksByName[testcase.name].categories.includes(filterByCategory!),
-    );
-  }
-
-  // Filter by a specific evaluation (task) name if specified
-  if (filterByEvalName) {
-    allTestcases = allTestcases.filter(
-      (testcase) =>
-        testcase.name === filterByEvalName ||
-        testcase.input.name === filterByEvalName,
     );
   }
 
@@ -177,6 +221,16 @@ const generateFilteredTestcases = (): Testcase[] => {
       (testcase) => !["peeler_simple", "stock_x"].includes(testcase.name),
     );
   }
+
+  console.log(
+    "Final test cases to run:",
+    allTestcases
+      .map(
+        (t, i) =>
+          `${i}: ${t.name} (${t.input.modelName}): ${t.metadata.categories}`,
+      )
+      .join("\n"),
+  );
 
   return allTestcases;
 };
@@ -221,30 +275,120 @@ const generateFilteredTestcases = (): Testcase[] => {
             "tasks",
             `${input.name}.ts`,
           );
-          const taskModule = (await import(taskModulePath)) as {
-            [key: string]: EvalFunction;
-          };
-          const taskFunction = taskModule[input.name];
+
+          // Check if file exists at direct path
+          let taskModule;
+          try {
+            // First try to import directly (for backward compatibility)
+            taskModule = await import(taskModulePath);
+          } catch (error) {
+            if (input.name.includes("/")) {
+              // If the name includes a path separator, try to import from subdirectory
+              const subDirPath = path.join(
+                __dirname,
+                "tasks",
+                `${input.name}.ts`,
+              );
+              try {
+                taskModule = await import(subDirPath);
+              } catch (subError) {
+                throw new StagehandEvalError(
+                  `Failed to import task module for ${input.name}. Tried paths:\n` +
+                    `- ${taskModulePath}\n` +
+                    `- ${subDirPath}\n` +
+                    `Error: ${subError.message}`,
+                );
+              }
+            } else {
+              throw new StagehandEvalError(
+                `Failed to import task module for ${input.name} at path ${taskModulePath}: ${error.message}`,
+              );
+            }
+          }
+
+          // Extract the task function
+          const taskName = input.name.includes("/")
+            ? input.name.split("/").pop() // Get the last part of the path for nested tasks
+            : input.name;
+
+          const taskFunction = taskModule[taskName];
 
           if (typeof taskFunction !== "function") {
             throw new StagehandEvalError(
-              `No Eval function found for task name: ${input.name}`,
+              `No Eval function found for task name: ${taskName} in module ${input.name}`,
             );
+          }
+          let shouldUseTextExtract = useTextExtract;
+          const categories = tasksByName[input.name].categories || [];
+          const isRegression = categories.includes("regression");
+          const regressionExtractMethod = tasksByName[input.name].extractMethod;
+          if (isRegression) {
+            if (regressionExtractMethod) {
+              shouldUseTextExtract = regressionExtractMethod === "textExtract";
+            }
           }
 
           // Execute the task
-          const result = await taskFunction({
-            modelName: input.modelName,
+          let llmClient: LLMClient;
+          if (
+            input.modelName.startsWith("gpt") ||
+            input.modelName.startsWith("o")
+          ) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(openai(input.modelName)),
+            });
+          } else if (input.modelName.startsWith("gemini")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(google(input.modelName)),
+            });
+          } else if (input.modelName.startsWith("claude")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(anthropic(input.modelName)),
+            });
+          } else if (input.modelName.includes("groq")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(
+                groq(
+                  input.modelName.substring(input.modelName.indexOf("/") + 1),
+                ),
+              ),
+            });
+          } else if (input.modelName.includes("cerebras")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(
+                cerebras(
+                  input.modelName.substring(input.modelName.indexOf("/") + 1),
+                ),
+              ),
+            });
+          } else if (input.modelName.includes("/")) {
+            llmClient = new CustomOpenAIClient({
+              modelName: input.modelName as AvailableModel,
+              client: wrapOpenAI(
+                new OpenAI({
+                  apiKey: process.env.TOGETHER_AI_API_KEY,
+                  baseURL: "https://api.together.xyz/v1",
+                }),
+              ),
+            });
+          }
+          const taskInput = await initStagehand({
             logger,
-            useTextExtract,
-            useAccessibilityTree,
+            llmClient,
+            useTextExtract: shouldUseTextExtract,
+            modelName: input.modelName,
           });
-
-          // Log result to console
-          if (result && result._success) {
-            console.log(`✅ ${input.name}: Passed`);
-          } else {
-            console.log(`❌ ${input.name}: Failed`);
+          let result;
+          try {
+            result = await taskFunction(taskInput);
+            // Log result to console
+            if (result && result._success) {
+              console.log(`✅ ${input.name}: Passed`);
+            } else {
+              console.log(`❌ ${input.name}: Failed`);
+            }
+          } finally {
+            await taskInput.stagehand.close();
           }
           return result;
         } catch (error) {
@@ -256,7 +400,7 @@ const generateFilteredTestcases = (): Testcase[] => {
             auxiliary: {
               error: {
                 value: error.message,
-                type: "object",
+                type: "string",
               },
               trace: {
                 value: error.stack,

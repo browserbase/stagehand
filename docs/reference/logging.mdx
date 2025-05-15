@@ -1,0 +1,61 @@
+---
+title: 'Logging'
+description: 'Edit the default logging behavior'
+icon: 'newspaper'
+---
+
+Stagehand provides a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. You can override the default logger by passing in a custom logger function to the constructor.
+
+```javascript
+const stagehand = new Stagehand({
+	logger: (logLine: LogLine) => {
+		console.log(`[${logLine.category}] ${logLine.message}`);
+	},
+});
+```
+
+Below is the list of fields in the `LogLine` object. `message` is the main log message content, and `auxiliary` contains parameters that can be used to provide additional context and color to the log.
+
+<ParamField path="id" type="string" optional>
+  Unique identifier for the log line
+</ParamField>
+
+<ParamField path="category" type="string" optional>
+  Category/type of the log message
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  The main log message content
+</ParamField>
+
+<ParamField path="level" type="0 | 1 | 2" optional>
+  Logging verbosity level
+</ParamField>
+
+<ParamField path="timestamp" type="string" optional>
+  Timestamp of when the log was created
+</ParamField>
+
+<ParamField path="auxiliary" type="object" optional>
+  Additional metadata where each key contains a `value` and `type`. The `value` will always be a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"`
+</ParamField>
+
+You can see an example of a log line in [`OpenAIClient.ts`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/lib/llm/OpenAIClient.ts#L79-L93). You'll notice here how `auxiliary` contains a `requestId` and `cachedResponse`.
+
+```javascript
+this.logger({
+	category: "llm_cache",
+	message: "LLM cache hit - returning cached response",
+	level: 1,
+	auxiliary: {
+		requestId: {
+			value: options.requestId,
+			type: "string",
+		},
+		cachedResponse: {
+			value: JSON.stringify(cachedResponse),
+			type: "object",
+		},
+	}
+});
+```

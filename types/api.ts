@@ -24,7 +24,7 @@ export interface StartSessionParams {
   selfHeal?: boolean;
   waitForCaptchaSolves?: boolean;
   actionTimeoutMs?: number;
-  browserbaseSessionId?: string;
+  browserbaseSessionID?: string;
 }
 
 export interface StartSessionResult {

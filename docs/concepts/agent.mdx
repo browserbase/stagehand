@@ -1,0 +1,194 @@
+---
+title: 'Build a web browsing agent'
+description: 'Build an AI agent that can autonomously control a browser with Stagehand'
+icon: 'robot'
+---
+import { Excalidraw } from '/snippets/excalidraw.mdx';
+
+<Tip>
+Stagehand agents are brand new in Stagehand 2.0. 
+</Tip>
+
+Stagehand gives AI agents powerful tools to control a browser completely autonomously. Watch below as a Stagehand agent autonomously navigates to a URL, takes actions on the page, and extracts structured data to answer a question.
+There's quite a few ways to build an agent with Stagehand. Let's look at a few of them.
+
+![Agent](/media/stagehand-agent.gif)
+
+## Stagehand MCP
+
+The above example is a Claude agent that uses Stagehand to control a browser. At this time of writing, [multimodal tool calling](https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling#multi-modal-tool-results) is only supported in Claude 3.5/3.7 Sonnet. 
+This means Claude is intelligent enough to know when to request a browser screenshot, and it can then use that screenshot to make decisions about what actions to take next.
+
+<CardGroup>
+<Card title="Stagehand MCP" href="https://github.com/browserbase/mcp-server-browserbase/tree/main/stagehand" icon="hand-horns">
+Have Claude control a browser with Stagehand MCP.
+</Card>
+</CardGroup>
+
+What's really interesting about this is that the agent is able to reason about the browser state and take actions separate from one another! 
+Claude is able to reason about the browser state, while Stagehand is able to take actions on the page with GPT-4o-mini or a computer use model.
+Stagehand is even smart enough to know when to use GPT-4o-mini and when to use a computer use model, i.e. on iframe detection.
+
+<Excalidraw className="w-full aspect-video" url="https://link.excalidraw.com/readonly/GWQWmWUBqMBEAamlWsIM?darkMode=true" />
+
+We've found great success from having Claude as the "Trajectory" agent calling Stagehand tools when it sees fit! 
+While MCP is really nascent, we're excited to see where it goes.
+
+## Stagehand + Computer Use Models
+
+Stagehand lets you leverage powerful computer use APIs from OpenAI and Anthropic with just one line of code. 
+
+```typescript
+await page.goto("https://github.com/browserbase/stagehand");
+
+// Create a Computer Use agent with just one line of code!
+const agent = stagehand.agent({
+	provider: "openai",
+	model: "computer-use-preview"
+});
+
+// Use the agent to execute a task
+const result = await agent.execute("Extract the top contributor's username");
+console.log(result);
+```
+
+<CardGroup>
+<Card title="Stagehand + Computer Use Docs" href="/examples/computer_use" icon="scroll">
+Check out our docs page for instructions on how to use computer use models with Stagehand.
+</Card>
+<Card title="CUA Browser Demo" href="https://cua.browserbase.com/" icon="brain-circuit">
+Check out a live demo of a Browserbase browser controlled by OpenAI's Computer Using Agent (CUA) model.
+</Card>
+</CardGroup>
+
+## Sequential Tool Calling (Open Operator)
+
+In January 2025, Browserbase released [Open Operator](https://operator.browserbase.com). 
+Open Operator is able to reason about the browser state and take actions accordingly to accomplish larger tasks like "order me a pizza".
+It works by calling Stagehand tools in sequence:
+
+1. If there's no URL, go to a default URL.
+1. Examine the browser state. Ask an LLM to reason about what to do next.
+1. Use `page.act()` to execute the LLM-suggested action.
+1. Repeat
+
+<Excalidraw className="w-full" url="https://link.excalidraw.com/readonly/dKh5sB1gEM1EjVqRCGKn" />
+
+Incorporating Open Operator into your browser automation is as easy as adding a single line of code:
+
+```typescript
+await stagehand.page.goto("https://github.com/browserbase/stagehand");
+
+// Open Operator will use the default LLM from Stagehand config
+const operator = stagehand.agent();
+const { message, actions } = await operator.execute(
+	"Extract the top contributor's username"
+);
+
+console.log(message);
+```
+
+### Replay the agent's actions
+
+You can replay the agent's actions exactly the same way you would with a regular Stagehand agent. You can even automatically cache the actions to avoid unnecessary LLM calls on a repeated run.
+
+Let's use the `replay` function below to save the actions to a Stagehand script file, which will reproduce the same actions the agent did, with cached actions built in.
+
+<Accordion title="utils.ts">
+```typescript
+import { AgentAction, AgentResult } from "@browserbasehq/stagehand";
+import { exec } from "child_process";
+import fs from "fs/promises";
+
+export async function replay(result: AgentResult) {
+  const history = result.actions;
+  const replay = history
+    .map((action: AgentAction) => {
+      switch (action.type) {
+        case "act":
+          if (!action.playwrightArguments) {
+            throw new Error("No playwright arguments provided");
+          }
+          return `await page.act(${JSON.stringify(
+            action.playwrightArguments
+          )})`;
+        case "extract":
+          return `await page.extract("${action.parameters}")`;
+        case "goto":
+          return `await page.goto("${action.parameters}")`;
+        case "wait":
+          return `await page.waitForTimeout(${parseInt(
+            action.parameters as string
+          )})`;
+        case "navback":
+          return `await page.goBack()`;
+        case "refresh":
+          return `await page.reload()`;
+        case "close":
+          return `await stagehand.close()`;
+        default:
+          return `await stagehand.oops()`;
+      }
+    })
+    .join("\n");
+
+  console.log("Replay:");
+  const boilerplate = `
+import { Page, BrowserContext, Stagehand } from "@browserbasehq/stagehand";
+
+export async function main(stagehand: Stagehand) {
+    const page = stagehand.page
+	${replay}
+}
+  `;
+  await fs.writeFile("replay.ts", boilerplate);
+
+  // Format the replay file with prettier
+  await new Promise((resolve, reject) => {
+    exec(
+      "npx prettier --write replay.ts",
+      (error: any, stdout: any, stderr: any) => {
+        if (error) {
+          console.error(`Error formatting replay.ts: ${error}`);
+          reject(error);
+          return;
+        }
+        resolve(stdout);
+      }
+    );
+  });
+}
+```
+</Accordion>
+
+Here's the replay output of an instruction like `"Get me the stock price of NVDA"`:
+
+```typescript {14-22} replay.ts
+import { Page, BrowserContext, Stagehand } from "@browserbasehq/stagehand";
+
+export async function main({
+  page,
+  context,
+  stagehand,
+}: {
+  page: Page; // Playwright Page with act, extract, and observe methods
+  context: BrowserContext; // Playwright BrowserContext
+  stagehand: Stagehand; // Stagehand instance
+}) {
+  await page.goto("https://www.google.com");
+
+  // Replay will default to Playwright first to avoid unnecessary LLM calls!
+  // If the Playwright action fails, Stagehand AI will take over and self-heal
+  await page.act({
+    description: "The search combobox where users can type their queries.",
+    method: "fill",
+    arguments: ["NVDA stock price"],
+    selector:
+      "xpath=/html/body[1]/div[1]/div[3]/form[1]/div[1]/div[1]/div[1]/div[1]/div[2]/textarea[1]",
+  });
+  await page.extract(
+    "the displayed NVDA stock price in the search suggestions",
+  );
+  await stagehand.close();
+}
+```

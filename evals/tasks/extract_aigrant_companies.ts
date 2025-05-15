@@ -1,21 +1,16 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_aigrant_companies: EvalFunction = async ({
-  modelName,
   logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.page.goto("https://aigrant.com/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  );
   const companyList = await stagehand.page.extract({
     instruction:
       "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
@@ -27,7 +22,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

@@ -1,5 +1,4 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { StagehandEnvironmentError } from "@/types/stagehandErrors";
 
 const env: "BROWSERBASE" | "LOCAL" =
@@ -7,14 +6,12 @@ const env: "BROWSERBASE" | "LOCAL" =
     ? "BROWSERBASE"
     : "LOCAL";
 
-export const peeler_simple: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const peeler_simple: EvalFunction = async ({
+  debugUrl,
+  sessionUrl,
+  stagehand,
+  logger,
+}) => {
   if (env === "BROWSERBASE") {
     throw new StagehandEnvironmentError(
       "BROWSERBASE",

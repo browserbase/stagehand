@@ -1,19 +1,21 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { EvalFunction } from "@/types/evals";
 
-export const nextChunk: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const nextChunk: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
     domSettleTimeoutMs: 3000,
   });
-
-  const { debugUrl, sessionUrl } = initResponse;
+  await stagehand.init();
 
   await stagehand.page.goto("https://www.apartments.com/san-francisco-ca/");
   await stagehand.page.act({
     action: "click on the all filters button",
-    slowDomBasedAct: false,
   });
 
   const { initialScrollTop, chunkHeight } = await stagehand.page.evaluate(
@@ -36,7 +38,6 @@ export const nextChunk: EvalFunction = async ({ modelName, logger }) => {
 
   await stagehand.page.act({
     action: "scroll down one chunk on the filters modal",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 2000));

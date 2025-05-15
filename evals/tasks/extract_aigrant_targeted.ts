@@ -1,28 +1,22 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_aigrant_targeted: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.page.goto("https://aigrant.com/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  );
   const selector = "/html/body/div/ul[5]/li[28]";
   const company = await stagehand.page.extract({
     instruction: "Extract the company name.",
     schema: z.object({
       company_name: z.string(),
     }),
-    modelName,
     useTextExtract,
     selector: selector,
   });

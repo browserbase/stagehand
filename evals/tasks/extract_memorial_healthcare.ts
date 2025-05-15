@@ -1,22 +1,17 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 import { compareStrings } from "@/evals/utils";
 
 export const extract_memorial_healthcare: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-    domSettleTimeoutMs: 3000,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.page.goto("https://www.mycmh.org/locations/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/",
+  );
 
   const result = await stagehand.page.extract({
     instruction:
@@ -30,7 +25,6 @@ export const extract_memorial_healthcare: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

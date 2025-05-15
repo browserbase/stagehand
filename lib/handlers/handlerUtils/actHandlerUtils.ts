@@ -4,6 +4,7 @@ import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
 import { Logger } from "../../../types/log";
 import { MethodHandlerContext } from "@/types/act";
+import { StagehandClickError } from "@/types/stagehandErrors";
 
 /**
  * A mapping of playwright methods that may be chosen by the LLM to their
@@ -258,15 +259,9 @@ export async function fillOrType(ctx: MethodHandlerContext) {
   const { locator, xpath, args, logger } = ctx;
 
   try {
-    await locator.fill("");
-    await locator.click();
-
+    await locator.fill("", { force: true });
     const text = args[0]?.toString() || "";
-    for (const char of text) {
-      await locator.page().keyboard.type(char, {
-        delay: Math.random() * 50 + 25,
-      });
-    }
+    await locator.fill(text, { force: true });
   } catch (e) {
     logger({
       category: "action",
@@ -343,48 +338,9 @@ export async function clickElement(ctx: MethodHandlerContext) {
   });
 
   try {
-    // If it's a radio input, try to click its label
-    const isRadio = await locator.evaluate((el) => {
-      return el instanceof HTMLInputElement && el.type === "radio";
+    await locator.evaluate((el) => {
+      (el as HTMLElement).click();
     });
-
-    const clickArg = args.length ? args[0] : undefined;
-
-    if (isRadio) {
-      const inputId = await locator.evaluate(
-        (el) => (el as HTMLInputElement).id,
-      );
-      let labelLocator = null;
-
-      if (inputId) {
-        labelLocator = stagehandPage.page.locator(`label[for="${inputId}"]`);
-      }
-      if (!labelLocator || (await labelLocator.count()) < 1) {
-        // Check ancestor <label>
-        labelLocator = stagehandPage.page
-          .locator(`xpath=${xpath}/ancestor::label`)
-          .first();
-      }
-      if ((await labelLocator.count()) < 1) {
-        // Check sibling <label>
-        labelLocator = locator
-          .locator("xpath=following-sibling::label")
-          .first();
-        if ((await labelLocator.count()) < 1) {
-          labelLocator = locator
-            .locator("xpath=preceding-sibling::label")
-            .first();
-        }
-      }
-
-      if ((await labelLocator.count()) > 0) {
-        await labelLocator.click(clickArg);
-      } else {
-        await locator.click(clickArg);
-      }
-    } else {
-      await locator.click(clickArg);
-    }
   } catch (e) {
     logger({
       category: "action",
@@ -398,7 +354,7 @@ export async function clickElement(ctx: MethodHandlerContext) {
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
-    throw new PlaywrightCommandException(e.message);
+    throw new StagehandClickError(xpath, e.message);
   }
 
   await handlePossiblePageNavigation(

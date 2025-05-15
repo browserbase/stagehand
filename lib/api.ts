@@ -52,7 +52,7 @@ export class StagehandAPI {
     waitForCaptchaSolves,
     actionTimeoutMs,
     browserbaseSessionCreateParams,
-    browserbaseSessionId,
+    browserbaseSessionID,
   }: StartSessionParams): Promise<StartSessionResult> {
     if (!modelApiKey) {
       throw new StagehandAPIError("modelApiKey is required");
@@ -70,7 +70,7 @@ export class StagehandAPI {
         waitForCaptchaSolves,
         actionTimeoutMs,
         browserbaseSessionCreateParams,
-        browserbaseSessionId,
+        browserbaseSessionID,
       }),
     });
 
@@ -95,7 +95,7 @@ export class StagehandAPI {
     return sessionResponseBody.data;
   }
 
-  async act(options: ActOptions): Promise<ActResult> {
+  async act(options: ActOptions | ObserveResult): Promise<ActResult> {
     return this.execute<ActResult>({
       method: "act",
       args: { ...options },
@@ -228,6 +228,8 @@ export class StagehandAPI {
       // we want real-time logs, so we stream the response
       "x-stream-response": "true",
       "x-model-api-key": this.modelApiKey,
+      "x-sent-at": new Date().toISOString(),
+      "x-language": "typescript",
     };
 
     if (options.method === "POST" && options.body) {

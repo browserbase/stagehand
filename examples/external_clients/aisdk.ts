@@ -10,8 +10,12 @@ import {
   LanguageModel,
   TextPart,
 } from "ai";
-import { ChatCompletion } from "openai/resources/chat/completions";
-import { CreateChatCompletionOptions, LLMClient, AvailableModel } from "@/dist";
+import {
+  CreateChatCompletionOptions,
+  LLMClient,
+  AvailableModel,
+} from "@browserbasehq/stagehand";
+import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -85,7 +89,14 @@ export class AISdkClient extends LLMClient {
         schema: options.response_model.schema,
       });
 
-      return response.object;
+      return {
+        data: response.object,
+        usage: {
+          prompt_tokens: response.usage.promptTokens ?? 0,
+          completion_tokens: response.usage.completionTokens ?? 0,
+          total_tokens: response.usage.totalTokens ?? 0,
+        },
+      } as T;
     }
 
     const tools: Record<string, CoreTool> = {};
@@ -103,6 +114,13 @@ export class AISdkClient extends LLMClient {
       tools,
     });
 
-    return response as T;
+    return {
+      data: response.text,
+      usage: {
+        prompt_tokens: response.usage.promptTokens ?? 0,
+        completion_tokens: response.usage.completionTokens ?? 0,
+        total_tokens: response.usage.totalTokens ?? 0,
+      },
+    } as T;
   }
 }

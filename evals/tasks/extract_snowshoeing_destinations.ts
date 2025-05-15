@@ -1,19 +1,13 @@
 import { z } from "zod";
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const extract_snowshoeing_destinations: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(
       "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
@@ -40,7 +34,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
           }),
         ),
       }),
-      modelName,
       useTextExtract,
     });
 

@@ -1,4 +1,9 @@
-import { AccessibilityNode, TreeResult, AXNode } from "../../types/context";
+import {
+  AccessibilityNode,
+  TreeResult,
+  AXNode,
+  DOMNode,
+} from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
 import { CDPSession, Page, Locator } from "playwright";
@@ -6,6 +11,26 @@ import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,
 } from "@/types/playwright";
+import {
+  StagehandDomProcessError,
+  StagehandElementNotFoundError,
+} from "@/types/stagehandErrors";
+
+const CLEAN_RULES: ReadonlyArray<[RegExp, string]> = [
+  // Font-Awesome / Material-Icons placeholders (Private-Use Area)
+  [/[\u{E000}-\u{F8FF}]/gu, ""],
+
+  // NBSP family to regular space
+  [/[\u00A0\u202F\u2007\uFEFF]/g, " "],
+];
+
+// returns the input string with each of the CLEAN_RULES applied
+function cleanText(input: string): string {
+  return CLEAN_RULES.reduce(
+    (txt, [pattern, replacement]) => txt.replace(pattern, replacement),
+    input,
+  ).trim();
+}
 
 // Parser function for str output
 export function formatSimplifiedTree(
@@ -13,8 +38,9 @@ export function formatSimplifiedTree(
   level = 0,
 ): string {
   const indent = "  ".repeat(level);
+  const cleanName = node.name ? cleanText(node.name) : "";
   let result = `${indent}[${node.nodeId}] ${node.role}${
-    node.name ? `: ${node.name}` : ""
+    cleanName ? `: ${cleanName}` : ""
   }\n`;
 
   if (node.children?.length) {
@@ -23,6 +49,41 @@ export function formatSimplifiedTree(
       .join("");
   }
   return result;
+}
+
+/**
+ * Builds a map of `backendNodeId to tagName` with a single CDP round-trip.
+ */
+async function buildBackendIdTagNameMap(
+  page: StagehandPage,
+): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+
+  await page.enableCDP("DOM");
+  try {
+    const { root } = await page.sendCDP<{ root: DOMNode }>("DOM.getDocument", {
+      depth: -1,
+      pierce: true,
+    });
+
+    /* Recursively walk the DOM tree */
+    const walk = (node: DOMNode): void => {
+      if (node.backendNodeId && node.nodeName) {
+        map.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+      }
+
+      // Children, shadow roots, template content, etc.
+      if (node.children) node.children.forEach(walk);
+      if (node.shadowRoots) node.shadowRoots.forEach(walk);
+      if (node.contentDocument) walk(node.contentDocument);
+    };
+
+    walk(root);
+  } finally {
+    await page.disableCDP("DOM");
+  }
+
+  return map;
 }
 
 /**
@@ -35,7 +96,7 @@ export function formatSimplifiedTree(
  */
 async function cleanStructuralNodes(
   node: AccessibilityNode,
-  page?: StagehandPage,
+  tagNameMap: Map<number, string>,
   logger?: (logLine: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
   // 1) Filter out nodes with negative IDs
@@ -51,10 +112,10 @@ async function cleanStructuralNodes(
 
   // 3) Recursively clean children
   const cleanedChildrenPromises = node.children.map((child) =>
-    cleanStructuralNodes(child, page, logger),
+    cleanStructuralNodes(child, tagNameMap, logger),
   );
   const resolvedChildren = await Promise.all(cleanedChildrenPromises);
-  const cleanedChildren = resolvedChildren.filter(
+  let cleanedChildren = resolvedChildren.filter(
     (child): child is AccessibilityNode => child !== null,
   );
 
@@ -73,66 +134,24 @@ async function cleanStructuralNodes(
   }
 
   // 5) If we still have a "generic"/"none" node after pruning
-  //    (i.e., because it had multiple children), now we try
-  //    to resolve and replace its role with the DOM tag name.
+  //    (i.e., because it had multiple children), replace the role
+  //    with the DOM tag name.
   if (
-    page &&
-    logger &&
-    node.backendDOMNodeId !== undefined &&
-    (node.role === "generic" || node.role === "none")
+    (node.role === "generic" || node.role === "none") &&
+    node.backendDOMNodeId !== undefined
   ) {
-    try {
-      const { object } = await page.sendCDP<{
-        object: { objectId?: string };
-      }>("DOM.resolveNode", {
-        backendNodeId: node.backendDOMNodeId,
-      });
+    const tagName = tagNameMap.get(node.backendDOMNodeId);
+    if (tagName) node.role = tagName;
+  }
 
-      if (object && object.objectId) {
-        try {
-          // Get the tagName for the node
-          const { result } = await page.sendCDP<{
-            result: { type: string; value?: string };
-          }>("Runtime.callFunctionOn", {
-            objectId: object.objectId,
-            functionDeclaration: `
-              function() {
-                return this.tagName ? this.tagName.toLowerCase() : "";
-              }
-            `,
-            returnByValue: true,
-          });
+  // rm redundant StaticText children
+  cleanedChildren = removeRedundantStaticTextChildren(node, cleanedChildren);
 
-          // If we got a tagName, update the node's role
-          if (result?.value) {
-            node.role = result.value;
-          }
-        } catch (tagNameError) {
-          logger({
-            category: "observation",
-            message: `Could not fetch tagName for node ${node.backendDOMNodeId}`,
-            level: 2,
-            auxiliary: {
-              error: {
-                value: tagNameError.message,
-                type: "string",
-              },
-            },
-          });
-        }
-      }
-    } catch (resolveError) {
-      logger({
-        category: "observation",
-        message: `Could not resolve DOM node ID ${node.backendDOMNodeId}`,
-        level: 2,
-        auxiliary: {
-          error: {
-            value: resolveError.message,
-            type: "string",
-          },
-        },
-      });
+  if (cleanedChildren.length === 0) {
+    if (node.role === "generic" || node.role === "none") {
+      return null;
+    } else {
+      return { ...node, children: [] };
     }
   }
 
@@ -151,9 +170,12 @@ async function cleanStructuralNodes(
  */
 export async function buildHierarchicalTree(
   nodes: AccessibilityNode[],
-  page?: StagehandPage,
+  tagNameMap: Map<number, string>,
   logger?: (logLine: LogLine) => void,
 ): Promise<TreeResult> {
+  // Map to store nodeId -> URL for only those nodes that do have a URL.
+  const idToUrl: Record<string, string> = {};
+
   // Map to store processed nodes for quick lookup
   const nodeMap = new Map<string, AccessibilityNode>();
   const iframe_list: AccessibilityNode[] = [];
@@ -165,6 +187,11 @@ export async function buildHierarchicalTree(
     const nodeIdValue = parseInt(node.nodeId, 10);
     if (nodeIdValue < 0) {
       return;
+    }
+
+    const url = extractUrlFromAXNode(node);
+    if (url) {
+      idToUrl[node.nodeId] = url;
     }
 
     const hasChildren = node.childIds && node.childIds.length > 0;
@@ -224,7 +251,7 @@ export async function buildHierarchicalTree(
     .filter(Boolean) as AccessibilityNode[];
 
   const cleanedTreePromises = rootNodes.map((node) =>
-    cleanStructuralNodes(node, page, logger),
+    cleanStructuralNodes(node, tagNameMap, logger),
   );
   const finalTree = (await Promise.all(cleanedTreePromises)).filter(
     Boolean,
@@ -239,6 +266,7 @@ export async function buildHierarchicalTree(
     tree: finalTree,
     simplified: simplifiedFormat,
     iframes: iframe_list,
+    idToUrl: idToUrl,
   };
 }
 
@@ -248,17 +276,64 @@ export async function buildHierarchicalTree(
 export async function getAccessibilityTree(
   page: StagehandPage,
   logger: (logLine: LogLine) => void,
+  selector?: string,
 ): Promise<TreeResult> {
+  /* Build tag-name map once, reuse everywhere */
+  const tagNameMap = await buildBackendIdTagNameMap(page);
+
   await page.enableCDP("Accessibility");
 
   try {
-    // Identify which elements are scrollable and get their backendNodeIds
-    const scrollableBackendIds = await findScrollableElementIds(page);
-
-    // Fetch the full accessibility tree from Chrome DevTools Protocol
-    const { nodes } = await page.sendCDP<{ nodes: AXNode[] }>(
+    const { nodes: fullNodes } = await page.sendCDP<{ nodes: AXNode[] }>(
       "Accessibility.getFullAXTree",
     );
+    const scrollableBackendIds = await findScrollableElementIds(page);
+
+    let nodes = fullNodes;
+
+    if (selector) {
+      const objectId = await resolveObjectIdForXPath(page, selector);
+
+      const { node } = await page.sendCDP<{
+        node: { backendNodeId: number };
+      }>("DOM.describeNode", { objectId: objectId });
+
+      if (!node?.backendNodeId) {
+        throw new StagehandDomProcessError(
+          `Unable to resolve backendNodeId for XPath "${selector}"`,
+        );
+      }
+
+      const target = fullNodes.find(
+        (n) => n.backendDOMNodeId === node.backendNodeId,
+      );
+      if (!target) {
+        throw new StagehandDomProcessError(
+          `No AX node found for backendNodeId ${node.backendNodeId} (XPath "${selector}")`,
+        );
+      }
+
+      const keep = new Set<string>([target.nodeId]);
+      const queue = [target];
+
+      while (queue.length) {
+        const current = queue.shift()!;
+        for (const childId of current.childIds ?? []) {
+          if (!keep.has(childId)) {
+            keep.add(childId);
+            const child = fullNodes.find((n) => n.nodeId === childId);
+            if (child) queue.push(child);
+          }
+        }
+      }
+
+      nodes = fullNodes
+        .filter((n) => keep.has(n.nodeId))
+        .map((n) =>
+          n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
+        );
+    }
+
     const startTime = Date.now();
 
     // Transform into hierarchical structure
@@ -283,9 +358,10 @@ export async function getAccessibilityTree(
           backendDOMNodeId: node.backendDOMNodeId,
           parentId: node.parentId,
           childIds: node.childIds,
+          properties: node.properties,
         };
       }),
-      page,
+      tagNameMap,
       logger,
     );
 
@@ -417,26 +493,14 @@ export async function findScrollableElementIds(
     if (!xpath) continue;
 
     // evaluate the XPath in the stagehandPage
-    const { result } = await stagehandPage.sendCDP<{
-      result?: { objectId?: string };
-    }>("Runtime.evaluate", {
-      expression: `
-        (function() {
-          const res = document.evaluate(${JSON.stringify(
-            xpath,
-          )}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-          return res.singleNodeValue;
-        })();
-      `,
-      returnByValue: false,
-    });
+    const objectId = await resolveObjectIdForXPath(stagehandPage, xpath);
 
     // if we have an objectId, call DOM.describeNode to get backendNodeId
-    if (result?.objectId) {
+    if (objectId) {
       const { node } = await stagehandPage.sendCDP<{
         node?: { backendNodeId?: number };
       }>("DOM.describeNode", {
-        objectId: result.objectId,
+        objectId: objectId,
       });
 
       if (node?.backendNodeId) {
@@ -446,6 +510,83 @@ export async function findScrollableElementIds(
   }
 
   return scrollableBackendIds;
+}
+
+/**
+ * Resolve an XPath to a Chrome-DevTools-Protocol (CDP) remote-object ID.
+ *
+ * @param page     A StagehandPage (or Playwright.Page with .sendCDP)
+ * @param xpath    An absolute or relative XPath
+ * @returns        The remote objectId for the matched node, or null
+ */
+export async function resolveObjectIdForXPath(
+  page: StagehandPage,
+  xpath: string,
+): Promise<string | null> {
+  const { result } = await page.sendCDP<{
+    result?: { objectId?: string };
+  }>("Runtime.evaluate", {
+    expression: `
+      (function () {
+        const res = document.evaluate(
+          ${JSON.stringify(xpath)},
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
+        return res.singleNodeValue;
+      })();
+    `,
+    returnByValue: false,
+  });
+  if (!result?.objectId) {
+    throw new StagehandElementNotFoundError([xpath]);
+  }
+  return result.objectId;
+}
+
+/**
+ * Removes any StaticText children whose combined text equals the parent's name.
+ * This is most often used to avoid duplicating a link's accessible name in separate child nodes.
+ *
+ * @param parent     The parent accessibility node whose `.name` we check.
+ * @param children   The parent's current children list, typically after cleaning.
+ * @returns          A filtered list of children with redundant StaticText nodes removed.
+ */
+function removeRedundantStaticTextChildren(
+  parent: AccessibilityNode,
+  children: AccessibilityNode[],
+): AccessibilityNode[] {
+  if (!parent.name) {
+    return children;
+  }
+
+  const parentName = parent.name.replace(/\s+/g, " ").trim();
+
+  // Gather all StaticText children and combine their text
+  const staticTextChildren = children.filter(
+    (child) => child.role === "StaticText" && child.name,
+  );
+  const combinedChildText = staticTextChildren
+    .map((child) => child.name!.replace(/\s+/g, " ").trim())
+    .join("");
+
+  // If the combined text exactly matches the parent's name, remove those child nodes
+  if (combinedChildText === parentName) {
+    return children.filter((child) => child.role !== "StaticText");
+  }
+
+  return children;
+}
+
+function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
+  if (!axNode.properties) return undefined;
+  const urlProp = axNode.properties.find((prop) => prop.name === "url");
+  if (urlProp && urlProp.value && typeof urlProp.value.value === "string") {
+    return urlProp.value.value.trim();
+  }
+  return undefined;
 }
 
 export async function performPlaywrightMethod(

@@ -1,22 +1,16 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { compareStrings } from "@/evals/utils";
 import { z } from "zod";
 
 export const extract_baptist_health: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
-    "https://www.baptistfirst.org/location/baptist-health-ent-partners",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/",
   );
 
   const result = await stagehand.page.extract({
@@ -27,7 +21,6 @@ export const extract_baptist_health: EvalFunction = async ({
       phone: z.string(),
       fax: z.string(),
     }),
-    modelName,
     useTextExtract,
   });
 

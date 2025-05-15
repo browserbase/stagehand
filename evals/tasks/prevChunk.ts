@@ -1,15 +1,21 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { EvalFunction } from "@/types/evals";
 
-export const prevChunk: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const prevChunk: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
     domSettleTimeoutMs: 3000,
   });
+  await stagehand.init();
 
-  const { debugUrl, sessionUrl } = initResponse;
-  await stagehand.page.goto("https://aigrant.com/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  );
   await new Promise((resolve) => setTimeout(resolve, 2000));
   const { initialScrollTop, chunkHeight } = await stagehand.page.evaluate(
     () => {
@@ -32,7 +38,6 @@ export const prevChunk: EvalFunction = async ({ modelName, logger }) => {
   await new Promise((resolve) => setTimeout(resolve, 2000));
   await stagehand.page.act({
     action: "scroll up one chunk",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 5000));

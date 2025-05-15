@@ -1,5 +1,173 @@
 # @browserbasehq/stagehand
 
+## 2.2.1
+
+### Patch Changes
+
+- [#721](https://github.com/browserbase/stagehand/pull/721) [`be8652e`](https://github.com/browserbase/stagehand/commit/be8652e770b57fdb3299fa0b2efa4eb0e816434e) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix stagehand.close() functionality to include calling browser.close()
+
+- [#724](https://github.com/browserbase/stagehand/pull/724) [`6b413b7`](https://github.com/browserbase/stagehand/commit/6b413b7ad00b13ca0bd53ee2e7393023821408b6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm refine step in extract
+
+- [#712](https://github.com/browserbase/stagehand/pull/712) [`7eafbd9`](https://github.com/browserbase/stagehand/commit/7eafbd9b1a73b37effa444929767df7c592caf02) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecated `onlyVisible` param and remove its functionality
+
+- [#725](https://github.com/browserbase/stagehand/pull/725) [`1b50aa6`](https://github.com/browserbase/stagehand/commit/1b50aa61cf0a429dd6cb2760a08f7f698a50454b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - dont overwrite .describe() when user defines a zod schema with z.string().url().describe()
+
+- [#717](https://github.com/browserbase/stagehand/pull/717) [`f2b7f1f`](https://github.com/browserbase/stagehand/commit/f2b7f1f284eef1f96753319b66c7d0b273a6f8cd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - don't publish uncompiled ts to npm
+
+- [#719](https://github.com/browserbase/stagehand/pull/719) [`c8d672f`](https://github.com/browserbase/stagehand/commit/c8d672f7c410c256defbc2e87ead99239837aa28) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix `Invalid schema for response_format` error when extracting links
+
+- [#722](https://github.com/browserbase/stagehand/pull/722) [`bebf204`](https://github.com/browserbase/stagehand/commit/bebf2044502333c694743078c5b0c9deae11fb79) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - replace NBSP with regular space & remove special characters from dom+a11y tree
+
+- [#714](https://github.com/browserbase/stagehand/pull/714) [`37d6810`](https://github.com/browserbase/stagehand/commit/37d6810a704773d0383a86f98f5f17c7d5b21975) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the native AI SDK client implementation to optionally take in an API key
+
+## 2.2.0
+
+### Minor Changes
+
+- [#655](https://github.com/browserbase/stagehand/pull/655) [`8814af9`](https://github.com/browserbase/stagehand/commit/8814af9ece99fddc3dd9fb32671d0513a3a00c67) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - extract links
+
+- [#675](https://github.com/browserbase/stagehand/pull/675) [`35c55eb`](https://github.com/browserbase/stagehand/commit/35c55ebf6c2867801a0a6f6988a883c8cb90cf9a) Thanks [@tkattkat](https://github.com/tkattkat)! - Added Gemini 2.5 Flash to Google supported models
+
+- [#668](https://github.com/browserbase/stagehand/pull/668) [`5c6d2cf`](https://github.com/browserbase/stagehand/commit/5c6d2cf89c9fbf198485506ed9ed75e07aec5cd4) Thanks [@miguelg719](https://github.com/miguelg719)! - Added a new class - Stagehand Evaluator - that wraps around a Stagehand object to determine whether a task is successful or not. Currently used for agent evals
+
+### Patch Changes
+
+- [#706](https://github.com/browserbase/stagehand/pull/706) [`18ac6fb`](https://github.com/browserbase/stagehand/commit/18ac6fba30f45b7557cecb890f4e84c75de8383c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove unused fillInVariables fn
+
+- [#692](https://github.com/browserbase/stagehand/pull/692) [`6b95248`](https://github.com/browserbase/stagehand/commit/6b95248d6e02e5304ce4dd60499e31fc42af57eb) Thanks [@miguelg719](https://github.com/miguelg719)! - Updated the list of OpenAI models (4.1, o3...)
+
+- [#688](https://github.com/browserbase/stagehand/pull/688) [`7d81b3c`](https://github.com/browserbase/stagehand/commit/7d81b3c951c1f3dfc46845aefcc26ff175299bca) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - wrap page.evaluate to make sure we have injected browser side scripts before calling them
+
+- [#664](https://github.com/browserbase/stagehand/pull/664) [`b5ca00a`](https://github.com/browserbase/stagehand/commit/b5ca00a25ad0c33a5f4d3198e1bc59edb9956e7c) Thanks [@miguelg719](https://github.com/miguelg719)! - remove unnecessary log
+
+- [#683](https://github.com/browserbase/stagehand/pull/683) [`8f0f97b`](https://github.com/browserbase/stagehand/commit/8f0f97bc491e23ff0078c802aaf509fd04173c37) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use javsacript click instead of playwright
+
+- [#705](https://github.com/browserbase/stagehand/pull/705) [`346ef5d`](https://github.com/browserbase/stagehand/commit/346ef5d0132dc1418dac18d26640a8df0435af57) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed removing a hanging observation map that is no longer used
+
+- [#698](https://github.com/browserbase/stagehand/pull/698) [`c145bc1`](https://github.com/browserbase/stagehand/commit/c145bc1d90ffd0d71c412de3af1c26c121e0b101) Thanks [@sameelarif](https://github.com/sameelarif)! - Fixing LLM client support to natively integrate with AI SDK
+
+- [#687](https://github.com/browserbase/stagehand/pull/687) [`edd6d3f`](https://github.com/browserbase/stagehand/commit/edd6d3feb47aac9f312a5edad78bf850ae1541db) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed the schema input for Gemini's response model
+
+- [#678](https://github.com/browserbase/stagehand/pull/678) [`5ec43d8`](https://github.com/browserbase/stagehand/commit/5ec43d8b9568c0f86b3e24bd83d1826c837656ed) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - allow form filling when form is not top-most element
+
+- [#694](https://github.com/browserbase/stagehand/pull/694) [`b8cc164`](https://github.com/browserbase/stagehand/commit/b8cc16405b712064a54c8cd591750368a47f35ea) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add telemetry for cua agents to stagehand.metrics
+
+- [#699](https://github.com/browserbase/stagehand/pull/699) [`d9f4243`](https://github.com/browserbase/stagehand/commit/d9f4243f6a8c8d4f3003ad6589f7eb4da6d23d0f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm deprecated primitives from stagehand object
+
+- [#710](https://github.com/browserbase/stagehand/pull/710) [`9f4ab76`](https://github.com/browserbase/stagehand/commit/9f4ab76a0c1f0c2171290765c48c3bcea5b50e0f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support targeted extract for domExtract
+
+- [#677](https://github.com/browserbase/stagehand/pull/677) [`bc5a731`](https://github.com/browserbase/stagehand/commit/bc5a731241f7f4c5040dd672d8e3787555766421) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixes a redundant unnecessary log
+
+## 2.1.0
+
+### Minor Changes
+
+- [#659](https://github.com/browserbase/stagehand/pull/659) [`f9a435e`](https://github.com/browserbase/stagehand/commit/f9a435e938daccfb2e54ca23fad8ef75128a4486) Thanks [@miguelg719](https://github.com/miguelg719)! - Added native support for Google Generative models (Gemini)
+
+### Patch Changes
+
+- [#647](https://github.com/browserbase/stagehand/pull/647) [`ca5467d`](https://github.com/browserbase/stagehand/commit/ca5467de7d31bfb270b6b625224a926c52c97900) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - collapse redundant text nodes into parent elements
+
+- [#636](https://github.com/browserbase/stagehand/pull/636) [`9037430`](https://github.com/browserbase/stagehand/commit/903743097367ba6bb12baa9f0fa8f7985f543fdc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix token act metrics and inference logging being misplaced as observe metrics and inference logging
+
+- [#648](https://github.com/browserbase/stagehand/pull/648) [`169e7ea`](https://github.com/browserbase/stagehand/commit/169e7ea9e229503ae5958eaa4511531578ee3841) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add mapping of node id -> url
+
+- [#654](https://github.com/browserbase/stagehand/pull/654) [`57a9853`](https://github.com/browserbase/stagehand/commit/57a98538381e0e54fbb734b43c50d61fd0d567df) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix repeated up & down scrolling bug for clicks inside `act`
+
+- [#624](https://github.com/browserbase/stagehand/pull/624) [`cf167a4`](https://github.com/browserbase/stagehand/commit/cf167a437865e8e8bdb8739d22c3b3bb84e185de) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - export stagehand error classes so they can be referenced from @dist
+
+- [#640](https://github.com/browserbase/stagehand/pull/640) [`178f5f0`](https://github.com/browserbase/stagehand/commit/178f5f0a8fecd876adfb4e29983853bdf7ec72fd) Thanks [@yash1744](https://github.com/yash1744)! - Added support for stagehand agents to automatically redirect to https://google.com when the page URL is empty or set to about:blank, preventing empty screenshots and saving tokens.
+
+- [#661](https://github.com/browserbase/stagehand/pull/661) [`bf823a3`](https://github.com/browserbase/stagehand/commit/bf823a36930b0686b416a42302ef8c021b4aba75) Thanks [@kamath](https://github.com/kamath)! - fix press enter
+
+- [#633](https://github.com/browserbase/stagehand/pull/633) [`86724f6`](https://github.com/browserbase/stagehand/commit/86724f6fb0abc7292423ac5bd0bebcd352f95940) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the getBrowser logic for redundant api calls and throw informed errors
+
+- [#656](https://github.com/browserbase/stagehand/pull/656) [`c630373`](https://github.com/browserbase/stagehand/commit/c630373dede4c775875834bfb860436ba2ea48d2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - parse out % signs from variables in act
+
+- [#637](https://github.com/browserbase/stagehand/pull/637) [`944bbbf`](https://github.com/browserbase/stagehand/commit/944bbbfe8bfb357b4910584447a93f6f402c3826) Thanks [@kamath](https://github.com/kamath)! - Fix: forward along the stack trace in StagehandDefaultError
+
+## 2.0.0
+
+### Major Changes
+
+- [#591](https://github.com/browserbase/stagehand/pull/591) [`e234a0f`](https://github.com/browserbase/stagehand/commit/e234a0f80bf4c07bcc57265da216cbc4ab3bd19d) Thanks [@miguelg719](https://github.com/miguelg719)! - Announcing **Stagehand 2.0**! 🎉
+
+  We're thrilled to announce the release of Stagehand 2.0, bringing significant improvements to make browser automation more powerful, faster, and easier to use than ever before.
+
+  ### 🚀 New Features
+
+  - **Introducing `stagehand.agent`**: A powerful new way to integrate SOTA Computer use models or Browserbase's [Open Operator](https://operator.browserbase.com) into Stagehand with one line of code! Perfect for multi-step workflows and complex interactions. [Learn more](https://docs.stagehand.dev/concepts/agent)
+  - **Lightning-fast `act` and `extract`**: Major performance improvements to make your automations run significantly faster.
+  - **Enhanced Logging**: Better visibility into what's happening during automation with improved logging and debugging capabilities.
+  - **Comprehensive Documentation**: A completely revamped documentation site with better examples, guides, and best practices.
+  - **Improved Error Handling**: More descriptive errors and better error recovery to help you debug issues faster.
+
+  ### 🛠️ Developer Experience
+
+  - **Better TypeScript Support**: Enhanced type definitions and better IDE integration
+  - **Better Error Messages**: Clearer, more actionable error messages to help you debug faster
+  - **Improved Caching**: More reliable action caching for better performance
+
+  We're excited to see what you build with Stagehand 2.0! For questions or support, join our [Slack community](https://stagehand.dev/slack).
+
+  For more details, check out our [documentation](https://docs.stagehand.dev).
+
+### Minor Changes
+
+- [#588](https://github.com/browserbase/stagehand/pull/588) [`ba9efc5`](https://github.com/browserbase/stagehand/commit/ba9efc5580a536bc3c158e507a6c6695825c2834) Thanks [@sameelarif](https://github.com/sameelarif)! - Added support for offloading agent tasks to the API.
+
+- [#600](https://github.com/browserbase/stagehand/pull/600) [`11e015d`](https://github.com/browserbase/stagehand/commit/11e015daac56dc961b8c8d54ce360fd00d4fee38) Thanks [@sameelarif](https://github.com/sameelarif)! - Added a `stagehand.history` array which stores an array of `act`, `extract`, `observe`, and `goto` calls made. Since this history array is stored on the `StagehandPage` level, it will capture methods even if indirectly called by an agent.
+
+- [#601](https://github.com/browserbase/stagehand/pull/601) [`1d22604`](https://github.com/browserbase/stagehand/commit/1d2260401e27bae25779a55bb2ed7b7153c34fd0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add custom error classes
+
+- [#599](https://github.com/browserbase/stagehand/pull/599) [`75d8fb3`](https://github.com/browserbase/stagehand/commit/75d8fb36a67cd84eb55b509bf959edc7b05059da) Thanks [@miguelg719](https://github.com/miguelg719)! - cleaner logging with pino
+
+- [#609](https://github.com/browserbase/stagehand/pull/609) [`c92295d`](https://github.com/browserbase/stagehand/commit/c92295d8424dac1a4f81066ca260ade2d5fce80b) Thanks [@kamath](https://github.com/kamath)! - Removed deprecated fields and methods from Stagehand constructor and added cdpUrl to localBrowserLaunchOptions for custom CDP URLs support.
+
+- [#571](https://github.com/browserbase/stagehand/pull/571) [`73d6736`](https://github.com/browserbase/stagehand/commit/73d67368b88002c17814e46e75a99456bf355c4e) Thanks [@miguelg719](https://github.com/miguelg719)! - You can now use Computer Using Agents (CUA) natively in Stagehand for both Anthropic and OpenAI models! This unlocks a brand new frontier of applications for Stagehand users 🤘
+
+- [#619](https://github.com/browserbase/stagehand/pull/619) [`7b0b996`](https://github.com/browserbase/stagehand/commit/7b0b9969a58014ae3e99b2054e4463b785073cfd) Thanks [@sameelarif](https://github.com/sameelarif)! - add disablePino flag to stagehand constructor params
+
+- [#620](https://github.com/browserbase/stagehand/pull/620) [`566e587`](https://github.com/browserbase/stagehand/commit/566e5877a1861e0eae5a118d34efe09d43a37098) Thanks [@kamath](https://github.com/kamath)! - You can now pass in an OpenAI instance as an `llmClient` to the Stagehand constructor! This allows you to use Stagehand with any OpenAI-compatible model, like Ollama, Gemini, etc., as well as OpenAI wrappers like Braintrust.
+
+- [#586](https://github.com/browserbase/stagehand/pull/586) [`c57dc19`](https://github.com/browserbase/stagehand/commit/c57dc19c448b8c2aab82953291f4e38f202c4729) Thanks [@sameelarif](https://github.com/sameelarif)! - Added native Stagehand agentic loop functionality. This allows you to build agentic workflows with a single prompt without using a computer-use model. To try it out, create a `stagehand.agent` without passing in a provider.
+
+### Patch Changes
+
+- [#580](https://github.com/browserbase/stagehand/pull/580) [`179e17c`](https://github.com/browserbase/stagehand/commit/179e17c2d1c9837de49c776d9850a330a759e73f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - refactor \_performPlaywrightMethod
+
+- [#608](https://github.com/browserbase/stagehand/pull/608) [`71ee10d`](https://github.com/browserbase/stagehand/commit/71ee10d50cb46e83d43fd783e1404569e6f317cf) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - added support for "scrolling to next/previous chunk"
+
+- [#594](https://github.com/browserbase/stagehand/pull/594) [`e483484`](https://github.com/browserbase/stagehand/commit/e48348412a6e651967ba22d097d5308af0e8d0a8) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - pass observeHandler into actHandler
+
+- [#569](https://github.com/browserbase/stagehand/pull/569) [`17e8b40`](https://github.com/browserbase/stagehand/commit/17e8b40f94b30f6e253443a4bbb8a3e364e58e38) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - you can now call stagehand.metrics to get token usage metrics. you can also set logInferenceToFile in stagehand config to log the entire call/response history from stagehand & the LLM.
+
+- [#617](https://github.com/browserbase/stagehand/pull/617) [`affa564`](https://github.com/browserbase/stagehand/commit/affa5646658399ab71ed08c1b9ce0fd776b46fca) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use a11y tree for default extract
+
+- [#589](https://github.com/browserbase/stagehand/pull/589) [`0c4b1e7`](https://github.com/browserbase/stagehand/commit/0c4b1e7e6ff4b8a60af4a2d0d2056bff847227d5) Thanks [@miguelg719](https://github.com/miguelg719)! - Added CDP support for screenshots, find more about the benefits here: https://docs.browserbase.com/features/screenshots#why-use-cdp-for-screenshots%3F
+
+- [#584](https://github.com/browserbase/stagehand/pull/584) [`c7c1a80`](https://github.com/browserbase/stagehand/commit/c7c1a8066be33188ba1e900828045db61410025c) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix to remove unnecessary healtcheck ping on sdk
+
+- [#616](https://github.com/browserbase/stagehand/pull/616) [`2a27e1c`](https://github.com/browserbase/stagehand/commit/2a27e1c8e967befbbbb05ea71369878ac1573658) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed new opened tab handling for CUA models
+
+- [#582](https://github.com/browserbase/stagehand/pull/582) [`dfd24e6`](https://github.com/browserbase/stagehand/commit/dfd24e638ef3723d3a8a3a33ff7942af0ac4745f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support api usage for extract with no args
+
+- [#563](https://github.com/browserbase/stagehand/pull/563) [`98166d7`](https://github.com/browserbase/stagehand/commit/98166d76d30bc67d6b04b3d5c39f78f92c254b49) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support scrolling in `act`
+
+- [#598](https://github.com/browserbase/stagehand/pull/598) [`53889d4`](https://github.com/browserbase/stagehand/commit/53889d4b6e772098beaba2e1ee5a24e6f07706bb) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the open operator handler to work with anthropic
+
+- [#605](https://github.com/browserbase/stagehand/pull/605) [`b8beaec`](https://github.com/browserbase/stagehand/commit/b8beaec451a03eaa5d12281fe7c8d4eb9c9d7e81) Thanks [@sameelarif](https://github.com/sameelarif)! - Added support for resuming a Stagehand session created on the API.
+
+- [#612](https://github.com/browserbase/stagehand/pull/612) [`cd36068`](https://github.com/browserbase/stagehand/commit/cd3606854c465747c78b44763469dfdfa16db1b0) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove all logic related to dom based act
+
+- [#577](https://github.com/browserbase/stagehand/pull/577) [`4fdbf63`](https://github.com/browserbase/stagehand/commit/4fdbf6324a0dc68568bba73ea4d9018b2ed67849) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove debugDom
+
+- [#603](https://github.com/browserbase/stagehand/pull/603) [`2a14a60`](https://github.com/browserbase/stagehand/commit/2a14a607f3e7fa3ca9a02670afdc7e60ccfbfb3f) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm unused handlePossiblePageNavigation
+
+- [#614](https://github.com/browserbase/stagehand/pull/614) [`a59eaef`](https://github.com/browserbase/stagehand/commit/a59eaef67c2f4a0cb07bb0046fe7e93e2ba4dc41) Thanks [@kamath](https://github.com/kamath)! - override whatwg-url to avoid punycode warning
+
+- [#573](https://github.com/browserbase/stagehand/pull/573) [`c24f3c9`](https://github.com/browserbase/stagehand/commit/c24f3c9a58873c3920fab0f9891c2bf5245c9b5e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - return act result in actFromObserve
+
 ## 1.14.0
 
 ### Minor Changes

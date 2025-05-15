@@ -7,10 +7,14 @@ on:
       - synchronize
       - labeled
       - unlabeled
+    paths-ignore:
+      - "docs/**"
 
 env:
-  EVAL_MODELS: "gpt-4o,gpt-4o-mini,claude-3-5-sonnet-latest"
-  EVAL_CATEGORIES: "observe,act,combination,extract,text_extract"
+  EVAL_MODELS: "gpt-4.1,gemini-2.0-flash,claude-3-5-sonnet-latest"
+  EVAL_CATEGORIES: "observe,act,combination,extract,text_extract,targeted_extract"
+  EVAL_MAX_CONCURRENCY: 25
+  EVAL_TRIAL_COUNT: 5
 
 concurrency:
   group: ${{ github.ref }}
@@ -63,11 +67,11 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Run Lint
-        run: npm run lint
+        run: pnpm run lint
 
   run-build:
     runs-on: ubuntu-latest
@@ -83,11 +87,11 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Run Build
-        run: npm run build
+        run: pnpm run build
 
   run-e2e-tests:
     needs: [run-lint, run-build]
@@ -107,17 +111,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run E2E Tests (Deterministic Playwright)
-        run: npm run e2e
+        run: pnpm run e2e
 
   run-e2e-local-tests:
     needs: [run-lint, run-build]
@@ -137,17 +141,17 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run local E2E Tests (Deterministic Playwright)
-        run: npm run e2e:local
+        run: pnpm run e2e:local
 
   run-e2e-bb-tests:
     needs: [run-lint, run-build]
@@ -159,6 +163,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
@@ -174,28 +179,29 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Run E2E Tests (browserbase)
-        run: npm run e2e:bb
+        run: pnpm run e2e:bb
 
-  run-regression-evals-dom-extract:
+  run-regression-evals:
     needs:
       [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 9
     outputs:
-      regression_dom_score: ${{ steps.set-dom-score.outputs.regression_dom_score }}
+      regression_score: ${{ steps.set-regression-score.outputs.regression_score }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -213,107 +219,42 @@ jobs:
       - name: Install dependencies
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
-      - name: Run Regression Evals (domExtract)
-        run: npm run evals category regression_dom_extract trials=2 concurrency=12 env=BROWSERBASE -- --extract-method=domExtract
+      - name: Run Regression Evals
+        run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
 
-      - name: Save Regression domExtract Results
-        run: mv eval-summary.json eval-summary-regression-dom.json
-
-      - name: Log and Regression (domExtract) Evals Performance
-        id: set-dom-score
+      - name: Log Regression Evals Performance
         run: |
-          experimentNameRegressionDom=$(jq -r '.experimentName' eval-summary-regression-dom.json)
-          regression_dom_score=$(jq '.categories.regression_dom_extract' eval-summary-regression-dom.json)
-          echo "regression_dom_extract category score: ${regression_dom_score}%"
-          echo "View regression_dom_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionDom}"
-          echo "regression_dom_score=$regression_dom_score" >> "$GITHUB_OUTPUT"
-
-  run-regression-evals-text-extract:
-    needs:
-      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
-    runs-on: ubuntu-latest
-    timeout-minutes: 7
-    outputs:
-      regression_text_score: ${{ steps.set-text-score.outputs.regression_text_score }}
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
-      HEADLESS: true
-      EVAL_ENV: browserbase
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          rm -f package-lock.json
-          npm install
-
-      - name: Build Stagehand
-        run: npm run build
-
-      - name: Install Playwright browsers
-        run: npm exec playwright install --with-deps
-
-      - name: Run Regression Evals (textExtract)
-        run: npm run evals category regression_text_extract trials=2 concurrency=12 env=BROWSERBASE -- --extract-method=textExtract
-
-      - name: Save Regression textExtract Results
-        run: mv eval-summary.json eval-summary-regression-text.json
-
-      - name: Log Regression (textExtract) Evals Performance
-        id: set-text-score
-        run: |
-          experimentNameRegressionText=$(jq -r '.experimentName' eval-summary-regression-text.json)
-          regression_text_score=$(jq '.categories.regression_text_extract' eval-summary-regression-text.json)
-          echo "regression_text_extract category score: ${regression_text_score}%"
-          echo "View regression_text_extract results: https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentNameRegressionText}"
-          echo "regression_text_score=$regression_text_score" >> "$GITHUB_OUTPUT"
-
-  check-regression-evals-score:
-    needs: [run-regression-evals-text-extract, run-regression-evals-dom-extract]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Compare Overall Regression Evals Score
-        run: |
-          regression_dom_score="${{ needs.run-regression-evals-dom-extract.outputs.regression_dom_score }}"
-          regression_text_score="${{ needs.run-regression-evals-text-extract.outputs.regression_text_score }}"
-
-          overall_score=$(echo "(${regression_dom_score} + ${regression_text_score}) / 2" | bc -l)
-          echo "Overall regression score: ${overall_score}%"
-
-          # Fail if overall score is below 90%
-          if (( $(echo "${overall_score} < 90" | bc -l) )); then
-            echo "Overall regression score is below 90%. Failing CI."
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            regression_score=$(jq '.categories.regression' eval-summary.json)
+            echo "Regression category score: $regression_score%"
+            if (( $(echo "$regression_score < 90" | bc -l) )); then
+              echo "Regression category score is below 90%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for regression category. Failing CI."
             exit 1
           fi
 
   run-combination-evals:
-    needs: [check-regression-evals-score, determine-evals]
+    needs: [run-regression-evals, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -343,20 +284,20 @@ jobs:
         if: needs.determine-evals.outputs.run-combination == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: npm run evals category combination
+        run: pnpm run evals category combination
 
       - name: Log Combination Evals Performance
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -379,6 +320,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -408,20 +350,20 @@ jobs:
         if: needs.determine-evals.outputs.run-act == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: npm run evals category act
+        run: pnpm run evals category act
 
       - name: Log Act Evals Performance
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -447,6 +389,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -476,21 +419,21 @@ jobs:
         if: needs.determine-evals.outputs.run-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run evals category extract -- --extract-method=domExtract
+        run: pnpm run evals category extract -- --extract-method=domExtract
 
       - name: Save Extract Dom Results
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -499,7 +442,7 @@ jobs:
       # 2. Then run extract category with textExtract
       - name: Run Extract Evals (textExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: npm run evals category extract -- --extract-method=textExtract
+        run: pnpm run evals category extract -- --extract-method=textExtract
 
       - name: Save Extract Text Results
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -532,6 +475,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -561,20 +505,20 @@ jobs:
         if: needs.determine-evals.outputs.run-text-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run text_extract Evals (textExtract)
         if: needs.determine-evals.outputs.run-text-extract == 'true'
-        run: npm run evals category text_extract -- --extract-method=textExtract
+        run: pnpm run evals category text_extract -- --extract-method=textExtract
 
       - name: Save text_extract Results
         if: needs.determine-evals.outputs.run-text-extract == 'true'
@@ -601,6 +545,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -630,20 +575,20 @@ jobs:
         if: needs.determine-evals.outputs.run-observe == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: npm run evals category observe
+        run: pnpm run evals category observe
 
       - name: Log Observe Evals Performance
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -669,6 +614,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -698,20 +644,20 @@ jobs:
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         run: |
           rm -rf node_modules
-          rm -f package-lock.json
-          npm install
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
 
       - name: Install Playwright browsers
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm run build
+        run: pnpm run build
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: npm run evals category targeted_extract -- --extract-method=textExtract
+        run: pnpm run evals category targeted_extract
 
       - name: Log targeted extract Evals Performance
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'

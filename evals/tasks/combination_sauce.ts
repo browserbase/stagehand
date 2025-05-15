@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const combination_sauce: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto("https://www.saucedemo.com/");
 
@@ -23,7 +17,6 @@ export const combination_sauce: EvalFunction = async ({
         usernames: z.array(z.string()).describe("the accepted usernames"),
         password: z.string().describe("the password for login"),
       }),
-      modelName,
       useTextExtract,
     });
 

@@ -1,17 +1,13 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 
-export const expedia_search: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
+export const expedia_search: EvalFunction = async ({
+  logger,
+  debugUrl,
+  sessionUrl,
+  stagehand,
+}) => {
   try {
     await stagehand.page.goto("https://www.expedia.com/flights");
-
     await stagehand.page.act({
       action:
         "find round-trip flights from San Francisco (SFO) to Toronto (YYZ) for Jan 1, 2025 (up to one to two weeks)",

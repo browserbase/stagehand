@@ -1,4 +1,4 @@
-import { Stagehand } from "@/dist";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
 
 async function example() {
@@ -6,7 +6,6 @@ async function example() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 1,
-    debugDom: true,
     domSettleTimeoutMs: 100,
   });
   try {

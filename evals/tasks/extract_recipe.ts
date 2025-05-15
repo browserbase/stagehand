@@ -1,21 +1,15 @@
-import { initStagehand } from "@/evals/initStagehand";
 import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const extract_recipe: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   await stagehand.page.goto(
-    "https://www.allrecipes.com/recipe/8539032/perfect-pan-seared-filet-mignon/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
     {
       waitUntil: "domcontentloaded",
     },
@@ -37,7 +31,6 @@ export const extract_recipe: EvalFunction = async ({
           "the number of teaspoons of lemon juice needed for the mushroom pan sauce",
         ),
     }),
-    modelName,
     useTextExtract,
     selector: selector,
   });

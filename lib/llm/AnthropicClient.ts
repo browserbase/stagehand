@@ -57,7 +57,7 @@ export class AnthropicClient extends LLMClient {
     logger({
       category: "anthropic",
       message: "creating chat completion",
-      level: 1,
+      level: 2,
       auxiliary: {
         options: {
           value: JSON.stringify(optionsWithoutImage),
@@ -241,7 +241,7 @@ export class AnthropicClient extends LLMClient {
     logger({
       category: "anthropic",
       message: "response",
-      level: 1,
+      level: 2,
       auxiliary: {
         response: {
           value: JSON.stringify(response),
@@ -293,7 +293,7 @@ export class AnthropicClient extends LLMClient {
     logger({
       category: "anthropic",
       message: "transformed response",
-      level: 1,
+      level: 2,
       auxiliary: {
         transformedResponse: {
           value: JSON.stringify(transformedResponse),
@@ -332,7 +332,7 @@ export class AnthropicClient extends LLMClient {
         logger({
           category: "anthropic",
           message: "error creating chat completion",
-          level: 1,
+          level: 0,
           auxiliary: {
             requestId: {
               value: options.requestId,

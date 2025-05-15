@@ -3,6 +3,7 @@ import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
 import { AgentClient } from "../agent/AgentClient";
 import { LogLine } from "../../types/log";
+import { Page } from "playwright";
 import {
   AgentExecuteOptions,
   AgentAction,
@@ -10,8 +11,11 @@ import {
   AgentHandlerOptions,
   ActionExecutionResult,
 } from "@/types/agent";
+import { Stagehand } from "../index";
+import { StagehandFunctionName } from "@/types/stagehand";
 
 export class StagehandAgentHandler {
+  private stagehand: Stagehand;
   private stagehandPage: StagehandPage;
   private agent: StagehandAgent;
   private provider: AgentProvider;
@@ -20,10 +24,12 @@ export class StagehandAgentHandler {
   private options: AgentHandlerOptions;
 
   constructor(
+    stagehand: Stagehand,
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     options: AgentHandlerOptions,
   ) {
+    this.stagehand = stagehand;
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.options = options;
@@ -125,6 +131,17 @@ export class StagehandAgentHandler {
         ? { instruction: optionsOrInstruction }
         : optionsOrInstruction;
 
+    //Redirect to Google if the URL is empty or about:blank
+    const currentUrl = this.stagehandPage.page.url();
+    if (!currentUrl || currentUrl === "about:blank") {
+      this.logger({
+        category: "agent",
+        message: `Page URL is empty or about:blank. Redirecting to www.google.com...`,
+        level: 0,
+      });
+      await this.stagehandPage.page.goto("https://www.google.com");
+    }
+
     this.logger({
       category: "agent",
       message: `Executing agent task: ${options.instruction}`,
@@ -163,6 +180,14 @@ export class StagehandAgentHandler {
 
     // Execute the task
     const result = await this.agent.execute(optionsOrInstruction);
+    if (result.usage) {
+      this.stagehand.updateMetrics(
+        StagehandFunctionName.AGENT,
+        result.usage.input_tokens,
+        result.usage.output_tokens,
+        result.usage.inference_time_ms,
+      );
+    }
 
     // The actions are now executed during the agent's execution flow
     // We don't need to execute them again here
@@ -190,6 +215,28 @@ export class StagehandAgentHandler {
           await this.stagehandPage.page.mouse.click(x as number, y as number, {
             button: button as "left" | "right",
           });
+          const newOpenedTab = await Promise.race([
+            new Promise<Page | null>((resolve) => {
+              this.stagehandPage.context.once("page", (page) => resolve(page));
+              setTimeout(() => resolve(null), 1500);
+            }),
+          ]);
+          if (newOpenedTab) {
+            this.logger({
+              category: "action",
+              message: `New page detected (new tab) with URL. Opening on current page...`,
+              level: 1,
+              auxiliary: {
+                url: {
+                  value: newOpenedTab.url(),
+                  type: "string",
+                },
+              },
+            });
+            await newOpenedTab.close();
+            await this.stagehandPage.page.goto(newOpenedTab.url());
+            await this.stagehandPage.page.waitForURL(newOpenedTab.url());
+          }
           return { success: true };
         }
 

@@ -1,23 +1,19 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const extract_jstor_news: EvalFunction = async ({
-  modelName,
   logger,
   useTextExtract,
+  debugUrl,
+  sessionUrl,
+  stagehand,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
-  await stagehand.init();
-  await stagehand.page.goto("http://jstor-eval.surge.sh", {
-    waitUntil: "load",
-  });
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/jstor/",
+    {
+      waitUntil: "load",
+    },
+  );
   await stagehand.page.act({ action: "close the cookie" });
 
   const result = await stagehand.page.extract({
@@ -34,7 +30,6 @@ export const extract_jstor_news: EvalFunction = async ({
         }),
       ),
     }),
-    modelName,
     useTextExtract,
   });
 

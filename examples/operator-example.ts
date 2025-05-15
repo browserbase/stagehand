@@ -1,4 +1,12 @@
-import { LogLine, Stagehand } from "@/dist";
+/**
+ * This example shows how to use the Stagehand operator to do simple autonomous tasks.
+ *
+ * This is built off of our open source project, Open Operator: https://operator.browserbase.com
+ *
+ * To learn more about Stagehand Agents, see: https://docs.stagehand.dev/concepts/agent
+ */
+
+import { Stagehand } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 import StagehandConfig from "@/stagehand.config";
 import chalk from "chalk";
@@ -15,9 +23,6 @@ async function main() {
   // Initialize Stagehand
   const stagehand = new Stagehand({
     ...StagehandConfig,
-    logger: ({ level, message, timestamp }: LogLine) => {
-      console.log({ level, message, timestamp });
-    },
   });
 
   await stagehand.init();
@@ -27,7 +32,6 @@ async function main() {
 
     // Execute the agent
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);
-
     const result = await agent.execute({
       instruction: INSTRUCTION,
       maxSteps: 20,

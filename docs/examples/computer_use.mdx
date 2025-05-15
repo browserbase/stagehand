@@ -1,0 +1,102 @@
+---
+title: Computer Use Agents
+description: Incorporate Computer Use APIs from Anthropic and OpenAI with one line of code in Stagehand.
+---
+
+<Tip>
+**Computer Use agents are only available in Stagehand 2.0.**
+
+We strongly recommend using computer use agents when you find an iframe or other difficult-to-navigate elements on a page. IFrames are notoriously difficult to navigate with Playwright due to security constraints.
+</Tip>
+
+## What is a Computer Use Agent?
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/ODaHJzOyVCQ"
+  title="YouTube video player"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+></iframe>
+You might've heard of [Claude Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use) or [OpenAI's Computer Using Agent](https://openai.com/index/computer-using-agent/).
+
+These are powerful tools that can convert natural language into actions on the computer. However, you'd otherwise need to write your own code to convert these actions into Playwright commands.
+
+Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between OpenAI and Anthropic models with one line of code.
+
+## How to use a Computer Use Agent in Stagehand
+
+Stagehand lets you use Computer Use Agents with one line of code:
+
+### IMPORTANT! Configure your browser dimensions
+Computer Use Agents will often return XY-coordinates to click on the screen, so you'll need to configure your browser dimensions.
+
+<CodeGroup>
+```ts Browserbase {12-15}
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+	env: "BROWSERBASE",
+  	apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
+    projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
+  
+    browserbaseSessionCreateParams: {
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      browserSettings: {
+		blockAds: true,
+        viewport: {
+          width: 1024,
+          height: 768,
+        },
+      },
+  	},
+});
+
+await stagehand.init();
+```
+
+```ts Local {7-10}
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    headless: false,
+    viewport: {
+      width: 1024,
+      height: 768,
+    },
+  }
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+
+### Direct your Computer Use Agent
+
+```ts
+// Navigate to a website
+await stagehand.page.goto("https://www.google.com");
+
+const agent = stagehand.agent({
+	// You can use either OpenAI or Anthropic
+	provider: "openai",
+	// The model to use (claude-3-7-sonnet-latest for Anthropic)
+	model: "computer-use-preview",
+
+	// Customize the system prompt
+	instructions: `You are a helpful assistant that can use a web browser.
+	Do not ask follow up questions, the user will trust your judgement.`,
+
+	// Customize the API key
+	options: {
+		apiKey: process.env.OPENAI_API_KEY,
+	},
+});
+
+// Execute the agent
+await agent.execute("Apply for a library card at the San Francisco Public Library");
+```

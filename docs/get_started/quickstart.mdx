@@ -1,0 +1,129 @@
+---
+title: 'Quickstart'
+description: 'Use create-browser-app to get started in 1 minute'
+icon: 'rocket'
+---
+
+You can use `npx create-browser-app` to get started in 1 minute. This will create a new project that will analyze the Stagehand docs using Stagehand.
+
+<Tip>
+
+We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
+
+**Bun does not support Stagehand** since it doesn't support [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright&type=issues).
+
+</Tip>
+
+<Steps>
+<Step title="Prerequisites">
+   Before you begin, you'll need to install Node.js and NPM. We highly recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your Node.js versions, and running on Node version 20+.
+</Step>
+
+<Step title="Create a new project">
+
+You can use [npx](https://docs.npmjs.com/cli/v8/commands/npx) to create a new project. You should have npx included with `npm`, the default package manager for Node.js. 
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npx create-browser-app
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm create browser-app
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn create browser-app
+	```
+	</Tab>
+</Tabs>
+
+
+To use the pre-release version of Stagehand, run:
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npx create-browser-app --alpha
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm create browser-app --alpha
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn create browser-app --alpha
+	```
+	</Tab>
+</Tabs>
+
+It will ask you the following questions:
+```
+✔ What is the name of your project? my-app
+✔ Would you like to start with a quickstart example? Yes
+✔ Select AI model: Anthropic Claude 3.7 Sonnet
+✔ Run locally or on Browserbase? Local
+✔ Run browser in headless mode (hide Chromium popup)?  No
+```
+
+</Step>
+
+<Step title="Install dependencies and run the script">
+<Tabs>
+	<Tab title="npm">
+	```bash
+	cd my-app
+	npm install
+	npm run start
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	cd my-app
+	pnpm install
+	pnpm run start
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	cd my-app
+	yarn install
+	yarn start
+	```
+	</Tab>
+</Tabs>
+
+Use the package manager of your choice to install the dependencies. We also have a `postinstall` script that will automatically install the Playwright browser with `playwright install`.
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card
+  title="Check out the scaffold repo"
+  icon="github"
+  href="https://github.com/browserbase/stagehand-scaffold"
+>
+  If you're interested in seeing the source code for what's created, you can check out the [Stagehand Scaffold GitHub repo](https://github.com/browserbase/stagehand-scaffold).
+</Card>
+
+<Card
+  title="Check out the CLI repo"
+  icon="github"
+  href="https://github.com/browserbase/create-browser-app"
+>
+  If you're interested in the source code for the `create-browser-app` CLI, you can check out the [CLI repo](https://github.com/browserbase/create-browser-app).
+</Card>
+</CardGroup>

@@ -1,18 +1,23 @@
-import { initStagehand } from "@/evals/initStagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import { EvalFunction } from "@/types/evals";
 
-export const scroll_75: EvalFunction = async ({ modelName, logger }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
+export const scroll_75: EvalFunction = async ({
+  logger,
+  stagehandConfig,
+  debugUrl,
+  sessionUrl,
+}) => {
+  const stagehand = new Stagehand({
+    ...stagehandConfig,
     domSettleTimeoutMs: 3000,
   });
+  await stagehand.init();
 
-  const { debugUrl, sessionUrl } = initResponse;
-  await stagehand.page.goto("https://aigrant.com/");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  );
   await stagehand.page.act({
     action: "Scroll 75% down the page",
-    slowDomBasedAct: false,
   });
 
   await new Promise((resolve) => setTimeout(resolve, 5000));

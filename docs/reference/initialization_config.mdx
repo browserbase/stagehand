@@ -1,0 +1,403 @@
+---
+title: 'Configuration'
+description: 'How to configure Stagehand'
+icon: 'gear'
+---
+
+## Stagehand constructor
+
+```javascript
+// Basic usage
+// Defaults to Browserbase; if no API key is provided, it will default to LOCAL
+// Default model is gpt-4o
+const stagehand = new Stagehand();
+
+// Custom configuration
+const stagehand = new Stagehand({
+	env: "LOCAL",
+	verbose: 1,
+	enableCaching: true,
+	logger: (logLine: LogLine) => {
+		console.log(`[${logLine.category}] ${logLine.message}`);
+	},
+    localBrowserLaunchOptions: {
+        headless: true, // Launches the browser in headless mode.
+        executablePath: '/path/to/chrome', // Custom path to the Chrome executable.
+        args: ['--no-sandbox', '--disable-setuid-sandbox'], // Additional launch arguments.
+        env: { NODE_ENV: "production" }, // Environment variables for the browser process.
+        handleSIGHUP: true,
+        handleSIGINT: true,
+        handleSIGTERM: true,
+        ignoreDefaultArgs: false, // or specify an array of arguments to ignore.
+        proxy: {
+            server: 'http://proxy.example.com:8080',
+            bypass: 'localhost',
+            username: 'user',
+            password: 'pass'
+        },
+        tracesDir: '/path/to/traces', // Directory to store trace files.
+        userDataDir: '/path/to/user/data', // Custom user data directory.
+        acceptDownloads: true,
+        downloadsPath: '/path/to/downloads',
+        extraHTTPHeaders: { 'User-Agent': 'Custom Agent' },
+        geolocation: { latitude: 37.7749, longitude: -122.4194, accuracy: 10 },
+        permissions: ["geolocation", "notifications"],
+        locale: "en-US",
+        viewport: { width: 1280, height: 720 },
+        deviceScaleFactor: 1,
+        hasTouch: false,
+        ignoreHTTPSErrors: true,
+        recordVideo: { dir: '/path/to/videos', size: { width: 1280, height: 720 } },
+        recordHar: {
+            path: '/path/to/har.har',
+            mode: "full",
+            omitContent: false,
+            content: "embed",
+            urlFilter: '.*'
+        },
+        chromiumSandbox: true,
+        devtools: true,
+        bypassCSP: false,
+		cdpUrl: 'http://localhost:9222',
+    },
+});
+
+// Resume existing Browserbase session
+const stagehand = new Stagehand({
+	env: "BROWSERBASE",
+	browserbaseSessionID: "existing-session-id",
+});
+```
+
+This constructor is used to create an instance of Stagehand.
+
+### **Arguments:** [`ConstructorParams`](https://github.com/browserbase/stagehand/blob/ed318846479054b6c7e3862b6c0c8aaa0bb0f42a/types/stagehand.ts#L8-L23)
+
+  <ParamField path="env" type="'LOCAL' | 'BROWSERBASE'" optional>
+    Defaults to `'BROWSERBASE'`
+  </ParamField>
+
+  <ParamField path="apiKey" type="string" optional>
+    Your Browserbase API key. Defaults to `BROWSERBASE_API_KEY` environment variable
+  </ParamField>
+
+  <ParamField path="projectId" type="string" optional>
+    Your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable
+  </ParamField>
+
+  <ParamField path="browserbaseSessionCreateParams" type="object" optional>
+      Configuration options for creating new Browserbase sessions. More information on browserbaseSessionCreateParams can be found [here](https://docs.browserbase.com/reference/api/create-a-session#body-browser-settings).
+    <Expandable title="properties">
+      <ResponseField name="projectId" type="string">
+        The Browserbase Project ID.
+      </ResponseField>
+      <ResponseField name="browserSettings" type="object">
+      <Expandable title="properties">
+        <ResponseField name="browserSettings.context" type="object">
+            <Expandable title="properties">
+                <ResponseField name="browserSettings.context.id" type="string">
+                    The Context ID.
+                </ResponseField>
+                <ResponseField name="browserSettings.context.persist" type="boolean">
+                    Whether or not to persist the context after browsing. Defaults to false.
+                </ResponseField>
+            </Expandable>
+        </ResponseField>
+        <ResponseField name="browserSettings.extensionId" type="string">
+            The uploaded Extension ID. See [Upload Extension](https://docs.browserbase.com/reference/api/upload-an-extension).
+        </ResponseField>
+        <ResponseField name="browserSettings.fingerprint" type="object">
+            See usage examples in the [Stealth Mode page](https://docs.browserbase.com/features/stealth-mode#fingerprinting).
+            <Expandable title="properties">
+                <ResponseField name="browserSettings.fingerprint.httpVersion" type="enum<number>">
+                    Available options: `1`, `2`
+                </ResponseField>
+                <ResponseField name="browserSettings.fingerprint.browsers" type="enum<string>[]">
+                    Available options: `chrome`, `edge`, `firefox`, `safari`
+                </ResponseField>
+                <ResponseField name="browserSettings.fingerprint.devices" type="enum<string>[]">
+                    Available options: `desktop`, `mobile`
+                </ResponseField>
+                <ResponseField name="browserSettings.fingerprint.locales" type="string[]">
+                    Full list of locales available [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Language).
+                </ResponseField>
+                <ResponseField name="browserSettings.fingerprint.operatingSystems" type="enum<string>[]">
+                    Note: `operatingSystems` set to `ios` or `android` requires `devices` to include `"mobile"`.
+                    Available options: `android`, `ios`,`linux`, `macos`, `windows`
+                </ResponseField>
+                <ResponseField name="browserSettings.fingerprint.screen" type="object">
+                    <Expandable title="properties">
+                        <ResponseField name="browserSettings.fingerprint.maxHeight" type="integer">
+                        </ResponseField>
+                        <ResponseField name="browserSettings.fingerprint.maxWidth" type="integer">
+                        </ResponseField>
+                        <ResponseField name="browserSettings.fingerprint.minHeight" type="integer">
+                        </ResponseField>
+                        <ResponseField name="browserSettings.fingerprint.minWidth" type="integer">
+                        </ResponseField>
+                    </Expandable>
+                </ResponseField>
+            </Expandable>
+        </ResponseField>
+        <ResponseField name="browserSettings.viewport" type="object">
+            <Expandable title="properties">
+                <ResponseField name="browserSettings.viewport.width" type="integer">
+                </ResponseField>
+                <ResponseField name="browserSettings.viewport.height" type="integer">
+                </ResponseField>
+            </Expandable>
+        </ResponseField>
+        <ResponseField name="browserSettings.blockAds" type="boolean">
+            Enable or disable ad blocking in the browser. Defaults to `false`.
+        </ResponseField>
+        <ResponseField name="browserSettings.solveCaptchas" type="boolean">
+            Enable or disable captcha solving in the browser. Defaults to `true`.
+        </ResponseField>
+        <ResponseField name="browserSettings.recordSession" type="boolean">
+            Enable or disable session recording. Defaults to `true`.
+        </ResponseField>
+        <ResponseField name="browserSettings.advancedStealth" type="boolean">
+            Advanced Browser Stealth Mode.
+        </ResponseField>
+      </Expandable>
+      </ResponseField>
+      <ResponseField name="extensionId" type="string">
+        The uploaded Extension ID. See [Upload Extension](https://docs.browserbase.com/reference/api/upload-an-extension).
+      </ResponseField>
+      <ResponseField name="keepAlive" type="boolean">
+        Set to true to keep the session alive even after disconnections. This is available on the Browserbase Startup plan only.
+      </ResponseField>
+      <ResponseField name="proxies" type="boolean">
+        Proxy configuration. Can be true for default proxy, or an array of proxy configurations.
+      </ResponseField>
+      <ResponseField name="region" type="enum<string>">
+        The region where the Session should run. Available options: `us-west-2`, `us-east-1`, `eu-central-1`, `ap-southeast-1`
+      </ResponseField>
+      <ResponseField name="timeout" type="number">
+        Duration in seconds after which the session will automatically end. Defaults to the Project's defaultTimeout.
+        Required range: `60 < x < 21600`
+      </ResponseField>
+      <ResponseField name="userMetadata" type="object">
+        Arbitrary user metadata to attach to the session. For more information about user metadata, see [UserMetadata](https://docs.browserbase.com/features/sessions#user-metadata)
+        <Expandable title="Properties">
+            userMetadata.`{key}` `any`
+        </Expandable>
+      </ResponseField>
+    </Expandable>
+  </ParamField>
+
+  <ParamField path="browserbaseSessionID" type="string" optional>
+    ID of an existing Browserbase session to resume
+  </ParamField>
+
+  <ParamField path="modelName" type="AvailableModel" optional>
+    Specifying the default language model to use
+  </ParamField>
+
+  <ParamField path="modelClientOptions" type="object" optional>
+    Configuration options for the language model client (i.e. `apiKey`)
+  </ParamField>
+
+  <ParamField path="enableCaching" type="boolean" optional>
+    Enables caching of LLM responses. When set to `true`, the LLM requests will be cached on disk and reused for identical requests. Defaults to `false`
+  </ParamField>
+
+  <ParamField path="domSettleTimeoutMs" type="integer" optional>
+    Specifies the timeout in milliseconds for waiting for the DOM to settle. Defaults to `30_000` (30 seconds)
+  </ParamField>
+
+  <ParamField path="logger" type="(message: LogLine) => void" optional>
+      `message` is a `LogLine` object. Handles log messages. Useful for custom logging implementations. For more information, see the [Logging](/reference/logging) page
+    </ParamField>
+
+  <ParamField path="disablePino" type="boolean" optional>
+    Whether Pino should be disabled for logging. This is helpful for Next.js or test environments. Pino will automatically be disabled if a custom `logger` is defined.
+  </ParamField>
+
+  <ParamField path="verbose" type="integer" optional>
+    Enables several levels of logging during automation: `0`: limited to no logging, `1`: SDK-level logging, `2`: LLM-client level logging (most granular)
+  </ParamField>
+
+  <ParamField path="llmClient" type="LLMClient" optional>
+    A custom LLM client implementation that conforms to the [`LLMClient`](https://github.com/arihanv/stagehand/blob/main/lib/llm/LLMClient.ts) abstract class
+  </ParamField>
+
+  <ParamField path="systemPrompt" type="string" optional>
+    A custom system prompt to use for the LLM in addition to the default system prompt for act, extract, and observe methods.
+  </ParamField>
+  
+  <ParamField path="selfHeal" type="boolean" optional>
+    Enables self-healing mode. When set to `true`, Stagehand will attempt to recover from errors (eg. outdated cached element not resolving) by retrying the last action. Defaults to `true`. Set to `false` to disable LLM inference on cache errors.
+  </ParamField>
+  
+<ResponseField name="localBrowserLaunchOptions" type="LocalBrowserLaunchOptions">
+  Provides comprehensive options for local browser instances.
+  <Expandable title="properties">
+    <ResponseField name="args" type="string[]">
+      Additional command-line arguments to pass to the browser.
+    </ResponseField>
+    <ResponseField name="chromiumSandbox" type="boolean">
+      Enable or disable Chromium’s sandbox.
+    </ResponseField>
+    <ResponseField name="devtools" type="boolean">
+      Open the browser’s developer tools on launch.
+    </ResponseField>
+    <ResponseField name="env" type="Record&lt;string, string | number | boolean&gt;">
+      Environment variables for the browser process.
+    </ResponseField>
+    <ResponseField name="executablePath" type="string">
+      Path to the browser executable.
+    </ResponseField>
+    <ResponseField name="handleSIGHUP" type="boolean">
+      Option to handle the SIGHUP signal.
+    </ResponseField>
+    <ResponseField name="handleSIGINT" type="boolean">
+      Option to handle the SIGINT signal.
+    </ResponseField>
+    <ResponseField name="handleSIGTERM" type="boolean">
+      Option to handle the SIGTERM signal.
+    </ResponseField>
+    <ResponseField name="headless" type="boolean">
+      Launches the browser in headless mode.
+    </ResponseField>
+    <ResponseField name="ignoreDefaultArgs" type="boolean | string[]">
+      Ignore all default arguments or specify an array to ignore.
+    </ResponseField>
+    <ResponseField name="proxy" type="object">
+      <Expandable title="properties">
+        <ResponseField name="server" type="string">
+          Proxy server URL.
+        </ResponseField>
+        <ResponseField name="bypass" type="string" optional>
+          Hosts to bypass the proxy.
+        </ResponseField>
+        <ResponseField name="username" type="string" optional>
+          Username for proxy authentication.
+        </ResponseField>
+        <ResponseField name="password" type="string" optional>
+          Password for proxy authentication.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="tracesDir" type="string">
+      Directory to store trace files.
+    </ResponseField>
+    <ResponseField name="userDataDir" type="string">
+      Custom user data directory.
+    </ResponseField>
+    <ResponseField name="acceptDownloads" type="boolean">
+      Allow file downloads.
+    </ResponseField>
+    <ResponseField name="downloadsPath" type="string">
+      Directory where downloads are saved.
+    </ResponseField>
+    <ResponseField name="extraHTTPHeaders" type="Record&lt;string, string&gt;">
+      Additional HTTP headers to send with each request.
+    </ResponseField>
+    <ResponseField name="geolocation" type="object">
+      <Expandable title="properties">
+        <ResponseField name="latitude" type="number">
+          Latitude coordinate.
+        </ResponseField>
+        <ResponseField name="longitude" type="number">
+          Longitude coordinate.
+        </ResponseField>
+        <ResponseField name="accuracy" type="number" optional>
+          Accuracy of the geolocation measurement.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="hasTouch" type="boolean">
+      Indicates if the device has touch capabilities.
+    </ResponseField>
+    <ResponseField name="ignoreHTTPSErrors" type="boolean">
+      Whether to ignore HTTPS errors.
+    </ResponseField>
+    <ResponseField name="locale" type="string">
+      Sets the browser’s locale.
+    </ResponseField>
+    <ResponseField name="permissions" type="string[]">
+      Array of permissions to grant (e.g., "geolocation", "notifications").
+    </ResponseField>
+    <ResponseField name="recordHar" type="object">
+      <Expandable title="properties">
+        <ResponseField name="path" type="string">
+          File path for the HAR.
+        </ResponseField>
+        <ResponseField name="mode" type="&quot;full&quot; | &quot;minimal&quot;" optional>
+          Mode for HAR recording.
+        </ResponseField>
+        <ResponseField name="omitContent" type="boolean" optional>
+          Whether to omit content in HAR recording.
+        </ResponseField>
+        <ResponseField name="content" type="&quot;omit&quot; | &quot;embed&quot; | &quot;attach&quot;" optional>
+          Content mode for HAR recording.
+        </ResponseField>
+        <ResponseField name="urlFilter" type="string | RegExp" optional>
+          Filter for URLs to include in the HAR.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="recordVideo" type="object">
+      <Expandable title="properties">
+        <ResponseField name="dir" type="string">
+          Directory to save videos.
+        </ResponseField>
+        <ResponseField name="size" type="object" optional>
+          <Expandable title="properties">
+            <ResponseField name="width" type="number">
+              Width of the recorded video.
+            </ResponseField>
+            <ResponseField name="height" type="number">
+              Height of the recorded video.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="viewport" type="object">
+      <Expandable title="properties">
+        <ResponseField name="width" type="number">
+          Width of the viewport.
+        </ResponseField>
+        <ResponseField name="height" type="number">
+          Height of the viewport.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="deviceScaleFactor" type="number">
+      Device scale factor for high-DPI displays.
+    </ResponseField>
+    <ResponseField name="timezoneId" type="string">
+      Timezone to emulate (e.g., "America/Los_Angeles").
+    </ResponseField>
+    <ResponseField name="bypassCSP" type="boolean">
+      Whether to bypass Content Security Policy.
+    </ResponseField>
+    <ResponseField name="cookies" type="Cookie[]">
+      Array of cookies to initialize the browser session.
+    </ResponseField>
+	<ResponseField name="cdpUrl" type="string">
+		URL for the Chrome DevTools Protocol. Useful for connecting to a running browser instance.
+	</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### **Returns:** Stagehand object
+
+The constructor returns an instance of the `Stagehand` class configured with the specified options. However, to use Stagehand, you must still initialize it with [`init()`](#init).
+
+## `stagehand.init()`
+
+```javascript
+await stagehand.init();
+```
+
+`init()` asynchronously initializes the Stagehand instance. It should be called before any other methods.
+
+## `stagehand.close()`
+```javascript
+await stagehand.close();
+```
+
+`close()` is a cleanup method to remove the temporary files created by Stagehand. It's recommended that you call this explicitly when you're done with your automation.

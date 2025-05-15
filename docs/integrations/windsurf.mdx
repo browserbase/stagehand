@@ -1,0 +1,130 @@
+---
+title: "Windsurf Integration"
+description: "Integrate Stagehand with Windsurf via MCP"
+icon: "wave"
+---
+
+## Integrating Stagehand with Windsurf Code Editor
+
+This guide will walk you through setting up Stagehand's MCP (Model Context Protocol) server with Windsurf Code Editor, enabling AI-powered web automation capabilities directly from your coding environment.
+
+## Prerequisites
+
+- [Windsurf Code Editor](https://www.codeium.com/windsurf) installed on your system
+- A [Browserbase account](https://browserbase.com/) with API key and project ID
+- OpenAI API key
+- Node.js and npm installed
+
+## Installation Steps
+
+### 1. Install the Stagehand MCP Server
+
+First, you need to install the Stagehand MCP server from the GitHub repository:
+
+```bash
+# Clone the repository
+git clone https://github.com/browserbase/mcp-server-browserbase.git
+
+# Navigate to the stagehand directory
+cd mcp-server-browserbase/stagehand
+
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+```
+
+### 2. Configure Windsurf to Use Stagehand
+
+Once you have installed the Stagehand MCP server, you need to configure Windsurf to use it:
+
+1. Open your MCP configuration file located at `~/.codeium/windsurf/mcp_config.json`
+
+   You can access it by clicking on the configure button with the hammer next to it.
+2. Add the following configuration (replace the paths and API keys with your own):
+
+```json
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "node",
+      "args": ["/path/to/mcp-server-browserbase/stagehand/dist/index.js"],
+      "env": {
+        "BROWSERBASE_API_KEY": "your_browserbase_api_key",
+        "BROWSERBASE_PROJECT_ID": "your_browserbase_project_id",
+        "OPENAI_API_KEY": "your_openai_api_key"
+      }
+    }
+  }
+}
+```
+
+### 3. Refresh your Windsurf MCP Servers
+
+After adding the configuration, click on the refresh button with the spinning arrows next to it.
+
+![Windsurf MCP Server](/images/windsurf-mcp.png)
+
+## Available Commands
+
+Once integrated with Windsurf, your AI assistant can use the following Stagehand commands:
+
+- **stagehand_navigate**: Navigate to a URL in the browser
+- **stagehand_act**: Perform an action on a web page element
+- **stagehand_extract**: Extract structured data from the web page
+- **stagehand_observe**: Observe elements on the web page
+- **screenshot**: Take a screenshot of the current page
+
+## Example Usage
+
+Here's how you can use Stagehand with Windsurf:
+
+1. In Windsurf, ask your AI assistant to perform a web task:
+
+   ```
+   Can you navigate to the React documentation and extract the main concepts?
+   ```
+2. The AI will use Stagehand's commands to:
+   - Navigate to the React documentation website
+   - Interact with the page if necessary
+   - Extract the relevant information
+   - Return the results directly in your coding environment
+
+## Example Workflow
+
+Here's a sample workflow you might follow:
+
+```
+You: Can you search for the latest JavaScript features and summarize them?
+
+Cascade: I'll use Stagehand to search for the latest JavaScript features.
+
+[AI uses stagehand_navigate to go to MDN Web Docs]
+[AI uses stagehand_act to interact with the search]
+[AI uses stagehand_extract to get the information]
+
+Cascade: Here's a summary of the latest JavaScript features...
+```
+
+## Viewing Browser Sessions
+
+You can view your browser sessions in Browserbase by going to the [Browserbase dashboard](https://browserbase.com/overview) and clicking on the "Sessions" tab.
+
+## Troubleshooting
+
+If you encounter issues with the integration:
+
+1. Ensure the MCP server is running
+2. Check that your environment variables in the configuration file are set correctly
+3. Verify that the path to the MCP server's index.js file is correct
+4. Check the Windsurf logs for any error messages
+5. Make sure your Browserbase and OpenAI API keys are valid
+
+## Additional Resources
+
+- [Stagehand GitHub Repository](https://github.com/browserbase/stagehand)
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
+- [Browserbase Documentation](https://browserbase.com/docs)
+
+Join the [Stagehand Slack community](https://stagehand.dev/slack) for support and to connect with other users.

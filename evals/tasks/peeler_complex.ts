@@ -1,19 +1,13 @@
 import { EvalFunction } from "@/types/evals";
-import { initStagehand } from "@/evals/initStagehand";
 import { z } from "zod";
 
 export const peeler_complex: EvalFunction = async ({
-  modelName,
+  debugUrl,
+  sessionUrl,
+  stagehand,
   logger,
   useTextExtract,
 }) => {
-  const { stagehand, initResponse } = await initStagehand({
-    modelName,
-    logger,
-  });
-
-  const { debugUrl, sessionUrl } = initResponse;
-
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
     await stagehand.page.waitForLoadState("networkidle");
@@ -33,7 +27,6 @@ export const peeler_complex: EvalFunction = async ({
     const { price } = await stagehand.page.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
-      modelName,
       useTextExtract,
     });
 

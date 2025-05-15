@@ -1,0 +1,111 @@
+---
+title: Caching Actions
+description: You can cache actions in Stagehand to avoid redundant LLM calls.
+---
+
+Caching actions in Stagehand is useful for actions that are expensive to run, or when the underlying DOM structure is not expected to change.
+
+## Using `observe` to preview an action
+`observe` lets you preview an action before taking it. If you are satisfied with the action preview, you can run it in `page.act` with no further LLM calls.
+
+```typescript
+const [actionPreview] = await page.observe("Click the quickstart link");
+
+/** actionPreview is a JSON-ified version of a Playwright action:
+{
+	description: "The quickstart link",
+	action: "click",
+	selector: "/html/body/div[1]/div[1]/a",
+	arguments: [],
+}
+**/
+
+// NO LLM INFERENCE when calling act on the preview
+await page.act(actionPreview)
+```
+
+## Simple caching
+
+Let's use a simple file-based cache for this example. We'll write `getCache` and `setCache` functions that can read and write to a JSON file:
+```typescript
+// Get the cached value (undefined if it doesn't exist)
+async function getCache(key: string): Promise<ObserveResult | undefined> {
+  try {
+    const cache = await readFile("cache.json");
+    const parsed = JSON.parse(cache);
+    return parsed[key];
+  } catch {
+    return undefined;
+  }
+}
+
+// Set the cache value
+async function setCache(key: string, value: ObserveResult): Promise<void> {
+  const cache = await readFile("cache.json");
+  const parsed = JSON.parse(cache);
+  parsed[key] = value;
+  await writeFile("cache.json", JSON.stringify(parsed));
+}
+```
+
+### Act with cache
+Let's write a function that will check the cache, get the action, and run it. If the action fails, we'll attempt to "self-heal", i.e. retry it with `page.act` directly.
+
+```typescript
+// Check the cache, get the action, and run it
+// If selfHeal is true, we'll attempt to self-heal if the action fails
+async function actWithCache(page: Page, key: string, prompt: string, selfHeal = false) {
+	try {
+		const cacheExists = await getCache(key);
+
+		let action: ObserveResult;
+		if (cacheExists) {
+		// Get the cached action
+		action = await getCache(prompt);
+		} else {
+		// Get the observe result (the action)
+		[action] = await page.observe(prompt);
+
+		// Cache the action
+		await setCache(prompt, action);
+		}
+
+		// Run the action (no LLM inference)
+		await page.act(action);
+	} catch (e) {
+		console.error(e);
+		// in selfHeal mode, we'll retry the action
+		if (selfHeal) {
+			console.log("Attempting to self-heal...");
+			await page.act(prompt);
+		}
+		else {
+			throw e;
+		}
+	}
+}
+```
+
+You can now use `actWithCache` to run an action with caching:
+
+```typescript
+const prompt = "Click the quickstart link";
+const key = prompt; // Simple cache key
+// Attempt cached action or self-heal
+await actWithCache(page, key, prompt);
+```
+
+## Advanced caching
+
+The above example is simple, but you may want to cache actions based on the page contents. Also, if you have duplicate prompts, you should use a more unique key.
+
+We want to leave caching logic up to you, but give you all the tools you need to implement your own caching strategy.
+
+You can directly access the DOM and accessibility tree from Playwright's page object. Here's an example of how to access the page content:
+
+```typescript
+// Get the page content
+const pageContent = await page.content();
+```
+
+You may also want to use the accessibility tree, the DOM, or any other information to create a more unique key. You can do this as you please, with very similar logic to the above example.
