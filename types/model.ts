@@ -1,4 +1,5 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
+import type { TelemetrySettings } from "ai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 import { z } from "zod";
 
@@ -44,7 +45,9 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
+export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
+  aiSdkTelemetrySettings?: TelemetrySettings;
+};
 
 export interface AnthropicJsonSchemaObject {
   definitions?: {
