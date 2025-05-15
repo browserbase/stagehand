@@ -6,7 +6,7 @@ import {
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { CDPSession, Page, Locator } from "playwright";
+import { CDPSession, Page, Locator } from "patchright";
 import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,

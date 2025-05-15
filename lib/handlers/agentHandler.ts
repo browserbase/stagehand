@@ -3,7 +3,7 @@ import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
 import { AgentClient } from "../agent/AgentClient";
 import { LogLine } from "../../types/log";
-import { Page } from "playwright";
+import { Page } from "patchright";
 import {
   AgentExecuteOptions,
   AgentAction,

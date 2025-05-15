@@ -32,6 +32,9 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.1)(zod@3.24.3)
+      patchright:
+        specifier: ^1.52.1
+        version: 1.52.1
       pino:
         specifier: ^9.6.0
         version: 9.6.0
@@ -4129,6 +4132,16 @@ packages:
 
   partial-json@0.1.7:
     resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==}
+
+  patchright-core@1.52.0:
+    resolution: {integrity: sha512-8a3vSEZ8gbmEfwmidRQbn+sCpBswQ//ZGXuD5cHgJEc+/ImGebqOgqNPOzL1qX923ku/A50PGloLwrAWwkxK1g==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  patchright@1.52.1:
+    resolution: {integrity: sha512-75wiV0s6tOmMtvhCQ/Lgp3dS/8xCKfx81r62D37HRmxwaPMhKxRv9orOOQQx1SgK6xZYW4zG10/ob4ak62cT8Q==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
@@ -10087,6 +10100,14 @@ snapshots:
 
   partial-json@0.1.7:
     optional: true
+
+  patchright-core@1.52.0: {}
+
+  patchright@1.52.1:
+    dependencies:
+      patchright-core: 1.52.0
+    optionalDependencies:
+      fsevents: 2.3.2
 
   path-exists@4.0.0: {}
 
