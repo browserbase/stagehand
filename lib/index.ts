@@ -74,6 +74,8 @@ async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
   logger: (message: LogLine) => void,
+  modelName: string,
+  usingCustomClient: boolean,
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
@@ -165,6 +167,8 @@ async function getBrowser(
         userMetadata: {
           ...(browserbaseSessionCreateParams?.userMetadata || {}),
           stagehand: "true",
+          modelName: modelName?.replace("/", "_") || "unknown",
+          usingCustomClient: usingCustomClient.toString(),
         },
       });
 
@@ -403,6 +407,7 @@ export class Stagehand {
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
   private _history: Array<HistoryEntry> = [];
+  private _usingCustomClient: boolean;
   public get history(): ReadonlyArray<HistoryEntry> {
     return Object.freeze([...this._history]);
   }
@@ -557,6 +562,7 @@ export class Stagehand {
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this._usingCustomClient = !modelName;
 
     let modelApiKey: string | undefined;
 
@@ -640,7 +646,6 @@ export class Stagehand {
     }
     this.logInferenceToFile = logInferenceToFile;
     this.selfHeal = selfHeal;
-    this.disablePino = disablePino;
   }
 
   private registerSignalHandlers() {
@@ -739,6 +744,8 @@ export class Stagehand {
         this.env,
         this.headless,
         this.logger,
+        this._usingCustomClient ? "NO_MODEL_DEFINED" : this.modelName,
+        this._usingCustomClient,
         this.browserbaseSessionCreateParams,
         this.browserbaseSessionID,
         this.localBrowserLaunchOptions,

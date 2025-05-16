@@ -6,7 +6,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "example": "pnpm --filter @browserbasehq/stagehand-examples run start",
+    "example": "pnpm run build && pnpm --filter @browserbasehq/stagehand-examples run start",
     "format": "prettier --write .",
     "prettier": "prettier --check .",
     "prettier:fix": "prettier --write .",
