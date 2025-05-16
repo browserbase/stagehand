@@ -1,5 +1,31 @@
 # @browserbasehq/stagehand-lib
 
+## 2.3.0
+
+### Minor Changes
+
+- [#731](https://github.com/browserbase/stagehand/pull/731) [`393c8e0`](https://github.com/browserbase/stagehand/commit/393c8e05d016086e481c0043ee6b084c61886cad) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make extract() with no arguments return the hybrid tree instead of text-rendered webpage
+
+- [#737](https://github.com/browserbase/stagehand/pull/737) [`6ef6073`](https://github.com/browserbase/stagehand/commit/6ef60730cab0ad9025f44b6eeb2c83751d1dcd35) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecate useTextExtract and remove functionality
+
+### Patch Changes
+
+- [#741](https://github.com/browserbase/stagehand/pull/741) [`5680d25`](https://github.com/browserbase/stagehand/commit/5680d2509352c383ad502c9f4fabde01fa638833) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use safeparse for zod validation
+
+- [#740](https://github.com/browserbase/stagehand/pull/740) [`28840a7`](https://github.com/browserbase/stagehand/commit/28840a7d3fec89a490984582fb37fa3d007c0349) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - dont log deprecation warning when onlyVisible is undefined
+
+- [#755](https://github.com/browserbase/stagehand/pull/755) [`ba687ab`](https://github.com/browserbase/stagehand/commit/ba687abdfb598f839ddfec0442d3d7b6b696b0a3) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix context init error on undefined context
+
+- [#757](https://github.com/browserbase/stagehand/pull/757) [`628e534`](https://github.com/browserbase/stagehand/commit/628e534ea6d7ca081bad6c32167c7d53d4772eed) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - optimize CDP calls when building hybrid tree
+
+- [#753](https://github.com/browserbase/stagehand/pull/753) [`fbca400`](https://github.com/browserbase/stagehand/commit/fbca4003a547dc5eee0c0be5edc5e98c1f4d8c22) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix `stagehand.history`
+
+- [#745](https://github.com/browserbase/stagehand/pull/745) [`c54afab`](https://github.com/browserbase/stagehand/commit/c54afab0e43a2144eecbc56df7f33c5e444ceed5) Thanks [@miguelg719](https://github.com/miguelg719)! - Add an identifier for client language/runtime
+
+- [#758](https://github.com/browserbase/stagehand/pull/758) [`98e1356`](https://github.com/browserbase/stagehand/commit/98e13566846a547003e4c9aebbe4f95eff653bba) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - rm unused functions
+
+- [#761](https://github.com/browserbase/stagehand/pull/761) [`e1f7074`](https://github.com/browserbase/stagehand/commit/e1f7074be23c82ae897386d5e5e132ff8cb4120a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - build xpaths on node side instead of using injected JS
+
 ## 2.2.1
 
 ### Patch Changes
