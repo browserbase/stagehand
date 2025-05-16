@@ -183,3 +183,9 @@ ${JSON.stringify(issues, null, 2)}`);
     this.name = "ZodSchemaValidationError";
   }
 }
+
+export class StagehandInitError extends StagehandError {
+  constructor(message: string) {
+    super(message);
+  }
+}

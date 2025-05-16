@@ -43,6 +43,7 @@ import {
   UnsupportedModelError,
   UnsupportedAISDKModelProviderError,
   InvalidAISDKModelFormatError,
+  StagehandInitError,
 } from "../types/stagehandErrors";
 import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
@@ -754,6 +755,16 @@ export class Stagehand {
       });
     this.contextPath = contextPath;
     this._browser = browser;
+    if (!context) {
+      const errorMessage =
+        "The browser context is undefined. This means the CDP connection to the browser failed";
+      this.stagehandLogger.error(
+        this.env === "LOCAL"
+          ? `${errorMessage}. If running locally, please check if the browser is running and the port is open.`
+          : errorMessage,
+      );
+      throw new StagehandInitError(errorMessage);
+    }
     this.stagehandContext = await StagehandContext.init(context, this);
 
     const defaultPage = (await this.stagehandContext.getStagehandPages())[0];
