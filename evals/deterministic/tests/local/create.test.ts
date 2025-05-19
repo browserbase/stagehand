@@ -1,9 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "@cloudflare/playwright/test";
 import { Stagehand } from "@browserbasehq/stagehand";
 import path from "path";
 import fs from "fs";
 import os from "os";
-import type { Cookie } from "@playwright/test";
+import type { Cookie } from "@cloudflare/playwright/test";
 import StagehandConfig from "../../stagehand.config";
 
 test.describe("Local browser launch options", () => {

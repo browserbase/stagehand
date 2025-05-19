@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@cloudflare/playwright/test";
 
 /**
  * See https://playwright.dev/docs/test-configuration.

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "@cloudflare/playwright/test";
 import AdmZip from "adm-zip";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
 import { Stagehand } from "@browserbasehq/stagehand";

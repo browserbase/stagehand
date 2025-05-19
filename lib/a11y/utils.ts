@@ -7,7 +7,7 @@ import {
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { Page, Locator } from "playwright";
+import { Page, Locator } from "@cloudflare/playwright";
 import {
   PlaywrightCommandMethodNotSupportedException,
   PlaywrightCommandException,

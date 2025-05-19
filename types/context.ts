@@ -1,4 +1,4 @@
-import type { BrowserContext as PlaywrightContext } from "@playwright/test";
+import type { BrowserContext as PlaywrightContext } from "@cloudflare/playwright/test";
 import { Page } from "../types/page";
 
 export interface AXNode {

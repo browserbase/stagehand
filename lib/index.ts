@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { Browser, chromium } from "@playwright/test";
+import { Browser, chromium } from "@cloudflare/playwright/test";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";

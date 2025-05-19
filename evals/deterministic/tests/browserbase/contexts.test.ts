@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "@cloudflare/playwright/test";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
 import { Stagehand } from "@browserbasehq/stagehand";
 

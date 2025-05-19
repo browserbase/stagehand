@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "@cloudflare/playwright/test";
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
 

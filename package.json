@@ -15,7 +15,7 @@
     "docs": "pnpm --filter @browserbasehq/stagehand-docs run dev",
     "evals": "pnpm run build && tsx evals/index.eval.ts",
     "e2e": "pnpm run build && cd evals/deterministic && playwright test --config=e2e.playwright.config.ts",
-    "e2e:bb": "pnpm run build && cd evals/deterministic && playwright test --config=bb.playwright.config.ts",	
+    "e2e:bb": "pnpm run build && cd evals/deterministic && playwright test --config=bb.playwright.config.ts",
     "e2e:local": "pnpm run build && cd evals/deterministic && playwright test --config=local.playwright.config.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
@@ -70,6 +70,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
+    "@cloudflare/playwright": "^0.0.10",
     "@google/genai": "^0.8.0",
     "ai": "^4.3.9",
     "openai": "^4.87.1",
