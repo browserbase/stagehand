@@ -441,7 +441,7 @@ async function handlePossiblePageNavigation(
     },
   });
 
-  if (newOpenedTab) {
+  if (newOpenedTab && newOpenedTab.url() !== "about:blank") {
     logger({
       category: "action",
       message: "new page detected (new tab) with URL",
