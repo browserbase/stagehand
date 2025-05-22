@@ -289,11 +289,7 @@ async function getBrowser(
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
       deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
       args: localBrowserLaunchOptions?.args ?? [
-        "--enable-webgl",
-        "--use-gl=swiftshader",
-        "--enable-accelerated-2d-canvas",
         "--disable-blink-features=AutomationControlled",
-        "--disable-web-security",
       ],
       bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
       proxy: localBrowserLaunchOptions?.proxy,
