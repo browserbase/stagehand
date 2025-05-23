@@ -244,7 +244,9 @@ export class StagehandActHandler {
       if (actionOrOptions.variables) {
         Object.keys(actionOrOptions.variables).forEach((key) => {
           element.arguments = element.arguments.map((arg) =>
-            arg.replace(`%${key}%`, actionOrOptions.variables![key]),
+            typeof arg === "string"
+              ? arg.replace(`%${key}%`, actionOrOptions.variables![key])
+              : arg,
           );
         });
       }

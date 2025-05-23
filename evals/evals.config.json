@@ -327,7 +327,7 @@
     },
     {
       "name": "upload_file",
-      "categories": ["act"]
+      "categories": ["combination"]
     },
     {
       "name": "checkboxes",
