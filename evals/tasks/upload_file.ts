@@ -40,8 +40,9 @@ export const upload_file: EvalFunction = async ({
       useTextExtract,
     })
 
+    await stagehand.close();
+
     if (!fileSize || !fileSize.fileSize) {
-      await stagehand.close();
       return {
         _success: false,
         logs: logger.getLogs(),
@@ -49,8 +50,6 @@ export const upload_file: EvalFunction = async ({
         sessionUrl,
       };
     }
-
-    await stagehand.close();
 
     return {
       _success: true,
