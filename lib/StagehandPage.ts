@@ -30,6 +30,7 @@ import {
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
+import type { Protocol } from "devtools-protocol";
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -427,71 +428,165 @@ ${scriptContent} \
     return this.intContext.context;
   }
 
-  // We can make methods public because StagehandPage is private to the Stagehand class.
-  // When a user gets stagehand.page, they are getting a proxy to the Playwright page.
-  // We can override the methods on the proxy to add our own behavior
-  public async _waitForSettledDom(timeoutMs?: number) {
-    try {
-      const timeout = timeoutMs ?? this.stagehand.domSettleTimeoutMs;
-      let timeoutHandle: NodeJS.Timeout;
+  /**
+   * `_waitForSettledDom` waits until the DOM is settled, and therefore is
+   * ready for actions to be taken.
+   *
+   * **Definition of “settled”**
+   *   • No in-flight network requests (except WebSocket / Server-Sent-Events).
+   *   • That idle state lasts for at least **500 ms** (the “quiet-window”).
+   *
+   * **How it works**
+   *   1.  Subscribes to CDP Network and Page events for the main target and all
+   *       out-of-process iframes (via `Target.setAutoAttach { flatten:true }`).
+   *   2.  Every time `Network.requestWillBeSent` fires, the request ID is added
+   *       to an **`inflight`** `Set`.
+   *   3.  When the request finishes—`loadingFinished`, `loadingFailed`,
+   *       `requestServedFromCache`, or a *data:* response—the request ID is
+   *       removed.
+   *   4.  *Document* requests are also mapped **frameId → requestId**; when
+   *       `Page.frameStoppedLoading` fires the corresponding Document request is
+   *       removed immediately (covers iframes whose network events never close).
+   *   5.  A **stalled-request sweep timer** runs every 500 ms.  If a *Document*
+   *       request has been open for ≥ 2 s it is forcibly removed; this prevents
+   *       ad/analytics iframes from blocking the wait forever.
+   *   6.  When `inflight` becomes empty the helper starts a 500 ms timer.
+   *       If no new request appears before the timer fires, the promise
+   *       resolves → **DOM is considered settled**.
+   *   7.  A global guard (`timeoutMs` or `stagehand.domSettleTimeoutMs`,
+   *       default ≈ 30 s) ensures we always resolve; if it fires we log how many
+   *       requests were still outstanding.
+   *
+   * @param timeoutMs – Optional hard cap (ms).  Defaults to
+   *                    `this.stagehand.domSettleTimeoutMs`.
+   */
+  public async _waitForSettledDom(timeoutMs?: number): Promise<void> {
+    const timeout = timeoutMs ?? this.stagehand.domSettleTimeoutMs;
+    const client = await this.getCDPClient();
 
-      await this.page.waitForLoadState("domcontentloaded");
+    const hasDoc = !!(await this.page.title().catch(() => false));
+    if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
 
-      const timeoutPromise = new Promise<void>((resolve) => {
-        timeoutHandle = setTimeout(() => {
+    await client.send("Network.enable");
+    await client.send("Page.enable");
+    await client.send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+    });
+
+    return new Promise<void>((resolve) => {
+      const inflight = new Set<string>();
+      const meta = new Map<string, { url: string; start: number }>();
+      const docByFrame = new Map<string, string>();
+
+      let quietTimer: NodeJS.Timeout | null = null;
+      let stalledRequestSweepTimer: NodeJS.Timeout | null = null;
+
+      const clearQuiet = () => {
+        if (quietTimer) {
+          clearTimeout(quietTimer);
+          quietTimer = null;
+        }
+      };
+
+      const maybeQuiet = () => {
+        if (inflight.size === 0 && !quietTimer)
+          quietTimer = setTimeout(() => resolveDone(), 500);
+      };
+
+      const finishReq = (id: string) => {
+        if (!inflight.delete(id)) return;
+        meta.delete(id);
+        for (const [fid, rid] of docByFrame)
+          if (rid === id) docByFrame.delete(fid);
+        clearQuiet();
+        maybeQuiet();
+      };
+
+      const onRequest = (p: Protocol.Network.RequestWillBeSentEvent) => {
+        if (p.type === "WebSocket" || p.type === "EventSource") return;
+
+        inflight.add(p.requestId);
+        meta.set(p.requestId, { url: p.request.url, start: Date.now() });
+
+        if (p.type === "Document" && p.frameId)
+          docByFrame.set(p.frameId, p.requestId);
+
+        clearQuiet();
+      };
+
+      const onFinish = (p: { requestId: string }) => finishReq(p.requestId);
+      const onCached = (p: { requestId: string }) => finishReq(p.requestId);
+      const onDataUrl = (p: Protocol.Network.ResponseReceivedEvent) =>
+        p.response.url.startsWith("data:") && finishReq(p.requestId);
+
+      const onFrameStop = (f: Protocol.Page.FrameStoppedLoadingEvent) => {
+        const id = docByFrame.get(f.frameId);
+        if (id) finishReq(id);
+      };
+
+      client.on("Network.requestWillBeSent", onRequest);
+      client.on("Network.loadingFinished", onFinish);
+      client.on("Network.loadingFailed", onFinish);
+      client.on("Network.requestServedFromCache", onCached);
+      client.on("Network.responseReceived", onDataUrl);
+      client.on("Page.frameStoppedLoading", onFrameStop);
+
+      stalledRequestSweepTimer = setInterval(() => {
+        const now = Date.now();
+        for (const [id, m] of meta) {
+          if (now - m.start > 2_000) {
+            inflight.delete(id);
+            meta.delete(id);
+            this.stagehand.log({
+              category: "dom",
+              message: "⏳ forcing completion of stalled iframe document",
+              level: 2,
+              auxiliary: {
+                url: {
+                  value: m.url.slice(0, 120),
+                  type: "string",
+                },
+              },
+            });
+          }
+        }
+        maybeQuiet();
+      }, 500);
+
+      maybeQuiet();
+
+      const guard = setTimeout(() => {
+        if (inflight.size)
           this.stagehand.log({
             category: "dom",
-            message: "DOM settle timeout exceeded, continuing anyway",
-            level: 1,
+            message:
+              "⚠️ DOM-settle timeout reached – network requests still pending",
+            level: 2,
             auxiliary: {
-              timeout_ms: {
-                value: timeout.toString(),
+              count: {
+                value: inflight.size.toString(),
                 type: "integer",
               },
             },
           });
-          resolve();
-        }, timeout);
-      });
+        resolveDone();
+      }, timeout);
 
-      try {
-        await Promise.race([
-          this.page.evaluate(() => {
-            return new Promise<void>((resolve) => {
-              if (typeof window.waitForDomSettle === "function") {
-                window.waitForDomSettle().then(resolve);
-              } else {
-                console.warn(
-                  "waitForDomSettle is not defined, considering DOM as settled",
-                );
-                resolve();
-              }
-            });
-          }),
-          this.page.waitForLoadState("domcontentloaded"),
-          this.page.waitForSelector("body"),
-          timeoutPromise,
-        ]);
-      } finally {
-        clearTimeout(timeoutHandle!);
-      }
-    } catch (e) {
-      this.stagehand.log({
-        category: "dom",
-        message: "Error in waitForSettledDom",
-        level: 1,
-        auxiliary: {
-          error: {
-            value: e.message,
-            type: "string",
-          },
-          trace: {
-            value: e.stack,
-            type: "string",
-          },
-        },
-      });
-    }
+      const resolveDone = () => {
+        client.off("Network.requestWillBeSent", onRequest);
+        client.off("Network.loadingFinished", onFinish);
+        client.off("Network.loadingFailed", onFinish);
+        client.off("Network.requestServedFromCache", onCached);
+        client.off("Network.responseReceived", onDataUrl);
+        client.off("Page.frameStoppedLoading", onFrameStop);
+        if (quietTimer) clearTimeout(quietTimer);
+        if (stalledRequestSweepTimer) clearInterval(stalledRequestSweepTimer);
+        clearTimeout(guard);
+        resolve();
+      };
+    });
   }
 
   async act(

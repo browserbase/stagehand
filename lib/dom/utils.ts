@@ -1,21 +1,5 @@
 import { StagehandDomProcessError } from "@/types/stagehandErrors";
 
-export async function waitForDomSettle() {
-  return new Promise<void>((resolve) => {
-    const createTimeout = () => {
-      return setTimeout(() => {
-        resolve();
-      }, 2000);
-    };
-    let timeout = createTimeout();
-    const observer = new MutationObserver(() => {
-      clearTimeout(timeout);
-      timeout = createTimeout();
-    });
-    observer.observe(window.document.body, { childList: true, subtree: true });
-  });
-}
-
 /**
  * Tests if the element actually responds to .scrollTo(...)
  * and that scrollTop changes as expected.
