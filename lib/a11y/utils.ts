@@ -4,6 +4,7 @@ import {
   AXNode,
   DOMNode,
   BackendIdMaps,
+  CdpFrameTree,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -16,6 +17,7 @@ import {
   StagehandDomProcessError,
   StagehandElementNotFoundError,
 } from "@/types/stagehandErrors";
+import { CDPSession, Frame } from "@playwright/test";
 
 const CLEAN_RULES: ReadonlyArray<[RegExp, string]> = [
   // Font-Awesome / Material-Icons placeholders (Private-Use Area)
@@ -57,50 +59,122 @@ export function formatSimplifiedTree(
  * 1. a `tagNameMap`, which is a mapping of `backendNodeId`s -> `nodeName`s
  * 2. an `xpathMap`, which is a mapping of `backendNodeId`s -> `xPaths`s
  */
-async function buildBackendIdMaps(page: StagehandPage): Promise<BackendIdMaps> {
-  await page.enableCDP("DOM");
+export async function buildBackendIdMaps(
+  sp: StagehandPage,
+  targetFrame?: Frame,
+): Promise<BackendIdMaps> {
+  /* 0 ───── decide which CDP session we’ll use ───────────────────────── */
+  let session: CDPSession;
+  if (!targetFrame || targetFrame === sp.page.mainFrame()) {
+    session = await sp.getCDPClient(); // main document
+  } else {
+    try {
+      session = await sp.context.newCDPSession(targetFrame); // OOPIF
+    } catch {
+      session = await sp.getCDPClient(); // same-proc iframe
+    }
+  }
+
+  await sp.enableCDP(
+    "DOM",
+    session === (await sp.getCDPClient()) ? undefined : targetFrame,
+  );
 
   try {
-    const { root } = await page.sendCDP<{ root: DOMNode }>("DOM.getDocument", {
+    /* 1 ───── get the renderer-wide DOM tree ─────────────────────────── */
+    const { root } = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
-    });
+    })) as { root: DOMNode };
 
+    /* 2 ───── decide *where* to start the walk & what XPath prefix ——─ */
+    let startNode: DOMNode = root;
+    let startPath = "";
+
+    if (targetFrame && session === (await sp.getCDPClient())) {
+      /* … we’re in a same-proc iframe … */
+      const frameId = await getCDPFrameId(sp, targetFrame);
+
+      /* 2a) which DOM node owns that frameId? */
+      const owner = await sp.sendCDP<{ backendNodeId: number; nodeId: number }>(
+        "DOM.getFrameOwner",
+        { frameId },
+        undefined, // page session
+      );
+
+      /* 2b) find that node and its contentDocument in the tree we just fetched */
+      let iframeNode: DOMNode | undefined;
+      let iframePath = "";
+
+      const search = (n: DOMNode, p: string): boolean => {
+        if (n.backendNodeId === owner.backendNodeId) {
+          iframeNode = n;
+          iframePath = p;
+          return true;
+        }
+        if (n.children) {
+          const ctr: Record<string, number> = {};
+          for (const c of n.children) {
+            const tag = String(c.nodeName).toLowerCase();
+            const key = `${c.nodeType}:${tag}`;
+            const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
+            const seg =
+              c.nodeType === 3
+                ? `text()[${idx}]`
+                : c.nodeType === 8
+                  ? `comment()[${idx}]`
+                  : `${tag}[${idx}]`;
+            if (search(c, `${p}/${seg}`)) return true;
+          }
+        }
+        return false;
+      };
+      if (!search(root, "")) {
+        throw new Error("iframe element not found in DOM tree");
+      }
+      if (!iframeNode?.contentDocument) {
+        throw new Error("iframe has no contentDocument (unexpected OOPIF?)");
+      }
+      startNode = iframeNode.contentDocument;
+      startPath = iframePath; // keep iframe’s own XPath prefix
+    }
+
+    /* 3 ───── DFS walk from startNode ────────────────────────────────── */
     const tagNameMap: Record<number, string> = {};
     const xpathMap: Record<number, string> = {};
 
-    /* Recursively walk the DOM tree, carrying the XPath built so far. */
     const walk = (node: DOMNode, path: string): void => {
       if (node.backendNodeId) {
-        const tag = String(node.nodeName).toLowerCase();
-        tagNameMap[node.backendNodeId] = tag;
+        tagNameMap[node.backendNodeId] = String(node.nodeName).toLowerCase();
         xpathMap[node.backendNodeId] = path;
       }
-
+      if (node.nodeName?.toLowerCase() === "iframe" && node.contentDocument) {
+        walk(node.contentDocument, path); // no extra /html
+      }
       if (!node.children?.length) return;
-      const counters: Record<string, number> = {};
 
+      const ctr: Record<string, number> = {};
       for (const child of node.children) {
-        const name = String(child.nodeName).toLowerCase();
-        const counterKey = `${child.nodeType}:${name}`;
-        const idx = (counters[counterKey] = (counters[counterKey] ?? 0) + 1);
-
+        const tag = String(child.nodeName).toLowerCase();
+        const key = `${child.nodeType}:${tag}`;
+        const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
         const seg =
           child.nodeType === 3
             ? `text()[${idx}]`
             : child.nodeType === 8
               ? `comment()[${idx}]`
-              : `${name}[${idx}]`;
-
+              : `${tag}[${idx}]`;
         walk(child, `${path}/${seg}`);
       }
     };
 
-    walk(root, "");
-
+    walk(startNode, startPath);
     return { tagNameMap, xpathMap };
   } finally {
-    await page.disableCDP("DOM");
+    await sp.disableCDP(
+      "DOM",
+      session === (await sp.getCDPClient()) ? undefined : targetFrame,
+    );
   }
 }
 
@@ -290,96 +364,124 @@ export async function buildHierarchicalTree(
   };
 }
 
+export async function getCDPFrameId(
+  sp: StagehandPage,
+  frame?: Frame,
+): Promise<string | undefined> {
+  if (!frame || frame === sp.page.mainFrame()) return undefined;
+
+  /* 1️⃣  Same-proc search in the page-session tree ------------------ */
+  const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
+  const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
+
+  const url = frame.url();
+  let depth = 0;
+  for (let p = frame.parentFrame(); p; p = p.parentFrame()) depth++;
+
+  const findByUrlDepth = (node: CdpFrameTree, lvl = 0): string | undefined => {
+    if (lvl === depth && node.frame.url === url) return node.frame.id;
+    for (const child of node.childFrames ?? []) {
+      const id = findByUrlDepth(child, lvl + 1);
+      if (id) return id;
+    }
+    return undefined;
+  };
+
+  const sameProcId = findByUrlDepth(root);
+  if (sameProcId) return sameProcId; // ✅ found in page tree
+
+  /* 2️⃣  OOPIF path: open its own target ----------------------------- */
+  try {
+    const sess = await sp.context.newCDPSession(frame); // throws if detached
+
+    const ownResp = (await sess.send("Page.getFrameTree")) as unknown;
+    const { frameTree } = ownResp as { frameTree: CdpFrameTree };
+
+    return frameTree.frame.id; // root of OOPIF
+  } catch (err) {
+    throw new Error(
+      `Unable to resolve frameId for iframe (${url}): ${String(err)}`,
+    );
+  }
+}
+
 /**
- * Retrieves the full accessibility tree via CDP and transforms it into a hierarchical structure.
+ * Build an accessibility tree for either the main document *or* a specific
+ * iframe target.
+ *
+ * @param stagehandPage  The wrapper around Playwright.Page
+ * @param logger         Your existing logger
+ * @param selector       Optional XPath to scope the tree
+ * @param targetFrame    The Playwright.Frame you want to inspect
  */
 export async function getAccessibilityTree(
-  page: StagehandPage,
-  logger: (logLine: LogLine) => void,
+  stagehandPage: StagehandPage,
+  logger: (log: LogLine) => void,
   selector?: string,
+  targetFrame?: Frame,
 ): Promise<TreeResult> {
-  const { tagNameMap, xpathMap } = await buildBackendIdMaps(page);
+  /* ── 0. DOM helpers (maps, xpath) ────────────────────────────────── */
+  const { tagNameMap, xpathMap } = await buildBackendIdMaps(
+    stagehandPage,
+    targetFrame,
+  );
 
-  await page.enableCDP("Accessibility");
+  /* always enable on the *target* session we’ll talk to later          */
+  await stagehandPage.enableCDP("Accessibility", targetFrame);
 
   try {
-    const { nodes: fullNodes } = await page.sendCDP<{ nodes: AXNode[] }>(
-      "Accessibility.getFullAXTree",
-    );
-    const scrollableBackendIds = await findScrollableElementIds(page);
+    /* ── 1. Decide params + session for the CDP call ───────────────── */
+    let params: Record<string, unknown> = {};
+    let sessionFrame: Frame | undefined = targetFrame; // default: talk to that frame
 
-    let nodes = fullNodes;
-
-    if (selector) {
-      const objectId = await resolveObjectIdForXPath(page, selector);
-
-      const { node } = await page.sendCDP<{
-        node: { backendNodeId: number };
-      }>("DOM.describeNode", { objectId: objectId });
-
-      if (!node?.backendNodeId) {
-        throw new StagehandDomProcessError(
-          `Unable to resolve backendNodeId for XPath "${selector}"`,
-        );
+    if (targetFrame && targetFrame !== stagehandPage.page.mainFrame()) {
+      /* try opening a CDP session: succeeds only for OOPIFs            */
+      let isOopif = true;
+      try {
+        await stagehandPage.context.newCDPSession(targetFrame);
+      } catch {
+        isOopif = false; // same-proc iframe
       }
 
-      const target = fullNodes.find(
-        (n) => n.backendDOMNodeId === node.backendNodeId,
-      );
-      if (!target) {
-        throw new StagehandDomProcessError(
-          `No AX node found for backendNodeId ${node.backendNodeId} (XPath "${selector}")`,
-        );
+      if (!isOopif) {
+        // same-proc → use *page* session + { frameId }
+        const frameId = await getCDPFrameId(stagehandPage, targetFrame);
+        logger({ message: `same-proc iframe, frameId=${frameId}`, level: 1 });
+        if (frameId) params = { frameId };
+        sessionFrame = undefined; // page session
+      } else {
+        logger({ message: `OOPIF iframe – own session`, level: 1 });
+        params = {}; // no frameId allowed
+        sessionFrame = targetFrame; // talk to OOPIF session
       }
-
-      const keep = new Set<string>([target.nodeId]);
-      const queue = [target];
-
-      while (queue.length) {
-        const current = queue.shift()!;
-        for (const childId of current.childIds ?? []) {
-          if (!keep.has(childId)) {
-            keep.add(childId);
-            const child = fullNodes.find((n) => n.nodeId === childId);
-            if (child) queue.push(child);
-          }
-        }
-      }
-
-      nodes = fullNodes
-        .filter((n) => keep.has(n.nodeId))
-        .map((n) =>
-          n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
-        );
     }
 
-    const startTime = Date.now();
+    /* ── 2. Fetch raw AX nodes ─────────────────────────────────────── */
+    const { nodes: fullNodes } = await stagehandPage.sendCDP<{
+      nodes: AXNode[];
+    }>("Accessibility.getFullAXTree", params, sessionFrame);
 
-    // Transform into hierarchical structure
-    const hierarchicalTree = await buildHierarchicalTree(
-      nodes.map((node) => {
-        let roleValue = node.role?.value || "";
+    /* ── 3. Scrollable detection (frame-aware) ─────────────────────── */
+    const scrollableIds = await findScrollableElementIds(
+      stagehandPage,
+      targetFrame,
+    );
 
-        if (scrollableBackendIds.has(node.backendDOMNodeId)) {
-          if (roleValue === "generic" || roleValue === "none") {
-            roleValue = "scrollable";
-          } else {
-            roleValue = roleValue ? `scrollable, ${roleValue}` : "scrollable";
-          }
-        }
+    /* ── 4. Optional selector filter ───────────────────────────────── */
+    let nodes = fullNodes;
+    if (selector) {
+      nodes = await filterAXTreeByXPath(
+        stagehandPage,
+        fullNodes,
+        selector,
+        targetFrame,
+      );
+    }
 
-        return {
-          role: roleValue,
-          name: node.name?.value,
-          description: node.description?.value,
-          value: node.value?.value,
-          nodeId: node.nodeId,
-          backendDOMNodeId: node.backendDOMNodeId,
-          parentId: node.parentId,
-          childIds: node.childIds,
-          properties: node.properties,
-        };
-      }),
+    /* ── 5. Build hierarchical tree ────────────────────────────────── */
+    const start = Date.now();
+    const tree = await buildHierarchicalTree(
+      decorateRoles(nodes, scrollableIds),
       tagNameMap,
       logger,
       xpathMap,
@@ -387,30 +489,77 @@ export async function getAccessibilityTree(
 
     logger({
       category: "observation",
-      message: `got accessibility tree in ${Date.now() - startTime}ms`,
+      message: `got accessibility tree in ${Date.now() - start} ms`,
       level: 1,
     });
-    return hierarchicalTree;
-  } catch (error) {
-    logger({
-      category: "observation",
-      message: "Error getting accessibility tree",
-      level: 1,
-      auxiliary: {
-        error: {
-          value: error.message,
-          type: "string",
-        },
-        trace: {
-          value: error.stack,
-          type: "string",
-        },
-      },
-    });
-    throw error;
+    return tree;
   } finally {
-    await page.disableCDP("Accessibility");
+    await stagehandPage.disableCDP("Accessibility", targetFrame);
   }
+}
+
+async function filterAXTreeByXPath(
+  page: StagehandPage,
+  full: AXNode[],
+  xpath: string,
+  targetFrame?: Frame,
+): Promise<AXNode[]> {
+  const objectId = await resolveObjectIdForXPath(page, xpath, targetFrame);
+  const { node } = await page.sendCDP<{ node: { backendNodeId: number } }>(
+    "DOM.describeNode",
+    { objectId },
+    targetFrame,
+  );
+
+  if (!node?.backendNodeId) {
+    throw new StagehandDomProcessError(
+      `Unable to resolve backendNodeId for "${xpath}"`,
+    );
+  }
+  const target = full.find((n) => n.backendDOMNodeId === node.backendNodeId)!;
+
+  const keep = new Set<string>([target.nodeId]);
+  const queue = [target];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const id of cur.childIds ?? []) {
+      if (keep.has(id)) continue;
+      keep.add(id);
+      const child = full.find((n) => n.nodeId === id);
+      if (child) queue.push(child);
+    }
+  }
+  return full
+    .filter((n) => keep.has(n.nodeId))
+    .map((n) =>
+      n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
+    );
+}
+
+function decorateRoles(
+  nodes: AXNode[],
+  scrollables: Set<number>,
+): AccessibilityNode[] {
+  return nodes.map((n) => {
+    let role = n.role?.value ?? "";
+    if (scrollables.has(n.backendDOMNodeId!)) {
+      role =
+        role && role !== "generic" && role !== "none"
+          ? `scrollable, ${role}`
+          : "scrollable";
+    }
+    return {
+      role,
+      name: n.name?.value,
+      description: n.description?.value,
+      value: n.value?.value,
+      nodeId: n.nodeId,
+      backendDOMNodeId: n.backendDOMNodeId,
+      parentId: n.parentId,
+      childIds: n.childIds,
+      properties: n.properties,
+    };
+  });
 }
 
 /**
@@ -433,35 +582,34 @@ export async function getAccessibilityTree(
  */
 export async function findScrollableElementIds(
   stagehandPage: StagehandPage,
+  targetFrame?: Frame, // ← NEW
 ): Promise<Set<number>> {
-  // get the xpaths of the scrollable elements
-  const xpaths = await stagehandPage.page.evaluate(() => {
-    return window.getScrollableElementXpaths();
-  });
+  // JS runs inside the right browsing context
+  const xpaths: string[] = targetFrame
+    ? await targetFrame.evaluate(() => window.getScrollableElementXpaths())
+    : await stagehandPage.page.evaluate(() =>
+        window.getScrollableElementXpaths(),
+      );
 
-  const scrollableBackendIds = new Set<number>();
+  const backendIds = new Set<number>();
 
   for (const xpath of xpaths) {
     if (!xpath) continue;
 
-    // evaluate the XPath in the stagehandPage
-    const objectId = await resolveObjectIdForXPath(stagehandPage, xpath);
+    const objectId = await resolveObjectIdForXPath(
+      stagehandPage,
+      xpath,
+      targetFrame,
+    );
 
-    // if we have an objectId, call DOM.describeNode to get backendNodeId
     if (objectId) {
       const { node } = await stagehandPage.sendCDP<{
         node?: { backendNodeId?: number };
-      }>("DOM.describeNode", {
-        objectId: objectId,
-      });
-
-      if (node?.backendNodeId) {
-        scrollableBackendIds.add(node.backendNodeId);
-      }
+      }>("DOM.describeNode", { objectId }, targetFrame);
+      if (node?.backendNodeId) backendIds.add(node.backendNodeId);
     }
   }
-
-  return scrollableBackendIds;
+  return backendIds;
 }
 
 /**
@@ -474,27 +622,30 @@ export async function findScrollableElementIds(
 export async function resolveObjectIdForXPath(
   page: StagehandPage,
   xpath: string,
+  targetFrame?: Frame, // ← NEW
 ): Promise<string | null> {
   const { result } = await page.sendCDP<{
     result?: { objectId?: string };
-  }>("Runtime.evaluate", {
-    expression: `
-      (function () {
-        const res = document.evaluate(
-          ${JSON.stringify(xpath)},
-          document,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null
-        );
-        return res.singleNodeValue;
-      })();
-    `,
-    returnByValue: false,
-  });
-  if (!result?.objectId) {
-    throw new StagehandElementNotFoundError([xpath]);
-  }
+  }>(
+    "Runtime.evaluate",
+    {
+      expression: `
+        (() => {
+          const res = document.evaluate(
+            ${JSON.stringify(xpath)},
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          );
+          return res.singleNodeValue;
+        })();
+      `,
+      returnByValue: false,
+    },
+    targetFrame,
+  );
+  if (!result?.objectId) throw new StagehandElementNotFoundError([xpath]);
   return result.objectId;
 }
 

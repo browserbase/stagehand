@@ -1,5 +1,9 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
+import type {
+  CDPSession,
+  Page as PlaywrightPage,
+  Frame,
+} from "@playwright/test";
 import { chromium } from "@playwright/test";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
@@ -45,6 +49,10 @@ export class StagehandPage {
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
+  private readonly cdpClients = new WeakMap<
+    PlaywrightPage | Frame,
+    CDPSession
+  >();
 
   constructor(
     page: PlaywrightPage,
@@ -822,30 +830,70 @@ ${scriptContent} \
     }
   }
 
-  async getCDPClient(): Promise<CDPSession> {
-    if (!this.cdpClient) {
-      this.cdpClient = await this.context.newCDPSession(this.page);
+  /**
+   * Get or create a CDP session for the given target.
+   * @param target  The Page or (OOPIF) Frame you want to talk to.
+   */
+  async getCDPClient(
+    target: PlaywrightPage | Frame = this.page,
+  ): Promise<CDPSession> {
+    const cached = this.cdpClients.get(target);
+    if (cached) return cached;
+
+    try {
+      const session = await this.context.newCDPSession(target);
+      this.cdpClients.set(target, session);
+      return session;
+    } catch (err) {
+      // ── Fallback for same-process iframes ────────────────────────────
+      const msg = (err as Error).message ?? "";
+      if (msg.includes("does not have a separate CDP session")) {
+        // Re-use / create the top-level session instead
+        const rootSession = await this.getCDPClient(this.page);
+        // cache the alias so we don’t try again for this frame
+        this.cdpClients.set(target, rootSession);
+        return rootSession;
+      }
+      throw err; // genuine failure → propagate
     }
-    return this.cdpClient;
   }
 
-  async sendCDP<T>(
-    command: string,
-    args?: Record<string, unknown>,
+  /**
+   * Send a CDP command to the chosen DevTools target.
+   *
+   * @param method  Any valid CDP method, e.g. `"DOM.getDocument"`.
+   * @param params  Command parameters (optional).
+   * @param target  A `Page` or OOPIF `Frame`. Defaults to the main page.
+   *
+   * @typeParam T  Expected result shape (defaults to `unknown`).
+   */
+  async sendCDP<T = unknown>(
+    method: string,
+    params: Record<string, unknown> = {},
+    target?: PlaywrightPage | Frame,
   ): Promise<T> {
-    const client = await this.getCDPClient();
-    // Type assertion needed because CDP command strings are not fully typed
+    const client = await this.getCDPClient(target ?? this.page);
+
+    // Cast *only* at the call site, like the original helper.
     return client.send(
-      command as Parameters<CDPSession["send"]>[0],
-      args || {},
+      method as Parameters<CDPSession["send"]>[0],
+      params as Parameters<CDPSession["send"]>[1],
     ) as Promise<T>;
   }
 
-  async enableCDP(domain: string): Promise<void> {
-    await this.sendCDP(`${domain}.enable`, {});
+  /** Enable a CDP domain (e.g. `"Network"` or `"DOM"`) on the chosen target. */
+  async enableCDP(
+    domain: string,
+    target?: PlaywrightPage | Frame,
+  ): Promise<void> {
+    await this.sendCDP<void>(`${domain}.enable`, {}, target);
   }
 
-  async disableCDP(domain: string): Promise<void> {
-    await this.sendCDP(`${domain}.disable`, {});
+  /** Disable a CDP domain on the chosen target. */
+  async disableCDP(
+    domain: string,
+    target?: PlaywrightPage | Frame,
+  ): Promise<void> {
+    await this.sendCDP<void>(`${domain}.disable`, {}, target);
   }
 }

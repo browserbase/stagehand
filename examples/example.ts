@@ -6,22 +6,28 @@
  */
 
 import { Stagehand } from "@browserbasehq/stagehand";
-import StagehandConfig from "../stagehand.config";
 
 async function example(stagehand: Stagehand) {
   /**
    * Add your code here!
    */
   const page = stagehand.page;
-  await page.goto("https://docs.stagehand.dev");
-  await page.act("click the quickstart button");
+  await page.goto("https://aca-prod.accela.com/BALTIMORE/welcome.aspx");
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  // await page.act("type 'testusername' into the username field");
+  await page.observe("do nothing");
+
+  // https://www.ycombinator.com/careers?ashby_jid=00c6950f-341f-4924-a456-ea32c9d5601d
+  // https://aca-prod.accela.com/BALTIMORE/welcome.aspx
+  // https://tucowsdomains.com/abuse-form/phishing/
 }
 
 (async () => {
   const stagehand = new Stagehand({
-    ...StagehandConfig,
+    env: "LOCAL",
+    verbose: 1,
+    logInferenceToFile: false,
   });
   await stagehand.init();
   await example(stagehand);
-  await stagehand.close();
 })();

@@ -4,8 +4,11 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
-import { getAccessibilityTree } from "../a11y/utils";
+import { getAccessibilityTree, getCDPFrameId } from "../a11y/utils";
 import { AccessibilityNode } from "../../types/context";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { Frame } from "@playwright/test";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -88,6 +91,80 @@ export class StagehandObserveHandler {
     const outputString = tree.simplified;
     iframes = tree.iframes;
     const xpathMap = tree.xpathMap;
+
+    const OUT_ROOT = "out"; // top-level folder (create once)
+    mkdirSync(OUT_ROOT, { recursive: true });
+
+    /** Turn a Frame⇢Frame⇢… path into "0/1/0" etc. */
+    const makeDirPath = (indices: number[]) => indices.join("/");
+
+    /** Recursively walk the frame tree and persist each frame’s data. */
+    const walk = async (
+      frame: Frame | undefined, // undefined → main frame
+      indexPath: number[] = [], // array of child indices (path to here)
+    ): Promise<void> => {
+      /* ----------------------------------------------------------- CDP work -- */
+      try {
+        const tree = await getAccessibilityTree(
+          this.stagehandPage,
+          this.logger,
+          undefined,
+          frame,
+        );
+
+        /* ---- 1. make /out/0/2/1 … ------------------------------------------ */
+        const dir = join(OUT_ROOT, makeDirPath(indexPath));
+        mkdirSync(dir, { recursive: true });
+
+        /* ---- 2. write three files ------------------------------------------ */
+        writeFileSync(join(dir, "tree.txt"), tree.simplified.trim(), "utf-8");
+        writeFileSync(
+          join(dir, "xpathMap.json"),
+          JSON.stringify(tree.xpathMap, null, 2),
+          "utf-8",
+        );
+        writeFileSync(
+          join(dir, "meta.json"),
+          JSON.stringify(
+            {
+              url: (frame ?? this.stagehandPage.page).url(),
+              frameId: await getCDPFrameId(this.stagehandPage, frame),
+              collectedAt: new Date().toISOString(),
+            },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
+
+        this.logger({
+          category: "observation",
+          message: `wrote AX tree → ${dir}`,
+          level: 1,
+        });
+      } catch (err) {
+        this.logger({
+          category: "observation",
+          message: `⚠️ failed to get AX tree for ${
+            frame ? `iframe (${frame.url()})` : "main frame"
+          }`,
+          level: 1,
+          auxiliary: { error: { value: String(err), type: "string" } },
+        });
+        return; // stop descending this branch
+      }
+
+      /* ------------------------------------------------------ recurse ------ */
+      const children = (
+        frame ?? this.stagehandPage.page.mainFrame()
+      ).childFrames();
+      for (let i = 0; i < children.length; i++) {
+        await walk(children[i], [...indexPath, i]);
+      }
+    };
+
+    /* kick off from the main document */
+    await walk(undefined);
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
