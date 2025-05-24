@@ -383,11 +383,15 @@ export async function fallbackLocatorMethod(ctx: MethodHandlerContext) {
   });
 
   try {
-    await (
-      locator[method as keyof Locator] as unknown as (
-        ...a: string[]
-      ) => Promise<void>
-    )(...args.map((arg) => arg?.toString() || ""));
+    const locatorMethod = locator[method as keyof Locator];
+    if (typeof locatorMethod !== "function") {
+      throw new PlaywrightCommandException(
+        `Method ${method} is not supported by locator`,
+      );
+    }
+    await (locatorMethod as unknown as (...a: unknown[]) => Promise<void>)(
+      ...(args as Parameters<typeof locatorMethod>),
+    );
   } catch (e) {
     logger({
       category: "action",

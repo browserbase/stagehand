@@ -326,6 +326,10 @@
       "categories": ["act"]
     },
     {
+      "name": "upload_file",
+      "categories": ["combination"]
+    },
+    {
       "name": "checkboxes",
       "categories": ["act"]
     },
