@@ -17,6 +17,7 @@ import { buildActObservePrompt } from "../prompt";
 import {
   methodHandlerMap,
   fallbackLocatorMethod,
+  deepLocator,
 } from "./handlerUtils/actHandlerUtils";
 import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
 import { StagehandInvalidArgumentError } from "@/types/stagehandErrors";
@@ -283,7 +284,7 @@ export class StagehandActHandler {
     xpath: string,
     domSettleTimeoutMs?: number,
   ) {
-    const locator = this.stagehandPage.page.locator(`xpath=${xpath}`).first();
+    const locator = deepLocator(this.stagehandPage.page, xpath).first();
     const initialUrl = this.stagehandPage.page.url();
 
     this.logger({

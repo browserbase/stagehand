@@ -81,7 +81,7 @@ export async function buildBackendIdMaps(
   );
 
   try {
-    /* 1 ───── get the renderer-wide DOM tree ─────────────────────────── */
+    /* 1 ───── get the (possibly renderer-wide) DOM tree ──────────────── */
     const { root } = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
@@ -89,54 +89,34 @@ export async function buildBackendIdMaps(
 
     /* 2 ───── decide *where* to start the walk & what XPath prefix ——─ */
     let startNode: DOMNode = root;
-    let startPath = "";
+    const startPath = "";
 
     if (targetFrame && session === (await sp.getCDPClient())) {
-      /* … we’re in a same-proc iframe … */
+      /* … we’re in a same-process iframe … */
       const frameId = await getCDPFrameId(sp, targetFrame);
 
-      /* 2a) which DOM node owns that frameId? */
+      /* 2a) locate the iframe element that owns `frameId` */
       const owner = await sp.sendCDP<{ backendNodeId: number; nodeId: number }>(
         "DOM.getFrameOwner",
         { frameId },
         undefined, // page session
       );
 
-      /* 2b) find that node and its contentDocument in the tree we just fetched */
+      /* 2b) find that node & its contentDocument in the fetched tree */
       let iframeNode: DOMNode | undefined;
-      let iframePath = "";
 
-      const search = (n: DOMNode, p: string): boolean => {
+      const locate = (n: DOMNode): boolean => {
         if (n.backendNodeId === owner.backendNodeId) {
           iframeNode = n;
-          iframePath = p;
           return true;
         }
-        if (n.children) {
-          const ctr: Record<string, number> = {};
-          for (const c of n.children) {
-            const tag = String(c.nodeName).toLowerCase();
-            const key = `${c.nodeType}:${tag}`;
-            const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
-            const seg =
-              c.nodeType === 3
-                ? `text()[${idx}]`
-                : c.nodeType === 8
-                  ? `comment()[${idx}]`
-                  : `${tag}[${idx}]`;
-            if (search(c, `${p}/${seg}`)) return true;
-          }
-        }
-        return false;
+        return !!n.children?.some(locate);
       };
-      if (!search(root, "")) {
-        throw new Error("iframe element not found in DOM tree");
-      }
-      if (!iframeNode?.contentDocument) {
-        throw new Error("iframe has no contentDocument (unexpected OOPIF?)");
+      if (!locate(root) || !iframeNode?.contentDocument) {
+        throw new Error("iframe element or its contentDocument not found");
       }
       startNode = iframeNode.contentDocument;
-      startPath = iframePath; // keep iframe’s own XPath prefix
+      /* startPath stays "" – no outer-iframe prefix */
     }
 
     /* 3 ───── DFS walk from startNode ────────────────────────────────── */
@@ -148,8 +128,10 @@ export async function buildBackendIdMaps(
         tagNameMap[node.backendNodeId] = String(node.nodeName).toLowerCase();
         xpathMap[node.backendNodeId] = path;
       }
+
+      /* for any iframe, reset path to "" so inner doc is self-contained */
       if (node.nodeName?.toLowerCase() === "iframe" && node.contentDocument) {
-        walk(node.contentDocument, path); // no extra /html
+        walk(node.contentDocument, "");
       }
       if (!node.children?.length) return;
 

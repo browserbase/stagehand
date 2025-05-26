@@ -5,15 +5,15 @@ import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
 import { getAccessibilityTree, getCDPFrameId } from "../a11y/utils";
-import { AccessibilityNode } from "../../types/context";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { Frame } from "@playwright/test";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
   private readonly stagehandPage: StagehandPage;
+  private readonly debugOutput: boolean;
 
   private readonly userProvidedInstructions?: string;
   constructor({
@@ -21,16 +21,26 @@ export class StagehandObserveHandler {
     logger,
     stagehandPage,
     userProvidedInstructions,
+    debugOutput = false,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
+    debugOutput?: boolean;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    if (debugOutput) mkdirSync("out", { recursive: true });
+  }
+
+  private writeDebug(relPath: string, data: string): void {
+    if (!this.debugOutput) return;
+    const abs = join("out", relPath);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, data, "utf-8");
   }
 
   public async observe({
@@ -70,8 +80,6 @@ export class StagehandObserveHandler {
       },
     });
 
-    let iframes: AccessibilityNode[] = [];
-
     if (onlyVisible !== undefined) {
       this.logger({
         category: "observation",
@@ -87,23 +95,52 @@ export class StagehandObserveHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
-    const outputString = tree.simplified;
-    iframes = tree.iframes;
-    const xpathMap = tree.xpathMap;
 
-    const OUT_ROOT = "out"; // top-level folder (create once)
-    mkdirSync(OUT_ROOT, { recursive: true });
+    const getFrameRootBackendNodeId = async (
+      stagehandPage: StagehandPage,
+      frame: Frame | undefined,
+    ): Promise<number | null> => {
+      if (!frame) return null;
 
-    /** Turn a Frame⇢Frame⇢… path into "0/1/0" etc. */
-    const makeDirPath = (indices: number[]) => indices.join("/");
+      const cdp = await stagehandPage.page
+        .context()
+        .newCDPSession(stagehandPage.page);
+      const frameId = await getCDPFrameId(stagehandPage, frame);
 
-    /** Recursively walk the frame tree and persist each frame’s data. */
-    const walk = async (
-      frame: Frame | undefined, // undefined → main frame
-      indexPath: number[] = [], // array of child indices (path to here)
-    ): Promise<void> => {
-      /* ----------------------------------------------------------- CDP work -- */
+      // Let Playwright infer the raw type, then cast to a narrow interface.
+      const result = (await cdp.send("DOM.getFrameOwner", {
+        frameId,
+      })) as FrameOwnerResult;
+
+      return result.backendNodeId ?? null;
+    };
+
+    const getFrameRootXpath = async (
+      frame: Frame | undefined,
+    ): Promise<string> => {
+      if (!frame) return "/";
+      const handle = await frame.frameElement();
+      return handle.evaluate((node: Element) => {
+        const pos = (el: Element) => {
+          let i = 1;
+          for (
+            let sib = el.previousElementSibling;
+            sib;
+            sib = sib.previousElementSibling
+          )
+            if (sib.tagName === el.tagName) i += 1;
+          return i;
+        };
+        const segs: string[] = [];
+        for (let el: Element | null = node; el; el = el.parentElement)
+          segs.unshift(`${el.tagName.toLowerCase()}[${pos(el)}]`);
+        return `/${segs.join("/")}`;
+      });
+    };
+
+    const snapshots: FrameSnapshot[] = [];
+
+    const walk = async (frame: Frame | undefined, idxPath: number[] = []) => {
       try {
         const tree = await getAccessibilityTree(
           this.stagehandPage,
@@ -112,36 +149,41 @@ export class StagehandObserveHandler {
           frame,
         );
 
-        /* ---- 1. make /out/0/2/1 … ------------------------------------------ */
-        const dir = join(OUT_ROOT, makeDirPath(indexPath));
-        mkdirSync(dir, { recursive: true });
-
-        /* ---- 2. write three files ------------------------------------------ */
-        writeFileSync(join(dir, "tree.txt"), tree.simplified.trim(), "utf-8");
-        writeFileSync(
-          join(dir, "xpathMap.json"),
-          JSON.stringify(tree.xpathMap, null, 2),
-          "utf-8",
+        const frameXpath = await getFrameRootXpath(frame);
+        const backendNodeId = await getFrameRootBackendNodeId(
+          this.stagehandPage,
+          frame,
         );
-        writeFileSync(
-          join(dir, "meta.json"),
+
+        // keep everything in memory
+        snapshots.push({
+          tree: tree.simplified.trimEnd(),
+          xpathMap: tree.xpathMap,
+          frameXpath,
+          backendNodeId,
+        });
+
+        // debug dump (optional)
+        const dbgDir = idxPath.join("/");
+        this.writeDebug(join(dbgDir, "tree.txt"), tree.simplified.trim());
+        this.writeDebug(
+          join(dbgDir, "xpathMap.json"),
+          JSON.stringify(tree.xpathMap, null, 2),
+        );
+        this.writeDebug(
+          join(dbgDir, "meta.json"),
           JSON.stringify(
             {
               url: (frame ?? this.stagehandPage.page).url(),
               frameId: await getCDPFrameId(this.stagehandPage, frame),
               collectedAt: new Date().toISOString(),
+              xpath: frameXpath,
+              backendNodeId,
             },
             null,
             2,
           ),
-          "utf-8",
         );
-
-        this.logger({
-          category: "observation",
-          message: `wrote AX tree → ${dir}`,
-          level: 1,
-        });
       } catch (err) {
         this.logger({
           category: "observation",
@@ -151,25 +193,58 @@ export class StagehandObserveHandler {
           level: 1,
           auxiliary: { error: { value: String(err), type: "string" } },
         });
-        return; // stop descending this branch
+        return;
       }
 
-      /* ------------------------------------------------------ recurse ------ */
-      const children = (
-        frame ?? this.stagehandPage.page.mainFrame()
-      ).childFrames();
-      for (let i = 0; i < children.length; i++) {
-        await walk(children[i], [...indexPath, i]);
+      for (const [i, child] of (frame ?? this.stagehandPage.page.mainFrame())
+        .childFrames()
+        .entries()) {
+        await walk(child, [...idxPath, i]);
       }
     };
 
-    /* kick off from the main document */
+    await this.stagehandPage._waitForSettledDom();
     await walk(undefined);
+
+    const combinedXpathMap: Record<number, string> = {};
+    for (const snap of snapshots) {
+      const prefix = snap.frameXpath === "/" ? "" : snap.frameXpath;
+      for (const [idStr, local] of Object.entries(snap.xpathMap)) {
+        const full =
+          prefix + (local.startsWith("/") || !prefix ? "" : "/") + local;
+        combinedXpathMap[Number(idStr)] = full;
+      }
+    }
+    this.writeDebug(
+      "combinedXpathMap.json",
+      JSON.stringify(combinedXpathMap, null, 2),
+    );
+
+    const idToTree = new Map<number, string>();
+    snapshots.forEach((s) => {
+      if (s.backendNodeId != null) idToTree.set(s.backendNodeId, s.tree);
+    });
+
+    const inject = (t: string): string =>
+      t.replace(/^(\s*)\[(\d+)](.*)$/gm, (line, ws: string, idStr: string) => {
+        const child = idToTree.get(+idStr);
+        if (!child) return line;
+        const indented = inject(child)
+          .split("\n")
+          .map((l) => `${ws}  ${l}`)
+          .join("\n");
+        return `${line}\n${indented}`;
+      });
+
+    const root = snapshots.find((s) => s.frameXpath === "/");
+    const combinedTree = root ? inject(root.tree) : "";
+
+    this.writeDebug("combinedTree.txt", combinedTree);
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
-      domElements: outputString,
+      domElements: combinedTree,
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
@@ -193,16 +268,6 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (iframes.length > 0) {
-      iframes.forEach((iframe) => {
-        observationResponse.elements.push({
-          elementId: Number(iframe.nodeId),
-          description: "an iframe",
-          method: "not-supported",
-          arguments: [],
-        });
-      });
-    }
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
@@ -220,7 +285,7 @@ export class StagehandObserveHandler {
           },
         });
 
-        const xpath = xpathMap[elementId];
+        const xpath = combinedXpathMap[elementId];
 
         if (!xpath || xpath === "") {
           this.logger({
@@ -257,4 +322,15 @@ export class StagehandObserveHandler {
 
     return elementsWithSelectors;
   }
+}
+
+interface FrameSnapshot {
+  tree: string;
+  xpathMap: Record<number, string>;
+  frameXpath: string;
+  backendNodeId: number | null;
+}
+
+interface FrameOwnerResult {
+  backendNodeId?: number;
 }
