@@ -57,6 +57,17 @@ export function formatSimplifiedTree(
   return result;
 }
 
+/** helper for tag-name lower-case cache */
+const lowerCache = new Map<string, string>();
+const lc = (raw: string): string => {
+  let v = lowerCache.get(raw);
+  if (!v) {
+    v = raw.toLowerCase();
+    lowerCache.set(raw, v);
+  }
+  return v;
+};
+
 /**
  * Returns a `BackendIdMaps` object, which contains two mappings:
  * 1. a `tagNameMap`, which is a mapping of `backendNodeId`s -> `nodeName`s
@@ -66,10 +77,10 @@ export async function buildBackendIdMaps(
   sp: StagehandPage,
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
-  /* 0 ───── decide which CDP session we’ll use ───────────────────────── */
+  /* ── 0. Pick the session we’ll talk to ──────────────────────────── */
   let session: CDPSession;
   if (!targetFrame || targetFrame === sp.page.mainFrame()) {
-    session = await sp.getCDPClient(); // main document
+    session = await sp.getCDPClient(); // main doc
   } else {
     try {
       session = await sp.context.newCDPSession(targetFrame); // OOPIF
@@ -84,32 +95,27 @@ export async function buildBackendIdMaps(
   );
 
   try {
-    /* 1 ───── get the (possibly renderer-wide) DOM tree ──────────────── */
+    /* ── 1. Fetch full DOM tree ───────────────────────────────────── */
     const { root } = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
     })) as { root: DOMNode };
 
-    /* 2 ───── decide *where* to start the walk & what XPath prefix ——─ */
+    /* ── 2. Decide start node / initial path ─────────────────────── */
     let startNode: DOMNode = root;
     const startPath = "";
 
     if (targetFrame && session === (await sp.getCDPClient())) {
-      /* … we’re in a same-process iframe … */
+      /* Same-proc iframe: find its contentDocument inside root */
       const frameId = await getCDPFrameId(sp, targetFrame);
-
-      /* 2a) locate the iframe element that owns `frameId` */
-      const owner = await sp.sendCDP<{ backendNodeId: number; nodeId: number }>(
-        "DOM.getFrameOwner",
-        { frameId },
-        undefined, // page session
-      );
-
-      /* 2b) find that node & its contentDocument in the fetched tree */
+      const { backendNodeId } = await sp.sendCDP<{
+        backendNodeId: number;
+        nodeId: number;
+      }>("DOM.getFrameOwner", { frameId });
       let iframeNode: DOMNode | undefined;
 
       const locate = (n: DOMNode): boolean => {
-        if (n.backendNodeId === owner.backendNodeId) {
+        if (n.backendNodeId === backendNodeId) {
           iframeNode = n;
           return true;
         }
@@ -119,41 +125,63 @@ export async function buildBackendIdMaps(
         throw new Error("iframe element or its contentDocument not found");
       }
       startNode = iframeNode.contentDocument;
-      /* startPath stays "" – no outer-iframe prefix */
     }
 
-    /* 3 ───── DFS walk from startNode ────────────────────────────────── */
+    /* ── 3. Iterative DFS walk ────────────────────────────────────── */
     const tagNameMap: Record<number, string> = {};
     const xpathMap: Record<number, string> = {};
 
-    const walk = (node: DOMNode, path: string): void => {
+    interface StackEntry {
+      node: DOMNode;
+      path: string;
+    }
+    const stack: StackEntry[] = [{ node: startNode, path: startPath }];
+    const seen = new Set<number>();
+
+    while (stack.length) {
+      const { node, path } = stack.pop()!;
+
+      if (node.backendNodeId && seen.has(node.backendNodeId)) continue;
+      if (node.backendNodeId) seen.add(node.backendNodeId);
+
+      /* 3a. Record mapping for this node */
       if (node.backendNodeId) {
-        tagNameMap[node.backendNodeId] = String(node.nodeName).toLowerCase();
+        tagNameMap[node.backendNodeId] = lc(String(node.nodeName));
         xpathMap[node.backendNodeId] = path;
       }
 
-      /* for any iframe, reset path to "" so inner doc is self-contained */
-      if (node.nodeName?.toLowerCase() === "iframe" && node.contentDocument) {
-        walk(node.contentDocument, "");
+      /* 3b. If the node is an iframe with a sub-document, push it with fresh path */
+      if (lc(node.nodeName) === "iframe" && node.contentDocument) {
+        stack.push({ node: node.contentDocument, path: "" });
       }
-      if (!node.children?.length) return;
 
-      const ctr: Record<string, number> = {};
-      for (const child of node.children) {
-        const tag = String(child.nodeName).toLowerCase();
-        const key = `${child.nodeType}:${tag}`;
-        const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
-        const seg =
-          child.nodeType === 3
-            ? `text()[${idx}]`
-            : child.nodeType === 8
-              ? `comment()[${idx}]`
-              : `${tag}[${idx}]`;
-        walk(child, `${path}/${seg}`);
+      /* 3c. Push children (reverse order keeps original L->R traversal) */
+      const children = node.children ?? [];
+      if (children.length) {
+        /* first pass L→R: build per-child XPath segment with correct index */
+        const segs: string[] = [];
+        const counters: Record<string, number> = {};
+        for (const child of children) {
+          const tag = lc(String(child.nodeName));
+          const key = `${child.nodeType}:${tag}`;
+          const idx = (counters[key] = (counters[key] ?? 0) + 1);
+
+          segs.push(
+            child.nodeType === 3
+              ? `text()[${idx}]`
+              : child.nodeType === 8
+                ? `comment()[${idx}]`
+                : `${tag}[${idx}]`,
+          );
+        }
+
+        /* second pass R→L: push to stack so traversal order stays L→R */
+        for (let i = children.length - 1; i >= 0; i -= 1) {
+          stack.push({ node: children[i]!, path: `${path}/${segs[i]}` });
+        }
       }
-    };
+    }
 
-    walk(startNode, startPath);
     return { tagNameMap, xpathMap };
   } finally {
     await sp.disableCDP(
@@ -425,7 +453,7 @@ export async function getAccessibilityTree(
       try {
         await stagehandPage.context.newCDPSession(targetFrame);
       } catch {
-        isOopif = false; // same-proc iframe
+        isOopif = false;
       }
 
       if (!isOopif) {
