@@ -130,3 +130,19 @@ export interface CdpFrameTree {
   /** Child frames (if any). */
   childFrames?: CdpFrameTree[];
 }
+
+export interface FrameOwnerResult {
+  backendNodeId?: number;
+}
+
+export interface CombinedA11yResult {
+  combinedTree: string;
+  combinedXpathMap: Record<number, string>;
+}
+
+export interface FrameSnapshot {
+  tree: string;
+  xpathMap: Record<number, string>;
+  frameXpath: string;
+  backendNodeId: number | null;
+}

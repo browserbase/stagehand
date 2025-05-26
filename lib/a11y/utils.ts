@@ -5,6 +5,9 @@ import {
   DOMNode,
   BackendIdMaps,
   CdpFrameTree,
+  FrameOwnerResult,
+  FrameSnapshot,
+  CombinedA11yResult,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -542,6 +545,154 @@ function decorateRoles(
       properties: n.properties,
     };
   });
+}
+
+export async function getFrameRootBackendNodeId(
+  stagehandPage: StagehandPage,
+  frame: Frame | undefined,
+): Promise<number | null> {
+  if (!frame) return null;
+
+  const cdp = await stagehandPage.page
+    .context()
+    .newCDPSession(stagehandPage.page);
+  const frameId = await getCDPFrameId(stagehandPage, frame);
+
+  // Let Playwright infer the raw type, then cast to a narrow interface.
+  const result = (await cdp.send("DOM.getFrameOwner", {
+    frameId,
+  })) as FrameOwnerResult;
+
+  return result.backendNodeId ?? null;
+}
+
+export async function getFrameRootXpath(
+  frame: Frame | undefined,
+): Promise<string> {
+  if (!frame) return "/";
+  const handle = await frame.frameElement();
+  return handle.evaluate((node: Element) => {
+    const pos = (el: Element) => {
+      let i = 1;
+      for (
+        let sib = el.previousElementSibling;
+        sib;
+        sib = sib.previousElementSibling
+      )
+        if (sib.tagName === el.tagName) i += 1;
+      return i;
+    };
+    const segs: string[] = [];
+    for (let el: Element | null = node; el; el = el.parentElement)
+      segs.unshift(`${el.tagName.toLowerCase()}[${pos(el)}]`);
+    return `/${segs.join("/")}`;
+  });
+}
+
+export function injectSubtrees(
+  tree: string,
+  idToTree: Map<number, string>,
+): string {
+  interface StackFrame {
+    lines: string[];
+    idx: number;
+    indent: string;
+  }
+
+  const stack: StackFrame[] = [{ lines: tree.split("\n"), idx: 0, indent: "" }];
+  const out: string[] = [];
+
+  while (stack.length) {
+    const top = stack[stack.length - 1];
+    if (top.idx >= top.lines.length) {
+      stack.pop();
+      continue;
+    }
+
+    const raw = top.lines[top.idx++];
+    const line = top.indent + raw;
+    out.push(line);
+
+    const match = /^\s*\[(\d+)]/.exec(raw);
+    if (!match) continue;
+
+    const id = Number(match[1]);
+    const child = idToTree.get(id);
+    if (!child) continue;
+
+    stack.push({
+      lines: child.split("\n"),
+      idx: 0,
+      indent: (line.match(/^\s*/)?.[0] ?? "") + "  ",
+    });
+  }
+
+  return out.join("\n");
+}
+
+export async function getAccessibilityTreeWithFrames(
+  stagehandPage: StagehandPage,
+  logger: (l: LogLine) => void,
+): Promise<CombinedA11yResult> {
+  const snapshots: FrameSnapshot[] = [];
+  const frameStack: (Frame | undefined)[] = [undefined];
+
+  while (frameStack.length) {
+    const frame = frameStack.pop()!;
+
+    try {
+      const tree = await getAccessibilityTree(
+        stagehandPage,
+        logger,
+        undefined,
+        frame,
+      );
+
+      snapshots.push({
+        tree: tree.simplified.trimEnd(),
+        xpathMap: tree.xpathMap,
+        frameXpath: await getFrameRootXpath(frame),
+        backendNodeId: await getFrameRootBackendNodeId(stagehandPage, frame),
+      });
+    } catch (err) {
+      logger({
+        category: "observation",
+        message: `⚠️ failed to get AX tree for ${
+          frame ? `iframe (${frame.url()})` : "main frame"
+        }`,
+        level: 1,
+        auxiliary: { error: { value: String(err), type: "string" } },
+      });
+    }
+
+    /* push children (depth-first order doesn’t matter for our merge) */
+    const children = (frame ?? stagehandPage.page.mainFrame()).childFrames();
+    for (let i = children.length - 1; i >= 0; i--) {
+      frameStack.push(children[i]);
+    }
+  }
+
+  /* ---------- (2) merge xpath maps -------------------------------- */
+  const combinedXpathMap: Record<number, string> = {};
+  for (const snap of snapshots) {
+    const prefix = snap.frameXpath === "/" ? "" : snap.frameXpath;
+    for (const [idStr, local] of Object.entries(snap.xpathMap)) {
+      combinedXpathMap[Number(idStr)] =
+        prefix + (local.startsWith("/") || !prefix ? "" : "/") + local;
+    }
+  }
+
+  /* ---------- (3) build backendId → tree map ---------------------- */
+  const idToTree = new Map<number, string>();
+  for (const { backendNodeId, tree } of snapshots) {
+    if (backendNodeId != null) idToTree.set(backendNodeId, tree);
+  }
+
+  /* ---------- (4) inject subtrees into the root ------------------- */
+  const root = snapshots.find((s) => s.frameXpath === "/");
+  const combinedTree = root ? injectSubtrees(root.tree, idToTree) : "";
+
+  return { combinedTree, combinedXpathMap };
 }
 
 /**
