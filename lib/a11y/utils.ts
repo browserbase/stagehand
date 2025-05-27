@@ -22,20 +22,45 @@ import {
 } from "@/types/stagehandErrors";
 import { CDPSession, Frame } from "@playwright/test";
 
-const CLEAN_RULES: ReadonlyArray<[RegExp, string]> = [
-  // Font-Awesome / Material-Icons placeholders (Private-Use Area)
-  [/[\u{E000}-\u{F8FF}]/gu, ""],
+const PUA_START = 0xe000;
+const PUA_END = 0xf8ff;
 
-  // NBSP family to regular space
-  [/[\u00A0\u202F\u2007\uFEFF]/g, " "],
-];
+const NBSP_CHARS = new Set<number>([
+  0x00a0,
+  0x202f,
+  0x2007,
+  0xfeff,
+]);
 
-// returns the input string with each of the CLEAN_RULES applied
-function cleanText(input: string): string {
-  return CLEAN_RULES.reduce(
-    (txt, [pattern, replacement]) => txt.replace(pattern, replacement),
-    input,
-  ).trim();
+/**
+ * Fast, heap-friendly replacement for the old regex-based cleanText().
+ *  • skips PUA glyphs entirely
+ *  • converts any NBSP-family char to a single ASCII space
+ *  • collapses runs of spaces created by the conversion
+ *  • trims the final result
+ */
+export function cleanText(input: string): string {
+  let out = "";
+  let prevWasSpace = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+
+    if (code >= PUA_START && code <= PUA_END) continue;
+
+    if (NBSP_CHARS.has(code)) {
+      if (!prevWasSpace) {
+        out += " ";
+        prevWasSpace = true;
+      }
+      continue;
+    }
+
+    out += input[i];
+    prevWasSpace = input[i] === " ";
+  }
+
+  return out.trim();
 }
 
 // Parser function for str output
@@ -818,30 +843,42 @@ export async function resolveObjectIdForXPath(
  * @param children   The parent's current children list, typically after cleaning.
  * @returns          A filtered list of children with redundant StaticText nodes removed.
  */
+function normaliseSpaces(s: string): string {
+  let out = "",
+    inWs = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    const isWs = ch === 32 || ch === 9 || ch === 10 || ch === 13;
+    if (isWs) {
+      if (!inWs) {
+        out += " ";
+        inWs = true;
+      }
+    } else {
+      out += s[i];
+      inWs = false;
+    }
+  }
+  return out;
+}
+
 function removeRedundantStaticTextChildren(
   parent: AccessibilityNode,
   children: AccessibilityNode[],
 ): AccessibilityNode[] {
-  if (!parent.name) {
-    return children;
+  if (!parent.name) return children;
+
+  const parentNorm = normaliseSpaces(parent.name).trim();
+  let joined = "";
+
+  for (const child of children) {
+    if (child.role === "StaticText" && child.name) {
+      joined += normaliseSpaces(child.name).trim();
+    }
   }
-
-  const parentName = parent.name.replace(/\s+/g, " ").trim();
-
-  // Gather all StaticText children and combine their text
-  const staticTextChildren = children.filter(
-    (child) => child.role === "StaticText" && child.name,
-  );
-  const combinedChildText = staticTextChildren
-    .map((child) => child.name!.replace(/\s+/g, " ").trim())
-    .join("");
-
-  // If the combined text exactly matches the parent's name, remove those child nodes
-  if (combinedChildText === parentName) {
-    return children.filter((child) => child.role !== "StaticText");
-  }
-
-  return children;
+  return joined === parentNorm
+    ? children.filter((c) => c.role !== "StaticText")
+    : children;
 }
 
 function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
