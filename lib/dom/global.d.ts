@@ -2,7 +2,6 @@ export {};
 declare global {
   interface Window {
     __stagehandInjected?: boolean;
-    waitForDomSettle: () => Promise<void>;
     __playwright?: unknown;
     __pw_manual?: unknown;
     __PW_inspect?: unknown;
