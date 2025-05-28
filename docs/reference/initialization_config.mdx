@@ -15,11 +15,34 @@ const stagehand = new Stagehand();
 // Custom configuration
 const stagehand = new Stagehand({
 	env: "LOCAL",
+	// env: "BROWSERBASE", // To run remotely on Browserbase (needs API keys)
 	verbose: 1,
 	enableCaching: true,
 	logger: (logLine: LogLine) => {
 		console.log(`[${logLine.category}] ${logLine.message}`);
 	},
+    // LLM configuration
+    modelName: "google/gemini-2.0-flash", /* Name of the model to use in "provider/model" format */
+    modelClientOptions: {
+      apiKey: process.env.ANTHROPIC_API_KEY, /* Model API key */
+    }, /* Configuration options for the model client */
+	apiKey: process.env.BROWSERBASE_API_KEY, 
+	projectId: process.env.BROWSERBASE_PROJECT_ID,
+	/* API keys for authentication (if you want to use Browserbase) */
+	browserbaseSessionID:
+      undefined, /* Can set Session ID for resuming Browserbase sessions */
+    browserbaseSessionCreateParams: { /* Browser Session Params */
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      proxies: true, /* Using Browserbase's Proxies */ 
+      browserSettings: {
+		advancedStealth: true, /* Only available on Scale Plans */
+        blockAds: true, /* To Block Ad Popups (defaults to False) */
+        viewport: { // Browser Size (ie 1920x1080, 1024x768)
+          width: 1024,
+          height: 768,
+        },
+      },
+    },
     localBrowserLaunchOptions: {
         headless: true, // Launches the browser in headless mode.
         executablePath: '/path/to/chrome', // Custom path to the Chrome executable.
