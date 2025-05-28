@@ -74,64 +74,26 @@ export interface EnhancedContext
 export type FrameId = string;
 export type LoaderId = string;
 
-/** ----------------------------------------------------------------------------
- * Page.Frame  – information about a single frame
- * ------------------------------------------------------------------------- */
 export interface CdpFrame {
-  /** Unique DevTools frame identifier. */
   id: FrameId;
-
-  /** Parent frame identifier (omitted for the main frame). */
   parentId?: FrameId;
-
-  /** Loader identifier associated with this frame (navigation). */
   loaderId: LoaderId;
-
-  /** <iframe name="…"> or browsing context name. */
   name?: string;
-
-  /** Document URL without the hash fragment. */
   url: string;
-
-  /** Full fragment, including `#`, if present.  (experimental) */
   urlFragment?: string;
-
-  /** e.g. `google.com`, `b.co.uk`  (experimental) */
   domainAndRegistry?: string;
-
-  /** e.g. `https://example.com` */
   securityOrigin: string;
-
-  /** Extra security-origin details (opaque object).  (experimental) */
   securityOriginDetails?: Record<string, unknown>;
-
-  /** MIME type as determined by the browser (`text/html`, `image/svg+xml`, …) */
   mimeType: string;
-
-  /** If the frame failed to load.  (experimental) */
   unreachableUrl?: string;
-
-  /** Ad-tagging information.  (experimental) */
   adFrameStatus?: string;
-
-  /** `"Secure"` / `"Insecure"` / …  (experimental) */
   secureContextType?: string;
-
-  /** `"Isolated"` / `"NotIsolated"` / …  (experimental) */
   crossOriginIsolatedContextType?: string;
-
-  /** List of gated APIs available.  (experimental) */
   gatedAPIFeatures?: string[];
 }
 
-/** ----------------------------------------------------------------------------
- * Page.FrameTree – a node in the frame hierarchy
- * ------------------------------------------------------------------------- */
 export interface CdpFrameTree {
-  /** The frame represented by this tree node. */
   frame: CdpFrame;
-
-  /** Child frames (if any). */
   childFrames?: CdpFrameTree[];
 }
 
