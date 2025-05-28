@@ -5,7 +5,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
 import { getAccessibilityTreeWithFrames } from "../a11y/utils";
-import { CombinedA11yResult } from "@/types/context";
+import { CombinedA11yResult, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -83,8 +83,14 @@ export class StagehandObserveHandler {
       level: 1,
     });
 
-    const { combinedTree, combinedXpathMap }: CombinedA11yResult =
-      await getAccessibilityTreeWithFrames(this.stagehandPage, this.logger);
+    const {
+      combinedTree,
+      combinedXpathMap,
+      combinedUrlMap,
+    }: CombinedA11yResult = await getAccessibilityTreeWithFrames(
+      this.stagehandPage,
+      this.logger,
+    );
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
@@ -130,7 +136,8 @@ export class StagehandObserveHandler {
           },
         });
 
-        const xpath = combinedXpathMap[elementId];
+        const lookUpIndex = elementId as EncodedId;
+        const xpath = combinedXpathMap[lookUpIndex];
 
         if (!xpath || xpath === "") {
           this.logger({

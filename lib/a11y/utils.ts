@@ -8,6 +8,9 @@ import {
   FrameOwnerResult,
   FrameSnapshot,
   CombinedA11yResult,
+  EncodedId,
+  getFrameOrdinal,
+  encodeId,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -21,16 +24,12 @@ import {
   StagehandElementNotFoundError,
 } from "@/types/stagehandErrors";
 import { CDPSession, Frame } from "@playwright/test";
+// import fs from "fs";
 
 const PUA_START = 0xe000;
 const PUA_END = 0xf8ff;
 
-const NBSP_CHARS = new Set<number>([
-  0x00a0,
-  0x202f,
-  0x2007,
-  0xfeff,
-]);
+const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
 
 /**
  * Fast, heap-friendly replacement for the old regex-based cleanText().
@@ -64,22 +63,20 @@ export function cleanText(input: string): string {
 }
 
 // Parser function for str output
+
 export function formatSimplifiedTree(
-  node: AccessibilityNode,
+  node: AccessibilityNode & { encodedId?: EncodedId },
   level = 0,
 ): string {
   const indent = "  ".repeat(level);
-  const cleanName = node.name ? cleanText(node.name) : "";
-  let result = `${indent}[${node.nodeId}] ${node.role}${
-    cleanName ? `: ${cleanName}` : ""
-  }\n`;
-
-  if (node.children?.length) {
-    result += node.children
-      .map((child) => formatSimplifiedTree(child, level + 1))
-      .join("");
-  }
-  return result;
+  const idLabel = node.encodedId ?? node.nodeId; // no backendId fallback
+  const namePart = node.name ? `: ${cleanText(node.name)}` : "";
+  return (
+    `${indent}[${idLabel}] ${node.role}${namePart}\n` +
+    (node.children
+      ?.map((c) => formatSimplifiedTree(c as typeof node, level + 1))
+      .join("") ?? "")
+  );
 }
 
 /** helper for tag-name lower-case cache */
@@ -98,14 +95,43 @@ const lc = (raw: string): string => {
  * 1. a `tagNameMap`, which is a mapping of `backendNodeId`s -> `nodeName`s
  * 2. an `xpathMap`, which is a mapping of `backendNodeId`s -> `xPaths`s
  */
+const fidToOrdinal = new Map<string | undefined, number>();
+
+/**
+ * Return an integer ≤ 99 that is **stable for the lifetime of the page**:
+ *   • 0  →  main frame (fid === undefined)
+ *   • 1+ →  every distinct CDP frameId we encounter, in discovery order
+ */
+export function ordinalForFrameId(fid: string | undefined): number {
+  // main frame: always 0 (same as getFrameOrdinal(undefined))
+  if (fid === undefined) return 0;
+
+  // fast path – already assigned
+  const cached = fidToOrdinal.get(fid);
+  if (cached !== undefined) return cached;
+
+  // assign a new one
+  const next = fidToOrdinal.size + 1; // 1, 2, 3, …
+  if (next > 99) throw new Error("More than 99 frames – enlarge encoding");
+
+  fidToOrdinal.set(fid, next);
+  return next;
+}
+
+/** "frame-ordinal:backendId", e.g. "1:421" (main frame is 0) */
+const encodeWithFrameId = (
+  fid: string | undefined,
+  backendId: number,
+): EncodedId => `${ordinalForFrameId(fid)}:${backendId}` as EncodedId;
+
 export async function buildBackendIdMaps(
   sp: StagehandPage,
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
-  /* ── 0. Pick the session we’ll talk to ──────────────────────────── */
+  /* 0 ─ choose CDP session ---------------------------------------- */
   let session: CDPSession;
   if (!targetFrame || targetFrame === sp.page.mainFrame()) {
-    session = await sp.getCDPClient(); // main doc
+    session = await sp.getCDPClient();
   } else {
     try {
       session = await sp.context.newCDPSession(targetFrame); // OOPIF
@@ -120,77 +146,77 @@ export async function buildBackendIdMaps(
   );
 
   try {
-    /* ── 1. Fetch full DOM tree ───────────────────────────────────── */
+    /* 1 ─ full DOM tree ------------------------------------------- */
     const { root } = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
     })) as { root: DOMNode };
 
-    /* ── 2. Decide start node / initial path ─────────────────────── */
+    /* 2 ─ pick start node + root frame-id ------------------------- */
     let startNode: DOMNode = root;
-    const startPath = "";
+    let rootFid: string | undefined =
+      targetFrame && (await getCDPFrameId(sp, targetFrame));
 
     if (targetFrame && session === (await sp.getCDPClient())) {
-      /* Same-proc iframe: find its contentDocument inside root */
-      const frameId = await getCDPFrameId(sp, targetFrame);
-      const { backendNodeId } = await sp.sendCDP<{
-        backendNodeId: number;
-        nodeId: number;
-      }>("DOM.getFrameOwner", { frameId });
-      let iframeNode: DOMNode | undefined;
+      /* same-proc iframe: walk down to its contentDocument          */
+      const frameId = rootFid!;
+      const { backendNodeId } = await sp.sendCDP<{ backendNodeId: number }>(
+        "DOM.getFrameOwner",
+        { frameId },
+      );
 
-      const locate = (n: DOMNode): boolean => {
-        if (n.backendNodeId === backendNodeId) {
-          iframeNode = n;
-          return true;
-        }
-        return !!n.children?.some(locate);
-      };
+      let iframeNode: DOMNode | undefined;
+      const locate = (n: DOMNode): boolean =>
+        n.backendNodeId === backendNodeId
+          ? ((iframeNode = n), true)
+          : !!n.children?.some(locate);
+
       if (!locate(root) || !iframeNode?.contentDocument) {
         throw new Error("iframe element or its contentDocument not found");
       }
       startNode = iframeNode.contentDocument;
+      rootFid = iframeNode.contentDocument.frameId ?? frameId;
     }
 
-    /* ── 3. Iterative DFS walk ────────────────────────────────────── */
-    const tagNameMap: Record<number, string> = {};
-    const xpathMap: Record<number, string> = {};
+    /* 3 ─ DFS walk: fill maps ------------------------------------- */
+    const tagNameMap: Record<EncodedId, string> = {};
+    const xpathMap: Record<EncodedId, string> = {};
 
     interface StackEntry {
       node: DOMNode;
       path: string;
+      fid: string | undefined; // DevTools frame-id of this node’s doc
     }
-    const stack: StackEntry[] = [{ node: startNode, path: startPath }];
-    const seen = new Set<number>();
+    const stack: StackEntry[] = [{ node: startNode, path: "", fid: rootFid }];
+    const seen = new Set<EncodedId>();
 
     while (stack.length) {
-      const { node, path } = stack.pop()!;
+      const { node, path, fid } = stack.pop()!;
 
-      if (node.backendNodeId && seen.has(node.backendNodeId)) continue;
-      if (node.backendNodeId) seen.add(node.backendNodeId);
+      if (!node.backendNodeId) continue;
+      const enc = encodeWithFrameId(fid, node.backendNodeId);
+      if (seen.has(enc)) continue;
+      seen.add(enc);
 
-      /* 3a. Record mapping for this node */
-      if (node.backendNodeId) {
-        tagNameMap[node.backendNodeId] = lc(String(node.nodeName));
-        xpathMap[node.backendNodeId] = path;
-      }
+      tagNameMap[enc] = lc(String(node.nodeName));
+      xpathMap[enc] = path;
 
-      /* 3b. If the node is an iframe with a sub-document, push it with fresh path */
+      /* recurse into sub-document if <iframe> --------------------- */
       if (lc(node.nodeName) === "iframe" && node.contentDocument) {
-        stack.push({ node: node.contentDocument, path: "" });
+        const childFid = node.contentDocument.frameId ?? fid;
+        stack.push({ node: node.contentDocument, path: "", fid: childFid });
       }
 
-      /* 3c. Push children (reverse order keeps original L->R traversal) */
-      const children = node.children ?? [];
-      if (children.length) {
-        /* first pass L→R: build per-child XPath segment with correct index */
+      /* push children --------------------------------------------- */
+      const kids = node.children ?? [];
+      if (kids.length) {
+        /* build per-child XPath segment (L→R) */
         const segs: string[] = [];
-        const counters: Record<string, number> = {};
-        for (const child of children) {
+        const ctr: Record<string, number> = {};
+        for (const child of kids) {
           const tag = lc(String(child.nodeName));
           const key = `${child.nodeType}:${tag}`;
-          const idx = (counters[key] = (counters[key] ?? 0) + 1);
-
+          const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
           segs.push(
             child.nodeType === 3
               ? `text()[${idx}]`
@@ -199,10 +225,13 @@ export async function buildBackendIdMaps(
                 : `${tag}[${idx}]`,
           );
         }
-
-        /* second pass R→L: push to stack so traversal order stays L→R */
-        for (let i = children.length - 1; i >= 0; i -= 1) {
-          stack.push({ node: children[i]!, path: `${path}/${segs[i]}` });
+        /* push R→L so traversal remains L→R */
+        for (let i = kids.length - 1; i >= 0; i--) {
+          stack.push({
+            node: kids[i]!,
+            path: `${path}/${segs[i]}`,
+            fid,
+          });
         }
       }
     }
@@ -225,32 +254,26 @@ export async function buildBackendIdMaps(
  *    and attempts to resolve their role to a DOM tag name
  */
 async function cleanStructuralNodes(
-  node: AccessibilityNode,
-  tagNameMap: Record<number, string>,
-  logger?: (logLine: LogLine) => void,
+  node: AccessibilityNode & { encodedId?: EncodedId },
+  tagNameMap: Record<EncodedId, string>,
+  logger?: (l: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
-  // 1) Filter out nodes with negative IDs
-  if (node.nodeId && parseInt(node.nodeId) < 0) {
-    return null;
-  }
+  /* 0 ─ ignore negative pseudo-nodes -------------------------------- */
+  if (+node.nodeId < 0) return null;
 
-  // 2) Base case: if no children exist, this is effectively a leaf.
-  //    If it's "generic" or "none", we remove it; otherwise, keep it.
-  if (!node.children || node.children.length === 0) {
+  /* 1 ─ leaf check -------------------------------------------------- */
+  if (!node.children?.length) {
     return node.role === "generic" || node.role === "none" ? null : node;
   }
 
-  // 3) Recursively clean children
-  const cleanedChildrenPromises = node.children.map((child) =>
-    cleanStructuralNodes(child, tagNameMap, logger),
-  );
-  const resolvedChildren = await Promise.all(cleanedChildrenPromises);
-  let cleanedChildren = resolvedChildren.filter(
-    (child): child is AccessibilityNode => child !== null,
-  );
+  /* 2 ─ recurse into children -------------------------------------- */
+  const cleanedChildren = (
+    await Promise.all(
+      node.children.map((c) => cleanStructuralNodes(c, tagNameMap, logger)),
+    )
+  ).filter(Boolean) as AccessibilityNode[];
 
-  // 4) **Prune** "generic" or "none" nodes first,
-  //    before resolving them to their tag names.
+  /* 3 ─ collapse / prune generic wrappers -------------------------- */
   if (node.role === "generic" || node.role === "none") {
     if (cleanedChildren.length === 1) {
       // Collapse single-child structural node
@@ -259,146 +282,140 @@ async function cleanStructuralNodes(
       // Remove empty structural node
       return null;
     }
-    // If we have multiple children, we keep this node as a container.
-    // We'll update role below if needed.
+    if (cleanedChildren.length === 0) return null;
   }
 
-  // 5) If we still have a "generic"/"none" node after pruning
-  //    (i.e., because it had multiple children), replace the role
-  //    with the DOM tag name.
+  /* 4 ─ replace generic role with real tag name (if we know it) ---- */
   if (
     (node.role === "generic" || node.role === "none") &&
-    node.backendDOMNodeId !== undefined
+    node.encodedId !== undefined
   ) {
-    const tagName = tagNameMap[node.backendDOMNodeId];
+    const tagName = tagNameMap[node.encodedId];
     if (tagName) node.role = tagName;
   }
 
-  // rm redundant StaticText children
-  cleanedChildren = removeRedundantStaticTextChildren(node, cleanedChildren);
-
-  if (cleanedChildren.length === 0) {
-    if (node.role === "generic" || node.role === "none") {
-      return null;
-    } else {
-      return { ...node, children: [] };
-    }
+  /* 5 ─ drop redundant StaticText children ------------------------- */
+  const pruned = removeRedundantStaticTextChildren(node, cleanedChildren);
+  if (!pruned.length && (node.role === "generic" || node.role === "none")) {
+    return null;
   }
 
-  // 6) Return the updated node.
-  //    If it has children, update them; otherwise keep it as-is.
-  return cleanedChildren.length > 0
-    ? { ...node, children: cleanedChildren }
-    : node;
+  /* 6 ─ return updated node --------------------------------------- */
+  return { ...node, children: pruned };
 }
 
 /**
- * Builds a hierarchical tree structure from a flat array of accessibility nodes.
- * The function processes nodes in multiple passes to create a clean, meaningful tree.
- * @param nodes - Flat array of accessibility nodes from the CDP
- * @returns Object containing both the tree structure and a simplified string representation
+ * Convert the flat AX-node array into a cleaned, hierarchical tree.
+ * Every kept node is stamped with its **EncodedId** so later stages
+ * (formatter, subtree injection, look-ups) can reference it directly.
  */
+
+export interface RichNode extends AccessibilityNode {
+  encodedId?: EncodedId; // frameOrdinal*1e9 + backendNodeId
+}
+
 export async function buildHierarchicalTree(
   nodes: AccessibilityNode[],
-  tagNameMap: Record<number, string>,
-  logger?: (logLine: LogLine) => void,
-  xpathMap?: Record<number, string>,
+  tagNameMap: Record<EncodedId, string>,
+  logger?: (l: LogLine) => void,
+  xpathMap?: Record<EncodedId, string>,
 ): Promise<TreeResult> {
-  // Map to store nodeId -> URL for only those nodes that do have a URL.
-  const idToUrl: Record<string, string> = {};
+  /** EncodedId → URL (only if the backend-id is unique) */
+  const idToUrl: Record<EncodedId, string> = {};
 
-  // Map to store processed nodes for quick lookup
-  const nodeMap = new Map<string, AccessibilityNode>();
-  const iframe_list: AccessibilityNode[] = [];
+  /** nodeId (string) → mutable copy of the AX node we keep */
+  const nodeMap = new Map<string, RichNode>();
 
-  // First pass: Create nodes that are meaningful
-  // We only keep nodes that either have a name or children to avoid cluttering the tree
-  nodes.forEach((node) => {
-    // Skip node if its ID is negative (e.g., "-1000002014")
-    const nodeIdValue = parseInt(node.nodeId, 10);
-    if (nodeIdValue < 0) {
-      return;
-    }
+  /** list of iframe AX nodes (kept for backwards-compat analytics) */
+  const iframeList: AccessibilityNode[] = [];
+
+  /* helper: keep only roles that matter to the LLM ------------------ */
+  const isInteractive = (n: AccessibilityNode) =>
+    n.role !== "none" && n.role !== "generic" && n.role !== "InlineTextBox";
+
+  /* -----------------------------------------------------------------
+   *  Build “backendId → EncodedId[]” lookup from tagNameMap keys
+   * ----------------------------------------------------------------- */
+  const backendToIds = new Map<number, EncodedId[]>();
+  for (const enc of Object.keys(tagNameMap) as EncodedId[]) {
+    const [, backend] = enc.split(":"); // "ff:bb"
+    const list = backendToIds.get(+backend) ?? [];
+    list.push(enc);
+    backendToIds.set(+backend, list);
+  }
+
+  /* -----------------------------------------------------------------
+   *  Pass 1 – copy / filter CDP nodes we want to keep
+   * ----------------------------------------------------------------- */
+  for (const node of nodes) {
+    if (+node.nodeId < 0) continue; // skip pseudo-nodes
 
     const url = extractUrlFromAXNode(node);
-    if (url) {
-      idToUrl[node.nodeId] = url;
+
+    const keep =
+      node.name?.trim() || node.childIds?.length || isInteractive(node);
+    if (!keep) continue;
+
+    /* resolve our EncodedId (unique per backendId) ----------------- */
+    let encodedId: EncodedId | undefined;
+    if (node.backendDOMNodeId !== undefined) {
+      const matches = backendToIds.get(node.backendDOMNodeId) ?? [];
+      if (matches.length === 1) encodedId = matches[0]; // unique → keep
+      // if there are collisions we leave encodedId undefined; subtree
+      // injection will fall back to backend-id matching
     }
 
-    const hasChildren = node.childIds && node.childIds.length > 0;
-    const hasValidName = node.name && node.name.trim() !== "";
-    const isInteractive =
-      node.role !== "none" &&
-      node.role !== "generic" &&
-      node.role !== "InlineTextBox"; //add other interactive roles here
+    /* store URL only when we have an unambiguous EncodedId */
+    if (url && encodedId) idToUrl[encodedId] = url;
 
-    // Include nodes that are either named, have children, or are interactive
-    if (!hasValidName && !hasChildren && !isInteractive) {
-      return;
-    }
-
-    // Create a clean node object with only relevant properties
     nodeMap.set(node.nodeId, {
+      encodedId,
       role: node.role,
       nodeId: node.nodeId,
-      ...(hasValidName && { name: node.name }), // Only include name if it exists and isn't empty
+      ...(node.name && { name: node.name }),
       ...(node.description && { description: node.description }),
       ...(node.value && { value: node.value }),
       ...(node.backendDOMNodeId !== undefined && {
         backendDOMNodeId: node.backendDOMNodeId,
       }),
     });
-  });
+  }
 
-  // Second pass: Establish parent-child relationships
-  // This creates the actual tree structure by connecting nodes based on parentId
-  nodes.forEach((node) => {
-    // Add iframes to a list and include in the return object
-    const isIframe = node.role === "Iframe";
-    if (isIframe) {
-      const iframeNode = {
-        role: node.role,
-        nodeId: node.nodeId,
-      };
-      iframe_list.push(iframeNode);
-    }
-    if (node.parentId && nodeMap.has(node.nodeId)) {
-      const parentNode = nodeMap.get(node.parentId);
-      const currentNode = nodeMap.get(node.nodeId);
+  /* -----------------------------------------------------------------
+   *  Pass 2 – parent-child wiring
+   * ----------------------------------------------------------------- */
+  for (const node of nodes) {
+    if (node.role === "Iframe")
+      iframeList.push({ role: node.role, nodeId: node.nodeId });
 
-      if (parentNode && currentNode) {
-        if (!parentNode.children) {
-          parentNode.children = [];
-        }
-        parentNode.children.push(currentNode);
-      }
-    }
-  });
+    if (!node.parentId) continue;
+    const parent = nodeMap.get(node.parentId);
+    const current = nodeMap.get(node.nodeId);
+    if (parent && current) (parent.children ??= []).push(current);
+  }
 
-  // Final pass: Build the root-level tree and clean up structural nodes
-  const rootNodes = nodes
-    .filter((node) => !node.parentId && nodeMap.has(node.nodeId)) // Get root nodes
-    .map((node) => nodeMap.get(node.nodeId))
-    .filter(Boolean) as AccessibilityNode[];
+  /* -----------------------------------------------------------------
+   *  Pass 3 – prune structural wrappers & tidy tree
+   * ----------------------------------------------------------------- */
+  const roots = nodes
+    .filter((n) => !n.parentId && nodeMap.has(n.nodeId))
+    .map((n) => nodeMap.get(n.nodeId)!) as RichNode[];
 
-  const cleanedTreePromises = rootNodes.map((node) =>
-    cleanStructuralNodes(node, tagNameMap, logger),
-  );
-  const finalTree = (await Promise.all(cleanedTreePromises)).filter(
-    Boolean,
-  ) as AccessibilityNode[];
+  const cleanedRoots = (
+    await Promise.all(
+      roots.map((n) => cleanStructuralNodes(n, tagNameMap, logger)),
+    )
+  ).filter(Boolean) as AccessibilityNode[];
 
-  // Generate a simplified string representation of the tree
-  const simplifiedFormat = finalTree
-    .map((node) => formatSimplifiedTree(node))
-    .join("\n");
+  /* pretty outline for logging / LLM input -------------------------- */
+  const simplified = cleanedRoots.map(formatSimplifiedTree).join("\n");
 
   return {
-    tree: finalTree,
-    simplified: simplifiedFormat,
-    iframes: iframe_list,
-    idToUrl: idToUrl,
-    xpathMap: xpathMap,
+    tree: cleanedRoots,
+    simplified,
+    iframes: iframeList,
+    idToUrl, // EncodedId → absolute URL
+    xpathMap,
   };
 }
 
@@ -411,6 +428,10 @@ export async function getCDPFrameId(
   /* 1️⃣  Same-proc search in the page-session tree ------------------ */
   const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
   const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
+  // fs.writeFileSync(
+  //   `frameTree_${Date.now()}.json`,
+  //   JSON.stringify(root, null, 2),
+  // );
 
   const url = frame.url();
   let depth = 0;
@@ -434,6 +455,10 @@ export async function getCDPFrameId(
 
     const ownResp = (await sess.send("Page.getFrameTree")) as unknown;
     const { frameTree } = ownResp as { frameTree: CdpFrameTree };
+    // fs.writeFileSync(
+    //   `frameTree_${Date.now()}.json`,
+    //   JSON.stringify(root, null, 2),
+    // );
 
     return frameTree.frame.id; // root of OOPIF
   } catch (err) {
@@ -644,8 +669,28 @@ export async function getFrameRootXpath(
 
 export function injectSubtrees(
   tree: string,
-  idToTree: Map<number, string>,
+  idToTree: Map<EncodedId, string>,
 ): string {
+  /* ---------------------------------------------------------------
+   *  Helpers
+   * ------------------------------------------------------------- */
+
+  /**  Return the *only* EncodedId that ends with this backend-id.
+   *   If several frames share that backend-id we return undefined
+   *   (avoids guessing the wrong subtree). */
+  const uniqueByBackend = (backendId: number): EncodedId | undefined => {
+    let found: EncodedId | undefined;
+    let hit = 0;
+    for (const enc of idToTree.keys()) {
+      const [, b] = enc.split(":"); // "ff:bbb"
+      if (+b === backendId) {
+        if (++hit > 1) return; // collision → abort
+        found = enc;
+      }
+    }
+    return hit === 1 ? found : undefined;
+  };
+
   interface StackFrame {
     lines: string[];
     idx: number;
@@ -654,9 +699,14 @@ export function injectSubtrees(
 
   const stack: StackFrame[] = [{ lines: tree.split("\n"), idx: 0, indent: "" }];
   const out: string[] = [];
+  const visited = new Set<EncodedId>(); // avoid infinite loops
 
+  /* ---------------------------------------------------------------
+   *  Depth-first injection walk
+   * ------------------------------------------------------------- */
   while (stack.length) {
     const top = stack[stack.length - 1];
+
     if (top.idx >= top.lines.length) {
       stack.pop();
       continue;
@@ -666,13 +716,31 @@ export function injectSubtrees(
     const line = top.indent + raw;
     out.push(line);
 
-    const match = /^\s*\[(\d+)]/.exec(raw);
-    if (!match) continue;
+    /* grab whatever sits inside the first brackets, e.g. “[0:42]” or “[42]” */
+    const m = /^\s*\[([^\]]+)]/.exec(raw);
+    if (!m) continue;
 
-    const id = Number(match[1]);
-    const child = idToTree.get(id);
-    if (!child) continue;
+    const label = m[1]; // could be "1:13"   or "13"
+    let enc: EncodedId | undefined;
+    let child: string | undefined;
 
+    /* 1️⃣  exact match (“0:42”) ------------------------------------ */
+    if (idToTree.has(label as EncodedId)) {
+      enc = label as EncodedId;
+      child = idToTree.get(enc);
+    } else if (/^\d+$/.test(label)) {
+      /* 2️⃣  backend-id fallback (“42”) ------------------------------ */
+      const backendId = +label;
+      const alt = uniqueByBackend(backendId);
+      if (alt) {
+        enc = alt;
+        child = idToTree.get(alt);
+      }
+    }
+
+    if (!enc || !child || visited.has(enc)) continue;
+
+    visited.add(enc);
     stack.push({
       lines: child.split("\n"),
       idx: 0,
@@ -687,65 +755,85 @@ export async function getAccessibilityTreeWithFrames(
   stagehandPage: StagehandPage,
   logger: (l: LogLine) => void,
 ): Promise<CombinedA11yResult> {
+  /* ensure “main frame → ordinal 0” is in the map */
+  getFrameOrdinal(stagehandPage.page.mainFrame());
+
+  /* ─────────────────────── gather per-frame snapshots ───────────────────── */
   const snapshots: FrameSnapshot[] = [];
-  const frameStack: (Frame | undefined)[] = [undefined];
+  const frameStack: (Frame | undefined)[] = [undefined]; // depth-first
 
   while (frameStack.length) {
     const frame = frameStack.pop()!;
 
     try {
-      const tree = await getAccessibilityTree(
+      const res = await getAccessibilityTree(
         stagehandPage,
         logger,
         undefined,
         frame,
       );
+      const backendId = await getFrameRootBackendNodeId(stagehandPage, frame);
 
       snapshots.push({
-        tree: tree.simplified.trimEnd(),
-        xpathMap: tree.xpathMap,
-        frameXpath: await getFrameRootXpath(frame),
-        backendNodeId: await getFrameRootBackendNodeId(stagehandPage, frame),
+        tree: res.simplified.trimEnd(),
+        xpathMap: res.xpathMap as Record<EncodedId, string>,
+        urlMap: res.idToUrl as Record<string, string>,
+        frameXpath: await getFrameRootXpath(frame), // “/html/body/…/iframe[1]”
+        backendNodeId: backendId,
+        parentFrame: frame?.parentFrame(),
       });
     } catch (err) {
       logger({
         category: "observation",
-        message: `⚠️ failed to get AX tree for ${
-          frame ? `iframe (${frame.url()})` : "main frame"
-        }`,
+        message: `⚠️ failed to get AX tree for ${frame ? `iframe (${frame.url()})` : "main frame"}`,
         level: 1,
         auxiliary: { error: { value: String(err), type: "string" } },
       });
     }
 
-    /* push children (depth-first order doesn’t matter for our merge) */
-    const children = (frame ?? stagehandPage.page.mainFrame()).childFrames();
-    for (let i = children.length - 1; i >= 0; i--) {
-      frameStack.push(children[i]);
-    }
+    (frame ?? stagehandPage.page.mainFrame())
+      .childFrames()
+      .forEach((c) => frameStack.push(c));
   }
 
-  /* ---------- (2) merge xpath maps -------------------------------- */
-  const combinedXpathMap: Record<number, string> = {};
+  /* ─────────────────────── merge EncodedId → XPath ──────────────────────── */
+  const combinedXpathMap: Record<EncodedId, string> = {};
+
   for (const snap of snapshots) {
     const prefix = snap.frameXpath === "/" ? "" : snap.frameXpath;
-    for (const [idStr, local] of Object.entries(snap.xpathMap)) {
-      combinedXpathMap[Number(idStr)] =
+    for (const [enc, local] of Object.entries(snap.xpathMap) as [
+      EncodedId,
+      string,
+    ][]) {
+      combinedXpathMap[enc] =
         prefix + (local.startsWith("/") || !prefix ? "" : "/") + local;
     }
   }
 
-  /* ---------- (3) build backendId → tree map ---------------------- */
-  const idToTree = new Map<number, string>();
-  for (const { backendNodeId, tree } of snapshots) {
-    if (backendNodeId != null) idToTree.set(backendNodeId, tree);
+  const combinedUrlMap: Record<EncodedId, string> = {};
+
+  for (const snap of snapshots) {
+    for (const [enc, url] of Object.entries(snap.urlMap) as [
+      EncodedId,
+      string,
+    ][]) {
+      combinedUrlMap[enc] = url;
+    }
   }
 
-  /* ---------- (4) inject subtrees into the root ------------------- */
-  const root = snapshots.find((s) => s.frameXpath === "/");
-  const combinedTree = root ? injectSubtrees(root.tree, idToTree) : "";
+  /* ─────────────────────── EncodedId → subtree outline ──────────────────── */
+  const idToTree = new Map<EncodedId, string>();
+  for (const { backendNodeId, parentFrame, tree } of snapshots) {
+    if (backendNodeId != null) {
+      idToTree.set(encodeId(backendNodeId, parentFrame), tree);
+    }
+  }
 
-  return { combinedTree, combinedXpathMap };
+  /* ─────────────────────── inject iframe sub-trees ──────────────────────── */
+  const rootSnap = snapshots.find((s) => s.frameXpath === "/");
+  const combinedTree = rootSnap ? injectSubtrees(rootSnap.tree, idToTree) : "";
+
+  return { combinedTree, combinedXpathMap, combinedUrlMap };
 }
 
 /**
@@ -808,7 +896,7 @@ export async function findScrollableElementIds(
 export async function resolveObjectIdForXPath(
   page: StagehandPage,
   xpath: string,
-  targetFrame?: Frame, // ← NEW
+  targetFrame?: Frame,
 ): Promise<string | null> {
   const { result } = await page.sendCDP<{
     result?: { objectId?: string };

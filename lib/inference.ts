@@ -258,7 +258,11 @@ export async function observe({
     elements: z
       .array(
         z.object({
-          elementId: z.number().describe("the number of the element"),
+          elementId: z
+            .string()
+            .describe(
+              "the ID string associated with the element. Never include surrounding square brackets.",
+            ),
           description: z
             .string()
             .describe(
@@ -360,7 +364,7 @@ export async function observe({
   const parsedElements =
     observeData.elements?.map((el) => {
       const base = {
-        elementId: Number(el.elementId),
+        elementId: el.elementId,
         description: String(el.description),
       };
       if (returnAction) {
