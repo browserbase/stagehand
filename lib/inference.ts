@@ -261,7 +261,7 @@ export async function observe({
           elementId: z
             .string()
             .describe(
-              "the ID string associated with the element. Never include surrounding square brackets.",
+              "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
             ),
           description: z
             .string()

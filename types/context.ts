@@ -154,10 +154,8 @@ export interface FrameSnapshot {
   parentFrame?: Frame;
 }
 
-export type EncodedId = `${number}:${number}`; // "01:421" etc.
+export type EncodedId = `${number}-${number}`;
 
-// ❷ we don’t need NODE_BASE any more
-//     - delete: export const NODE_BASE = …
 export const frameToOrdinal = new Map<Frame | undefined, number>();
 export const ordinalToFrame = new Map<number, Frame | undefined>();
 
@@ -179,9 +177,9 @@ export function getFrameOrdinal(frame: Frame | undefined): number {
 export const encodeId = (
   backendId: number,
   frame: Frame | undefined,
-): EncodedId => `${getFrameOrdinal(frame)}:${backendId}`;
+): EncodedId => `${getFrameOrdinal(frame)}-${backendId}`;
 
 export const decodeId = (id: EncodedId) => {
-  const [ord, backend] = id.split(":");
+  const [ord, backend] = id.split("-");
   return { frameOrdinal: +ord, backendId: +backend };
 };

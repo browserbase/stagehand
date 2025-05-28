@@ -83,14 +83,8 @@ export class StagehandObserveHandler {
       level: 1,
     });
 
-    const {
-      combinedTree,
-      combinedXpathMap,
-      combinedUrlMap,
-    }: CombinedA11yResult = await getAccessibilityTreeWithFrames(
-      this.stagehandPage,
-      this.logger,
-    );
+    const { combinedTree, combinedXpathMap }: CombinedA11yResult =
+      await getAccessibilityTreeWithFrames(this.stagehandPage, this.logger);
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({

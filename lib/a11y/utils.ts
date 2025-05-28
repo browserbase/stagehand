@@ -122,7 +122,7 @@ export function ordinalForFrameId(fid: string | undefined): number {
 const encodeWithFrameId = (
   fid: string | undefined,
   backendId: number,
-): EncodedId => `${ordinalForFrameId(fid)}:${backendId}` as EncodedId;
+): EncodedId => `${ordinalForFrameId(fid)}-${backendId}` as EncodedId;
 
 export async function buildBackendIdMaps(
   sp: StagehandPage,
@@ -338,7 +338,7 @@ export async function buildHierarchicalTree(
    * ----------------------------------------------------------------- */
   const backendToIds = new Map<number, EncodedId[]>();
   for (const enc of Object.keys(tagNameMap) as EncodedId[]) {
-    const [, backend] = enc.split(":"); // "ff:bb"
+    const [, backend] = enc.split("-"); // "ff-bb"
     const list = backendToIds.get(+backend) ?? [];
     list.push(enc);
     backendToIds.set(+backend, list);
@@ -682,7 +682,7 @@ export function injectSubtrees(
     let found: EncodedId | undefined;
     let hit = 0;
     for (const enc of idToTree.keys()) {
-      const [, b] = enc.split(":"); // "ff:bbb"
+      const [, b] = enc.split("-"); // "ff-bbb"
       if (+b === backendId) {
         if (++hit > 1) return; // collision → abort
         found = enc;
@@ -754,9 +754,22 @@ export function injectSubtrees(
 export async function getAccessibilityTreeWithFrames(
   stagehandPage: StagehandPage,
   logger: (l: LogLine) => void,
+  rootXPath?: string,
 ): Promise<CombinedA11yResult> {
   /* ensure “main frame → ordinal 0” is in the map */
   getFrameOrdinal(stagehandPage.page.mainFrame());
+
+  let targetFrames: Frame[] | undefined;
+  let innerXPath: string | undefined;
+
+  if (rootXPath?.trim()) {
+    const { frames, rest } = await resolveFrameChain(
+      stagehandPage,
+      rootXPath.trim(),
+    );
+    targetFrames = frames; // ancestors   (main-frame first)
+    innerXPath = rest; // XPath inside the deepest frame
+  }
 
   /* ─────────────────────── gather per-frame snapshots ───────────────────── */
   const snapshots: FrameSnapshot[] = [];
@@ -764,12 +777,25 @@ export async function getAccessibilityTreeWithFrames(
 
   while (frameStack.length) {
     const frame = frameStack.pop()!;
+    const main = stagehandPage.page.mainFrame();
+
+    /* always push children so that traversal continues */
+    (frame ?? main).childFrames().forEach((c) => frameStack.push(c));
+
+    /* if we have a filter and this frame isn’t in it, just walk on  */
+    if (targetFrames && !targetFrames.includes(frame ?? main)) {
+      continue; // ← now safe: kids are queued
+    }
+
+    /* decide whether we pass a selector (only deepest target frame) */
+    const selector =
+      targetFrames && frame === targetFrames.at(-1) ? innerXPath : undefined;
 
     try {
       const res = await getAccessibilityTree(
         stagehandPage,
         logger,
-        undefined,
+        selector,
         frame,
       );
       const backendId = await getFrameRootBackendNodeId(stagehandPage, frame);
@@ -790,10 +816,6 @@ export async function getAccessibilityTreeWithFrames(
         auxiliary: { error: { value: String(err), type: "string" } },
       });
     }
-
-    (frame ?? stagehandPage.page.mainFrame())
-      .childFrames()
-      .forEach((c) => frameStack.push(c));
   }
 
   /* ─────────────────────── merge EncodedId → XPath ──────────────────────── */
@@ -831,7 +853,10 @@ export async function getAccessibilityTreeWithFrames(
 
   /* ─────────────────────── inject iframe sub-trees ──────────────────────── */
   const rootSnap = snapshots.find((s) => s.frameXpath === "/");
-  const combinedTree = rootSnap ? injectSubtrees(rootSnap.tree, idToTree) : "";
+  const combinedTree =
+    (rootSnap && injectSubtrees(rootSnap.tree, idToTree)) ||
+    snapshots[0]?.tree ||
+    "";
 
   return { combinedTree, combinedXpathMap, combinedUrlMap };
 }
@@ -856,7 +881,7 @@ export async function getAccessibilityTreeWithFrames(
  */
 export async function findScrollableElementIds(
   stagehandPage: StagehandPage,
-  targetFrame?: Frame, // ← NEW
+  targetFrame?: Frame,
 ): Promise<Set<number>> {
   // JS runs inside the right browsing context
   const xpaths: string[] = targetFrame
@@ -976,6 +1001,60 @@ function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
     return urlProp.value.value.trim();
   }
   return undefined;
+}
+
+const IFRAME_STEP_RE = /iframe\[\d+]$/i;
+
+/** Split “/html/body/div/iframe[2]/html/body/ul/li[3]” into
+ *    • all intermediate Frames and
+ *    • the remaining XPath that lives *inside* the last frame         */
+export async function resolveFrameChain(
+  sp: StagehandPage,
+  absPath: string, // must start with “/”
+): Promise<{ frames: Frame[]; rest: string }> {
+  let path = absPath.startsWith("/") ? absPath : "/" + absPath;
+  let ctxFrame: Frame | undefined = undefined; // current frame
+  const chain: Frame[] = []; // collected frames
+
+  while (true) {
+    /*  Does the whole path already resolve inside the current frame?  */
+    try {
+      await resolveObjectIdForXPath(sp, path, ctxFrame);
+      return { frames: chain, rest: path }; // we’re done
+    } catch {
+      /* keep walking */
+    }
+
+    /*  Otherwise: accumulate steps until we include an <iframe> step  */
+    const steps = path.split("/").filter(Boolean);
+    const buf: string[] = [];
+
+    for (let i = 0; i < steps.length; i++) {
+      buf.push(steps[i]);
+
+      if (IFRAME_STEP_RE.test(steps[i])) {
+        /* “/…/iframe[k]” found – descend into that frame ------------- */
+        const selector = "xpath=/" + buf.join("/");
+        const handle = (ctxFrame ?? sp.page.mainFrame()).locator(selector);
+        const frame = await handle
+          .elementHandle()
+          .then((h) => h?.contentFrame());
+
+        if (!frame)
+          throw new Error(`Could not obtain contentFrame for ${selector}`);
+
+        chain.push(frame);
+        ctxFrame = frame;
+        path = "/" + steps.slice(i + 1).join("/"); // remainder
+        break;
+      }
+
+      /*  Last step processed – but no iframe found  →  dead-end       */
+      if (i === steps.length - 1) {
+        throw new Error(`XPath “${absPath}” does not resolve in page`);
+      }
+    }
+  }
 }
 
 export async function performPlaywrightMethod(
