@@ -1,16 +1,15 @@
-<div id="toc" align="center">
-  <ul style="list-style: none">
+<div id="toc" align="center" style="margin-bottom: 0;">
+  <ul style="list-style: none; margin: 0; padding: 0;">
     <a href="https://stagehand.dev">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
-        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
+        <img alt="Stagehand" src="https://www.stagehand.dev/_next/image?url=%2Flogos%2Fmain-logo.webp&w=384&q=75" width="200" style="margin-right: 30px;" />
       </picture>
     </a>
   </ul>
 </div>
-
 <p align="center">
-  The production-ready framework for AI browser automations.<br>
+  <strong>The AI Browser Automation Framework</strong><br>
   <a href="https://docs.stagehand.dev">Read the Docs</a>
 </p>
 
