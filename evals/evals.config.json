@@ -348,6 +348,10 @@
     {
       "name": "agent/sf_library_card_multiple",
       "categories": ["agent"]
+    },
+    {
+      "name": "login",
+      "categories": ["act", "regression"]
     }
   ]
 }

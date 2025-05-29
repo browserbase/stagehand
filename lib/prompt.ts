@@ -163,7 +163,10 @@ export function buildActObservePrompt(
 
   // Add variable names (not values) to the instruction if any
   if (variables && Object.keys(variables).length > 0) {
-    const variablesPrompt = `The following variables are available to use in the action: ${Object.keys(variables).join(", ")}. Fill the argument variables with the variable name.`;
+    const variableNames = Object.keys(variables)
+      .map((key) => `%${key}%`)
+      .join(", ");
+    const variablesPrompt = `The following variables are available to use in the action: ${variableNames}. Fill the argument variables with the variable name.`;
     instruction += ` ${variablesPrompt}`;
   }
 
