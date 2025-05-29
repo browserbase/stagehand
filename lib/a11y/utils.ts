@@ -157,7 +157,11 @@ export async function buildBackendIdMaps(
     let rootFid: string | undefined =
       targetFrame && (await getCDPFrameId(sp, targetFrame));
 
-    if (targetFrame && session === (await sp.getCDPClient())) {
+    if (
+      targetFrame &&
+      targetFrame !== sp.page.mainFrame() && // ← added guard
+      session === (await sp.getCDPClient())
+    ) {
       /* same-proc iframe: walk down to its contentDocument          */
       const frameId = rootFid!;
       const { backendNodeId } = await sp.sendCDP<{ backendNodeId: number }>(
@@ -626,22 +630,21 @@ function decorateRoles(
 }
 
 export async function getFrameRootBackendNodeId(
-  stagehandPage: StagehandPage,
+  sp: StagehandPage,
   frame: Frame | undefined,
 ): Promise<number | null> {
-  if (!frame) return null;
+  // main-frame or no frame ⇒ nothing to resolve
+  if (!frame || frame === sp.page.mainFrame()) return null;
 
-  const cdp = await stagehandPage.page
-    .context()
-    .newCDPSession(stagehandPage.page);
-  const frameId = await getCDPFrameId(stagehandPage, frame);
+  const cdp = await sp.page.context().newCDPSession(sp.page);
+  const fid = await getCDPFrameId(sp, frame);
+  if (!fid) return null; // ← guard for safety
 
-  // Let Playwright infer the raw type, then cast to a narrow interface.
-  const result = (await cdp.send("DOM.getFrameOwner", {
-    frameId,
+  const { backendNodeId } = (await cdp.send("DOM.getFrameOwner", {
+    frameId: fid,
   })) as FrameOwnerResult;
 
-  return result.backendNodeId ?? null;
+  return backendNodeId ?? null;
 }
 
 export async function getFrameRootXpath(
@@ -756,10 +759,12 @@ export async function getAccessibilityTreeWithFrames(
   logger: (l: LogLine) => void,
   rootXPath?: string,
 ): Promise<CombinedA11yResult> {
-  /* ensure “main frame → ordinal 0” is in the map */
-  getFrameOrdinal(stagehandPage.page.mainFrame());
+  /* ── 0. main-frame bookkeeping ─────────────────────────────────── */
+  const main = stagehandPage.page.mainFrame();
+  getFrameOrdinal(main); // ensure ordinal 0
 
-  let targetFrames: Frame[] | undefined;
+  /* ── 1. “focus XPath” → frame chain + inner XPath ──────────────── */
+  let targetFrames: Frame[] | undefined; // full chain, main-first
   let innerXPath: string | undefined;
 
   if (rootXPath?.trim()) {
@@ -767,29 +772,34 @@ export async function getAccessibilityTreeWithFrames(
       stagehandPage,
       rootXPath.trim(),
     );
-    targetFrames = frames; // ancestors   (main-frame first)
-    innerXPath = rest; // XPath inside the deepest frame
+    targetFrames = frames.length ? frames : undefined; // empty → undefined
+    innerXPath = rest;
   }
 
-  /* ─────────────────────── gather per-frame snapshots ───────────────────── */
+  const mainOnlyFilter = !!innerXPath && !targetFrames;
+
+  /* ── 2. depth-first walk – collect snapshots ───────────────────── */
   const snapshots: FrameSnapshot[] = [];
-  const frameStack: (Frame | undefined)[] = [undefined]; // depth-first
+  const frameStack: Frame[] = [main];
 
   while (frameStack.length) {
     const frame = frameStack.pop()!;
-    const main = stagehandPage.page.mainFrame();
 
-    /* always push children so that traversal continues */
-    (frame ?? main).childFrames().forEach((c) => frameStack.push(c));
+    /* unconditional: enqueue children so we can reach deep targets */
+    frame.childFrames().forEach((c) => frameStack.push(c));
 
-    /* if we have a filter and this frame isn’t in it, just walk on  */
-    if (targetFrames && !targetFrames.includes(frame ?? main)) {
-      continue; // ← now safe: kids are queued
-    }
+    /* skip frames that are outside the requested chain / slice */
+    if (targetFrames && !targetFrames.includes(frame)) continue;
+    if (!targetFrames && frame !== main && innerXPath) continue;
 
-    /* decide whether we pass a selector (only deepest target frame) */
-    const selector =
-      targetFrames && frame === targetFrames.at(-1) ? innerXPath : undefined;
+    /* selector to forward … (unchanged) */
+    const selector = targetFrames
+      ? frame === targetFrames.at(-1)
+        ? innerXPath
+        : undefined
+      : frame === main
+        ? innerXPath
+        : undefined;
 
     try {
       const res = await getAccessibilityTree(
@@ -798,65 +808,63 @@ export async function getAccessibilityTreeWithFrames(
         selector,
         frame,
       );
-      const backendId = await getFrameRootBackendNodeId(stagehandPage, frame);
+
+      /* guard: main frame has no backendNodeId / <iframe> wrapper */
+      const backendId =
+        frame === main
+          ? null
+          : await getFrameRootBackendNodeId(stagehandPage, frame);
+
+      const frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
 
       snapshots.push({
         tree: res.simplified.trimEnd(),
         xpathMap: res.xpathMap as Record<EncodedId, string>,
         urlMap: res.idToUrl as Record<string, string>,
-        frameXpath: await getFrameRootXpath(frame), // “/html/body/…/iframe[1]”
+        frameXpath: frameXpath,
         backendNodeId: backendId,
-        parentFrame: frame?.parentFrame(),
+        parentFrame: frame.parentFrame(),
       });
+
+      if (mainOnlyFilter) break; // nothing else to fetch
     } catch (err) {
       logger({
         category: "observation",
-        message: `⚠️ failed to get AX tree for ${frame ? `iframe (${frame.url()})` : "main frame"}`,
+        message: `⚠️ failed to get AX tree for ${frame === main ? "main frame" : `iframe (${frame.url()})`}`,
         level: 1,
         auxiliary: { error: { value: String(err), type: "string" } },
       });
     }
   }
 
-  /* ─────────────────────── merge EncodedId → XPath ──────────────────────── */
+  /* ── 3. merge per-frame maps ───────────────────────────────────── */
   const combinedXpathMap: Record<EncodedId, string> = {};
+  const combinedUrlMap: Record<EncodedId, string> = {};
 
   for (const snap of snapshots) {
     const prefix = snap.frameXpath === "/" ? "" : snap.frameXpath;
     for (const [enc, local] of Object.entries(snap.xpathMap) as [
       EncodedId,
       string,
-    ][]) {
+    ][])
       combinedXpathMap[enc] =
         prefix + (local.startsWith("/") || !prefix ? "" : "/") + local;
-    }
+
+    Object.assign(combinedUrlMap, snap.urlMap);
   }
 
-  const combinedUrlMap: Record<EncodedId, string> = {};
-
-  for (const snap of snapshots) {
-    for (const [enc, url] of Object.entries(snap.urlMap) as [
-      EncodedId,
-      string,
-    ][]) {
-      combinedUrlMap[enc] = url;
-    }
-  }
-
-  /* ─────────────────────── EncodedId → subtree outline ──────────────────── */
+  /* ── 4. EncodedId → subtree map (skip main) ───────────────────── */
   const idToTree = new Map<EncodedId, string>();
-  for (const { backendNodeId, parentFrame, tree } of snapshots) {
-    if (backendNodeId != null) {
+  for (const { backendNodeId, parentFrame, tree } of snapshots)
+    if (backendNodeId !== null)
+      // ignore main frame
       idToTree.set(encodeId(backendNodeId, parentFrame), tree);
-    }
-  }
 
-  /* ─────────────────────── inject iframe sub-trees ──────────────────────── */
+  /* ── 5. stitch everything together ─────────────────────────────── */
   const rootSnap = snapshots.find((s) => s.frameXpath === "/");
-  const combinedTree =
-    (rootSnap && injectSubtrees(rootSnap.tree, idToTree)) ||
-    snapshots[0]?.tree ||
-    "";
+  const combinedTree = rootSnap
+    ? injectSubtrees(rootSnap.tree, idToTree)
+    : (snapshots[0]?.tree ?? "");
 
   return { combinedTree, combinedXpathMap, combinedUrlMap };
 }
