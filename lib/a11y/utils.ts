@@ -11,6 +11,7 @@ import {
   EncodedId,
   getFrameOrdinal,
   encodeId,
+  RichNode,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -24,7 +25,6 @@ import {
   StagehandElementNotFoundError,
 } from "@/types/stagehandErrors";
 import { CDPSession, Frame } from "@playwright/test";
-// import fs from "fs";
 
 const PUA_START = 0xe000;
 const PUA_END = 0xf8ff;
@@ -352,10 +352,6 @@ async function cleanStructuralNodes(
   return { ...node, children: pruned };
 }
 
-export interface RichNode extends AccessibilityNode {
-  encodedId?: EncodedId;
-}
-
 /**
  * Convert a flat array of AccessibilityNodes into a cleaned, hierarchical tree.
  * Nodes are pruned, structural wrappers removed, and each kept node is stamped
@@ -489,10 +485,6 @@ export async function getCDPFrameId(
   /* 1️⃣  Same-proc search in the page-session tree ------------------ */
   const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
   const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
-  // fs.writeFileSync(
-  //   `frameTree_${Date.now()}.json`,
-  //   JSON.stringify(root, null, 2),
-  // );
 
   const url = frame.url();
   let depth = 0;
@@ -516,10 +508,6 @@ export async function getCDPFrameId(
 
     const ownResp = (await sess.send("Page.getFrameTree")) as unknown;
     const { frameTree } = ownResp as { frameTree: CdpFrameTree };
-    // fs.writeFileSync(
-    //   `frameTree_${Date.now()}.json`,
-    //   JSON.stringify(root, null, 2),
-    // );
 
     return frameTree.frame.id; // root of OOPIF
   } catch (err) {

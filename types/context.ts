@@ -141,7 +141,6 @@ export const encodeId = (
   frame: Frame | undefined,
 ): EncodedId => `${getFrameOrdinal(frame)}-${backendId}`;
 
-export const decodeId = (id: EncodedId) => {
-  const [ord, backend] = id.split("-");
-  return { frameOrdinal: +ord, backendId: +backend };
-};
+export interface RichNode extends AccessibilityNode {
+  encodedId?: EncodedId;
+}
