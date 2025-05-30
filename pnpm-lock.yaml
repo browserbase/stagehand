@@ -26,6 +26,9 @@ importers:
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
+      devtools-protocol:
+        specifier: ^0.0.1464554
+        version: 0.0.1464554
       dotenv:
         specifier: ^16.4.5
         version: 16.5.0
@@ -135,10 +138,7 @@ importers:
         version: 1.0.0
       chromium-bidi:
         specifier: ^0.10.0
-        version: 0.10.2(devtools-protocol@0.0.1462014)
-      devtools-protocol:
-        specifier: ^0.0.1462014
-        version: 0.0.1462014
+        version: 0.10.2(devtools-protocol@0.0.1464554)
       esbuild:
         specifier: ^0.21.4
         version: 0.21.5
@@ -2454,8 +2454,8 @@ packages:
   devtools-protocol@0.0.1312386:
     resolution: {integrity: sha512-DPnhUXvmvKT2dFA/j7B+riVLUt9Q6RKJlcppojL5CoRywJJKLDYnRlw0gTFKfgDPHP5E04UoB71SxoJlVZy8FA==}
 
-  devtools-protocol@0.0.1462014:
-    resolution: {integrity: sha512-z2rfWuBdh/1p6vVjEU27w7eoS73nZf1lTe/nwvSFjy719dBOCXuADmzNQvdT+coAeF/q5khSUGw4CtIH7Cfo8g==}
+  devtools-protocol@0.0.1464554:
+    resolution: {integrity: sha512-CAoP3lYfwAGQTaAXYvA6JZR0fjGUb7qec1qf4mToyoH2TZgUFeIqYcjh6f9jNuhHfuZiEdH+PONHYrLhRQX6aw==}
 
   diff-match-patch@1.0.5:
     resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
@@ -7484,9 +7484,9 @@ snapshots:
 
   chownr@2.0.0: {}
 
-  chromium-bidi@0.10.2(devtools-protocol@0.0.1462014):
+  chromium-bidi@0.10.2(devtools-protocol@0.0.1464554):
     dependencies:
-      devtools-protocol: 0.0.1462014
+      devtools-protocol: 0.0.1464554
       mitt: 3.0.1
       zod: 3.23.8
 
@@ -7738,7 +7738,7 @@ snapshots:
 
   devtools-protocol@0.0.1312386: {}
 
-  devtools-protocol@0.0.1462014: {}
+  devtools-protocol@0.0.1464554: {}
 
   diff-match-patch@1.0.5: {}
 

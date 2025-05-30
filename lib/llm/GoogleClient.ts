@@ -9,11 +9,9 @@ import {
   Schema,
   Type,
 } from "@google/genai";
-import zodToJsonSchema from "zod-to-json-schema";
 
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema, toGeminiSchema, loadApiKeyFromEnv } from "../utils";
 import {
   ChatCompletionOptions,
@@ -58,22 +56,16 @@ const safetySettings = [
 export class GoogleClient extends LLMClient {
   public type = "google" as const;
   private client: GoogleGenAI;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
   public clientOptions: ClientOptions;
   public hasVision: boolean;
   private logger: (message: LogLine) => void;
 
   constructor({
     logger, // Added logger based on other clients
-    enableCaching = false,
-    cache,
     modelName,
     clientOptions,
   }: {
     logger: (message: LogLine) => void; // Added logger type
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName: AvailableModel;
     clientOptions?: ClientOptions; // Expecting { apiKey: string } here
   }) {
@@ -84,8 +76,6 @@ export class GoogleClient extends LLMClient {
     }
     this.clientOptions = clientOptions;
     this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.logger = logger;
     // Determine vision capability based on model name (adjust as needed)
@@ -234,48 +224,6 @@ export class GoogleClient extends LLMClient {
       top_p,
       maxTokens,
     } = options;
-
-    const cacheKeyOptions = {
-      model: this.modelName,
-      messages: options.messages,
-      temperature: temperature,
-      top_p: top_p,
-      // frequency_penalty and presence_penalty are not directly supported in Gemini API
-      image: image
-        ? { description: image.description, bufferLength: image.buffer.length }
-        : undefined, // Use buffer length for caching key stability
-      response_model: response_model
-        ? {
-            name: response_model.name,
-            schema: JSON.stringify(zodToJsonSchema(response_model.schema)),
-          }
-        : undefined,
-      tools: tools,
-      maxTokens: maxTokens,
-    };
-
-    if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheKeyOptions,
-        requestId,
-      );
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: { requestId: { value: requestId, type: "string" } },
-        });
-        return cachedResponse;
-      } else {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache miss - proceeding with API call",
-          level: 1,
-          auxiliary: { requestId: { value: requestId, type: "string" } },
-        });
-      }
-    }
 
     const formattedMessages = this.formatMessages(options.messages, image);
     const formattedTools = this.formatTools(tools);
@@ -459,15 +407,7 @@ export class GoogleClient extends LLMClient {
           usage: llmResponse.usage,
         };
 
-        if (this.enableCaching) {
-          await this.cache.set(cacheKeyOptions, extractionResult, requestId);
-        }
         return extractionResult as T;
-      }
-
-      // Cache the standard response if not using response_model
-      if (this.enableCaching) {
-        await this.cache.set(cacheKeyOptions, llmResponse, requestId);
       }
 
       return llmResponse as T;

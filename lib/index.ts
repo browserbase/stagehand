@@ -526,8 +526,7 @@ export class Stagehand {
       enableCaching ??
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
 
-    this.llmProvider =
-      llmProvider || new LLMProvider(this.logger, this.enableCaching);
+    this.llmProvider = llmProvider || new LLMProvider(this.logger);
 
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
