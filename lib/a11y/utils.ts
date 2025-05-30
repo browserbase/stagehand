@@ -32,11 +32,12 @@ const PUA_END = 0xf8ff;
 const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
 
 /**
- * Fast, heap-friendly replacement for the old regex-based cleanText().
- *  • skips PUA glyphs entirely
- *  • converts any NBSP-family char to a single ASCII space
- *  • collapses runs of spaces created by the conversion
- *  • trims the final result
+ * Clean a string by removing private-use unicode characters, normalizing whitespace,
+ * and trimming the result.
+ *
+ * @param input - The text to clean, potentially containing PUA and NBSP characters.
+ * @returns A cleaned string with PUA characters removed, NBSP variants collapsed,
+ *          consecutive spaces merged, and leading/trailing whitespace trimmed.
  */
 export function cleanText(input: string): string {
   let out = "";
@@ -45,8 +46,12 @@ export function cleanText(input: string): string {
   for (let i = 0; i < input.length; i++) {
     const code = input.charCodeAt(i);
 
-    if (code >= PUA_START && code <= PUA_END) continue;
+    // Skip private-use area glyphs
+    if (code >= PUA_START && code <= PUA_END) {
+      continue;
+    }
 
+    // Convert NBSP-family characters to a single space, collapsing repeats
     if (NBSP_CHARS.has(code)) {
       if (!prevWasSpace) {
         out += " ";
@@ -55,32 +60,55 @@ export function cleanText(input: string): string {
       continue;
     }
 
+    // Append the character and update space tracker
     out += input[i];
     prevWasSpace = input[i] === " ";
   }
 
+  // Trim leading/trailing spaces before returning
   return out.trim();
 }
 
 // Parser function for str output
 
+/**
+ * Generate a human-readable, indented outline of an accessibility node tree.
+ *
+ * @param node - The accessibility node to format, optionally with an encodedId.
+ * @param level - The current depth level for indentation (used internally).
+ * @returns A string representation of the node and its descendants, with one node per line.
+ */
 export function formatSimplifiedTree(
   node: AccessibilityNode & { encodedId?: EncodedId },
   level = 0,
 ): string {
+  // Compute indentation based on depth level
   const indent = "  ".repeat(level);
-  const idLabel = node.encodedId ?? node.nodeId; // no backendId fallback
+
+  // Use encodedId if available, otherwise fallback to nodeId
+  const idLabel = node.encodedId ?? node.nodeId;
+
+  // Prepare the formatted name segment if present
   const namePart = node.name ? `: ${cleanText(node.name)}` : "";
-  return (
-    `${indent}[${idLabel}] ${node.role}${namePart}\n` +
-    (node.children
+
+  // Build current line and recurse into child nodes
+  const currentLine = `${indent}[${idLabel}] ${node.role}${namePart}\n`;
+  const childrenLines =
+    node.children
       ?.map((c) => formatSimplifiedTree(c as typeof node, level + 1))
-      .join("") ?? "")
-  );
+      .join("") ?? "";
+
+  return currentLine + childrenLines;
 }
 
-/** helper for tag-name lower-case cache */
 const lowerCache = new Map<string, string>();
+
+/**
+ * Memoized lowercase conversion for strings to avoid repeated .toLowerCase() calls.
+ *
+ * @param raw - The original string to convert.
+ * @returns The lowercase version of the input string, cached for future reuse.
+ */
 const lc = (raw: string): string => {
   let v = lowerCache.get(raw);
   if (!v) {
@@ -98,9 +126,12 @@ const lc = (raw: string): string => {
 const fidToOrdinal = new Map<string | undefined, number>();
 
 /**
- * Return an integer ≤ 99 that is **stable for the lifetime of the page**:
- *   • 0  →  main frame (fid === undefined)
- *   • 1+ →  every distinct CDP frameId we encounter, in discovery order
+ * Return an integer ≤ 99 that is stable for the lifetime of the page.
+ *  - 0 for the main frame (fid === undefined)
+ *  - 1+ for each distinct CDP frameId encountered, in discovery order
+ *
+ * @param fid - The CDP frame identifier, or undefined for the main document.
+ * @returns A stable integer [0..99] representing the frame ordinal.
  */
 export function ordinalForFrameId(fid: string | undefined): number {
   // main frame: always 0 (same as getFrameOrdinal(undefined))
@@ -118,12 +149,25 @@ export function ordinalForFrameId(fid: string | undefined): number {
   return next;
 }
 
-/** "frame-ordinal:backendId", e.g. "1:421" (main frame is 0) */
+/**
+ * Encode a combination of frame ordinal and backend DOM node ID into a stable EncodedId.
+ *
+ * @param fid - The CDP frame identifier, or undefined for the main document.
+ * @param backendId - The backendNodeId of the DOM node to encode.
+ * @returns A string in the format "{frameOrdinal}-{backendId}" as EncodedId.
+ */
 const encodeWithFrameId = (
   fid: string | undefined,
   backendId: number,
 ): EncodedId => `${ordinalForFrameId(fid)}-${backendId}` as EncodedId;
 
+/**
+ * Build mappings from CDP backendNodeIds to HTML tag names and relative XPaths.
+ *
+ * @param sp - The StagehandPage wrapper for Playwright and CDP calls.
+ * @param targetFrame - Optional Playwright.Frame whose DOM subtree to map; defaults to main frame.
+ * @returns A Promise resolving to BackendIdMaps containing tagNameMap and xpathMap.
+ */
 export async function buildBackendIdMaps(
   sp: StagehandPage,
   targetFrame?: Frame,
@@ -250,12 +294,12 @@ export async function buildBackendIdMaps(
 }
 
 /**
- * Helper function to remove or collapse unnecessary structural nodes
- * Handles three cases:
- * 1. Removes generic/none nodes with no children
- * 2. Collapses generic/none nodes with single child
- * 3. Keeps generic/none nodes with multiple children but cleans their subtrees
- *    and attempts to resolve their role to a DOM tag name
+ * Recursively prune or collapse structural nodes in the AX tree to simplify hierarchy.
+ *
+ * @param node - The accessibility node to clean, potentially collapsing or dropping generic/none roles.
+ * @param tagNameMap - Mapping from EncodedId to HTML tag names for potential role reassignment.
+ * @param logger - Optional logging callback for diagnostic messages.
+ * @returns A Promise resolving to a cleaned AccessibilityNode or null if the node should be removed.
  */
 async function cleanStructuralNodes(
   node: AccessibilityNode & { encodedId?: EncodedId },
@@ -308,16 +352,22 @@ async function cleanStructuralNodes(
   return { ...node, children: pruned };
 }
 
-/**
- * Convert the flat AX-node array into a cleaned, hierarchical tree.
- * Every kept node is stamped with its **EncodedId** so later stages
- * (formatter, subtree injection, look-ups) can reference it directly.
- */
-
 export interface RichNode extends AccessibilityNode {
-  encodedId?: EncodedId; // frameOrdinal*1e9 + backendNodeId
+  encodedId?: EncodedId;
 }
 
+/**
+ * Convert a flat array of AccessibilityNodes into a cleaned, hierarchical tree.
+ * Nodes are pruned, structural wrappers removed, and each kept node is stamped
+ * with its EncodedId for later lookup or subtree injection.
+ *
+ * @param nodes - Raw flat list of AX nodes retrieved via CDP.
+ * @param tagNameMap - Mapping of EncodedId to HTML tag names for structural decisions.
+ * @param logger - Optional function for logging diagnostic messages.
+ * @param xpathMap - Optional mapping of EncodedId to relative XPath for element lookup.
+ * @returns A Promise resolving to a TreeResult with cleaned tree, simplified text outline,
+ *          iframe list, URL map, and inherited xpathMap.
+ */
 export async function buildHierarchicalTree(
   nodes: AccessibilityNode[],
   tagNameMap: Record<EncodedId, string>,
@@ -423,6 +473,13 @@ export async function buildHierarchicalTree(
   };
 }
 
+/**
+ * Resolve the CDP frame identifier for a Playwright Frame, handling same-process and OOPIF.
+ *
+ * @param sp - The StagehandPage instance for issuing CDP commands.
+ * @param frame - The target Playwright.Frame; undefined or main frame yields undefined.
+ * @returns A Promise resolving to the CDP frameId string, or undefined for main document.
+ */
 export async function getCDPFrameId(
   sp: StagehandPage,
   frame?: Frame,
@@ -473,13 +530,14 @@ export async function getCDPFrameId(
 }
 
 /**
- * Build an accessibility tree for either the main document *or* a specific
- * iframe target.
+ * Retrieve and build a cleaned accessibility tree for a document or specific iframe.
+ * Prunes, formats, and optionally filters by XPath, including scrollable role decoration.
  *
- * @param stagehandPage  The wrapper around Playwright.Page
- * @param logger         Your existing logger
- * @param selector       Optional XPath to scope the tree
- * @param targetFrame    The Playwright.Frame you want to inspect
+ * @param stagehandPage - The StagehandPage instance for Playwright and CDP interaction.
+ * @param logger - Logging function for diagnostics and performance metrics.
+ * @param selector - Optional XPath to filter the AX tree to a specific subtree.
+ * @param targetFrame - Optional Playwright.Frame to scope the AX tree retrieval.
+ * @returns A Promise resolving to a TreeResult with the hierarchical AX tree and related metadata.
  */
 export async function getAccessibilityTree(
   stagehandPage: StagehandPage,
@@ -565,26 +623,41 @@ export async function getAccessibilityTree(
   }
 }
 
+/**
+ * Filter an accessibility tree to include only the subtree under a specific XPath root.
+ * Resolves the DOM node for the XPath and performs a BFS over the AX node graph.
+ *
+ * @param page - The StagehandPage instance for issuing CDP commands.
+ * @param full - The full list of AXNode entries to filter.
+ * @param xpath - The XPath expression locating the subtree root.
+ * @param targetFrame - Optional Playwright.Frame context for CDP evaluation.
+ * @returns A Promise resolving to an array of AXNode representing the filtered subtree.
+ */
 async function filterAXTreeByXPath(
   page: StagehandPage,
   full: AXNode[],
   xpath: string,
   targetFrame?: Frame,
 ): Promise<AXNode[]> {
+  // Resolve the backendNodeId for the element at the provided XPath
   const objectId = await resolveObjectIdForXPath(page, xpath, targetFrame);
+  // Describe the DOM node to retrieve its backendNodeId via CDP
   const { node } = await page.sendCDP<{ node: { backendNodeId: number } }>(
     "DOM.describeNode",
     { objectId },
     targetFrame,
   );
 
+  // Throw if unable to get a backendNodeId for the XPath target
   if (!node?.backendNodeId) {
     throw new StagehandDomProcessError(
       `Unable to resolve backendNodeId for "${xpath}"`,
     );
   }
+  // Locate the corresponding AXNode in the full tree
   const target = full.find((n) => n.backendDOMNodeId === node.backendNodeId)!;
 
+  // Initialize BFS: collect the target node and its descendants
   const keep = new Set<string>([target.nodeId]);
   const queue = [target];
   while (queue.length) {
@@ -596,6 +669,7 @@ async function filterAXTreeByXPath(
       if (child) queue.push(child);
     }
   }
+  // Return only nodes in the keep set, unsetting parentId for the new root
   return full
     .filter((n) => keep.has(n.nodeId))
     .map((n) =>
@@ -603,18 +677,30 @@ async function filterAXTreeByXPath(
     );
 }
 
+/**
+ * Decorate AX nodes by marking scrollable elements in their role property.
+ *
+ * @param nodes - Array of raw AXNode entries to decorate with scrollability.
+ * @param scrollables - Set of backendNodeId values representing scrollable elements.
+ * @returns A new array of AccessibilityNode objects with updated roles indicating scrollable elements.
+ */
 function decorateRoles(
   nodes: AXNode[],
   scrollables: Set<number>,
 ): AccessibilityNode[] {
   return nodes.map((n) => {
+    // Extract the base role from the AX node
     let role = n.role?.value ?? "";
+
+    // Prepend "scrollable" to roles of nodes identified as scrollable
     if (scrollables.has(n.backendDOMNodeId!)) {
       role =
         role && role !== "generic" && role !== "none"
           ? `scrollable, ${role}`
           : "scrollable";
     }
+
+    // Construct the AccessibilityNode with decorated role and existing properties
     return {
       role,
       name: n.name?.value,
@@ -629,17 +715,31 @@ function decorateRoles(
   });
 }
 
+/**
+ * Get the backendNodeId of the iframe element that contains a given Playwright.Frame.
+ *
+ * @param sp - The StagehandPage instance for issuing CDP commands.
+ * @param frame - The Playwright.Frame whose host iframe element to locate.
+ * @returns A Promise resolving to the backendNodeId of the iframe element, or null if not applicable.
+ */
 export async function getFrameRootBackendNodeId(
   sp: StagehandPage,
   frame: Frame | undefined,
 ): Promise<number | null> {
-  // main-frame or no frame ⇒ nothing to resolve
-  if (!frame || frame === sp.page.mainFrame()) return null;
+  // Return null for top-level or undefined frames
+  if (!frame || frame === sp.page.mainFrame()) {
+    return null;
+  }
 
+  // Create a CDP session on the main page context
   const cdp = await sp.page.context().newCDPSession(sp.page);
+  // Resolve the CDP frameId for the target iframe frame
   const fid = await getCDPFrameId(sp, frame);
-  if (!fid) return null; // ← guard for safety
+  if (!fid) {
+    return null;
+  }
 
+  // Retrieve the DOM node that owns the frame via CDP
   const { backendNodeId } = (await cdp.send("DOM.getFrameOwner", {
     frameId: fid,
   })) as FrameOwnerResult;
@@ -647,11 +747,22 @@ export async function getFrameRootBackendNodeId(
   return backendNodeId ?? null;
 }
 
+/**
+ * Compute the absolute XPath for the iframe element hosting a given Playwright.Frame.
+ *
+ * @param frame - The Playwright.Frame whose iframe element to locate.
+ * @returns A Promise resolving to the XPath of the iframe element, or "/" if no frame provided.
+ */
 export async function getFrameRootXpath(
   frame: Frame | undefined,
 ): Promise<string> {
-  if (!frame) return "/";
+  // Return root path when no frame context is provided
+  if (!frame) {
+    return "/";
+  }
+  // Obtain the element handle of the iframe in the embedding document
   const handle = await frame.frameElement();
+  // Evaluate the element's absolute XPath within the page context
   return handle.evaluate((node: Element) => {
     const pos = (el: Element) => {
       let i = 1;
@@ -670,6 +781,14 @@ export async function getFrameRootXpath(
   });
 }
 
+/**
+ * Inject simplified subtree outlines into the main frame outline for nested iframes.
+ * Walks the main tree text, looks for EncodedId labels, and inserts matching subtrees.
+ *
+ * @param tree - The indented AX outline of the main frame.
+ * @param idToTree - Map of EncodedId to subtree outlines for nested frames.
+ * @returns A single combined text outline with iframe subtrees injected.
+ */
 export function injectSubtrees(
   tree: string,
   idToTree: Map<EncodedId, string>,
@@ -754,6 +873,15 @@ export function injectSubtrees(
   return out.join("\n");
 }
 
+/**
+ * Retrieve and merge accessibility trees for the main document and nested iframes.
+ * Walks through frame chains if a root XPath is provided, then stitches subtree outlines.
+ *
+ * @param stagehandPage - The StagehandPage instance for Playwright and CDP interaction.
+ * @param logger - Logging function for diagnostics and performance.
+ * @param rootXPath - Optional absolute XPath to focus the crawl on a subtree across frames.
+ * @returns A Promise resolving to CombinedA11yResult with combined tree text, xpath map, and URL map.
+ */
 export async function getAccessibilityTreeWithFrames(
   stagehandPage: StagehandPage,
   logger: (l: LogLine) => void,
@@ -957,54 +1085,83 @@ export async function resolveObjectIdForXPath(
 }
 
 /**
- * Removes any StaticText children whose combined text equals the parent's name.
- * This is most often used to avoid duplicating a link's accessible name in separate child nodes.
+ * Collapse consecutive whitespace characters (spaces, tabs, newlines, carriage returns)
+ * into single ASCII spaces.
  *
- * @param parent     The parent accessibility node whose `.name` we check.
- * @param children   The parent's current children list, typically after cleaning.
- * @returns          A filtered list of children with redundant StaticText nodes removed.
+ * @param s - The string in which to normalize whitespace.
+ * @returns A string where runs of whitespace have been replaced by single spaces.
  */
 function normaliseSpaces(s: string): string {
-  let out = "",
-    inWs = false;
+  // Initialize output buffer and state flag for whitespace grouping
+  let out = "";
+  let inWs = false;
+
+  // Iterate through each character of the input string
   for (let i = 0; i < s.length; i++) {
     const ch = s.charCodeAt(i);
     const isWs = ch === 32 || ch === 9 || ch === 10 || ch === 13;
+
     if (isWs) {
+      // If this is the first whitespace in a sequence, append a single space
       if (!inWs) {
         out += " ";
         inWs = true;
       }
     } else {
+      // Non-whitespace character: append it and reset whitespace flag
       out += s[i];
       inWs = false;
     }
   }
+
   return out;
 }
 
+/**
+ * Remove StaticText children whose combined text matches the parent's accessible name.
+ *
+ * @param parent - The parent AccessibilityNode whose `.name` is used for comparison.
+ * @param children - The list of child nodes to filter.
+ * @returns A new array of children with redundant StaticText nodes removed when they duplicate the parent's name.
+ */
 function removeRedundantStaticTextChildren(
   parent: AccessibilityNode,
   children: AccessibilityNode[],
 ): AccessibilityNode[] {
+  // If the parent has no accessible name, there is nothing to compare
   if (!parent.name) return children;
 
+  // Normalize and trim the parent's name for accurate string comparison
   const parentNorm = normaliseSpaces(parent.name).trim();
-  let joined = "";
+  let combinedText = "";
 
+  // Concatenate all StaticText children's normalized names
   for (const child of children) {
     if (child.role === "StaticText" && child.name) {
-      joined += normaliseSpaces(child.name).trim();
+      combinedText += normaliseSpaces(child.name).trim();
     }
   }
-  return joined === parentNorm
-    ? children.filter((c) => c.role !== "StaticText")
-    : children;
+
+  // If combined StaticText equals the parent's name, filter them out
+  if (combinedText === parentNorm) {
+    return children.filter((c) => c.role !== "StaticText");
+  }
+  return children;
 }
 
+/**
+ * Extract the URL string from an AccessibilityNode's properties, if present.
+ *
+ * @param axNode - The AccessibilityNode to inspect for a 'url' property.
+ * @returns The URL string if found and valid; otherwise, undefined.
+ */
 function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
+  // Exit early if there are no properties on this node
   if (!axNode.properties) return undefined;
+
+  // Find a property named 'url'
   const urlProp = axNode.properties.find((prop) => prop.name === "url");
+  // Return the trimmed URL string if the property exists and is valid
   if (urlProp && urlProp.value && typeof urlProp.value.value === "string") {
     return urlProp.value.value.trim();
   }
@@ -1013,12 +1170,23 @@ function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
 
 const IFRAME_STEP_RE = /iframe\[\d+]$/i;
 
-/** Split “/html/body/div/iframe[2]/html/body/ul/li[3]” into
- *    • all intermediate Frames and
- *    • the remaining XPath that lives *inside* the last frame         */
+/**
+ * Resolve a chain of iframe frames from an absolute XPath, returning the frame sequence and inner XPath.
+ *
+ * This helper walks an XPath expression containing iframe steps (e.g., '/html/body/iframe[2]/...'),
+ * descending into each matching iframe element to build a frame chain, and returns the leftover
+ * XPath segment to evaluate within the context of the last iframe.
+ *
+ * @param sp - The StagehandPage instance for evaluating XPath and locating frames.
+ * @param absPath - An absolute XPath expression starting with '/', potentially including iframe steps.
+ * @returns An object containing:
+ *   frames: Array of Frame objects representing each iframe in the chain.
+ *   rest: The remaining XPath string to evaluate inside the final iframe.
+ * @throws Error if an iframe cannot be found or the final XPath cannot be resolved.
+ */
 export async function resolveFrameChain(
   sp: StagehandPage,
-  absPath: string, // must start with “/”
+  absPath: string, // must start with '/'
 ): Promise<{ frames: Frame[]; rest: string }> {
   let path = absPath.startsWith("/") ? absPath : "/" + absPath;
   let ctxFrame: Frame | undefined = undefined; // current frame
