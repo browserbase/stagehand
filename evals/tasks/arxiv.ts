@@ -6,7 +6,6 @@ export const arxiv: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto("https://arxiv.org/search/");
@@ -29,7 +28,6 @@ export const arxiv: EvalFunction = async ({
           )
           .describe("list of papers"),
       }),
-      useTextExtract,
     });
 
     if (
@@ -86,7 +84,6 @@ export const arxiv: EvalFunction = async ({
               )
               .nullable(),
           }),
-          useTextExtract,
         });
 
         papers.push({

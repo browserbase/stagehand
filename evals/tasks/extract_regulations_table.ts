@@ -6,7 +6,6 @@ export const extract_regulations_table: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto(
@@ -29,7 +28,7 @@ export const extract_regulations_table: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
+
       selector: xpath,
     });
 

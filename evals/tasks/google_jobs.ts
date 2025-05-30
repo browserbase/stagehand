@@ -6,7 +6,6 @@ export const google_jobs: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto("https://www.google.com/");
@@ -40,7 +39,6 @@ export const google_jobs: EvalFunction = async ({
             .nullable(),
         }),
       }),
-      useTextExtract,
     });
 
     const isJobDetailsValid =

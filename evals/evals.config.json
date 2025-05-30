@@ -26,8 +26,7 @@
     },
     {
       "name": "ionwave",
-      "categories": ["act", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["act", "regression"]
     },
     {
       "name": "nonsense_action",
@@ -80,8 +79,7 @@
     },
     {
       "name": "wichita",
-      "categories": ["combination", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["combination", "regression"]
     },
     {
       "name": "hn_aisdk",
@@ -117,12 +115,11 @@
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": ["text_extract", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["regression"]
     },
     {
       "name": "extract_capacitor_info",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_partners",
@@ -130,11 +127,11 @@
     },
     {
       "name": "extract_press_releases",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental"]
     },
     {
       "name": "google_jobs",
@@ -167,8 +164,7 @@
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": ["extract", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["extract", "regression"]
     },
     {
       "name": "extract_nhl_stats",
@@ -180,7 +176,7 @@
     },
     {
       "name": "extract_csa",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_resistor_info",
@@ -209,33 +205,31 @@
     },
     {
       "name": "extract_area_codes",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_public_notices",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_jstor_news",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_apartments",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_zillow",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "observe_github",
-      "categories": ["observe", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_vantechjournal",
-      "categories": ["observe", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_amazon_add_to_cart",

@@ -3,7 +3,6 @@ import { EvalFunction } from "../../types/evals";
 
 export const extract_apartments: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -22,7 +21,6 @@ export const extract_apartments: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

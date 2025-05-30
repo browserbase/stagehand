@@ -7,7 +7,6 @@ export const ted_talk: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
@@ -33,7 +32,6 @@ export const ted_talk: EvalFunction = async ({
         )
         .describe("List of culture video playlists"),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

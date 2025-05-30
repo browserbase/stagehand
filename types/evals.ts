@@ -11,7 +11,6 @@ export type StagehandInitResult = {
   logger: EvalLogger;
   debugUrl: string;
   sessionUrl: string;
-  useTextExtract: boolean;
   stagehandConfig: ConstructorParams;
   modelName: AvailableModel;
 };
@@ -30,7 +29,6 @@ export const EvalCategorySchema = z.enum([
   "combination",
   "extract",
   "experimental",
-  "text_extract",
   "targeted_extract",
   "regression",
   "regression_llm_providers",

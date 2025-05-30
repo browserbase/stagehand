@@ -66,7 +66,6 @@ export const initStagehand = async ({
   logger,
   configOverrides,
   actTimeoutMs,
-  useTextExtract,
   modelName,
 }: {
   llmClient: LLMClient;
@@ -74,7 +73,6 @@ export const initStagehand = async ({
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
   actTimeoutMs?: number;
-  useTextExtract?: boolean;
   modelName: AvailableModel;
 }): Promise<StagehandInitResult> => {
   const config = {
@@ -98,7 +96,6 @@ export const initStagehand = async ({
     logger,
     debugUrl,
     sessionUrl,
-    useTextExtract,
     modelName,
   };
 };

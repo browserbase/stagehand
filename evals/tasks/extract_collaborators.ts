@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_collaborators: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -30,7 +29,6 @@ export const extract_collaborators: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
 
     await stagehand.close();

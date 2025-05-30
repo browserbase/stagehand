@@ -8,7 +8,6 @@ const parsedArgs: {
   env?: string;
   trials?: number;
   concurrency?: number;
-  extractMethod?: string;
   provider?: string;
   leftover: string[];
 } = {
@@ -30,8 +29,6 @@ for (const arg of rawArgs) {
     if (!isNaN(val)) {
       parsedArgs.concurrency = val;
     }
-  } else if (arg.startsWith("--extract-method=")) {
-    parsedArgs.extractMethod = arg.split("=")[1];
   } else if (arg.startsWith("provider=")) {
     parsedArgs.provider = arg.split("=")[1]?.toLowerCase();
   } else {
@@ -53,12 +50,6 @@ if (parsedArgs.concurrency !== undefined) {
   process.env.EVAL_MAX_CONCURRENCY = String(parsedArgs.concurrency);
 }
 
-const extractMethod = parsedArgs.extractMethod || "domExtract";
-process.env.EXTRACT_METHOD = extractMethod;
-
-const useTextExtract = extractMethod === "textExtract";
-const useAccessibilityTree = extractMethod === "accessibilityTree";
-
 const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
   ? process.env.EVAL_CATEGORIES.split(",")
   : [
@@ -67,7 +58,6 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "combination",
       "extract",
       "experimental",
-      "text_extract",
       "targeted_extract",
       "regression_llm_providers",
       "regression",
@@ -111,8 +101,6 @@ if (parsedArgs.provider !== undefined) {
 export {
   filterByCategory,
   filterByEvalName,
-  useTextExtract,
-  useAccessibilityTree,
   DEFAULT_EVAL_CATEGORIES,
   parsedArgs,
 };

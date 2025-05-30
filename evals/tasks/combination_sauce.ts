@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const combination_sauce: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -17,7 +16,6 @@ export const combination_sauce: EvalFunction = async ({
         usernames: z.array(z.string()).describe("the accepted usernames"),
         password: z.string().describe("the password for login"),
       }),
-      useTextExtract,
     });
 
     await stagehand.page.act({
