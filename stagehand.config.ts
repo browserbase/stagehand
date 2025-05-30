@@ -1,4 +1,4 @@
-import type { ConstructorParams } from "@/dist";
+import type { ConstructorParams } from "./dist";
 import dotenv from "dotenv";
 dotenv.config();
 
