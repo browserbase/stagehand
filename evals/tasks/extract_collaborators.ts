@@ -17,6 +17,10 @@ export const extract_collaborators: EvalFunction = async ({
     await stagehand.page.waitForLoadState("networkidle");
     await stagehand.page.waitForTimeout(5000);
 
+    await stagehand.page.act({
+      action: "scroll halfway down the page",
+    });
+
     const { contributors } = await stagehand.page.extract({
       instruction: "Extract top 5 contributors of this repository",
       schema: z.object({
