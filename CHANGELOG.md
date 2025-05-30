@@ -1,5 +1,17 @@
 # @browserbasehq/stagehand
 
+## 2.3.0
+
+### Minor Changes
+
+- [#737](https://github.com/browserbase/stagehand/pull/737) [`6ef6073`](https://github.com/browserbase/stagehand/commit/6ef60730cab0ad9025f44b6eeb2c83751d1dcd35) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecate useTextExtract and remove functionality
+
+### Patch Changes
+
+- [#741](https://github.com/browserbase/stagehand/pull/741) [`5680d25`](https://github.com/browserbase/stagehand/commit/5680d2509352c383ad502c9f4fabde01fa638833) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use safeparse for zod validation
+
+- [#783](https://github.com/browserbase/stagehand/pull/783) [`4de92a8`](https://github.com/browserbase/stagehand/commit/4de92a8af461fc95063faf39feee1d49259f58ba) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the readme logo link
+
 ## 2.2.1
 
 ### Patch Changes
