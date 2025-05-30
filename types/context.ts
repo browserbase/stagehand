@@ -114,32 +114,11 @@ export interface FrameSnapshot {
   frameXpath: string;
   backendNodeId: number | null;
   parentFrame?: Frame;
+  /** CDP frame identifier for this snapshot; used to generate stable EncodedIds. */
+  frameId?: string;
 }
 
 export type EncodedId = `${number}-${number}`;
-
-export const frameToOrdinal = new Map<Frame | undefined, number>();
-export const ordinalToFrame = new Map<number, Frame | undefined>();
-
-/** Return the stable ordinal for a frame (0-based, ≤ 99). */
-export function getFrameOrdinal(frame: Frame | undefined): number {
-  // already registered?
-  const cached = frameToOrdinal.get(frame);
-  if (cached !== undefined) return cached;
-
-  // assign next ordinal
-  const ord = frameToOrdinal.size; // 0 for main frame
-  if (ord > 99) throw new Error("More than 100 frames – enlarge format");
-
-  frameToOrdinal.set(frame, ord);
-  ordinalToFrame.set(ord, frame);
-  return ord;
-}
-
-export const encodeId = (
-  backendId: number,
-  frame: Frame | undefined,
-): EncodedId => `${getFrameOrdinal(frame)}-${backendId}`;
 
 export interface RichNode extends AccessibilityNode {
   encodedId?: EncodedId;

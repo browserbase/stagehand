@@ -9,8 +9,6 @@ import {
   FrameSnapshot,
   CombinedA11yResult,
   EncodedId,
-  getFrameOrdinal,
-  encodeId,
   RichNode,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
@@ -69,8 +67,6 @@ export function cleanText(input: string): string {
   return out.trim();
 }
 
-// Parser function for str output
-
 /**
  * Generate a human-readable, indented outline of an accessibility node tree.
  *
@@ -117,49 +113,6 @@ const lc = (raw: string): string => {
   }
   return v;
 };
-
-/**
- * Returns a `BackendIdMaps` object, which contains two mappings:
- * 1. a `tagNameMap`, which is a mapping of `backendNodeId`s -> `nodeName`s
- * 2. an `xpathMap`, which is a mapping of `backendNodeId`s -> `xPaths`s
- */
-const fidToOrdinal = new Map<string | undefined, number>();
-
-/**
- * Return an integer ≤ 99 that is stable for the lifetime of the page.
- *  - 0 for the main frame (fid === undefined)
- *  - 1+ for each distinct CDP frameId encountered, in discovery order
- *
- * @param fid - The CDP frame identifier, or undefined for the main document.
- * @returns A stable integer [0..99] representing the frame ordinal.
- */
-export function ordinalForFrameId(fid: string | undefined): number {
-  // main frame: always 0 (same as getFrameOrdinal(undefined))
-  if (fid === undefined) return 0;
-
-  // fast path – already assigned
-  const cached = fidToOrdinal.get(fid);
-  if (cached !== undefined) return cached;
-
-  // assign a new one
-  const next = fidToOrdinal.size + 1; // 1, 2, 3, …
-  if (next > 99) throw new Error("More than 99 frames – enlarge encoding");
-
-  fidToOrdinal.set(fid, next);
-  return next;
-}
-
-/**
- * Encode a combination of frame ordinal and backend DOM node ID into a stable EncodedId.
- *
- * @param fid - The CDP frame identifier, or undefined for the main document.
- * @param backendId - The backendNodeId of the DOM node to encode.
- * @returns A string in the format "{frameOrdinal}-{backendId}" as EncodedId.
- */
-const encodeWithFrameId = (
-  fid: string | undefined,
-  backendId: number,
-): EncodedId => `${ordinalForFrameId(fid)}-${backendId}` as EncodedId;
 
 /**
  * Build mappings from CDP backendNodeIds to HTML tag names and relative XPaths.
@@ -242,7 +195,7 @@ export async function buildBackendIdMaps(
       const { node, path, fid } = stack.pop()!;
 
       if (!node.backendNodeId) continue;
-      const enc = encodeWithFrameId(fid, node.backendNodeId);
+      const enc = sp.encodeWithFrameId(fid, node.backendNodeId);
       if (seen.has(enc)) continue;
       seen.add(enc);
 
@@ -525,6 +478,7 @@ export async function getCDPFrameId(
  * @param logger - Logging function for diagnostics and performance metrics.
  * @param selector - Optional XPath to filter the AX tree to a specific subtree.
  * @param targetFrame - Optional Playwright.Frame to scope the AX tree retrieval.
+ * @param encodeWithFrameId - Encoder mapping CDP frameId and backendNodeId to EncodedId, scoped per crawl.
  * @returns A Promise resolving to a TreeResult with the hierarchical AX tree and related metadata.
  */
 export async function getAccessibilityTree(
@@ -834,17 +788,25 @@ export function injectSubtrees(
     let enc: EncodedId | undefined;
     let child: string | undefined;
 
-    /* 1️⃣  exact match (“0:42”) ------------------------------------ */
+    /* 1 exact match (“<ordinal>-<backend>”) or fallback by backend ID */
     if (idToTree.has(label as EncodedId)) {
       enc = label as EncodedId;
       child = idToTree.get(enc);
-    } else if (/^\d+$/.test(label)) {
-      /* 2️⃣  backend-id fallback (“42”) ------------------------------ */
-      const backendId = +label;
-      const alt = uniqueByBackend(backendId);
-      if (alt) {
-        enc = alt;
-        child = idToTree.get(alt);
+    } else {
+      // attempt to extract backendId from “<ordinal>-<backend>” or pure numeric label
+      let backendId: number | undefined;
+      const dashMatch = /^\d+-\d+$/.exec(label);
+      if (dashMatch) {
+        backendId = +dashMatch[0].split("-")[1];
+      } else if (/^\d+$/.test(label)) {
+        backendId = +label;
+      }
+      if (backendId !== undefined) {
+        const alt = uniqueByBackend(backendId);
+        if (alt) {
+          enc = alt;
+          child = idToTree.get(alt);
+        }
       }
     }
 
@@ -877,7 +839,6 @@ export async function getAccessibilityTreeWithFrames(
 ): Promise<CombinedA11yResult> {
   /* ── 0. main-frame bookkeeping ─────────────────────────────────── */
   const main = stagehandPage.page.mainFrame();
-  getFrameOrdinal(main); // ensure ordinal 0
 
   /* ── 1. “focus XPath” → frame chain + inner XPath ──────────────── */
   let targetFrames: Frame[] | undefined; // full chain, main-first
@@ -933,6 +894,9 @@ export async function getAccessibilityTreeWithFrames(
 
       const frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
 
+      // Resolve the CDP frameId for this Playwright Frame (undefined for main)
+      const frameId = await getCDPFrameId(stagehandPage, frame);
+
       snapshots.push({
         tree: res.simplified.trimEnd(),
         xpathMap: res.xpathMap as Record<EncodedId, string>,
@@ -940,6 +904,7 @@ export async function getAccessibilityTreeWithFrames(
         frameXpath: frameXpath,
         backendNodeId: backendId,
         parentFrame: frame.parentFrame(),
+        frameId,
       });
 
       if (mainOnlyFilter) break; // nothing else to fetch
@@ -971,10 +936,13 @@ export async function getAccessibilityTreeWithFrames(
 
   /* ── 4. EncodedId → subtree map (skip main) ───────────────────── */
   const idToTree = new Map<EncodedId, string>();
-  for (const { backendNodeId, parentFrame, tree } of snapshots)
-    if (backendNodeId !== null)
-      // ignore main frame
-      idToTree.set(encodeId(backendNodeId, parentFrame), tree);
+  for (const { backendNodeId, frameId, tree } of snapshots)
+    if (backendNodeId !== null && frameId !== undefined)
+      // ignore main frame and snapshots without a CDP frameId
+      idToTree.set(
+        stagehandPage.encodeWithFrameId(frameId, backendNodeId),
+        tree,
+      );
 
   /* ── 5. stitch everything together ─────────────────────────────── */
   const rootSnap = snapshots.find((s) => s.frameXpath === "/");

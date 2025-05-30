@@ -20,7 +20,7 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
-import { EnhancedContext } from "../types/context";
+import { EncodedId, EnhancedContext } from "../types/context";
 import { clearOverlays } from "./utils";
 import {
   StagehandError,
@@ -54,6 +54,9 @@ export class StagehandPage {
     PlaywrightPage | Frame,
     CDPSession
   >();
+  private fidOrdinals: Map<string | undefined, number> = new Map([
+    [undefined, 0],
+  ]);
 
   constructor(
     page: PlaywrightPage,
@@ -120,6 +123,29 @@ export class StagehandPage {
         userProvidedInstructions,
       });
     }
+  }
+
+  public ordinalForFrameId(fid: string | undefined): number {
+    if (fid === undefined) return 0;
+
+    const cached = this.fidOrdinals.get(fid);
+    if (cached !== undefined) return cached;
+
+    const next = this.fidOrdinals.size; // 1, 2, 3, …
+    if (next > 99) throw new Error("Too many frames – widen EncodedId format");
+    this.fidOrdinals.set(fid, next);
+    return next;
+  }
+
+  public encodeWithFrameId(
+    fid: string | undefined,
+    backendId: number,
+  ): EncodedId {
+    return `${this.ordinalForFrameId(fid)}-${backendId}` as EncodedId;
+  }
+
+  public resetFrameOrdinals(): void {
+    this.fidOrdinals = new Map([[undefined, 0]]);
   }
 
   private async ensureStagehandScript(): Promise<void> {
