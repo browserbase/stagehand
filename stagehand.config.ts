@@ -20,7 +20,7 @@ const StagehandConfig: ConstructorParams = {
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
   browserbaseSessionID:
-    undefined /* Session ID for resuming Browserbase sessions */,
+    process.env.BROWSERBASE_SESSION_ID /* Session ID for resuming Browserbase sessions */,
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
     browserSettings: {
