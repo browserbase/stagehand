@@ -3,9 +3,9 @@
   "version": "2.2.1",
   "private": true,
   "description": "Core Stagehand library sources",
-  "main": "../dist/index.js",
-  "module": "../dist/index.js",
-  "types": "../dist/index.d.ts",
+  "main": "./index.ts",
+  "module": "./dist/index.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build-dom-scripts": "tsx dom/genDomScripts.ts",
     "build-js": "tsup index.ts --dts",
