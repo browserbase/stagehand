@@ -348,6 +348,10 @@
     {
       "name": "agent/sf_library_card_multiple",
       "categories": ["agent"]
+    },
+    {
+      "name": "iframe_hn",
+      "categories": ["extract"]
     }
   ]
 }
