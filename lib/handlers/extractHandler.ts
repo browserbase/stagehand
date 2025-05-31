@@ -44,7 +44,7 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
-    useTextExtract = false,
+    useTextExtract,
     selector,
   }: {
     instruction?: string;
