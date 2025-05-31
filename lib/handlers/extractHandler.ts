@@ -11,6 +11,7 @@ import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
 } from "@/lib/a11y/utils";
+import { CombinedA11yResult, EncodedId } from "@/types/context";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -49,6 +50,7 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs,
     useTextExtract = false,
     selector,
+    iframes,
   }: {
     instruction?: string;
     schema?: T;
@@ -59,6 +61,7 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
     selector?: string;
+    iframes?: boolean;
   } = {}): Promise<z.infer<T>> {
     const noArgsCalled = !instruction && !schema && !llmClient && !selector;
     if (noArgsCalled) {
@@ -86,6 +89,7 @@ export class StagehandExtractHandler {
       requestId,
       domSettleTimeoutMs,
       selector,
+      iframes,
     });
   }
 
@@ -112,6 +116,7 @@ export class StagehandExtractHandler {
     requestId,
     domSettleTimeoutMs,
     selector,
+    iframes,
   }: {
     instruction: string;
     schema: T;
@@ -120,6 +125,7 @@ export class StagehandExtractHandler {
     requestId?: string;
     domSettleTimeoutMs?: number;
     selector?: string;
+    iframes?: boolean;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -135,18 +141,27 @@ export class StagehandExtractHandler {
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
-    const tree = await getAccessibilityTreeWithFrames(
-      this.stagehandPage,
-      this.logger,
-      targetXpath,
-    );
+    const { combinedTree: outputString, combinedUrlMap: idToUrlMapping } =
+      await (iframes
+        ? getAccessibilityTreeWithFrames(
+            this.stagehandPage,
+            this.logger,
+            targetXpath,
+          )
+        : getAccessibilityTree(this.stagehandPage, this.logger, selector).then(
+            ({ simplified, idToUrl }) =>
+              ({
+                combinedTree: simplified,
+                combinedXpathMap: {} as Record<EncodedId, string>,
+                combinedUrlMap: idToUrl as Record<EncodedId, string>,
+              }) satisfies CombinedA11yResult,
+          ));
+
     this.logger({
       category: "extraction",
-      message: "Getting accessibility tree data",
+      message: "Got accessibility tree data",
       level: 1,
     });
-    const outputString = tree.combinedTree;
-    const idToUrlMapping = tree.combinedUrlMap;
 
     // Transform user defined schema to replace string().url() with .number()
     const [transformedSchema, urlFieldPaths] =

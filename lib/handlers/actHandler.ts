@@ -230,6 +230,7 @@ export class StagehandActHandler {
         drawOverlay: false,
         returnAction: true,
         fromAct: true,
+        iframes: actionOrOptions?.iframes,
       });
 
       if (observeResults.length === 0) {

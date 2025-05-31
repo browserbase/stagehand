@@ -4,7 +4,10 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
-import { getAccessibilityTreeWithFrames } from "../a11y/utils";
+import {
+  getAccessibilityTree,
+  getAccessibilityTreeWithFrames,
+} from "../a11y/utils";
 import { CombinedA11yResult, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
@@ -38,6 +41,7 @@ export class StagehandObserveHandler {
     onlyVisible,
     drawOverlay,
     fromAct,
+    iframes,
   }: {
     instruction: string;
     llmClient: LLMClient;
@@ -50,6 +54,7 @@ export class StagehandObserveHandler {
     onlyVisible?: boolean;
     drawOverlay?: boolean;
     fromAct?: boolean;
+    iframes?: boolean;
   }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -83,8 +88,16 @@ export class StagehandObserveHandler {
       level: 1,
     });
 
-    const { combinedTree, combinedXpathMap }: CombinedA11yResult =
-      await getAccessibilityTreeWithFrames(this.stagehandPage, this.logger);
+    const { combinedTree, combinedXpathMap } = await (iframes
+      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger)
+      : getAccessibilityTree(this.stagehandPage, this.logger).then(
+          ({ simplified, xpathMap, idToUrl }) =>
+            ({
+              combinedTree: simplified,
+              combinedXpathMap: xpathMap,
+              combinedUrlMap: idToUrl,
+            }) satisfies CombinedA11yResult,
+        ));
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({

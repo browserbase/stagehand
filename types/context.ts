@@ -45,8 +45,8 @@ export interface TreeResult {
   tree: AccessibilityNode[];
   simplified: string;
   iframes?: AccessibilityNode[];
-  idToUrl: Record<string, string>;
-  xpathMap: Record<number, string>;
+  idToUrl: Record<EncodedId, string>;
+  xpathMap: Record<EncodedId, string>;
 }
 
 export type DOMNode = {

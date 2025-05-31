@@ -758,6 +758,7 @@ ${scriptContent} \
         domSettleTimeoutMs,
         useTextExtract,
         selector,
+        iframes,
       } = options;
 
       if (this.api) {
@@ -800,6 +801,7 @@ ${scriptContent} \
           domSettleTimeoutMs,
           useTextExtract,
           selector,
+          iframes,
         })
         .catch((e) => {
           this.stagehand.log({
@@ -859,6 +861,7 @@ ${scriptContent} \
         returnAction = true,
         onlyVisible,
         drawOverlay,
+        iframes,
       } = options;
 
       if (this.api) {
@@ -907,6 +910,7 @@ ${scriptContent} \
           returnAction,
           onlyVisible,
           drawOverlay,
+          iframes,
         })
         .catch((e) => {
           this.stagehand.log({

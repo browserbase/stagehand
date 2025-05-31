@@ -417,7 +417,7 @@ export async function buildHierarchicalTree(
     tree: cleanedRoots,
     simplified,
     iframes: iframeList,
-    idToUrl, // EncodedId → absolute URL
+    idToUrl,
     xpathMap,
   };
 }
@@ -478,7 +478,6 @@ export async function getCDPFrameId(
  * @param logger - Logging function for diagnostics and performance metrics.
  * @param selector - Optional XPath to filter the AX tree to a specific subtree.
  * @param targetFrame - Optional Playwright.Frame to scope the AX tree retrieval.
- * @param encodeWithFrameId - Encoder mapping CDP frameId and backendNodeId to EncodedId, scoped per crawl.
  * @returns A Promise resolving to a TreeResult with the hierarchical AX tree and related metadata.
  */
 export async function getAccessibilityTree(
