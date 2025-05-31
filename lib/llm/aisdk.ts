@@ -15,6 +15,7 @@ import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { ChatCompletion } from "openai/resources";
 import { LLMCache } from "../cache/LLMCache";
+import type { TelemetrySettings } from "ai";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -22,23 +23,27 @@ export class AISdkClient extends LLMClient {
   private logger?: (message: LogLine) => void;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
+  private telemetrySettings: TelemetrySettings | undefined;
 
   constructor({
     model,
     logger,
     enableCaching = false,
     cache,
+    telemetrySettings,
   }: {
     model: LanguageModel;
     logger?: (message: LogLine) => void;
     enableCaching?: boolean;
     cache?: LLMCache;
+    telemetrySettings?: TelemetrySettings;
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
+    this.telemetrySettings = telemetrySettings;
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -161,6 +166,7 @@ export class AISdkClient extends LLMClient {
         model: this.model,
         messages: formattedMessages,
         schema: options.response_model.schema,
+        experimental_telemetry: this.telemetrySettings,
       });
 
       const result = {
@@ -227,6 +233,7 @@ export class AISdkClient extends LLMClient {
       model: this.model,
       messages: formattedMessages,
       tools,
+      experimental_telemetry: this.telemetrySettings,
     });
 
     const result = {

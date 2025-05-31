@@ -172,6 +172,7 @@ export class LLMProvider {
         logger: this.logger,
         enableCaching: this.enableCaching,
         cache: this.cache,
+        telemetrySettings: clientOptions?.aiSdkTelemetrySettings,
       });
     }
 
