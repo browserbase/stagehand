@@ -2,7 +2,6 @@ import { EvalFunction } from "@/types/evals";
 import { z } from "zod";
 
 export const extract_csa: EvalFunction = async ({
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -26,7 +25,6 @@ export const extract_csa: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_area_codes: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -37,7 +36,6 @@ export const extract_area_codes: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

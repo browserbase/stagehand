@@ -6,7 +6,6 @@ export const wichita: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
@@ -19,7 +18,6 @@ export const wichita: EvalFunction = async ({
     schema: z.object({
       total_results: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

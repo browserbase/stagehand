@@ -3,7 +3,6 @@ import { EvalFunction } from "@/types/evals";
 
 export const extract_geniusee_2: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -18,7 +17,6 @@ export const extract_geniusee_2: EvalFunction = async ({
     schema: z.object({
       scalability: z.string(),
     }),
-    useTextExtract,
     selector: selector,
   });
 

@@ -6,7 +6,6 @@ export const peeler_complex: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
@@ -27,7 +26,6 @@ export const peeler_complex: EvalFunction = async ({
     const { price } = await stagehand.page.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
-      useTextExtract,
     });
 
     await stagehand.close();

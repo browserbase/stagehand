@@ -6,7 +6,6 @@ export const extract_partners: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto("https://ramp.com");
@@ -38,7 +37,6 @@ export const extract_partners: EvalFunction = async ({
           .optional()
           .describe("Any explanation about partner listing or absence thereof"),
       }),
-      useTextExtract,
     });
 
     const expectedPartners = [

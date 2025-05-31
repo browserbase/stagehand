@@ -6,7 +6,6 @@ export const extract_recipe: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
@@ -31,7 +30,7 @@ export const extract_recipe: EvalFunction = async ({
           "the number of teaspoons of lemon juice needed for the mushroom pan sauce",
         ),
     }),
-    useTextExtract,
+
     selector: selector,
   });
 

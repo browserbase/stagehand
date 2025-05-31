@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_github_stars: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -16,7 +15,6 @@ export const extract_github_stars: EvalFunction = async ({
       schema: z.object({
         stars: z.number().describe("the number of stars for the project"),
       }),
-      useTextExtract,
     });
 
     const expectedStarsString = await stagehand.page

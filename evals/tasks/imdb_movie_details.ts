@@ -6,7 +6,6 @@ export const imdb_movie_details: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto("https://www.imdb.com/title/tt0111161/", {
     waitUntil: "domcontentloaded",
@@ -22,7 +21,6 @@ export const imdb_movie_details: EvalFunction = async ({
         .array(z.string())
         .describe("List of countries with the most ratings"),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

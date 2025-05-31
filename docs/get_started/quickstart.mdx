@@ -7,11 +7,9 @@ icon: 'rocket'
 You can use `npx create-browser-app` to get started in 1 minute. This will create a new project that will analyze the Stagehand docs using Stagehand.
 
 <Tip>
-
 We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
 
 **Bun does not support Stagehand** since it doesn't support [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright&type=issues).
-
 </Tip>
 
 <Steps>
@@ -43,8 +41,74 @@ You can use [npx](https://docs.npmjs.com/cli/v8/commands/npx) to create a new pr
 	</Tab>
 </Tabs>
 
+To use our [Contexts](https://docs.browserbase.com/features/contexts) with Stagehand, run:
 
-To use the pre-release version of Stagehand, run:
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npx create-browser-app --example persist-context
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm create browser-app --example persist-context
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn create browser-app --example persist-context
+	```
+	</Tab>
+</Tabs>
+
+You can easily deploy Stagehand scripts to [Vercel](https://vercel.com/) in one line! Simply run:
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npx create-browser-app --example deploy-vercel
+	npx vercel deploy
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm create browser-app --example deploy-vercel
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn create browser-app --example deploy-vercel
+	```
+	</Tab>
+</Tabs>
+
+We also have an example using CUA agents, where we put OpenAI Operator against Anthropic's Claude Computer Use in a heated game of chess. It's just ten lines of Stagehand code, try it with:
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npx create-browser-app --example chess
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm create browser-app --example chess
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn create browser-app --example chess
+	```
+	</Tab>
+</Tabs>
+
+You can also use the version of Stagehand that's on main but not released yet. This will have the bleeding edge features, but they may not be fully prod-ready yet. To test this version, try:
 
 <Tabs>
 	<Tab title="npm">
@@ -65,7 +129,6 @@ To use the pre-release version of Stagehand, run:
 	```
 	</Tab>
 </Tabs>
-
 It will ask you the following questions:
 ```
 ✔ What is the name of your project? my-app

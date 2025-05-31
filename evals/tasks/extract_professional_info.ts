@@ -7,7 +7,6 @@ export const extract_professional_info: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
@@ -21,7 +20,6 @@ export const extract_professional_info: EvalFunction = async ({
       phone: z.string(),
       fax: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();
