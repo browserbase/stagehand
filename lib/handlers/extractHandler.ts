@@ -7,7 +7,10 @@ import { injectUrls, transformSchema } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand, StagehandFunctionName } from "../index";
 import { pageTextSchema } from "../../types/page";
-import { getAccessibilityTree } from "@/lib/a11y/utils";
+import {
+  getAccessibilityTree,
+  getAccessibilityTreeWithFrames,
+} from "@/lib/a11y/utils";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -132,7 +135,7 @@ export class StagehandExtractHandler {
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
-    const tree = await getAccessibilityTree(
+    const tree = await getAccessibilityTreeWithFrames(
       this.stagehandPage,
       this.logger,
       targetXpath,
@@ -142,8 +145,8 @@ export class StagehandExtractHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-    const outputString = tree.simplified;
-    const idToUrlMapping = tree.idToUrl;
+    const outputString = tree.combinedTree;
+    const idToUrlMapping = tree.combinedUrlMap;
 
     // Transform user defined schema to replace string().url() with .number()
     const [transformedSchema, urlFieldPaths] =

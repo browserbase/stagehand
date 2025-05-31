@@ -49,6 +49,7 @@
     "chalk": "^5.4.1",
     "cheerio": "^1.0.0",
     "chromium-bidi": "^0.10.0",
+    "devtools-protocol": "^0.0.1464554",
     "esbuild": "^0.21.4",
     "eslint": "^9.16.0",
     "express": "^4.21.0",

@@ -344,6 +344,18 @@
       "categories": ["agent"]
     },
     {
+      "name": "iframe_hn",
+      "categories": ["extract"]
+    },
+    {
+      "name": "iframe_same_proc",
+      "categories": ["act"]
+    },
+    {
+      "name": "iframe_form_filling",
+      "categories": ["act"]
+    },
+    {
       "name": "login",
       "categories": ["act", "regression"]
     }

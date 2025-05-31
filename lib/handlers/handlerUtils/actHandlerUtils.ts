@@ -1,10 +1,45 @@
-import { Page, Locator } from "@playwright/test";
+import { Page, Locator, FrameLocator } from "@playwright/test";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
 import { Logger } from "../../../types/log";
 import { MethodHandlerContext } from "@/types/act";
 import { StagehandClickError } from "@/types/stagehandErrors";
+
+const IFRAME_STEP_RE = /^iframe(\[[^\]]+])?$/i;
+
+export function deepLocator(
+  root: Page | FrameLocator,
+  rawXPath: string,
+): Locator {
+  // 1 ─ strip optional 'xpath=' prefix and whitespace
+  let xpath = rawXPath.replace(/^xpath=/i, "").trim();
+  if (!xpath.startsWith("/")) xpath = "/" + xpath;
+
+  // 2 ─ split into steps, accumulate until we hit an iframe step
+  const steps = xpath.split("/").filter(Boolean); // tokens
+  let ctx: Page | FrameLocator = root;
+  let buffer: string[] = [];
+
+  const flushIntoFrame = () => {
+    if (buffer.length === 0) return;
+    const selector = "xpath=/" + buffer.join("/");
+    ctx = (ctx as Page | FrameLocator).frameLocator(selector);
+    buffer = [];
+  };
+
+  for (const step of steps) {
+    buffer.push(step);
+    if (IFRAME_STEP_RE.test(step)) {
+      // we've included the <iframe> element in buffer ⇒ descend
+      flushIntoFrame();
+    }
+  }
+
+  // 3 ─ whatever is left in buffer addresses the target *inside* the last ctx
+  const finalSelector = "xpath=/" + buffer.join("/");
+  return (ctx as Page | FrameLocator).locator(finalSelector);
+}
 
 /**
  * A mapping of playwright methods that may be chosen by the LLM to their

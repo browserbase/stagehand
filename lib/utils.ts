@@ -226,7 +226,7 @@ export function transformSchema(
         (check: { kind: string }) => check.kind === "url",
       ) ?? false;
     if (hasUrlCheck) {
-      return [makeIdNumberSchema(schema as z.ZodString), [{ segments: [] }]];
+      return [makeIdStringSchema(schema as z.ZodString), [{ segments: [] }]];
     }
     return [schema, []];
   }
@@ -385,9 +385,7 @@ export function injectUrls(
 
   if (key === "*") {
     if (Array.isArray(obj)) {
-      for (const item of obj) {
-        injectUrls(item, rest, idToUrlMapping);
-      }
+      for (const item of obj) injectUrls(item, rest, idToUrlMapping);
     }
     return;
   }
@@ -396,9 +394,16 @@ export function injectUrls(
     const record = obj as Record<string | number, unknown>;
     if (path.length === 1) {
       const fieldValue = record[key];
-      if (typeof fieldValue === "number") {
-        const mappedUrl = idToUrlMapping[String(fieldValue)];
-        record[key] = mappedUrl ?? ``;
+
+      const id =
+        typeof fieldValue === "number"
+          ? String(fieldValue)
+          : typeof fieldValue === "string" && /^\d+-\d+$/.test(fieldValue)
+            ? fieldValue
+            : undefined;
+
+      if (id !== undefined) {
+        record[key] = idToUrlMapping[id] ?? "";
       }
     } else {
       injectUrls(record[key], rest, idToUrlMapping);
@@ -410,7 +415,7 @@ function isKind(s: z.ZodTypeAny, kind: Kind): boolean {
   return (s as z.ZodTypeAny)._def.typeName === kind;
 }
 
-function makeIdNumberSchema(orig: z.ZodString): z.ZodNumber {
+function makeIdStringSchema(orig: z.ZodString): z.ZodString {
   const userDesc =
     // Zod ≥3.23 exposes .description directly; fall back to _def for older minor versions
     (orig as unknown as { description?: string }).description ??
@@ -419,13 +424,17 @@ function makeIdNumberSchema(orig: z.ZodString): z.ZodNumber {
     "";
 
   const base =
-    "This field must be filled with the numerical ID of the link element";
+    "This field must be the element-ID in the form «frameId-backendId» " +
+    '(e.g. "0-432").';
   const composed =
     userDesc.trim().length > 0
-      ? `${base} that follows this user-defined description: ${userDesc}`
+      ? `${base}  that follows this user-defined description: ${userDesc}`
       : base;
 
-  return z.number().describe(composed);
+  return z
+    .string()
+    .regex(/^\d+-\d+$/)
+    .describe(composed);
 }
 
 /**

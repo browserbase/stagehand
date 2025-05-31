@@ -4,8 +4,8 @@ import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import { drawObserveOverlay } from "../utils";
-import { getAccessibilityTree } from "../a11y/utils";
-import { AccessibilityNode } from "../../types/context";
+import { getAccessibilityTreeWithFrames } from "../a11y/utils";
+import { CombinedA11yResult, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -67,8 +67,6 @@ export class StagehandObserveHandler {
       },
     });
 
-    let iframes: AccessibilityNode[] = [];
-
     if (onlyVisible !== undefined) {
       this.logger({
         category: "observation",
@@ -84,15 +82,14 @@ export class StagehandObserveHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
-    const outputString = tree.simplified;
-    iframes = tree.iframes;
-    const xpathMap = tree.xpathMap;
+
+    const { combinedTree, combinedXpathMap }: CombinedA11yResult =
+      await getAccessibilityTreeWithFrames(this.stagehandPage, this.logger);
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
-      domElements: outputString,
+      domElements: combinedTree,
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
@@ -116,16 +113,6 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (iframes.length > 0) {
-      iframes.forEach((iframe) => {
-        observationResponse.elements.push({
-          elementId: Number(iframe.nodeId),
-          description: "an iframe",
-          method: "not-supported",
-          arguments: [],
-        });
-      });
-    }
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
@@ -143,7 +130,8 @@ export class StagehandObserveHandler {
           },
         });
 
-        const xpath = xpathMap[elementId];
+        const lookUpIndex = elementId as EncodedId;
+        const xpath = combinedXpathMap[lookUpIndex];
 
         if (!xpath || xpath === "") {
           this.logger({
