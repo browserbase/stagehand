@@ -11,11 +11,26 @@ export const iframe_form_filling: EvalFunction = async ({
     "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
   );
 
-  await page.act("type 'nunya' into the 'first name' field");
-  await page.act("type 'business' into the 'last name' field");
-  await page.act("type 'test@email.com' into the 'email' field");
-  await page.act("click 'phone' as the preferred contact method");
-  await page.act("type 'yooooooooooooooo' into the message box");
+  await page.act({
+    action: "type 'nunya' into the 'first name' field",
+    iframes: true,
+  });
+  await page.act({
+    action: "type 'business' into the 'last name' field",
+    iframes: true,
+  });
+  await page.act({
+    action: "type 'test@email.com' into the 'email' field",
+    iframes: true,
+  });
+  await page.act({
+    action: "click 'phone' as the preferred contact method",
+    iframes: true,
+  });
+  await page.act({
+    action: "type 'yooooooooooooooo' into the message box",
+    iframes: true,
+  });
 
   const iframe = page.frameLocator("iframe");
 

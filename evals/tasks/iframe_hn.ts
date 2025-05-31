@@ -1,4 +1,5 @@
 import { EvalFunction } from "@/types/evals";
+import { z } from "zod";
 
 export const iframe_hn: EvalFunction = async ({
   debugUrl,
@@ -11,13 +12,17 @@ export const iframe_hn: EvalFunction = async ({
     "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
   );
 
-  const result = await page.extract(
-    "extract the title of the first hackernews story",
-  );
+  const result = await page.extract({
+    instruction: "extract the title of the first hackernews story",
+    schema: z.object({
+      story_title: z.string(),
+    }),
+    iframes: true,
+  });
 
   await stagehand.close();
 
-  const title = result.extraction.toLowerCase();
+  const title = result.story_title.toLowerCase();
   const expectedTitleSubstring = "overengineered anchor links";
 
   if (!title.includes(expectedTitleSubstring)) {
