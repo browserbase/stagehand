@@ -188,14 +188,6 @@ export class XPathResolutionError extends StagehandError {
   }
 }
 
-export class FrameOrdinalOverflowError extends StagehandError {
-  constructor(maxFrames: number) {
-    super(
-      `Page contains more than ${maxFrames} frames – widen EncodedId format or increase the ordinal bit-width`,
-    );
-  }
-}
-
 export class ZodSchemaValidationError extends Error {
   constructor(
     public readonly received: unknown,
