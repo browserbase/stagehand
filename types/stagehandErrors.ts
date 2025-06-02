@@ -168,6 +168,34 @@ export class LLMResponseError extends StagehandError {
   }
 }
 
+export class StagehandIframeError extends StagehandError {
+  constructor(frameUrl: string, message: string) {
+    super(
+      `Unable to resolve frameId for iframe with URL: ${frameUrl} Full error: ${message}`,
+    );
+  }
+}
+
+export class ContentFrameNotFoundError extends StagehandError {
+  constructor(selector: string) {
+    super(`Unable to obtain a content frame for selector: ${selector}`);
+  }
+}
+
+export class XPathResolutionError extends StagehandError {
+  constructor(xpath: string) {
+    super(`XPath "${xpath}" does not resolve in the current page or frames`);
+  }
+}
+
+export class FrameOrdinalOverflowError extends StagehandError {
+  constructor(maxFrames: number) {
+    super(
+      `Page contains more than ${maxFrames} frames – widen EncodedId format or increase the ordinal bit-width`,
+    );
+  }
+}
+
 export class ZodSchemaValidationError extends Error {
   constructor(
     public readonly received: unknown,

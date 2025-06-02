@@ -19,11 +19,15 @@ import {
   PlaywrightCommandException,
 } from "@/types/playwright";
 import {
+  ContentFrameNotFoundError,
   StagehandDomProcessError,
   StagehandElementNotFoundError,
+  StagehandIframeError,
+  XPathResolutionError,
 } from "@/types/stagehandErrors";
 import { CDPSession, Frame } from "@playwright/test";
 
+const IFRAME_STEP_RE = /iframe\[\d+]$/i;
 const PUA_START = 0xe000;
 const PUA_END = 0xf8ff;
 
@@ -125,7 +129,7 @@ export async function buildBackendIdMaps(
   sp: StagehandPage,
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
-  /* 0 ─ choose CDP session ---------------------------------------- */
+  // 0. choose CDP session
   let session: CDPSession;
   if (!targetFrame || targetFrame === sp.page.mainFrame()) {
     session = await sp.getCDPClient();
@@ -143,23 +147,23 @@ export async function buildBackendIdMaps(
   );
 
   try {
-    /* 1 ─ full DOM tree ------------------------------------------- */
+    // 1. full DOM tree
     const { root } = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
     })) as { root: DOMNode };
 
-    /* 2 ─ pick start node + root frame-id ------------------------- */
+    // 2. pick start node + root frame-id
     let startNode: DOMNode = root;
     let rootFid: string | undefined =
       targetFrame && (await getCDPFrameId(sp, targetFrame));
 
     if (
       targetFrame &&
-      targetFrame !== sp.page.mainFrame() && // ← added guard
+      targetFrame !== sp.page.mainFrame() &&
       session === (await sp.getCDPClient())
     ) {
-      /* same-proc iframe: walk down to its contentDocument          */
+      // same-proc iframe: walk down to its contentDocument
       const frameId = rootFid!;
       const { backendNodeId } = await sp.sendCDP<{ backendNodeId: number }>(
         "DOM.getFrameOwner",
@@ -179,14 +183,14 @@ export async function buildBackendIdMaps(
       rootFid = iframeNode.contentDocument.frameId ?? frameId;
     }
 
-    /* 3 ─ DFS walk: fill maps ------------------------------------- */
+    // 3. DFS walk: fill maps
     const tagNameMap: Record<EncodedId, string> = {};
     const xpathMap: Record<EncodedId, string> = {};
 
     interface StackEntry {
       node: DOMNode;
       path: string;
-      fid: string | undefined; // DevTools frame-id of this node’s doc
+      fid: string | undefined; // CDP frame-id of this node’s doc
     }
     const stack: StackEntry[] = [{ node: startNode, path: "", fid: rootFid }];
     const seen = new Set<EncodedId>();
@@ -202,16 +206,16 @@ export async function buildBackendIdMaps(
       tagNameMap[enc] = lc(String(node.nodeName));
       xpathMap[enc] = path;
 
-      /* recurse into sub-document if <iframe> --------------------- */
+      // recurse into sub-document if <iframe>
       if (lc(node.nodeName) === "iframe" && node.contentDocument) {
         const childFid = node.contentDocument.frameId ?? fid;
         stack.push({ node: node.contentDocument, path: "", fid: childFid });
       }
 
-      /* push children --------------------------------------------- */
+      // push children
       const kids = node.children ?? [];
       if (kids.length) {
-        /* build per-child XPath segment (L→R) */
+        // build per-child XPath segment (L→R)
         const segs: string[] = [];
         const ctr: Record<string, number> = {};
         for (const child of kids) {
@@ -226,7 +230,7 @@ export async function buildBackendIdMaps(
                 : `${tag}[${idx}]`,
           );
         }
-        /* push R→L so traversal remains L→R */
+        // push R→L so traversal remains L→R
         for (let i = kids.length - 1; i >= 0; i--) {
           stack.push({
             node: kids[i]!,
@@ -259,22 +263,22 @@ async function cleanStructuralNodes(
   tagNameMap: Record<EncodedId, string>,
   logger?: (l: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
-  /* 0 ─ ignore negative pseudo-nodes -------------------------------- */
+  // 0. ignore negative pseudo-nodes
   if (+node.nodeId < 0) return null;
 
-  /* 1 ─ leaf check -------------------------------------------------- */
+  // 1. leaf check
   if (!node.children?.length) {
     return node.role === "generic" || node.role === "none" ? null : node;
   }
 
-  /* 2 ─ recurse into children -------------------------------------- */
+  // 2. recurse into children
   const cleanedChildren = (
     await Promise.all(
       node.children.map((c) => cleanStructuralNodes(c, tagNameMap, logger)),
     )
   ).filter(Boolean) as AccessibilityNode[];
 
-  /* 3 ─ collapse / prune generic wrappers -------------------------- */
+  // 3. collapse / prune generic wrappers
   if (node.role === "generic" || node.role === "none") {
     if (cleanedChildren.length === 1) {
       // Collapse single-child structural node
@@ -286,7 +290,7 @@ async function cleanStructuralNodes(
     if (cleanedChildren.length === 0) return null;
   }
 
-  /* 4 ─ replace generic role with real tag name (if we know it) ---- */
+  // 4. replace generic role with real tag name (if we know it)
   if (
     (node.role === "generic" || node.role === "none") &&
     node.encodedId !== undefined
@@ -295,13 +299,13 @@ async function cleanStructuralNodes(
     if (tagName) node.role = tagName;
   }
 
-  /* 5 ─ drop redundant StaticText children ------------------------- */
+  // 5. drop redundant StaticText children
   const pruned = removeRedundantStaticTextChildren(node, cleanedChildren);
   if (!pruned.length && (node.role === "generic" || node.role === "none")) {
     return null;
   }
 
-  /* 6 ─ return updated node --------------------------------------- */
+  // 6. return updated node
   return { ...node, children: pruned };
 }
 
@@ -323,22 +327,20 @@ export async function buildHierarchicalTree(
   logger?: (l: LogLine) => void,
   xpathMap?: Record<EncodedId, string>,
 ): Promise<TreeResult> {
-  /** EncodedId → URL (only if the backend-id is unique) */
+  // EncodedId → URL (only if the backend-id is unique)
   const idToUrl: Record<EncodedId, string> = {};
 
-  /** nodeId (string) → mutable copy of the AX node we keep */
+  // nodeId (string) → mutable copy of the AX node we keep
   const nodeMap = new Map<string, RichNode>();
 
-  /** list of iframe AX nodes (kept for backwards-compat analytics) */
+  // list of iframe AX nodes
   const iframeList: AccessibilityNode[] = [];
 
-  /* helper: keep only roles that matter to the LLM ------------------ */
+  // helper: keep only roles that matter to the LLM
   const isInteractive = (n: AccessibilityNode) =>
     n.role !== "none" && n.role !== "generic" && n.role !== "InlineTextBox";
 
-  /* -----------------------------------------------------------------
-   *  Build “backendId → EncodedId[]” lookup from tagNameMap keys
-   * ----------------------------------------------------------------- */
+  // Build “backendId → EncodedId[]” lookup from tagNameMap keys
   const backendToIds = new Map<number, EncodedId[]>();
   for (const enc of Object.keys(tagNameMap) as EncodedId[]) {
     const [, backend] = enc.split("-"); // "ff-bb"
@@ -347,9 +349,7 @@ export async function buildHierarchicalTree(
     backendToIds.set(+backend, list);
   }
 
-  /* -----------------------------------------------------------------
-   *  Pass 1 – copy / filter CDP nodes we want to keep
-   * ----------------------------------------------------------------- */
+  // Pass 1 – copy / filter CDP nodes we want to keep
   for (const node of nodes) {
     if (+node.nodeId < 0) continue; // skip pseudo-nodes
 
@@ -359,7 +359,7 @@ export async function buildHierarchicalTree(
       node.name?.trim() || node.childIds?.length || isInteractive(node);
     if (!keep) continue;
 
-    /* resolve our EncodedId (unique per backendId) ----------------- */
+    // resolve our EncodedId (unique per backendId)
     let encodedId: EncodedId | undefined;
     if (node.backendDOMNodeId !== undefined) {
       const matches = backendToIds.get(node.backendDOMNodeId) ?? [];
@@ -368,7 +368,7 @@ export async function buildHierarchicalTree(
       // injection will fall back to backend-id matching
     }
 
-    /* store URL only when we have an unambiguous EncodedId */
+    // store URL only when we have an unambiguous EncodedId
     if (url && encodedId) idToUrl[encodedId] = url;
 
     nodeMap.set(node.nodeId, {
@@ -384,9 +384,7 @@ export async function buildHierarchicalTree(
     });
   }
 
-  /* -----------------------------------------------------------------
-   *  Pass 2 – parent-child wiring
-   * ----------------------------------------------------------------- */
+  // Pass 2 – parent-child wiring
   for (const node of nodes) {
     if (node.role === "Iframe")
       iframeList.push({ role: node.role, nodeId: node.nodeId });
@@ -397,9 +395,7 @@ export async function buildHierarchicalTree(
     if (parent && current) (parent.children ??= []).push(current);
   }
 
-  /* -----------------------------------------------------------------
-   *  Pass 3 – prune structural wrappers & tidy tree
-   * ----------------------------------------------------------------- */
+  // Pass 3 – prune structural wrappers & tidy tree
   const roots = nodes
     .filter((n) => !n.parentId && nodeMap.has(n.nodeId))
     .map((n) => nodeMap.get(n.nodeId)!) as RichNode[];
@@ -410,7 +406,7 @@ export async function buildHierarchicalTree(
     )
   ).filter(Boolean) as AccessibilityNode[];
 
-  /* pretty outline for logging / LLM input -------------------------- */
+  // pretty outline for logging / LLM input
   const simplified = cleanedRoots.map(formatSimplifiedTree).join("\n");
 
   return {
@@ -435,7 +431,7 @@ export async function getCDPFrameId(
 ): Promise<string | undefined> {
   if (!frame || frame === sp.page.mainFrame()) return undefined;
 
-  /* 1️⃣  Same-proc search in the page-session tree ------------------ */
+  // 1. Same-proc search in the page-session tree
   const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
   const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
 
@@ -453,9 +449,9 @@ export async function getCDPFrameId(
   };
 
   const sameProcId = findByUrlDepth(root);
-  if (sameProcId) return sameProcId; // ✅ found in page tree
+  if (sameProcId) return sameProcId; // found in page tree
 
-  /* 2️⃣  OOPIF path: open its own target ----------------------------- */
+  // 2. OOPIF path: open its own target
   try {
     const sess = await sp.context.newCDPSession(frame); // throws if detached
 
@@ -464,9 +460,7 @@ export async function getCDPFrameId(
 
     return frameTree.frame.id; // root of OOPIF
   } catch (err) {
-    throw new Error(
-      `Unable to resolve frameId for iframe (${url}): ${String(err)}`,
-    );
+    throw new StagehandIframeError(url, String(err));
   }
 }
 
@@ -486,22 +480,21 @@ export async function getAccessibilityTree(
   selector?: string,
   targetFrame?: Frame,
 ): Promise<TreeResult> {
-  /* ── 0. DOM helpers (maps, xpath) ────────────────────────────────── */
+  // 0. DOM helpers (maps, xpath)
   const { tagNameMap, xpathMap } = await buildBackendIdMaps(
     stagehandPage,
     targetFrame,
   );
 
-  /* always enable on the *target* session we’ll talk to later          */
   await stagehandPage.enableCDP("Accessibility", targetFrame);
 
   try {
-    /* ── 1. Decide params + session for the CDP call ───────────────── */
+    // 1. Decide params + session for the CDP call
     let params: Record<string, unknown> = {};
     let sessionFrame: Frame | undefined = targetFrame; // default: talk to that frame
 
     if (targetFrame && targetFrame !== stagehandPage.page.mainFrame()) {
-      /* try opening a CDP session: succeeds only for OOPIFs            */
+      // try opening a CDP session: succeeds only for OOPIFs
       let isOopif = true;
       try {
         await stagehandPage.context.newCDPSession(targetFrame);
@@ -512,28 +505,31 @@ export async function getAccessibilityTree(
       if (!isOopif) {
         // same-proc → use *page* session + { frameId }
         const frameId = await getCDPFrameId(stagehandPage, targetFrame);
-        logger({ message: `same-proc iframe, frameId=${frameId}`, level: 1 });
+        logger({
+          message: `same-proc iframe: frameId=${frameId}. Using existing CDP session.`,
+          level: 1,
+        });
         if (frameId) params = { frameId };
         sessionFrame = undefined; // page session
       } else {
-        logger({ message: `OOPIF iframe – own session`, level: 1 });
+        logger({ message: `OOPIF iframe: starting new CDP session`, level: 1 });
         params = {}; // no frameId allowed
         sessionFrame = targetFrame; // talk to OOPIF session
       }
     }
 
-    /* ── 2. Fetch raw AX nodes ─────────────────────────────────────── */
+    // 2. Fetch raw AX nodes
     const { nodes: fullNodes } = await stagehandPage.sendCDP<{
       nodes: AXNode[];
     }>("Accessibility.getFullAXTree", params, sessionFrame);
 
-    /* ── 3. Scrollable detection (frame-aware) ─────────────────────── */
+    // 3. Scrollable detection
     const scrollableIds = await findScrollableElementIds(
       stagehandPage,
       targetFrame,
     );
 
-    /* ── 4. Optional selector filter ───────────────────────────────── */
+    // 4. Filter by xpath if one is given
     let nodes = fullNodes;
     if (selector) {
       nodes = await filterAXTreeByXPath(
@@ -544,7 +540,7 @@ export async function getAccessibilityTree(
       );
     }
 
-    /* ── 5. Build hierarchical tree ────────────────────────────────── */
+    // 5. Build hierarchical tree
     const start = Date.now();
     const tree = await buildHierarchicalTree(
       decorateRoles(nodes, scrollableIds),
@@ -734,10 +730,6 @@ export function injectSubtrees(
   tree: string,
   idToTree: Map<EncodedId, string>,
 ): string {
-  /* ---------------------------------------------------------------
-   *  Helpers
-   * ------------------------------------------------------------- */
-
   /**  Return the *only* EncodedId that ends with this backend-id.
    *   If several frames share that backend-id we return undefined
    *   (avoids guessing the wrong subtree). */
@@ -764,9 +756,7 @@ export function injectSubtrees(
   const out: string[] = [];
   const visited = new Set<EncodedId>(); // avoid infinite loops
 
-  /* ---------------------------------------------------------------
-   *  Depth-first injection walk
-   * ------------------------------------------------------------- */
+  // Depth-first injection walk
   while (stack.length) {
     const top = stack[stack.length - 1];
 
@@ -779,15 +769,15 @@ export function injectSubtrees(
     const line = top.indent + raw;
     out.push(line);
 
-    /* grab whatever sits inside the first brackets, e.g. “[0:42]” or “[42]” */
+    // grab whatever sits inside the first brackets, e.g. “[0-42]” or “[42]”
     const m = /^\s*\[([^\]]+)]/.exec(raw);
     if (!m) continue;
 
-    const label = m[1]; // could be "1:13"   or "13"
+    const label = m[1]; // could be "1-13"   or "13"
     let enc: EncodedId | undefined;
     let child: string | undefined;
 
-    /* 1 exact match (“<ordinal>-<backend>”) or fallback by backend ID */
+    // 1 exact match (“<ordinal>-<backend>”) or fallback by backend ID
     if (idToTree.has(label as EncodedId)) {
       enc = label as EncodedId;
       child = idToTree.get(enc);
@@ -836,10 +826,10 @@ export async function getAccessibilityTreeWithFrames(
   logger: (l: LogLine) => void,
   rootXPath?: string,
 ): Promise<CombinedA11yResult> {
-  /* ── 0. main-frame bookkeeping ─────────────────────────────────── */
+  // 0. main-frame bookkeeping
   const main = stagehandPage.page.mainFrame();
 
-  /* ── 1. “focus XPath” → frame chain + inner XPath ──────────────── */
+  // 1. “focus XPath” → frame chain + inner XPath
   let targetFrames: Frame[] | undefined; // full chain, main-first
   let innerXPath: string | undefined;
 
@@ -854,21 +844,21 @@ export async function getAccessibilityTreeWithFrames(
 
   const mainOnlyFilter = !!innerXPath && !targetFrames;
 
-  /* ── 2. depth-first walk – collect snapshots ───────────────────── */
+  // 2. depth-first walk – collect snapshots
   const snapshots: FrameSnapshot[] = [];
   const frameStack: Frame[] = [main];
 
   while (frameStack.length) {
     const frame = frameStack.pop()!;
 
-    /* unconditional: enqueue children so we can reach deep targets */
+    // unconditional: enqueue children so we can reach deep targets
     frame.childFrames().forEach((c) => frameStack.push(c));
 
-    /* skip frames that are outside the requested chain / slice */
+    // skip frames that are outside the requested chain / slice
     if (targetFrames && !targetFrames.includes(frame)) continue;
     if (!targetFrames && frame !== main && innerXPath) continue;
 
-    /* selector to forward … (unchanged) */
+    // selector to forward (unchanged)
     const selector = targetFrames
       ? frame === targetFrames.at(-1)
         ? innerXPath
@@ -885,7 +875,7 @@ export async function getAccessibilityTreeWithFrames(
         frame,
       );
 
-      /* guard: main frame has no backendNodeId / <iframe> wrapper */
+      // guard: main frame has no backendNodeId
       const backendId =
         frame === main
           ? null
@@ -917,7 +907,7 @@ export async function getAccessibilityTreeWithFrames(
     }
   }
 
-  /* ── 3. merge per-frame maps ───────────────────────────────────── */
+  // 3. merge per-frame maps
   const combinedXpathMap: Record<EncodedId, string> = {};
   const combinedUrlMap: Record<EncodedId, string> = {};
 
@@ -933,7 +923,7 @@ export async function getAccessibilityTreeWithFrames(
     Object.assign(combinedUrlMap, snap.urlMap);
   }
 
-  /* ── 4. EncodedId → subtree map (skip main) ───────────────────── */
+  // 4. EncodedId → subtree map (skip main)
   const idToTree = new Map<EncodedId, string>();
   for (const { backendNodeId, frameId, tree } of snapshots)
     if (backendNodeId !== null && frameId !== undefined)
@@ -943,7 +933,7 @@ export async function getAccessibilityTreeWithFrames(
         tree,
       );
 
-  /* ── 5. stitch everything together ─────────────────────────────── */
+  //  5. stitch everything together
   const rootSnap = snapshots.find((s) => s.frameXpath === "/");
   const combinedTree = rootSnap
     ? injectSubtrees(rootSnap.tree, idToTree)
@@ -1123,8 +1113,6 @@ function extractUrlFromAXNode(axNode: AccessibilityNode): string | undefined {
   return undefined;
 }
 
-const IFRAME_STEP_RE = /iframe\[\d+]$/i;
-
 /**
  * Resolve a chain of iframe frames from an absolute XPath, returning the frame sequence and inner XPath.
  *
@@ -1164,15 +1152,14 @@ export async function resolveFrameChain(
       buf.push(steps[i]);
 
       if (IFRAME_STEP_RE.test(steps[i])) {
-        /* “/…/iframe[k]” found – descend into that frame ------------- */
+        // “/…/iframe[k]” found – descend into that frame
         const selector = "xpath=/" + buf.join("/");
         const handle = (ctxFrame ?? sp.page.mainFrame()).locator(selector);
         const frame = await handle
           .elementHandle()
           .then((h) => h?.contentFrame());
 
-        if (!frame)
-          throw new Error(`Could not obtain contentFrame for ${selector}`);
+        if (!frame) throw new ContentFrameNotFoundError(selector);
 
         chain.push(frame);
         ctxFrame = frame;
@@ -1180,9 +1167,9 @@ export async function resolveFrameChain(
         break;
       }
 
-      /*  Last step processed – but no iframe found  →  dead-end       */
+      // Last step processed – but no iframe found  →  dead-end
       if (i === steps.length - 1) {
-        throw new Error(`XPath “${absPath}” does not resolve in page`);
+        throw new XPathResolutionError(absPath);
       }
     }
   }
