@@ -137,6 +137,18 @@ export class StagehandObserveHandler {
         message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
         level: 1,
       });
+
+      discoveredIframes.forEach((iframe) => {
+        observationResponse.elements.push({
+          elementId: this.stagehandPage.encodeWithFrameId(
+            undefined,
+            Number(iframe.nodeId),
+          ),
+          description: "an iframe",
+          method: "not-supported",
+          arguments: [],
+        });
+      });
     }
 
     const elementsWithSelectors = await Promise.all(
