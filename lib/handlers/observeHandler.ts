@@ -8,7 +8,7 @@ import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
 } from "../a11y/utils";
-import { CombinedA11yResult, EncodedId } from "@/types/context";
+import { AccessibilityNode, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -87,16 +87,21 @@ export class StagehandObserveHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-
-    const { combinedTree, combinedXpathMap } = await (iframes
-      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger)
+    const { combinedTree, combinedXpathMap, discoveredIframes } = await (iframes
+      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
+          ({ combinedTree, combinedXpathMap }) => ({
+            combinedTree,
+            combinedXpathMap,
+            discoveredIframes: [] as AccessibilityNode[],
+          }),
+        )
       : getAccessibilityTree(this.stagehandPage, this.logger).then(
-          ({ simplified, xpathMap, idToUrl }) =>
-            ({
-              combinedTree: simplified,
-              combinedXpathMap: xpathMap,
-              combinedUrlMap: idToUrl,
-            }) satisfies CombinedA11yResult,
+          ({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
+            combinedTree: simplified,
+            combinedXpathMap: xpathMap,
+            combinedUrlMap: idToUrl,
+            discoveredIframes: frameNodes,
+          }),
         ));
 
     // No screenshot or vision-based annotation is performed
@@ -126,6 +131,14 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
+    if (discoveredIframes.length > 0) {
+      this.logger({
+        category: "observation",
+        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+        level: 1,
+      });
+    }
+
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;

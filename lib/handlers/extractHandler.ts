@@ -11,7 +11,7 @@ import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
 } from "@/lib/a11y/utils";
-import { CombinedA11yResult, EncodedId } from "@/types/context";
+import { EncodedId } from "@/types/context";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -141,27 +141,43 @@ export class StagehandExtractHandler {
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
-    const { combinedTree: outputString, combinedUrlMap: idToUrlMapping } =
-      await (iframes
-        ? getAccessibilityTreeWithFrames(
-            this.stagehandPage,
-            this.logger,
-            targetXpath,
-          )
-        : getAccessibilityTree(this.stagehandPage, this.logger, selector).then(
-            ({ simplified, idToUrl }) =>
-              ({
-                combinedTree: simplified,
-                combinedXpathMap: {} as Record<EncodedId, string>,
-                combinedUrlMap: idToUrl as Record<EncodedId, string>,
-              }) satisfies CombinedA11yResult,
-          ));
+    const {
+      combinedTree: outputString,
+      combinedUrlMap: idToUrlMapping,
+      discoveredIframes,
+    } = await (iframes
+      ? getAccessibilityTreeWithFrames(
+          this.stagehandPage,
+          this.logger,
+          targetXpath,
+        ).then(({ combinedTree, combinedUrlMap }) => ({
+          combinedTree,
+          combinedUrlMap,
+          combinedXpathMap: {} as Record<EncodedId, string>,
+          discoveredIframes: [] as undefined,
+        }))
+      : getAccessibilityTree(this.stagehandPage, this.logger, selector).then(
+          ({ simplified, idToUrl, iframes: frameNodes }) => ({
+            combinedTree: simplified,
+            combinedUrlMap: idToUrl as Record<EncodedId, string>,
+            combinedXpathMap: {} as Record<EncodedId, string>,
+            discoveredIframes: frameNodes,
+          }),
+        ));
 
     this.logger({
       category: "extraction",
       message: "Got accessibility tree data",
       level: 1,
     });
+
+    if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
+      this.logger({
+        category: "extraction",
+        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+        level: 1,
+      });
+    }
 
     // Transform user defined schema to replace string().url() with .number()
     const [transformedSchema, urlFieldPaths] =

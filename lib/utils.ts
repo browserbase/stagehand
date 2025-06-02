@@ -428,7 +428,7 @@ function makeIdStringSchema(orig: z.ZodString): z.ZodString {
     '(e.g. "0-432").';
   const composed =
     userDesc.trim().length > 0
-      ? `${base}  that follows this user-defined description: ${userDesc}`
+      ? `${base} that follows this user-defined description: ${userDesc}`
       : base;
 
   return z
