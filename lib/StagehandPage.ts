@@ -131,8 +131,7 @@ export class StagehandPage {
     const cached = this.fidOrdinals.get(fid);
     if (cached !== undefined) return cached;
 
-    const next = this.fidOrdinals.size; // 1, 2, 3, …
-    if (next > 99) throw new Error("Too many frames – widen EncodedId format");
+    const next: number = this.fidOrdinals.size;
     this.fidOrdinals.set(fid, next);
     return next;
   }
@@ -970,7 +969,7 @@ ${scriptContent} \
       this.cdpClients.set(target, session);
       return session;
     } catch (err) {
-      // ── Fallback for same-process iframes ────────────────────────────
+      // Fallback for same-process iframes
       const msg = (err as Error).message ?? "";
       if (msg.includes("does not have a separate CDP session")) {
         // Re-use / create the top-level session instead
@@ -979,7 +978,7 @@ ${scriptContent} \
         this.cdpClients.set(target, rootSession);
         return rootSession;
       }
-      throw err; // genuine failure → propagate
+      throw err;
     }
   }
 
@@ -999,7 +998,6 @@ ${scriptContent} \
   ): Promise<T> {
     const client = await this.getCDPClient(target ?? this.page);
 
-    // Cast *only* at the call site, like the original helper.
     return client.send(
       method as Parameters<CDPSession["send"]>[0],
       params as Parameters<CDPSession["send"]>[1],
