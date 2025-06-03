@@ -50,7 +50,7 @@ export const iframe_form_filling: EvalFunction = async ({
     .locator("xpath=/html/body/main/section[1]/form/fieldset/label[2]/input")
     .isChecked();
 
-  const messsageValue: string = await iframe
+  const messageValue: string = await iframe
     .locator('textarea[placeholder="Say hello…"]')
     .inputValue();
 
@@ -58,7 +58,7 @@ export const iframe_form_filling: EvalFunction = async ({
     firstNameValue.toLowerCase().trim() === "nunya" &&
     lastNameValue.toLowerCase().trim() === "business" &&
     emailValue.toLowerCase() === "test@email.com" &&
-    messsageValue.toLowerCase() === "yooooooooooooooo" &&
+    messageValue.toLowerCase() === "yooooooooooooooo" &&
     contactValue;
 
   return {

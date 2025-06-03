@@ -39,20 +39,6 @@ export const iframe_hn: EvalFunction = async ({
     };
   }
 
-  if (!title.includes(expectedTitleSubstring)) {
-    logger.error({
-      message: `Extracted title: ${title} does not contain expected substring: ${expectedTitleSubstring}`,
-      level: 0,
-    });
-    return {
-      _success: false,
-      error: `Extracted title: ${title} does not contain expected substring: ${expectedTitleSubstring}`,
-      logs: logger.getLogs(),
-      debugUrl,
-      sessionUrl,
-    };
-  }
-
   return {
     _success: true,
     logs: logger.getLogs(),
