@@ -171,6 +171,92 @@ Use the package manager of your choice to install the dependencies. We also have
 </Step>
 </Steps>
 
+## Python Quickstart
+
+If you prefer Python, you can get started with Stagehand Python SDK:
+
+<Steps>
+<Step title="Prerequisites">
+   Before you begin, you'll need Python 3.8+ installed. We recommend using [pyenv](https://github.com/pyenv/pyenv) to manage your Python versions.
+</Step>
+
+<Step title="Install Stagehand Python">
+
+```bash
+pip install stagehand-py browserbase-sdk playwright
+```
+
+</Step>
+
+<Step title="Set up environment variables">
+
+Create a `.env` file or export environment variables:
+
+```bash
+export BROWSERBASE_API_KEY="your_browserbase_api_key"
+export BROWSERBASE_PROJECT_ID="your_browserbase_project_id"
+export ANTHROPIC_API_KEY="your_anthropic_api_key"  # or OPENAI_API_KEY
+```
+
+</Step>
+
+<Step title="Create and run your first script">
+
+Create a file `main.py`:
+
+```python
+import asyncio
+import os
+from stagehand import Stagehand, StagehandConfig
+from stagehand.schemas import AvailableModel
+
+async def main():
+    config = StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        model_name=AvailableModel.CLAUDE_3_7_SONNET_LATEST,
+        model_client_options={
+            "api_key": os.getenv("ANTHROPIC_API_KEY")
+        }
+    )
+    
+    stagehand = Stagehand(config)
+    
+    try:
+        await stagehand.init()
+        page = stagehand.page
+        
+        await page.goto("https://docs.stagehand.dev/")
+        await page.act("click the quickstart link")
+        
+        result = await page.extract(
+            instruction="extract the main heading of the page",
+            schema={
+                "type": "object",
+                "properties": {"title": {"type": "string"}},
+                "required": ["title"]
+            }
+        )
+        
+        print(f"Extracted: {result['title']}")
+        
+    finally:
+        await stagehand.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Run the script:
+
+```bash
+python main.py
+```
+
+</Step>
+</Steps>
+
 ## Next Steps
 
 <CardGroup cols={2}>
