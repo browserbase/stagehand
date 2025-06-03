@@ -23,7 +23,7 @@ export const arxiv: EvalFunction = async ({
           .array(
             z.object({
               title: z.string().describe("the title of the paper"),
-              link: z.string().describe("the link to the paper").nullable(),
+              link: z.string().url().describe("the link to the paper"),
             }),
           )
           .describe("list of papers"),
