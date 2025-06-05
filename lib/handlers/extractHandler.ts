@@ -131,11 +131,10 @@ export class StagehandExtractHandler {
     });
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
     const tree = await getAccessibilityTree(
       this.stagehandPage,
       this.logger,
-      targetXpath,
+      selector,
     );
     this.logger({
       category: "extraction",

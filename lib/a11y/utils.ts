@@ -311,7 +311,7 @@ export async function getAccessibilityTree(
     let nodes = fullNodes;
 
     if (selector) {
-      const objectId = await resolveObjectIdForXPath(page, selector);
+      const objectId = await resolveObjectIdForSelector(page, selector);
 
       const { node } = await page.sendCDP<{
         node: { backendNodeId: number };
@@ -319,7 +319,7 @@ export async function getAccessibilityTree(
 
       if (!node?.backendNodeId) {
         throw new StagehandDomProcessError(
-          `Unable to resolve backendNodeId for XPath "${selector}"`,
+          `Unable to resolve backendNodeId for selector "${selector}"`,
         );
       }
 
@@ -328,7 +328,7 @@ export async function getAccessibilityTree(
       );
       if (!target) {
         throw new StagehandDomProcessError(
-          `No AX node found for backendNodeId ${node.backendNodeId} (XPath "${selector}")`,
+          `No AX node found for backendNodeId ${node.backendNodeId} (selector "${selector}")`,
         );
       }
 
@@ -424,7 +424,7 @@ export async function getAccessibilityTree(
  *     - During each iteration, we call `Runtime.evaluate` to run `document.evaluate(...)`
  *       with each XPath, obtaining a `RemoteObject` reference if it exists.
  *     - Then, for each valid object reference, we call `DOM.describeNode` to retrieve
- *       the element’s `backendNodeId`.
+ *       the element's `backendNodeId`.
  * - Collects all resulting `backendNodeId`s in a Set and returns them.
  *
  * @param stagehandPage - A StagehandPage instance with built-in CDP helpers.
@@ -462,6 +462,45 @@ export async function findScrollableElementIds(
   }
 
   return scrollableBackendIds;
+}
+
+/**
+ * Resolve a selector (XPath or CSS) to a Chrome-DevTools-Protocol (CDP) remote-object ID.
+ *
+ * @param page     A StagehandPage (or Playwright.Page with .sendCDP)
+ * @param selector An XPath (with xpath= prefix) or CSS selector
+ * @returns        The remote objectId for the matched node, or null
+ */
+export async function resolveObjectIdForSelector(
+  page: StagehandPage,
+  selector: string,
+): Promise<string | null> {
+  const expression = selector.startsWith("xpath=")
+    ? `
+      (function () {
+        const res = document.evaluate(
+          ${JSON.stringify(selector.substring(6))},
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
+        return res.singleNodeValue;
+      })();
+    `
+    : `document.querySelector(${JSON.stringify(selector)})`;
+
+  const { result } = await page.sendCDP<{
+    result?: { objectId?: string };
+  }>("Runtime.evaluate", {
+    expression,
+    returnByValue: false,
+  });
+
+  if (!result?.objectId) {
+    throw new StagehandElementNotFoundError([selector]);
+  }
+  return result.objectId;
 }
 
 /**
