@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.3.1
+
+### Patch Changes
+
+- [#796](https://github.com/browserbase/stagehand/pull/796) [`12a99b3`](https://github.com/browserbase/stagehand/commit/12a99b398d8a4c3eea3ca69a3cf793faaaf4aea3) Thanks [@miguelg719](https://github.com/miguelg719)! - Added a experimental flag to enable the newest and most experimental features
+
 ## 2.3.0
 
 ### Minor Changes
