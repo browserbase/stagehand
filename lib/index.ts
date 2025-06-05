@@ -399,6 +399,7 @@ export class Stagehand {
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
   private _history: Array<HistoryEntry> = [];
+  public readonly experimental: boolean;
   public get history(): ReadonlyArray<HistoryEntry> {
     return Object.freeze([...this._history]);
   }
@@ -505,6 +506,7 @@ export class Stagehand {
       logInferenceToFile = false,
       selfHeal = false,
       disablePino,
+      experimental = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -637,6 +639,7 @@ export class Stagehand {
     this.logInferenceToFile = logInferenceToFile;
     this.selfHeal = selfHeal;
     this.disablePino = disablePino;
+    this.experimental = experimental;
   }
 
   private registerSignalHandlers() {

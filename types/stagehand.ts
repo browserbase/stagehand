@@ -96,6 +96,10 @@ export interface ConstructorParams {
    * Disable Pino (helpful for Next.js or test environments)
    */
   disablePino?: boolean;
+  /**
+   * Experimental Flag: Enables the latest experimental features
+   */
+  experimental?: boolean;
 }
 
 export interface InitResult {
