@@ -73,7 +73,16 @@ function isTestEnvironment(): boolean {
  * StagehandLogger class that wraps Pino for our specific needs
  */
 export class StagehandLogger {
-  private logger: pino.Logger;
+  /**
+   * We maintain a single shared Pino instance when `usePino` is enabled.
+   * This prevents spawning a new worker thread for every Stagehand instance
+   * (which happens when `pino-pretty` transport is used), eliminating the
+   * memory/RSS growth observed when many Stagehand objects are created and
+   * disposed within the same process (e.g. a request-per-instance API).
+   */
+  private static sharedPinoLogger: pino.Logger | null = null;
+
+  private logger?: pino.Logger;
   private verbose: 0 | 1 | 2;
   private externalLogger?: (logLine: LogLine) => void;
   private usePino: boolean;
@@ -88,7 +97,14 @@ export class StagehandLogger {
     // In test environments, default to not using Pino to avoid worker thread issues
     this.usePino = this.isTest ? false : options.usePino !== false; // Default to using Pino if not specified and not in test
 
-    this.logger = this.usePino ? createLogger(options) : null;
+    if (this.usePino) {
+      // Re-use (or create) a single shared Pino logger instance
+      if (!StagehandLogger.sharedPinoLogger) {
+        StagehandLogger.sharedPinoLogger = createLogger(options);
+      }
+      this.logger = StagehandLogger.sharedPinoLogger;
+    }
+
     this.verbose = 1; // Default verbosity level
     this.externalLogger = externalLogger;
   }
@@ -124,9 +140,14 @@ export class StagehandLogger {
       return;
     }
 
-    // If we're in a test environment but no external logger is provided,
-    // use console for basic logging
-    if (this.isTest && !this.externalLogger) {
+    // For test environments WITHOUT an external logger OR for cases where Pino
+    // is disabled and no external logger is provided, fall back to console.* so
+    // users still see logs (non-colourised).
+    const shouldFallbackToConsole =
+      (!this.usePino && !this.externalLogger) ||
+      (this.isTest && !this.externalLogger);
+
+    if (shouldFallbackToConsole) {
       const level = logLine.level ?? 1;
       const prefix = `[${logLine.category || "log"}] `;
 
@@ -141,6 +162,8 @@ export class StagehandLogger {
           console.debug(prefix + logLine.message);
           break;
       }
+
+      return; // already handled via console output, avoid duplicate logging
     }
 
     if (this.usePino && this.logger) {
