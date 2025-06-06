@@ -32,7 +32,6 @@ export class StagehandContext {
         if (prop === "pages") {
           return (): Page[] => {
             const pwPages = target.pages();
-            // Convert all pages to StagehandPages synchronously
             return pwPages.map((pwPage: PlaywrightPage) => {
               let stagehandPage = this.pageMap.get(pwPage);
               if (!stagehandPage) {
@@ -52,14 +51,54 @@ export class StagehandContext {
             });
           };
         }
+        // For other properties/methods, pass through to the original context
         return target[prop as keyof PlaywrightContext];
       },
     }) as unknown as EnhancedContext;
+
+    // Listen for new pages directly on the original Playwright context
+    context.on("page", async (newPage: PlaywrightPage) => {
+      try {
+        // Check if we already have this page wrapped and initialized
+        let stagehandPage = this.pageMap.get(newPage);
+        if (
+          stagehandPage &&
+          (stagehandPage as unknown as { initialized: boolean }).initialized
+        ) {
+          this.setActivePage(stagehandPage);
+          return;
+        }
+
+        stagehandPage = await this.createStagehandPage(newPage); // This calls .init()
+        this.setActivePage(stagehandPage);
+
+        this.stagehand.log({
+          category: "context",
+          message: "New page wrapped and set as active by direct listener.",
+          level: 1,
+        });
+      } catch (error) {
+        this.stagehand.log({
+          category: "context",
+          message: "Error in direct 'page' event listener",
+          level: 0, // Error level
+          auxiliary: {
+            error: { value: error.message, type: "string" },
+            trace: { value: error.stack, type: "string" },
+          },
+        });
+      }
+    });
   }
 
   private async createStagehandPage(
     page: PlaywrightPage,
   ): Promise<StagehandPage> {
+    if (this.pageMap.has(page)) {
+      const existingPage = this.pageMap.get(page);
+      return existingPage;
+    }
+
     const stagehandPage = await new StagehandPage(
       page,
       this.stagehand,
@@ -81,14 +120,24 @@ export class StagehandContext {
 
     // Initialize existing pages
     const existingPages = context.pages();
-    for (const page of existingPages) {
-      const stagehandPage = await instance.createStagehandPage(page);
-      // Set the first page as active
-      if (!instance.activeStagehandPage) {
-        instance.setActivePage(stagehandPage);
+    if (existingPages.length === 0) {
+      // If no pages exist, create one (Playwright context might start empty)
+      stagehand.log({
+        category: "context",
+        message: "No existing pages, creating a new one.",
+        level: 2,
+      });
+      const pwPage = await context.newPage();
+      const shPage = await instance.createStagehandPage(pwPage);
+      instance.setActivePage(shPage);
+    } else {
+      for (const page of existingPages) {
+        const stagehandPage = await instance.createStagehandPage(page);
+        if (!instance.activeStagehandPage) {
+          instance.setActivePage(stagehandPage); // Set first page as active
+        }
       }
     }
-
     return instance;
   }
 

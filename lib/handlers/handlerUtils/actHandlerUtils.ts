@@ -1,4 +1,4 @@
-import { Page, Locator } from "@playwright/test";
+import { Locator } from "@playwright/test";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
@@ -417,72 +417,33 @@ async function handlePossiblePageNavigation(
     category: "action",
     message: `${actionDescription}, checking for page navigation`,
     level: 1,
-    auxiliary: {
-      xpath: { value: xpath, type: "string" },
-    },
+    auxiliary: { xpath: { value: xpath, type: "string" } },
   });
 
-  const newOpenedTab = await Promise.race([
-    new Promise<Page | null>((resolve) => {
-      stagehandPage.context.once("page", (page) => resolve(page));
-      setTimeout(() => resolve(null), 1500);
-    }),
+  // just wait a little for a possible new-tab event
+  await Promise.race([
+    new Promise((res) => stagehandPage.context.once("page", () => res(null))),
+    new Promise((res) => setTimeout(res, 1500)),
   ]);
+
+  // Always fetch the *current* active page from the Stagehand instance
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stagehand = (stagehandPage as any).stagehand;
+  const pageToSettle = await stagehand.context.getActivePage();
 
   logger({
     category: "action",
-    message: `${actionDescription} complete`,
+    message: `Settling DOM on page: ${pageToSettle.page.url()}`,
     level: 1,
-    auxiliary: {
-      newOpenedTab: {
-        value: newOpenedTab ? "opened a new tab" : "no new tabs opened",
-        type: "string",
-      },
-    },
   });
 
-  if (newOpenedTab && newOpenedTab.url() !== "about:blank") {
-    logger({
-      category: "action",
-      message: "new page detected (new tab) with URL",
-      level: 1,
-      auxiliary: {
-        url: { value: newOpenedTab.url(), type: "string" },
-      },
-    });
-    await newOpenedTab.close();
-    await stagehandPage.page.goto(newOpenedTab.url());
-    await stagehandPage.page.waitForLoadState("domcontentloaded");
-  }
-
   try {
-    await stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-  } catch (e) {
+    await pageToSettle._waitForSettledDom(domSettleTimeoutMs);
+  } catch {
     logger({
       category: "action",
       message: "wait for settled DOM timeout hit",
       level: 1,
-      auxiliary: {
-        trace: { value: e.stack, type: "string" },
-        message: { value: e.message, type: "string" },
-      },
-    });
-  }
-
-  logger({
-    category: "action",
-    message: "finished waiting for (possible) page navigation",
-    level: 1,
-  });
-
-  if (stagehandPage.page.url() !== initialUrl) {
-    logger({
-      category: "action",
-      message: "new page detected with URL",
-      level: 1,
-      auxiliary: {
-        url: { value: stagehandPage.page.url(), type: "string" },
-      },
     });
   }
 }
