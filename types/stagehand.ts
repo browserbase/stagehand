@@ -268,7 +268,7 @@ export interface AgentConfig {
   /**
    * Additional options to pass to the agent client
    */
-  options?: Record<string, unknown>;
+  options?: ClientOptions & Record<string, unknown>;
 }
 
 export enum StagehandFunctionName {
