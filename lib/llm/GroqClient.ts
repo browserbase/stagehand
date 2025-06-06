@@ -3,7 +3,6 @@ import OpenAI from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import {
   ChatMessage,
   CreateChatCompletionOptions,
@@ -15,21 +14,15 @@ import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 export class GroqClient extends LLMClient {
   public type = "groq" as const;
   private client: OpenAI;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
   public clientOptions: ClientOptions;
   public hasVision = false;
 
   constructor({
-    enableCaching = false,
-    cache,
     modelName,
     clientOptions,
     userProvidedInstructions,
   }: {
     logger: (message: LogLine) => void;
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
     userProvidedInstructions?: string;
@@ -43,8 +36,6 @@ export class GroqClient extends LLMClient {
       ...clientOptions,
     });
 
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.clientOptions = clientOptions;
   }
@@ -68,45 +59,6 @@ export class GroqClient extends LLMClient {
         },
       },
     });
-
-    // Try to get cached response
-    const cacheOptions = {
-      model: this.modelName.split("groq-")[1],
-      messages: options.messages,
-      temperature: options.temperature,
-      response_model: options.response_model,
-      tools: options.tools,
-      retries: retries,
-    };
-
-    if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
-      );
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse as T;
-      }
-    }
 
     // Format messages for Groq API (using OpenAI format)
     const formattedMessages = options.messages.map((msg: ChatMessage) => {
@@ -238,9 +190,6 @@ export class GroqClient extends LLMClient {
 
       // If there's no response model, return the entire response object
       if (!options.response_model) {
-        if (this.enableCaching) {
-          await this.cache.set(cacheOptions, response, options.requestId);
-        }
         return response as T;
       }
 
@@ -253,13 +202,6 @@ export class GroqClient extends LLMClient {
             data: result,
             usage: response.usage,
           };
-          if (this.enableCaching) {
-            await this.cache.set(
-              cacheOptions,
-              finalResponse,
-              options.requestId,
-            );
-          }
           return finalResponse as T;
         } catch (e) {
           logger({
@@ -288,13 +230,6 @@ export class GroqClient extends LLMClient {
               data: result,
               usage: response.usage,
             };
-            if (this.enableCaching) {
-              await this.cache.set(
-                cacheOptions,
-                finalResponse,
-                options.requestId,
-              );
-            }
             return finalResponse as T;
           }
         } catch (e) {

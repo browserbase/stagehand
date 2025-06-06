@@ -14,31 +14,22 @@ import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 import { ChatCompletion } from "openai/resources";
-import { LLMCache } from "../cache/LLMCache";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModel;
   private logger?: (message: LogLine) => void;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
 
   constructor({
     model,
     logger,
-    enableCaching = false,
-    cache,
   }: {
     model: LanguageModel;
     logger?: (message: LogLine) => void;
-    enableCaching?: boolean;
-    cache?: LLMCache;
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
-    this.cache = cache;
-    this.enableCaching = enableCaching;
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -59,49 +50,6 @@ export class AISdkClient extends LLMClient {
         },
       },
     });
-
-    const cacheOptions = {
-      model: this.model.modelId,
-      messages: options.messages,
-      response_model: options.response_model,
-    };
-
-    if (this.enableCaching && this.cache) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
-      );
-      if (cachedResponse) {
-        this.logger?.({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse;
-      } else {
-        this.logger?.({
-          category: "llm_cache",
-          message: "LLM cache miss - no cached response found",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-          },
-        });
-      }
-    }
 
     const formattedMessages: CoreMessage[] = options.messages.map((message) => {
       if (Array.isArray(message.content)) {
@@ -172,29 +120,6 @@ export class AISdkClient extends LLMClient {
         },
       } as T;
 
-      if (this.enableCaching) {
-        this.logger?.({
-          category: "llm_cache",
-          message: "caching response",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-            response: {
-              value: JSON.stringify(result),
-              type: "object",
-            },
-          },
-        });
-        this.cache.set(cacheOptions, result, options.requestId);
-      }
-
       this.logger?.({
         category: "aisdk",
         message: "response",
@@ -237,29 +162,6 @@ export class AISdkClient extends LLMClient {
         total_tokens: response.usage.totalTokens ?? 0,
       },
     } as T;
-
-    if (this.enableCaching) {
-      this.logger?.({
-        category: "llm_cache",
-        message: "caching response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-          response: {
-            value: JSON.stringify(result),
-            type: "object",
-          },
-        },
-      });
-      this.cache.set(cacheOptions, result, options.requestId);
-    }
 
     this.logger?.({
       category: "aisdk",
