@@ -6,13 +6,13 @@ export const vantechjournal: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://vantechjournal.com/");
+  await stagehand.page.goto("https://vantechjournal.com");
 
   await stagehand.page.act({
-    action: "click on page 8. do not click the next button",
+    action: "click on page 'recommendations'",
   });
 
-  const expectedUrl = "https://vantechjournal.com/archive?page=8";
+  const expectedUrl = "https://vantechjournal.com/recommendations";
   const currentUrl = stagehand.page.url();
 
   await stagehand.close();

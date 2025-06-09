@@ -6,11 +6,11 @@ export const observe_vantechjournal: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://vantechjournal.com/archive?page=8");
+  await stagehand.page.goto("https://vantechjournal.com/archive");
   await stagehand.page.waitForTimeout(1000);
 
   const observations = await stagehand.page.observe({
-    instruction: "find the button that takes us to the 11th page",
+    instruction: "Find the 'load more' link",
   });
 
   if (observations.length === 0) {
@@ -24,7 +24,7 @@ export const observe_vantechjournal: EvalFunction = async ({
     };
   }
 
-  const expectedLocator = `a.rounded-lg:nth-child(8)`;
+  const expectedLocator = `xpath=/html/body/div[3]/section/div/div/div[3]/a`;
 
   const expectedResult = await stagehand.page.locator(expectedLocator);
 
