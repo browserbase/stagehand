@@ -107,6 +107,10 @@ const apartments = await stagehand.page.extract({
     Defines the structure of the data to extract
   </ParamField>
 
+  <ParamField path="iframes" type="boolean" optional>
+      Set `iframes: true` if the extraction content exists within an iframe.
+  </ParamField>
+
   <ParamField path="useTextExtract" type="boolean" deprecated>
     This field is now **deprecated** and has no effect.
   </ParamField>

@@ -45,6 +45,10 @@ You can pass an `ObserveResult` to `act()` to perform the suggested action, whic
     Variables to use in the action. Variables in the action string are referenced using %variable_name%
   </ParamField>
 
+  <ParamField path="iframes" type="boolean" optional>
+    Set `iframes: true` if the target element exists within an iframe
+  </ParamField>
+
   <ParamField path="domSettleTimeoutMs" type="number" optional>
     Timeout in milliseconds for waiting for the DOM to settle
   </ParamField>
