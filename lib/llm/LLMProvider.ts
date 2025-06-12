@@ -93,7 +93,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.5-pro-preview-03-25": "google",
 };
 
-function getAISDKLanguageModel(
+export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
   apiKey?: string,
