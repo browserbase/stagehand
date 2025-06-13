@@ -38,7 +38,6 @@ import { StagehandLogger } from "./logger";
 import {
   StagehandError,
   StagehandNotInitializedError,
-  StagehandEnvironmentError,
   MissingEnvironmentVariableError,
   UnsupportedModelError,
   UnsupportedAISDKModelProviderError,
@@ -500,7 +499,7 @@ export class Stagehand {
       modelName,
       modelClientOptions,
       systemPrompt,
-      useAPI,
+      useAPI = true,
       localBrowserLaunchOptions,
       waitForCaptchaSolves = false,
       logInferenceToFile = false,
@@ -612,14 +611,10 @@ export class Stagehand {
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
-    this.usingAPI = useAPI ?? false;
+    this.usingAPI = useAPI;
     if (this.usingAPI && env === "LOCAL") {
-      throw new StagehandEnvironmentError("LOCAL", "BROWSERBASE", "API mode");
-    } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
-      throw new MissingEnvironmentVariableError(
-        "STAGEHAND_API_URL",
-        "API mode",
-      );
+      // Make env supersede useAPI
+      this.usingAPI = false;
     } else if (
       this.usingAPI &&
       this.llmClient &&
@@ -640,6 +635,13 @@ export class Stagehand {
     this.selfHeal = selfHeal;
     this.disablePino = disablePino;
     this.experimental = experimental;
+    if (this.experimental) {
+      this.stagehandLogger.warn(
+        "Experimental mode is enabled. This is a beta feature and may break at any time. Enabling experimental mode will disable the API",
+      );
+      // Disable API mode in experimental mode
+      this.usingAPI = false;
+    }
   }
 
   private registerSignalHandlers() {
@@ -715,7 +717,7 @@ export class Stagehand {
       });
 
       const modelApiKey = this.modelClientOptions?.apiKey;
-      const { sessionId } = await this.apiClient.init({
+      const { sessionId, available } = await this.apiClient.init({
         modelName: this.modelName,
         modelApiKey: modelApiKey,
         domSettleTimeoutMs: this.domSettleTimeoutMs,
@@ -728,7 +730,7 @@ export class Stagehand {
         browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
         browserbaseSessionID: this.browserbaseSessionID,
       });
-      if (!sessionId) {
+      if (!available) {
         this.apiClient = null;
       }
       this.browserbaseSessionID = sessionId;
