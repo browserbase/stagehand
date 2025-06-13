@@ -33,7 +33,7 @@ export const operatorResponseSchema = z.object({
         - goto: The URL to navigate to. e.g. "https://www.google.com"
         The other methods do not require a parameter.`,
     )
-    .optional(),
+    .nullable(),
   taskComplete: z
     .boolean()
     .describe(

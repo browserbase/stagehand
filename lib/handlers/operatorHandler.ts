@@ -121,9 +121,14 @@ export class StagehandOperatorHandler {
       }
       let extractionResult: unknown | undefined;
       if (result.method === "extract") {
-        extractionResult = await this.stagehandPage.page.extract(
-          result.parameters,
-        );
+        if (result.parameters === null || result.parameters === undefined) {
+          const extractionResultObj = await this.stagehandPage.page.extract();
+          extractionResult = extractionResultObj.page_text;
+        } else {
+          extractionResult = await this.stagehandPage.page.extract(
+            result.parameters,
+          );
+        }
       }
 
       await this.executeAction(result, playwrightArguments, extractionResult);
