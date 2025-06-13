@@ -70,7 +70,7 @@ export class StagehandActHandler {
       this.logger({
         category: "action",
         message: "Cannot execute ObserveResult with unsupported method",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: {
             value:
@@ -114,7 +114,7 @@ export class StagehandActHandler {
         this.logger({
           category: "action",
           message: "Error performing act from an ObserveResult",
-          level: 1,
+          level: 0,
           auxiliary: {
             error: { value: err.message, type: "string" },
             trace: { value: err.stack, type: "string" },
@@ -131,7 +131,7 @@ export class StagehandActHandler {
         category: "action",
         message:
           "Error performing act from an ObserveResult. Reprocessing the page and trying again",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: { value: err.message, type: "string" },
           trace: { value: err.stack, type: "string" },
@@ -155,7 +155,7 @@ export class StagehandActHandler {
         this.logger({
           category: "action",
           message: "Error performing act from an ObserveResult on fallback",
-          level: 1,
+          level: 0,
           auxiliary: {
             error: { value: err.message, type: "string" },
             trace: { value: err.stack, type: "string" },
@@ -326,7 +326,7 @@ export class StagehandActHandler {
         this.logger({
           category: "action",
           message: "chosen method is invalid",
-          level: 1,
+          level: 0,
           auxiliary: {
             method: { value: method, type: "string" },
           },
@@ -342,7 +342,7 @@ export class StagehandActHandler {
       this.logger({
         category: "action",
         message: "error performing method",
-        level: 1,
+        level: 0,
         auxiliary: {
           error: { value: e.message, type: "string" },
           trace: { value: e.stack, type: "string" },
