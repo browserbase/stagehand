@@ -18,7 +18,7 @@ import {
   ObserveOptions,
   ObserveResult,
 } from "../types/stagehand";
-import { AgentExecuteOptions, AgentResult } from ".";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import {
   StagehandAPIUnauthorizedError,
   StagehandHttpError,
