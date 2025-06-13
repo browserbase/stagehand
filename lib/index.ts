@@ -817,6 +817,7 @@ export class Stagehand {
           throw new StagehandError((body as ErrorResponse).message);
         }
       }
+      this.apiClient = null;
       return;
     } else {
       await this.context.close();
