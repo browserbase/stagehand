@@ -32,6 +32,18 @@
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
+<div align="center">
+	<!-- Keep these links. Translations will automatically update with the README. -->
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=de">Deutsch</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=es">Español</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=fr">français</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=ja">日本語</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=ko">한국어</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=pt">Português</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=ru">Русский</a> | 
+	<a href="https://www.readme-i18n.com/browserbase/stagehand?lang=zh">中文</a>
+</div>
+
 ## Why Stagehand?
 
 Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language, Stagehand is the natural choice for browser automations in production.
