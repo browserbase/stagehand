@@ -6,7 +6,9 @@ icon: 'gear'
 
 ## Stagehand constructor
 
-```javascript
+<Tabs>
+<Tab title="TypeScript">
+```typescript
 // Basic usage
 // Defaults to Browserbase; if no API key is provided, it will default to LOCAL
 // Default model is gpt-4o
@@ -91,6 +93,98 @@ const stagehand = new Stagehand({
 	browserbaseSessionID: "existing-session-id",
 });
 ```
+</Tab>
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand
+
+# Basic usage
+# Defaults to Browserbase; if no API key is provided, it will default to LOCAL
+# Default model is gpt-4o
+stagehand = Stagehand()
+
+# Custom configuration
+def custom_logger(log_line):
+    print(f"[{log_line.category}] {log_line.message}")
+
+stagehand = Stagehand(
+    env="LOCAL",
+    # env="BROWSERBASE",  # To run remotely on Browserbase (needs API keys)
+    verbose=1,
+    enable_caching=True,
+    logger=custom_logger,
+    # LLM configuration
+    model_name="google/gemini-2.0-flash",  # Name of the model to use in "provider/model" format
+    model_client_options={
+        "api_key": os.environ.get("ANTHROPIC_API_KEY"),  # Model API key
+    },  # Configuration options for the model client
+    api_key=os.environ.get("BROWSERBASE_API_KEY"),
+    project_id=os.environ.get("BROWSERBASE_PROJECT_ID"),
+    # API keys for authentication (if you want to use Browserbase)
+    browserbase_session_id=None,  # Can set Session ID for resuming Browserbase sessions
+    browserbase_session_create_params={  # Browser Session Params
+        "project_id": os.environ.get("BROWSERBASE_PROJECT_ID"),
+        "proxies": True,  # Using Browserbase's Proxies
+        "browser_settings": {
+            "advanced_stealth": True,  # Only available on Scale Plans
+            "block_ads": True,  # To Block Ad Popups (defaults to False)
+            "viewport": {  # Browser Size (ie 1920x1080, 1024x768)
+                "width": 1024,
+                "height": 768,
+            },
+        },
+    },
+    local_browser_launch_options={
+        "headless": True,  # Launches the browser in headless mode.
+        "executable_path": "/path/to/chrome",  # Custom path to the Chrome executable.
+        "args": ["--no-sandbox", "--disable-setuid-sandbox"],  # Additional launch arguments.
+        "env": {"NODE_ENV": "production"},  # Environment variables for the browser process.
+        "handle_sighup": True,
+        "handle_sigint": True,
+        "handle_sigterm": True,
+        "ignore_default_args": False,  # or specify a list of arguments to ignore.
+        "proxy": {
+            "server": "http://proxy.example.com:8080",
+            "bypass": "localhost",
+            "username": "user",
+            "password": "pass"
+        },
+        "traces_dir": "/path/to/traces",  # Directory to store trace files.
+        "user_data_dir": "/path/to/user/data",  # Custom user data directory.
+        "accept_downloads": True,
+        "downloads_path": "/path/to/downloads",
+        "extra_http_headers": {"User-Agent": "Custom Agent"},
+        "geolocation": {"latitude": 37.7749, "longitude": -122.4194, "accuracy": 10},
+        "permissions": ["geolocation", "notifications"],
+        "locale": "en-US",
+        "viewport": {"width": 1280, "height": 720},
+        "device_scale_factor": 1,
+        "has_touch": False,
+        "ignore_https_errors": True,
+        "record_video": {"dir": "/path/to/videos", "size": {"width": 1280, "height": 720}},
+        "record_har": {
+            "path": "/path/to/har.har",
+            "mode": "full",
+            "omit_content": False,
+            "content": "embed",
+            "url_filter": ".*"
+        },
+        "chromium_sandbox": True,
+        "devtools": True,
+        "bypass_csp": False,
+        "cdp_url": "http://localhost:9222",
+    },
+)
+
+# Resume existing Browserbase session
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    browserbase_session_id="existing-session-id",
+)
+```
+</Tab>
+</Tabs>
 
 This constructor is used to create an instance of Stagehand.
 
@@ -412,15 +506,34 @@ The constructor returns an instance of the `Stagehand` class configured with the
 
 ## `stagehand.init()`
 
-```javascript
+<Tabs>
+<Tab title="TypeScript">
+```typescript
 await stagehand.init();
 ```
+</Tab>
+<Tab title="Python">
+```python
+await stagehand.init()
+```
+</Tab>
+</Tabs>
 
 `init()` asynchronously initializes the Stagehand instance. It should be called before any other methods.
 
 ## `stagehand.close()`
-```javascript
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
 await stagehand.close();
 ```
+</Tab>
+<Tab title="Python">
+```python
+await stagehand.close()
+```
+</Tab>
+</Tabs>
 
 `close()` is a cleanup method to remove the temporary files created by Stagehand. It's recommended that you call this explicitly when you're done with your automation.
