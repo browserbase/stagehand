@@ -1,5 +1,19 @@
 # @browserbasehq/stagehand
 
+## 2.3.1
+
+### Patch Changes
+
+- [#796](https://github.com/browserbase/stagehand/pull/796) [`12a99b3`](https://github.com/browserbase/stagehand/commit/12a99b398d8a4c3eea3ca69a3cf793faaaf4aea3) Thanks [@miguelg719](https://github.com/miguelg719)! - Added a experimental flag to enable the newest and most experimental features
+
+- [#807](https://github.com/browserbase/stagehand/pull/807) [`2451797`](https://github.com/browserbase/stagehand/commit/2451797f64c0efa4a72fd70265110003c8d0a6cd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - include version number in StagehandDefaultError message
+
+- [#803](https://github.com/browserbase/stagehand/pull/803) [`1d631a5`](https://github.com/browserbase/stagehand/commit/1d631a57a197390f672b718ae5199991ab27cfb1) Thanks [@miguelg719](https://github.com/miguelg719)! - Enable session affinity for cache optimization
+
+- [#804](https://github.com/browserbase/stagehand/pull/804) [`9c398bb`](https://github.com/browserbase/stagehand/commit/9c398bb9ec2d10bdb53ad5aa7e3b58cce24fdb2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update operatorResponseSchema based on new openai spec
+
+- [#786](https://github.com/browserbase/stagehand/pull/786) [`c19ad7f`](https://github.com/browserbase/stagehand/commit/c19ad7f1e082e91fdeaa9c2ef63767a5a2b3a195) Thanks [@miguelg719](https://github.com/miguelg719)! - Handle reroute to account for rollout
+
 ## 2.3.0
 
 ### Minor Changes
