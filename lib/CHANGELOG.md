@@ -1,5 +1,19 @@
 # @browserbasehq/stagehand-lib
 
+## 2.4.0
+
+### Minor Changes
+
+- [#778](https://github.com/browserbase/stagehand/pull/778) [`df570b6`](https://github.com/browserbase/stagehand/commit/df570b67e46febcaf7282ffb65dd5707e2808152) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - iframe support
+
+### Patch Changes
+
+- [#809](https://github.com/browserbase/stagehand/pull/809) [`03ebebc`](https://github.com/browserbase/stagehand/commit/03ebebc0317f92d8de77285cc2e66dc0131fe9fe) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - log NoObjectGenerated error details
+
+- [#801](https://github.com/browserbase/stagehand/pull/801) [`1d4f0ab`](https://github.com/browserbase/stagehand/commit/1d4f0abca47bf47ae8b7aeb53f3cd1155a7e5448) Thanks [@miguelg719](https://github.com/miguelg719)! - Default use API to true
+
+- [#798](https://github.com/browserbase/stagehand/pull/798) [`d86200b`](https://github.com/browserbase/stagehand/commit/d86200bd5bde4c5ba113ca89e28ab86c14a8304e) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix pino logging memory leak by reusing worker
+
 ## 2.3.0
 
 ### Minor Changes

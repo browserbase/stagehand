@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-lib",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "Core Stagehand library sources",
   "main": "../dist/index.js",
