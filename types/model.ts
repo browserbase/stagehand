@@ -21,6 +21,7 @@ export const AvailableModelSchema = z.enum([
   "claude-3-5-sonnet-20240620",
   "claude-3-7-sonnet-latest",
   "claude-3-7-sonnet-20250219",
+  "claude-sonnet-4-20250514",
   "cerebras-llama-3.3-70b",
   "cerebras-llama-3.1-8b",
   "groq-llama-3.3-70b-versatile",

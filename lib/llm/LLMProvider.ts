@@ -80,6 +80,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "claude-3-5-sonnet-20241022": "anthropic",
   "claude-3-7-sonnet-20250219": "anthropic",
   "claude-3-7-sonnet-latest": "anthropic",
+  "claude-sonnet-4-20250514": "anthropic",
   "cerebras-llama-3.3-70b": "cerebras",
   "cerebras-llama-3.1-8b": "cerebras",
   "groq-llama-3.3-70b-versatile": "groq",
