@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { STAGEHAND_VERSION } from "../lib/version.js";
 
 export class StagehandError extends Error {
   constructor(message: string) {
@@ -11,7 +12,7 @@ export class StagehandDefaultError extends StagehandError {
   constructor(error?: unknown) {
     if (error instanceof Error || error instanceof StagehandError) {
       super(
-        `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
+        `\nHey! We're sorry you ran into an error. \nStagehand version: ${STAGEHAND_VERSION} \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
       );
     }
   }
