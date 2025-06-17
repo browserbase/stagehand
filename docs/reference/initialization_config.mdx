@@ -108,6 +108,14 @@ This constructor is used to create an instance of Stagehand.
     Your Browserbase project ID. Defaults to `BROWSERBASE_PROJECT_ID` environment variable
   </ParamField>
 
+  <ParamField path="experimental" type="boolean" optional>
+    Enables access to experimental features.
+  </ParamField>
+
+  <ParamField path="useAPI" type="boolean" optional>
+    Whether to use the stagehand API. Defaults to `true` when `env: "BROWSERBASE"`.
+  </ParamField>
+
   <ParamField path="browserbaseSessionCreateParams" type="object" optional>
       Configuration options for creating new Browserbase sessions. More information on browserbaseSessionCreateParams can be found [here](https://docs.browserbase.com/reference/api/create-a-session#body-browser-settings).
     <Expandable title="properties">
