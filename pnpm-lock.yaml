@@ -17,9 +17,6 @@ importers:
       '@google/genai':
         specifier: ^0.8.0
         version: 0.8.0
-      '@playwright/test':
-        specifier: ^1.42.1
-        version: 1.52.0
       ai:
         specifier: ^4.3.9
         version: 4.3.12(react@19.1.0)(zod@3.24.3)
@@ -109,6 +106,9 @@ importers:
       '@langchain/openai':
         specifier: ^0.4.4
         version: 0.4.9(@langchain/core@0.3.50(openai@4.96.2(ws@8.18.1)(zod@3.24.3)))(ws@8.18.1)
+      '@playwright/test':
+        specifier: ^1.42.1
+        version: 1.52.0
       '@types/adm-zip':
         specifier: ^0.5.7
         version: 0.5.7
