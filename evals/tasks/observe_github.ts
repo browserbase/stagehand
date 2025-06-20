@@ -6,7 +6,9 @@ export const observe_github: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://github.com/numpy/numpy/tree/main/numpy");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/github/",
+  );
 
   const observations = await stagehand.page.observe({
     instruction: "find the scrollable element that holds the repos file tree.",
@@ -24,14 +26,13 @@ export const observe_github: EvalFunction = async ({
   }
 
   const possibleLocators = [
-    `#repo-content-pjax-container > react-app > div > div > div.Box-sc-g0xbh4-0.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div`,
-    `#repo-content-pjax-container > react-app > div > div > div.Box-sc-g0xbh4-0.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ`,
-    `#repos-file-tree`,
-    `#repo-content-pjax-container > react-app > div > div > div.Box-sc-g0xbh4-0.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div > div.prc-PageLayout-Pane-Vl5LI > div`,
-    `#repo-content-pjax-container > react-app > div > div > div.Box-sc-g0xbh4-0.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div > div.prc-PageLayout-Pane-Vl5LI`,
+    `#repo-content-pjax-container > react-app > div > div > div.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ`,
+    `#repo-content-pjax-container > react-app > div > div > div.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div`,
+    `#repo-content-pjax-container > react-app > div > div > div.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div > div.prc-PageLayout-Pane-Vl5LI`,
+    `#repo-content-pjax-container > react-app > div > div > div.prc-PageLayout-PageLayoutRoot-1zlEO > div > div > div.Box-sc-g0xbh4-0.gISSDQ > div > div.prc-PageLayout-Pane-Vl5LI > div`,
     `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_`,
     `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div`,
-    `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div`,
+    `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div`,
     `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div > nav`,
     `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div > nav > ul`,
   ];
