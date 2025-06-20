@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand-lib
 
+## 2.4.1
+
+### Patch Changes
+
+- [#818](https://github.com/browserbase/stagehand/pull/818) [`1660751`](https://github.com/browserbase/stagehand/commit/1660751cd14cb5b27d44f8167216afb8d1c3c45c) Thanks [@miguelg719](https://github.com/miguelg719)! - Added CUA support for Claude 4 models
+
+- [#822](https://github.com/browserbase/stagehand/pull/822) [`8527a80`](https://github.com/browserbase/stagehand/commit/8527a80522c3eedb9516a6caa1a0e4e4be981a3d) Thanks [@miguelg719](https://github.com/miguelg719)! - Add model with date tag for OpenAI CUA
+
 ## 2.4.0
 
 ### Minor Changes

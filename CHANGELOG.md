@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.3.2
+
+### Patch Changes
+
+- [#810](https://github.com/browserbase/stagehand/pull/810) [`a175a51`](https://github.com/browserbase/stagehand/commit/a175a519b8c14300db6f1ed30709e113d18e99db) Thanks [@miguelg719](https://github.com/miguelg719)! - Update logos
+
 ## 2.3.1
 
 ### Patch Changes
