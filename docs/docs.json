@@ -29,6 +29,7 @@
           "examples/caching",
           "examples/running_evals",
           "examples/nextjs",
+          "examples/python",
           "examples/custom_llms",
           "examples/customize_browser",
           "examples/computer_use",
