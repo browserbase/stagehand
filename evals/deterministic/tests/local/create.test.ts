@@ -34,6 +34,8 @@ test.describe("Local browser launch options", () => {
 
     await stagehand.close();
 
+    expect(fs.existsSync(customUserDataDir)).toBeTruthy();
+
     // Cleanup
     fs.rmSync(customUserDataDir, { recursive: true, force: true });
   });
