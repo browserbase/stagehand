@@ -26,6 +26,7 @@ test.describe("Local browser launch options", () => {
       localBrowserLaunchOptions: {
         userDataDir: customUserDataDir,
         headless: true,
+        preserveUserDataDir: true,
       },
     });
     await stagehand.init();
@@ -38,6 +39,49 @@ test.describe("Local browser launch options", () => {
 
     // Cleanup
     fs.rmSync(customUserDataDir, { recursive: true, force: true });
+  });
+
+  test("cleans up userDataDir by default when preserveUserDataDir is false", async () => {
+    const customUserDataDir = path.join(os.tmpdir(), "cleanup-user-data");
+
+    const stagehand = new Stagehand({
+      ...StagehandConfig,
+      localBrowserLaunchOptions: {
+        userDataDir: customUserDataDir,
+        headless: true,
+        preserveUserDataDir: false,
+      },
+    });
+    await stagehand.init();
+
+    expect(fs.existsSync(customUserDataDir)).toBeTruthy();
+
+    await stagehand.close();
+
+    expect(fs.existsSync(customUserDataDir)).toBeFalsy();
+  });
+
+  test("cleans up userDataDir by default when no preserveUserDataDir flag is provided", async () => {
+    const customUserDataDir = path.join(
+      os.tmpdir(),
+      "default-cleanup-user-data",
+    );
+
+    const stagehand = new Stagehand({
+      ...StagehandConfig,
+      localBrowserLaunchOptions: {
+        userDataDir: customUserDataDir,
+        headless: true,
+        // No preserveUserDataDir flag provided - should default to cleanup
+      },
+    });
+    await stagehand.init();
+
+    expect(fs.existsSync(customUserDataDir)).toBeTruthy();
+
+    await stagehand.close();
+
+    expect(fs.existsSync(customUserDataDir)).toBeFalsy();
   });
 
   test("applies custom viewport settings", async () => {
