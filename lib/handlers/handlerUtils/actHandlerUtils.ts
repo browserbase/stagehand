@@ -177,7 +177,7 @@ export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error scrolling to previous chunk",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -208,7 +208,7 @@ export async function scrollElementIntoView(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error scrolling element into view",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -278,7 +278,7 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error scrolling element vertically to percentage",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -301,7 +301,7 @@ export async function fillOrType(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error filling element",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -338,7 +338,7 @@ export async function pressKey(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error pressing key",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -380,7 +380,7 @@ export async function clickElement(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error performing click",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
@@ -427,7 +427,7 @@ export async function fallbackLocatorMethod(ctx: MethodHandlerContext) {
     logger({
       category: "action",
       message: "error performing method",
-      level: 1,
+      level: 0,
       auxiliary: {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
