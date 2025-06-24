@@ -192,7 +192,7 @@ ${scriptContent} \
     }
 
     const browserbase = new Browserbase({
-      apiKey: process.env.BROWSERBASE_API_KEY || this.stagehand.apiKey,
+      apiKey: this.stagehand.apiKey ?? process.env.BROWSERBASE_API_KEY ,
     });
 
     const sessionStatus = await browserbase.sessions.retrieve(sessionId);
