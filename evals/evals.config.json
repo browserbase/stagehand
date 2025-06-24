@@ -362,6 +362,10 @@
     {
       "name": "iframes_nested",
       "categories": ["act"]
+    },
+    {
+      "name": "no_js_click",
+      "categories": ["act", "regression"]
     }
   ]
 }

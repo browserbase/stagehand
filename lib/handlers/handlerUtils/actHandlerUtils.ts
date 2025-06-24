@@ -373,13 +373,11 @@ export async function clickElement(ctx: MethodHandlerContext) {
   });
 
   try {
-    await locator.evaluate((el) => {
-      (el as HTMLElement).click();
-    });
+    await locator.click({ timeout: 3_500 });
   } catch (e) {
     logger({
       category: "action",
-      message: "error performing click",
+      message: "Playwright click failed, falling back to JS click",
       level: 1,
       auxiliary: {
         error: { value: e.message, type: "string" },
@@ -389,7 +387,24 @@ export async function clickElement(ctx: MethodHandlerContext) {
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
-    throw new StagehandClickError(xpath, e.message);
+
+    try {
+      await locator.evaluate((el) => (el as HTMLElement).click());
+    } catch (e) {
+      logger({
+        category: "action",
+        message: "error performing click (JS fallback)",
+        level: 0,
+        auxiliary: {
+          error: { value: e.message, type: "string" },
+          trace: { value: e.stack, type: "string" },
+          xpath: { value: xpath, type: "string" },
+          method: { value: "click", type: "string" },
+          args: { value: JSON.stringify(args), type: "object" },
+        },
+      });
+      throw new StagehandClickError(xpath, e.message);
+    }
   }
 
   await handlePossiblePageNavigation(
