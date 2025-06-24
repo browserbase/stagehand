@@ -831,10 +831,6 @@ ${scriptContent} \
             },
           });
 
-          if (this.stagehand.enableCaching) {
-            this.stagehand.llmProvider.cleanRequestCache(requestId);
-          }
-
           throw e;
         });
 
@@ -951,10 +947,6 @@ ${scriptContent} \
               },
             },
           });
-
-          if (this.stagehand.enableCaching) {
-            this.stagehand.llmProvider.cleanRequestCache(requestId);
-          }
 
           throw e;
         });
