@@ -1,4 +1,4 @@
-import { Page, Locator, FrameLocator } from "@playwright/test";
+import { Page, Locator, FrameLocator } from "playwright";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
