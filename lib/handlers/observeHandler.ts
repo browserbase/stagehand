@@ -3,7 +3,7 @@ import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { drawObserveOverlay } from "../utils";
+import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
 import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
@@ -171,7 +171,9 @@ export class StagehandObserveHandler {
         const lookUpIndex = elementId as EncodedId;
         const xpath = combinedXpathMap[lookUpIndex];
 
-        if (!xpath || xpath === "") {
+        const trimmedXpath = trimTrailingTextNode(xpath);
+
+        if (!trimmedXpath || trimmedXpath === "") {
           this.logger({
             category: "observation",
             message: `Empty xpath returned for element: ${elementId}`,
@@ -181,7 +183,7 @@ export class StagehandObserveHandler {
 
         return {
           ...rest,
-          selector: `xpath=${xpath}`,
+          selector: `xpath=${trimmedXpath}`,
           // Provisioning or future use if we want to use direct CDP
           // backendNodeId: elementId,
         };

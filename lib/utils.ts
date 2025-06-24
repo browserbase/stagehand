@@ -492,3 +492,7 @@ export function loadApiKeyFromEnv(
 
   return undefined;
 }
+
+export function trimTrailingTextNode(path: string): string {
+  return path.replace(/\/text\(\)(\[\d+\])?$/iu, "");
+}
