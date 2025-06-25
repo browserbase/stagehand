@@ -374,7 +374,7 @@ export class Stagehand {
   public verbose: 0 | 1 | 2;
   public llmProvider: LLMProvider;
   public enableCaching: boolean;
-  private apiKey: string | undefined;
+  protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
@@ -529,7 +529,6 @@ export class Stagehand {
 
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
-
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 
