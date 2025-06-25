@@ -248,7 +248,7 @@ export class StagehandLogger {
   warn(message: string, data?: Record<string, unknown>): void {
     this.log({
       message,
-      level: 0, // Using error level for warnings as we don't have a separate warning level
+      level: 1,
       category: "warning",
       auxiliary: this.convertToAuxiliary(data),
     });
