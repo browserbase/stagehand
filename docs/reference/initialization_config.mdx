@@ -82,6 +82,7 @@ const stagehand = new Stagehand({
         devtools: true,
         bypassCSP: false,
 		cdpUrl: 'http://localhost:9222',
+        preserveUserDataDir: false, // Whether to preserve the user data directory after Stagehand is closed. Defaults to false.
     },
 });
 
@@ -410,6 +411,9 @@ This constructor is used to create an instance of Stagehand.
     </ResponseField>
 	<ResponseField name="cdpUrl" type="string">
 		URL for the Chrome DevTools Protocol. Useful for connecting to a running browser instance.
+	</ResponseField>
+  	<ResponseField name="preserveUserDataDir" type="boolean">
+		Whether to preserve the user data directory after Stagehand is closed. This is useful for reusing local context with multiple sessions. Defaults to false.
 	</ResponseField>
   </Expandable>
 </ResponseField>
