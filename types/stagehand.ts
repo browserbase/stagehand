@@ -181,6 +181,7 @@ export interface LocalBrowserLaunchOptions {
   };
   tracesDir?: string;
   userDataDir?: string;
+  preserveUserDataDir?: boolean;
   acceptDownloads?: boolean;
   downloadsPath?: string;
   extraHTTPHeaders?: Record<string, string>;
