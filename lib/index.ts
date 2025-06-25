@@ -826,7 +826,10 @@ export class Stagehand {
       }
     }
 
-    if (this.contextPath) {
+    if (
+      this.contextPath &&
+      !this.localBrowserLaunchOptions?.preserveUserDataDir
+    ) {
       try {
         fs.rmSync(this.contextPath, { recursive: true, force: true });
       } catch (e) {
