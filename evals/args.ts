@@ -1,5 +1,10 @@
 import process from "process";
 import { EvalCategorySchema } from "@/types/evals";
+import chalk from "chalk";
+import { dedent } from "./utils";
+
+const HELP_REGEX = /^(?:--?)?(?:h|help)$/i;
+const MAN_REGEX = /^(?:--?)?man$/i;
 
 const rawArgs = process.argv.slice(2);
 
@@ -65,7 +70,93 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "agent",
     ];
 
-// Finally, interpret leftover arguments to see if user typed "category X" or a single eval name
+const providerDefault = process.env.EVAL_PROVIDER ?? undefined;
+
+function buildUsage(detailed = false): string {
+  const header = chalk.blue.bold("Stagehand • Eval Runner");
+  const synopsis = chalk.cyan(
+    `pnpm run evals [key=value]… [category <name>] | name=<evalName>`,
+  );
+
+  const body = dedent`
+    ${chalk.magenta.underline("Keys\n")}
+      ${chalk.cyan("env")}          target environment      (default ${chalk.dim(
+        "LOCAL",
+      )})       [${chalk.yellow("LOCAL")}, ${chalk.yellow("BROWSERBASE")}]
+      ${chalk.cyan("trials")}       number of trials        (default ${chalk.dim(
+        "10",
+      )})
+      ${chalk.cyan(
+        "concurrency",
+      )}  max parallel sessions   (default ${chalk.dim("10")})
+      ${chalk.cyan("provider")}  override LLM provider   (default ${chalk.dim(
+        providerDefault,
+      )})       [${chalk.yellow("OPENAI")}, ${chalk.yellow(
+        "ANTHROPIC",
+      )}, ${chalk.yellow("GOOGLE")}, ${chalk.yellow("TOGETHER")}, ${chalk.yellow(
+        "GROQ",
+      )}, ${chalk.yellow("CEREBRAS")}]
+
+    ${chalk.magenta.underline("Positional filters\n")}
+      category <category_name>   one of: ${DEFAULT_EVAL_CATEGORIES.map((c) =>
+        chalk.yellow(c),
+      ).join(", ")}
+
+      ${chalk.magenta.underline("\nExamples")}
+      
+      ${chalk.dim("# Run every evaluation locally with default settings")}
+      
+      ${chalk.green("pnpm run evals")}
+      
+      
+      ${chalk.dim("# Same as above but in Browserbase with three trials")}
+      
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("BROWSERBASE")} ${chalk.cyan(
+        "trials=",
+      )}${chalk.yellow("3")}
+
+
+      ${chalk.dim(
+        "# Run evals from only the 'act' category with a max of 4 running at any given time",
+      )}
+      
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("category")} ${chalk.yellow("act")} ${chalk.cyan(
+        "concurrency=",
+      )}${chalk.yellow("4")}
+
+
+      ${chalk.dim("# Execute a specific eval by filename")}
+      
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("my_eval_name")}
+  `;
+
+  if (!detailed)
+    return `${header}\n\n${synopsis}\n\nFor more details: ${chalk.bold(
+      "pnpm run evals -man\n",
+    )}`;
+
+  const envSection = dedent`
+    ${chalk.magenta.underline("\nEnvironment variables\n")}
+      EVAL_ENV              overridable via ${chalk.cyan("env=")}
+      
+      EVAL_TRIAL_COUNT      overridable via ${chalk.cyan("trials=")}
+      
+      EVAL_MAX_CONCURRENCY  overridable via ${chalk.cyan("concurrency=")}
+      
+      EVAL_PROVIDER         overridable via ${chalk.cyan("provider=")}
+  `;
+
+  return `${header}\n\n${synopsis}\n\n${body}\n${envSection}\n`;
+}
+
+const wantsHelp = rawArgs.some((a) => HELP_REGEX.test(a));
+const wantsMan = rawArgs.some((a) => MAN_REGEX.test(a));
+
+if (wantsHelp || wantsMan) {
+  console.log(buildUsage(wantsMan));
+  process.exit(0);
+}
+
 let filterByCategory: string | null = null;
 let filterByEvalName: string | null = null;
 
@@ -77,14 +168,18 @@ if (!filterByEvalName && parsedArgs.leftover.length > 0) {
   if (parsedArgs.leftover[0].toLowerCase() === "category") {
     filterByCategory = parsedArgs.leftover[1];
     if (!filterByCategory) {
-      console.error("Error: Category name not specified.");
+      console.error(chalk.red("Error: Category name not specified."));
       process.exit(1);
     }
     try {
       EvalCategorySchema.parse(filterByCategory);
     } catch {
       console.error(
-        `Error: Invalid category "${filterByCategory}". Valid categories are: ${DEFAULT_EVAL_CATEGORIES.join(", ")}`,
+        chalk.red(
+          `Error: Invalid category "${filterByCategory}". Valid categories are: ${DEFAULT_EVAL_CATEGORIES.join(
+            ", ",
+          )}`,
+        ),
       );
       process.exit(1);
     }
