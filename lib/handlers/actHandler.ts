@@ -221,6 +221,7 @@ export class StagehandActHandler {
         action,
         Object.values(SupportedPlaywrightAction),
         actionOrOptions.variables,
+        llmClient.tools,
       );
 
       const observeResults = await observeHandler.observe({
@@ -321,7 +322,7 @@ export class StagehandActHandler {
       } else if (typeof locator[method as keyof Locator] === "function") {
         await fallbackLocatorMethod(context);
 
-        // 4) If still unknown, we can’t handle it
+        // 4) If still unknown, we can't handle it
       } else {
         this.logger({
           category: "action",

@@ -30,6 +30,7 @@ import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider";
 import { AISDKProvider, AISDKCustomProvider } from "@/types/llm";
+import { Tool } from "ai";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
@@ -126,11 +127,17 @@ export class LLMProvider {
   private logger: (message: LogLine) => void;
   private enableCaching: boolean;
   private cache: LLMCache | undefined;
+  private tools: { [k: string]: Tool } | undefined;
 
-  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
+  constructor(
+    logger: (message: LogLine) => void,
+    enableCaching: boolean,
+    tools?: { [k: string]: Tool },
+  ) {
     this.logger = logger;
     this.enableCaching = enableCaching;
     this.cache = enableCaching ? new LLMCache(logger) : undefined;
+    this.tools = tools;
   }
 
   cleanRequestCache(requestId: string): void {
@@ -172,6 +179,7 @@ export class LLMProvider {
         logger: this.logger,
         enableCaching: this.enableCaching,
         cache: this.cache,
+        tools: this.tools,
       });
     }
 

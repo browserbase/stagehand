@@ -1,4 +1,5 @@
 import { ChatMessage } from "./llm/LLMClient";
+import { Tool } from "ai";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
@@ -19,6 +20,7 @@ ${userProvidedInstructions}`;
 export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
+  tools?: { [k: string]: Tool },
 ): ChatMessage {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
@@ -42,6 +44,15 @@ ONLY print the content using the print_extracted_data tool provided.
   `.trim()
     : "";
 
+  // Add custom tools information if available
+  const customToolsInfo =
+    tools && Object.keys(tools).length > 0
+      ? `
+You also have access to the following custom tools: ${Object.keys(tools).join(", ")}.
+You can use these tools to help with the extraction task if needed.
+  `.trim()
+      : "";
+
   const additionalInstructions =
     "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
     "Do not attempt to extract links directly from the text unless absolutely necessary. ";
@@ -52,6 +63,8 @@ ONLY print the content using the print_extracted_data tool provided.
 
   const content =
     `${baseContent}${contentDetail}\n\n${instructions}\n${toolInstructions}${
+      customToolsInfo ? `\n\n${customToolsInfo}` : ""
+    }${
       additionalInstructions ? `\n\n${additionalInstructions}` : ""
     }${userInstructions ? `\n\n${userInstructions}` : ""}`.replace(/\s+/g, " ");
 
@@ -114,6 +127,7 @@ chunksTotal: ${chunksTotal}`,
 // observe
 export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
+  tools?: { [k: string]: Tool },
 ): ChatMessage {
   const observeSystemPrompt = `
 You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
@@ -123,13 +137,27 @@ You will be given:
 2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
 
 Return an array of elements that match the instruction if they exist, otherwise return an empty array.`;
-  const content = observeSystemPrompt.replace(/\s+/g, " ");
+
+  // Add custom tools information if available
+  const customToolsInfo =
+    tools && Object.keys(tools).length > 0
+      ? `
+You also have access to the following custom tools: ${Object.keys(tools).join(", ")}.
+You can use these tools to help with the observation task if needed.
+  `.trim()
+      : "";
+
+  const content = [
+    observeSystemPrompt.replace(/\s+/g, " "),
+    customToolsInfo,
+    buildUserInstructionsString(userProvidedInstructions),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   return {
     role: "system",
-    content: [content, buildUserInstructionsString(userProvidedInstructions)]
-      .filter(Boolean)
-      .join("\n\n"),
+    content,
   };
 }
 
@@ -151,6 +179,7 @@ export function buildActObservePrompt(
   action: string,
   supportedActions: string[],
   variables?: Record<string, string>,
+  tools?: { [k: string]: Tool },
 ): string {
   // Base instruction
   let instruction = `Find the most relevant element to perform an action on given the following action: ${action}. 
@@ -160,6 +189,12 @@ export function buildActObservePrompt(
   If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.
   If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
   If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys.`;
+
+  // Add custom tools information if available
+  if (tools && Object.keys(tools).length > 0) {
+    const toolsInfo = `You also have access to the following custom tools: ${Object.keys(tools).join(", ")}. You can use these tools to help with the action if needed.`;
+    instruction += ` ${toolsInfo}`;
+  }
 
   // Add variable names (not values) to the instruction if any
   if (variables && Object.keys(variables).length > 0) {

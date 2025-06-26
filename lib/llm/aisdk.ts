@@ -4,18 +4,19 @@ import {
   CoreSystemMessage,
   CoreTool,
   CoreUserMessage,
-  generateObject,
   generateText,
   ImagePart,
   LanguageModel,
   NoObjectGeneratedError,
+  Output,
   TextPart,
+  Tool,
 } from "ai";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { ChatCompletion } from "openai/resources";
 import { LLMCache } from "../cache/LLMCache";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -23,23 +24,27 @@ export class AISdkClient extends LLMClient {
   private logger?: (message: LogLine) => void;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
+  public tools?: { [k: string]: Tool };
 
   constructor({
     model,
     logger,
     enableCaching = false,
     cache,
+    tools,
   }: {
     model: LanguageModel;
     logger?: (message: LogLine) => void;
     enableCaching?: boolean;
     cache?: LLMCache;
+    tools?: { [k: string]: Tool };
   }) {
     super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
     this.cache = cache;
     this.enableCaching = enableCaching;
+    this.tools = tools;
   }
 
   async createChatCompletion<T = ChatCompletion>({
@@ -157,14 +162,41 @@ export class AISdkClient extends LLMClient {
       };
     });
 
-    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
+    let objectResponse: Awaited<ReturnType<typeof generateText>>;
     if (options.response_model) {
       try {
-        objectResponse = await generateObject({
+        objectResponse = await generateText({
           model: this.model,
           messages: formattedMessages,
-          schema: options.response_model.schema,
+          experimental_output: Output.object({
+            schema: options.response_model.schema,
+          }),
+          tools: this.tools,
+          maxSteps: 10,
         });
+
+        if (objectResponse.toolCalls && objectResponse.toolCalls.length > 0) {
+          this.logger?.({
+            category: "aisdk_tool_calls",
+            message: `Tool calls executed: ${objectResponse.toolCalls.length}`,
+            level: 1,
+            auxiliary: {
+              toolCalls: {
+                value: JSON.stringify(
+                  objectResponse.toolCalls.map((tc) => ({
+                    name: tc.toolName,
+                    args: tc.toolCallId,
+                  })),
+                ),
+                type: "object",
+              },
+              requestId: {
+                value: options.requestId,
+                type: "string",
+              },
+            },
+          });
+        }
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
@@ -205,7 +237,7 @@ export class AISdkClient extends LLMClient {
       }
 
       const result = {
-        data: objectResponse.object,
+        data: JSON.parse(objectResponse.text),
         usage: {
           prompt_tokens: objectResponse.usage.promptTokens ?? 0,
           completion_tokens: objectResponse.usage.completionTokens ?? 0,
@@ -264,11 +296,56 @@ export class AISdkClient extends LLMClient {
       };
     }
 
+    // Log when tools are being used for text generation
+    const allTools = { ...tools, ...this.tools };
+    if (Object.keys(allTools).length > 0) {
+      this.logger?.({
+        category: "aisdk_tools",
+        message: "Using tools for text generation",
+        level: 1,
+        auxiliary: {
+          availableTools: {
+            value: Object.keys(allTools).join(", "),
+            type: "string",
+          },
+          requestId: {
+            value: options.requestId,
+            type: "string",
+          },
+        },
+      });
+    }
+
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
-      tools,
+      tools: allTools,
+      maxSteps: 10,
     });
+
+    // Log tool call information if present
+    if (textResponse.toolCalls && textResponse.toolCalls.length > 0) {
+      this.logger?.({
+        category: "aisdk_tool_calls",
+        message: `Tool calls executed: ${textResponse.toolCalls.length}`,
+        level: 1,
+        auxiliary: {
+          toolCalls: {
+            value: JSON.stringify(
+              textResponse.toolCalls.map((tc) => ({
+                name: tc.toolName,
+                args: tc.toolCallId,
+              })),
+            ),
+            type: "object",
+          },
+          requestId: {
+            value: options.requestId,
+            type: "string",
+          },
+        },
+      });
+    }
 
     const result = {
       data: textResponse.text,

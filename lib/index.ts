@@ -506,6 +506,7 @@ export class Stagehand {
       selfHeal = false,
       disablePino,
       experimental = false,
+      tools,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -523,12 +524,20 @@ export class Stagehand {
       this.externalLogger,
     );
 
+    // Log when tools are being passed to Stagehand
+    if (tools && Object.keys(tools).length > 0) {
+      this.stagehandLogger.info("Tools provided to Stagehand", {
+        availableTools: Object.keys(tools).join(", "),
+        toolCount: Object.keys(tools).length,
+      });
+    }
+
     this.enableCaching =
       enableCaching ??
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
 
     this.llmProvider =
-      llmProvider || new LLMProvider(this.logger, this.enableCaching);
+      llmProvider || new LLMProvider(this.logger, this.enableCaching, tools);
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 

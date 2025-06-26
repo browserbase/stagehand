@@ -6,6 +6,7 @@ import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "playwright";
 import { AgentProviderType } from "./agent";
+import { Tool } from "ai";
 
 export interface ConstructorParams {
   /**
@@ -100,6 +101,12 @@ export interface ConstructorParams {
    * Experimental Flag: Enables the latest experimental features
    */
   experimental?: boolean;
+  /**
+   * Tools that the LLM can use
+   */
+  tools?: {
+    [k: string]: Tool;
+  };
 }
 
 export interface InitResult {

@@ -71,7 +71,11 @@ export async function extract({
   const isUsingAnthropic = llmClient.type === "anthropic";
 
   const extractCallMessages: ChatMessage[] = [
-    buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
+    buildExtractSystemPrompt(
+      isUsingAnthropic,
+      userProvidedInstructions,
+      llmClient.tools,
+    ),
     buildExtractUserPrompt(instruction, domElements, isUsingAnthropic),
   ];
 
@@ -92,6 +96,7 @@ export async function extract({
   }
 
   const extractStartTime = Date.now();
+
   const extractionResponse =
     await llmClient.createChatCompletion<ExtractionResponse>({
       options: {
@@ -105,6 +110,14 @@ export async function extract({
         frequency_penalty: 0,
         presence_penalty: 0,
         requestId,
+        ...(llmClient.tools && {
+          tools: Object.entries(llmClient.tools).map(([name, tool]) => ({
+            type: "function" as const,
+            name,
+            description: tool.description,
+            parameters: tool.parameters,
+          })),
+        }),
       },
       logger,
     });
@@ -159,6 +172,7 @@ export async function extract({
   }
 
   const metadataStartTime = Date.now();
+
   const metadataResponse =
     await llmClient.createChatCompletion<MetadataResponse>({
       options: {
@@ -172,6 +186,14 @@ export async function extract({
         frequency_penalty: 0,
         presence_penalty: 0,
         requestId,
+        ...(llmClient.tools && {
+          tools: Object.entries(llmClient.tools).map(([name, tool]) => ({
+            type: "function" as const,
+            name,
+            description: tool.description,
+            parameters: tool.parameters,
+          })),
+        }),
       },
       logger,
     });
@@ -292,7 +314,7 @@ export async function observe({
   type ObserveResponse = z.infer<typeof observeSchema>;
 
   const messages: ChatMessage[] = [
-    buildObserveSystemPrompt(userProvidedInstructions),
+    buildObserveSystemPrompt(userProvidedInstructions, llmClient.tools),
     buildObserveUserMessage(instruction, domElements),
   ];
 
@@ -314,6 +336,7 @@ export async function observe({
   }
 
   const start = Date.now();
+
   const rawResponse = await llmClient.createChatCompletion<ObserveResponse>({
     options: {
       messages,
@@ -326,6 +349,14 @@ export async function observe({
       frequency_penalty: 0,
       presence_penalty: 0,
       requestId,
+      ...(llmClient.tools && {
+        tools: Object.entries(llmClient.tools).map(([name, tool]) => ({
+          type: "function" as const,
+          name,
+          description: tool.description,
+          parameters: tool.parameters,
+        })),
+      }),
     },
     logger,
   });

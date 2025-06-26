@@ -2,6 +2,7 @@ import { ZodType } from "zod";
 import { LLMTool } from "../../types/llm";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
+import { Tool } from "ai";
 import {
   generateObject,
   generateText,
@@ -102,6 +103,7 @@ export abstract class LLMClient {
   public hasVision: boolean;
   public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
+  public tools?: { [k: string]: Tool };
 
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {
     this.modelName = modelName;
