@@ -49,7 +49,7 @@ import { GotoOptions } from "@/types/playwright";
 
 dotenv.config({ path: ".env" });
 
-const DEFAULT_MODEL_NAME = "gpt-4o";
+const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 
 // Initialize the global logger
 let globalLogger: StagehandLogger;
