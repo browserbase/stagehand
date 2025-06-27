@@ -458,9 +458,9 @@ ${scriptContent} \
    * `_waitForSettledDom` waits until the DOM is settled, and therefore is
    * ready for actions to be taken.
    *
-   * **Definition of “settled”**
+   * **Definition of "settled"**
    *   • No in-flight network requests (except WebSocket / Server-Sent-Events).
-   *   • That idle state lasts for at least **500 ms** (the “quiet-window”).
+   *   • That idle state lasts for at least **500 ms** (the "quiet-window").
    *
    * **How it works**
    *   1.  Subscribes to CDP Network and Page events for the main target and all
@@ -499,6 +499,10 @@ ${scriptContent} \
       autoAttach: true,
       waitForDebuggerOnStart: false,
       flatten: true,
+      filter: [
+        { type: "worker", exclude: true },
+        { type: "shared_worker", exclude: true },
+      ],
     });
 
     return new Promise<void>((resolve) => {
@@ -978,7 +982,7 @@ ${scriptContent} \
       if (msg.includes("does not have a separate CDP session")) {
         // Re-use / create the top-level session instead
         const rootSession = await this.getCDPClient(this.page);
-        // cache the alias so we don’t try again for this frame
+        // cache the alias so we don't try again for this frame
         this.cdpClients.set(target, rootSession);
         return rootSession;
       }
