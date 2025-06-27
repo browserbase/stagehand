@@ -47,11 +47,11 @@ dotenv.config();
  */
 const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
   ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
-  : 3;
+  : 5;
 
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
-  : 3;
+  : 1;
 
 /**
  * generateSummary:
