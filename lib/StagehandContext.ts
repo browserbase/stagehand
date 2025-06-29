@@ -89,6 +89,10 @@ export class StagehandContext {
       }
     }
 
+    context.on("page", async (pwPage: PlaywrightPage) => {
+      void instance.getStagehandPage(pwPage);
+    });
+
     return instance;
   }
 
