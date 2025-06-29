@@ -35,14 +35,15 @@
 > If you're looking for the Python implementation, you can find it [here](https://github.com/browserbase/stagehand-python)
 
 <div align="center" style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 0;">
-  <span style="font-weight: bold; font-size: 1.05em;">Vibe code</span>
-  <span style="font-size: 1.05em;">Stagehand with</span>
+  <b>Vibe code</b>
+  <span style="font-size: 1.05em;"> Stagehand with </span>
   <a href="https://director.ai" style="display: flex; align-items: center;">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/Director_Logo_White.svg" />
-      <img alt="Director" src="media/Director_Logo.png" width="80" style="margin-left: 5px; vertical-align: middle;" />
-    </picture>
+    <span>Director</span>
   </a>
+  <span> </span>
+  <picture>
+    <img alt="Director" src="media/director_icon.svg" width="25" />
+  </picture>
 </div>
 
 ## Why Stagehand?
