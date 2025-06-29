@@ -102,7 +102,7 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["computer-use-preview", "claude-3-7-sonnet-20250219"];
+  : ["computer-use-preview-2025-03-11", "claude-3-7-sonnet-latest"];
 
 /**
  * getModelList:
