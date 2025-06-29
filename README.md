@@ -20,7 +20,7 @@
       <img alt="MIT License" src="media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://stagehand.dev/slack">
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="media/dark_slack.svg" />
       <img alt="Slack Community" src="media/light_slack.svg" />
@@ -120,9 +120,9 @@ nano .env # Edit the .env file to add API keys
 ## Contributing
 
 > [!NOTE]  
-> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://stagehand.dev/slack).
+> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg).
 
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
 
 For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing).
 
