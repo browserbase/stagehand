@@ -32,6 +32,20 @@
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
+> If you're looking for the Python implementation, you can find it [here](https://github.com/browserbase/stagehand-python)
+
+**Vibe code** Stagehand with [Director](https://director.ai): 
+<div id="toc" align="center" style="margin-bottom: 0;">
+  <ul style="list-style: none; margin: 0; padding: 0;">
+    <a href="https://director.ai">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="media/Director_Logo_White.svg" />
+        <img alt="Stagehand" src="media/Director_Logo.png" width="200" style="margin-right: 30px;" />
+      </picture>
+    </a>
+  </ul>
+</div>
+
 ## Why Stagehand?
 
 Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language, Stagehand is the natural choice for browser automations in production.
