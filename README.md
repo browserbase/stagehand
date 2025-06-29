@@ -33,8 +33,8 @@
 </p>
 
 <p align="center">
-If you're looking for the TypeScript implementation, you can find it 
-<a href="https://github.com/browserbase/stagehand"> here</a>
+If you're looking for the Python implementation, you can find it 
+<a href="https://github.com/browserbase/stagehand-python"> here</a>
 </p>
 
 <div align="center" style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 0;">
