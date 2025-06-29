@@ -32,8 +32,6 @@
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-> If you're looking for the Python implementation, you can find it [here](https://github.com/browserbase/stagehand-python)
-
 <div align="center" style="display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 0;">
   <b>Vibe code</b>
   <span style="font-size: 1.05em;"> Stagehand with </span>
@@ -45,6 +43,8 @@
     <img alt="Director" src="media/director_icon.svg" width="25" />
   </picture>
 </div>
+
+> If you're looking for the Python implementation, you can find it [here](https://github.com/browserbase/stagehand-python)
 
 ## Why Stagehand?
 
