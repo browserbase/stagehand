@@ -122,7 +122,7 @@ nano .env # Edit the .env file to add API keys
 > [!NOTE]  
 > We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://stagehand.dev/slack).
 
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
 
 For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing).
 

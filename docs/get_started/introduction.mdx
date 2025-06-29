@@ -3,6 +3,7 @@ title: What is Stagehand?
 description: 'Stagehand allows you to automate browsers with natural language and code.'
 icon: 'hand-horns'
 ---
+
 import { Excalidraw } from '/snippets/excalidraw.mdx';
 
 You can use Stagehand to do anything a web browser can do! Browser automations written with Stagehand are designed to be repeatable, customizable, and maintainable.
@@ -11,7 +12,8 @@ You can use Stagehand to do anything a web browser can do! Browser automations w
 
 That entire browser automation can be written in just a few lines of code with Stagehand:
 
-```typescript
+<CodeGroup>
+```typescript TypeScript
 const page = stagehand.page;
 await page.goto("https://docs.stagehand.dev");
 
@@ -35,7 +37,36 @@ const { text } = await page.extract({
     text: z.string(),
   }),
 });
-```	
+```
+
+```python Python
+page = stagehand.page
+await page.goto("https://docs.stagehand.dev")
+
+# Use act() to take an action on the page
+await page.act("Click the search box")
+
+# Use observe() to plan an action before doing it
+actions = await page.observe(
+    "Type 'Tell me in one sentence why I should use Stagehand' into the search box"
+)
+await page.act(actions[0])
+
+# Cache actions to avoid redundant LLM calls!
+await page.act("Click the suggestion to use AI")
+await page.wait_for_timeout(2000)
+
+# Define a custom schema for the extraction
+class Extraction(BaseModel):
+    text: str
+
+# Use extract() to extract structured data from the page
+result = await page.extract(
+    "extract the text of the AI suggestion from the search results",
+    schema=Extraction 
+)
+```
+</CodeGroup>
 
 With Stagehand, you can combine AI agents, AI tools, and regular Playwright to customize the agency of your browser automation.
 
@@ -58,6 +89,40 @@ console.log(JSON.stringify(actions, null, 2));
 console.log("Output:", message); // The agent's response
 ```
 
+```python Python Agent
+import asyncio
+from stagehand import Stagehand, StagehandConfig
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+async def main():
+    stagehand = Stagehand(StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        model_name="gpt-4o",
+        model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+    ))
+    
+    try:
+        await stagehand.init()
+        page = stagehand.page
+        await page.goto("https://github.com/browserbase/stagehand-python")
+        
+        # Use a simple agent to automate a workflow
+        agent = stagehand.agent()
+        result = await agent.execute("Extract the top contributor's username")
+        
+        print("Output:", result)
+        
+    finally:
+        await stagehand.close()
+
+asyncio.run(main())
+```
+
 ```typescript Stagehand Tools
 // You can use Stagehand tools to outline a specific workflow
 const page = stagehand.page;
@@ -75,9 +140,42 @@ const { title } = await page.extract({
 console.log(title);
 ```
 
+```python Python Tools
+import asyncio
+from stagehand import Stagehand, StagehandConfig
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    stagehand = Stagehand(StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        model_name="gpt-4o",
+        model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+    ))
+    
+    try:
+        await stagehand.init()
+        page = stagehand.page
+        await page.goto("https://github.com/browserbase/stagehand-python")
+        
+        await page.act("click on the contributors section")
+        
+        result = await page.extract("the top contributor's username")
+        
+        print(result)
+        
+    finally:
+        await stagehand.close()
+
+asyncio.run(main())
+```
+
 ```typescript Stagehand + Computer Use
 // You can use a Computer Use agent to automate an entire workflow
-await page.goto("https://github.com/browserbase/stagehand");
+await page.goto("https://github.com/browserbase/stagehand-python");
 
 const agent = stagehand.agent({
 	provider: "openai",
@@ -86,6 +184,36 @@ const agent = stagehand.agent({
 
 const result = await agent.execute("Extract the top contributor's username");
 console.log(result);
+```
+
+```python Python + Computer Use
+import asyncio
+from stagehand import Stagehand, StagehandConfig
+from dotenv import load_dotenv
+
+load_dotenv()
+
+async def main():
+    stagehand = Stagehand(StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        model_name="computer-use-preview",
+        model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+    ))
+    
+    try:
+        await stagehand.init()
+        await stagehand.page.goto("https://github.com/browserbase/stagehand")
+        
+        agent = stagehand.agent()
+        result = await agent.execute("Extract the top contributor's username")
+        print(result)
+        
+    finally:
+        await stagehand.close()
+
+asyncio.run(main())
 ```
 
 ```typescript Stagehand + Playwright
@@ -104,6 +232,43 @@ const topContributor = await page
 console.log(topContributor);
 ```
 
+```python Python + Playwright
+# You can use Playwright methods with Stagehand page
+# Use this when you don't want to risk leaving something up to AI
+import asyncio
+from stagehand import Stagehand, StagehandConfig
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+async def main():
+    stagehand = Stagehand(StagehandConfig(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        model_name="gpt-4o",
+        model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+    ))
+    
+    try:
+        await stagehand.init()
+        page = stagehand.page
+        await page.goto("https://github.com/browserbase/stagehand-python")
+        
+        await page.get_by_role("link", name="Contributors \\d+").click()
+        
+        top_contributor = await page.locator(
+            'a[href^="/browserbase/stagehand/commits?author="]'
+        ).first.text_content()
+        
+        print(top_contributor)
+        
+    finally:
+        await stagehand.close()
+
+asyncio.run(main())
+```
 </CodeGroup>
 
 To completely avoid the limitations of AI agents, Stagehand borrows the `page` and `context` objects from [Playwright](https://playwright.dev/) to give you **full control over the browser session.**

@@ -11,22 +11,37 @@ Stagehand has an `act()` function that can be used to execute actions on a page 
 ![Take actions with Stagehand](/media/linkedin.gif)
 
 This workflow is as simple as the following lines of code:
-```js
+
+<CodeGroup>
+```typescript TypeScript
 const page = stagehand.page
 // Navigate to the URL
 await page.goto("https://linkedin.com");
-
+// Click on jobs menu selection
 await page.act("click 'jobs'");
+// Click on first posting
 await page.act("click the first job posting");
 ```
+```python Python
+page = stagehand.page
+# Navigate to the URL
+await page.goto("https://linkedin.com")
+# Click on jobs menu selection
+await page.act("click 'jobs'")
+# Click on first posting
+await page.act("click the first job posting")
+```
+</CodeGroup>
 
 The `page` object extends the Playwright page object, so you can use any of the [Playwright page methods](https://playwright.dev/docs/api/class-page) with it.
 
-## Read structured data from the page
+## Get structured data from the page
 
-You can use the `extract()` method to extract structured data from the page. Here's an example of how to extract the job title from the job posting:
+You can use `extract()` to get structured data from the page.
+Here's an example of how to extract the job title from the job posting:
 
-```js
+<CodeGroup>
+```typescript TypeScript
 const { jobTitle } = await page.extract({
 	instruction: "Extract the job title from the job posting",
 	schema: z.object({
@@ -34,14 +49,21 @@ const { jobTitle } = await page.extract({
 	}),
 });
 ```
+```python Python
+result = await page.extract("Extract the job title from the job posting")
+```
+</CodeGroup>
 
-Stagehand uses [Zod](https://zod.dev/) to help you define the schema of the data to be extracted.
+<Info>
+Stagehand uses [Zod](https://zod.dev/) for TypeScript and [Pydantic](https://docs.pydantic.dev/) for Python to help you define the schema of the data to be extracted.
+</Info>
 
 ## Preview/Cache an action
 
 Sometimes you want to preview an action before it's executed. You can do this by calling `page.observe()` before `act()`.
 
-```js
+<CodeGroup>
+```typescript TypeScript
 const [action] = await page.observe("click 'jobs'");
 
 console.log("Going to execute action:", action)
@@ -49,19 +71,30 @@ console.log("Going to execute action:", action)
 
 await page.act(action)
 ```
+```python Python
+actions = await page.observe("click 'jobs'")
+action = actions[0]
+
+print("Going to execute action:", action)
+# You can add extra logic here to validate/cache the action
+
+await page.act(action)
+```
+</CodeGroup>
 
 `action` will be a JSON object that describes the action to be taken.
 
-```javascript
-/** action is a JSON-ified version of a Playwright action:
+
+```TypeScript
+// action is a JSON-ified version of a Playwright action:
 {
 	description: "The jobs link",
-	action: "click",
+	method: "click",
 	selector: "/html/body/div[1]/div[1]/a",
 	arguments: [],
 }
-**/
 ```
+
 
 For more on caching, see the [caching docs](/examples/caching).
 
@@ -83,10 +116,18 @@ We generally support the following actions:
 | `prevChunk` | Scrolls the height of the viewport by -100% |
 
 Each of these actions can be triggered using natural language commands. For example:
-```js
+
+<CodeGroup>
+```typescript TypeScript
 await page.act("scroll to the bottom of the page")
 await page.act("fill in the username field with 'john_doe'")
 await page.act("scroll the modal to the next chunk")
 ```
+```python Python
+await page.act("scroll to the bottom of the page")
+await page.act("fill in the username field with 'john_doe'")
+await page.act("scroll the modal to the next chunk")
+```
+</CodeGroup>
 
 

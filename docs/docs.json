@@ -36,6 +36,18 @@
         ]
       },
       {
+        "group": "Reference",
+        "pages": [
+          "reference/initialization_config",
+          "reference/agent",
+          "reference/act",
+          "reference/extract",
+          "reference/observe",
+          "reference/playwright_interop",
+          "integrations/guides"
+        ]
+      },
+      {
         "group": "Integrations",
         "pages": [
           "integrations/langchain",
@@ -45,17 +57,6 @@
           "integrations/cline",
           "integrations/claude-code",
           "integrations/crew-ai"
-        ]
-      },
-      {
-        "group": "Reference",
-        "pages": [
-          "reference/initialization_config",
-          "reference/agent",
-          "reference/act",
-          "reference/extract",
-          "reference/observe",
-          "reference/playwright_interop"
         ]
       }
     ],
@@ -77,7 +78,7 @@
   "logo": {
     "light": "/logo/light_logo.png",
     "dark": "/logo/dark_logo.png",
-    "href": "https://docs.stagehand.dev"
+    "href": "https://stagehand.dev"
   },
   "navbar": {
     "links": [

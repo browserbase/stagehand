@@ -3,15 +3,25 @@ title: 'Agent'
 description: 'Web AI agents for any task'
 icon: 'robot'
 ---
- ```javascript
-  const agent = stagehand.agent();
-  await agent.execute("Sign me up for a library card");
-  ```
+
+<CodeGroup>
+```typescript TypeScript
+const agent = stagehand.agent();
+await agent.execute("Sign me up for a library card");
+```
+
+```python Python
+agent = stagehand.agent()
+await agent.execute("Sign me up for a library card")
+```
+</CodeGroup>
+
 Software has always been deterministic and repeatable, but with AI agents it's difficult to replicate a workflow. **Stagehand combines the best of both worlds: intelligence and determinism**.
 
 Web Agents in Stagehand are fully customizable. You can use any LLM / VLM / Computer Use provider, set system prompts, add custom tools, and more.
 
-```javascript
+<CodeGroup>
+```typescript TypeScript
 // For Computer Use Agent (CUA) models
 const agent = stagehand.agent({
   provider: "openai",
@@ -22,6 +32,19 @@ const agent = stagehand.agent({
   },
 });
 ```
+
+```python Python
+# For Computer Use Agent (CUA) models
+agent = stagehand.agent({
+  "provider": "openai",
+  "model": "computer-use-preview",
+  "instructions": "You are a helpful assistant that can use a web browser.",
+  "options": {
+    "apiKey": os.getenv("OPENAI_API_KEY"),
+  },
+})
+```
+</CodeGroup>
 
 ### **Arguments:** [`AgentOptions`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
 
