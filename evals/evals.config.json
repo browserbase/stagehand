@@ -366,6 +366,10 @@
     {
       "name": "no_js_click",
       "categories": ["act", "regression"]
+    },
+    {
+      "name": "shadow_dom",
+      "categories": ["act"]
     }
   ]
 }

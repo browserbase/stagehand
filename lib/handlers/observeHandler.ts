@@ -168,25 +168,39 @@ export class StagehandObserveHandler {
           },
         });
 
-        const lookUpIndex = elementId as EncodedId;
-        const xpath = combinedXpathMap[lookUpIndex];
+        if (elementId.includes("-")) {
+          const lookUpIndex = elementId as EncodedId;
+          const xpath = combinedXpathMap[lookUpIndex];
 
-        const trimmedXpath = trimTrailingTextNode(xpath);
+          const trimmedXpath = trimTrailingTextNode(xpath);
 
-        if (!trimmedXpath || trimmedXpath === "") {
+          if (!trimmedXpath || trimmedXpath === "") {
+            this.logger({
+              category: "observation",
+              message: `Empty xpath returned for element: ${elementId}`,
+              level: 1,
+            });
+          }
+
+          return {
+            ...rest,
+            selector: `xpath=${trimmedXpath}`,
+            // Provisioning or future use if we want to use direct CDP
+            // backendNodeId: elementId,
+          };
+        } else {
           this.logger({
             category: "observation",
-            message: `Empty xpath returned for element: ${elementId}`,
-            level: 1,
+            message: `Element is inside a shadow DOM: ${elementId}`,
+            level: 0,
           });
+          return {
+            description: "an element inside a shadow DOM",
+            method: "not-supported",
+            arguments: [] as string[],
+            selector: "not-supported",
+          };
         }
-
-        return {
-          ...rest,
-          selector: `xpath=${trimmedXpath}`,
-          // Provisioning or future use if we want to use direct CDP
-          // backendNodeId: elementId,
-        };
       }),
     );
 
