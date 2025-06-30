@@ -1,0 +1,147 @@
+name: Feature Parity
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - labeled
+      - unlabeled
+    paths-ignore:
+      - "docs/**"
+
+jobs:
+  check-parity-label:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'labeled' && github.event.label.name == 'parity'
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Check user permissions
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+
+            const hasWriteAccess = ['admin', 'write'].includes(permission.permission);
+
+            if (!hasWriteAccess) {
+              // Remove the parity label if user doesn't have write access
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'parity'
+              });
+
+              // Add a comment explaining why the label was removed
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `❌ **Parity Label Removed**\n\n@${context.actor}, you do not have sufficient permissions to add the 'parity' label. Only users with write access can trigger feature parity issues.\n\nIf you believe this feature should be implemented in the Python SDK, please ask a maintainer to add the label.`
+              });
+
+              throw new Error(`User ${context.actor} does not have write access to add parity label`);
+            }
+
+            console.log(`User ${context.actor} has ${permission.permission} access - proceeding with parity workflow`);
+
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PARITY_APP_ID }}
+          private-key: ${{ secrets.PARITY_APP_PRIVATE_KEY }}
+          owner: browserbase
+          repositories: stagehand
+
+      - name: Create issue in Python SDK repository
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            // Get PR comments for additional context
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            // Format comments for the issue description
+            let commentsSection = '';
+            if (comments.length > 0) {
+              commentsSection = '\n\n## Recent Comments\n\n';
+              comments.slice(-3).forEach(comment => {
+                commentsSection += `**@${comment.user.login}** commented:\n`;
+                commentsSection += `${comment.body.substring(0, 500)}${comment.body.length > 500 ? '...' : ''}\n\n`;
+              });
+            }
+
+            // Get list of changed files for context
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const changedFiles = files.map(file => `- \`${file.filename}\``).join('\n');
+
+            const issueTitle = `[Feature Parity] ${pullRequest.title}`;
+            const issueBody = `## Feature Parity Request
+
+            This issue was automatically created from a pull request in the TypeScript Stagehand repository that was labeled with 'parity'.
+
+            ### Original PR Details
+            - **PR**: #${context.issue.number} - ${pullRequest.title}
+            - **Author**: @${pullRequest.user.login}
+            - **Link**: ${pullRequest.html_url}
+
+            ### Description
+            ${pullRequest.body || 'No description provided.'}
+
+            ### Changed Files
+            ${changedFiles}
+
+            ${commentsSection}
+
+            ### Action Required
+            Please review the changes in the original PR and implement equivalent functionality in the Python SDK if applicable.
+
+            ---
+            *This issue was automatically generated by the Feature Parity workflow.*`;
+
+            // Create the issue in the Python repository
+            const { data: issue } = await github.rest.issues.create({
+              owner: 'browserbase',
+              repo: 'stagehand-python',
+              title: issueTitle,
+              body: issueBody,
+              labels: ['feature-parity']
+            });
+
+            console.log(`Created issue: ${issue.html_url}`);
+
+            // Add a comment to the original PR confirming the issue was created
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🔄 **Feature Parity Issue Created**\n\nAn issue has been automatically created in the Python SDK repository to track parity implementation:\n${issue.html_url}`
+            });
