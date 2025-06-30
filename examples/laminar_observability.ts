@@ -6,7 +6,7 @@
 // 2. Run `export LMNR_PROJECT_API_KEY=<your-api-key>`
 // 3. Expose your OPENAI_API_KEY to the environment.
 
-import { Laminar, getTracer } from "@lmnr-ai/lmnr";
+import { Laminar } from "@lmnr-ai/lmnr";
 import { Stagehand } from "@/dist";
 import { OpenAI } from "openai";
 import { z } from "zod";
@@ -25,10 +25,6 @@ async function example() {
     modelName: "gpt-4o-mini",
     modelClientOptions: {
       apiKey: process.env.OPENAI_API_KEY,
-      aiSdkTelemetrySettings: {
-        isEnabled: true,
-        tracer: getTracer(),
-      },
     },
   });
   await stagehand.init();
