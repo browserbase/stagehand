@@ -6,7 +6,6 @@ export const costar: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
-  useTextExtract,
 }) => {
   // TODO: fix this eval - does not work in headless mode
   try {
@@ -28,7 +27,6 @@ export const costar: EvalFunction = async ({
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),
       }),
-      useTextExtract,
     });
 
     logger.log({

@@ -6,14 +6,16 @@ export const ionwave: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://elpasotexas.ionwave.net/Login.aspx");
+  await stagehand.page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/",
+  );
 
   await stagehand.page.act({
     action: 'Click on "Closed Bids"',
   });
 
   const expectedUrl =
-    "https://elpasotexas.ionwave.net/SourcingEvents.aspx?SourceType=2";
+    "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/closed-bids.html";
   const currentUrl = stagehand.page.url();
 
   await stagehand.close();

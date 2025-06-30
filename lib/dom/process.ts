@@ -2,7 +2,6 @@ import { generateXPathsForElement as generateXPaths } from "./xpathUtils";
 import {
   canElementScroll,
   getNodeFromXpath,
-  waitForDomSettle,
   waitForElementScrollEnd,
 } from "./utils";
 
@@ -74,7 +73,6 @@ export async function getScrollableElementXpaths(
   return xpaths;
 }
 
-window.waitForDomSettle = waitForDomSettle;
 window.getScrollableElementXpaths = getScrollableElementXpaths;
 window.getNodeFromXpath = getNodeFromXpath;
 window.waitForElementScrollEnd = waitForElementScrollEnd;

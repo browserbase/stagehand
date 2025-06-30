@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const allrecipes: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -28,7 +27,6 @@ export const allrecipes: EvalFunction = async ({
         .string()
         .describe("Total number of ratings for the recipe"),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

@@ -1,5 +1,5 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import { Browser, chromium } from "@playwright/test";
+import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
@@ -38,18 +38,18 @@ import { StagehandLogger } from "./logger";
 import {
   StagehandError,
   StagehandNotInitializedError,
-  StagehandEnvironmentError,
   MissingEnvironmentVariableError,
   UnsupportedModelError,
   UnsupportedAISDKModelProviderError,
   InvalidAISDKModelFormatError,
+  StagehandInitError,
 } from "../types/stagehandErrors";
 import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
 
 dotenv.config({ path: ".env" });
 
-const DEFAULT_MODEL_NAME = "gpt-4o";
+const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 
 // Initialize the global logger
 let globalLogger: StagehandLogger;
@@ -288,11 +288,7 @@ async function getBrowser(
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
       deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
       args: localBrowserLaunchOptions?.args ?? [
-        "--enable-webgl",
-        "--use-gl=swiftshader",
-        "--enable-accelerated-2d-canvas",
         "--disable-blink-features=AutomationControlled",
-        "--disable-web-security",
       ],
       bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
       proxy: localBrowserLaunchOptions?.proxy,
@@ -378,7 +374,7 @@ export class Stagehand {
   public verbose: 0 | 1 | 2;
   public llmProvider: LLMProvider;
   public enableCaching: boolean;
-  private apiKey: string | undefined;
+  protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
@@ -402,6 +398,7 @@ export class Stagehand {
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
   private _history: Array<HistoryEntry> = [];
+  public readonly experimental: boolean;
   public get history(): ReadonlyArray<HistoryEntry> {
     return Object.freeze([...this._history]);
   }
@@ -502,12 +499,13 @@ export class Stagehand {
       modelName,
       modelClientOptions,
       systemPrompt,
-      useAPI,
+      useAPI = true,
       localBrowserLaunchOptions,
       waitForCaptchaSolves = false,
       logInferenceToFile = false,
       selfHeal = false,
       disablePino,
+      experimental = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -531,7 +529,6 @@ export class Stagehand {
 
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
-
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 
@@ -613,14 +610,10 @@ export class Stagehand {
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
-    this.usingAPI = useAPI ?? false;
+    this.usingAPI = useAPI;
     if (this.usingAPI && env === "LOCAL") {
-      throw new StagehandEnvironmentError("LOCAL", "BROWSERBASE", "API mode");
-    } else if (this.usingAPI && !process.env.STAGEHAND_API_URL) {
-      throw new MissingEnvironmentVariableError(
-        "STAGEHAND_API_URL",
-        "API mode",
-      );
+      // Make env supersede useAPI
+      this.usingAPI = false;
     } else if (
       this.usingAPI &&
       this.llmClient &&
@@ -640,6 +633,14 @@ export class Stagehand {
     this.logInferenceToFile = logInferenceToFile;
     this.selfHeal = selfHeal;
     this.disablePino = disablePino;
+    this.experimental = experimental;
+    if (this.experimental) {
+      this.stagehandLogger.warn(
+        "Experimental mode is enabled. This is a beta feature and may break at any time. Enabling experimental mode will disable the API",
+      );
+      // Disable API mode in experimental mode
+      this.usingAPI = false;
+    }
   }
 
   private registerSignalHandlers() {
@@ -715,7 +716,7 @@ export class Stagehand {
       });
 
       const modelApiKey = this.modelClientOptions?.apiKey;
-      const { sessionId } = await this.apiClient.init({
+      const { sessionId, available } = await this.apiClient.init({
         modelName: this.modelName,
         modelApiKey: modelApiKey,
         domSettleTimeoutMs: this.domSettleTimeoutMs,
@@ -728,6 +729,9 @@ export class Stagehand {
         browserbaseSessionCreateParams: this.browserbaseSessionCreateParams,
         browserbaseSessionID: this.browserbaseSessionID,
       });
+      if (!available) {
+        this.apiClient = null;
+      }
       this.browserbaseSessionID = sessionId;
     }
 
@@ -754,6 +758,16 @@ export class Stagehand {
       });
     this.contextPath = contextPath;
     this._browser = browser;
+    if (!context) {
+      const errorMessage =
+        "The browser context is undefined. This means the CDP connection to the browser failed";
+      this.stagehandLogger.error(
+        this.env === "LOCAL"
+          ? `${errorMessage}. If running locally, please check if the browser is running and the port is open.`
+          : errorMessage,
+      );
+      throw new StagehandInitError(errorMessage);
+    }
     this.stagehandContext = await StagehandContext.init(context, this);
 
     const defaultPage = (await this.stagehandContext.getStagehandPages())[0];
@@ -802,6 +816,7 @@ export class Stagehand {
           throw new StagehandError((body as ErrorResponse).message);
         }
       }
+      this.apiClient = null;
       return;
     } else {
       await this.context.close();
@@ -810,7 +825,10 @@ export class Stagehand {
       }
     }
 
-    if (this.contextPath) {
+    if (
+      this.contextPath &&
+      !this.localBrowserLaunchOptions?.preserveUserDataDir
+    ) {
       try {
         fs.rmSync(this.contextPath, { recursive: true, force: true });
       } catch (e) {

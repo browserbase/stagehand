@@ -1,5 +1,53 @@
 # @browserbasehq/stagehand
 
+## 2.4.0
+
+### Minor Changes
+
+- [#819](https://github.com/browserbase/stagehand/pull/819) [`6a18c1e`](https://github.com/browserbase/stagehand/commit/6a18c1ee1e46d55c6e90c4d5572e17ed8daa140c) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - try playwright click and fall back to JS click event
+
+### Patch Changes
+
+- [#826](https://github.com/browserbase/stagehand/pull/826) [`124e0d3`](https://github.com/browserbase/stagehand/commit/124e0d3bb54ddb6738ede6d7aa99a945ef1cacd1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix issue where we are unable to take actions on text nodes
+
+- [#818](https://github.com/browserbase/stagehand/pull/818) [`1660751`](https://github.com/browserbase/stagehand/commit/1660751cd14cb5b27d44f8167216afb8d1c3c45c) Thanks [@miguelg719](https://github.com/miguelg719)! - Added CUA support for Claude 4 models
+
+- [#821](https://github.com/browserbase/stagehand/pull/821) [`cadac9d`](https://github.com/browserbase/stagehand/commit/cadac9da09123d12e5d496a0e8b12660964c1b33) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use playwright instead of playwright test
+
+- [#832](https://github.com/browserbase/stagehand/pull/832) [`759da55`](https://github.com/browserbase/stagehand/commit/759da55775eb2df81d56ae18c0f386fd9b02a9f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix \_refreshPageFromAPI to use parametrized apiKey
+
+- [#810](https://github.com/browserbase/stagehand/pull/810) [`a175a51`](https://github.com/browserbase/stagehand/commit/a175a519b8c14300db6f1ed30709e113d18e99db) Thanks [@miguelg719](https://github.com/miguelg719)! - Update logos
+
+- [#822](https://github.com/browserbase/stagehand/pull/822) [`8527a80`](https://github.com/browserbase/stagehand/commit/8527a80522c3eedb9516a6caa1a0e4e4be981a3d) Thanks [@miguelg719](https://github.com/miguelg719)! - Add model with date tag for OpenAI CUA
+
+- [#833](https://github.com/browserbase/stagehand/pull/833) [`55fca2f`](https://github.com/browserbase/stagehand/commit/55fca2f7da63cc0ef6e27b45a33f63c666cdce7e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - adjust stagehandLogger.warn() level to be 1 instead of 0
+
+## 2.3.1
+
+### Patch Changes
+
+- [#796](https://github.com/browserbase/stagehand/pull/796) [`12a99b3`](https://github.com/browserbase/stagehand/commit/12a99b398d8a4c3eea3ca69a3cf793faaaf4aea3) Thanks [@miguelg719](https://github.com/miguelg719)! - Added a experimental flag to enable the newest and most experimental features
+
+- [#807](https://github.com/browserbase/stagehand/pull/807) [`2451797`](https://github.com/browserbase/stagehand/commit/2451797f64c0efa4a72fd70265110003c8d0a6cd) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - include version number in StagehandDefaultError message
+
+- [#803](https://github.com/browserbase/stagehand/pull/803) [`1d631a5`](https://github.com/browserbase/stagehand/commit/1d631a57a197390f672b718ae5199991ab27cfb1) Thanks [@miguelg719](https://github.com/miguelg719)! - Enable session affinity for cache optimization
+
+- [#804](https://github.com/browserbase/stagehand/pull/804) [`9c398bb`](https://github.com/browserbase/stagehand/commit/9c398bb9ec2d10bdb53ad5aa7e3b58cce24fdb2b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update operatorResponseSchema based on new openai spec
+
+- [#786](https://github.com/browserbase/stagehand/pull/786) [`c19ad7f`](https://github.com/browserbase/stagehand/commit/c19ad7f1e082e91fdeaa9c2ef63767a5a2b3a195) Thanks [@miguelg719](https://github.com/miguelg719)! - Handle reroute to account for rollout
+
+## 2.3.0
+
+### Minor Changes
+
+- [#737](https://github.com/browserbase/stagehand/pull/737) [`6ef6073`](https://github.com/browserbase/stagehand/commit/6ef60730cab0ad9025f44b6eeb2c83751d1dcd35) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - deprecate useTextExtract and remove functionality
+
+### Patch Changes
+
+- [#741](https://github.com/browserbase/stagehand/pull/741) [`5680d25`](https://github.com/browserbase/stagehand/commit/5680d2509352c383ad502c9f4fabde01fa638833) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - use safeparse for zod validation
+
+- [#783](https://github.com/browserbase/stagehand/pull/783) [`4de92a8`](https://github.com/browserbase/stagehand/commit/4de92a8af461fc95063faf39feee1d49259f58ba) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix the readme logo link
+
 ## 2.2.1
 
 ### Patch Changes

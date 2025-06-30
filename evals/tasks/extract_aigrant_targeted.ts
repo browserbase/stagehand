@@ -3,7 +3,6 @@ import { EvalFunction } from "@/types/evals";
 
 export const extract_aigrant_targeted: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -17,7 +16,6 @@ export const extract_aigrant_targeted: EvalFunction = async ({
     schema: z.object({
       company_name: z.string(),
     }),
-    useTextExtract,
     selector: selector,
   });
 

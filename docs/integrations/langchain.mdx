@@ -1,12 +1,12 @@
 ---
-title: 'Langchain JS'
-description: 'Integrate Stagehand with Langchain JS'
-icon: 'brain-circuit'
+title: "Langchain JS"
+description: "Integrate Stagehand with Langchain JS"
+icon: "brain-circuit"
 ---
 
 Stagehand can be integrated into Langchain JS by wrapping Stagehand's browser automation functionality with the `StagehandToolkit`.
 
-This toolkit provides specialized tools such as `navigate`, `act`, `extract`, and `observe`, all powered by Stagehand's underlying capabilities. 
+This toolkit provides specialized tools such as `navigate`, `act`, `extract`, and `observe`, all powered by Stagehand's underlying capabilities.
 
 For more details on this integration and how to work with Langchain, see the [official Langchain documentation](https://js.langchain.com/docs/integrations/tools/stagehand/).
 
@@ -24,12 +24,12 @@ npm install @langchain/langgraph @langchain/community @langchain/core @browserba
 
 ```typescript
 const stagehand = new Stagehand({
-env: "LOCAL",
-verbose: 2,
-enableCaching: false,
+	env: "LOCAL",
+	verbose: 2,
+	enableCaching: false,
 });
 ```
-    
+
 ## Generate a Stagehand Toolkit object
 
 ```typescript
@@ -37,10 +37,11 @@ const stagehandToolkit = await StagehandToolkit.fromStagehand(stagehand);
 ```
 
 ## Use the tools
-* `stagehand_navigate`: Navigate to a specific URL.
-* `stagehand_act`: Perform browser automation tasks like clicking buttons and typing in fields.
-* `stagehand_extract`: Extract structured data from pages using Zod schemas.
-* `stagehand_observe`: Investigate the DOM for possible actions or relevant elements.
+
+- `stagehand_navigate`: Navigate to a specific URL.
+- `stagehand_act`: Perform browser automation tasks like clicking buttons and typing in fields.
+- `stagehand_extract`: Extract structured data from pages using Zod schemas.
+- `stagehand_observe`: Investigate the DOM for possible actions or relevant elements.
 
 Example standalone usage:
 
@@ -71,7 +72,6 @@ console.log(JSON.parse(result));
 const currentUrl = stagehand.page.url();
 // e.g., ensure it contains "google.com/search"
 ```
-
 
 ## Remote Browsers (Browserbase)
 

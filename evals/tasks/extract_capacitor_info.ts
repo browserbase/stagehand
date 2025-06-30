@@ -4,7 +4,6 @@ import { z } from "zod";
 
 export const extract_capacitor_info: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -20,7 +19,6 @@ export const extract_capacitor_info: EvalFunction = async ({
       RoHS_Status: z.string(),
       Impedance: z.string(),
     }),
-    useTextExtract,
   });
 
   const { ECCN_code, RoHS_Status, Impedance } = result;

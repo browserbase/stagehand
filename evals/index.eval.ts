@@ -19,7 +19,6 @@ import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
   filterByEvalName,
-  useTextExtract,
 } from "./args";
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
@@ -318,15 +317,6 @@ const generateFilteredTestcases = (): Testcase[] => {
               `No Eval function found for task name: ${taskName} in module ${input.name}`,
             );
           }
-          let shouldUseTextExtract = useTextExtract;
-          const categories = tasksByName[input.name].categories || [];
-          const isRegression = categories.includes("regression");
-          const regressionExtractMethod = tasksByName[input.name].extractMethod;
-          if (isRegression) {
-            if (regressionExtractMethod) {
-              shouldUseTextExtract = regressionExtractMethod === "textExtract";
-            }
-          }
 
           // Execute the task
           let llmClient: LLMClient;
@@ -375,7 +365,6 @@ const generateFilteredTestcases = (): Testcase[] => {
           const taskInput = await initStagehand({
             logger,
             llmClient,
-            useTextExtract: shouldUseTextExtract,
             modelName: input.modelName,
           });
           let result;

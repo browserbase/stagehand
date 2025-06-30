@@ -6,7 +6,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto(
@@ -34,7 +33,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
 
     logger.log({

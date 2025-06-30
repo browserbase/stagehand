@@ -6,7 +6,6 @@ export const sciquest: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
@@ -22,7 +21,6 @@ export const sciquest: EvalFunction = async ({
     schema: z.object({
       total_results: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { STAGEHAND_VERSION } from "../lib/version.js";
 
 export class StagehandError extends Error {
   constructor(message: string) {
@@ -11,7 +12,7 @@ export class StagehandDefaultError extends StagehandError {
   constructor(error?: unknown) {
     if (error instanceof Error || error instanceof StagehandError) {
       super(
-        `\nHey! We're sorry you ran into an error. \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
+        `\nHey! We're sorry you ran into an error. \nStagehand version: ${STAGEHAND_VERSION} \nIf you need help, please open a Github issue or reach out to us on Slack: https://stagehand.dev/slack\n\nFull error:\n${error.message}`,
       );
     }
   }
@@ -168,6 +169,45 @@ export class LLMResponseError extends StagehandError {
   }
 }
 
+export class StagehandIframeError extends StagehandError {
+  constructor(frameUrl: string, message: string) {
+    super(
+      `Unable to resolve frameId for iframe with URL: ${frameUrl} Full error: ${message}`,
+    );
+  }
+}
+
+export class ContentFrameNotFoundError extends StagehandError {
+  constructor(selector: string) {
+    super(`Unable to obtain a content frame for selector: ${selector}`);
+  }
+}
+
+export class XPathResolutionError extends StagehandError {
+  constructor(xpath: string) {
+    super(`XPath "${xpath}" does not resolve in the current page or frames`);
+  }
+}
+
+export class ExperimentalApiConflictError extends StagehandError {
+  constructor() {
+    super(
+      "`experimental` mode cannot be used together with the Stagehand API. " +
+        "To use experimental features, set experimental: true, and useApi: false in the stagehand constructor. " +
+        "To use the Stagehand API, set experimental: false and useApi: true in the stagehand constructor. ",
+    );
+  }
+}
+
+export class ExperimentalNotConfiguredError extends StagehandError {
+  constructor(featureName: string) {
+    super(`Feature "${featureName}" is an experimental feature, and cannot be configured when useAPI: true. 
+    Please set experimental: true and useAPI: false in the stagehand constructor to use this feature. 
+    If you wish to use the Stagehand API, please ensure ${featureName} is not defined in your function call, 
+    and set experimental: false, useAPI: true in the Stagehand constructor. `);
+  }
+}
+
 export class ZodSchemaValidationError extends Error {
   constructor(
     public readonly received: unknown,
@@ -181,5 +221,11 @@ ${JSON.stringify(received, null, 2)}
 — Issues —
 ${JSON.stringify(issues, null, 2)}`);
     this.name = "ZodSchemaValidationError";
+  }
+}
+
+export class StagehandInitError extends StagehandError {
+  constructor(message: string) {
+    super(message);
   }
 }

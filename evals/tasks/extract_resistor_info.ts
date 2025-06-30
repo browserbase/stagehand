@@ -7,7 +7,6 @@ export const extract_resistor_info: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/resistor/",
@@ -22,7 +21,6 @@ export const extract_resistor_info: EvalFunction = async ({
       resistance: z.string(),
       operating_temperature_range: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

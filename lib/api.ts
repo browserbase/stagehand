@@ -27,6 +27,7 @@ import {
   StagehandResponseBodyError,
   StagehandResponseParseError,
 } from "../types/stagehandApiErrors";
+import makeFetchCookie from "fetch-cookie";
 
 export class StagehandAPI {
   private apiKey: string;
@@ -34,11 +35,14 @@ export class StagehandAPI {
   private sessionId?: string;
   private modelApiKey: string;
   private logger: (message: LogLine) => void;
+  private fetchWithCookies;
 
   constructor({ apiKey, projectId, logger }: StagehandAPIConstructorParams) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.logger = logger;
+    // Create a single cookie jar instance that will persist across all requests
+    this.fetchWithCookies = makeFetchCookie(fetch);
   }
 
   async init({
@@ -58,6 +62,11 @@ export class StagehandAPI {
       throw new StagehandAPIError("modelApiKey is required");
     }
     this.modelApiKey = modelApiKey;
+
+    const region = browserbaseSessionCreateParams?.region;
+    if (region && region !== "us-west-2") {
+      return { sessionId: browserbaseSessionID ?? null, available: false };
+    }
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -91,6 +100,11 @@ export class StagehandAPI {
     }
 
     this.sessionId = sessionResponseBody.data.sessionId;
+
+    // Temporary reroute for rollout
+    if (!sessionResponseBody.data?.available && browserbaseSessionID) {
+      sessionResponseBody.data.sessionId = browserbaseSessionID;
+    }
 
     return sessionResponseBody.data;
   }
@@ -144,9 +158,10 @@ export class StagehandAPI {
 
   async end(): Promise<Response> {
     const url = `/sessions/${this.sessionId}/end`;
-    return await this.request(url, {
+    const response = await this.request(url, {
       method: "POST",
     });
+    return response;
   }
 
   private async execute<T>({
@@ -236,13 +251,16 @@ export class StagehandAPI {
       defaultHeaders["Content-Type"] = "application/json";
     }
 
-    const response = await fetch(`${process.env.STAGEHAND_API_URL}${path}`, {
-      ...options,
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
+    const response = await this.fetchWithCookies(
+      `${process.env.STAGEHAND_API_URL ?? "https://api.stagehand.browserbase.com/v1"}${path}`,
+      {
+        ...options,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers,
+        },
       },
-    });
+    );
 
     return response;
   }

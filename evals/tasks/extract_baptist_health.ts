@@ -4,7 +4,6 @@ import { z } from "zod";
 
 export const extract_baptist_health: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -21,7 +20,6 @@ export const extract_baptist_health: EvalFunction = async ({
       phone: z.string(),
       fax: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

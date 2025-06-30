@@ -6,7 +6,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
@@ -22,7 +21,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

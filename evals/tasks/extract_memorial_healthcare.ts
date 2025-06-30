@@ -4,7 +4,7 @@ import { compareStrings } from "@/evals/utils";
 
 export const extract_memorial_healthcare: EvalFunction = async ({
   logger,
-  useTextExtract,
+
   debugUrl,
   sessionUrl,
   stagehand,
@@ -25,7 +25,6 @@ export const extract_memorial_healthcare: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

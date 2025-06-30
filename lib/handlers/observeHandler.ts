@@ -3,12 +3,12 @@ import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { drawObserveOverlay } from "../utils";
+import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
 import {
   getAccessibilityTree,
-  getXPathByResolvedObjectId,
+  getAccessibilityTreeWithFrames,
 } from "../a11y/utils";
-import { AccessibilityNode } from "../../types/context";
+import { AccessibilityNode, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -41,6 +41,7 @@ export class StagehandObserveHandler {
     onlyVisible,
     drawOverlay,
     fromAct,
+    iframes,
   }: {
     instruction: string;
     llmClient: LLMClient;
@@ -53,6 +54,7 @@ export class StagehandObserveHandler {
     onlyVisible?: boolean;
     drawOverlay?: boolean;
     fromAct?: boolean;
+    iframes?: boolean;
   }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -70,8 +72,6 @@ export class StagehandObserveHandler {
       },
     });
 
-    let iframes: AccessibilityNode[] = [];
-
     if (onlyVisible !== undefined) {
       this.logger({
         category: "observation",
@@ -87,14 +87,27 @@ export class StagehandObserveHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
-    const outputString = tree.simplified;
-    iframes = tree.iframes;
+    const { combinedTree, combinedXpathMap, discoveredIframes } = await (iframes
+      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
+          ({ combinedTree, combinedXpathMap }) => ({
+            combinedTree,
+            combinedXpathMap,
+            discoveredIframes: [] as AccessibilityNode[],
+          }),
+        )
+      : getAccessibilityTree(this.stagehandPage, this.logger).then(
+          ({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
+            combinedTree: simplified,
+            combinedXpathMap: xpathMap,
+            combinedUrlMap: idToUrl,
+            discoveredIframes: frameNodes,
+          }),
+        ));
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
-      domElements: outputString,
+      domElements: combinedTree,
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
@@ -118,16 +131,26 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (iframes.length > 0) {
-      iframes.forEach((iframe) => {
+    if (discoveredIframes.length > 0) {
+      this.logger({
+        category: "observation",
+        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+        level: 1,
+      });
+
+      discoveredIframes.forEach((iframe) => {
         observationResponse.elements.push({
-          elementId: Number(iframe.nodeId),
+          elementId: this.stagehandPage.encodeWithFrameId(
+            undefined,
+            Number(iframe.nodeId),
+          ),
           description: "an iframe",
           method: "not-supported",
           arguments: [],
         });
       });
     }
+
     const elementsWithSelectors = await Promise.all(
       observationResponse.elements.map(async (element) => {
         const { elementId, ...rest } = element;
@@ -145,25 +168,12 @@ export class StagehandObserveHandler {
           },
         });
 
-        const args = { backendNodeId: elementId };
-        const { object } = await this.stagehandPage.sendCDP<{
-          object: { objectId: string };
-        }>("DOM.resolveNode", args);
+        const lookUpIndex = elementId as EncodedId;
+        const xpath = combinedXpathMap[lookUpIndex];
 
-        if (!object || !object.objectId) {
-          this.logger({
-            category: "observation",
-            message: `Invalid object ID returned for element: ${elementId}`,
-            level: 1,
-          });
-        }
+        const trimmedXpath = trimTrailingTextNode(xpath);
 
-        const xpath = await getXPathByResolvedObjectId(
-          await this.stagehandPage.getCDPClient(),
-          object.objectId,
-        );
-
-        if (!xpath || xpath === "") {
+        if (!trimmedXpath || trimmedXpath === "") {
           this.logger({
             category: "observation",
             message: `Empty xpath returned for element: ${elementId}`,
@@ -173,7 +183,7 @@ export class StagehandObserveHandler {
 
         return {
           ...rest,
-          selector: `xpath=${xpath}`,
+          selector: `xpath=${trimmedXpath}`,
           // Provisioning or future use if we want to use direct CDP
           // backendNodeId: elementId,
         };

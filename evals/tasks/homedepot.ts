@@ -6,7 +6,6 @@ export const homedepot: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
@@ -26,7 +25,6 @@ export const homedepot: EvalFunction = async ({
           )
           .describe("Gas grill Primary Burner BTU exact value"),
       }),
-      useTextExtract,
     });
 
     logger.log({

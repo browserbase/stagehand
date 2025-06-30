@@ -1,30 +1,29 @@
-<div id="toc" align="center">
-  <ul style="list-style: none">
+<div id="toc" align="center" style="margin-bottom: 0;">
+  <ul style="list-style: none; margin: 0; padding: 0;">
     <a href="https://stagehand.dev">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/logo-dark.svg" />
-        <img alt="Stagehand" src="https://stagehand.dev/logo-light.svg" />
+        <source media="(prefers-color-scheme: dark)" srcset="media/dark_logo.png" />
+        <img alt="Stagehand" src="media/light_logo.png" width="200" style="margin-right: 30px;" />
       </picture>
     </a>
   </ul>
 </div>
-
 <p align="center">
-  The production-ready framework for AI browser automations.<br>
+  <strong>The AI Browser Automation Framework</strong><br>
   <a href="https://docs.stagehand.dev">Read the Docs</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/license?mode=dark" />
-      <img alt="MIT License" src="https://stagehand.dev/api/assets/license?mode=light" />
+      <source media="(prefers-color-scheme: dark)" srcset="media/dark_license.svg" />
+      <img alt="MIT License" src="media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://stagehand.dev/slack">
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://stagehand.dev/api/assets/slack?mode=dark" />
-      <img alt="Slack Community" src="https://stagehand.dev/api/assets/slack?mode=light" />
+      <source media="(prefers-color-scheme: dark)" srcset="media/dark_slack.svg" />
+      <img alt="Slack Community" src="media/light_slack.svg" />
     </picture>
   </a>
 </p>
@@ -121,9 +120,9 @@ nano .env # Edit the .env file to add API keys
 ## Contributing
 
 > [!NOTE]  
-> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://stagehand.dev/slack).
+> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg).
 
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Anirudh Kamath](https://x.com/kamathematic) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://stagehand.dev/slack) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
 
 For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing).
 

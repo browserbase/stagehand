@@ -39,6 +39,17 @@ const { someValue } = await page.extract({
 });
 ```
 
+- when writing a schema for `extract`, if the user is attempting to extract links or URLs, use `z.string().url()` to define the link or URL field
+
+```typescript
+const { someLink } = await page.extract({
+  instruction: the instruction to execute,
+  schema: z.object({
+    someLink: z.string().url(),
+  }), // The schema to extract
+});
+```
+
 ## Initialize
 
 ```typescript

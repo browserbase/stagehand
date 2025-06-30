@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_github_commits: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -26,7 +25,6 @@ export const extract_github_commits: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
 
     logger.log({

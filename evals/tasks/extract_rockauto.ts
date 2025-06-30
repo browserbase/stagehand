@@ -6,7 +6,6 @@ export const extract_rockauto: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
@@ -23,7 +22,6 @@ export const extract_rockauto: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

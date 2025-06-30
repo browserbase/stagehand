@@ -8,6 +8,7 @@ import {
   generateText,
   ImagePart,
   LanguageModel,
+  NoObjectGeneratedError,
   TextPart,
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
@@ -156,19 +157,59 @@ export class AISdkClient extends LLMClient {
       };
     });
 
+    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     if (options.response_model) {
-      const response = await generateObject({
-        model: this.model,
-        messages: formattedMessages,
-        schema: options.response_model.schema,
-      });
+      try {
+        objectResponse = await generateObject({
+          model: this.model,
+          messages: formattedMessages,
+          schema: options.response_model.schema,
+        });
+      } catch (err) {
+        if (NoObjectGeneratedError.isInstance(err)) {
+          this.logger?.({
+            category: "AISDK error",
+            message: err.message,
+            level: 0,
+            auxiliary: {
+              cause: {
+                value: JSON.stringify(err.cause ?? {}),
+                type: "object",
+              },
+              text: {
+                value: err.text ?? "",
+                type: "string",
+              },
+              response: {
+                value: JSON.stringify(err.response ?? {}),
+                type: "object",
+              },
+              usage: {
+                value: JSON.stringify(err.usage ?? {}),
+                type: "object",
+              },
+              finishReason: {
+                value: err.finishReason ?? "unknown",
+                type: "string",
+              },
+              requestId: {
+                value: options.requestId,
+                type: "string",
+              },
+            },
+          });
+
+          throw err;
+        }
+        throw err;
+      }
 
       const result = {
-        data: response.object,
+        data: objectResponse.object,
         usage: {
-          prompt_tokens: response.usage.promptTokens ?? 0,
-          completion_tokens: response.usage.completionTokens ?? 0,
-          total_tokens: response.usage.totalTokens ?? 0,
+          prompt_tokens: objectResponse.usage.promptTokens ?? 0,
+          completion_tokens: objectResponse.usage.completionTokens ?? 0,
+          total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
 
@@ -201,7 +242,7 @@ export class AISdkClient extends LLMClient {
         level: 2,
         auxiliary: {
           response: {
-            value: JSON.stringify(response),
+            value: JSON.stringify(objectResponse),
             type: "object",
           },
           requestId: {
@@ -223,18 +264,18 @@ export class AISdkClient extends LLMClient {
       };
     }
 
-    const response = await generateText({
+    const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
       tools,
     });
 
     const result = {
-      data: response.text,
+      data: textResponse.text,
       usage: {
-        prompt_tokens: response.usage.promptTokens ?? 0,
-        completion_tokens: response.usage.completionTokens ?? 0,
-        total_tokens: response.usage.totalTokens ?? 0,
+        prompt_tokens: textResponse.usage.promptTokens ?? 0,
+        completion_tokens: textResponse.usage.completionTokens ?? 0,
+        total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;
 
@@ -267,7 +308,7 @@ export class AISdkClient extends LLMClient {
       level: 2,
       auxiliary: {
         response: {
-          value: JSON.stringify(response),
+          value: JSON.stringify(textResponse),
           type: "object",
         },
         requestId: {

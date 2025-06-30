@@ -7,7 +7,11 @@ import { injectUrls, transformSchema } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand, StagehandFunctionName } from "../index";
 import { pageTextSchema } from "../../types/page";
-import { getAccessibilityTree } from "@/lib/a11y/utils";
+import {
+  getAccessibilityTree,
+  getAccessibilityTreeWithFrames,
+} from "@/lib/a11y/utils";
+import { EncodedId } from "@/types/context";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -44,8 +48,9 @@ export class StagehandExtractHandler {
     llmClient,
     requestId,
     domSettleTimeoutMs,
-    useTextExtract = false,
+    useTextExtract,
     selector,
+    iframes,
   }: {
     instruction?: string;
     schema?: T;
@@ -56,6 +61,7 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
     selector?: string;
+    iframes?: boolean;
   } = {}): Promise<z.infer<T>> {
     const noArgsCalled = !instruction && !schema && !llmClient && !selector;
     if (noArgsCalled) {
@@ -83,6 +89,7 @@ export class StagehandExtractHandler {
       requestId,
       domSettleTimeoutMs,
       selector,
+      iframes,
     });
   }
 
@@ -109,6 +116,7 @@ export class StagehandExtractHandler {
     requestId,
     domSettleTimeoutMs,
     selector,
+    iframes,
   }: {
     instruction: string;
     schema: T;
@@ -117,6 +125,7 @@ export class StagehandExtractHandler {
     requestId?: string;
     domSettleTimeoutMs?: number;
     selector?: string;
+    iframes?: boolean;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -132,18 +141,43 @@ export class StagehandExtractHandler {
 
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
-    const tree = await getAccessibilityTree(
-      this.stagehandPage,
-      this.logger,
-      targetXpath,
-    );
+    const {
+      combinedTree: outputString,
+      combinedUrlMap: idToUrlMapping,
+      discoveredIframes,
+    } = await (iframes
+      ? getAccessibilityTreeWithFrames(
+          this.stagehandPage,
+          this.logger,
+          targetXpath,
+        ).then(({ combinedTree, combinedUrlMap }) => ({
+          combinedTree,
+          combinedUrlMap,
+          combinedXpathMap: {} as Record<EncodedId, string>,
+          discoveredIframes: [] as undefined,
+        }))
+      : getAccessibilityTree(this.stagehandPage, this.logger, selector).then(
+          ({ simplified, idToUrl, iframes: frameNodes }) => ({
+            combinedTree: simplified,
+            combinedUrlMap: idToUrl as Record<EncodedId, string>,
+            combinedXpathMap: {} as Record<EncodedId, string>,
+            discoveredIframes: frameNodes,
+          }),
+        ));
+
     this.logger({
       category: "extraction",
-      message: "Getting accessibility tree data",
+      message: "Got accessibility tree data",
       level: 1,
     });
-    const outputString = tree.simplified;
-    const idToUrlMapping = tree.idToUrl;
+
+    if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
+      this.logger({
+        category: "extraction",
+        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+        level: 1,
+      });
+    }
 
     // Transform user defined schema to replace string().url() with .number()
     const [transformedSchema, urlFieldPaths] =

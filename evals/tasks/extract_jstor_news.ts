@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const extract_jstor_news: EvalFunction = async ({
   logger,
-  useTextExtract,
+
   debugUrl,
   sessionUrl,
   stagehand,
@@ -30,7 +30,6 @@ export const extract_jstor_news: EvalFunction = async ({
         }),
       ),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();

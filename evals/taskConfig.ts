@@ -71,16 +71,14 @@ const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) satisfies {
 type TaskConfig = {
   name: string;
   categories: string[];
-  extract_method?: string;
 };
 const tasksConfig = config.tasks as TaskConfig[];
 
 const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[]; extractMethod?: string }>
+  Record<string, { categories: string[] }>
 >((acc, task) => {
   acc[task.name] = {
     categories: task.categories,
-    extractMethod: task.extract_method,
   };
   return acc;
 }, {});
@@ -104,7 +102,7 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["computer-use-preview", "claude-3-7-sonnet-20250219"];
+  : ["computer-use-preview-2025-03-11", "claude-3-7-sonnet-latest"];
 
 /**
  * getModelList:

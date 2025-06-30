@@ -7,7 +7,6 @@ export const extract_nhl_stats: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   await stagehand.page.goto(
     "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
@@ -24,7 +23,6 @@ export const extract_nhl_stats: EvalFunction = async ({
       num_goals: z.string(),
       team: z.string(),
     }),
-    useTextExtract,
   });
 
   await stagehand.close();
