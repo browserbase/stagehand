@@ -3,15 +3,26 @@ title: 'Agent'
 description: 'Web AI agents for any task'
 icon: 'robot'
 ---
- ```javascript
-  const agent = stagehand.agent();
-  await agent.execute("Sign me up for a library card");
-  ```
+
+<CodeGroup>
+```typescript TypeScript
+const agent = stagehand.agent();
+await agent.execute("Sign me up for a library card");
+```
+
+```python Python
+# Native Stagehand agent support for Python is coming soon.
+# agent = stagehand.agent()
+# await agent.execute("Sign me up for a library card")
+```
+</CodeGroup>
+
 Software has always been deterministic and repeatable, but with AI agents it's difficult to replicate a workflow. **Stagehand combines the best of both worlds: intelligence and determinism**.
 
 Web Agents in Stagehand are fully customizable. You can use any LLM / VLM / Computer Use provider, set system prompts, add custom tools, and more.
 
-```javascript
+<CodeGroup>
+```typescript TypeScript
 // For Computer Use Agent (CUA) models
 const agent = stagehand.agent({
   provider: "openai",
@@ -21,10 +32,37 @@ const agent = stagehand.agent({
     apiKey: process.env.OPENAI_API_KEY,
   },
 });
+
+// You can define additional options like max_steps and auto_screenshot
+await agent.execute({
+  instruction="Sign me up for a library card",
+  max_steps=20,
+})
 ```
+
+```python Python
+# For Computer Use Agent (CUA) models
+agent = stagehand.agent({
+    model="computer-use-preview",
+    instructions="You are a helpful assistant that can use a web browser.",
+    options={
+      "apiKey": os.getenv("OPENAI_API_KEY"),
+    },
+})
+
+# You can define additional options like max_steps and auto_screenshot
+result = await agent.execute({
+    instruction="Sign me up for a library card",
+    max_steps=20
+})
+
+```
+</CodeGroup>
 
 ### **Arguments:** [`AgentOptions`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
 
+<Tabs>
+<Tab title="TypeScript">
 <ParamField path="provider" type="string" required>
   Specifies the LLM provider.
   Currently supporting:
@@ -36,7 +74,7 @@ const agent = stagehand.agent({
   Specifies the LLM model.
   Currently supporting:
   - **OpenAI**:  `computer-use-preview`
-  - **Anthropic**:  `claude-3-7-sonnet-20250219` and `claude-3-5-sonnet-20240620`
+  - **Anthropic**:  `claude-sonnet-4-latest` and `claude-3-7-sonnet-latest`
 </ParamField>
 
 <ParamField path="instructions" type="string">
@@ -46,6 +84,32 @@ const agent = stagehand.agent({
 <ParamField path="options" type="object">
   Configuration options for the LLM provider. Currently supports OpenAI and Anthropic SDK client options. 
 </ParamField>
+</Tab>
+
+<Tab title="Python">
+<ParamField path="model" type="string" required>
+  Specifies the LLM model.
+  Currently supporting:
+  - **OpenAI**:  `computer-use-preview`
+  - **Anthropic**:  `claude-sonnet-4-latest` and `claude-3-7-sonnet-latest`
+</ParamField>
+
+<ParamField path="provider" type="string" optional>
+  Specifies the LLM provider.
+  Currently supporting:
+  - **OpenAI**:  `openai`
+  - **Anthropic**:  `anthropic`
+</ParamField>
+
+<ParamField path="instructions" type="string">
+  Specifies the system prompt
+</ParamField>
+
+<ParamField path="options" type="dict">
+  Configuration options for the LLM provider. Currently supports OpenAI and Anthropic SDK client options. 
+</ParamField>
+</Tab>
+</Tabs>
 
 ### **Returns:** [`Promise<AgentResult>`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
 
@@ -65,7 +129,7 @@ const agent = stagehand.agent({
     Whether the agent fully completed its task (can be false even if success is true)
   </ParamField>
 
-  <ParamField path="metadata" type="Record<string, unknown>">
+  <ParamField path="metadata" type="Record<string, unknown> | dict">
     Optional additional data about the execution
   </ParamField>
 

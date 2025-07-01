@@ -5,18 +5,33 @@ icon: 'lightbulb'
 ---
 
 `observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
-```javascript
-  const observations = await page.observe();
+
+<CodeGroup>
+```typescript TypeScript
+const observations = await page.observe();
 ```
+
+```python Python
+observations = await page.observe()
+```
+</CodeGroup>
 
 `observe()` returns an array of objects, each with an XPath `selector` and short `description`.
 
-If you are looking for a specific element, you can also pass in an instruction to observe via: `observe({ instruction: "your instruction"})`.
-```javascript
-  const observations = await page.observe({
-    instruction: "Find the buttons on this page",
-  });
+If you are looking for a specific element, you can also pass in an instruction to observe:
+
+<CodeGroup>
+```typescript TypeScript
+const observations = await page.observe({
+  instruction: "Find the buttons on this page",
+});
 ```
+
+```python Python
+observations = await page.observe("Find the buttons on this page")
+```
+</CodeGroup>
+
 Observe can also return a suggested action for the candidate element by setting the `returnAction` option to true. Here is a sample `ObserveResult`:
 ```json
   {
@@ -27,7 +42,13 @@ Observe can also return a suggested action for the candidate element by setting 
   }
 ```
 
+<Note>
+In Python, the ObserveResult is wrapped in a Pydantic model. You can use model_dump() to get the `dict` equivalent.
+</Note>
+
 ### **Arguments:** [`ObserveOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+<Tabs>
+<Tab title="TypeScript">
 
   <ParamField path="instruction" type="string" optional>
     Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
@@ -52,6 +73,26 @@ Observe can also return a suggested action for the candidate element by setting 
   <ParamField path="domSettleTimeoutMs" type="number" optional>
     Timeout in milliseconds for waiting for the DOM to settle
   </ParamField>
+</Tab>
+
+<Tab title="Python">
+  <ParamField path="instruction" type="string" optional>
+    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
+  </ParamField>
+
+  <ParamField path="model_name" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="model_client_options" type="object" optional>
+    Configuration options for the model client
+  </ParamField>
+
+  <ParamField path="dom_settle_timeout_ms" type="number" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+</Tab>
+</Tabs>
 
 ### **Returns:** [`Promise<ObserveResult[]>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 
@@ -64,7 +105,6 @@ Each `ObserveResult` object contains a `selector` and `description`.
     A string describing the possible action
   </ParamField>
 
- **If the `returnAction` option is set to `true`, the following fields will be included in the result:**
   <ParamField path="method" type="string" optional>
     The method to call on the element
   </ParamField>

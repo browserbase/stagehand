@@ -4,85 +4,142 @@ description: 'Extract structured data from the page'
 icon: 'brain-circuit'
 ---
 
-`extract()` grabs structured text from the current page using [zod](https://github.com/colinhacks/zod). Given instructions and `schema`, you will receive structured data.
+`extract()` grabs structured text from the current page using structured schemas. Given instructions and `schema`, you will receive structured data.
 
-### `extract` a single object
+<Note>
+For TypeScript, the extract schemas are defined using zod schemas.
+
+For Python, the extract schemas are defined using pydantic models.
+</Note>
+
+### Extract a single object
 
 Here is how an `extract` call might look for a single object:
-```javascript
-  const item = await page.extract({
-    instruction: "extract the price of the item",
-    schema: z.object({
-      price: z.number(),
-    }),
-  });
 
+<CodeGroup>
+```typescript TypeScript
+const item = await page.extract({
+  instruction: "extract the price of the item",
+  schema: z.object({
+    price: z.number(),
+  }),
+});
 ```
+
+```python Python
+class Extraction(BaseModel):
+    price: float
+
+item = await page.extract(
+    "extract the price of the item", 
+    schema=Extraction
+)
+```
+</CodeGroup>
+
 Your output schema will look like:
 ```
 { price: number }
 ```
 
-### `extract` a link
-<Note>To extract links or URLs, the relevant field in your schema needs to be defined using `z.string().url()`. See the snippet below: </Note>
+### Extract a link
+<Note>To extract links or URLs, specify this clearly in your instruction. See the snippet below. </Note>
 
 Here is how an `extract` call might look for extracting a link or URL.
-```javascript
-  const extraction = await stagehand.page.extract({
-    instruction: "extract the link to the 'contact us' page",
-    schema: z.object({
-      link: z.string().url(),
-    }),
-  });
 
-  console.log("the link to the contact us page is: ", extraction.link);
+<CodeGroup>
+```typescript TypeScript
+const extraction = await page.extract({
+  instruction: "extract the link to the 'contact us' page",
+  schema: z.object({
+    link: z.string().url(),
+  }),
+});
+
+console.log("the link to the contact us page is: ", extraction.link);
 ```
 
+```python Python
+class Extraction(BaseModel):
+    link: HttpUrl
 
-### `extract` a list of objects
+extraction = await page.extract(
+    "extract the link to the 'contact us' page", 
+    schema=Extraction
+)
 
-Here is how an `extract` call might look for a list of objects. Note that you need to wrap the `z.array` in an outer `z.object`.
-```javascript
-  const apartments = await stagehand.page.extract({
-    instruction:
-      "Extract ALL the apartment listings and their details, including address, price, and square feet."
-    schema: z.object({
-      list_of_apartments: z.array(
-        z.object({
-          address: z.string(),
-          price: z.string(),
-          square_feet: z.string(),
-        }),
-      ),
-    }}
+print("the link to the contact us page is: ", extraction.link)
+```
+</CodeGroup>
+
+### Extract a list of objects
+
+Here is how an `extract` call might look for a list of objects.
+
+<CodeGroup>
+```typescript TypeScript
+const apartments = await page.extract({
+  instruction:
+    "Extract ALL the apartment listings and their details, including address, price, and square feet."
+  schema: z.object({
+    list_of_apartments: z.array(
+      z.object({
+        address: z.string(),
+        price: z.string(),
+        square_feet: z.string(),
+      }),
+    ),
   })
+})
 
-  console.log("the apartment data is: ", apartments));
+console.log("the apartment list is: ", apartments);
 ```
+
+```python Python
+class Apartment(BaseModel):
+    address: str
+    price: str
+    square_feet: str
+
+class Apartments(BaseModel):
+    list_of_apartments: list[Apartment]
+
+apartments = await page.extract(
+    "Extract ALL the apartment listings and their details as a list, including address, price, and square feet for each apartment",
+    schema=Apartments
+)
+
+print("the apartment list is: ", apartments)
+```
+</CodeGroup>
 
 Your output schema will look like:
 ```
-  list_of_apartments: [
-      {
-        address: "street address here",
-        price: "$1234.00",
-        square_feet: "700"
-      },
-      {
-         address: "another address here",
-         price: "1010.00",
-         square_feet: "500"
-      },
-      .
-      .
-      .
-  ]
+list_of_apartments: [
+    {
+      address: "street address here",
+      price: "$1234.00",
+      square_feet: "700"
+    },
+    {
+        address: "another address here",
+        price: "1010.00",
+        square_feet: "500"
+    },
+    .
+    .
+    .
+]
 ```
 
-<Tip>To provide some additional context at the field level within your schema, you can use `.describe()`. See the snippet below: </Tip>
 
-```javascript
-const apartments = await stagehand.page.extract({
+### Extract with additional context
+
+You can provide additional context to your schema to help the model extract the data more accurately.
+
+<CodeGroup>
+```typescript TypeScript
+const apartments = await page.extract({
  instruction:
    "Extract ALL the apartment listings and their details, including address, price, and square feet."
  schema: z.object({
@@ -93,10 +150,28 @@ const apartments = await stagehand.page.extract({
        square_feet: z.string().describe("the square footage of the apartment"),
      }),
    ),
- }}
+ })
 })
 ```
 
+```python Python
+class Apartment(BaseModel):
+    address: str = Field(..., description="the address of the apartment")
+    price: str = Field(..., description="the price of the apartment")
+    square_feet: str = Field(..., description="the square footage of the apartment")
+
+class Apartments(BaseModel):
+    list_of_apartments: list[Apartment]
+
+apartments = await page.extract(
+    "Extract ALL the apartment listings and their details as a list. For each apartment, include: the address of the apartment, the price of the apartment, and the square footage of the apartment",
+    schema=Apartments
+)
+```
+</CodeGroup>
+
+<Tabs>
+<Tab title="TypeScript">
 ### **Arguments:** [`ExtractOptions<T extends z.AnyZodObject>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 
   <ParamField path="instruction" type="string" required>
@@ -104,7 +179,7 @@ const apartments = await stagehand.page.extract({
   </ParamField>
 
   <ParamField path="schema" type="z.AnyZodObject" required>
-    Defines the structure of the data to extract
+    Defines the structure of the data to extract (TypeScript only)
   </ParamField>
 
   <ParamField path="iframes" type="boolean" optional>
@@ -136,3 +211,34 @@ const apartments = await stagehand.page.extract({
 ### **Returns:** [`Promise<ExtractResult<T extends z.AnyZodObject>>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 
 Resolves to the structured data as defined by the provided `schema`.
+
+</Tab>
+
+<Tab title="Python">
+### **Arguments:** [`ExtractOptions<T extends BaseModel>`](https://github.com/browserbase/stagehand-python/blob/main/stagehand/types/page.py)
+
+  <ParamField path="instruction" type="string" required>
+    Provides instructions for extraction
+  </ParamField>
+
+  <ParamField path="schema" type="BaseModel" required>
+    Defines the structure of the data to extract
+  </ParamField>
+
+  <ParamField path="model_name" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="model_client_options" type="dict" optional>
+    Configuration options for the model client. See [`ClientOptions`](https://github.com/browserbase/stagehand/blob/main/types/model.ts).
+  </ParamField>
+
+  <ParamField path="dom_settle_timeout_ms" type="int" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+
+### **Returns:** [`Promise<ExtractResult<BaseModel>>`](https://github.com/browserbase/stagehand-python/blob/main/stagehand/types/page.py)
+
+Resolves to the structured data as defined by the provided `schema`.
+</Tab>
+</Tabs>

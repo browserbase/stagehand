@@ -1,101 +1,171 @@
 ---
 title: Install Stagehand
-description: Add Stagehand to an existing Node.js project
 icon: 'download'
 ---
+Add Stagehand to a new or existing project.
 
 <Tip>
-
-We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
+For TypeScript/Node.js: We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
 
 **Bun does not support Stagehand** since it doesn't support [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright&type=issues).
 
+For Python: We require Python 3.9+ and recommend using [uv](https://docs.astral.sh/uv/) to manage your virtual environment.
 </Tip>
 
-We strongly recommend using Stagehand in a new project with `npx create-browser-app`. Check out our [quickstart guide](https://docs.stagehand.dev/get_started/quickstart) to get started. 
-
-However, if you have an existing project, you can install Stagehand by installing the `@browserbasehq/stagehand` package and `zod` (for structured output).
-
 <Tabs>
-	<Tab title="npm">
-	```bash
-	npm install @browserbasehq/stagehand zod
-	```
+	<Tab title="TypeScript">
+
+		We strongly recommend using Stagehand in a new project with `npx create-browser-app`. Check out our [quickstart guide](https://docs.stagehand.dev/get_started/quickstart) to get started. 
+
+		However, if you have an existing project, you can install Stagehand by installing the `@browserbasehq/stagehand` package.
+
+		<Tabs>
+			<Tab title="npm">
+			```bash
+			npm install @browserbasehq/stagehand
+			```
+			</Tab>
+			<Tab title="pnpm">
+			```bash
+			pnpm add @browserbasehq/stagehand
+			```
+			</Tab>
+			<Tab title="yarn">
+			```bash
+			yarn add @browserbasehq/stagehand
+			```
+			</Tab>
+		</Tabs>
+		
+		<Note>
+		You may also need to install the Playwright browser to run your Stagehand scripts, especially if you're running locally.
+		</Note>
+
+		```bash
+		playwright install
+		```
+
+		Then, you can use Stagehand in your project by importing the `Stagehand` class.
+
+		```typescript
+		import { Stagehand } from "@browserbasehq/stagehand";
+
+		async function main() {
+			const stagehand = new Stagehand({
+				// With npx create-browser-app, this config is found 
+				// in a separate stagehand.config.ts file
+				env: "LOCAL",
+				modelName: "openai/gpt-4.1-mini",
+				modelClientOptions: {
+					apiKey: process.env.OPENAI_API_KEY,
+				},
+			});
+			await stagehand.init();
+
+			const page = stagehand.page;
+
+			await page.goto("https://www.google.com");
+			await page.act("Type in 'Browserbase' into the search bar");
+
+			const { title } = await page.extract({
+				instruction: "The title of the first search result",
+				schema: z.object({
+					title: z.string(),
+				}),
+			});
+			
+
+			await stagehand.close();
+		}
+
+		main();
+		```
 	</Tab>
-	<Tab title="pnpm">
-	```bash
-	pnpm add @browserbasehq/stagehand zod
-	```
-	</Tab>
-	<Tab title="yarn">
-	```bash
-	yarn add @browserbasehq/stagehand zod
-	```
-	</Tab>
-</Tabs>
 
-You may also need to install the Playwright browser to run your Stagehand scripts, especially if you're running locally.
+	<Tab title="Python">
+	Before you begin, you'll need Python 3.9+ installed. We recommend using [uv](https://docs.astral.sh/uv/) to manage your virtual environment.
 
-<Tabs>
-	<Tab title="npm">
-	```bash
-	# Useful for local development
-	npx playwright install
-	```
-	</Tab>
-	<Tab title="pnpm">
-	```bash
-	# Useful for local development
-	pnpm add playwright
-	pnpm playwright install
-	```
-	</Tab>
-	<Tab title="yarn">
-	```bash
-	# Useful for local development
-	yarn add playwright
-	yarn playwright install
-	```
-	</Tab>
-</Tabs>
-
-Then, you can use Stagehand in your project by importing the `Stagehand` class.
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-async function main() {
-	const stagehand = new Stagehand({
-		/**
-		 * With npx create-browser-app, this config is found 
-		 * in a separate stagehand.config.ts file
-		*/
-		env: "LOCAL",
-		modelName: "gpt-4o",
-		modelClientOptions: {
-			apiKey: process.env.OPENAI_API_KEY,
-		},
-	});
-	await stagehand.init();
-
-	const page = stagehand.page;
-
-	await page.goto("https://www.google.com");
-	await page.act("Type in 'Browserbase' into the search bar");
-
-	const { title } = await page.extract({
-		instruction: "The title of the first search result",
-		schema: z.object({
-			title: z.string(),
-		}),
-	});
+	<Steps>
 	
+	<Step title="Recommended: Set up a virtual environment">
+	```bash
+	uv venv
+	source .venv/bin/activate
+	```
+	</Step>
 
-	await stagehand.close();
-}
+	<Step title="Install Stagehand Python">
+	```bash
+	pip install stagehand
+	```
 
-main();
-```
+	If you're using a virtual environment with **uv**, you can install Stagehand with:
 
+	```bash
+	uv add stagehand
+	```
+	</Step>
 
+	<Step title="Set up environment variables">
 
+	Create a `.env` file or export environment variables:
+
+	```bash
+	export MODEL_API_KEY="your_model_api_key" # OpenAI, Anthropic, etc.
+	# For Browserbase environments
+	# export BROWSERBASE_API_KEY="your_browserbase_api_key"
+	# export BROWSERBASE_PROJECT_ID="your_browserbase_project_id"
+	```
+
+	</Step>
+
+	<Step title="Create your first script">
+
+	Create a file `main.py`:
+
+	```python
+	import asyncio
+	import os
+	from stagehand import Stagehand, StagehandConfig
+	from dotenv import load_dotenv
+
+	load_dotenv()
+
+	async def main():
+			config = StagehandConfig(
+					env="LOCAL",
+					model_name="openai/gpt-4.1-mini",
+					model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+			)
+			
+			stagehand = Stagehand(config)
+			
+			try:
+					await stagehand.init()
+					page = stagehand.page
+					
+					await page.goto("https://docs.stagehand.dev/")
+					await page.act("click the quickstart link")
+					
+					result = await page.extract("extract the main heading of the page")
+					
+					print(f"Extracted: {result.extraction}")
+					
+			finally:
+					await stagehand.close()
+
+	if __name__ == "__main__":
+			asyncio.run(main())
+	```
+	</Step>
+
+	<Step title="Run the script">
+
+	```bash
+	python main.py
+	```
+
+	</Step>
+	</Steps>
+	</Tab>
+</Tabs>

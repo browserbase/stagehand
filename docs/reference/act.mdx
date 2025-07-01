@@ -3,22 +3,42 @@ title: 'Act'
 description: 'Perform actions on the current page'
 icon: 'arrow-pointer'
 ---
- ```javascript
-  await page.act("click on add to cart");
-  ```
+
+<CodeGroup>
+```typescript TypeScript
+await page.act("click on add to cart");
+```
+
+```python Python
+await page.act("click on add to cart")
+```
+</CodeGroup>
 
 `act()` allows Stagehand to interact with a web page. Provide an `action` like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`.
 
 You can define variables that will not be shared with LLM providers
-```javascript
-  await page.act({
-    action: "fill in the form with %username% and %password%",
-    variables: {
-      username: "john.doe",
-      password: "secretpass123",
-    },
-  });
+
+<CodeGroup>
+```typescript TypeScript
+await page.act({
+  action: "fill in the form with %username% and %password%",
+  variables: {
+    username: "john.doe",
+    password: "secretpass123",
+  },
+});
 ```
+
+```python Python
+await page.act({
+  "fill in the form with %username% and %password%",
+  variables={
+    "username": "john.doe",
+    "password": "secretpass123",
+  },
+})
+```
+</CodeGroup>
 
 Small atomic goals perform the best. Avoid using `act()` to perform complex actions. For multi-step actions, use [`Agent`](/reference/agent) instead
 
@@ -28,6 +48,8 @@ You can pass an `ObserveResult` to `act()` to perform the suggested action, whic
 
 ### **Arguments:** [`ActOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)  |  [`ObserveResult`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 
+<Tabs>
+<Tab title="TypeScript">
 `ActOptions`:
   <ParamField path="action" type="string" required>
     Describes the action to perform
@@ -73,7 +95,53 @@ You can pass an `ObserveResult` to `act()` to perform the suggested action, whic
   <ParamField path="arguments" type="object" required>
     The arguments to pass to the method
   </ParamField>
+</Tab>
 
+<Tab title="Python">
+
+`ActOptions`:
+  <ParamField path="action" type="string" required>
+    Describes the action to perform
+  </ParamField>
+
+  <ParamField path="model_name" type="string" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="model_client_options" type="dict" optional>
+    Configuration options for the model client
+  </ParamField>
+
+  <ParamField path="variables" type="dict" optional>
+    Variables to use in the action. Variables in the action string are referenced using %variable_name%
+  </ParamField>
+
+  <ParamField path="dom_settle_timeout_ms" type="int" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+
+  <ParamField path="timeout_ms" type="int" optional>
+      Timeout in milliseconds for the action being performed.
+  </ParamField>
+
+`ObserveResult`:
+ <ParamField path="selector" type="string" required>
+    A string representing the element selector
+  </ParamField>
+
+  <ParamField path="description" type="string" required>
+    A string describing the possible action
+  </ParamField>
+
+  <ParamField path="method" type="string" required>
+    The method to call on the element
+  </ParamField>
+
+  <ParamField path="arguments" type="object" required>
+    The arguments to pass to the method
+  </ParamField>
+</Tab>
+</Tabs>
 
 ### **Returns:** [`Promise<ActResult>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 
