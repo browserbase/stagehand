@@ -88,11 +88,7 @@ export class StagehandPage {
         const value = target[prop];
         // If the property is a function, wrap it to update active page before execution
         if (typeof value === "function" && prop !== "on") {
-          return (...args: unknown[]) => {
-            // Update active page before executing the method
-            this.intContext.setActivePage(this);
-            return value.apply(target, args);
-          };
+          return (...args: unknown[]) => value.apply(target, args);
         }
         return value;
       },
@@ -287,7 +283,6 @@ ${scriptContent} \
             prop === "$$eval"
           ) {
             return async (...args: unknown[]) => {
-              this.intContext.setActivePage(this);
               // Make sure helpers exist
               await this.ensureStagehandScript();
               return (value as (...a: unknown[]) => unknown).apply(
@@ -316,10 +311,7 @@ ${scriptContent} \
             >;
 
             const method = this[prop as keyof StagehandPage] as EnhancedMethod;
-            return async (options: unknown) => {
-              this.intContext.setActivePage(this);
-              return method.call(this, options);
-            };
+            return (options: unknown) => method.call(this, options);
           }
 
           // Handle screenshots with CDP
@@ -425,10 +417,7 @@ ${scriptContent} \
 
           // For all other method calls, update active page
           if (typeof value === "function") {
-            return (...args: unknown[]) => {
-              this.intContext.setActivePage(this);
-              return value.apply(target, args);
-            };
+            return (...args: unknown[]) => value.apply(target, args);
           }
 
           return value;

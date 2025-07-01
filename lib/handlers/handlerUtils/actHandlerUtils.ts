@@ -500,8 +500,6 @@ async function handlePossiblePageNavigation(
         url: { value: newOpenedTab.url(), type: "string" },
       },
     });
-    await newOpenedTab.close();
-    await stagehandPage.page.goto(newOpenedTab.url());
     await stagehandPage.page.waitForLoadState("domcontentloaded");
   }
 

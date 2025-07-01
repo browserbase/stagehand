@@ -368,6 +368,18 @@
       "categories": ["act", "regression"]
     },
     {
+      "name": "tab_handling",
+      "categories": ["act"]
+    },
+    {
+      "name": "agent/kayak",
+      "categories": ["agent"]
+    },
+    {
+      "name": "multi_tab",
+      "categories": ["act"]
+    },
+    {
       "name": "shadow_dom",
       "categories": ["act"]
     }
