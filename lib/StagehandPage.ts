@@ -736,7 +736,12 @@ ${scriptContent} \
               instruction: instructionOrOptions,
               schema: defaultExtractSchema as T,
             }
-          : instructionOrOptions;
+          : instructionOrOptions.schema
+            ? instructionOrOptions
+            : {
+                ...instructionOrOptions,
+                schema: defaultExtractSchema as T,
+              };
 
       const {
         instruction,
