@@ -719,6 +719,13 @@ export class Stagehand {
     }
   }
 
+  public get downloadsPath(): string {
+    return this.env === "BROWSERBASE"
+      ? "downloads"
+      : (this.localBrowserLaunchOptions?.downloadsPath ??
+          path.resolve(process.cwd(), "downloads"));
+  }
+
   public get context(): EnhancedContext {
     if (!this.stagehandContext) {
       throw new StagehandNotInitializedError("context");
@@ -812,6 +819,13 @@ export class Stagehand {
 `;
     await this.context.addInitScript({
       content: guardedScript,
+    });
+
+    const session = await this.context.newCDPSession(this.page);
+    await session.send("Browser.setDownloadBehavior", {
+      behavior: "allow",
+      downloadPath: this.downloadsPath,
+      eventsEnabled: true,
     });
 
     this.browserbaseSessionID = sessionId;

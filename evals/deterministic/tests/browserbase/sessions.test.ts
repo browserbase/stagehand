@@ -15,6 +15,7 @@ test.describe("Browserbase Sessions", () => {
     bigStagehand = new Stagehand({
       ...StagehandConfig,
       env: "BROWSERBASE",
+      useAPI: false,
       browserbaseSessionCreateParams: {
         projectId: process.env.BROWSERBASE_PROJECT_ID,
         keepAlive: true,
@@ -35,6 +36,7 @@ test.describe("Browserbase Sessions", () => {
   test("resumes a session via sessionId", async () => {
     const stagehand = new Stagehand({
       ...StagehandConfig,
+      useAPI: false,
       env: "BROWSERBASE",
       browserbaseSessionID: sessionId,
     });

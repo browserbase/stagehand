@@ -12,6 +12,7 @@
     "@browserbasehq/stagehand": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.10.5"
+    "tsx": "^4.10.5",
+    "jszip": "^3.10.1"
   }
 }

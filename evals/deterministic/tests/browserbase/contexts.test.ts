@@ -76,6 +76,7 @@ test.describe("Contexts", () => {
       // We will be adding cookies to the context in this session, so we need mark persist=true
       stagehand = new Stagehand({
         ...StagehandConfig,
+        useAPI: false,
         browserbaseSessionCreateParams: {
           projectId: BROWSERBASE_PROJECT_ID,
           browserSettings: {
@@ -115,6 +116,7 @@ test.describe("Contexts", () => {
       // We don't need to persist cookies in this session, so we can mark persist=false
       const newStagehand = new Stagehand({
         ...StagehandConfig,
+        useAPI: false,
         browserbaseSessionCreateParams: {
           projectId: BROWSERBASE_PROJECT_ID,
           browserSettings: {
