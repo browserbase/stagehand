@@ -1,4 +1,5 @@
 import { LogLine } from "./log";
+import { ClientOptions } from "@/types/model";
 
 export interface AgentAction {
   type: string;
@@ -49,7 +50,7 @@ export interface AgentExecutionOptions {
 
 export interface AgentHandlerOptions {
   modelName: string;
-  clientOptions?: Record<string, unknown>;
+  clientOptions?: ClientOptions & Record<string, unknown>;
   userProvidedInstructions?: string;
   agentType: AgentType;
 }
