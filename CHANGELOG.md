@@ -1,5 +1,21 @@
 # @browserbasehq/stagehand
 
+## 2.4.1
+
+### Patch Changes
+
+- [#856](https://github.com/browserbase/stagehand/pull/856) [`8a43c5a`](https://github.com/browserbase/stagehand/commit/8a43c5a86d4da40cfaedd9cf2e42186928bdf946) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - set download behaviour by default
+
+- [#857](https://github.com/browserbase/stagehand/pull/857) [`890ffcc`](https://github.com/browserbase/stagehand/commit/890ffccac5e0a60ade64a46eb550c981ffb3e84a) Thanks [@miguelg719](https://github.com/miguelg719)! - return "not-supported" for elements inside the shadow-dom
+
+- [#844](https://github.com/browserbase/stagehand/pull/844) [`64c1072`](https://github.com/browserbase/stagehand/commit/64c10727bda50470483a3eb175c02842db0923a1) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - don't automatically close tabs
+
+- [#860](https://github.com/browserbase/stagehand/pull/860) [`b077d3f`](https://github.com/browserbase/stagehand/commit/b077d3f48a97f47a71ccc79ae39b41e7f07f9c04) Thanks [@miguelg719](https://github.com/miguelg719)! - Set default schema on extract options with no schema
+
+- [#842](https://github.com/browserbase/stagehand/pull/842) [`8bcb5d7`](https://github.com/browserbase/stagehand/commit/8bcb5d77debf6bf7601fd5c090efd7fde75c5d5e) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - improved handling for OS level dropdowns
+
+- [#846](https://github.com/browserbase/stagehand/pull/846) [`7bf10c5`](https://github.com/browserbase/stagehand/commit/7bf10c55b267078fe847c1d7f7a60d604f9c7c94) Thanks [@miguelg719](https://github.com/miguelg719)! - Filter attaching to target worker / shared_worker
+
 ## 2.4.0
 
 ### Minor Changes
