@@ -303,6 +303,14 @@ async function cleanStructuralNodes(
     if (tagName) node.role = tagName;
   }
 
+  if (
+    node.role === "combobox" &&
+    node.encodedId !== undefined &&
+    tagNameMap[node.encodedId] === "select"
+  ) {
+    node.role = "select";
+  }
+
   // 5. drop redundant StaticText children
   const pruned = removeRedundantStaticTextChildren(node, cleanedChildren);
   if (!pruned.length && (node.role === "generic" || node.role === "none")) {

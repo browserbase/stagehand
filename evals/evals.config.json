@@ -382,6 +382,18 @@
     {
       "name": "shadow_dom",
       "categories": ["act"]
+    },
+    {
+      "name": "os_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "custom_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "hidden_input_dropdown",
+      "categories": ["act"]
     }
   ]
 }

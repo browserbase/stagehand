@@ -59,6 +59,7 @@ export const methodHandlerMap: Record<
   click: clickElement,
   nextChunk: scrollToNextChunk,
   prevChunk: scrollToPreviousChunk,
+  selectOptionFromDropdown: selectOption,
 };
 
 export async function scrollToNextChunk(ctx: MethodHandlerContext) {
@@ -343,6 +344,26 @@ export async function pressKey(ctx: MethodHandlerContext) {
         error: { value: e.message, type: "string" },
         trace: { value: e.stack, type: "string" },
         key: { value: args[0]?.toString() ?? "unknown", type: "string" },
+      },
+    });
+    throw new PlaywrightCommandException(e.message);
+  }
+}
+
+export async function selectOption(ctx: MethodHandlerContext) {
+  const { locator, xpath, args, logger } = ctx;
+  try {
+    const text = args[0]?.toString() || "";
+    await locator.selectOption(text, { timeout: 5000 });
+  } catch (e) {
+    logger({
+      category: "action",
+      message: "error selecting option",
+      level: 0,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
       },
     });
     throw new PlaywrightCommandException(e.message);
