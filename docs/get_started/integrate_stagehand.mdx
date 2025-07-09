@@ -135,7 +135,7 @@ For Python: We require Python 3.9+ and recommend using [uv](https://docs.astral.
 			config = StagehandConfig(
 					env="LOCAL",
 					model_name="openai/gpt-4.1-mini",
-					model_client_options={"apiKey": os.getenv("MODEL_API_KEY")}
+					model_api_key=os.getenv("MODEL_API_KEY")
 			)
 			
 			stagehand = Stagehand(config)
