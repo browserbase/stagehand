@@ -170,7 +170,7 @@ export class StagehandObserveHandler {
 
         if (elementId.includes("-")) {
           const lookUpIndex = elementId as EncodedId;
-          const xpath = combinedXpathMap[lookUpIndex];
+          const xpath: string | undefined = combinedXpathMap[lookUpIndex];
 
           const trimmedXpath = trimTrailingTextNode(xpath);
 
