@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.4.2
+
+### Patch Changes
+
+- [#865](https://github.com/browserbase/stagehand/pull/865) [`6b4e6e3`](https://github.com/browserbase/stagehand/commit/6b4e6e3f31d5496cf15728e9018eddeb04839542) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - improve type safety for trimTrailingTextNode
+
 ## 2.4.1
 
 ### Patch Changes
