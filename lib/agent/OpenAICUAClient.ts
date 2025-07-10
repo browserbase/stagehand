@@ -1,17 +1,17 @@
-import OpenAI from "openai";
-import { LogLine } from "../../types/log";
 import {
   AgentAction,
+  AgentExecutionOptions,
   AgentResult,
   AgentType,
-  AgentExecutionOptions,
-  ResponseInputItem,
-  ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
+  ResponseInputItem,
+  ResponseItem,
 } from "@/types/agent";
-import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
+import OpenAI, { ClientOptions } from "openai";
+import { LogLine } from "../../types/log";
+import { AgentClient } from "./AgentClient";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -34,7 +34,7 @@ export class OpenAICUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -43,14 +43,20 @@ export class OpenAICUAClient extends AgentClient {
       (clientOptions?.apiKey as string) || process.env.OPENAI_API_KEY || "";
     this.organization =
       (clientOptions?.organization as string) || process.env.OPENAI_ORG;
+    this.baseURL = (clientOptions?.baseURL as string) || undefined;
 
     // Get environment if specified
-    if (
-      clientOptions?.environment &&
-      typeof clientOptions.environment === "string"
-    ) {
-      this.environment = clientOptions.environment;
+    // Store client options for reference
+    this.clientOptions = {
+      apiKey: this.apiKey,
+    };
+
+    if (this.baseURL) {
+      this.clientOptions.baseURL = this.baseURL;
     }
+
+    // Initialize the OpenAI client
+    this.client = new OpenAI(this.clientOptions);
 
     // Store client options for reference
     this.clientOptions = {
