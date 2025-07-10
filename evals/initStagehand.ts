@@ -82,6 +82,7 @@ export const initStagehand = async ({
     ...(domSettleTimeoutMs && { domSettleTimeoutMs }),
     actTimeoutMs,
     ...configOverrides,
+    useAPI: true,
     logger: logger.log.bind(logger),
   };
 
