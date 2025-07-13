@@ -289,7 +289,10 @@ async function getBrowser(
             },
       locale: localBrowserLaunchOptions?.locale ?? "en-US",
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
-      deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+      deviceScaleFactor:
+        localBrowserLaunchOptions?.viewport === null
+          ? undefined
+          : (localBrowserLaunchOptions?.deviceScaleFactor ?? 1),
       args: localBrowserLaunchOptions?.args ?? [
         "--disable-blink-features=AutomationControlled",
       ],
