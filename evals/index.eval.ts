@@ -248,11 +248,15 @@ const generateFilteredTestcases = (): Testcase[] => {
  * - Collect and summarize results using `generateSummary`.
  */
 (async () => {
+  // Determine if this is a full stack run (no specific eval name or category filter)
+  const isFullStack = !filterByEvalName && !filterByCategory;
+
   // Generate a unique name for the experiment
   const experimentName: string = generateExperimentName({
     evalName: filterByEvalName || undefined,
     category: filterByCategory || undefined,
     environment: env,
+    isFullStack,
   });
 
   // Determine braintrust project name to use (stagehand in CI, stagehand-dev otherwise)
