@@ -1,5 +1,4 @@
 import { EvalFunction } from "@/types/evals";
-import { performPlaywrightMethod } from "@/lib/a11y/utils";
 
 export const observe_simple_google_search: EvalFunction = async ({
   debugUrl,
@@ -18,13 +17,7 @@ export const observe_simple_google_search: EvalFunction = async ({
 
     if (observation1.length > 0) {
       const action1 = observation1[0];
-      await performPlaywrightMethod(
-        stagehand.page,
-        stagehand.logger,
-        action1.method,
-        action1.arguments,
-        action1.selector.replace("xpath=", ""),
-      );
+      await stagehand.page.act(action1);
     }
     const observation2 = await stagehand.page.observe({
       instruction: "Click the search button in the suggestions dropdown",
@@ -32,13 +25,7 @@ export const observe_simple_google_search: EvalFunction = async ({
 
     if (observation2.length > 0) {
       const action2 = observation2[0];
-      await performPlaywrightMethod(
-        stagehand.page,
-        stagehand.logger,
-        action2.method,
-        action2.arguments,
-        action2.selector.replace("xpath=", ""),
-      );
+      await stagehand.page.act(action2);
     }
 
     const expectedUrl =
