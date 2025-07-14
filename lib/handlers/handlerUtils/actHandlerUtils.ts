@@ -410,7 +410,9 @@ export async function clickElement(ctx: MethodHandlerContext) {
     });
 
     try {
-      await locator.evaluate((el) => (el as HTMLElement).click());
+      await locator.evaluate((el) => (el as HTMLElement).click(), undefined, {
+        timeout: 3_500,
+      });
     } catch (e) {
       logger({
         category: "action",
