@@ -28,6 +28,7 @@ import {
   StagehandResponseParseError,
 } from "../types/stagehandApiErrors";
 import makeFetchCookie from "fetch-cookie";
+import { STAGEHAND_VERSION } from "./version";
 
 export class StagehandAPI {
   private apiKey: string;
@@ -245,6 +246,7 @@ export class StagehandAPI {
       "x-model-api-key": this.modelApiKey,
       "x-sent-at": new Date().toISOString(),
       "x-language": "typescript",
+      "x-sdk-version": STAGEHAND_VERSION,
     };
 
     if (options.method === "POST" && options.body) {
