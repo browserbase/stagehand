@@ -25,6 +25,7 @@ export const AvailableModelSchema = z.enum([
   "cerebras-llama-3.1-8b",
   "groq-llama-3.3-70b-versatile",
   "groq-llama-3.3-70b-specdec",
+  "grok-4-0709",
   "gemini-1.5-flash",
   "gemini-1.5-pro",
   "gemini-1.5-flash-8b",
