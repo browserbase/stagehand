@@ -84,6 +84,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "cerebras-llama-3.1-8b": "cerebras",
   "groq-llama-3.3-70b-versatile": "groq",
   "groq-llama-3.3-70b-specdec": "groq",
+  "moonshotai/kimi-k2-instruct": "groq",
   "gemini-1.5-flash": "google",
   "gemini-1.5-pro": "google",
   "gemini-1.5-flash-8b": "google",

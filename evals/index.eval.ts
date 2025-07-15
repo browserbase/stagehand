@@ -335,13 +335,12 @@ const generateFilteredTestcases = (): Testcase[] => {
             llmClient = new AISdkClient({
               model: wrapAISDKModel(anthropic(input.modelName)),
             });
-          } else if (input.modelName.includes("groq")) {
+          } else if (
+            input.modelName.includes("groq") ||
+            input.modelName.includes("kimi")
+          ) {
             llmClient = new AISdkClient({
-              model: wrapAISDKModel(
-                groq(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
-                ),
-              ),
+              model: wrapAISDKModel(groq(input.modelName)),
             });
           } else if (input.modelName.includes("cerebras")) {
             llmClient = new AISdkClient({
