@@ -905,14 +905,24 @@ export class Stagehand {
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
+    const tools = options?.tools;
+
     if (!options || !options.provider) {
       // use open operator agent
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          // later we want to abstract this to a function that also performs filtration/ranking of tools
+          await Promise.all(
+            options?.integrations?.map(async (integration) => {
+              const tools = await integration.getAllTools();
+              tools.push(...tools);
+            }),
+          );
           return new StagehandOperatorHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
+            tools,
           ).execute(instructionOrOptions);
         },
       };

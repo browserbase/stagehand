@@ -15,21 +15,25 @@ import {
   StagehandError,
   StagehandMissingArgumentError,
 } from "@/types/stagehandErrors";
+import { Tool } from "ai";
 
 export class StagehandOperatorHandler {
   private stagehandPage: StagehandPage;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private messages: ChatMessage[];
+  private tools: Tool[];
 
   constructor(
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
+    tools: Tool[],
   ) {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
+    this.tools = tools;
   }
 
   public async execute(

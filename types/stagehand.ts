@@ -6,6 +6,8 @@ import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { Cookie } from "playwright";
 import { AgentProviderType } from "./agent";
+import { MCPClient } from "mcp-client";
+import { Tool } from "ai";
 
 export interface ConstructorParams {
   /**
@@ -273,6 +275,14 @@ export interface AgentConfig {
    * Additional options to pass to the agent client
    */
   options?: Record<string, unknown>;
+  /**
+   * MCP integrations
+   */
+  integrations?: MCPClient[];
+  /**
+   * Tools passed to the agent client
+   */
+  tools?: Tool[];
 }
 
 export enum StagehandFunctionName {
