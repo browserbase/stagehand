@@ -11,7 +11,7 @@ export const extract_partners: EvalFunction = async ({
     await stagehand.page.goto("https://ramp.com");
 
     await stagehand.page.act({
-      action: "move down to the bottom of the page.",
+      action: "scroll to the bottom of the page",
     });
 
     await stagehand.page.act({
@@ -19,7 +19,7 @@ export const extract_partners: EvalFunction = async ({
     });
 
     await stagehand.page.act({
-      action: "Find and click on the link that leads to the partners page.",
+      action: "click on the link that leads to the partners page.",
     });
 
     const partners = await stagehand.page.extract({

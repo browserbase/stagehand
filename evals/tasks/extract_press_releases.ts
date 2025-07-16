@@ -24,9 +24,6 @@ export const extract_press_releases: EvalFunction = async ({
   try {
     await stagehand.page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/press-releases/",
-      {
-        waitUntil: "networkidle",
-      },
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
 

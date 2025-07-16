@@ -21,9 +21,7 @@ export const os_dropdown: EvalFunction = async ({
       "choose 'Smog Check Technician' from the 'License Type' dropdown",
     );
     const selectedOption = await page
-      .locator(
-        "xpath=/html/body/form/div[1]/div[3]/article/div[2]/div[1]/select[2] >> option:checked",
-      )
+      .locator("#licenseType >> option:checked")
       .textContent();
 
     if (selectedOption === "Smog Check Technician") {

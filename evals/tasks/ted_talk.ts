@@ -14,6 +14,13 @@ export const ted_talk: EvalFunction = async ({
       waitUntil: "domcontentloaded",
     },
   );
+
+  await stagehand.page.act({
+    action: "scroll 10% down the page",
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
   await stagehand.page.act({
     action:
       "Click the link that takes you to the page about the 'Culture' topic",
