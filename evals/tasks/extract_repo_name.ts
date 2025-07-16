@@ -24,8 +24,6 @@ export const extract_repo_name: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: extraction === "react",
       extraction,
@@ -34,10 +32,6 @@ export const extract_repo_name: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -45,5 +39,7 @@ export const extract_repo_name: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

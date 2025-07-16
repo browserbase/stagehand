@@ -6,20 +6,30 @@ export const rakuten_jp: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://www.rakuten.co.jp/");
+  try {
+    await stagehand.page.goto("https://www.rakuten.co.jp/");
 
-  await stagehand.page.act({ action: "type '香菜' into the search bar" });
-  await stagehand.page.act({ action: "press enter" });
-  const url = stagehand.page.url();
-  const successUrl =
-    "https://search.rakuten.co.jp/search/mall/%E9%A6%99%E8%8F%9C/";
+    await stagehand.page.act({ action: "type '香菜' into the search bar" });
+    await stagehand.page.act({ action: "press enter" });
+    const url = stagehand.page.url();
+    const successUrl =
+      "https://search.rakuten.co.jp/search/mall/%E9%A6%99%E8%8F%9C/";
 
-  await stagehand.close();
-
-  return {
-    _success: url === successUrl,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: url === successUrl,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

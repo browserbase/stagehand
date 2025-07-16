@@ -54,8 +54,6 @@ export const extract_partners: EvalFunction = async ({
       foundPartners.includes(partner.toLowerCase()),
     );
 
-    await stagehand.close();
-
     return {
       _success: allExpectedPartnersFound,
       partners,
@@ -79,8 +77,6 @@ export const extract_partners: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
       debugUrl,
@@ -88,5 +84,7 @@ export const extract_partners: EvalFunction = async ({
       error: JSON.parse(JSON.stringify(error, null, 2)),
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

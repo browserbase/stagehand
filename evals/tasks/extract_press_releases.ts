@@ -36,8 +36,6 @@ export const extract_press_releases: EvalFunction = async ({
     const parsed = schema.parse(rawResult);
     const { items } = parsed;
 
-    await stagehand.close();
-
     const expectedLength = 28;
     const expectedFirstItem: PressRelease = {
       title: "UAW Region 9A Endorses Brad Lander for Mayor",
@@ -118,6 +116,6 @@ export const extract_press_releases: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.close();
   }
 };

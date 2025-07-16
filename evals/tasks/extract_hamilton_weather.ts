@@ -62,8 +62,6 @@ export const extract_hamilton_weather: EvalFunction = async ({
         0.9,
       ).meetsThreshold;
 
-    await stagehand.close();
-
     return {
       _success: isWeatherCorrect,
       weatherData,
@@ -72,10 +70,6 @@ export const extract_hamilton_weather: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -83,5 +77,7 @@ export const extract_hamilton_weather: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

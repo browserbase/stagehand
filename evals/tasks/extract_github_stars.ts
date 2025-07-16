@@ -29,8 +29,6 @@ export const extract_github_stars: EvalFunction = async ({
     const tolerance = 1000;
     const isWithinTolerance = Math.abs(stars - expectedStars) <= tolerance;
 
-    await stagehand.close();
-
     return {
       _success: isWithinTolerance,
       stars,
@@ -39,10 +37,6 @@ export const extract_github_stars: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -50,5 +44,7 @@ export const extract_github_stars: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

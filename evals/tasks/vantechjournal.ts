@@ -6,23 +6,33 @@ export const vantechjournal: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://vantechjournal.com");
+  try {
+    await stagehand.page.goto("https://vantechjournal.com");
 
-  await stagehand.page.act({
-    action: "click on page 'recommendations'",
-  });
+    await stagehand.page.act({
+      action: "click on page 'recommendations'",
+    });
 
-  const expectedUrl = "https://vantechjournal.com/recommendations";
-  const currentUrl = stagehand.page.url();
+    const expectedUrl = "https://vantechjournal.com/recommendations";
+    const currentUrl = stagehand.page.url();
 
-  await stagehand.close();
-
-  return {
-    _success: currentUrl === expectedUrl,
-    currentUrl,
-    expectedUrl,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: currentUrl === expectedUrl,
+      currentUrl,
+      expectedUrl,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

@@ -35,8 +35,6 @@ export const homedepot: EvalFunction = async ({
     });
 
     if (!productSpecs || !productSpecs.productSpecs) {
-      await stagehand.close();
-
       return {
         _success: false,
         productSpecs,
@@ -47,8 +45,6 @@ export const homedepot: EvalFunction = async ({
     }
 
     const isLargerThan1000 = productSpecs.productSpecs.burnerBTU >= 10000;
-
-    await stagehand.close();
 
     return {
       _success: isLargerThan1000,
@@ -73,8 +69,6 @@ export const homedepot: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -82,5 +76,7 @@ export const homedepot: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };
