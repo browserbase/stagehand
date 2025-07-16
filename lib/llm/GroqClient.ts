@@ -49,13 +49,6 @@ export class GroqClient extends LLMClient {
     this.clientOptions = clientOptions;
   }
 
-  // Preview models don't start with groq-
-  private extractModelName(): string {
-    if (this.modelName.startsWith("groq-"))
-      return this.modelName.split("groq-")[1];
-    else return this.modelName;
-  }
-
   async createChatCompletion<T = LLMResponse>({
     options,
     retries,
@@ -78,7 +71,7 @@ export class GroqClient extends LLMClient {
 
     // Try to get cached response
     const cacheOptions = {
-      model: this.extractModelName(),
+      model: this.modelName.split("groq-")[1],
       messages: options.messages,
       temperature: options.temperature,
       response_model: options.response_model,
@@ -182,7 +175,7 @@ export class GroqClient extends LLMClient {
     try {
       // Use OpenAI client with Groq API
       const apiResponse = await this.client.chat.completions.create({
-        model: this.extractModelName(),
+        model: this.modelName.split("groq-")[1],
         messages: [
           ...formattedMessages,
           // Add explicit instruction to return JSON if we have a response model
@@ -208,7 +201,7 @@ export class GroqClient extends LLMClient {
         id: apiResponse.id,
         object: "chat.completion",
         created: Date.now(),
-        model: this.extractModelName(),
+        model: this.modelName.split("groq-")[1],
         choices: [
           {
             index: 0,

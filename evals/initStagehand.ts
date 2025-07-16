@@ -40,7 +40,6 @@ const StagehandConfig = {
   disablePino: true,
   experimental: true,
   browserbaseSessionCreateParams: {
-    proxies: false,
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
     browserSettings: {
       viewport: {
