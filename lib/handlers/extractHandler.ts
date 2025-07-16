@@ -156,7 +156,7 @@ export class StagehandExtractHandler {
           combinedXpathMap: {} as Record<EncodedId, string>,
           discoveredIframes: [] as undefined,
         }))
-      : getAccessibilityTree(this.stagehandPage, this.logger, selector).then(
+      : getAccessibilityTree(this.stagehandPage, this.logger, targetXpath).then(
           ({ simplified, idToUrl, iframes: frameNodes }) => ({
             combinedTree: simplified,
             combinedUrlMap: idToUrl as Record<EncodedId, string>,
