@@ -91,6 +91,10 @@ export const initStagehand = async ({
   logger.init(stagehand);
 
   const { debugUrl, sessionUrl } = await stagehand.init();
+
+  // Set navigation timeout to 60 seconds for evaluations
+  stagehand.context.setDefaultNavigationTimeout(60_000);
+
   return {
     stagehand,
     stagehandConfig: config,
