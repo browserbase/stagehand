@@ -373,7 +373,6 @@ const generateFilteredTestcases = (): Testcase[] => {
           const taskInput = await initStagehand({
             logger,
             llmClient,
-            domSettleTimeoutMs: 60000,
             modelName: input.modelName,
           });
           let result;
