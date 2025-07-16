@@ -163,13 +163,13 @@ stagehand = Stagehand(StagehandConfig(
 
 Stagehand allows you to customize your local browser in a few different ways.
 
-You can use [`localBrowserLaunchOptions` type](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/types/stagehand.ts#L134-L174) to customize the browser you want Stagehand to use.
+You can use the [`localBrowserLaunchOptions` parameter](/reference/initialization_config#param-local-browser-launch-options) to customize the browser you want Stagehand to use.
 
 <CodeGroup>
 ```typescript TypeScript
 const stagehand = new Stagehand({
   localBrowserLaunchOptions: {
-	cdpUrl: 'your-cdp-url',
+    cdpUrl: 'your-cdp-url',
   }
 })
 ```
