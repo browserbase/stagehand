@@ -106,10 +106,6 @@
       "categories": ["experimental"]
     },
     {
-      "name": "expedia",
-      "categories": ["experimental"]
-    },
-    {
       "name": "extract_aigrant_companies",
       "categories": ["regression"]
     },
