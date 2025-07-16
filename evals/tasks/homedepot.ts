@@ -12,7 +12,7 @@ export const homedepot: EvalFunction = async ({
     await stagehand.page.act("enter 'gas grills' in the search bar");
     await stagehand.page.act("press enter");
     await stagehand.page.act("click on the best selling gas grill");
-    await await stagehand.page.act("click on the Product Details");
+    await stagehand.page.act("click on the Product Details");
 
     const productSpecs = await stagehand.page.extract({
       instruction: "Extract the Primary exact Burner BTU of the product",
