@@ -24,7 +24,7 @@ export const wichita: EvalFunction = async ({
 
   const { total_results } = result;
 
-  const expectedNumber = 405;
+  const expectedNumber = 418;
   const extractedNumber = parseInt(total_results.replace(/[^\d]/g, ""), 10);
 
   const isWithinRange =

@@ -110,10 +110,6 @@
       "categories": ["experimental"]
     },
     {
-      "name": "expedia_search",
-      "categories": ["experimental"]
-    },
-    {
       "name": "extract_aigrant_companies",
       "categories": ["regression"]
     },
@@ -131,10 +127,6 @@
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": ["experimental"]
-    },
-    {
-      "name": "google_jobs",
       "categories": ["experimental"]
     },
     {
