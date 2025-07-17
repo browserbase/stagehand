@@ -39,6 +39,7 @@ import { groq } from "@ai-sdk/groq";
 import { cerebras } from "@ai-sdk/cerebras";
 import { openai } from "@ai-sdk/openai";
 import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { xai } from "@ai-sdk/xai";
 dotenv.config();
 
 /**
@@ -349,6 +350,10 @@ const generateFilteredTestcases = (): Testcase[] => {
                   input.modelName.substring(input.modelName.indexOf("/") + 1),
                 ),
               ),
+            });
+          } else if (input.modelName.startsWith("grok")) {
+            llmClient = new AISdkClient({
+              model: wrapAISDKModel(xai(input.modelName)),
             });
           } else if (input.modelName.includes("/")) {
             llmClient = new CustomOpenAIClient({
