@@ -33,13 +33,9 @@ import { StagehandEvalError } from "@/types/stagehandErrors";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
-import { google } from "@ai-sdk/google";
-import { anthropic } from "@ai-sdk/anthropic";
-import { groq } from "@ai-sdk/groq";
-import { cerebras } from "@ai-sdk/cerebras";
-import { openai } from "@ai-sdk/openai";
 import { AISdkClient } from "@/examples/external_clients/aisdk";
-import { xai } from "@ai-sdk/xai";
+import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
+
 dotenv.config();
 
 /**
@@ -321,41 +317,16 @@ const generateFilteredTestcases = (): Testcase[] => {
 
           // Execute the task
           let llmClient: LLMClient;
-          if (
-            input.modelName.startsWith("gpt") ||
-            input.modelName.startsWith("o")
-          ) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(openai(input.modelName)),
-            });
-          } else if (input.modelName.startsWith("gemini")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(google(input.modelName)),
-            });
-          } else if (input.modelName.startsWith("claude")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(anthropic(input.modelName)),
-            });
-          } else if (
-            input.modelName.includes("groq") ||
-            input.modelName.includes("kimi")
-          ) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(groq(input.modelName)),
-            });
-          } else if (input.modelName.includes("cerebras")) {
+          if (input.modelName.includes("/")) {
             llmClient = new AISdkClient({
               model: wrapAISDKModel(
-                cerebras(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
+                getAISDKLanguageModel(
+                  input.modelName.split("/")[0],
+                  input.modelName.split("/")[1],
                 ),
               ),
             });
-          } else if (input.modelName.startsWith("grok")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(xai(input.modelName)),
-            });
-          } else if (input.modelName.includes("/")) {
+          } else {
             llmClient = new CustomOpenAIClient({
               modelName: input.modelName as AvailableModel,
               client: wrapOpenAI(
