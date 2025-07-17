@@ -6,22 +6,29 @@
  */
 
 import { Stagehand } from "@browserbasehq/stagehand";
-import StagehandConfig from "../stagehand.config";
 
 async function example(stagehand: Stagehand) {
   /**
    * Add your code here!
    */
   const page = stagehand.page;
-  await page.goto("https://docs.stagehand.dev");
-  await page.act("click the quickstart button");
+
+  await page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/",
+  );
+
+  await page.act(
+    "choose 'Smog Check Technician' from the 'License Type' dropdown",
+  );
 }
 
 (async () => {
   const stagehand = new Stagehand({
-    ...StagehandConfig,
+    env: "LOCAL",
+    useAPI: false,
+    logInferenceToFile: true,
+    verbose: 2,
   });
   await stagehand.init();
   await example(stagehand);
-  await stagehand.close();
 })();

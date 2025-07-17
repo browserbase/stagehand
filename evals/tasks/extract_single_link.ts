@@ -18,8 +18,6 @@ export const extract_single_link: EvalFunction = async ({
         link: z.string().url(),
       }),
     });
-
-    await stagehand.close();
     const extractedLink = extraction.link;
     const expectedLink =
       "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/#contact";
@@ -40,7 +38,6 @@ export const extract_single_link: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    await stagehand.close();
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -48,5 +45,7 @@ export const extract_single_link: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

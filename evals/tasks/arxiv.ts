@@ -35,8 +35,6 @@ export const arxiv: EvalFunction = async ({
       !paper_links.papers ||
       paper_links.papers.length === 0
     ) {
-      await stagehand.close();
-
       return {
         _success: false,
         logs: logger.getLogs(),
@@ -95,8 +93,6 @@ export const arxiv: EvalFunction = async ({
     }
 
     if (!papers || papers.length === 0) {
-      await stagehand.close();
-
       return {
         _success: false,
         logs: logger.getLogs(),
@@ -121,8 +117,6 @@ export const arxiv: EvalFunction = async ({
         },
       });
 
-      await stagehand.close();
-
       return {
         _success: false,
         error: "Incorrect number of papers extracted",
@@ -146,8 +140,6 @@ export const arxiv: EvalFunction = async ({
           },
         });
 
-        await stagehand.close();
-
         return {
           _success: false,
           error: "Incomplete paper information",
@@ -157,8 +149,6 @@ export const arxiv: EvalFunction = async ({
         };
       }
     }
-
-    await stagehand.close();
 
     return {
       _success: true,
@@ -183,13 +173,14 @@ export const arxiv: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
+      error: error,
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
     };
+  } finally {
+    await stagehand.close();
   }
 };

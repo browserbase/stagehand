@@ -6,34 +6,44 @@ export const amazon_add_to_cart: EvalFunction = async ({
   sessionUrl,
   stagehand,
 }) => {
-  await stagehand.page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
-  );
+  try {
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
+    );
 
-  await stagehand.page.waitForTimeout(5000);
+    await stagehand.page.waitForTimeout(5000);
 
-  await stagehand.page.act({
-    action: "click the 'Add to Cart' button",
-  });
+    await stagehand.page.act({
+      action: "click the 'Add to Cart' button",
+    });
 
-  await stagehand.page.waitForTimeout(2000);
+    await stagehand.page.waitForTimeout(2000);
 
-  await stagehand.page.act({
-    action: "click the 'Proceed to checkout' button",
-  });
+    await stagehand.page.act({
+      action: "click the 'Proceed to checkout' button",
+    });
 
-  await stagehand.page.waitForTimeout(2000);
-  const currentUrl = stagehand.page.url();
-  const expectedUrl =
-    "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
+    await stagehand.page.waitForTimeout(2000);
+    const currentUrl = stagehand.page.url();
+    const expectedUrl =
+      "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
-  await stagehand.close();
-
-  return {
-    _success: currentUrl === expectedUrl,
-    currentUrl,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: currentUrl === expectedUrl,
+      currentUrl,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

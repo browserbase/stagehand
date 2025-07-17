@@ -6,11 +6,10 @@ export const observe_simple_google_search: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
-  );
-
   try {
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
+    );
     const observation1 = await stagehand.page.observe({
       instruction: "Find the search bar and type 'OpenAI'",
     });

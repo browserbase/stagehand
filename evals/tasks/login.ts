@@ -6,29 +6,40 @@ export const login: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
-  );
+  try {
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
+    );
 
-  await stagehand.page.act({
-    action: "type %nunya% into the username field",
-    variables: {
-      nunya: "business",
-    },
-  });
+    await stagehand.page.act({
+      action: "type %nunya% into the username field",
+      variables: {
+        nunya: "business",
+      },
+    });
 
-  const xpath = "xpath=/html/body/main/form/div[1]/input";
-  const actualValue = await stagehand.page.locator(xpath).inputValue();
+    const xpath = "xpath=/html/body/main/form/div[1]/input";
+    const actualValue = await stagehand.page.locator(xpath).inputValue();
 
-  const expectedValue = "business";
-  await stagehand.close();
+    const expectedValue = "business";
 
-  return {
-    _success: actualValue === expectedValue,
-    expectedValue,
-    actualValue,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: actualValue === expectedValue,
+      expectedValue,
+      actualValue,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

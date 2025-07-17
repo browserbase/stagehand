@@ -34,12 +34,7 @@ export const combination_sauce: EvalFunction = async ({
       instruction: "find all the 'add to cart' buttons",
     });
 
-    console.log("observations", observations);
-    console.log("observations length", observations.length);
-
-    const url = await stagehand.page.url();
-
-    await stagehand.close();
+    const url = stagehand.page.url();
 
     const usernamesCheck = usernames.length === 6;
     const urlCheck = url === "https://www.saucedemo.com/inventory.html";
@@ -52,10 +47,6 @@ export const combination_sauce: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -63,5 +54,7 @@ export const combination_sauce: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

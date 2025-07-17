@@ -28,8 +28,6 @@ export const peeler_complex: EvalFunction = async ({
       schema: z.object({ price: z.number().nullable() }),
     });
 
-    await stagehand.close();
-
     return {
       _success: price === 11.99,
       price,
@@ -53,8 +51,6 @@ export const peeler_complex: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -62,5 +58,7 @@ export const peeler_complex: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

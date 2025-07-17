@@ -6,46 +6,53 @@ export const history: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto("https://docs.stagehand.dev");
+  try {
+    await stagehand.page.goto("https://docs.stagehand.dev");
+    await stagehand.page.act("click on the 'Quickstart' tab");
+    await stagehand.page.extract("Extract the title of the page");
+    await stagehand.page.observe("Find all links on the page");
 
-  await stagehand.page.act("click on the 'Quickstart' tab");
+    const history = stagehand.history;
 
-  await stagehand.page.extract("Extract the title of the page");
+    const hasCorrectNumberOfEntries = history.length === 4;
 
-  await stagehand.page.observe("Find all links on the page");
+    const hasNavigateEntry = history[0].method === "navigate";
+    const hasActEntry = history[1].method === "act";
+    const hasExtractEntry = history[2].method === "extract";
+    const hasObserveEntry = history[3].method === "observe";
 
-  const history = stagehand.history;
+    const allEntriesHaveTimestamps = history.every(
+      (entry) =>
+        typeof entry.timestamp === "string" && entry.timestamp.length > 0,
+    );
+    const allEntriesHaveResults = history.every(
+      (entry) => entry.result !== undefined,
+    );
 
-  const hasCorrectNumberOfEntries = history.length === 4;
+    const success =
+      hasCorrectNumberOfEntries &&
+      hasNavigateEntry &&
+      hasActEntry &&
+      hasExtractEntry &&
+      hasObserveEntry &&
+      allEntriesHaveTimestamps &&
+      allEntriesHaveResults;
 
-  const hasNavigateEntry = history[0].method === "navigate";
-  const hasActEntry = history[1].method === "act";
-  const hasExtractEntry = history[2].method === "extract";
-  const hasObserveEntry = history[3].method === "observe";
-
-  const allEntriesHaveTimestamps = history.every(
-    (entry) =>
-      typeof entry.timestamp === "string" && entry.timestamp.length > 0,
-  );
-  const allEntriesHaveResults = history.every(
-    (entry) => entry.result !== undefined,
-  );
-
-  await stagehand.close();
-
-  const success =
-    hasCorrectNumberOfEntries &&
-    hasNavigateEntry &&
-    hasActEntry &&
-    hasExtractEntry &&
-    hasObserveEntry &&
-    allEntriesHaveTimestamps &&
-    allEntriesHaveResults;
-
-  return {
-    _success: success,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: success,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

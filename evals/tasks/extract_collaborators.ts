@@ -35,8 +35,6 @@ export const extract_collaborators: EvalFunction = async ({
       }),
     });
 
-    await stagehand.close();
-
     const EXPECTED_CONTRIBUTORS = [
       "zpao",
       "gaearon",
@@ -57,10 +55,6 @@ export const extract_collaborators: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -68,5 +62,7 @@ export const extract_collaborators: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

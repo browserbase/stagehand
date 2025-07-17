@@ -6,32 +6,42 @@ export const checkboxes: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
-  );
+  try {
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
+    );
 
-  await stagehand.page.act({
-    action: "click the 'baseball' option",
-  });
+    await stagehand.page.act({
+      action: "click the 'baseball' option",
+    });
 
-  await stagehand.page.act({
-    action: "click the 'netball' option",
-  });
+    await stagehand.page.act({
+      action: "click the 'netball' option",
+    });
 
-  const baseballChecked = await stagehand.page
-    .locator('input[type="checkbox"][name="sports"][value="baseball"]')
-    .isChecked();
+    const baseballChecked = await stagehand.page
+      .locator('input[type="checkbox"][name="sports"][value="baseball"]')
+      .isChecked();
 
-  const netballChecked = await stagehand.page
-    .locator('input[type="checkbox"][name="sports"][value="netball"]')
-    .isChecked();
+    const netballChecked = await stagehand.page
+      .locator('input[type="checkbox"][name="sports"][value="netball"]')
+      .isChecked();
 
-  await stagehand.close();
-
-  return {
-    _success: baseballChecked && netballChecked,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: baseballChecked && netballChecked,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (e) {
+    return {
+      _success: false,
+      error: e,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };
