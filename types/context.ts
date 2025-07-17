@@ -105,6 +105,7 @@ export interface CombinedA11yResult {
 }
 
 export interface FrameSnapshot {
+  frame: Frame;
   tree: string;
   xpathMap: Record<EncodedId, string>;
   urlMap: Record<EncodedId, string>;
