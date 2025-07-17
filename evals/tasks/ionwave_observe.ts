@@ -14,7 +14,6 @@ export const ionwave_observe: EvalFunction = async ({
     const observations = await stagehand.page.observe();
 
     if (observations.length === 0) {
-      await stagehand.close();
       return {
         _success: false,
         observations,
