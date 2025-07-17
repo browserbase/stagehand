@@ -11,7 +11,7 @@ on:
       - "docs/**"
 
 env:
-  EVAL_MODELS: "gpt-4.1,gemini-2.0-flash,claude-3-5-sonnet-latest"
+  EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-3-5-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 5
@@ -179,9 +179,6 @@ jobs:
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
 
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
-
       - name: Build Stagehand
         run: pnpm run build
 
@@ -221,9 +218,6 @@ jobs:
 
       - name: Build Stagehand
         run: pnpm run build
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
 
       - name: Run Regression Evals
         run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
@@ -288,10 +282,6 @@ jobs:
         if: needs.determine-evals.outputs.run-combination == 'true'
         run: pnpm run build
 
-      - name: Install Playwright browsers
-        if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm exec playwright install --with-deps
-
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
         run: pnpm run evals category combination
@@ -353,10 +343,6 @@ jobs:
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-act == 'true'
         run: pnpm run build
-
-      - name: Install Playwright browsers
-        if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm exec playwright install --with-deps
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -423,10 +409,6 @@ jobs:
         if: needs.determine-evals.outputs.run-extract == 'true'
         run: pnpm run build
 
-      - name: Install Playwright browsers
-        if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm exec playwright install --with-deps
-
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
         if: needs.determine-evals.outputs.run-extract == 'true'
@@ -490,10 +472,6 @@ jobs:
           rm -rf node_modules
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -559,10 +537,6 @@ jobs:
           rm -rf node_modules
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
