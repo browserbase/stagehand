@@ -10,10 +10,19 @@ import {
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
+  // OpenAI models
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
-  "claude-3-7-sonnet-latest": "anthropic",
+  // Anthropic models
+  "claude-sonnet-4-0": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
+  "claude-opus-4-0": "anthropic",
+  "claude-opus-4-20250514": "anthropic",
+  "claude-3-7-sonnet-latest": "anthropic",
+  "claude-3-7-sonnet-20250219": "anthropic",
+  "claude-3-5-sonnet-latest": "anthropic",
+  "claude-3-5-sonnet-20241022": "anthropic",
+  "claude-3-5-sonnet-20240620": "anthropic",
 };
 
 /**
