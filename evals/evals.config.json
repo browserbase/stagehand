@@ -382,6 +382,10 @@
     {
       "name": "hidden_input_dropdown",
       "categories": ["act"]
+    },
+    {
+      "name": "nested_iframes_2",
+      "categories": ["act"]
     }
   ]
 }
