@@ -193,17 +193,19 @@ export class AnthropicClient extends LLMClient {
       formattedMessages.push(screenshotMessage);
     }
 
-    let anthropicTools: Tool[] = options.tools?.map((tool) => {
-      return {
-        name: tool.name,
-        description: tool.description,
-        input_schema: {
-          type: "object",
-          properties: tool.parameters.properties,
-          required: tool.parameters.required,
-        },
-      };
-    });
+    let anthropicTools: Tool[] = options.tools
+      ? Object.entries(options.tools).map(([name, tool]) => {
+          return {
+            name,
+            description: tool.description,
+            input_schema: {
+              type: "object",
+              properties: tool.parameters.properties,
+              required: tool.parameters.required,
+            },
+          };
+        })
+      : [];
 
     let toolDefinition: Tool | undefined;
     if (options.response_model) {

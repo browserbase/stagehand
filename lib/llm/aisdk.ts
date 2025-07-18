@@ -2,7 +2,6 @@ import {
   CoreAssistantMessage,
   CoreMessage,
   CoreSystemMessage,
-  CoreTool,
   CoreUserMessage,
   generateObject,
   generateText,
@@ -11,11 +10,11 @@ import {
   NoObjectGeneratedError,
   TextPart,
 } from "ai";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { ChatCompletion } from "openai/resources";
 import { LLMCache } from "../cache/LLMCache";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -255,19 +254,26 @@ export class AISdkClient extends LLMClient {
       return result;
     }
 
-    const tools: Record<string, CoreTool> = {};
-
-    for (const rawTool of options.tools ?? []) {
-      tools[rawTool.name] = {
-        description: rawTool.description,
-        parameters: rawTool.parameters,
-      };
-    }
+    this.logger?.({
+      category: "aisdk",
+      message: "generating text",
+      level: 2,
+      auxiliary: {
+        messages: {
+          value: JSON.stringify(formattedMessages),
+          type: "object",
+        },
+        tools: {
+          value: JSON.stringify(options.tools),
+          type: "object",
+        },
+      },
+    });
 
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
-      tools,
+      tools: options.tools,
     });
 
     const result = {

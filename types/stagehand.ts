@@ -1,13 +1,13 @@
 import Browserbase from "@browserbasehq/sdk";
+import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
+import { Tool } from "ai/dist";
+import { Cookie } from "playwright";
 import { z } from "zod";
+import { LLMClient } from "../lib/llm/LLMClient";
 import { LLMProvider } from "../lib/llm/LLMProvider";
+import { AgentProviderType } from "./agent";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "playwright";
-import { AgentProviderType } from "./agent";
-import { MCPClient } from "mcp-client";
-import { Tool } from "ai";
 
 export interface ConstructorParams {
   /**
@@ -278,7 +278,7 @@ export interface AgentConfig {
   /**
    * MCP integrations
    */
-  integrations?: MCPClient[];
+  integrations?: Client[];
   /**
    * Tools passed to the agent client
    */
