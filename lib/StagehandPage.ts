@@ -1,6 +1,4 @@
-import { Browserbase } from "@browserbasehq/sdk";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
-import { chromium } from "playwright";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
@@ -23,7 +21,6 @@ import {
   StagehandNotInitializedError,
   StagehandEnvironmentError,
   CaptchaTimeoutError,
-  BrowserbaseSessionNotFoundError,
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
   StagehandDefaultError,
@@ -173,40 +170,6 @@ ${scriptContent} \
         throw err;
       }
     }
-  }
-
-  private async _refreshPageFromAPI() {
-    if (!this.api) return;
-
-    const sessionId = this.stagehand.browserbaseSessionID;
-    if (!sessionId) {
-      throw new BrowserbaseSessionNotFoundError();
-    }
-
-    const browserbase = new Browserbase({
-      apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
-    });
-
-    const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-
-    const connectUrl = sessionStatus.connectUrl;
-    const browser = await chromium.connectOverCDP(connectUrl);
-    const context = browser.contexts()[0];
-    const newPage = context.pages()[0];
-
-    const newStagehandPage = await new StagehandPage(
-      newPage,
-      this.stagehand,
-      this.intContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.api,
-    ).init();
-
-    this.intPage = newStagehandPage.page;
-
-    await this.intPage.waitForLoadState("domcontentloaded");
-    await this._waitForSettledDom();
   }
 
   /**
@@ -369,9 +332,7 @@ ${scriptContent} \
                 }
               }
 
-              if (this.api) {
-                await this._refreshPageFromAPI();
-              } else {
+              if (!this.api) {
                 if (stagehand.debugDom) {
                   this.stagehand.log({
                     category: "deprecation",
@@ -630,7 +591,6 @@ ${scriptContent} \
 
           if (this.api) {
             const result = await this.api.act(observeResult);
-            await this._refreshPageFromAPI();
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
           }
@@ -662,7 +622,6 @@ ${scriptContent} \
 
       if (this.api) {
         const result = await this.api.act(actionOrOptions);
-        await this._refreshPageFromAPI();
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
