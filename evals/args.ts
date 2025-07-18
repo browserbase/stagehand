@@ -11,6 +11,7 @@ const rawArgs = process.argv.slice(2);
 const parsedArgs: {
   evalName?: string;
   env?: string;
+  api?: string;
   trials?: number;
   concurrency?: number;
   provider?: string;
@@ -22,6 +23,8 @@ const parsedArgs: {
 for (const arg of rawArgs) {
   if (arg.startsWith("env=")) {
     parsedArgs.env = arg.split("=")[1]?.toLowerCase();
+  } else if (arg.startsWith("api=")) {
+    parsedArgs.api = arg.split("=")[1]?.toLowerCase();
   } else if (arg.startsWith("name=")) {
     parsedArgs.evalName = arg.split("=")[1];
   } else if (arg.startsWith("trials=")) {
@@ -46,6 +49,12 @@ if (parsedArgs.env === "browserbase") {
   process.env.EVAL_ENV = "BROWSERBASE";
 } else if (parsedArgs.env === "local") {
   process.env.EVAL_ENV = "LOCAL";
+}
+
+if (parsedArgs.api === "true") {
+  process.env.USE_API = "true";
+} else if (parsedArgs.api === "false") {
+  process.env.USE_API = "false";
 }
 
 if (parsedArgs.trials !== undefined) {
@@ -80,22 +89,21 @@ function buildUsage(detailed = false): string {
 
   const body = dedent`
     ${chalk.magenta.underline("Keys\n")}
-      ${chalk.cyan("env")}          target environment      (default ${chalk.dim(
-        "LOCAL",
-      )})       [${chalk.yellow("LOCAL")}, ${chalk.yellow("BROWSERBASE")}]
-      ${chalk.cyan("trials")}       number of trials        (default ${chalk.dim(
-        "10",
-      )})
-      ${chalk.cyan(
-        "concurrency",
-      )}  max parallel sessions   (default ${chalk.dim("10")})
-      ${chalk.cyan("provider")}  override LLM provider   (default ${chalk.dim(
-        providerDefault,
-      )})       [${chalk.yellow("OPENAI")}, ${chalk.yellow(
-        "ANTHROPIC",
-      )}, ${chalk.yellow("GOOGLE")}, ${chalk.yellow("TOGETHER")}, ${chalk.yellow(
-        "GROQ",
-      )}, ${chalk.yellow("CEREBRAS")}]
+  ${chalk.cyan("env".padEnd(12))} ${"target environment".padEnd(24)}
+    (default ${chalk.dim("LOCAL")})                [${chalk.yellow("BROWSERBASE")}, ${chalk.yellow("LOCAL")}] ${chalk.gray("← LOCAL sets api=false")}
+
+  ${chalk.cyan("api".padEnd(12))} ${"use the Stagehand API".padEnd(24)}
+    (default ${chalk.dim("false")})                [${chalk.yellow("true")},  ${chalk.yellow("false")}]
+
+  ${chalk.cyan("trials".padEnd(12))} ${"number of trials".padEnd(24)}
+    (default ${chalk.dim("10")})
+
+  ${chalk.cyan("concurrency".padEnd(12))} ${"max parallel sessions".padEnd(24)}
+    (default ${chalk.dim("10")})
+
+  ${chalk.cyan("provider".padEnd(12))} ${"override LLM provider".padEnd(24)}
+    (default ${chalk.dim(providerDefault)})        [${chalk.yellow("OPENAI")}, ${chalk.yellow("ANTHROPIC")}, ${chalk.yellow("GOOGLE")}, ${chalk.yellow("TOGETHER")}, ${chalk.yellow("GROQ")}, ${chalk.yellow("CEREBRAS")}]
+
 
     ${chalk.magenta.underline("Positional filters\n")}
       category <category_name>   one of: ${DEFAULT_EVAL_CATEGORIES.map((c) =>
@@ -114,6 +122,13 @@ function buildUsage(detailed = false): string {
       ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("BROWSERBASE")} ${chalk.cyan(
         "trials=",
       )}${chalk.yellow("3")}
+      
+      
+      ${chalk.dim("# Run evals using the Stagehand API")}
+      
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("BROWSERBASE")} ${chalk.cyan(
+        "api=",
+      )}${chalk.yellow("true")}
 
 
       ${chalk.dim(
@@ -144,6 +159,8 @@ function buildUsage(detailed = false): string {
       EVAL_MAX_CONCURRENCY  overridable via ${chalk.cyan("concurrency=")}
       
       EVAL_PROVIDER         overridable via ${chalk.cyan("provider=")}
+      
+      USE_API               overridable via ${chalk.cyan("api=true")}
   `;
 
   return `${header}\n\n${synopsis}\n\n${body}\n${envSection}\n`;
