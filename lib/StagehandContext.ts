@@ -31,13 +31,19 @@ export class StagehandContext {
         }
         if (prop === "pages") {
           return (): Page[] => {
-            const pwPages = target.pages();
-            // Convert all pages to StagehandPages synchronously
-            return pwPages.map((pwPage: PlaywrightPage) => {
-              let stagehandPage = this.pageMap.get(pwPage);
-              if (!stagehandPage) {
-                // Create a new StagehandPage and store it in the map
-                stagehandPage = new StagehandPage(
+            const ordered = target
+              .pages()
+              .slice()
+              .sort(
+                (a, b) =>
+                  (a.opener() === null ? -1 : 1) *
+                  (b.opener() === null ? 1 : -1),
+              );
+
+            return ordered.map((pwPage: PlaywrightPage) => {
+              let shPage = this.pageMap.get(pwPage);
+              if (!shPage) {
+                shPage = new StagehandPage(
                   pwPage,
                   this.stagehand,
                   this,
@@ -46,9 +52,9 @@ export class StagehandContext {
                   this.stagehand.apiClient,
                   this.stagehand.waitForCaptchaSolves,
                 );
-                this.pageMap.set(pwPage, stagehandPage);
+                this.pageMap.set(pwPage, shPage);
               }
-              return stagehandPage.page;
+              return shPage.page;
             });
           };
         }

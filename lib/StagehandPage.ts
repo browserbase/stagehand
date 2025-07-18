@@ -190,14 +190,18 @@ ${scriptContent} \
     const { connectUrl } = await browserbase.sessions.retrieve(sessionId);
     const browser = await chromium.connectOverCDP(connectUrl);
     const pwContext = browser.contexts()[0];
-    const pwPage = pwContext.pages()[0];
+
+    const pwRootPage =
+      pwContext.pages().find((p) => p.opener() === null) ??
+      pwContext.pages()[0];
 
     const shContext = await StagehandContext.init(pwContext, this.stagehand);
 
     this.stagehand.setContext(shContext);
     this.intContext = shContext;
 
-    const shPage = await shContext.getStagehandPage(pwPage);
+    const shPage = await shContext.getStagehandPage(pwRootPage);
+    shContext.setActivePage(shPage);
     this.intPage = shPage.page;
 
     await this.intPage.waitForLoadState("domcontentloaded");
