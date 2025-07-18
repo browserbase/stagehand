@@ -401,6 +401,11 @@ export class Stagehand {
   public readonly experimental: boolean;
   private _livePageProxy?: Page;
 
+  public setContext(context: StagehandContext) {
+    this.stagehandContext = context;
+    this._livePageProxy = undefined;
+  }
+
   private createLivePageProxy<T extends Page>(): T {
     const proto = Object.getPrototypeOf(this.stagehandPage.page) as object;
     const target = Object.create(proto) as T;

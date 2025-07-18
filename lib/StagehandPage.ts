@@ -187,23 +187,18 @@ ${scriptContent} \
       apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
     });
 
-    const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-
-    const connectUrl = sessionStatus.connectUrl;
+    const { connectUrl } = await browserbase.sessions.retrieve(sessionId);
     const browser = await chromium.connectOverCDP(connectUrl);
-    const context = browser.contexts()[0];
-    const newPage = context.pages()[0];
+    const pwContext = browser.contexts()[0];
+    const pwPage = pwContext.pages()[0];
 
-    const newStagehandPage = await new StagehandPage(
-      newPage,
-      this.stagehand,
-      this.intContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.api,
-    ).init();
+    const shContext = await StagehandContext.init(pwContext, this.stagehand);
 
-    this.intPage = newStagehandPage.page;
+    this.stagehand.setContext(shContext);
+    this.intContext = shContext;
+
+    const shPage = await shContext.getStagehandPage(pwPage);
+    this.intPage = shPage.page;
 
     await this.intPage.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
