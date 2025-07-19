@@ -12,6 +12,7 @@ export class StagehandContext {
   private readonly intContext: EnhancedContext;
   private pageMap: WeakMap<PlaywrightPage, StagehandPage>;
   private activeStagehandPage: StagehandPage | null = null;
+  private readonly frameIdMap: Map<string, StagehandPage> = new Map();
 
   private constructor(context: PlaywrightContext, stagehand: Stagehand) {
     this.stagehand = stagehand;
@@ -100,6 +101,21 @@ export class StagehandContext {
     });
 
     return instance;
+  }
+  public get frameIdLookup(): ReadonlyMap<string, StagehandPage> {
+    return this.frameIdMap;
+  }
+
+  public registerFrameId(frameId: string, page: StagehandPage): void {
+    this.frameIdMap.set(frameId, page);
+  }
+
+  public unregisterFrameId(frameId: string): void {
+    this.frameIdMap.delete(frameId);
+  }
+
+  public getStagehandPageByFrameId(frameId: string): StagehandPage | undefined {
+    return this.frameIdMap.get(frameId);
   }
 
   public get context(): EnhancedContext {
