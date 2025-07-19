@@ -692,7 +692,8 @@ ${scriptContent} \
       const { action, modelName, modelClientOptions } = actionOrOptions;
 
       if (this.api) {
-        const result = await this.api.act(actionOrOptions);
+        const opts = { ...actionOrOptions, frameId: this.frameId };
+        const result = await this.api.act(opts);
         await this._refreshPageFromAPI();
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
@@ -790,7 +791,8 @@ ${scriptContent} \
       }
 
       if (this.api) {
-        const result = await this.api.extract<T>(options);
+        const opts = { ...options, frameId: this.frameId };
+        const result = await this.api.extract<T>(opts);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
@@ -897,7 +899,8 @@ ${scriptContent} \
       }
 
       if (this.api) {
-        const result = await this.api.observe(options);
+        const opts = { ...options, frameId: this.frameId };
+        const result = await this.api.observe(opts);
         this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;
       }
