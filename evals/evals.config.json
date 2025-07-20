@@ -386,6 +386,18 @@
     {
       "name": "nested_iframes_2",
       "categories": ["act"]
+    },
+    {
+      "name": "heal_scroll_50",
+      "categories": ["act"]
+    },
+    {
+      "name": "heal_simple_google_search",
+      "categories": ["regression", "act"]
+    },
+    {
+      "name": "heal_custom_dropdown",
+      "categories": ["act"]
     }
   ]
 }
