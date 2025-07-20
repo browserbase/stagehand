@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "mintlify dev --no-open",
+    "dev": "mintlify dev --no-open --port 3002",
     "upgrade": "mintlify upgrade"
   },
   "keywords": [],
