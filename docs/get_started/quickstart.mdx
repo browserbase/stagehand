@@ -212,10 +212,10 @@ dotenv.config();
 
 export async function main() {
   const config: ConstructorParams = {
-    env: "BROWSERBASE",
+    env: "BROWSERBASE", // or "LOCAL"
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
-    verbose: 2,
+    verbose: 1,
   };
 
   const stagehand = new Stagehand(config);
