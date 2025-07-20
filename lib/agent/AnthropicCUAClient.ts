@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
 import { LogLine } from "@/types/log";
 import {
   AgentAction,
@@ -35,7 +35,7 @@ export class AnthropicCUAClient extends AgentClient {
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
-    clientOptions?: Record<string, unknown>,
+    clientOptions?: ClientOptions,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -44,21 +44,13 @@ export class AnthropicCUAClient extends AgentClient {
       (clientOptions?.apiKey as string) || process.env.ANTHROPIC_API_KEY || "";
     this.baseURL = (clientOptions?.baseURL as string) || undefined;
 
-    // Get thinking budget if specified
-    if (
-      clientOptions?.thinkingBudget &&
-      typeof clientOptions.thinkingBudget === "number"
-    ) {
-      this.thinkingBudget = clientOptions.thinkingBudget;
-    }
-
     // Store client options for reference
     this.clientOptions = {
       apiKey: this.apiKey,
     };
 
     if (this.baseURL) {
-      this.clientOptions.baseUrl = this.baseURL;
+      this.clientOptions.baseURL = this.baseURL;
     }
 
     // Initialize the Anthropic client
@@ -406,6 +398,11 @@ export class AnthropicCUAClient extends AgentClient {
         ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
         : undefined;
 
+      // Determine the appropriate computer type and beta flag based on model
+      const { computerType, betaFlag } = this.getComputerUseConfigForModel(
+        this.modelName,
+      );
+
       // Create the request parameters
       const requestParams: Record<string, unknown> = {
         model: this.modelName,
@@ -413,14 +410,14 @@ export class AnthropicCUAClient extends AgentClient {
         messages: messages,
         tools: [
           {
-            type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
+            type: computerType,
             name: "computer",
             display_width_px: this.currentViewport.width,
             display_height_px: this.currentViewport.height,
             display_number: 1,
           },
         ],
-        betas: ["computer-use-2025-01-24"],
+        betas: [betaFlag],
       };
 
       // Add system parameter if provided
@@ -472,6 +469,43 @@ export class AnthropicCUAClient extends AgentClient {
       console.error("Error getting action from Anthropic:", error);
       throw error;
     }
+  }
+
+  /**
+   * Get the appropriate computer type and beta flag for a given model
+   */
+  private getComputerUseConfigForModel(modelName: string): {
+    computerType: string;
+    betaFlag: string;
+  } {
+    // Claude 3.5 models use computer_20241022 with computer-use-2024-10-22
+    if (
+      modelName.includes("claude-3-5-sonnet") ||
+      modelName.includes("claude-3-5")
+    ) {
+      return {
+        computerType: "computer_20241022",
+        betaFlag: "computer-use-2024-10-22",
+      };
+    }
+
+    // Claude 4 models and Claude Sonnet 3.7 use computer_20250124 with computer-use-2025-01-24
+    if (
+      modelName.includes("claude-4") ||
+      modelName.includes("claude-3-7") ||
+      modelName.includes("claude-3-7-sonnet")
+    ) {
+      return {
+        computerType: "computer_20250124",
+        betaFlag: "computer-use-2025-01-24",
+      };
+    }
+
+    // Default fallback for other models
+    return {
+      computerType: "computer_20250124",
+      betaFlag: "computer-use-2025-01-24",
+    };
   }
 
   async takeAction(
