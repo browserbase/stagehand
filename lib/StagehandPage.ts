@@ -360,7 +360,6 @@ ${scriptContent} \
             const rawGoto: typeof target.goto =
               Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
-              this.intContext.setActivePage(this);
               const result = this.api
                 ? await this.api.goto(url, {
                     ...options,
