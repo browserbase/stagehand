@@ -13,6 +13,7 @@ import {
 } from "@/types/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
+import { compressConversationImages } from "./imageCompressionUtils";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -30,12 +31,14 @@ export class AnthropicCUAClient extends AgentClient {
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
+  private experimental: boolean = false;
 
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
     clientOptions?: Record<string, unknown>,
+    experimental?: boolean,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -51,6 +54,7 @@ export class AnthropicCUAClient extends AgentClient {
     ) {
       this.thinkingBudget = clientOptions.thinkingBudget;
     }
+    this.experimental = experimental || false;
 
     // Store client options for reference
     this.clientOptions = {
@@ -321,6 +325,9 @@ export class AnthropicCUAClient extends AgentClient {
       const nextInputItems: ResponseInputItem[] = [...inputItems];
 
       // Add the assistant message with tool_use blocks to the history
+      if (this.experimental) {
+        compressConversationImages(nextInputItems);
+      }
       nextInputItems.push(assistantMessage);
 
       // Generate tool results and add them as a user message

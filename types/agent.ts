@@ -52,6 +52,7 @@ export interface AgentHandlerOptions {
   clientOptions?: Record<string, unknown>;
   userProvidedInstructions?: string;
   agentType: AgentType;
+  experimental?: boolean;
 }
 
 export interface ActionExecutionResult {

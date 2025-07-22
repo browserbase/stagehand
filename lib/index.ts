@@ -931,6 +931,7 @@ export class Stagehand {
       You are currently on the following page: ${this.stagehandPage.page.url()}.
       Do not ask follow up questions, the user will trust your judgement.`,
         agentType: options.provider,
+        experimental: this.experimental,
       },
     );
 

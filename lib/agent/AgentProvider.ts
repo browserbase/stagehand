@@ -35,6 +35,7 @@ export class AgentProvider {
     modelName: string,
     clientOptions?: Record<string, unknown>,
     userProvidedInstructions?: string,
+    experimental?: boolean,
   ): AgentClient {
     const type = AgentProvider.getAgentProvider(modelName);
     this.logger({
@@ -58,6 +59,7 @@ export class AgentProvider {
             modelName,
             userProvidedInstructions,
             clientOptions,
+            experimental,
           );
         default:
           throw new UnsupportedModelProviderError(
