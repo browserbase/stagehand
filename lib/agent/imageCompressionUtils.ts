@@ -42,7 +42,7 @@ export function findItemsWithImages(items: ResponseInputItem[]): number[] {
  * while keeping the most recent images intact
  * @param items - Array of conversation items to process
  * @param keepMostRecentCount - Number of most recent image-containing items to preserve (default: 2)
- * @returns Object with processed items and count of removed images
+ * @returns Object with processed items
  */
 export function compressConversationImages(
   items: ResponseInputItem[],
