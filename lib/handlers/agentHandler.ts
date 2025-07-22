@@ -12,6 +12,7 @@ import {
 } from "@/types/agent";
 import { Stagehand } from "../index";
 import { StagehandFunctionName } from "@/types/stagehand";
+import { ToolSet } from "ai/dist";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -27,6 +28,7 @@ export class StagehandAgentHandler {
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     options: AgentHandlerOptions,
+    tools: ToolSet,
   ) {
     this.stagehand = stagehand;
     this.stagehandPage = stagehandPage;
@@ -41,6 +43,7 @@ export class StagehandAgentHandler {
       options.modelName,
       options.clientOptions || {},
       options.userProvidedInstructions,
+      tools,
     );
 
     // Store the client

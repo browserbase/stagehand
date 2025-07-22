@@ -10,7 +10,7 @@ export const iframe_form_multiple: EvalFunction = async ({
 }) => {
   await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
 
-  const agent = stagehand.agent({
+  const agent = await stagehand.agent({
     provider: modelName.startsWith("claude") ? "anthropic" : "openai",
     model: modelName,
   });

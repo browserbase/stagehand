@@ -39,7 +39,7 @@ Stagehand lets you leverage powerful computer use APIs from OpenAI and Anthropic
 await page.goto("https://github.com/browserbase/stagehand");
 
 // Create a Computer Use agent with just one line of code!
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
 	provider: "openai",
 	model: "computer-use-preview"
 });
@@ -52,7 +52,7 @@ console.log(result);
 await page.goto("https://github.com/browserbase/stagehand-python")
 
 # Create a Computer Use agent with just one line of code!
-agent = stagehand.agent(
+agent = await stagehand.agent(
     model="computer-use-preview"
 )
 
@@ -95,7 +95,7 @@ Python currently supports `stagehand.agent` with Computer Use Agent (CUA) models
 await stagehand.page.goto("https://github.com/browserbase/stagehand");
 
 // Open Operator will use the default LLM from Stagehand config
-const operator = stagehand.agent();
+const operator = await stagehand.agent();
 const { message, actions } = await operator.execute(
 	"Extract the top contributor's username"
 );

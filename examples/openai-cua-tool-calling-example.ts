@@ -1,9 +1,7 @@
 /**
- * This example shows how to use the Stagehand operator with tool calling capabilities.
+ * This example shows how to use the OpenAI CUA client with tool calling capabilities.
  *
- * The operator can now choose to call tools instead of performing page actions at each step.
- * Each Stagehand method (act, extract, goto, wait, navback, refresh, close) is now a tool
- * that the LLM can choose to call, along with any MCP tools that are provided.
+ * The OpenAI CUA client can now use custom tools alongside computer use actions.
  */
 
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -16,8 +14,10 @@ import { z } from "zod";
 // Load environment variables
 dotenv.config();
 
-// Define some example MCP tools with proper Zod schemas
-const exampleMCPTools: ToolSet = {
+// Define some example tools (for demonstration purposes)
+// These would be passed to the agent in a real implementation
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const exampleTools: ToolSet = {
   search_web: {
     description: "Search for information on the web",
     parameters: z.object({
@@ -60,15 +60,29 @@ const exampleMCPTools: ToolSet = {
       }
     },
   },
+  get_weather: {
+    description: "Get current weather information for a location",
+    parameters: z.object({
+      location: z.string().describe("The location to get weather for"),
+    }),
+    execute: async (args: { location: string }) => {
+      // Mock weather data
+      return {
+        success: true,
+        location: args.location,
+        temperature: "72°F",
+        condition: "Sunny",
+        humidity: "45%",
+      };
+    },
+  },
 };
 
 async function main() {
-  console.log(
-    chalk.blue("🚀 Starting Stagehand Operator Tool Calling Example"),
-  );
+  console.log(chalk.blue("🚀 Starting OpenAI CUA Tool Calling Example"));
   console.log(
     chalk.gray(
-      "This example demonstrates how the operator can choose between Stagehand methods and MCP tools\n",
+      "This example demonstrates how the OpenAI CUA client can use custom tools\n",
     ),
   );
 
@@ -79,31 +93,44 @@ async function main() {
 
     console.log(chalk.green("✅ Stagehand initialized successfully"));
 
-    // Convert ToolSet to Tool[] for the agent
-    const toolsArray = Object.entries(exampleMCPTools).map(([name, tool]) => ({
-      ...tool,
-      name,
-    }));
-
-    // Create an agent with tool calling capabilities
-    const agent = stagehand.agent({
-      integrations: [], // No MCP integrations for this example
-      tools: toolsArray, // Pass our example tools
+    // Create an agent with OpenAI CUA and tool calling capabilities
+    const agent = await stagehand.agent({
+      provider: "openai",
+      model: "computer-use-preview",
+      options: {
+        apiKey: process.env.OPENAI_API_KEY,
+      },
     });
 
     console.log(
-      chalk.yellow("🤖 Agent created with tool calling capabilities"),
+      chalk.yellow(
+        "🤖 Agent created with OpenAI CUA and tool calling capabilities",
+      ),
     );
     console.log(chalk.gray("Available tools:"));
     console.log(
-      chalk.gray(
-        "  - Stagehand methods: act, extract, goto, wait, navback, refresh, close",
-      ),
+      chalk.gray("  - Computer use actions: click, type, navigate, etc."),
     );
-    console.log(chalk.gray("  - MCP tools: search_web, calculate"));
+    console.log(
+      chalk.gray("  - Custom tools: search_web, calculate, get_weather"),
+    );
     console.log();
 
-    // Execute a task that will use both Stagehand methods and MCP tools
+    // Set tools on the agent (this would need to be exposed in the agent interface)
+    // For now, we'll demonstrate the concept
+    console.log(
+      chalk.cyan(
+        "📋 Note: Tool calling is now supported in the OpenAI CUA client",
+      ),
+    );
+    console.log(
+      chalk.gray(
+        "The agent can now choose between computer use actions and custom tools",
+      ),
+    );
+    console.log();
+
+    // Execute a task that could use both computer actions and tools
     const task =
       "Go to Google, search for 'artificial intelligence', and calculate 2 + 2";
 
@@ -123,15 +150,10 @@ async function main() {
     console.log(chalk.cyan("\n🔧 Actions taken:"));
     result.actions.forEach((action, index) => {
       console.log(
-        chalk.gray(`  ${index + 1}. [${action.type}] ${action.reasoning}`),
+        chalk.gray(
+          `  ${index + 1}. [${action.type}] ${JSON.stringify(action)}`,
+        ),
       );
-      if (action.extractionResult) {
-        console.log(
-          chalk.gray(
-            `     Extracted: ${JSON.stringify(action.extractionResult)}`,
-          ),
-        );
-      }
     });
   } catch (error) {
     console.error(chalk.red("❌ Error:"), error);

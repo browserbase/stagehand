@@ -134,7 +134,7 @@ Call `execute` on the agent to assign a task to the agent.
 // Navigate to a website
 await stagehand.page.goto("https://www.google.com");
 
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
 	// You can use either OpenAI or Anthropic
 	provider: "openai",
 	// The model to use (claude-3-7-sonnet-latest for Anthropic)
@@ -160,7 +160,7 @@ import os
 # Navigate to a website
 await stagehand.page.goto("https://www.google.com")
 
-agent = stagehand.agent({
+agent = await stagehand.agent({
     # The model to use
     model="computer-use-preview",
 

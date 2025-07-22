@@ -2,8 +2,11 @@ import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
 import { ToolSet } from "ai/dist";
 import { JsonSchema, jsonSchemaToZod } from "../utils";
 
-export const resolveMCPTools = async (clients: Client[]): Promise<ToolSet> => {
-  const tools: ToolSet = {};
+export const resolveTools = async (
+  clients: Client[],
+  userTools: ToolSet,
+): Promise<ToolSet> => {
+  const tools: ToolSet = { ...userTools };
 
   for (const client of clients) {
     let nextCursor: string | undefined = undefined;

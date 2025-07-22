@@ -78,7 +78,7 @@ await page.goto("https://github.com/browserbase");
 await page.act("click on the stagehand repo");
 
 // Use Computer Use agents for larger actions
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
     provider: "openai",
     model: "computer-use-preview",
 });

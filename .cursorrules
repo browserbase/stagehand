@@ -127,7 +127,7 @@ Use the `agent` method to automonously execute larger tasks like "Get the stock 
 // Navigate to a website
 await stagehand.page.goto("https://www.google.com");
 
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
   // You can use either OpenAI or Anthropic
   provider: "openai",
   // The model to use (claude-3-7-sonnet-20250219 or claude-3-5-sonnet-20240620 for Anthropic)

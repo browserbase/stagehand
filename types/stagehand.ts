@@ -1,6 +1,6 @@
 import Browserbase from "@browserbasehq/sdk";
 import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
-import { Tool } from "ai/dist";
+import { ToolSet } from "ai/dist";
 import { Cookie } from "playwright";
 import { z } from "zod";
 import { LLMClient } from "../lib/llm/LLMClient";
@@ -282,7 +282,7 @@ export interface AgentConfig {
   /**
    * Tools passed to the agent client
    */
-  tools?: Tool[];
+  tools?: ToolSet;
 }
 
 export enum StagehandFunctionName {

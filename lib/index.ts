@@ -45,7 +45,7 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
 } from "../types/stagehandErrors";
-import { resolveMCPTools } from "./mcp/utils";
+import { resolveTools } from "./mcp/utils";
 
 dotenv.config({ path: ".env" });
 
@@ -900,19 +900,20 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method
    */
-  agent(options?: AgentConfig): {
+  async agent(options?: AgentConfig): Promise<{
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-  } {
+  }> {
+    const tools = options?.integrations
+      ? await resolveTools(options?.integrations, options?.tools)
+      : {};
+
     if (!options || !options.provider) {
       // use open operator agent
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          const tools = options.integrations
-            ? await resolveMCPTools(options?.integrations)
-            : {};
           // later we want to abstract this to a function that also performs filtration/ranking of tools
           return new StagehandOperatorHandler(
             this.stagehandPage,
@@ -938,6 +939,7 @@ export class Stagehand {
       Do not ask follow up questions, the user will trust your judgement.`,
         agentType: options.provider,
       },
+      tools,
     );
 
     this.log({
