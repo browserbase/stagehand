@@ -13,6 +13,7 @@ import {
 } from "@/types/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
+import { ToolSet } from "ai/dist";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -30,12 +31,14 @@ export class AnthropicCUAClient extends AgentClient {
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
   private thinkingBudget: number | null = null;
+  private tools?: ToolSet;
 
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
     clientOptions?: Record<string, unknown>,
+    tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
 
@@ -63,6 +66,8 @@ export class AnthropicCUAClient extends AgentClient {
 
     // Initialize the Anthropic client
     this.client = new Anthropic(this.clientOptions);
+
+    this.tools = tools;
   }
 
   setViewport(width: number, height: number): void {
@@ -231,10 +236,6 @@ export class AnthropicCUAClient extends AgentClient {
 
       // Process content blocks to find tool use items and text content
       for (const block of content) {
-        // Log the block for debugging
-        console.log("Processing block:", JSON.stringify(block, null, 2));
-
-        // Enhanced logging for debugging
         logger({
           category: "agent",
           message: `Processing block type: ${block.type}, id: ${block.id || "unknown"}`,
@@ -423,6 +424,35 @@ export class AnthropicCUAClient extends AgentClient {
         betas: ["computer-use-2025-01-24"],
       };
 
+      // Add custom tools if available
+      if (this.tools && Object.keys(this.tools).length > 0) {
+        const customTools = Object.entries(this.tools).map(([name, tool]) => {
+          // Convert Zod schema to proper JSON schema format for Anthropic
+          let inputSchema = tool.parameters;
+
+          // Ensure the schema has the required 'type' field at root level
+          if (typeof inputSchema === "object" && inputSchema !== null) {
+            if (!("type" in inputSchema)) {
+              inputSchema = {
+                type: "object",
+                ...inputSchema,
+              };
+            }
+          }
+
+          return {
+            name,
+            description: tool.description,
+            input_schema: inputSchema,
+          };
+        });
+
+        requestParams.tools = [
+          ...(requestParams.tools as Record<string, unknown>[]),
+          ...customTools,
+        ];
+      }
+
       // Add system parameter if provided
       if (this.userProvidedInstructions) {
         requestParams.system = this.userProvidedInstructions;
@@ -431,19 +461,6 @@ export class AnthropicCUAClient extends AgentClient {
       // Add thinking parameter if available
       if (thinking) {
         requestParams.thinking = thinking;
-      }
-
-      // Log the request
-      if (messages.length > 0) {
-        const firstMessage = messages[0];
-        const contentPreview =
-          typeof firstMessage.content === "string"
-            ? firstMessage.content.substring(0, 50)
-            : "complex content";
-
-        console.log(
-          `Sending request to Anthropic with ${messages.length} messages and ${messages.length > 0 ? `first message role: ${messages[0].role}, content: ${contentPreview}...` : "no messages"}`,
-        );
       }
 
       const startTime = Date.now();
@@ -554,16 +571,40 @@ export class AnthropicCUAClient extends AgentClient {
             level: 2,
           });
         } else {
-          // For any other tools, return a simple result as a string
+          // Handle custom tools
+          let toolResult = "Tool executed successfully";
+          if (this.tools && item.name in this.tools) {
+            try {
+              const tool = this.tools[item.name];
+              const result = await tool.execute(item.input, {
+                toolCallId: item.id,
+                messages: [],
+              });
+              toolResult = JSON.stringify(result);
+            } catch (toolError) {
+              const errorMessage =
+                toolError instanceof Error
+                  ? toolError.message
+                  : String(toolError);
+              toolResult = `Error executing tool: ${errorMessage}`;
+
+              logger({
+                category: "agent",
+                message: `Error executing tool ${item.name}: ${errorMessage}`,
+                level: 0,
+              });
+            }
+          }
+
           nextInputItems.push({
             type: "tool_result",
             tool_use_id: item.id,
-            content: "Tool executed successfully",
+            content: toolResult,
           });
 
           logger({
             category: "agent",
-            message: `Added generic tool result for tool ${item.name}, tool_use_id: ${item.id}`,
+            message: `Added custom tool result for tool ${item.name}, tool_use_id: ${item.id}`,
             level: 2,
           });
         }
@@ -850,7 +891,6 @@ export class AnthropicCUAClient extends AgentClient {
           };
         } else {
           // For other computer actions, use the action type directly
-          console.log(`Using default action mapping for ${action}`);
           return {
             type: action,
             ...input,
