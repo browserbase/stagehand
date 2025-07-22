@@ -50,12 +50,16 @@
       {
         "group": "Integrations",
         "pages": [
+          {
+            "group": "MCP Server",
+            "pages": [
+              "integrations/mcp/introduction",
+              "integrations/mcp/setup",
+              "integrations/mcp/tools",
+              "integrations/mcp/configuration"
+            ]
+          },
           "integrations/langchain",
-          "integrations/windsurf",
-          "integrations/mcp-server",
-          "integrations/cursor",
-          "integrations/cline",
-          "integrations/claude-code",
           "integrations/crew-ai"
         ]
       }
