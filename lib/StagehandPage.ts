@@ -362,7 +362,10 @@ ${scriptContent} \
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
               const result = this.api
-                ? await this.api.goto(url, options)
+                ? await this.api.goto(url, {
+                  ...options,
+                  frameId: this.frameId,
+                })
                 : await rawGoto(url, options);
 
               this.stagehand.addToHistory("navigate", { url, options }, result);
@@ -660,7 +663,10 @@ ${scriptContent} \
           const observeResult = actionOrOptions as ObserveResult;
 
           if (this.api) {
-            const result = await this.api.act(observeResult);
+            const result = await this.api.act({
+              ...observeResult,
+              frameId: this.frameId,
+            });
             await this._refreshPageFromAPI();
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
@@ -754,7 +760,7 @@ ${scriptContent} \
       if (!instructionOrOptions) {
         let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({});
+          result = await this.api.extract<T>({frameId: this.frameId});
         } else {
           result = await this.extractHandler.extract();
         }
