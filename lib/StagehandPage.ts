@@ -62,6 +62,10 @@ export class StagehandPage {
     return this.rootFrameId;
   }
 
+  public updateRootFrameId(newId: string): void {
+    this.rootFrameId = newId;
+  }
+
   constructor(
     page: PlaywrightPage,
     stagehand: Stagehand,
@@ -434,31 +438,6 @@ ${scriptContent} \
 
       this.intPage = new Proxy(page, handler) as unknown as Page;
       this.initialized = true;
-      const { frameTree } =
-        await this.sendCDP<Protocol.Page.GetFrameTreeResponse>(
-          "Page.getFrameTree",
-        );
-      this.rootFrameId = frameTree.frame.id;
-      this.intContext.registerFrameId(this.rootFrameId, this);
-
-      this.page.once("close", () => {
-        this.intContext.unregisterFrameId(this.rootFrameId);
-      });
-
-      this.page.on("framenavigated", async (frame) => {
-        if (frame.parentFrame() === null) {
-          const { frameTree: ft } =
-            await this.sendCDP<Protocol.Page.GetFrameTreeResponse>(
-              "Page.getFrameTree",
-            );
-          const newId = ft.frame.id;
-          if (newId !== this.rootFrameId) {
-            this.intContext.unregisterFrameId(this.rootFrameId);
-            this.rootFrameId = newId;
-            this.intContext.registerFrameId(this.rootFrameId, this);
-          }
-        }
-      });
       return this;
     } catch (err: unknown) {
       if (err instanceof StagehandError || err instanceof StagehandAPIError) {
