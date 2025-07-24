@@ -46,6 +46,7 @@ import {
   UnsupportedModelError,
 } from "../types/stagehandErrors";
 import { resolveTools } from "./mcp/utils";
+import { connectToMCPServer } from "./mcp/connection";
 
 dotenv.config({ path: ".env" });
 
@@ -1004,3 +1005,4 @@ export * from "../types/stagehand";
 export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
+export { connectToMCPServer };
