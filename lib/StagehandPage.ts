@@ -28,7 +28,6 @@ import {
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
-  ExperimentalNotConfiguredError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
@@ -621,9 +620,6 @@ ${scriptContent} \
       // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
       // We need to ensure there is both a selector and a method in the ObserveResult.
       if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
-        if ("iframes" in actionOrOptions && !this.stagehand.experimental) {
-          throw new ExperimentalNotConfiguredError("iframes");
-        }
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
@@ -754,10 +750,6 @@ ${scriptContent} \
         iframes,
       } = options;
 
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
-
       if (this.api) {
         const result = await this.api.extract<T>(options);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
@@ -860,10 +852,6 @@ ${scriptContent} \
         drawOverlay,
         iframes,
       } = options;
-
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
 
       if (this.api) {
         const result = await this.api.observe(options);
