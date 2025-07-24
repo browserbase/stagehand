@@ -4,10 +4,11 @@
  *
  * The environment is read from the EVAL_ENV environment variable.
  */
-export const env: "BROWSERBASE" | "LOCAL" =
-  process.env.EVAL_ENV?.toLowerCase() === "browserbase"
-    ? "BROWSERBASE"
-    : "LOCAL";
+// export const env: "BROWSERBASE" | "LOCAL" =
+//   process.env.EVAL_ENV?.toLowerCase() === "browserbase"
+//     ? "BROWSERBASE"
+//     : "LOCAL";
+export const env = "BROWSERBASE" as const;
 
 /**
  * Enable or disable caching based on the EVAL_ENABLE_CACHING environment variable.
