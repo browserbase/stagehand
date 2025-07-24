@@ -908,7 +908,7 @@ export class Stagehand {
   }> {
     const tools = options?.integrations
       ? await resolveTools(options?.integrations, options?.tools)
-      : {};
+      : options?.tools || {};
 
     if (!options || !options.provider) {
       // use open operator agent
