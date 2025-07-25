@@ -11,9 +11,9 @@ export const heal_scroll_50: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
     await stagehand.page.act({
-      description: "Scroll 50% down the page",
+      description: "the element to scroll on",
       selector: "/html/body/div/div/button",
-      arguments: ["50"],
+      arguments: ["50%"],
       method: "scrollTo",
     });
 
