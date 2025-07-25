@@ -7,7 +7,11 @@ test.describe("Playwright Upload", () => {
   let stagehand: Stagehand;
 
   test.beforeAll(async () => {
-    stagehand = new Stagehand(StagehandConfig);
+    stagehand = new Stagehand({
+      ...StagehandConfig,
+      env: "BROWSERBASE",
+      useAPI: false,
+    });
     await stagehand.init();
   });
 

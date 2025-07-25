@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_github_commits: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -26,7 +25,6 @@ export const extract_github_commits: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
 
     logger.log({
@@ -40,8 +38,6 @@ export const extract_github_commits: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: commits.length === 20,
       commits,
@@ -50,10 +46,6 @@ export const extract_github_commits: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -61,5 +53,7 @@ export const extract_github_commits: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

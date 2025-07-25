@@ -3,7 +3,6 @@ import { z } from "zod";
 
 export const extract_collaborators: EvalFunction = async ({
   logger,
-  useTextExtract,
   debugUrl,
   sessionUrl,
   stagehand,
@@ -18,6 +17,10 @@ export const extract_collaborators: EvalFunction = async ({
     await stagehand.page.waitForLoadState("networkidle");
     await stagehand.page.waitForTimeout(5000);
 
+    await stagehand.page.act({
+      action: "scroll halfway down the page",
+    });
+
     const { contributors } = await stagehand.page.extract({
       instruction: "Extract top 5 contributors of this repository",
       schema: z.object({
@@ -30,10 +33,7 @@ export const extract_collaborators: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
-
-    await stagehand.close();
 
     const EXPECTED_CONTRIBUTORS = [
       "zpao",
@@ -55,10 +55,6 @@ export const extract_collaborators: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -66,5 +62,7 @@ export const extract_collaborators: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

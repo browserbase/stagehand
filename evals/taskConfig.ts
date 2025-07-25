@@ -71,16 +71,14 @@ const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) satisfies {
 type TaskConfig = {
   name: string;
   categories: string[];
-  extract_method?: string;
 };
 const tasksConfig = config.tasks as TaskConfig[];
 
 const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[]; extractMethod?: string }>
+  Record<string, { categories: string[] }>
 >((acc, task) => {
   acc[task.name] = {
     categories: task.categories,
-    extractMethod: task.extract_method,
   };
   return acc;
 }, {});
@@ -100,11 +98,15 @@ if (filterByEvalName && !tasksByName[filterByEvalName]) {
  */
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : ["gemini-2.0-flash", "gpt-4.1-mini", "claude-3-5-sonnet-latest"];
+  : [
+      "google/gemini-2.0-flash",
+      "openai/gpt-4.1-mini",
+      "anthropic/claude-3-5-sonnet-latest",
+    ];
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["computer-use-preview", "claude-3-7-sonnet-20250219"];
+  : ["computer-use-preview-2025-03-11", "claude-3-7-sonnet-latest"];
 
 /**
  * getModelList:

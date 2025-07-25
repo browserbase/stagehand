@@ -5,10 +5,6 @@ icon: 'robot'
 ---
 import { Excalidraw } from '/snippets/excalidraw.mdx';
 
-<Tip>
-Stagehand agents are brand new in Stagehand 2.0. 
-</Tip>
-
 Stagehand gives AI agents powerful tools to control a browser completely autonomously. Watch below as a Stagehand agent autonomously navigates to a URL, takes actions on the page, and extracts structured data to answer a question.
 There's quite a few ways to build an agent with Stagehand. Let's look at a few of them.
 
@@ -20,8 +16,8 @@ The above example is a Claude agent that uses Stagehand to control a browser. At
 This means Claude is intelligent enough to know when to request a browser screenshot, and it can then use that screenshot to make decisions about what actions to take next.
 
 <CardGroup>
-<Card title="Stagehand MCP" href="https://github.com/browserbase/mcp-server-browserbase/tree/main/stagehand" icon="hand-horns">
-Have Claude control a browser with Stagehand MCP.
+<Card title="Browserbase MCP" href="https://github.com/browserbase/mcp-server-browserbase/" icon="hand-horns">
+Control a browser with Browserbase MCP powered by Stagehand
 </Card>
 </CardGroup>
 
@@ -38,7 +34,8 @@ While MCP is really nascent, we're excited to see where it goes.
 
 Stagehand lets you leverage powerful computer use APIs from OpenAI and Anthropic with just one line of code. 
 
-```typescript
+<CodeGroup>
+```typescript TypeScript
 await page.goto("https://github.com/browserbase/stagehand");
 
 // Create a Computer Use agent with just one line of code!
@@ -51,6 +48,19 @@ const agent = stagehand.agent({
 const result = await agent.execute("Extract the top contributor's username");
 console.log(result);
 ```
+```python Python
+await page.goto("https://github.com/browserbase/stagehand-python")
+
+# Create a Computer Use agent with just one line of code!
+agent = stagehand.agent(
+    model="computer-use-preview"
+)
+
+# Use the agent to execute a task
+result = await agent.execute("Extract the top contributor's username")
+print(result)
+```
+</CodeGroup>
 
 <CardGroup>
 <Card title="Stagehand + Computer Use Docs" href="/examples/computer_use" icon="scroll">
@@ -74,9 +84,14 @@ It works by calling Stagehand tools in sequence:
 
 <Excalidraw className="w-full" url="https://link.excalidraw.com/readonly/dKh5sB1gEM1EjVqRCGKn" />
 
-Incorporating Open Operator into your browser automation is as easy as adding a single line of code:
+Incorporating `stagehand.agent` into your browser automation is as easy as adding a single line of code:
 
-```typescript
+<Note>
+Python currently supports `stagehand.agent` with Computer Use Agent (CUA) models. The default implementation is coming soon. 
+</Note>
+
+<CodeGroup>
+```typescript TypeScript
 await stagehand.page.goto("https://github.com/browserbase/stagehand");
 
 // Open Operator will use the default LLM from Stagehand config
@@ -87,6 +102,7 @@ const { message, actions } = await operator.execute(
 
 console.log(message);
 ```
+</CodeGroup>
 
 ### Replay the agent's actions
 

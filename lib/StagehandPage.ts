@@ -1,6 +1,6 @@
 import { Browserbase } from "@browserbasehq/sdk";
-import type { CDPSession, Page as PlaywrightPage } from "@playwright/test";
-import { chromium } from "@playwright/test";
+import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
+import { chromium } from "playwright";
 import { z } from "zod";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
@@ -16,7 +16,7 @@ import { StagehandObserveHandler } from "./handlers/observeHandler";
 import { ActOptions, ActResult, GotoOptions, Stagehand } from "./index";
 import { LLMClient } from "./llm/LLMClient";
 import { StagehandContext } from "./StagehandContext";
-import { EnhancedContext } from "../types/context";
+import { EncodedId, EnhancedContext } from "../types/context";
 import { clearOverlays } from "./utils";
 import {
   StagehandError,
@@ -27,6 +27,8 @@ import {
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
   StagehandDefaultError,
+  ExperimentalApiConflictError,
+  ExperimentalNotConfiguredError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
@@ -46,6 +48,13 @@ export class StagehandPage {
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
+  private readonly cdpClients = new WeakMap<
+    PlaywrightPage | Frame,
+    CDPSession
+  >();
+  private fidOrdinals: Map<string | undefined, number> = new Map([
+    [undefined, 0],
+  ]);
 
   constructor(
     page: PlaywrightPage,
@@ -56,6 +65,9 @@ export class StagehandPage {
     api?: StagehandAPI,
     waitForCaptchaSolves?: boolean,
   ) {
+    if (stagehand.experimental && api) {
+      throw new ExperimentalApiConflictError();
+    }
     this.rawPage = page;
     // Create a proxy to intercept all method calls and property access
     this.intPage = new Proxy(page, {
@@ -76,11 +88,7 @@ export class StagehandPage {
         const value = target[prop];
         // If the property is a function, wrap it to update active page before execution
         if (typeof value === "function" && prop !== "on") {
-          return (...args: unknown[]) => {
-            // Update active page before executing the method
-            this.intContext.setActivePage(this);
-            return value.apply(target, args);
-          };
+          return (...args: unknown[]) => value.apply(target, args);
         }
         return value;
       },
@@ -112,6 +120,28 @@ export class StagehandPage {
         userProvidedInstructions,
       });
     }
+  }
+
+  public ordinalForFrameId(fid: string | undefined): number {
+    if (fid === undefined) return 0;
+
+    const cached = this.fidOrdinals.get(fid);
+    if (cached !== undefined) return cached;
+
+    const next: number = this.fidOrdinals.size;
+    this.fidOrdinals.set(fid, next);
+    return next;
+  }
+
+  public encodeWithFrameId(
+    fid: string | undefined,
+    backendId: number,
+  ): EncodedId {
+    return `${this.ordinalForFrameId(fid)}-${backendId}` as EncodedId;
+  }
+
+  public resetFrameOrdinals(): void {
+    this.fidOrdinals = new Map([[undefined, 0]]);
   }
 
   private async ensureStagehandScript(): Promise<void> {
@@ -154,7 +184,7 @@ ${scriptContent} \
     }
 
     const browserbase = new Browserbase({
-      apiKey: process.env.BROWSERBASE_API_KEY,
+      apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
     });
 
     const sessionStatus = await browserbase.sessions.retrieve(sessionId);
@@ -175,14 +205,6 @@ ${scriptContent} \
 
     this.intPage = newStagehandPage.page;
 
-    if (this.stagehand.debugDom) {
-      this.stagehand.log({
-        category: "deprecation",
-        message:
-          "Warning: debugDom is not supported in this version of Stagehand",
-        level: 1,
-      });
-    }
     await this.intPage.waitForLoadState("domcontentloaded");
     await this._waitForSettledDom();
   }
@@ -261,7 +283,6 @@ ${scriptContent} \
             prop === "$$eval"
           ) {
             return async (...args: unknown[]) => {
-              this.intContext.setActivePage(this);
               // Make sure helpers exist
               await this.ensureStagehandScript();
               return (value as (...a: unknown[]) => unknown).apply(
@@ -290,10 +311,7 @@ ${scriptContent} \
             >;
 
             const method = this[prop as keyof StagehandPage] as EnhancedMethod;
-            return async (options: unknown) => {
-              this.intContext.setActivePage(this);
-              return method.call(this, options);
-            };
+            return (options: unknown) => method.call(this, options);
           }
 
           // Handle screenshots with CDP
@@ -399,10 +417,7 @@ ${scriptContent} \
 
           // For all other method calls, update active page
           if (typeof value === "function") {
-            return (...args: unknown[]) => {
-              this.intContext.setActivePage(this);
-              return value.apply(target, args);
-            };
+            return (...args: unknown[]) => value.apply(target, args);
           }
 
           return value;
@@ -432,9 +447,9 @@ ${scriptContent} \
    * `_waitForSettledDom` waits until the DOM is settled, and therefore is
    * ready for actions to be taken.
    *
-   * **Definition of “settled”**
+   * **Definition of "settled"**
    *   • No in-flight network requests (except WebSocket / Server-Sent-Events).
-   *   • That idle state lasts for at least **500 ms** (the “quiet-window”).
+   *   • That idle state lasts for at least **500 ms** (the "quiet-window").
    *
    * **How it works**
    *   1.  Subscribes to CDP Network and Page events for the main target and all
@@ -473,6 +488,10 @@ ${scriptContent} \
       autoAttach: true,
       waitForDebuggerOnStart: false,
       flatten: true,
+      filter: [
+        { type: "worker", exclude: true },
+        { type: "shared_worker", exclude: true },
+      ],
     });
 
     return new Promise<void>((resolve) => {
@@ -602,6 +621,9 @@ ${scriptContent} \
       // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
       // We need to ensure there is both a selector and a method in the ObserveResult.
       if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
+        if ("iframes" in actionOrOptions && !this.stagehand.experimental) {
+          throw new ExperimentalNotConfiguredError("iframes");
+        }
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
@@ -714,7 +736,12 @@ ${scriptContent} \
               instruction: instructionOrOptions,
               schema: defaultExtractSchema as T,
             }
-          : instructionOrOptions;
+          : instructionOrOptions.schema
+            ? instructionOrOptions
+            : {
+                ...instructionOrOptions,
+                schema: defaultExtractSchema as T,
+              };
 
       const {
         instruction,
@@ -724,7 +751,12 @@ ${scriptContent} \
         domSettleTimeoutMs,
         useTextExtract,
         selector,
+        iframes,
       } = options;
+
+      if (iframes !== undefined && !this.stagehand.experimental) {
+        throw new ExperimentalNotConfiguredError("iframes");
+      }
 
       if (this.api) {
         const result = await this.api.extract<T>(options);
@@ -766,6 +798,7 @@ ${scriptContent} \
           domSettleTimeoutMs,
           useTextExtract,
           selector,
+          iframes,
         })
         .catch((e) => {
           this.stagehand.log({
@@ -821,7 +854,12 @@ ${scriptContent} \
         returnAction = true,
         onlyVisible,
         drawOverlay,
+        iframes,
       } = options;
+
+      if (iframes !== undefined && !this.stagehand.experimental) {
+        throw new ExperimentalNotConfiguredError("iframes");
+      }
 
       if (this.api) {
         const result = await this.api.observe(options);
@@ -869,6 +907,7 @@ ${scriptContent} \
           returnAction,
           onlyVisible,
           drawOverlay,
+          iframes,
         })
         .catch((e) => {
           this.stagehand.log({
@@ -909,30 +948,69 @@ ${scriptContent} \
     }
   }
 
-  async getCDPClient(): Promise<CDPSession> {
-    if (!this.cdpClient) {
-      this.cdpClient = await this.context.newCDPSession(this.page);
+  /**
+   * Get or create a CDP session for the given target.
+   * @param target  The Page or (OOPIF) Frame you want to talk to.
+   */
+  async getCDPClient(
+    target: PlaywrightPage | Frame = this.page,
+  ): Promise<CDPSession> {
+    const cached = this.cdpClients.get(target);
+    if (cached) return cached;
+
+    try {
+      const session = await this.context.newCDPSession(target);
+      this.cdpClients.set(target, session);
+      return session;
+    } catch (err) {
+      // Fallback for same-process iframes
+      const msg = (err as Error).message ?? "";
+      if (msg.includes("does not have a separate CDP session")) {
+        // Re-use / create the top-level session instead
+        const rootSession = await this.getCDPClient(this.page);
+        // cache the alias so we don't try again for this frame
+        this.cdpClients.set(target, rootSession);
+        return rootSession;
+      }
+      throw err;
     }
-    return this.cdpClient;
   }
 
-  async sendCDP<T>(
-    command: string,
-    args?: Record<string, unknown>,
+  /**
+   * Send a CDP command to the chosen DevTools target.
+   *
+   * @param method  Any valid CDP method, e.g. `"DOM.getDocument"`.
+   * @param params  Command parameters (optional).
+   * @param target  A `Page` or OOPIF `Frame`. Defaults to the main page.
+   *
+   * @typeParam T  Expected result shape (defaults to `unknown`).
+   */
+  async sendCDP<T = unknown>(
+    method: string,
+    params: Record<string, unknown> = {},
+    target?: PlaywrightPage | Frame,
   ): Promise<T> {
-    const client = await this.getCDPClient();
-    // Type assertion needed because CDP command strings are not fully typed
+    const client = await this.getCDPClient(target ?? this.page);
+
     return client.send(
-      command as Parameters<CDPSession["send"]>[0],
-      args || {},
+      method as Parameters<CDPSession["send"]>[0],
+      params as Parameters<CDPSession["send"]>[1],
     ) as Promise<T>;
   }
 
-  async enableCDP(domain: string): Promise<void> {
-    await this.sendCDP(`${domain}.enable`, {});
+  /** Enable a CDP domain (e.g. `"Network"` or `"DOM"`) on the chosen target. */
+  async enableCDP(
+    domain: string,
+    target?: PlaywrightPage | Frame,
+  ): Promise<void> {
+    await this.sendCDP<void>(`${domain}.enable`, {}, target);
   }
 
-  async disableCDP(domain: string): Promise<void> {
-    await this.sendCDP(`${domain}.disable`, {});
+  /** Disable a CDP domain on the chosen target. */
+  async disableCDP(
+    domain: string,
+    target?: PlaywrightPage | Frame,
+  ): Promise<void> {
+    await this.sendCDP<void>(`${domain}.disable`, {}, target);
   }
 }

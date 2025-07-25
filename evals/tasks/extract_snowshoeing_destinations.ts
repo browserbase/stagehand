@@ -6,7 +6,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto(
@@ -34,7 +33,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
     });
 
     logger.log({
@@ -47,8 +45,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
         },
       },
     });
-
-    await stagehand.close();
 
     const _success = snowshoeing_regions.snowshoeing_regions.length === 10;
 
@@ -82,6 +78,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.context.close().catch(() => {});
+    await stagehand.close();
   }
 };

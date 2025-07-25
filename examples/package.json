@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-examples",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "private": true,
   "description": "Example scripts for Stagehand",
   "main": "./",
@@ -12,6 +12,7 @@
     "@browserbasehq/stagehand": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.10.5"
+    "tsx": "^4.10.5",
+    "jszip": "^3.10.1"
   }
 }

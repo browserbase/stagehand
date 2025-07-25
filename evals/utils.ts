@@ -119,3 +119,23 @@ export function logLineToString(logLine: LogLine): string {
     return "error logging line";
   }
 }
+
+export function dedent(
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+): string {
+  // Interleave raw strings with substitution values
+  const raw = strings.raw;
+  let result = "";
+
+  for (let i = 0; i < raw.length; i++) {
+    result += raw[i]
+      // replace newline + any mix of spaces/tabs with “\n”
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/^\n/, ""); // remove leading newline
+    if (i < values.length) result += values[i];
+  }
+
+  // trim trailing/leading blank lines
+  return result.trimEnd();
+}

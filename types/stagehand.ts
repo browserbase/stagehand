@@ -4,7 +4,7 @@ import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "@playwright/test";
+import { Cookie } from "playwright";
 import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
@@ -96,6 +96,10 @@ export interface ConstructorParams {
    * Disable Pino (helpful for Next.js or test environments)
    */
   disablePino?: boolean;
+  /**
+   * Experimental Flag: Enables the latest experimental features
+   */
+  experimental?: boolean;
 }
 
 export interface InitResult {
@@ -111,6 +115,7 @@ export interface ActOptions {
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
+  iframes?: boolean;
 }
 
 export interface ActResult {
@@ -130,6 +135,7 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
    */
   useTextExtract?: boolean;
   selector?: string;
+  iframes?: boolean;
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
@@ -145,6 +151,7 @@ export interface ObserveOptions {
    */
   onlyVisible?: boolean;
   drawOverlay?: boolean;
+  iframes?: boolean;
 }
 
 export interface ObserveResult {
@@ -174,6 +181,7 @@ export interface LocalBrowserLaunchOptions {
   };
   tracesDir?: string;
   userDataDir?: string;
+  preserveUserDataDir?: boolean;
   acceptDownloads?: boolean;
   downloadsPath?: string;
   extraHTTPHeaders?: Record<string, string>;

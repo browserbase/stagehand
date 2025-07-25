@@ -3,12 +3,6 @@ title: Computer Use Agents
 description: Incorporate Computer Use APIs from Anthropic and OpenAI with one line of code in Stagehand.
 ---
 
-<Tip>
-**Computer Use agents are only available in Stagehand 2.0.**
-
-We strongly recommend using computer use agents when you find an iframe or other difficult-to-navigate elements on a page. IFrames are notoriously difficult to navigate with Playwright due to security constraints.
-</Tip>
-
 ## What is a Computer Use Agent?
 
 <iframe
@@ -30,11 +24,23 @@ Stagehand not only handles the execution of Computer Use outputs, but also lets 
 
 Stagehand lets you use Computer Use Agents with one line of code:
 
-### IMPORTANT! Configure your browser dimensions
+<Note>
+**IMPORTANT! Configure your browser dimensions**
+
 Computer Use Agents will often return XY-coordinates to click on the screen, so you'll need to configure your browser dimensions.
 
-<CodeGroup>
-```ts Browserbase {12-15}
+If not specified, the default browser dimensions are 1024x768. You can also configure the browser dimensions in the `browserbaseSessionCreateParams` or `localBrowserLaunchOptions` options.
+</Note>
+
+
+### Configuring browser dimensions
+
+Browser configuration differs by environment:
+
+<Tabs>
+<Tab title="BROWSERBASE">
+<CodeGroup>  
+```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -56,8 +62,34 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+```python Python
+import os
+from stagehand import Stagehand, StagehandConfig
 
-```ts Local {7-10}
+stagehand = Stagehand(StagehandConfig(
+    env="BROWSERBASE",
+    api_key=os.getenv("BROWSERBASE_API_KEY"),  # API key for authentication
+    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),  # Project identifier
+    
+    browserbase_session_create_params={
+        "projectId": os.getenv("BROWSERBASE_PROJECT_ID"),
+        "browserSettings": {
+            "blockAds": True,
+            "viewport": {
+                "width": 1024,
+                "height": 768,
+            },
+        },
+    },
+))
+
+await stagehand.init()
+```
+</CodeGroup>
+</Tab>
+<Tab title="LOCAL">
+<CodeGroup>
+```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -73,11 +105,32 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+```python Python
+from stagehand import Stagehand, StagehandConfig
+
+stagehand = Stagehand(StagehandConfig(
+    env="LOCAL",
+    local_browser_launch_options={
+        "headless": False,
+        "viewport": {
+            "width": 1024,
+            "height": 768,
+        },
+    }
+))
+
+await stagehand.init()
+```
 </CodeGroup>
+</Tab>
+</Tabs>
 
 ### Direct your Computer Use Agent
 
-```ts
+Call `execute` on the agent to assign a task to the agent.
+
+<CodeGroup>
+```typescript TypeScript
 // Navigate to a website
 await stagehand.page.goto("https://www.google.com");
 
@@ -100,3 +153,45 @@ const agent = stagehand.agent({
 // Execute the agent
 await agent.execute("Apply for a library card at the San Francisco Public Library");
 ```
+
+```python Python
+import os
+
+# Navigate to a website
+await stagehand.page.goto("https://www.google.com")
+
+agent = stagehand.agent({
+    # The model to use
+    model="computer-use-preview",
+
+    # Customize the system prompt
+    instructions="You are a helpful assistant that can use a web browser. Do not ask follow up questions, the user will trust your judgement.",
+
+    # Customize the API key
+    options={
+        "apiKey": os.getenv("OPENAI_API_KEY"),
+    },
+})
+
+# Execute the agent
+await agent.execute("Apply for a library card at the San Francisco Public Library")
+```
+</CodeGroup>
+
+You can also define the maximum number of steps the agent can take with:
+
+<CodeGroup>
+```typescript TypeScript
+await agent.execute({
+	instructions: "Apply for a library card at the San Francisco Public Library",
+	maxSteps: 10,
+});
+```
+
+```python Python
+await agent.execute(
+	"Apply for a library card at the San Francisco Public Library",
+	max_steps=10,
+)
+```
+</CodeGroup> 

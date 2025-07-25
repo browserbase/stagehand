@@ -26,8 +26,7 @@
     },
     {
       "name": "ionwave",
-      "categories": ["act", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["act", "regression"]
     },
     {
       "name": "nonsense_action",
@@ -80,8 +79,7 @@
     },
     {
       "name": "wichita",
-      "categories": ["combination", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["combination", "regression"]
     },
     {
       "name": "hn_aisdk",
@@ -108,21 +106,12 @@
       "categories": ["experimental"]
     },
     {
-      "name": "expedia",
-      "categories": ["experimental"]
-    },
-    {
-      "name": "expedia_search",
-      "categories": ["experimental"]
-    },
-    {
       "name": "extract_aigrant_companies",
-      "categories": ["text_extract", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["regression"]
     },
     {
       "name": "extract_capacitor_info",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_partners",
@@ -130,14 +119,10 @@
     },
     {
       "name": "extract_press_releases",
-      "categories": ["experimental", "text_extract"]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": ["experimental", "text_extract"]
-    },
-    {
-      "name": "google_jobs",
       "categories": ["experimental"]
     },
     {
@@ -167,8 +152,7 @@
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": ["extract", "regression"],
-      "extract_method": "domExtract"
+      "categories": ["extract", "regression"]
     },
     {
       "name": "extract_nhl_stats",
@@ -180,7 +164,7 @@
     },
     {
       "name": "extract_csa",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_resistor_info",
@@ -209,33 +193,31 @@
     },
     {
       "name": "extract_area_codes",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_public_notices",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_jstor_news",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_apartments",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "extract_zillow",
-      "categories": ["text_extract"]
+      "categories": ["extract"]
     },
     {
       "name": "observe_github",
-      "categories": ["observe", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_vantechjournal",
-      "categories": ["observe", "regression"],
-      "extract_method": "textExtract"
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_amazon_add_to_cart",
@@ -348,6 +330,62 @@
     {
       "name": "agent/sf_library_card_multiple",
       "categories": ["agent"]
+    },
+    {
+      "name": "login",
+      "categories": ["act", "regression"]
+    },
+    {
+      "name": "iframe_hn",
+      "categories": ["extract"]
+    },
+    {
+      "name": "iframe_same_proc",
+      "categories": ["act"]
+    },
+    {
+      "name": "iframe_form_filling",
+      "categories": ["act"]
+    },
+    {
+      "name": "iframes_nested",
+      "categories": ["act"]
+    },
+    {
+      "name": "no_js_click",
+      "categories": ["act", "regression"]
+    },
+    {
+      "name": "tab_handling",
+      "categories": ["act"]
+    },
+    {
+      "name": "agent/kayak",
+      "categories": ["agent"]
+    },
+    {
+      "name": "multi_tab",
+      "categories": ["act"]
+    },
+    {
+      "name": "shadow_dom",
+      "categories": ["act"]
+    },
+    {
+      "name": "os_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "custom_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "hidden_input_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "nested_iframes_2",
+      "categories": ["act"]
     }
   ]
 }

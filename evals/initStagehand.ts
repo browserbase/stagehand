@@ -32,6 +32,7 @@ const StagehandConfig = {
   env: env,
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
+  useAPI: process.env.USE_API === "true",
   verbose: 2 as const,
   debugDom: true,
   headless: false,
@@ -62,26 +63,32 @@ const StagehandConfig = {
  */
 export const initStagehand = async ({
   llmClient,
+  modelClientOptions,
   domSettleTimeoutMs,
   logger,
   configOverrides,
   actTimeoutMs,
-  useTextExtract,
   modelName,
 }: {
-  llmClient: LLMClient;
+  llmClient?: LLMClient;
+  modelClientOptions?: { apiKey: string };
   domSettleTimeoutMs?: number;
   logger: EvalLogger;
   configOverrides?: Partial<ConstructorParams>;
   actTimeoutMs?: number;
-  useTextExtract?: boolean;
   modelName: AvailableModel;
 }): Promise<StagehandInitResult> => {
   const config = {
     ...StagehandConfig,
+    modelClientOptions,
     llmClient,
     ...(domSettleTimeoutMs && { domSettleTimeoutMs }),
     actTimeoutMs,
+    modelName,
+    experimental:
+      typeof configOverrides?.experimental === "boolean"
+        ? configOverrides.experimental
+        : !StagehandConfig.useAPI,
     ...configOverrides,
     logger: logger.log.bind(logger),
   };
@@ -92,13 +99,16 @@ export const initStagehand = async ({
   logger.init(stagehand);
 
   const { debugUrl, sessionUrl } = await stagehand.init();
+
+  // Set navigation timeout to 60 seconds for evaluations
+  stagehand.context.setDefaultNavigationTimeout(60_000);
+
   return {
     stagehand,
     stagehandConfig: config,
     logger,
     debugUrl,
     sessionUrl,
-    useTextExtract,
     modelName,
   };
 };

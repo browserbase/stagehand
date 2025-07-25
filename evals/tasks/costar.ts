@@ -6,16 +6,9 @@ export const costar: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
-  useTextExtract,
 }) => {
-  // TODO: fix this eval - does not work in headless mode
   try {
-    await Promise.race([
-      stagehand.page.goto("https://www.costar.com/"),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Navigation timeout")), 30000),
-      ),
-    ]);
+    await stagehand.page.goto("https://www.costar.com/");
 
     await stagehand.page.act({ action: "click on the first article" });
 
@@ -28,7 +21,6 @@ export const costar: EvalFunction = async ({
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),
       }),
-      useTextExtract,
     });
 
     logger.log({
@@ -71,14 +63,15 @@ export const costar: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       title: null,
       _success: false,
+      error: error,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

@@ -36,18 +36,6 @@
         ]
       },
       {
-        "group": "Integrations",
-        "pages": [
-          "integrations/langchain",
-          "integrations/windsurf",
-          "integrations/mcp-server",
-          "integrations/cursor",
-          "integrations/cline",
-          "integrations/claude-code",
-          "integrations/crew-ai"
-        ]
-      },
-      {
         "group": "Reference",
         "pages": [
           "reference/initialization_config",
@@ -55,7 +43,24 @@
           "reference/act",
           "reference/extract",
           "reference/observe",
-          "reference/playwright_interop"
+          "reference/playwright_interop",
+          "integrations/guides"
+        ]
+      },
+      {
+        "group": "Integrations",
+        "pages": [
+          {
+            "group": "MCP Server",
+            "pages": [
+              "integrations/mcp/introduction",
+              "integrations/mcp/setup",
+              "integrations/mcp/tools",
+              "integrations/mcp/configuration"
+            ]
+          },
+          "integrations/langchain",
+          "integrations/crew-ai"
         ]
       }
     ],
@@ -75,9 +80,9 @@
     }
   },
   "logo": {
-    "light": "/images/logo_light.svg",
-    "dark": "/images/logo_dark.svg",
-    "href": "https://docs.stagehand.dev"
+    "light": "/logo/light_logo.png",
+    "dark": "/logo/dark_logo.png",
+    "href": "https://stagehand.dev"
   },
   "navbar": {
     "links": [

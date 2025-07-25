@@ -7,7 +7,6 @@ export const extract_press_releases: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   const schema = z.object({
     items: z.array(
@@ -25,9 +24,6 @@ export const extract_press_releases: EvalFunction = async ({
   try {
     await stagehand.page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/press-releases/",
-      {
-        waitUntil: "networkidle",
-      },
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -35,13 +31,10 @@ export const extract_press_releases: EvalFunction = async ({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema,
-      useTextExtract,
     });
 
     const parsed = schema.parse(rawResult);
     const { items } = parsed;
-
-    await stagehand.close();
 
     const expectedLength = 28;
     const expectedFirstItem: PressRelease = {
@@ -123,6 +116,6 @@ export const extract_press_releases: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.context.close();
+    await stagehand.close();
   }
 };

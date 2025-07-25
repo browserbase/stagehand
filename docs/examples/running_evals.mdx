@@ -3,18 +3,33 @@ title: Telemetry and Evaluations
 description: How to view LLM usage and run evals on your Stagehand workflows.
 ---
 
+
+<Card
+  title="Check out the Stagehand Evals"
+  icon="scale-balanced"
+  href="https://www.stagehand.dev/evals"
+>
+  Check out the [Stagehand Evals](https://www.stagehand.dev/evals) to see different LLMs compare in Stagehand.
+</Card>
+
 ## View LLM usage and token counts
-<Tip>
-**Token usage telemetry is only available in Stagehand 2.0.**
-</Tip>
+
 You can view your token usage at any point with `stagehand.metrics`.
 
-```typescript
+<CodeGroup>
+```typescript TypeScript
 console.log(stagehand.metrics);
 ```
 
+```python Python
+print(stagehand.metrics)
+```
+</CodeGroup>
+
 This will return an object with the following shape:
-```typescript
+
+<CodeGroup>
+```typescript TypeScript
 {
   actPromptTokens: 4011,
   actCompletionTokens: 51,
@@ -34,8 +49,37 @@ This will return an object with the following shape:
 }
 ```
 
+```python Python
+{
+  "act_prompt_tokens": 4011,
+  "act_completion_tokens": 51,
+  "act_inference_time_ms": 1688,
+
+  "extract_prompt_tokens": 4200,
+  "extract_completion_tokens": 243,
+  "extract_inference_time_ms": 4297,
+
+  "observe_prompt_tokens": 347,
+  "observe_completion_tokens": 43,
+  "observe_inference_time_ms": 903,
+
+  "total_prompt_tokens": 8558,
+  "total_completion_tokens": 337,
+  "total_inference_time_ms": 6888
+}
+```
+</CodeGroup>
+
 ### View granular LLM usage
+
+<Tabs>
+<Tab title="TypeScript">
 You can set `logInferenceToFile: true` in the Stagehand constructors. This will dump all act, extract, and observe calls to a directory called `inference_summary`.
+</Tab>
+<Tab title="Python">
+You can set `log_inference_to_file=True` in the Stagehand config. This will dump all act, extract, and observe calls to a directory called `inference_summary`.
+</Tab>
+</Tabs>
 
 `inference_summary` will have the following structure:
 ```

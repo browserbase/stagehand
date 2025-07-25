@@ -10,18 +10,29 @@ Stagehand is built on top of [Playwright](https://playwright.dev/), so you can u
 
 `stagehand.page` and `stagehand.context` are instances of Playwright's `Page` and `BrowserContext` respectively. Use these methods to interact with the Playwright instance that Stagehand is using.
 
-```javascript
+<CodeGroup>
+```TypeScript TypeScript
 const page = stagehand.page;
 // Base Playwright methods work
 await page.goto("https://github.com/browserbase/stagehand");
 
 // Stagehand overrides Playwright objects
-await page.act({
-	action: "click on the contributors"
-})
+await page.act("click on the contributors")
 ```
+
+```python Python
+page = stagehand.page
+# Base Playwright methods work
+await page.goto("https://github.com/browserbase/stagehand")
+
+# Stagehand overrides Playwright objects
+await page.act("click on the contributors")
+```
+</CodeGroup>
 
 ## Stagehand v. Playwright
 Below is an example of how to extract a list of companies from the AI Grant website using both Stagehand and Playwright.
 
 <img src="/images/stagehand-playwright.png" alt="Stagehand v. Playwright" />
+
+The above example with Stagehand can be easily reused to extract data from other websites, whereas the Playwright example would need to be rewritten for each new website.

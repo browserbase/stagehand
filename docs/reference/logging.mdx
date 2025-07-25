@@ -6,13 +6,26 @@ icon: 'newspaper'
 
 Stagehand provides a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. You can override the default logger by passing in a custom logger function to the constructor.
 
-```javascript
+<CodeGroup>
+```typescript TypeScript
 const stagehand = new Stagehand({
 	logger: (logLine: LogLine) => {
 		console.log(`[${logLine.category}] ${logLine.message}`);
 	},
 });
 ```
+
+```python Python
+from stagehand import Stagehand, StagehandConfig
+
+def custom_logger(log_line):
+    print(f"[{log_line.get('category')}] {log_line.get('message')}")
+
+stagehand = Stagehand(StagehandConfig(
+    logger=custom_logger,
+))
+```
+</CodeGroup>
 
 Below is the list of fields in the `LogLine` object. `message` is the main log message content, and `auxiliary` contains parameters that can be used to provide additional context and color to the log.
 
@@ -42,7 +55,8 @@ Below is the list of fields in the `LogLine` object. `message` is the main log m
 
 You can see an example of a log line in [`OpenAIClient.ts`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/lib/llm/OpenAIClient.ts#L79-L93). You'll notice here how `auxiliary` contains a `requestId` and `cachedResponse`.
 
-```javascript
+<CodeGroup>
+```typescript TypeScript
 this.logger({
 	category: "llm_cache",
 	message: "LLM cache hit - returning cached response",
@@ -59,3 +73,24 @@ this.logger({
 	}
 });
 ```
+
+```python Python
+import json
+
+self.logger({
+    "category": "llm_cache",
+    "message": "LLM cache hit - returning cached response",
+    "level": 1,
+    "auxiliary": {
+        "requestId": {
+            "value": options.request_id,
+            "type": "string",
+        },
+        "cachedResponse": {
+            "value": json.dumps(cached_response),
+            "type": "object",
+        },
+    }
+})
+```
+</CodeGroup>

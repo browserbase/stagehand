@@ -80,7 +80,6 @@ export const extract_jfk_links: EvalFunction = async ({
 
     // Check that the extraction array is exactly length 10
     if (extractedRecords.length !== 10) {
-      await stagehand.close();
       return {
         _success: false,
         reason: `Extraction has ${extractedRecords.length} records (expected 10).`,
@@ -91,7 +90,6 @@ export const extract_jfk_links: EvalFunction = async ({
     }
 
     if (missingRecords.length > 0) {
-      await stagehand.close();
       return {
         _success: false,
         reason: "Missing one or more expected records.",
@@ -104,7 +102,6 @@ export const extract_jfk_links: EvalFunction = async ({
     }
 
     // If we reach here, the number of records is correct, and all are present
-    await stagehand.close();
     return {
       _success: true,
       debugUrl,
@@ -112,8 +109,6 @@ export const extract_jfk_links: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -121,5 +116,7 @@ export const extract_jfk_links: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

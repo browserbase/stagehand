@@ -3,6 +3,7 @@ title: What is Stagehand?
 description: 'Stagehand allows you to automate browsers with natural language and code.'
 icon: 'hand-horns'
 ---
+
 import { Excalidraw } from '/snippets/excalidraw.mdx';
 
 You can use Stagehand to do anything a web browser can do! Browser automations written with Stagehand are designed to be repeatable, customizable, and maintainable.
@@ -11,7 +12,8 @@ You can use Stagehand to do anything a web browser can do! Browser automations w
 
 That entire browser automation can be written in just a few lines of code with Stagehand:
 
-```typescript
+<CodeGroup>
+```typescript TypeScript
 const page = stagehand.page;
 await page.goto("https://docs.stagehand.dev");
 
@@ -24,10 +26,6 @@ const [action] = await page.observe(
 );
 await page.act(action);
 
-// Cache actions to avoid redundant LLM calls!
-await actWithCache(page, "Click the suggestion to use AI");
-await page.waitForTimeout(2000);
-
 // Use extract() to extract structured data from the page
 const { text } = await page.extract({
   instruction: "extract the text of the AI suggestion from the search results",
@@ -35,14 +33,42 @@ const { text } = await page.extract({
     text: z.string(),
   }),
 });
-```	
+```
+
+```python Python
+page = stagehand.page
+await page.goto("https://docs.stagehand.dev")
+
+# Use act() to take an action on the page
+await page.act("Click the search box")
+
+# Use observe() to plan an action before doing it
+actions = await page.observe(
+    "Type 'Tell me in one sentence why I should use Stagehand' into the search box"
+)
+await page.act(actions[0])
+
+# Define a custom schema for the extraction
+class Extraction(BaseModel):
+    text: str
+
+# Use extract() to extract structured data from the page
+result = await page.extract(
+    "extract the text of the AI suggestion from the search results",
+    schema=Extraction 
+)
+```
+</CodeGroup>
 
 With Stagehand, you can combine AI agents, AI tools, and regular Playwright to customize the agency of your browser automation.
 
 Below, you can see how to build the same browser automation task with varying levels of AI usage.
 
+<Tabs>
+
+<Tab title="Agent">
 <CodeGroup>
-```typescript Stagehand Agent
+```typescript TypeScript
 const page = stagehand.page;
 await page.goto("https://github.com/browserbase/stagehand");
 
@@ -57,8 +83,25 @@ const { message, actions } = await agent.execute(
 console.log(JSON.stringify(actions, null, 2));
 console.log("Output:", message); // The agent's response
 ```
+```python Python
+page = stagehand.page
+await page.goto("https://github.com/browserbase/stagehand")
 
-```typescript Stagehand Tools
+# Use a simple agent to automate a workflow
+# You can save/replay these actions exactly the same way
+agent = stagehand.agent()
+result = await agent.execute("Extract the top contributor's username")
+
+# Save/Replay your Stagehand actions
+print(result.actions)
+print("Output:", result.message)
+```
+</CodeGroup>
+</Tab>
+
+<Tab title="Tools">
+<CodeGroup>
+```typescript TypeScript
 // You can use Stagehand tools to outline a specific workflow
 const page = stagehand.page;
 await page.goto("https://github.com/browserbase/stagehand");
@@ -74,10 +117,25 @@ const { title } = await page.extract({
 
 console.log(title);
 ```
+```python Python
+# You can use Stagehand tools to outline a specific workflow
+page = stagehand.page
+await page.goto("https://github.com/browserbase/stagehand-python")
 
-```typescript Stagehand + Computer Use
+await page.act("click on the contributors section")
+
+result = await page.extract("the top contributor's username")
+
+print(result.extraction)
+```
+</CodeGroup>
+</Tab>
+
+<Tab title="Computer Use">
+<CodeGroup>
+```typescript TypeScript
 // You can use a Computer Use agent to automate an entire workflow
-await page.goto("https://github.com/browserbase/stagehand");
+await page.goto("https://github.com/browserbase/stagehand-python");
 
 const agent = stagehand.agent({
 	provider: "openai",
@@ -87,11 +145,24 @@ const agent = stagehand.agent({
 const result = await agent.execute("Extract the top contributor's username");
 console.log(result);
 ```
+```python Python
+# You can use a Computer Use agent to automate an entire workflow
+await page.goto("https://github.com/browserbase/stagehand")
 
-```typescript Stagehand + Playwright
+agent = stagehand.agent(
+  model="computer-use-preview"
+)
+result = await agent.execute("Extract the top contributor's username")
+print(result)
+```
+</CodeGroup>
+</Tab>
+
+<Tab title="Playwright">
+<CodeGroup>
+```typescript TypeScript
 // You can use Playwright with Stagehand with stagehand.page
 // Use this when you don't want to risk leaving something up to AI
-
 await page.goto("https://github.com/browserbase/stagehand");
 
 await page.getByRole("link", { name: /Contributors \d+/ }).click();
@@ -103,14 +174,28 @@ const topContributor = await page
 
 console.log(topContributor);
 ```
+```python Python
+# You can use Playwright with Stagehand with stagehand.page
+# Use this when you don't want to risk leaving something up to AI
+await page.goto("https://github.com/browserbase/stagehand-python")
 
+await page.get_by_role("link", name="Contributors \\d+").click()
+
+top_contributor = await page.locator(
+    'a[href^="/browserbase/stagehand/commits?author="]'
+).first.text_content()
+
+print(top_contributor)
+```
 </CodeGroup>
+</Tab>
+</Tabs>
 
 To completely avoid the limitations of AI agents, Stagehand borrows the `page` and `context` objects from [Playwright](https://playwright.dev/) to give you **full control over the browser session.**
 
 Stagehand works on any Chromium-based browser (Chrome, Edge, Arc, Dia, Brave, etc.). It is built and maintained by the [Browserbase](https://browserbase.com) team. 
 
-For best results, we strongly recommend using Stagehand on a Browserbase browser. 
+For best results, we strongly recommend using Stagehand on Browserbase. 
 
 ## Lights, Camera, `act()`
 
@@ -122,15 +207,14 @@ Let's get you started with Stagehand.
     icon="code"
     href="/get_started/quickstart"
   >
-    Build browser automations in no time with `npx create-browser-app`
+    Build reliable browser automations in no under 1 minute!
   </Card>
   <Card
-    title="Build your own agent"
-    subtitle="Use stagehand.agent() to build your own agent"
+    title="Vibe code"
     icon="brain-circuit"
-    href="/concepts/agent"
+    href="https://director.ai"
   >
-    Try our web agent built with Claude and the Vercel AI SDK.
+    Use Director to generate Stagehand scripts
   </Card>
 </CardGroup>
 
@@ -148,9 +232,9 @@ Put simply, **you can't control what an agent does.**
 
 ### What about Playwright, Puppeteer, and Selenium? 
 
-Not only are these tools tedious and cumbersome to write, but they are also brittle. If you don't own the website, you can't control what the DOM looks like.
+Those who have used traditional web automation frameworks know the pain of maintaining scripts on live websites. If you don't own the website, you can't control what the DOM looks like.
 
-As a result, Playwright, Puppeteer, and Selenium force you to write brittle code that breaks when the website makes even a slight UI change.
+As a result, Playwright, Puppeteer, and Selenium force you to write brittle code that breaks when the website makes even the slightest UI change.
 
 <Excalidraw className="w-full" url="https://link.excalidraw.com/readonly/u1mWrVrETRGT99tE01nz" />
 

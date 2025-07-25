@@ -189,21 +189,14 @@ test.describe("StagehandContext - Multi-page Support", () => {
    * Test active page tracking
    */
   test("should update stagehand.page when creating new pages", async () => {
-    const initialPage = stagehand.page;
+    const initialTitle = await stagehand.page.title(); // "about:blank" → ""
 
-    // Create a new page and verify it becomes active
+    // Create a new page
     const newPage = await stagehand.context.newPage();
-    expect(stagehand.page).toBe(newPage);
-    expect(stagehand.page).not.toBe(initialPage);
-
-    // Navigate and verify it's still the active page
     await newPage.goto(`http://localhost:${serverPort}/page1`);
-    expect(stagehand.page).toBe(newPage);
-    expect(await stagehand.page.title()).toBe("Page 1");
 
-    // Create another page and verify it becomes active
-    const anotherPage = await stagehand.context.newPage();
-    expect(stagehand.page).toBe(anotherPage);
-    expect(stagehand.page).not.toBe(newPage);
+    // The proxy should now forward to the new page:
+    expect(await stagehand.page.title()).toBe("Page 1");
+    expect(await stagehand.page.title()).not.toBe(initialTitle);
   });
 });

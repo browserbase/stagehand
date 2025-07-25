@@ -3,9 +3,12 @@ import { Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
-import { drawObserveOverlay } from "../utils";
-import { getAccessibilityTree } from "../a11y/utils";
-import { AccessibilityNode } from "../../types/context";
+import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
+import {
+  getAccessibilityTree,
+  getAccessibilityTreeWithFrames,
+} from "../a11y/utils";
+import { AccessibilityNode, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -38,6 +41,7 @@ export class StagehandObserveHandler {
     onlyVisible,
     drawOverlay,
     fromAct,
+    iframes,
   }: {
     instruction: string;
     llmClient: LLMClient;
@@ -50,6 +54,7 @@ export class StagehandObserveHandler {
     onlyVisible?: boolean;
     drawOverlay?: boolean;
     fromAct?: boolean;
+    iframes?: boolean;
   }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -67,8 +72,6 @@ export class StagehandObserveHandler {
       },
     });
 
-    let iframes: AccessibilityNode[] = [];
-
     if (onlyVisible !== undefined) {
       this.logger({
         category: "observation",
@@ -84,15 +87,27 @@ export class StagehandObserveHandler {
       message: "Getting accessibility tree data",
       level: 1,
     });
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
-    const outputString = tree.simplified;
-    iframes = tree.iframes;
-    const xpathMap = tree.xpathMap;
+    const { combinedTree, combinedXpathMap, discoveredIframes } = await (iframes
+      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
+          ({ combinedTree, combinedXpathMap }) => ({
+            combinedTree,
+            combinedXpathMap,
+            discoveredIframes: [] as AccessibilityNode[],
+          }),
+        )
+      : getAccessibilityTree(this.stagehandPage, this.logger).then(
+          ({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
+            combinedTree: simplified,
+            combinedXpathMap: xpathMap,
+            combinedUrlMap: idToUrl,
+            discoveredIframes: frameNodes,
+          }),
+        ));
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
-      domElements: outputString,
+      domElements: combinedTree,
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
@@ -116,51 +131,87 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (iframes.length > 0) {
-      iframes.forEach((iframe) => {
+    if (discoveredIframes.length > 0) {
+      this.logger({
+        category: "observation",
+        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+        level: 1,
+      });
+
+      discoveredIframes.forEach((iframe) => {
         observationResponse.elements.push({
-          elementId: Number(iframe.nodeId),
+          elementId: this.stagehandPage.encodeWithFrameId(
+            undefined,
+            Number(iframe.nodeId),
+          ),
           description: "an iframe",
           method: "not-supported",
           arguments: [],
         });
       });
     }
-    const elementsWithSelectors = await Promise.all(
-      observationResponse.elements.map(async (element) => {
-        const { elementId, ...rest } = element;
 
-        // Generate xpath for the given element if not found in selectorMap
-        this.logger({
-          category: "observation",
-          message: "Getting xpath for element",
-          level: 1,
-          auxiliary: {
-            elementId: {
-              value: elementId.toString(),
-              type: "string",
-            },
-          },
-        });
+    const elementsWithSelectors = (
+      await Promise.all(
+        observationResponse.elements.map(async (element) => {
+          const { elementId, ...rest } = element;
 
-        const xpath = xpathMap[elementId];
-
-        if (!xpath || xpath === "") {
+          // Generate xpath for the given element if not found in selectorMap
           this.logger({
             category: "observation",
-            message: `Empty xpath returned for element: ${elementId}`,
+            message: "Getting xpath for element",
             level: 1,
+            auxiliary: {
+              elementId: {
+                value: elementId.toString(),
+                type: "string",
+              },
+            },
           });
-        }
 
-        return {
-          ...rest,
-          selector: `xpath=${xpath}`,
-          // Provisioning or future use if we want to use direct CDP
-          // backendNodeId: elementId,
-        };
-      }),
-    );
+          if (elementId.includes("-")) {
+            const lookUpIndex = elementId as EncodedId;
+            const xpath: string | undefined = combinedXpathMap[lookUpIndex];
+
+            const trimmedXpath = trimTrailingTextNode(xpath);
+
+            if (!trimmedXpath || trimmedXpath === "") {
+              this.logger({
+                category: "observation",
+                message: `Empty xpath returned for element`,
+                auxiliary: {
+                  observeResult: {
+                    value: JSON.stringify(element),
+                    type: "object",
+                  },
+                },
+                level: 1,
+              });
+              return undefined;
+            }
+
+            return {
+              ...rest,
+              selector: `xpath=${trimmedXpath}`,
+              // Provisioning or future use if we want to use direct CDP
+              // backendNodeId: elementId,
+            };
+          } else {
+            this.logger({
+              category: "observation",
+              message: `Element is inside a shadow DOM: ${elementId}`,
+              level: 0,
+            });
+            return {
+              description: "an element inside a shadow DOM",
+              method: "not-supported",
+              arguments: [] as string[],
+              selector: "not-supported",
+            };
+          }
+        }),
+      )
+    ).filter(<T>(e: T | undefined): e is T => e !== undefined);
 
     this.logger({
       category: "observation",

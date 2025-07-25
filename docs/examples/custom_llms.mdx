@@ -8,46 +8,57 @@ Small models on **Ollama** are really difficult to get consistent structured out
 </Tip>
 
 ## Supported LLMs
-Out of the box, Stagehand supports LLMs from Google, Anthropic, OpenAI, Groq, and Cerebras. The full list of supported models is below:
+Stagehand supports most of the hosted LLM providers. The full list of supported models is below:
 
-<Expandable title="supported LLMs">
-- `gpt-4o`
-- `gpt-4o-mini`
-- `gpt-4o-2024-08-06`
-- `gpt-4.5-preview`
-- `claude-3-5-sonnet-latest`
-- `claude-3-5-sonnet-20241022`
-- `claude-3-5-sonnet-20240620`
-- `claude-3-7-sonnet-latest`
-- `claude-3-7-sonnet-20250219`
-- `o1-mini`
-- `o1-preview`
-- `o3-mini`
-- `gemini-2.0-flash`
-- `gemini-1.5-flash`
-- `gemini-1.5-pro`
-- `gemini-1.5-flash-8b`
-- `gemini-2.0-flash-lite`
-- `gemini-2.0-flash`
-- `gemini-2.5-pro-preview-03-25`
-- `cerebras-llama-3.3-70b`
-- `cerebras-llama-3.1-8b`
-- `groq-llama-3.3-70b-versatile`
-- `groq-llama-3.3-70b-specdec`
+### Providers
+<Expandable title="Supported Providers">
+- **OpenAI**
+- **Anthropic**
+- **Google**
+- **xAI**
+- **Azure**
+- **Groq**
+- **Cerebras**
+- **TogetherAI**
+- **Mistral**
+- **DeepSeek**
+- **Perplexity**
+- **Ollama**
 </Expandable>
+
+### Model Name Format
+
+Stagehand takes the model name in the format of `provider/model`.
+
+For example, to use Gemini 2.0 Flash, you would pass in `google/gemini-2.0-flash`.
+
+### Using a Provider
 
 You can pass in one of these LLMs to the `llm` property in the `Stagehand` constructor.
 
-```ts
+<CodeGroup>
+```typescript TypeScript
 const stagehand = new Stagehand({
-  modelName: "gemini-2.0-flash",
+  modelName: "google/gemini-2.0-flash",
   modelClientOptions: {
     apiKey: process.env.GOOGLE_API_KEY,
   },
 });
 ```
 
+```python Python
+stagehand = Stagehand(
+  model="google/gemini-2.0-flash",
+  model_client_options={"apiKey": os.getenv("GOOGLE_API_KEY")},
+)
+```
+</CodeGroup>
+
 ## Custom LLMs
+<Note>
+Custom LLMs are currently only supported in TypeScript.
+</Note>
+
 If you'd like to use a custom LLM, you can do so by providing a custom `llmProvider` function to the `Stagehand` constructor.
 
 The only requirement for an LLM to be used with Stagehand is that it supports structured outputs.

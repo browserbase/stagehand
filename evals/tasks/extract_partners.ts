@@ -6,13 +6,12 @@ export const extract_partners: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto("https://ramp.com");
 
     await stagehand.page.act({
-      action: "move down to the bottom of the page.",
+      action: "scroll to the bottom of the page",
     });
 
     await stagehand.page.act({
@@ -20,7 +19,7 @@ export const extract_partners: EvalFunction = async ({
     });
 
     await stagehand.page.act({
-      action: "Find and click on the link that leads to the partners page.",
+      action: "click on the link that leads to the partners page.",
     });
 
     const partners = await stagehand.page.extract({
@@ -38,7 +37,6 @@ export const extract_partners: EvalFunction = async ({
           .optional()
           .describe("Any explanation about partner listing or absence thereof"),
       }),
-      useTextExtract,
     });
 
     const expectedPartners = [
@@ -55,8 +53,6 @@ export const extract_partners: EvalFunction = async ({
     const allExpectedPartnersFound = expectedPartners.every((partner) =>
       foundPartners.includes(partner.toLowerCase()),
     );
-
-    await stagehand.close();
 
     return {
       _success: allExpectedPartnersFound,
@@ -81,8 +77,6 @@ export const extract_partners: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
       debugUrl,
@@ -90,5 +84,7 @@ export const extract_partners: EvalFunction = async ({
       error: JSON.parse(JSON.stringify(error, null, 2)),
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

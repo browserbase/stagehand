@@ -19,7 +19,6 @@ import {
   DEFAULT_EVAL_CATEGORIES,
   filterByCategory,
   filterByEvalName,
-  useTextExtract,
 } from "./args";
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
@@ -34,12 +33,11 @@ import { StagehandEvalError } from "@/types/stagehandErrors";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
-import { google } from "@ai-sdk/google";
-import { anthropic } from "@ai-sdk/anthropic";
-import { groq } from "@ai-sdk/groq";
-import { cerebras } from "@ai-sdk/cerebras";
-import { openai } from "@ai-sdk/openai";
 import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
+import { loadApiKeyFromEnv } from "@/lib/utils";
+import { LogLine } from "@/types/log";
+
 dotenv.config();
 
 /**
@@ -53,6 +51,8 @@ const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
   : 3;
+
+const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
 
 /**
  * generateSummary:
@@ -318,66 +318,55 @@ const generateFilteredTestcases = (): Testcase[] => {
               `No Eval function found for task name: ${taskName} in module ${input.name}`,
             );
           }
-          let shouldUseTextExtract = useTextExtract;
-          const categories = tasksByName[input.name].categories || [];
-          const isRegression = categories.includes("regression");
-          const regressionExtractMethod = tasksByName[input.name].extractMethod;
-          if (isRegression) {
-            if (regressionExtractMethod) {
-              shouldUseTextExtract = regressionExtractMethod === "textExtract";
-            }
-          }
 
           // Execute the task
-          let llmClient: LLMClient;
-          if (
-            input.modelName.startsWith("gpt") ||
-            input.modelName.startsWith("o")
-          ) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(openai(input.modelName)),
+          let taskInput: Awaited<ReturnType<typeof initStagehand>>;
+
+          if (USE_API) {
+            const [provider] = input.modelName.split("/") as [string, string];
+
+            const logFn = (line: LogLine): void => logger.log(line);
+            const apiKey = loadApiKeyFromEnv(provider, logFn);
+
+            if (!apiKey) {
+              throw new StagehandEvalError(
+                `USE_API=true but no API key found for provider “${provider}”.`,
+              );
+            }
+
+            taskInput = await initStagehand({
+              logger,
+              modelName: input.modelName,
+              modelClientOptions: { apiKey: apiKey },
             });
-          } else if (input.modelName.startsWith("gemini")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(google(input.modelName)),
-            });
-          } else if (input.modelName.startsWith("claude")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(anthropic(input.modelName)),
-            });
-          } else if (input.modelName.includes("groq")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(
-                groq(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
+          } else {
+            let llmClient: LLMClient;
+            if (input.modelName.includes("/")) {
+              llmClient = new AISdkClient({
+                model: wrapAISDKModel(
+                  getAISDKLanguageModel(
+                    input.modelName.split("/")[0],
+                    input.modelName.split("/")[1],
+                  ),
                 ),
-              ),
-            });
-          } else if (input.modelName.includes("cerebras")) {
-            llmClient = new AISdkClient({
-              model: wrapAISDKModel(
-                cerebras(
-                  input.modelName.substring(input.modelName.indexOf("/") + 1),
+              });
+            } else {
+              llmClient = new CustomOpenAIClient({
+                modelName: input.modelName as AvailableModel,
+                client: wrapOpenAI(
+                  new OpenAI({
+                    apiKey: process.env.TOGETHER_AI_API_KEY,
+                    baseURL: "https://api.together.xyz/v1",
+                  }),
                 ),
-              ),
-            });
-          } else if (input.modelName.includes("/")) {
-            llmClient = new CustomOpenAIClient({
-              modelName: input.modelName as AvailableModel,
-              client: wrapOpenAI(
-                new OpenAI({
-                  apiKey: process.env.TOGETHER_AI_API_KEY,
-                  baseURL: "https://api.together.xyz/v1",
-                }),
-              ),
+              });
+            }
+            taskInput = await initStagehand({
+              logger,
+              llmClient,
+              modelName: input.modelName,
             });
           }
-          const taskInput = await initStagehand({
-            logger,
-            llmClient,
-            useTextExtract: shouldUseTextExtract,
-            modelName: input.modelName,
-          });
           let result;
           try {
             result = await taskFunction(taskInput);

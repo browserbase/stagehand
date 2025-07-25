@@ -3,7 +3,6 @@ import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
 import { AgentClient } from "../agent/AgentClient";
 import { LogLine } from "../../types/log";
-import { Page } from "playwright";
 import {
   AgentExecuteOptions,
   AgentAction,
@@ -42,6 +41,7 @@ export class StagehandAgentHandler {
       options.modelName,
       options.clientOptions || {},
       options.userProvidedInstructions,
+      options.experimental,
     );
 
     // Store the client
@@ -57,7 +57,7 @@ export class StagehandAgentHandler {
   private setupAgentClient(): void {
     // Set up screenshot provider for any client type
     this.agentClient.setScreenshotProvider(async () => {
-      const screenshot = await this.stagehandPage.page.screenshot({
+      const screenshot = await this.page.screenshot({
         fullPage: false,
       });
       // Convert to base64
@@ -132,14 +132,14 @@ export class StagehandAgentHandler {
         : optionsOrInstruction;
 
     //Redirect to Google if the URL is empty or about:blank
-    const currentUrl = this.stagehandPage.page.url();
+    const currentUrl = this.page.url();
     if (!currentUrl || currentUrl === "about:blank") {
       this.logger({
         category: "agent",
         message: `Page URL is empty or about:blank. Redirecting to www.google.com...`,
         level: 0,
       });
-      await this.stagehandPage.page.goto("https://www.google.com");
+      await this.page.goto("https://www.google.com");
     }
 
     this.logger({
@@ -212,31 +212,9 @@ export class StagehandAgentHandler {
           // Small delay to see the animation
           await new Promise((resolve) => setTimeout(resolve, 300));
           // Perform the actual click
-          await this.stagehandPage.page.mouse.click(x as number, y as number, {
+          await this.page.mouse.click(x as number, y as number, {
             button: button as "left" | "right",
           });
-          const newOpenedTab = await Promise.race([
-            new Promise<Page | null>((resolve) => {
-              this.stagehandPage.context.once("page", (page) => resolve(page));
-              setTimeout(() => resolve(null), 1500);
-            }),
-          ]);
-          if (newOpenedTab) {
-            this.logger({
-              category: "action",
-              message: `New page detected (new tab) with URL. Opening on current page...`,
-              level: 1,
-              auxiliary: {
-                url: {
-                  value: newOpenedTab.url(),
-                  type: "string",
-                },
-              },
-            });
-            await newOpenedTab.close();
-            await this.stagehandPage.page.goto(newOpenedTab.url());
-            await this.stagehandPage.page.waitForURL(newOpenedTab.url());
-          }
           return { success: true };
         }
 
@@ -253,10 +231,7 @@ export class StagehandAgentHandler {
           // Small delay to see the animation
           await new Promise((resolve) => setTimeout(resolve, 200));
           // Perform the actual double click
-          await this.stagehandPage.page.mouse.dblclick(
-            x as number,
-            y as number,
-          );
+          await this.page.mouse.dblclick(x as number, y as number);
           return { success: true };
         }
 
@@ -274,16 +249,13 @@ export class StagehandAgentHandler {
           // Small delay to see the animation
           await new Promise((resolve) => setTimeout(resolve, 200));
           // Perform the actual double click
-          await this.stagehandPage.page.mouse.dblclick(
-            x as number,
-            y as number,
-          );
+          await this.page.mouse.dblclick(x as number, y as number);
           return { success: true };
         }
 
         case "type": {
           const { text } = action;
-          await this.stagehandPage.page.keyboard.type(text as string);
+          await this.page.keyboard.type(text as string);
           return { success: true };
         }
 
@@ -293,29 +265,29 @@ export class StagehandAgentHandler {
             for (const key of keys) {
               // Handle special keys
               if (key.includes("ENTER")) {
-                await this.stagehandPage.page.keyboard.press("Enter");
+                await this.page.keyboard.press("Enter");
               } else if (key.includes("SPACE")) {
-                await this.stagehandPage.page.keyboard.press(" ");
+                await this.page.keyboard.press(" ");
               } else if (key.includes("TAB")) {
-                await this.stagehandPage.page.keyboard.press("Tab");
+                await this.page.keyboard.press("Tab");
               } else if (key.includes("ESCAPE") || key.includes("ESC")) {
-                await this.stagehandPage.page.keyboard.press("Escape");
+                await this.page.keyboard.press("Escape");
               } else if (key.includes("BACKSPACE")) {
-                await this.stagehandPage.page.keyboard.press("Backspace");
+                await this.page.keyboard.press("Backspace");
               } else if (key.includes("DELETE")) {
-                await this.stagehandPage.page.keyboard.press("Delete");
+                await this.page.keyboard.press("Delete");
               } else if (key.includes("ARROW_UP")) {
-                await this.stagehandPage.page.keyboard.press("ArrowUp");
+                await this.page.keyboard.press("ArrowUp");
               } else if (key.includes("ARROW_DOWN")) {
-                await this.stagehandPage.page.keyboard.press("ArrowDown");
+                await this.page.keyboard.press("ArrowDown");
               } else if (key.includes("ARROW_LEFT")) {
-                await this.stagehandPage.page.keyboard.press("ArrowLeft");
+                await this.page.keyboard.press("ArrowLeft");
               } else if (key.includes("ARROW_RIGHT")) {
-                await this.stagehandPage.page.keyboard.press("ArrowRight");
+                await this.page.keyboard.press("ArrowRight");
               } else {
                 // For other keys, use the existing conversion
                 const playwrightKey = this.convertKeyName(key);
-                await this.stagehandPage.page.keyboard.press(playwrightKey);
+                await this.page.keyboard.press(playwrightKey);
               }
             }
           }
@@ -325,9 +297,9 @@ export class StagehandAgentHandler {
         case "scroll": {
           const { x, y, scroll_x = 0, scroll_y = 0 } = action;
           // First move to the position
-          await this.stagehandPage.page.mouse.move(x as number, y as number);
+          await this.page.mouse.move(x as number, y as number);
           // Then scroll
-          await this.stagehandPage.page.evaluate(
+          await this.page.evaluate(
             ({ scrollX, scrollY }) => window.scrollBy(scrollX, scrollY),
             { scrollX: scroll_x as number, scrollY: scroll_y as number },
           );
@@ -341,16 +313,16 @@ export class StagehandAgentHandler {
 
             // Update cursor position for start
             await this.updateCursorPosition(start.x, start.y);
-            await this.stagehandPage.page.mouse.move(start.x, start.y);
-            await this.stagehandPage.page.mouse.down();
+            await this.page.mouse.move(start.x, start.y);
+            await this.page.mouse.down();
 
             // Update cursor position for each point in the path
             for (let i = 1; i < path.length; i++) {
               await this.updateCursorPosition(path[i].x, path[i].y);
-              await this.stagehandPage.page.mouse.move(path[i].x, path[i].y);
+              await this.page.mouse.move(path[i].x, path[i].y);
             }
 
-            await this.stagehandPage.page.mouse.up();
+            await this.page.mouse.up();
           }
           return { success: true };
         }
@@ -359,7 +331,7 @@ export class StagehandAgentHandler {
           const { x, y } = action;
           // Update cursor position first
           await this.updateCursorPosition(x as number, y as number);
-          await this.stagehandPage.page.mouse.move(x as number, y as number);
+          await this.page.mouse.move(x as number, y as number);
           return { success: true };
         }
 
@@ -383,19 +355,19 @@ export class StagehandAgentHandler {
             args !== null &&
             "url" in args
           ) {
-            await this.stagehandPage.page.goto(args.url as string);
+            await this.page.goto(args.url as string);
             this.updateClientUrl();
             return { success: true };
           } else if (name === "back") {
-            await this.stagehandPage.page.goBack();
+            await this.page.goBack();
             this.updateClientUrl();
             return { success: true };
           } else if (name === "forward") {
-            await this.stagehandPage.page.goForward();
+            await this.page.goForward();
             this.updateClientUrl();
             return { success: true };
           } else if (name === "reload") {
-            await this.stagehandPage.page.reload();
+            await this.page.reload();
             this.updateClientUrl();
             return { success: true };
           }
@@ -410,16 +382,16 @@ export class StagehandAgentHandler {
           // Handle the 'key' action type from Anthropic
           const { text } = action;
           if (text === "Return" || text === "Enter") {
-            await this.stagehandPage.page.keyboard.press("Enter");
+            await this.page.keyboard.press("Enter");
           } else if (text === "Tab") {
-            await this.stagehandPage.page.keyboard.press("Tab");
+            await this.page.keyboard.press("Tab");
           } else if (text === "Escape" || text === "Esc") {
-            await this.stagehandPage.page.keyboard.press("Escape");
+            await this.page.keyboard.press("Escape");
           } else if (text === "Backspace") {
-            await this.stagehandPage.page.keyboard.press("Backspace");
+            await this.page.keyboard.press("Backspace");
           } else {
             // For other keys, try to press directly
-            await this.stagehandPage.page.keyboard.press(text as string);
+            await this.page.keyboard.press(text as string);
           }
           return { success: true };
         }
@@ -448,14 +420,14 @@ export class StagehandAgentHandler {
   }
 
   private updateClientViewport(): void {
-    const viewportSize = this.stagehandPage.page.viewportSize();
+    const viewportSize = this.page.viewportSize();
     if (viewportSize) {
       this.agentClient.setViewport(viewportSize.width, viewportSize.height);
     }
   }
 
   private updateClientUrl(): void {
-    const url = this.stagehandPage.page.url();
+    const url = this.page.url();
     this.agentClient.setCurrentUrl(url);
   }
 
@@ -476,7 +448,7 @@ export class StagehandAgentHandler {
 
     try {
       // Take screenshot of the current page
-      const screenshot = await this.stagehandPage.page.screenshot({
+      const screenshot = await this.page.screenshot({
         type: "png",
         fullPage: false,
       });
@@ -487,7 +459,7 @@ export class StagehandAgentHandler {
       // Just use the captureScreenshot method on the agent client
       return await this.agentClient.captureScreenshot({
         base64Image,
-        currentUrl: this.stagehandPage.page.url(),
+        currentUrl: this.page.url(),
       });
     } catch (error) {
       const errorMessage =
@@ -511,19 +483,16 @@ export class StagehandAgentHandler {
       const HIGHLIGHT_ID = "stagehand-highlight";
 
       // Check if cursor already exists
-      const cursorExists = await this.stagehandPage.page.evaluate(
-        (id: string) => {
-          return !!document.getElementById(id);
-        },
-        CURSOR_ID,
-      );
+      const cursorExists = await this.page.evaluate((id: string) => {
+        return !!document.getElementById(id);
+      }, CURSOR_ID);
 
       if (cursorExists) {
         return;
       }
 
       // Inject cursor and highlight elements
-      await this.stagehandPage.page.evaluate(`
+      await this.page.evaluate(`
         (function(cursorId, highlightId) {
           // Create cursor element
           const cursor = document.createElement('div');
@@ -608,7 +577,7 @@ export class StagehandAgentHandler {
    */
   private async updateCursorPosition(x: number, y: number): Promise<void> {
     try {
-      await this.stagehandPage.page.evaluate(
+      await this.page.evaluate(
         ({ x, y }) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ((window as any).__updateCursorPosition) {
@@ -629,7 +598,7 @@ export class StagehandAgentHandler {
    */
   private async animateClick(x: number, y: number): Promise<void> {
     try {
-      await this.stagehandPage.page.evaluate(
+      await this.page.evaluate(
         ({ x, y }) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if ((window as any).__animateClick) {
@@ -680,5 +649,10 @@ export class StagehandAgentHandler {
 
     // Return the mapped key or the original key if not found
     return keyMap[upperKey] || key;
+  }
+
+  private get page() {
+    // stagehand.page is the live proxy you already implemented
+    return this.stagehand.page;
   }
 }

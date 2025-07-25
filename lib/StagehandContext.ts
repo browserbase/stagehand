@@ -1,7 +1,7 @@
 import type {
   BrowserContext as PlaywrightContext,
   Page as PlaywrightPage,
-} from "@playwright/test";
+} from "playwright";
 import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";
@@ -89,6 +89,16 @@ export class StagehandContext {
       }
     }
 
+    context.on("page", (pwPage) => {
+      instance.handleNewPlaywrightPage(pwPage).catch((err) =>
+        stagehand.logger({
+          category: "context",
+          message: `Failed to initialise new page: ${err}`,
+          level: 0,
+        }),
+      );
+    });
+
     return instance;
   }
 
@@ -121,5 +131,13 @@ export class StagehandContext {
 
   public getActivePage(): StagehandPage | null {
     return this.activeStagehandPage;
+  }
+
+  private async handleNewPlaywrightPage(pwPage: PlaywrightPage): Promise<void> {
+    let stagehandPage = this.pageMap.get(pwPage);
+    if (!stagehandPage) {
+      stagehandPage = await this.createStagehandPage(pwPage);
+    }
+    this.setActivePage(stagehandPage);
   }
 }

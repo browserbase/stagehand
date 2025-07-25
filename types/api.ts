@@ -29,6 +29,7 @@ export interface StartSessionParams {
 
 export interface StartSessionResult {
   sessionId: string;
+  available?: boolean;
 }
 
 export interface SuccessResponse<T> {

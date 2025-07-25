@@ -6,7 +6,6 @@ export const extract_regulations_table: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  useTextExtract,
 }) => {
   try {
     await stagehand.page.goto(
@@ -29,7 +28,7 @@ export const extract_regulations_table: EvalFunction = async ({
           }),
         ),
       }),
-      useTextExtract,
+
       selector: xpath,
     });
 
@@ -64,8 +63,6 @@ export const extract_regulations_table: EvalFunction = async ({
     const isRegulationsCorrect =
       isFirstCorrect && isLastCorrect && isLengthCorrect;
 
-    await stagehand.close();
-
     return {
       _success: isRegulationsCorrect,
       regulationsData: allottees,
@@ -74,10 +71,6 @@ export const extract_regulations_table: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -85,5 +78,7 @@ export const extract_regulations_table: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };
