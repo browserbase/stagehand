@@ -8,12 +8,8 @@ import { StagehandClickError } from "@/types/stagehandErrors";
 
 const IFRAME_STEP_RE = /^iframe(\[[^\]]+])?$/i;
 
-export function deepLocator(
-  root: Page | FrameLocator,
-  rawXPath: string,
-): Locator {
-  // 1 ─ strip optional 'xpath=' prefix and whitespace
-  let xpath = rawXPath.replace(/^xpath=/i, "").trim();
+export function deepLocator(root: Page | FrameLocator, xpath: string): Locator {
+  // 1 ─ prepend with slash if not already included
   if (!xpath.startsWith("/")) xpath = "/" + xpath;
 
   // 2 ─ split into steps, accumulate until we hit an iframe step
@@ -79,8 +75,7 @@ export async function scrollToNextChunk(ctx: MethodHandlerContext) {
       ({ xpath }) => {
         const elementNode = getNodeFromXpath(xpath);
         if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          console.warn(`Could not locate element to scroll by its height.`);
-          return Promise.resolve();
+          throw Error(`Could not locate element to scroll on.`);
         }
 
         const element = elementNode as HTMLElement;
@@ -143,8 +138,7 @@ export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
       ({ xpath }) => {
         const elementNode = getNodeFromXpath(xpath);
         if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          console.warn(`Could not locate element to scroll by its height.`);
-          return Promise.resolve();
+          throw Error(`Could not locate element to scroll on.`);
         }
 
         const element = elementNode as HTMLElement;
@@ -246,8 +240,7 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
 
         const elementNode = getNodeFromXpath(xpath);
         if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          console.warn(`Could not locate element to scroll on.`);
-          return;
+          throw Error(`Could not locate element to scroll on.`);
         }
 
         const element = elementNode as HTMLElement;

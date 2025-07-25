@@ -48,6 +48,7 @@ const StagehandConfig = {
       },
     },
   },
+  selfHeal: true,
 };
 
 /**
