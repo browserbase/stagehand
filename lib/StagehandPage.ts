@@ -353,13 +353,13 @@ ${scriptContent} \
 
           // Handle goto specially
           if (prop === "goto") {
-            const rawGoto: typeof target.goto =
-              Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
+
+              // Use the raw page directly for navigation
               const result = this.api
                 ? await this.api.goto(url, options)
-                : await rawGoto(url, options);
+                : await target.goto(url, options);
 
               this.stagehand.addToHistory("navigate", { url, options }, result);
 
@@ -383,7 +383,24 @@ ${scriptContent} \
                   });
                 }
                 await target.waitForLoadState("domcontentloaded");
-                await this._waitForSettledDom();
+                // Skip DOM settling during initial navigation
+                if (this.initialized) {
+                  try {
+                    await this._waitForSettledDom();
+                  } catch (err) {
+                    this.stagehand.log({
+                      category: "navigation",
+                      message: "Failed to wait for settled DOM, continuing",
+                      level: 2,
+                      auxiliary: {
+                        error: {
+                          value: (err as Error).message,
+                          type: "string",
+                        },
+                      },
+                    });
+                  }
+                }
               }
               return result;
             };
