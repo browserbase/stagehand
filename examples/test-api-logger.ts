@@ -5,8 +5,11 @@ async function testApiLogger() {
   console.log("Starting test with custom sh:api logger...\n");
 
   const stagehand = new Stagehand({
+    env: "LOCAL",
     logger: createStagehandApiLogger(),
-    headless: false,
+    localBrowserLaunchOptions: {
+      headless: false,
+    },
   });
 
   try {
@@ -17,18 +20,18 @@ async function testApiLogger() {
     await page.goto("https://example.com");
 
     console.log("\nExtracting page title...");
-    const title = await stagehand.extract({
+    const title = await page.extract({
       instruction: "Extract the main heading of the page",
     });
     console.log("Extracted title:", title);
 
     console.log("\nPerforming a simple action...");
-    await stagehand.act({
+    await page.act({
       action: "click on the 'More information' link",
     });
 
     console.log("\nObserving the page...");
-    const observation = await stagehand.observe();
+    const observation = await page.observe();
     console.log("Observation result:", observation);
   } catch (error) {
     console.error("Error during test:", error);
