@@ -1,3 +1,4 @@
+import "./debug";
 import { Browserbase } from "@browserbasehq/sdk";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
 import { chromium } from "playwright";
@@ -33,6 +34,7 @@ import {
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
+import { markStagehandCDPCall } from "./debug";
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -351,13 +353,13 @@ ${scriptContent} \
 
           // Handle goto specially
           if (prop === "goto") {
-            const rawGoto: typeof target.goto =
-              Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
               this.intContext.setActivePage(this);
+
+              // Use the raw page directly for navigation
               const result = this.api
                 ? await this.api.goto(url, options)
-                : await rawGoto(url, options);
+                : await target.goto(url, options);
 
               this.stagehand.addToHistory("navigate", { url, options }, result);
 
@@ -381,7 +383,24 @@ ${scriptContent} \
                   });
                 }
                 await target.waitForLoadState("domcontentloaded");
-                await this._waitForSettledDom();
+                // Skip DOM settling during initial navigation
+                if (this.initialized) {
+                  try {
+                    await this._waitForSettledDom();
+                  } catch (err) {
+                    this.stagehand.log({
+                      category: "navigation",
+                      message: "Failed to wait for settled DOM, continuing",
+                      level: 2,
+                      auxiliary: {
+                        error: {
+                          value: (err as Error).message,
+                          type: "string",
+                        },
+                      },
+                    });
+                  }
+                }
               }
               return result;
             };
@@ -482,8 +501,13 @@ ${scriptContent} \
     const hasDoc = !!(await this.page.title().catch(() => false));
     if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
 
+    markStagehandCDPCall("Network.enable");
     await client.send("Network.enable");
+
+    markStagehandCDPCall("Page.enable");
     await client.send("Page.enable");
+
+    markStagehandCDPCall("Target.setAutoAttach");
     await client.send("Target.setAutoAttach", {
       autoAttach: true,
       waitForDebuggerOnStart: false,
@@ -964,7 +988,9 @@ ${scriptContent} \
     target: PlaywrightPage | Frame = this.page,
   ): Promise<CDPSession> {
     const cached = this.cdpClients.get(target);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
     try {
       const session = await this.context.newCDPSession(target);
@@ -1000,10 +1026,15 @@ ${scriptContent} \
   ): Promise<T> {
     const client = await this.getCDPClient(target ?? this.page);
 
-    return client.send(
+    // Mark this as a Stagehand CDP call
+    markStagehandCDPCall(method);
+
+    const result = (await client.send(
       method as Parameters<CDPSession["send"]>[0],
       params as Parameters<CDPSession["send"]>[1],
-    ) as Promise<T>;
+    )) as T;
+
+    return result;
   }
 
   /** Enable a CDP domain (e.g. `"Network"` or `"DOM"`) on the chosen target. */
