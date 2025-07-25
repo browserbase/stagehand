@@ -3,7 +3,7 @@ import { createStagehandApiLogger } from "../lib/stagehandApiLogger";
 
 async function testApiLogger() {
   console.log("Starting test with custom sh:api logger...\n");
-  
+
   const stagehand = new Stagehand({
     logger: createStagehandApiLogger(),
     headless: false,
@@ -30,7 +30,6 @@ async function testApiLogger() {
     console.log("\nObserving the page...");
     const observation = await stagehand.observe();
     console.log("Observation result:", observation);
-
   } catch (error) {
     console.error("Error during test:", error);
   } finally {
