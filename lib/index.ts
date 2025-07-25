@@ -1,3 +1,4 @@
+import "./debug";
 import { Browserbase } from "@browserbasehq/sdk";
 import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";

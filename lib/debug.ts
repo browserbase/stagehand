@@ -6,6 +6,17 @@
 const DEBUG = process.env.DEBUG || "";
 const debugNamespaces = DEBUG.split(",").map((ns) => ns.trim());
 
+// If sh:protocol is enabled, automatically enable pw:protocol
+// This must happen before any Playwright imports
+if (
+  debugNamespaces.includes("sh:protocol") &&
+  !debugNamespaces.some((ns) => ns.includes("pw:protocol"))
+) {
+  debugNamespaces.push("pw:protocol");
+  // Update process.env.DEBUG to include pw:protocol
+  process.env.DEBUG = debugNamespaces.join(",");
+}
+
 // Track pending Stagehand CDP calls by method name and timestamp
 interface PendingCall {
   method: string;

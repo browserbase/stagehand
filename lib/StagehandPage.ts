@@ -1,3 +1,4 @@
+import "./debug";
 import { Browserbase } from "@browserbasehq/sdk";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
 import { chromium } from "playwright";
