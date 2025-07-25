@@ -307,9 +307,10 @@ export class StagehandActHandler {
   private async _performPlaywrightMethod(
     method: string,
     args: unknown[],
-    xpath: string,
+    rawXPath: string,
     domSettleTimeoutMs?: number,
   ) {
+    const xpath = rawXPath.replace(/^xpath=/i, "").trim();
     const locator = deepLocator(this.stagehandPage.page, xpath).first();
     const initialUrl = this.stagehandPage.page.url();
 
