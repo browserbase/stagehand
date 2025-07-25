@@ -27,6 +27,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
+import { shProtocolDebug } from "./debug";
 import { ClientOptions } from "../types/model";
 import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
@@ -821,12 +822,48 @@ export class Stagehand {
       content: guardedScript,
     });
 
+    shProtocolDebug.log(
+      `◀ newCDPSession (creating session for download behavior)`,
+    );
     const session = await this.context.newCDPSession(this.page);
-    await session.send("Browser.setDownloadBehavior", {
-      behavior: "allow",
+    shProtocolDebug.log(`▶ newCDPSession (session created)`);
+
+    // Log CDP protocol call from Stagehand
+    const params = {
+      behavior: "allow" as const,
       downloadPath: this.downloadsPath,
       eventsEnabled: true,
-    });
+    };
+
+    // Generate a request ID for standalone CDP calls
+    const requestId = Math.floor(Math.random() * 10000) + 2000;
+    // Try to get session ID
+    let cdpSessionId: string | undefined;
+    try {
+      // @ts-expect-error - accessing private property
+      cdpSessionId = session._sessionId || session.id;
+    } catch {
+      cdpSessionId = undefined;
+    }
+
+    const sendLog: Record<string, unknown> = {
+      id: requestId,
+      method: "Browser.setDownloadBehavior",
+      params,
+    };
+    if (cdpSessionId) {
+      sendLog.sessionId = cdpSessionId;
+    }
+    shProtocolDebug.log(`SEND ► ${JSON.stringify(sendLog)}`);
+
+    await session.send("Browser.setDownloadBehavior", params);
+
+    // No response data for this method
+    const recvLog: Record<string, unknown> = { id: requestId, result: {} };
+    if (cdpSessionId) {
+      recvLog.sessionId = cdpSessionId;
+    }
+    shProtocolDebug.log(`◀ RECV ${JSON.stringify(recvLog)}`);
 
     this.browserbaseSessionID = sessionId;
 
