@@ -56,6 +56,16 @@ export class StagehandPage {
     [undefined, 0],
   ]);
 
+  private rootFrameId!: string;
+
+  public get frameId(): string {
+    return this.rootFrameId;
+  }
+
+  public updateRootFrameId(newId: string): void {
+    this.rootFrameId = newId;
+  }
+
   constructor(
     page: PlaywrightPage,
     stagehand: Stagehand,
@@ -354,9 +364,11 @@ ${scriptContent} \
             const rawGoto: typeof target.goto =
               Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
-              this.intContext.setActivePage(this);
               const result = this.api
-                ? await this.api.goto(url, options)
+                ? await this.api.goto(url, {
+                    ...options,
+                    frameId: this.frameId,
+                  })
                 : await rawGoto(url, options);
 
               this.stagehand.addToHistory("navigate", { url, options }, result);
@@ -629,7 +641,10 @@ ${scriptContent} \
           const observeResult = actionOrOptions as ObserveResult;
 
           if (this.api) {
-            const result = await this.api.act(observeResult);
+            const result = await this.api.act({
+              ...observeResult,
+              frameId: this.frameId,
+            });
             await this._refreshPageFromAPI();
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
@@ -661,7 +676,8 @@ ${scriptContent} \
       const { action, modelName, modelClientOptions } = actionOrOptions;
 
       if (this.api) {
-        const result = await this.api.act(actionOrOptions);
+        const opts = { ...actionOrOptions, frameId: this.frameId };
+        const result = await this.api.act(opts);
         await this._refreshPageFromAPI();
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
@@ -722,7 +738,7 @@ ${scriptContent} \
       if (!instructionOrOptions) {
         let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({});
+          result = await this.api.extract<T>({ frameId: this.frameId });
         } else {
           result = await this.extractHandler.extract();
         }
@@ -759,7 +775,8 @@ ${scriptContent} \
       }
 
       if (this.api) {
-        const result = await this.api.extract<T>(options);
+        const opts = { ...options, frameId: this.frameId };
+        const result = await this.api.extract<T>(opts);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
@@ -866,7 +883,8 @@ ${scriptContent} \
       }
 
       if (this.api) {
-        const result = await this.api.observe(options);
+        const opts = { ...options, frameId: this.frameId };
+        const result = await this.api.observe(opts);
         this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;
       }

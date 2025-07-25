@@ -123,7 +123,7 @@ export class StagehandAPI {
     if (!options.schema) {
       return this.execute<ExtractResult<T>>({
         method: "extract",
-        args: {},
+        args: { ...options },
       });
     }
     const parsedSchema = zodToJsonSchema(options.schema);
