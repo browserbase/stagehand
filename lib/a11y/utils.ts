@@ -14,7 +14,7 @@ import {
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
-import { shProtocolDebug } from "../debug";
+import { markStagehandCDPCall } from "../debug";
 import {
   ContentFrameNotFoundError,
   StagehandDomProcessError,
@@ -29,22 +29,6 @@ const PUA_START = 0xe000;
 const PUA_END = 0xf8ff;
 
 const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
-
-// Helper for CDP request IDs in a11y utils
-let a11yRequestId = 3000;
-function getNextA11yRequestId(): number {
-  return a11yRequestId++;
-}
-
-// Helper to get session ID from CDPSession
-function getSessionIdFromCDP(session: CDPSession): string | undefined {
-  try {
-    // @ts-expect-error - accessing private property
-    return session._sessionId || session.id;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Clean a string by removing private-use unicode characters, normalizing whitespace,
@@ -148,9 +132,7 @@ export async function buildBackendIdMaps(
     session = await sp.getCDPClient();
   } else {
     try {
-      shProtocolDebug.log(`◀ newCDPSession (creating session for OOPIF)`);
       session = await sp.context.newCDPSession(targetFrame); // OOPIF
-      shProtocolDebug.log(`▶ newCDPSession (session created for OOPIF)`);
     } catch {
       session = await sp.getCDPClient(); // same-proc iframe
     }
@@ -163,32 +145,13 @@ export async function buildBackendIdMaps(
 
   try {
     // 1. full DOM tree
-    const params = {
+    markStagehandCDPCall("DOM.getDocument");
+    const result = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
-    };
-    const requestId = getNextA11yRequestId();
-    const sessionId = getSessionIdFromCDP(session);
-
-    const sendLog: Record<string, unknown> = {
-      id: requestId,
-      method: "DOM.getDocument",
-      params,
-    };
-    if (sessionId) {
-      sendLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`SEND ► ${JSON.stringify(sendLog)}`);
-
-    const result = (await session.send("DOM.getDocument", params)) as {
+    })) as {
       root: DOMNode;
     };
-
-    const recvLog: Record<string, unknown> = { id: requestId, result };
-    if (sessionId) {
-      recvLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`◀ RECV ${JSON.stringify(recvLog)}`);
 
     const { root } = result;
 
@@ -503,29 +466,10 @@ export async function getCDPFrameId(
 
   // 2. OOPIF path: open its own target
   try {
-    shProtocolDebug.log(`◀ newCDPSession (creating session for frame tree)`);
     const sess = await sp.context.newCDPSession(frame); // throws if detached
-    shProtocolDebug.log(`▶ newCDPSession (session created for frame tree)`);
 
-    const requestId = getNextA11yRequestId();
-    const sessionId = getSessionIdFromCDP(sess);
-
-    const sendLog: Record<string, unknown> = {
-      id: requestId,
-      method: "Page.getFrameTree",
-    };
-    if (sessionId) {
-      sendLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`SEND ► ${JSON.stringify(sendLog)}`);
-
+    markStagehandCDPCall("Page.getFrameTree");
     const ownResp = (await sess.send("Page.getFrameTree")) as unknown;
-
-    const recvLog: Record<string, unknown> = { id: requestId, result: ownResp };
-    if (sessionId) {
-      recvLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`◀ RECV ${JSON.stringify(recvLog)}`);
 
     const { frameTree } = ownResp as { frameTree: CdpFrameTree };
 
@@ -568,11 +512,8 @@ export async function getAccessibilityTree(
       // try opening a CDP session: succeeds only for OOPIFs
       let isOopif = true;
       try {
-        shProtocolDebug.log(`◀ newCDPSession (testing if frame is OOPIF)`);
         await stagehandPage.context.newCDPSession(targetFrame);
-        shProtocolDebug.log(`▶ newCDPSession (frame is OOPIF)`);
       } catch {
-        shProtocolDebug.log(`▶ newCDPSession (frame is not OOPIF)`);
         isOopif = false;
       }
 
@@ -743,13 +684,7 @@ export async function getFrameRootBackendNodeId(
   }
 
   // Create a CDP session on the main page context
-  shProtocolDebug.log(
-    `◀ newCDPSession (creating session for iframe existence check)`,
-  );
   const cdp = await sp.page.context().newCDPSession(sp.page);
-  shProtocolDebug.log(
-    `▶ newCDPSession (session created for iframe existence check)`,
-  );
   // Resolve the CDP frameId for the target iframe frame
   const fid = await getCDPFrameId(sp, frame);
   if (!fid) {
@@ -757,33 +692,10 @@ export async function getFrameRootBackendNodeId(
   }
 
   // Retrieve the DOM node that owns the frame via CDP
-  const frameOwnerParams = { frameId: fid };
-  const requestId = getNextA11yRequestId();
-  const sessionId = getSessionIdFromCDP(cdp);
-
-  const sendLog: Record<string, unknown> = {
-    id: requestId,
-    method: "DOM.getFrameOwner",
-    params: frameOwnerParams,
-  };
-  if (sessionId) {
-    sendLog.sessionId = sessionId;
-  }
-  shProtocolDebug.log(`SEND ► ${JSON.stringify(sendLog)}`);
-
-  const frameOwnerResult = (await cdp.send(
-    "DOM.getFrameOwner",
-    frameOwnerParams,
-  )) as FrameOwnerResult;
-
-  const recvLog: Record<string, unknown> = {
-    id: requestId,
-    result: frameOwnerResult,
-  };
-  if (sessionId) {
-    recvLog.sessionId = sessionId;
-  }
-  shProtocolDebug.log(`◀ RECV ${JSON.stringify(recvLog)}`);
+  markStagehandCDPCall("DOM.getFrameOwner");
+  const frameOwnerResult = (await cdp.send("DOM.getFrameOwner", {
+    frameId: fid,
+  })) as FrameOwnerResult;
 
   const { backendNodeId } = frameOwnerResult;
 

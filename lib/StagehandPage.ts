@@ -33,7 +33,7 @@ import {
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
-import { shProtocolDebug } from "./debug";
+import { markStagehandCDPCall } from "./debug";
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -56,32 +56,6 @@ export class StagehandPage {
   private fidOrdinals: Map<string | undefined, number> = new Map([
     [undefined, 0],
   ]);
-  private cdpRequestId: number = 1000; // Start at 1000 to avoid conflicts with playwright
-  private sessionIds = new WeakMap<CDPSession, string>();
-
-  private getNextRequestId(): number {
-    return this.cdpRequestId++;
-  }
-
-  private getSessionId(session: CDPSession): string | undefined {
-    // Try to get cached session ID
-    let sessionId = this.sessionIds.get(session);
-    if (!sessionId) {
-      // Try to extract from session object (this is implementation-specific)
-      try {
-        // @ts-expect-error - accessing private property
-        sessionId = session._sessionId || session.id;
-        if (sessionId) {
-          this.sessionIds.set(session, sessionId);
-        }
-      } catch {
-        // Fallback - generate a placeholder
-        sessionId = `SH_SESSION_${Math.random().toString(36).substring(7)}`;
-        this.sessionIds.set(session, sessionId);
-      }
-    }
-    return sessionId;
-  }
 
   constructor(
     page: PlaywrightPage,
@@ -509,31 +483,14 @@ ${scriptContent} \
     const hasDoc = !!(await this.page.title().catch(() => false));
     if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
 
-    const sessionId = this.getSessionId(client);
-
-    // Network.enable
-    const networkEnableId = this.getNextRequestId();
-    shProtocolDebug.log(
-      `SEND ► ${JSON.stringify({ id: networkEnableId, method: "Network.enable", sessionId })}`,
-    );
+    markStagehandCDPCall("Network.enable");
     await client.send("Network.enable");
-    shProtocolDebug.log(
-      `◀ RECV ${JSON.stringify({ id: networkEnableId, result: {}, sessionId })}`,
-    );
 
-    // Page.enable
-    const pageEnableId = this.getNextRequestId();
-    shProtocolDebug.log(
-      `SEND ► ${JSON.stringify({ id: pageEnableId, method: "Page.enable", sessionId })}`,
-    );
+    markStagehandCDPCall("Page.enable");
     await client.send("Page.enable");
-    shProtocolDebug.log(
-      `◀ RECV ${JSON.stringify({ id: pageEnableId, result: {}, sessionId })}`,
-    );
 
-    // Target.setAutoAttach
-    const autoAttachId = this.getNextRequestId();
-    const autoAttachParams = {
+    markStagehandCDPCall("Target.setAutoAttach");
+    await client.send("Target.setAutoAttach", {
       autoAttach: true,
       waitForDebuggerOnStart: false,
       flatten: true,
@@ -541,14 +498,7 @@ ${scriptContent} \
         { type: "worker", exclude: true },
         { type: "shared_worker", exclude: true },
       ],
-    };
-    shProtocolDebug.log(
-      `SEND ► ${JSON.stringify({ id: autoAttachId, method: "Target.setAutoAttach", params: autoAttachParams, sessionId })}`,
-    );
-    await client.send("Target.setAutoAttach", autoAttachParams);
-    shProtocolDebug.log(
-      `◀ RECV ${JSON.stringify({ id: autoAttachId, result: {}, sessionId })}`,
-    );
+    });
 
     return new Promise<void>((resolve) => {
       const inflight = new Set<string>();
@@ -1021,18 +971,11 @@ ${scriptContent} \
   ): Promise<CDPSession> {
     const cached = this.cdpClients.get(target);
     if (cached) {
-      shProtocolDebug.log(
-        `◀ getCDPClient (cached session for ${target === this.page ? "page" : "frame"})`,
-      );
       return cached;
     }
 
     try {
-      shProtocolDebug.log(
-        `◀ newCDPSession (creating session for ${target === this.page ? "page" : "frame"})`,
-      );
       const session = await this.context.newCDPSession(target);
-      shProtocolDebug.log(`▶ newCDPSession (session created)`);
       this.cdpClients.set(target, session);
       return session;
     } catch (err) {
@@ -1040,9 +983,6 @@ ${scriptContent} \
       const msg = (err as Error).message ?? "";
       if (msg.includes("does not have a separate CDP session")) {
         // Re-use / create the top-level session instead
-        shProtocolDebug.log(
-          `◀ getCDPClient (fallback to root session for same-process iframe)`,
-        );
         const rootSession = await this.getCDPClient(this.page);
         // cache the alias so we don't try again for this frame
         this.cdpClients.set(target, rootSession);
@@ -1067,33 +1007,14 @@ ${scriptContent} \
     target?: PlaywrightPage | Frame,
   ): Promise<T> {
     const client = await this.getCDPClient(target ?? this.page);
-    const sessionId = this.getSessionId(client);
-    const requestId = this.getNextRequestId();
 
-    // Log CDP protocol call from Stagehand
-    const sendLog: Record<string, unknown> = { id: requestId, method };
-    if (Object.keys(params).length > 0) {
-      sendLog.params = params;
-    }
-    if (sessionId) {
-      sendLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`SEND ► ${JSON.stringify(sendLog)}`);
+    // Mark this as a Stagehand CDP call
+    markStagehandCDPCall(method);
 
     const result = (await client.send(
       method as Parameters<CDPSession["send"]>[0],
       params as Parameters<CDPSession["send"]>[1],
     )) as T;
-
-    // Log CDP protocol response
-    const recvLog: Record<string, unknown> = { id: requestId };
-    if (result !== undefined) {
-      recvLog.result = result;
-    }
-    if (sessionId) {
-      recvLog.sessionId = sessionId;
-    }
-    shProtocolDebug.log(`◀ RECV ${JSON.stringify(recvLog)}`);
 
     return result;
   }
