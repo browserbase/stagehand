@@ -12,7 +12,6 @@ import {
 import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema } from "../utils";
 import {
   ChatCompletionOptions,
@@ -30,27 +29,19 @@ import {
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;
   private client: OpenAI;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
   constructor({
-    enableCaching = false,
-    cache,
     modelName,
     clientOptions,
   }: {
     logger: (message: LogLine) => void;
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
   }) {
     super(modelName);
     this.clientOptions = clientOptions;
     this.client = new OpenAI(clientOptions);
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName;
   }
 
@@ -121,7 +112,7 @@ export class OpenAIClient extends LLMClient {
       throw new StagehandError("Temperature is not supported for o1 models");
     }
 
-    const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
+    const { requestId, ...optionsWithoutImageAndRequestId } = options;
 
     logger({
       category: "openai",
@@ -141,54 +132,6 @@ export class OpenAIClient extends LLMClient {
         },
       },
     });
-
-    const cacheOptions = {
-      model: this.modelName,
-      messages: options.messages,
-      temperature: options.temperature,
-      top_p: options.top_p,
-      frequency_penalty: options.frequency_penalty,
-      presence_penalty: options.presence_penalty,
-      image: image,
-      response_model: options.response_model,
-    };
-
-    if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
-      );
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse;
-      } else {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache miss - no cached response found",
-          level: 1,
-          auxiliary: {
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-          },
-        });
-      }
-    }
 
     if (options.image) {
       const screenshotMessage: ChatMessage = {
@@ -447,43 +390,10 @@ export class OpenAIClient extends LLMClient {
         throw e;
       }
 
-      if (this.enableCaching) {
-        this.cache.set(
-          cacheOptions,
-          {
-            ...parsedData,
-          },
-          options.requestId,
-        );
-      }
-
       return {
         data: parsedData,
         usage: response.usage,
       } as T;
-    }
-
-    if (this.enableCaching) {
-      logger({
-        category: "llm_cache",
-        message: "caching response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-          response: {
-            value: JSON.stringify(response),
-            type: "object",
-          },
-        },
-      });
-      this.cache.set(cacheOptions, response, options.requestId);
     }
 
     // if the function was called with a response model, it would have returned earlier

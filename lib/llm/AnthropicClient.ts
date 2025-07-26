@@ -8,7 +8,6 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AnthropicJsonSchemaObject, AvailableModel } from "../../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import {
   CreateChatCompletionOptions,
   LLMClient,
@@ -19,28 +18,20 @@ import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
   private client: Anthropic;
-  private cache: LLMCache | undefined;
-  private enableCaching: boolean;
   public clientOptions: ClientOptions;
 
   constructor({
-    enableCaching = false,
-    cache,
     modelName,
     clientOptions,
     userProvidedInstructions,
   }: {
     logger: (message: LogLine) => void;
-    enableCaching?: boolean;
-    cache?: LLMCache;
     modelName: AvailableModel;
     clientOptions?: ClientOptions;
     userProvidedInstructions?: string;
   }) {
     super(modelName);
     this.client = new Anthropic(clientOptions);
-    this.cache = cache;
-    this.enableCaching = enableCaching;
     this.modelName = modelName;
     this.clientOptions = clientOptions;
     this.userProvidedInstructions = userProvidedInstructions;
@@ -65,62 +56,6 @@ export class AnthropicClient extends LLMClient {
         },
       },
     });
-
-    // Try to get cached response
-    const cacheOptions = {
-      model: this.modelName,
-      messages: options.messages,
-      temperature: options.temperature,
-      image: options.image,
-      response_model: options.response_model,
-      tools: options.tools,
-      retries: retries,
-    };
-
-    if (this.enableCaching) {
-      const cachedResponse = await this.cache.get<T>(
-        cacheOptions,
-        options.requestId,
-      );
-      if (cachedResponse) {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache hit - returning cached response",
-          level: 1,
-          auxiliary: {
-            cachedResponse: {
-              value: JSON.stringify(cachedResponse),
-              type: "object",
-            },
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-          },
-        });
-        return cachedResponse as T;
-      } else {
-        logger({
-          category: "llm_cache",
-          message: "LLM cache miss - no cached response found",
-          level: 1,
-          auxiliary: {
-            cacheOptions: {
-              value: JSON.stringify(cacheOptions),
-              type: "object",
-            },
-            requestId: {
-              value: options.requestId,
-              type: "string",
-            },
-          },
-        });
-      }
-    }
 
     const systemMessage = options.messages.find((msg) => {
       if (msg.role === "system") {
@@ -316,10 +251,6 @@ export class AnthropicClient extends LLMClient {
           usage: usageData,
         } as unknown as T;
 
-        if (this.enableCaching) {
-          this.cache.set(cacheOptions, finalParsedResponse, options.requestId);
-        }
-
         return finalParsedResponse;
       } else {
         if (!retries || retries < 5) {
@@ -344,29 +275,6 @@ export class AnthropicClient extends LLMClient {
           "No tool use with input in response",
         );
       }
-    }
-
-    if (this.enableCaching) {
-      this.cache.set(cacheOptions, transformedResponse, options.requestId);
-      logger({
-        category: "anthropic",
-        message: "cached response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          transformedResponse: {
-            value: JSON.stringify(transformedResponse),
-            type: "object",
-          },
-          cacheOptions: {
-            value: JSON.stringify(cacheOptions),
-            type: "object",
-          },
-        },
-      });
     }
 
     // if the function was called with a response model, it would have returned earlier
