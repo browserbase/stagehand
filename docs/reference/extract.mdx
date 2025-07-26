@@ -43,7 +43,10 @@ Your output schema will look like:
 ```
 
 ### Extract a link
-<Note>To extract links or URLs, specify this clearly in your instruction. See the snippet below. </Note>
+<Note>
+To extract links or URLs, in the TypeScript version of Stagehand, you'll need to define the relevant field as `z.string().url()`.
+In Python, you'll need to define it as `HttpUrl`.
+</Note>
 
 Here is how an `extract` call might look for extracting a link or URL.
 
@@ -52,7 +55,7 @@ Here is how an `extract` call might look for extracting a link or URL.
 const extraction = await page.extract({
   instruction: "extract the link to the 'contact us' page",
   schema: z.object({
-    link: z.string().url(),
+    link: z.string().url(), // note the usage of z.string().url() here
   }),
 });
 
@@ -61,7 +64,7 @@ console.log("the link to the contact us page is: ", extraction.link);
 
 ```python Python
 class Extraction(BaseModel):
-    link: HttpUrl
+    link: HttpUrl # note the usage of HttpUrl here
 
 extraction = await page.extract(
     "extract the link to the 'contact us' page", 
