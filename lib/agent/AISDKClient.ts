@@ -1,4 +1,10 @@
-import { streamText } from "ai";
+import {
+  streamText,
+  type CoreMessage,
+  type TextStreamPart,
+  type ToolSet,
+  type StreamTextResult,
+} from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import {
   AgentAction,
@@ -110,9 +116,61 @@ STEP 3: VERIFY RESULTS
 - Take screenshot to verify success when needed
 - Use getText to confirm changes
 
-Current viewport: ${this.currentViewport.width}x${this.currentViewport.height}
-Current URL: ${this.currentUrl || "Not set"}
+
 Current date and time: ${currentDateTime}`;
+  }
+
+  async streamText(options: {
+    messages: CoreMessage[];
+    system?: string;
+    temperature?: number;
+    maxSteps?: number;
+    maxTokens?: number;
+    tools?: ToolSet;
+    onStepFinish?: (event: {
+      stepType: "initial" | "continue" | "tool-result";
+      finishReason:
+        | "stop"
+        | "length"
+        | "content-filter"
+        | "tool-calls"
+        | "error"
+        | "other"
+        | "unknown";
+      usage: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+      };
+      text: string;
+      reasoning?: string;
+      toolCalls?: unknown[];
+      toolResults?: unknown[];
+    }) => void;
+    onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
+  }): Promise<StreamTextResult<ToolSet, never>> {
+    if (!this.stagehandInstance || !this.page) {
+      throw new Error(
+        "Stagehand and Page instances must be provided in clientOptions",
+      );
+    }
+
+    const model = anthropic(this.modelName);
+    const tools =
+      options.tools || createAgentTools(this.page, this.stagehandInstance);
+
+    return streamText<ToolSet>({
+      model,
+      system: options.system,
+      messages: options.messages,
+      maxSteps: options.maxSteps || 10,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      tools,
+      toolCallStreaming: false,
+      onStepFinish: options.onStepFinish,
+      onChunk: options.onChunk,
+    });
   }
 
   /**
@@ -121,7 +179,8 @@ Current date and time: ${currentDateTime}`;
    */
   async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
     const { options, logger } = executionOptions;
-    const { instruction } = options;
+    const { instruction, onToolCall, onTextDelta, onStepFinish, messages } =
+      options;
     const maxSteps = options.maxSteps || 10;
 
     logger({
@@ -159,15 +218,18 @@ Current date and time: ${currentDateTime}`;
       const tools = createAgentTools(this.page, this.stagehandInstance);
 
       // Execute with AI SDK
+      // Build messages array - include history if provided
+      const allMessages: CoreMessage[] = messages
+        ? [
+            ...(messages as CoreMessage[]),
+            { role: "user", content: instruction },
+          ]
+        : [{ role: "user", content: instruction }];
+
       const result = await streamText({
         model,
         system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: instruction,
-          },
-        ],
+        messages: allMessages,
         maxSteps,
         tools,
         toolCallStreaming: false,
@@ -193,6 +255,8 @@ Current date and time: ${currentDateTime}`;
               };
               actions.push(action);
 
+              onToolCall?.(toolCall.toolName, toolCall.args);
+
               logger({
                 category: "action",
                 message: `Tool called: ${toolCall.toolName}`,
@@ -216,6 +280,8 @@ Current date and time: ${currentDateTime}`;
             totalInputTokens += event.usage.promptTokens || 0;
             totalOutputTokens += event.usage.completionTokens || 0;
           }
+
+          onStepFinish?.(event);
         },
       });
 
@@ -223,6 +289,7 @@ Current date and time: ${currentDateTime}`;
       let fullText = "";
       for await (const textPart of result.textStream) {
         fullText += textPart;
+        onTextDelta?.(textPart);
       }
 
       // Get the final message from the accumulated text

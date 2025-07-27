@@ -98,17 +98,20 @@ export class StagehandAgentHandler {
         await new Promise((resolve) => setTimeout(resolve, waitBetweenActions));
 
         // After executing an action, take a screenshot
-        try {
-          await this.captureAndSendScreenshot();
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          this.logger({
-            category: "agent",
-            message: `Warning: Failed to take screenshot after action: ${errorMessage}. Continuing execution.`,
-            level: 1,
-          });
-          // Continue execution even if screenshot fails
+        // Skip automatic screenshots for AI SDK client since it handles its own screenshots
+        if (this.options.agentType !== "aisdk") {
+          try {
+            await this.captureAndSendScreenshot();
+          } catch (error) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error);
+            this.logger({
+              category: "agent",
+              message: `Warning: Failed to take screenshot after action: ${errorMessage}. Continuing execution.`,
+              level: 1,
+            });
+            // Continue execution even if screenshot fails
+          }
         }
       } catch (error) {
         const errorMessage =

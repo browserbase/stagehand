@@ -1003,3 +1003,4 @@ export * from "../types/agent";
 export * from "./llm/LLMClient";
 export * from "../types/stagehandErrors";
 export * from "../types/stagehandApiErrors";
+export { AISDKAgent } from "./agent/AISDKAgent";
