@@ -1,3 +1,4 @@
+import { type ToolSet } from "ai";
 import { Page } from "../../../types/page";
 import { Stagehand } from "../../index";
 import { thinkTool } from "./think";
@@ -11,7 +12,7 @@ import { createActClickTool, createActTypeTool } from "./act";
  * Create tools for the AI SDK agent
  * These tools provide basic web automation capabilities
  */
-export const createAgentTools = (page: Page, stagehand: Stagehand) => {
+export const createAgentTools = (page: Page, stagehand: Stagehand): ToolSet => {
   return {
     think: thinkTool,
     screenshot: createScreenshotTool(page),
