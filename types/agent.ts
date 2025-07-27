@@ -39,7 +39,7 @@ export interface AgentClientOptions {
   [key: string]: unknown;
 }
 
-export type AgentType = "openai" | "anthropic";
+export type AgentType = "openai" | "anthropic" | "aisdk";
 
 export interface AgentExecutionOptions {
   options: AgentExecuteOptions;

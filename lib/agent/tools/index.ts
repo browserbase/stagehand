@@ -1,0 +1,24 @@
+import { Page } from "../../../types/page";
+import { Stagehand } from "../../index";
+import { thinkTool } from "./think";
+import { createScreenshotTool } from "./screenshot";
+import { createNavigateTool } from "./navigate";
+import { createGetTextTool } from "./getAllyTree";
+import { createWaitTool } from "./wait";
+import { createActClickTool, createActTypeTool } from "./act";
+
+/**
+ * Create tools for the AI SDK agent
+ * These tools provide basic web automation capabilities
+ */
+export const createAgentTools = (page: Page, stagehand: Stagehand) => {
+  return {
+    think: thinkTool,
+    screenshot: createScreenshotTool(page),
+    navigate: createNavigateTool(stagehand),
+    getText: createGetTextTool(page),
+    wait: createWaitTool(),
+    actClick: createActClickTool(stagehand),
+    actType: createActTypeTool(stagehand),
+  };
+};
