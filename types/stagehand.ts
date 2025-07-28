@@ -4,7 +4,7 @@ import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
 import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "playwright";
+import { Cookie, BrowserContext } from "playwright";
 import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
@@ -87,6 +87,7 @@ export interface ConstructorParams {
    * The parameters to use for launching a local browser
    */
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  attachToLocalBrowser?: BrowserContext;
   /**
    * Log the inference to a file
    */

@@ -76,6 +76,7 @@ async function getBrowser(
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
+  attachToLocalBrowser?: BrowserContext,
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
@@ -95,7 +96,6 @@ async function getBrowser(
     let sessionUrl: string | undefined = undefined;
     let sessionId: string;
     let connectUrl: string;
-
     const browserbase = new Browserbase({
       apiKey,
     });
@@ -226,6 +226,16 @@ async function getBrowser(
 
     return { browser, context, debugUrl, sessionUrl, sessionId, env };
   } else {
+    if (attachToLocalBrowser) {
+      logger({
+        category: "init",
+        message: "attaching to existing local browser context",
+        level: 1,
+      });
+      const context = attachToLocalBrowser;
+      const browser = context.browser();
+      return { browser, context, env };
+    }
     if (localBrowserLaunchOptions?.cdpUrl) {
       if (!localBrowserLaunchOptions.cdpUrl.includes("connect.connect")) {
         logger({
@@ -240,7 +250,6 @@ async function getBrowser(
           },
         });
       }
-
       const browser = await chromium.connectOverCDP(
         localBrowserLaunchOptions.cdpUrl,
       );
@@ -387,6 +396,7 @@ export class Stagehand {
   public apiClient: StagehandAPI | undefined;
   public readonly waitForCaptchaSolves: boolean;
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  private attachToLocalBrowser?: BrowserContext;
   public readonly selfHeal: boolean;
   private cleanupCalled = false;
   public readonly actTimeoutMs: number;
@@ -528,6 +538,7 @@ export class Stagehand {
       systemPrompt,
       useAPI = true,
       localBrowserLaunchOptions,
+      attachToLocalBrowser,
       waitForCaptchaSolves = false,
       logInferenceToFile = false,
       selfHeal = false,
@@ -616,8 +627,7 @@ export class Stagehand {
       this.llmClient = llmClient;
       this.logger({
         category: "init",
-        message:
-          "Custom LLM clients are currently not supported in API mode",
+        message: "Custom LLM clients are currently not supported in API mode",
         level: 1,
       });
       this.usingAPI = false;
@@ -660,7 +670,7 @@ export class Stagehand {
     }
     this.waitForCaptchaSolves = waitForCaptchaSolves;
     this.localBrowserLaunchOptions = localBrowserLaunchOptions;
-
+    this.attachToLocalBrowser = attachToLocalBrowser;
     if (this.usingAPI) {
       this.registerSignalHandlers();
     }
@@ -786,6 +796,7 @@ export class Stagehand {
         this.browserbaseSessionCreateParams,
         this.browserbaseSessionID,
         this.localBrowserLaunchOptions,
+        this.attachToLocalBrowser,
       ).catch((e) => {
         this.stagehandLogger.error("Error in init:", { error: String(e) });
         const br: BrowserResult = {
