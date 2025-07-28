@@ -1,4 +1,4 @@
-import { Stagehand, AISDKAgent } from "@browserbasehq/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 import path from "path";
 
@@ -21,10 +21,8 @@ async function runStreamControlExample() {
     console.log("Navigated to Hacker News");
 
     // Create an AI SDK agent
-    const agent = new AISDKAgent({
-      stagehand,
-      page: stagehand.page,
-      modelName: "claude-3-5-sonnet-20241022",
+    const agent = stagehand.aiSDKAgent({
+      model: "claude-sonnet-4-20250514",
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
 

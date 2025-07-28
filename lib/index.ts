@@ -34,6 +34,7 @@ import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
 import { StagehandOperatorHandler } from "./handlers/operatorHandler";
 import { StagehandLogger } from "./logger";
+import { AISDKAgent } from "./agent/AISDKAgent";
 
 import {
   StagehandError,
@@ -973,13 +974,17 @@ export class Stagehand {
             options.options.apiKey = process.env.ANTHROPIC_API_KEY;
           } else if (options.provider === "openai") {
             options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "google") {
-            options.options.apiKey = process.env.GOOGLE_API_KEY;
+          } else if (options.provider === "aisdk") {
+            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
           }
 
           if (!options.options.apiKey) {
+            const envVarName =
+              options.provider === "anthropic" || options.provider === "aisdk"
+                ? "ANTHROPIC_API_KEY"
+                : "OPENAI_API_KEY";
             throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+              `API key not found for \`${options.provider}\` provider. Please set the ${envVarName} environment variable or pass an apiKey in the options object.`,
             );
           }
 
@@ -990,6 +995,40 @@ export class Stagehand {
       },
     };
   }
+
+  /**
+   * Create an AI SDK agent instance with streaming capabilities
+   * @returns An AISDKAgent instance with streaming-first API
+   */
+  aiSDKAgent(options?: {
+    model?: string;
+    instructions?: string;
+    apiKey?: string;
+  }): AISDKAgent {
+    const modelName = options?.model || "claude-3-5-sonnet-20241022";
+    const apiKey = options?.apiKey || process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      throw new MissingEnvironmentVariableError(
+        "ANTHROPIC_API_KEY",
+        "AI SDK Agent",
+      );
+    }
+
+    this.log({
+      category: "agent",
+      message: `Creating AI SDK agent with model: ${modelName}`,
+      level: 1,
+    });
+
+    return new AISDKAgent({
+      stagehand: this,
+      page: this.stagehandPage.page,
+      modelName,
+      apiKey,
+      userProvidedInstructions: options?.instructions,
+    });
+  }
 }
 
 export * from "../types/browser";
@@ -997,10 +1036,10 @@ export * from "../types/log";
 export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
+export { AISDKAgent } from "./agent/AISDKAgent";
 export * from "../types/stagehand";
 export * from "../types/operator";
 export * from "../types/agent";
 export * from "./llm/LLMClient";
 export * from "../types/stagehandErrors";
 export * from "../types/stagehandApiErrors";
-export { AISDKAgent } from "./agent/AISDKAgent";
