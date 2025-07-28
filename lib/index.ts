@@ -907,13 +907,19 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method, or AISDKAgent when experimental + aisdk
    */
+  agent(options: AgentConfig & { provider: "aisdk" }): AISDKAgent;
+  agent(options?: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  };
   agent(options?: AgentConfig):
+    | AISDKAgent
     | {
         execute: (
           instructionOrOptions: string | AgentExecuteOptions,
         ) => Promise<AgentResult>;
-      }
-    | AISDKAgent {
+      } {
     if (this.experimental && options?.provider === "aisdk") {
       if (!options?.model) {
         this.log({
