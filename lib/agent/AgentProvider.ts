@@ -14,10 +14,6 @@ const modelToAgentProviderMap: Record<string, AgentType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
-  // AI SDK models (Anthropic only for now)
-  "claude-3-5-sonnet-20241022": "aisdk",
-  "claude-3-5-haiku-20241022": "aisdk",
-  "claude-3-opus-20240229": "aisdk",
   "claude-sonnet-4-20250514": "aisdk",
 };
 
@@ -69,7 +65,7 @@ export class AgentProvider {
         case "aisdk": {
           // AI SDK client currently only supports Anthropic models
           return new AISDKClient(
-            "anthropic",
+            type,
             modelName,
             userProvidedInstructions,
             clientOptions,
