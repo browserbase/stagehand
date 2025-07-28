@@ -35,8 +35,8 @@ import { Stagehand } from "../index";
  */
 export class AISDKClient extends AgentClient {
   private apiKey: string;
-  private stagehandInstance?: Stagehand;
-  private page?: Page;
+  private stagehandInstance: Stagehand;
+  private page: Page;
 
   constructor(
     type: AgentType,
@@ -56,8 +56,8 @@ export class AISDKClient extends AgentClient {
     };
 
     // Get Stagehand and Page instances from client options
-    this.stagehandInstance = clientOptions?.stagehand as Stagehand | undefined;
-    this.page = clientOptions?.page as Page | undefined;
+    this.stagehandInstance = clientOptions?.stagehand as Stagehand;
+    this.page = clientOptions?.page as Page;
   }
 
   // These methods are not used by AI SDK but required by base class
@@ -130,12 +130,6 @@ Current date and time: ${currentDateTime}`;
     onError?: (event: { error: unknown }) => Promise<void> | void;
     onFinish?: Parameters<typeof streamText>[0]["onFinish"];
   }): Promise<StreamTextResult<ToolSet, never>> {
-    if (!this.stagehandInstance || !this.page) {
-      throw new Error(
-        "Stagehand and Page instances must be provided in clientOptions",
-      );
-    }
-
     const model = anthropic(this.modelName);
     const tools =
       options.tools || createAgentTools(this.page, this.stagehandInstance);
@@ -173,13 +167,6 @@ Current date and time: ${currentDateTime}`;
       message: `AI SDK Client executing with model: ${this.modelName}`,
       level: 1,
     });
-
-    // Ensure we have required instances
-    if (!this.stagehandInstance || !this.page) {
-      throw new Error(
-        "Stagehand and Page instances must be provided in clientOptions",
-      );
-    }
 
     // Use Anthropic model
     const model = anthropic(this.modelName);
