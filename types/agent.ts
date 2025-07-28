@@ -55,7 +55,7 @@ export interface AgentExecuteOptions extends AgentOptions {
   }) => void;
 }
 
-export type AgentProviderType = "openai" | "anthropic";
+export type AgentProviderType = "openai" | "anthropic" | "aisdk";
 
 export interface AgentClientOptions {
   apiKey: string;
