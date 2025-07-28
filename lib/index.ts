@@ -28,7 +28,7 @@ import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { ClientOptions } from "../types/model";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
+import { isRunningInBun, loadApiKeyFromEnv, providerEnvVarMap } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
@@ -915,18 +915,44 @@ export class Stagehand {
       }
     | AISDKAgent {
     if (this.experimental && options?.provider === "aisdk") {
-      const modelName = options.model || "claude-3-5-sonnet-20241022";
-      const apiKey = options.options?.apiKey || process.env.ANTHROPIC_API_KEY;
+      if (!options?.model) {
+        this.log({
+          category: "stagehand agent",
+          message:
+            'Stagehand agent requires a model to be specified. Please provide a model in the format "provider/model-id" (e.g., { provider: "aisdk", model: "anthropic/claude-sonnet-4-20250514" })',
+          level: 0,
+        });
+        throw new Error(
+          'Stagehand Agent requires a model. Use format: { provider: "aisdk", model: "provider/model-id" }',
+        );
+      }
+      const modelName = options.model;
+
+      const modelParts = modelName.split("/");
+      if (modelParts.length !== 2) {
+        this.log({
+          category: "stagehand agent",
+          message: `Invalid model format for Stagehand Agent. Please use the format "provider/model-id" (e.g., "anthropic/claude-sonnet-4-20250514"). Received: "${modelName}"`,
+          level: 0,
+        });
+        throw new Error(`Invalid model format. Use "provider/model-id" format`);
+      }
+      const provider = modelParts[0];
+
+      const apiKey =
+        options.options?.apiKey || loadApiKeyFromEnv(provider, this.logger);
 
       if (!apiKey) {
+        const envVarName =
+          providerEnvVarMap[provider] || `${provider.toUpperCase()}_API_KEY`;
         throw new MissingEnvironmentVariableError(
-          "ANTHROPIC_API_KEY",
-          "AI SDK Agent",
+          envVarName,
+          "Stagehand Agent",
         );
       }
 
       this.log({
-        category: "agent",
+        category: "stagehand agent",
         message: `Creating AI SDK agent with model: ${modelName} (experimental)`,
         level: 1,
       });

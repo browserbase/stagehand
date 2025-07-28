@@ -8,7 +8,8 @@ import {
   type ToolResult,
   type FinishReason as AIFinishReason,
 } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { getAISDKLanguageModel } from "../llm/LLMProvider";
+import { loadApiKeyFromEnv } from "../utils";
 
 type TokenUsage = {
   promptTokens: number;
@@ -28,6 +29,7 @@ import { AgentClient } from "./AgentClient";
 import { createAgentTools } from "./tools";
 import { Page } from "../../types/page";
 import { Stagehand } from "../index";
+import { LogLine } from "@/types/log";
 
 /**
  * Client for AI SDK integration with Anthropic
@@ -35,6 +37,8 @@ import { Stagehand } from "../index";
  */
 export class AISDKClient extends AgentClient {
   private apiKey: string;
+  private provider: string;
+  private modelId: string;
   private stagehandInstance: Stagehand;
   private page: Page;
 
@@ -46,16 +50,21 @@ export class AISDKClient extends AgentClient {
   ) {
     super(type, modelName, userProvidedInstructions);
 
-    // Get API key for Anthropic
-    this.apiKey =
-      (clientOptions?.apiKey as string) || process.env.ANTHROPIC_API_KEY || "";
+    const modelParts = modelName.split("/");
+    this.provider = modelParts[0];
+    this.modelId = modelParts[1];
 
-    // Store client options for reference
+    const logger =
+      (clientOptions?.logger as (logLine: LogLine) => void) || console.log;
+    this.apiKey =
+      (clientOptions?.apiKey as string) ||
+      loadApiKeyFromEnv(this.provider, logger) ||
+      "";
+
     this.clientOptions = {
       apiKey: this.apiKey,
     };
 
-    // Get Stagehand and Page instances from client options
     this.stagehandInstance = clientOptions?.stagehand as Stagehand;
     this.page = clientOptions?.page as Page;
   }
@@ -130,7 +139,11 @@ Current date and time: ${currentDateTime}`;
     onError?: (event: { error: unknown }) => Promise<void> | void;
     onFinish?: Parameters<typeof streamText>[0]["onFinish"];
   }): Promise<StreamTextResult<ToolSet, never>> {
-    const model = anthropic(this.modelName);
+    const model = getAISDKLanguageModel(
+      this.provider,
+      this.modelId,
+      this.apiKey,
+    );
     const tools =
       options.tools || createAgentTools(this.page, this.stagehandInstance);
 
@@ -168,8 +181,11 @@ Current date and time: ${currentDateTime}`;
       level: 1,
     });
 
-    // Use Anthropic model
-    const model = anthropic(this.modelName);
+    const model = getAISDKLanguageModel(
+      this.provider,
+      this.modelId,
+      this.apiKey,
+    );
 
     const systemPrompt = this.buildSystemPrompt(instruction);
     const actions: AgentAction[] = [];
