@@ -3,7 +3,6 @@ import { AgentClient } from "./AgentClient";
 import { AgentType } from "@/types/agent";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
-import { AISDKClient } from "./AISDKClient";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
@@ -14,7 +13,7 @@ const modelToAgentProviderMap: Record<string, AgentType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
-  "claude-sonnet-4-20250514": "aisdk",
+  "claude-sonnet-4-20250514": "anthropic",
 };
 
 /**
@@ -62,18 +61,9 @@ export class AgentProvider {
             clientOptions,
             experimental,
           );
-        case "aisdk": {
-          // AI SDK client currently only supports Anthropic models
-          return new AISDKClient(
-            type,
-            modelName,
-            userProvidedInstructions,
-            clientOptions,
-          );
-        }
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic", "aisdk"],
+            ["openai", "anthropic"],
             "Computer Use Agent",
           );
       }
