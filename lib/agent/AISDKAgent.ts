@@ -1,7 +1,7 @@
 import { AISDKClient } from "./AISDKClient";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
-import { LogLine } from "../../types/log";
+
 import type {
   CoreMessage,
   TextStreamPart,
@@ -52,10 +52,6 @@ export class AISDKAgent {
     );
   }
 
-  /**
-   * Execute a task with streaming by default
-   * Since we use streamText internally, streaming is the natural behavior
-   */
   async execute(options: {
     instruction: string;
     maxSteps?: number;
@@ -295,18 +291,5 @@ ACTION EXECUTION:
 - Use screenshot to verify results
 
 Current date and time: ${currentDateTime}`;
-  }
-
-  private createLogger() {
-    return (log: LogLine) => {
-      // Simple console logger - can be customized
-      if (log.level === 0) {
-        console.error(`[${log.category}] ${log.message}`);
-      } else if (log.level === 1) {
-        console.log(`[${log.category}] ${log.message}`);
-      } else {
-        console.debug(`[${log.category}] ${log.message}`);
-      }
-    };
   }
 }
