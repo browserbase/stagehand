@@ -87,6 +87,9 @@ export interface ConstructorParams {
    * The parameters to use for launching a local browser
    */
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  /**
+   * Attach to an existing Playwright browser context instead of creating a new one
+   */
   attachToLocalBrowser?: BrowserContext;
   /**
    * Log the inference to a file
