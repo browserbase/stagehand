@@ -323,6 +323,9 @@ export class StagehandExtractHandler {
     const reductoClient = new ReductoClient(
       {
         apiKey: this.stagehand.reductoApiKey,
+        timeout: 30000, // 30 seconds
+        retries: 2,
+        debug: this.stagehand.debugDom || this.stagehand.verbose >= 2,
       },
       this.logger,
     );

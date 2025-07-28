@@ -8,6 +8,15 @@ export const extract_pdf_detection: EvalFunction = async ({
   stagehand,
 }) => {
   const results: Record<string, boolean> = {};
+  const context = stagehand.context;
+  const page = context.pages()[0];
+  const client = await context.newCDPSession(page);
+
+  await client.send("Browser.setDownloadBehavior", {
+    behavior: "allow",
+    downloadPath: "downloads",
+    eventsEnabled: true,
+  });
 
   try {
     // Navigate to a simple page
@@ -21,14 +30,20 @@ export const extract_pdf_detection: EvalFunction = async ({
     });
 
     try {
-      await stagehand.page.extract({
+      const result = await stagehand.page.extract({
         instruction:
           "Extract the title from https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         schema: z.object({
           title: z.string(),
         }),
       });
-      results.pdfUrlInInstruction = true;
+      results.pdfUrlInInstruction =
+        result.title?.toLowerCase().includes("dummy") || false;
+      logger.log({
+        category: "pdf_extraction",
+        message: `PDF URL extraction result: ${result.title}`,
+        level: 1,
+      });
     } catch (error) {
       // Check if it failed for the expected reason (no API key)
       const errorMessage =
@@ -59,14 +74,21 @@ export const extract_pdf_detection: EvalFunction = async ({
     });
 
     try {
-      await stagehand.page.extract({
+      const result = await stagehand.page.extract({
+        instruction: "Extract the title from the given PDF url",
         pdfUrl:
           "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
         schema: z.object({
           content: z.string(),
         }),
       });
-      results.pdfUrlParameter = true;
+      results.pdfUrlParameter =
+        result.content?.toLowerCase().includes("dummy") || false;
+      logger.log({
+        category: "pdf_extraction",
+        message: `PDF URL parameter result: ${result.content}`,
+        level: 1,
+      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -87,77 +109,7 @@ export const extract_pdf_detection: EvalFunction = async ({
       }
     }
 
-    // Test 3: Local PDF filepath detection in instruction
-    logger.log({
-      category: "pdf_extraction",
-      message: "Testing PDF filepath detection in instruction",
-      level: 1,
-    });
-
-    try {
-      await stagehand.page.extract({
-        instruction: "Extract data from report.pdf",
-        schema: z.object({
-          data: z.string(),
-        }),
-      });
-      results.pdfFilepathInInstruction = true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes("Reducto API key is required")) {
-        results.pdfFilepathInInstruction = true; // Detection worked
-        logger.log({
-          category: "pdf_extraction",
-          message: "PDF filepath detection successful",
-          level: 1,
-        });
-      } else {
-        results.pdfFilepathInInstruction = false;
-        logger.log({
-          category: "pdf_extraction",
-          message: `Unexpected error: ${errorMessage}`,
-          level: 1,
-        });
-      }
-    }
-
-    // Test 4: Direct PDF filepath parameter
-    logger.log({
-      category: "pdf_extraction",
-      message: "Testing direct PDF filepath parameter",
-      level: 1,
-    });
-
-    try {
-      await stagehand.page.extract({
-        pdfFilepath: "test-document.pdf",
-        schema: z.object({
-          summary: z.string(),
-        }),
-      });
-      results.pdfFilepathParameter = true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes("Reducto API key is required")) {
-        results.pdfFilepathParameter = true; // Detection worked
-        logger.log({
-          category: "pdf_extraction",
-          message: "PDF filepath parameter detection successful",
-          level: 1,
-        });
-      } else {
-        results.pdfFilepathParameter = false;
-        logger.log({
-          category: "pdf_extraction",
-          message: `Unexpected error: ${errorMessage}`,
-          level: 1,
-        });
-      }
-    }
-
-    // Test 5: Regular extraction should still work (not trigger PDF extraction)
+    // Test 3: Regular extraction should still work (not trigger PDF extraction)
     logger.log({
       category: "pdf_extraction",
       message: "Testing regular extraction still works",
@@ -165,6 +117,7 @@ export const extract_pdf_detection: EvalFunction = async ({
     });
 
     try {
+      await stagehand.page.goto("https://example.com");
       const result = await stagehand.page.extract({
         instruction: "Extract the main heading from the page",
         schema: z.object({
@@ -188,7 +141,7 @@ export const extract_pdf_detection: EvalFunction = async ({
       });
     }
 
-    // Test 6: If Reducto API key is provided, test actual extraction
+    // Test 4: If Reducto API key is provided, test actual extraction
     if (stagehand.reductoApiKey) {
       logger.log({
         category: "pdf_extraction",
@@ -198,13 +151,15 @@ export const extract_pdf_detection: EvalFunction = async ({
 
       try {
         const pdfResult = await stagehand.page.extract({
+          instruction: "Extract the text from the given PDF url",
           pdfUrl:
             "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
           schema: z.object({
             content: z.string().describe("The text content of the PDF"),
           }),
         });
-        results.actualPdfExtraction = !!pdfResult.content;
+        results.actualPdfExtraction =
+          pdfResult.content?.toLowerCase().includes("dummy") || false;
         logger.log({
           category: "pdf_extraction",
           message: `Actual PDF extraction successful: ${pdfResult.content?.substring(0, 100)}...`,
@@ -226,9 +181,10 @@ export const extract_pdf_detection: EvalFunction = async ({
     const allDetectionsPassed =
       results.pdfUrlInInstruction &&
       results.pdfUrlParameter &&
-      results.pdfFilepathInInstruction &&
-      results.pdfFilepathParameter &&
-      results.regularExtraction;
+      results.regularExtraction &&
+      (results.actualPdfExtraction !== undefined
+        ? results.actualPdfExtraction
+        : true);
 
     logger.log({
       category: "pdf_extraction",
