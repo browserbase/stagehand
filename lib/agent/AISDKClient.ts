@@ -28,7 +28,6 @@ import { AgentClient } from "./AgentClient";
 import { createAgentTools } from "./tools";
 import { Page } from "../../types/page";
 import { Stagehand } from "../index";
-import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
 
 /**
  * Client for AI SDK integration with Anthropic
@@ -36,10 +35,6 @@ import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
  */
 export class AISDKClient extends AgentClient {
   private apiKey: string;
-  private currentViewport = { width: 1024, height: 768 };
-  private currentUrl?: string;
-  private screenshotProvider?: () => Promise<string>;
-  private actionHandler?: (action: AgentAction) => Promise<void>;
   private stagehandInstance?: Stagehand;
   private page?: Page;
 
@@ -65,36 +60,19 @@ export class AISDKClient extends AgentClient {
     this.page = clientOptions?.page as Page | undefined;
   }
 
-  setViewport(width: number, height: number): void {
-    this.currentViewport = { width, height };
-  }
+  // These methods are not used by AI SDK but required by base class
+  setViewport(): void {}
 
-  setCurrentUrl(url: string): void {
-    this.currentUrl = url;
-  }
+  setCurrentUrl(): void {}
 
-  setScreenshotProvider(provider: () => Promise<string>): void {
-    this.screenshotProvider = provider;
-  }
+  setScreenshotProvider(): void {}
 
-  setActionHandler(handler: (action: AgentAction) => Promise<void>): void {
-    this.actionHandler = handler;
-  }
+  setActionHandler(): void {}
 
-  async captureScreenshot(options?: Record<string, unknown>): Promise<unknown> {
-    if (!this.screenshotProvider) {
-      throw new AgentScreenshotProviderError(
-        "`screenshotProvider` has not been set. " +
-          "Please call `setScreenshotProvider` before capturing screenshots.",
-      );
-    }
-    const base64Screenshot = await this.screenshotProvider();
-    return {
-      base64: base64Screenshot,
-      timestamp: Date.now(),
-      pageUrl: this.currentUrl,
-      ...options,
-    };
+  async captureScreenshot(): Promise<unknown> {
+    throw new Error(
+      "AISDKClient does not use captureScreenshot. Screenshots are handled through the AI SDK tools.",
+    );
   }
 
   /**
@@ -225,7 +203,6 @@ Current date and time: ${currentDateTime}`;
       const tools = createAgentTools(this.page, this.stagehandInstance);
 
       // Execute with AI SDK
-      // Build messages array - include history if provided
       const allMessages: CoreMessage[] = messages
         ? [
             ...(messages as CoreMessage[]),
@@ -233,7 +210,7 @@ Current date and time: ${currentDateTime}`;
           ]
         : [{ role: "user", content: instruction }];
 
-      const result = await streamText({
+      const result = streamText({
         model,
         system: systemPrompt,
         messages: allMessages,
