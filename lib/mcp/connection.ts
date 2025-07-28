@@ -12,7 +12,7 @@ export interface ConnectToMCPServerOptions {
 
 export const connectToMCPServer = async (
   serverUrlOrOptions: string | ConnectToMCPServerOptions,
-): Promise<Client> => {
+): Promise<Client & { serverUrl?: string }> => {
   // Handle both string URL and options object
   const options: ConnectToMCPServerOptions =
     typeof serverUrlOrOptions === "string"
@@ -40,7 +40,9 @@ export const connectToMCPServer = async (
       throw new MCPConnectionError(serverUrl, pingError);
     }
 
-    return client;
+    // Add serverUrl property to the client object
+    (client as Client & { serverUrl: string }).serverUrl = serverUrl;
+    return client as Client & { serverUrl: string };
   } catch (error) {
     // Handle any errors during transport/client creation or connection
     if (error instanceof MCPConnectionError) {

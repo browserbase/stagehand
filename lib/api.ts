@@ -153,7 +153,15 @@ export class StagehandAPI {
   ): Promise<AgentResult> {
     return this.execute<AgentResult>({
       method: "agentExecute",
-      args: { agentConfig, executeOptions },
+      args: {
+        agentConfig: {
+          ...agentConfig,
+          integrations: agentConfig.integrations?.map(
+            (integration) => integration.serverUrl,
+          ),
+        },
+        executeOptions,
+      },
     });
   }
 

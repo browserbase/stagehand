@@ -278,7 +278,7 @@ export interface AgentConfig {
   /**
    * MCP integrations
    */
-  integrations?: Client[];
+  integrations?: (Client & { serverUrl?: string })[];
   /**
    * Tools passed to the agent client
    */
