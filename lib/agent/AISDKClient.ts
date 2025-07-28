@@ -4,8 +4,20 @@ import {
   type TextStreamPart,
   type ToolSet,
   type StreamTextResult,
+  type ToolCall,
+  type ToolResult,
+  type FinishReason as AIFinishReason,
 } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+
+type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+type FinishReason = AIFinishReason;
+
 import {
   AgentAction,
   AgentResult,
@@ -129,25 +141,16 @@ Current date and time: ${currentDateTime}`;
     tools?: ToolSet;
     onStepFinish?: (event: {
       stepType: "initial" | "continue" | "tool-result";
-      finishReason:
-        | "stop"
-        | "length"
-        | "content-filter"
-        | "tool-calls"
-        | "error"
-        | "other"
-        | "unknown";
-      usage: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      };
+      finishReason: FinishReason;
+      usage: TokenUsage;
       text: string;
       reasoning?: string;
-      toolCalls?: unknown[];
-      toolResults?: unknown[];
+      toolCalls?: ToolCall<string, unknown>[];
+      toolResults?: ToolResult<string, unknown, unknown>[];
     }) => void;
     onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
+    onError?: (event: { error: unknown }) => Promise<void> | void;
+    onFinish?: Parameters<typeof streamText>[0]["onFinish"];
   }): Promise<StreamTextResult<ToolSet, never>> {
     if (!this.stagehandInstance || !this.page) {
       throw new Error(
@@ -159,7 +162,7 @@ Current date and time: ${currentDateTime}`;
     const tools =
       options.tools || createAgentTools(this.page, this.stagehandInstance);
 
-    return streamText<ToolSet>({
+    const streamOptions = {
       model,
       system: options.system,
       messages: options.messages,
@@ -170,7 +173,11 @@ Current date and time: ${currentDateTime}`;
       toolCallStreaming: false,
       onStepFinish: options.onStepFinish,
       onChunk: options.onChunk,
-    });
+      onError: options.onError,
+      onFinish: options.onFinish,
+    };
+
+    return streamText<ToolSet>(streamOptions);
   }
 
   /**

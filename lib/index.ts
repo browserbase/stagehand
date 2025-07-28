@@ -905,13 +905,41 @@ export class Stagehand {
 
   /**
    * Create an agent instance that can be executed with different instructions
-   * @returns An agent instance with execute() method
+   * @returns An agent instance with execute() method, or AISDKAgent when experimental + aisdk
    */
-  agent(options?: AgentConfig): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  } {
+  agent(options?: AgentConfig):
+    | {
+        execute: (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ) => Promise<AgentResult>;
+      }
+    | AISDKAgent {
+    if (this.experimental && options?.provider === "aisdk") {
+      const modelName = options.model || "claude-3-5-sonnet-20241022";
+      const apiKey = options.options?.apiKey || process.env.ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        throw new MissingEnvironmentVariableError(
+          "ANTHROPIC_API_KEY",
+          "AI SDK Agent",
+        );
+      }
+
+      this.log({
+        category: "agent",
+        message: `Creating AI SDK agent with model: ${modelName} (experimental)`,
+        level: 1,
+      });
+
+      return new AISDKAgent({
+        stagehand: this,
+        page: this.stagehandPage.page,
+        modelName,
+        apiKey: apiKey as string,
+        userProvidedInstructions: options.instructions,
+      });
+    }
+
     if (!options || !options.provider) {
       // use open operator agent
       return {
@@ -994,40 +1022,6 @@ export class Stagehand {
         return await agentHandler.execute(executeOptions);
       },
     };
-  }
-
-  /**
-   * Create an AI SDK agent instance with streaming capabilities
-   * @returns An AISDKAgent instance with streaming-first API
-   */
-  aiSDKAgent(options?: {
-    model?: string;
-    instructions?: string;
-    apiKey?: string;
-  }): AISDKAgent {
-    const modelName = options?.model || "claude-3-5-sonnet-20241022";
-    const apiKey = options?.apiKey || process.env.ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      throw new MissingEnvironmentVariableError(
-        "ANTHROPIC_API_KEY",
-        "AI SDK Agent",
-      );
-    }
-
-    this.log({
-      category: "agent",
-      message: `Creating AI SDK agent with model: ${modelName}`,
-      level: 1,
-    });
-
-    return new AISDKAgent({
-      stagehand: this,
-      page: this.stagehandPage.page,
-      modelName,
-      apiKey,
-      userProvidedInstructions: options?.instructions,
-    });
   }
 }
 
