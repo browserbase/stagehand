@@ -1,4 +1,4 @@
-import { Stagehand, AISDKAgent } from "@browserbasehq/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 import path from "path";
 
@@ -8,8 +8,6 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 async function runErrorHandlingExample() {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    modelName: "anthropic/claude-sonnet-4-20250514",
-    apiKey: process.env.ANTHROPIC_API_KEY,
     experimental: true,
   });
 
@@ -17,19 +15,18 @@ async function runErrorHandlingExample() {
     await stagehand.init();
     console.log("Stagehand initialized successfully");
 
-    await stagehand.page.goto("https://example.com");
+    await stagehand.page.goto("https://www.amazon.com");
     const agent = stagehand.agent({
       provider: "aisdk",
-      model: "claude-sonnet-4-20250514",
+      model: "anthropic/claude-sonnet-4-20250514",
       options: {
         apiKey: process.env.ANTHROPIC_API_KEY,
       },
-    }) as AISDKAgent;
+    });
 
-    const { streamedText, text, stop } = await agent.execute({
-      instruction:
-        "Navigate to a non-existent page and handle any errors gracefully",
-      maxSteps: 5,
+    const { streamedText, text } = await agent.execute({
+      instruction: "order me shampoo from amazon using random info ",
+      maxSteps: 15,
       onError: (error) => {
         console.error("Error message:", error);
       },
@@ -48,7 +45,7 @@ async function runErrorHandlingExample() {
     });
 
     //stop the stream
-    stop();
+
     //stream the text
     for (const chunk of streamedText) {
       console.log(chunk);
