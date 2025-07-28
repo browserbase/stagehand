@@ -2,7 +2,23 @@ import { AISDKClient } from "./AISDKClient";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
 import { LogLine } from "../../types/log";
-import type { CoreMessage, TextStreamPart, ToolSet } from "ai";
+import type {
+  CoreMessage,
+  TextStreamPart,
+  ToolSet,
+  ToolCall,
+  ToolResult,
+  FinishReason as AIFinishReason,
+  StepResult,
+} from "ai";
+
+type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+type FinishReason = AIFinishReason;
 
 /**
  * Extended AI SDK Agent interface that exposes streaming capabilities by default
@@ -50,33 +66,29 @@ export class AISDKAgent {
     onTextDelta?: (text: string) => void;
     onStepFinish?: (stepInfo: {
       stepType: "initial" | "continue" | "tool-result";
-      finishReason:
-        | "stop"
-        | "length"
-        | "content-filter"
-        | "tool-calls"
-        | "error"
-        | "other"
-        | "unknown";
-      usage: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      };
+      finishReason: FinishReason;
+      usage: TokenUsage;
       text: string;
       reasoning?: string;
-      toolCalls?: unknown[];
-      toolResults?: unknown[];
+      toolCalls?: ToolCall<string, unknown>[];
+      toolResults?: ToolResult<string, unknown, unknown>[];
     }) => void;
+    onError?: (event: { error: unknown }) => Promise<void> | void;
+    onFinish?: (
+      result: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
+        steps: StepResult<ToolSet>[];
+        messages: CoreMessage[];
+      },
+    ) => Promise<void> | void;
   }): Promise<{
     textStream: AsyncIterable<string> & ReadableStream<string>;
     fullStream: AsyncIterable<TextStreamPart<ToolSet>> &
       ReadableStream<TextStreamPart<ToolSet>>;
-    usage: Promise<unknown>;
+    usage: Promise<TokenUsage>;
     text: Promise<string>;
-    toolCalls: Promise<unknown>;
-    toolResults: Promise<unknown>;
-    finishReason: Promise<unknown>;
+    toolCalls: Promise<ToolCall<string, unknown>[]>;
+    toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
+    finishReason: Promise<FinishReason>;
     streamedText: string;
     stop: () => void;
   }> {
@@ -87,6 +99,8 @@ export class AISDKAgent {
       onToolCall: options.onToolCall,
       onTextDelta: options.onTextDelta,
       onStepFinish: options.onStepFinish,
+      onError: options.onError,
+      onFinish: options.onFinish,
     });
   }
 
@@ -103,23 +117,12 @@ export class AISDKAgent {
     tools?: ToolSet;
     onStepFinish?: (event: {
       stepType: "initial" | "continue" | "tool-result";
-      finishReason:
-        | "stop"
-        | "length"
-        | "content-filter"
-        | "tool-calls"
-        | "error"
-        | "other"
-        | "unknown";
-      usage: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-      };
+      finishReason: FinishReason;
+      usage: TokenUsage;
       text: string;
       reasoning?: string;
-      toolCalls?: unknown[];
-      toolResults?: unknown[];
+      toolCalls?: ToolCall<string, unknown>[];
+      toolResults?: ToolResult<string, unknown, unknown>[];
     }) => void;
     onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
   }) {
@@ -141,15 +144,22 @@ export class AISDKAgent {
     onToolCall?: (toolName: string, args: unknown) => void;
     onTextDelta?: (text: string) => void;
     onStepFinish?: (stepInfo: unknown) => void;
+    onError?: (event: { error: unknown }) => Promise<void> | void;
+    onFinish?: (
+      result: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
+        steps: StepResult<ToolSet>[];
+        messages: CoreMessage[];
+      },
+    ) => Promise<void> | void;
   }): Promise<{
     textStream: AsyncIterable<string> & ReadableStream<string>;
     fullStream: AsyncIterable<TextStreamPart<ToolSet>> &
       ReadableStream<TextStreamPart<ToolSet>>;
-    usage: Promise<unknown>;
+    usage: Promise<TokenUsage>;
     text: Promise<string>;
-    toolCalls: Promise<unknown>;
-    toolResults: Promise<unknown>;
-    finishReason: Promise<unknown>;
+    toolCalls: Promise<ToolCall<string, unknown>[]>;
+    toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
+    finishReason: Promise<FinishReason>;
     streamedText: string;
     stop: () => void;
   }> {
@@ -179,6 +189,20 @@ export class AISDKAgent {
             if (event.chunk.type === "text-delta") {
               options.onTextDelta(event.chunk.textDelta);
             }
+          }
+        : undefined,
+      onError: options.onError,
+      onFinish: options.onFinish
+        ? (
+            event: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
+              readonly steps: StepResult<ToolSet>[];
+            },
+          ) => {
+            const result = {
+              ...event,
+              messages: event.response?.messages || [],
+            };
+            return options.onFinish!(result);
           }
         : undefined,
     });
