@@ -778,6 +778,8 @@ ${scriptContent} \
         useTextExtract,
         selector,
         iframes,
+        pdfUrl,
+        pdfFilepath,
       } = options;
 
       if (this.api) {
@@ -822,6 +824,8 @@ ${scriptContent} \
           useTextExtract,
           selector,
           iframes,
+          pdfUrl,
+          pdfFilepath,
         })
         .catch((e) => {
           this.stagehand.log({

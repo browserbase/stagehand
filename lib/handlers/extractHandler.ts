@@ -12,6 +12,8 @@ import {
   getAccessibilityTreeWithFrames,
 } from "@/lib/a11y/utils";
 import { EncodedId } from "@/types/context";
+import { ReductoClient } from "../llm/ReductoClient";
+import path from "path";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
@@ -51,6 +53,8 @@ export class StagehandExtractHandler {
     useTextExtract,
     selector,
     iframes,
+    pdfUrl,
+    pdfFilepath,
   }: {
     instruction?: string;
     schema?: T;
@@ -62,7 +66,49 @@ export class StagehandExtractHandler {
     useTextExtract?: boolean;
     selector?: string;
     iframes?: boolean;
+    pdfUrl?: string;
+    pdfFilepath?: string;
   } = {}): Promise<z.infer<T>> {
+    // Check if this is a PDF extraction request
+    if (pdfUrl || pdfFilepath) {
+      return this.extractFromPDF({
+        url: pdfUrl,
+        filepath: pdfFilepath,
+        schema,
+        instruction,
+      });
+    }
+
+    // Check if instruction contains a PDF URL
+    if (instruction) {
+      const pdfUrlMatch = instruction.match(/https?:\/\/[^\s]+\.pdf/i);
+      if (pdfUrlMatch) {
+        return this.extractFromPDF({
+          url: pdfUrlMatch[0],
+          schema,
+          instruction,
+        });
+      }
+
+      // Check if instruction contains a local PDF file path
+      const pathMatch = instruction.match(
+        /(?:^|\s)((?:\.?\/)?\S+\.pdf)(?:\s|$)/i,
+      );
+      if (pathMatch) {
+        const potentialPath = pathMatch[1];
+        // Resolve the path relative to downloads folder or absolute path
+        const resolvedPath = path.isAbsolute(potentialPath)
+          ? potentialPath
+          : path.join(this.stagehand.downloadsPath, potentialPath);
+
+        return this.extractFromPDF({
+          filepath: resolvedPath,
+          schema,
+          instruction,
+        });
+      }
+    }
+
     const noArgsCalled = !instruction && !schema && !llmClient && !selector;
     if (noArgsCalled) {
       this.logger({
@@ -255,6 +301,83 @@ export class StagehandExtractHandler {
     }
 
     return output as z.infer<T>;
+  }
+
+  private async extractFromPDF<T extends z.AnyZodObject>({
+    url,
+    filepath,
+    schema,
+    instruction,
+  }: {
+    url?: string;
+    filepath?: string;
+    schema?: T;
+    instruction?: string;
+  }): Promise<z.infer<T>> {
+    if (!this.stagehand.reductoApiKey) {
+      throw new Error(
+        "Reducto API key is required for PDF extraction. Please provide it in the constructor or set the REDUCTO_API_KEY environment variable.",
+      );
+    }
+
+    const reductoClient = new ReductoClient(
+      {
+        apiKey: this.stagehand.reductoApiKey,
+      },
+      this.logger,
+    );
+
+    this.logger({
+      category: "extraction",
+      message: `Extracting from PDF: ${url || filepath}`,
+      level: 1,
+      auxiliary: {
+        instruction: {
+          value: instruction || "Extract data from PDF",
+          type: "string",
+        },
+        source: {
+          value: url || filepath || "",
+          type: "string",
+        },
+      },
+    });
+
+    try {
+      // If no schema is provided, use a default schema that extracts full text
+      const extractionSchema =
+        schema ||
+        (z.object({
+          extraction: z.string().describe("The extracted content from the PDF"),
+        }) as T);
+
+      const result = await reductoClient.extractFromPDF({
+        url,
+        filepath,
+        schema: extractionSchema,
+      });
+
+      this.logger({
+        category: "extraction",
+        message: "Successfully extracted data from PDF",
+        level: 1,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger({
+        category: "extraction",
+        message: "Error extracting from PDF",
+        level: 1,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
+      throw error;
+    }
   }
 }
 

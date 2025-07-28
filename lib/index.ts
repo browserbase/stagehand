@@ -400,6 +400,7 @@ export class Stagehand {
   private _history: Array<HistoryEntry> = [];
   public readonly experimental: boolean;
   private _livePageProxy?: Page;
+  public readonly reductoApiKey?: string;
 
   private createLivePageProxy<T extends Page>(): T {
     const proto = Object.getPrototypeOf(this.stagehandPage.page) as object;
@@ -533,6 +534,7 @@ export class Stagehand {
       selfHeal = false,
       disablePino,
       experimental = false,
+      reductoApiKey,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -668,6 +670,7 @@ export class Stagehand {
     this.selfHeal = selfHeal;
     this.disablePino = disablePino;
     this.experimental = experimental;
+    this.reductoApiKey = reductoApiKey ?? process.env.REDUCTO_API_KEY;
     if (this.experimental) {
       this.stagehandLogger.warn(
         "Experimental mode is enabled. This is a beta feature and may break at any time. Enabling experimental mode will disable the API",
