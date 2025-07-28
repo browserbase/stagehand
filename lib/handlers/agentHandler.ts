@@ -37,16 +37,9 @@ export class StagehandAgentHandler {
     this.provider = new AgentProvider(logger);
 
     // Create client first
-    // For AI SDK client, include stagehand and page instances
-    const clientOptions = {
-      ...(options.clientOptions || {}),
-      stagehand: this.stagehand,
-      page: this.stagehandPage.page,
-    };
-
     const client = this.provider.getClient(
       options.modelName,
-      clientOptions,
+      options.clientOptions || {},
       options.userProvidedInstructions,
       options.experimental,
     );

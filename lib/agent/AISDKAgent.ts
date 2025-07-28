@@ -47,7 +47,6 @@ export class AISDKAgent {
         apiKey: options.apiKey,
         stagehand: options.stagehand,
         page: options.page,
-        logger: options.stagehand.logger,
       },
     );
   }
