@@ -9,7 +9,6 @@ import {
   type FinishReason as AIFinishReason,
 } from "ai";
 import { getAISDKLanguageModel } from "../llm/LLMProvider";
-import { loadApiKeyFromEnv } from "../utils";
 
 type TokenUsage = {
   promptTokens: number;
@@ -29,7 +28,6 @@ import { AgentClient } from "./AgentClient";
 import { createAgentTools } from "./tools";
 import { Page } from "../../types/page";
 import { Stagehand } from "../index";
-import { LogLine } from "@/types/log";
 
 /**
  * Client for AI SDK integration with Anthropic
@@ -54,12 +52,7 @@ export class AISDKClient extends AgentClient {
     this.provider = modelParts[0];
     this.modelId = modelParts[1];
 
-    const logger =
-      (clientOptions?.logger as (logLine: LogLine) => void) || console.log;
-    this.apiKey =
-      (clientOptions?.apiKey as string) ||
-      loadApiKeyFromEnv(this.provider, logger) ||
-      "";
+    this.apiKey = (clientOptions?.apiKey as string) || "";
 
     this.clientOptions = {
       apiKey: this.apiKey,

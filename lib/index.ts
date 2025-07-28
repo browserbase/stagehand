@@ -1034,13 +1034,11 @@ export class Stagehand {
             options.options.apiKey = process.env.ANTHROPIC_API_KEY;
           } else if (options.provider === "openai") {
             options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "aisdk") {
-            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
           }
 
           if (!options.options.apiKey) {
             const envVarName =
-              options.provider === "anthropic" || options.provider === "aisdk"
+              options.provider === "anthropic"
                 ? "ANTHROPIC_API_KEY"
                 : "OPENAI_API_KEY";
             throw new StagehandError(
