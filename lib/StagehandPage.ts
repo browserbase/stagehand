@@ -188,40 +188,6 @@ ${scriptContent} \
     }
   }
 
-  private async _refreshPageFromAPI() {
-    if (!this.api) return;
-
-    // const sessionId = this.stagehand.browserbaseSessionID;
-    // if (!sessionId) {
-    //   throw new BrowserbaseSessionNotFoundError();
-    // }
-
-    // const browserbase = new Browserbase({
-    //   apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
-    // });
-
-    // const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-
-    // const connectUrl = sessionStatus.connectUrl;
-    // const browser = await chromium.connectOverCDP(connectUrl);
-    // const context = browser.contexts()[0];
-    // const newPage = context.pages()[0];
-
-    // const newStagehandPage = await new StagehandPage(
-    //   newPage,
-    //   this.stagehand,
-    //   this.intContext,
-    //   this.llmClient,
-    //   this.userProvidedInstructions,
-    //   this.api,
-    // ).init();
-
-    // this.intPage = newStagehandPage.page;
-
-    // await this.intPage.waitForLoadState("domcontentloaded");
-    // await this._waitForSettledDom();
-  }
-
   /**
    * Waits for a captcha to be solved when using Browserbase environment.
    *
@@ -384,20 +350,17 @@ ${scriptContent} \
                 }
               }
 
-              if (this.api) {
-                await this._refreshPageFromAPI();
-              } else {
-                if (stagehand.debugDom) {
-                  this.stagehand.log({
-                    category: "deprecation",
-                    message:
-                      "Warning: debugDom is not supported in this version of Stagehand",
-                    level: 1,
-                  });
-                }
-                await target.waitForLoadState("domcontentloaded");
-                await this._waitForSettledDom();
+              if (this.stagehand.debugDom) {
+                this.stagehand.log({
+                  category: "deprecation",
+                  message:
+                    "Warning: debugDom is not supported in this version of Stagehand",
+                  level: 1,
+                });
               }
+              await target.waitForLoadState("domcontentloaded");
+              await this._waitForSettledDom();
+
               return result;
             };
           }
@@ -652,7 +615,6 @@ ${scriptContent} \
               ...observeResult,
               frameId: this.rootFrameId,
             });
-            await this._refreshPageFromAPI();
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
           }
@@ -685,7 +647,6 @@ ${scriptContent} \
       if (this.api) {
         const opts = { ...actionOrOptions, frameId: this.rootFrameId };
         const result = await this.api.act(opts);
-        await this._refreshPageFromAPI();
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
