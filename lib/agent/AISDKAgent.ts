@@ -17,12 +17,20 @@ import type {
   ToolResult,
   FinishReason,
   StepResult,
+  LanguageModelUsage,
 } from "ai";
 
-type TokenUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
+type ExtendedStreamResult = {
+  textStream: AsyncIterable<string> & ReadableStream<string>;
+  fullStream: AsyncIterable<TextStreamPart<ToolSet>> &
+    ReadableStream<TextStreamPart<ToolSet>>;
+  usage: Promise<LanguageModelUsage>;
+  text: Promise<string>;
+  toolCalls: Promise<ToolCall<string, unknown>[]>;
+  toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
+  finishReason: Promise<FinishReason>;
+  streamedText: string;
+  stop: () => void;
 };
 
 /**
@@ -59,21 +67,10 @@ export class AISDKAgent {
   async execute(options: {
     instruction: string;
     maxSteps?: number;
-    messages?: Array<{
-      role: "system" | "user" | "assistant";
-      content: string;
-    }>;
+    messages?: CoreMessage[];
     onToolCall?: (toolName: string, args: unknown) => void;
     onTextDelta?: (text: string) => void;
-    onStepFinish?: (stepInfo: {
-      stepType: "initial" | "continue" | "tool-result";
-      finishReason: FinishReason;
-      usage: TokenUsage;
-      text: string;
-      reasoning?: string;
-      toolCalls?: ToolCall<string, unknown>[];
-      toolResults?: ToolResult<string, unknown, unknown>[];
-    }) => void;
+    onStepFinish?: (stepInfo: StepResult<ToolSet>) => void;
     onError?: (event: { error: unknown }) => Promise<void> | void;
     onFinish?: (
       result: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
@@ -81,18 +78,7 @@ export class AISDKAgent {
         messages: CoreMessage[];
       },
     ) => Promise<void> | void;
-  }): Promise<{
-    textStream: AsyncIterable<string> & ReadableStream<string>;
-    fullStream: AsyncIterable<TextStreamPart<ToolSet>> &
-      ReadableStream<TextStreamPart<ToolSet>>;
-    usage: Promise<TokenUsage>;
-    text: Promise<string>;
-    toolCalls: Promise<ToolCall<string, unknown>[]>;
-    toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
-    finishReason: Promise<FinishReason>;
-    streamedText: string;
-    stop: () => void;
-  }> {
+  }): Promise<ExtendedStreamResult> {
     return this.streamExecution({
       instruction: options.instruction,
       maxSteps: options.maxSteps,
@@ -116,15 +102,7 @@ export class AISDKAgent {
     maxSteps?: number;
     maxTokens?: number;
     tools?: ToolSet;
-    onStepFinish?: (event: {
-      stepType: "initial" | "continue" | "tool-result";
-      finishReason: FinishReason;
-      usage: TokenUsage;
-      text: string;
-      reasoning?: string;
-      toolCalls?: ToolCall<string, unknown>[];
-      toolResults?: ToolResult<string, unknown, unknown>[];
-    }) => void;
+    onStepFinish?: (event: StepResult<ToolSet>) => void;
     onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
   }) {
     return this.client.streamText(options);
@@ -138,13 +116,10 @@ export class AISDKAgent {
     maxSteps?: number;
     temperature?: number;
     maxTokens?: number;
-    messages?: Array<{
-      role: "system" | "user" | "assistant";
-      content: string;
-    }>;
+    messages?: CoreMessage[];
     onToolCall?: (toolName: string, args: unknown) => void;
     onTextDelta?: (text: string) => void;
-    onStepFinish?: (stepInfo: unknown) => void;
+    onStepFinish?: (stepInfo: StepResult<ToolSet>) => void;
     onError?: (event: { error: unknown }) => Promise<void> | void;
     onFinish?: (
       result: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
@@ -152,18 +127,7 @@ export class AISDKAgent {
         messages: CoreMessage[];
       },
     ) => Promise<void> | void;
-  }): Promise<{
-    textStream: AsyncIterable<string> & ReadableStream<string>;
-    fullStream: AsyncIterable<TextStreamPart<ToolSet>> &
-      ReadableStream<TextStreamPart<ToolSet>>;
-    usage: Promise<TokenUsage>;
-    text: Promise<string>;
-    toolCalls: Promise<ToolCall<string, unknown>[]>;
-    toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
-    finishReason: Promise<FinishReason>;
-    streamedText: string;
-    stop: () => void;
-  }> {
+  }): Promise<ExtendedStreamResult> {
     const system = buildAISDKSystemPrompt(options.instruction);
     const messages = buildAISDKMessages(options.instruction, options.messages);
 
