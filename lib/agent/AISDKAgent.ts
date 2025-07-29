@@ -155,7 +155,7 @@ export class AISDKAgent {
           this.stagehand.log({
             category: "agent",
             message: `Maximum steps limit reached (${maxStepsLimit} steps). The task may require more iterations. Consider increasing maxSteps if needed.`,
-            level: 0,
+            level: 1,
           });
         }
 
