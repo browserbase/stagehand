@@ -1037,12 +1037,8 @@ export class Stagehand {
           }
 
           if (!options.options.apiKey) {
-            const envVarName =
-              options.provider === "anthropic"
-                ? "ANTHROPIC_API_KEY"
-                : "OPENAI_API_KEY";
             throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${envVarName} environment variable or pass an apiKey in the options object.`,
+              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
             );
           }
 
