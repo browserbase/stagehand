@@ -28,11 +28,12 @@ import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { ClientOptions } from "../types/model";
-import { isRunningInBun, loadApiKeyFromEnv, providerEnvVarMap } from "./utils";
+import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
 import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+import { AgentProvider } from "./agent/AgentProvider";
 import { StagehandLogger } from "./logger";
 import { AISDKAgent } from "./agent/AISDKAgent";
 
@@ -920,58 +921,6 @@ export class Stagehand {
           instructionOrOptions: string | AgentExecuteOptions,
         ) => Promise<AgentResult>;
       } {
-    if (this.experimental && options?.provider === "aisdk") {
-      if (!options?.model) {
-        this.log({
-          category: "stagehand agent",
-          message:
-            'Stagehand agent requires a model to be specified. Please provide a model in the format "provider/model-id" (e.g., { provider: "aisdk", model: "anthropic/claude-sonnet-4-20250514" })',
-          level: 0,
-        });
-        throw new Error(
-          'Stagehand Agent requires a model. Use format: { provider: "aisdk", model: "provider/model-id" }',
-        );
-      }
-      const modelName = options.model;
-
-      const modelParts = modelName.split("/");
-      if (modelParts.length !== 2) {
-        this.log({
-          category: "stagehand agent",
-          message: `Invalid model format for Stagehand Agent. Please use the format "provider/model-id" (e.g., "anthropic/claude-sonnet-4-20250514"). Received: "${modelName}"`,
-          level: 0,
-        });
-        throw new Error(`Invalid model format. Use "provider/model-id" format`);
-      }
-      const provider = modelParts[0];
-
-      const apiKey =
-        options.options?.apiKey || loadApiKeyFromEnv(provider, this.logger);
-
-      if (!apiKey) {
-        const envVarName =
-          providerEnvVarMap[provider] || `${provider.toUpperCase()}_API_KEY`;
-        throw new MissingEnvironmentVariableError(
-          envVarName,
-          "Stagehand Agent",
-        );
-      }
-
-      this.log({
-        category: "stagehand agent",
-        message: `Creating AI SDK agent with model: ${modelName} (experimental)`,
-        level: 1,
-      });
-
-      return new AISDKAgent({
-        stagehand: this,
-        page: this.stagehandPage.page,
-        modelName,
-        apiKey: apiKey as string,
-        userProvidedInstructions: options.instructions,
-      });
-    }
-
     if (!options || !options.provider) {
       // use open operator agent
       return {
@@ -983,6 +932,23 @@ export class Stagehand {
           ).execute(instructionOrOptions);
         },
       };
+    }
+
+    if (this.experimental && options.provider === "aisdk") {
+      const provider = new AgentProvider(
+        this.logger,
+        this,
+        this.stagehandPage.page,
+      );
+      const agent = provider.getAgent({
+        modelName: options.model,
+        provider: options.provider,
+        clientOptions: options.options,
+        userProvidedInstructions: options.instructions,
+        experimental: this.experimental,
+      });
+
+      return agent as AISDKAgent;
     }
 
     const agentHandler = new StagehandAgentHandler(
