@@ -3,10 +3,15 @@ import { AgentClient } from "./AgentClient";
 import { AgentType } from "@/types/agent";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
+import { AISDKAgent } from "./AISDKAgent";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
+  MissingEnvironmentVariableError,
 } from "@/types/stagehandErrors";
+import { loadApiKeyFromEnv, providerEnvVarMap } from "../utils";
+import { Stagehand } from "../index";
+import { Page } from "../../types/page";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -23,12 +28,20 @@ const modelToAgentProviderMap: Record<string, AgentType> = {
  */
 export class AgentProvider {
   private logger: (message: LogLine) => void;
+  private stagehandInstance?: Stagehand;
+  private page?: Page;
 
   /**
    * Create a new agent provider
    */
-  constructor(logger: (message: LogLine) => void) {
+  constructor(
+    logger: (message: LogLine) => void,
+    stagehandInstance?: Stagehand,
+    page?: Page,
+  ) {
     this.logger = logger;
+    this.stagehandInstance = stagehandInstance;
+    this.page = page;
   }
 
   getClient(
@@ -89,5 +102,48 @@ export class AgentProvider {
       Object.keys(modelToAgentProviderMap),
       "Computer Use Agent",
     );
+  }
+
+  getAgent(options: {
+    modelName?: string;
+    provider?: string;
+    clientOptions?: Record<string, unknown>;
+    userProvidedInstructions?: string;
+    experimental?: boolean;
+  }): AISDKAgent {
+    if (options.experimental && options.provider === "aisdk") {
+      if (!options.modelName) {
+        throw new Error(
+          'Stagehand Agent requires a model. Use format: { provider: "aisdk", model: "provider/model-id" }',
+        );
+      }
+      const modelName = options.modelName;
+      const modelParts = modelName.split("/");
+      if (modelParts.length !== 2) {
+        throw new Error(`Invalid model format. Use "provider/model-id" format`);
+      }
+
+      const provider = modelParts[0];
+      const apiKey =
+        options.clientOptions?.apiKey ||
+        loadApiKeyFromEnv(provider, this.logger);
+
+      if (!apiKey) {
+        const envVarName =
+          providerEnvVarMap[provider] || `${provider.toUpperCase()}_API_KEY`;
+        throw new MissingEnvironmentVariableError(
+          envVarName,
+          "Stagehand Agent",
+        );
+      }
+
+      return new AISDKAgent({
+        stagehand: this.stagehandInstance,
+        page: this.page,
+        modelName,
+        apiKey: apiKey as string,
+        userProvidedInstructions: options.userProvidedInstructions,
+      });
+    }
   }
 }
