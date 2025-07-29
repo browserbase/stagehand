@@ -6,7 +6,6 @@
  */
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "../stagehand.config";
-import { createStagehandApiLogger } from "../lib/stagehandApiLogger";
 
 async function example(stagehand: Stagehand) {
   /**
@@ -19,7 +18,6 @@ async function example(stagehand: Stagehand) {
 
 (async () => {
   const stagehand = new Stagehand({
-    logger: createStagehandApiLogger(),
     ...StagehandConfig,
   });
   await stagehand.init();
