@@ -149,13 +149,23 @@ export class AISDKAgent {
           }
         : undefined,
       onError: options.onError,
-      onFinish: options.onFinish
-        ? (event) =>
-            options.onFinish!({
-              ...event,
-              messages: event.response?.messages || [],
-            })
-        : undefined,
+      onFinish: (event) => {
+        const maxStepsLimit = options.maxSteps || 10;
+        if (event.steps && event.steps.length >= maxStepsLimit) {
+          this.stagehand.log({
+            category: "agent",
+            message: `Maximum steps limit reached (${maxStepsLimit} steps). The task may require more iterations. Consider increasing maxSteps if needed.`,
+            level: 0,
+          });
+        }
+
+        if (options.onFinish) {
+          options.onFinish({
+            ...event,
+            messages: event.response?.messages || [],
+          });
+        }
+      },
     });
 
     if (options.onToolCall) {
