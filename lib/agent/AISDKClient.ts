@@ -28,6 +28,7 @@ import { AgentClient } from "./AgentClient";
 import { createAgentTools } from "./tools";
 import { Page } from "../../types/page";
 import { Stagehand } from "../index";
+import { parseModelName } from "./utils/modelUtils";
 
 /**
  * Client for AI SDK integration with Anthropic
@@ -48,9 +49,14 @@ export class AISDKClient extends AgentClient {
   ) {
     super(type, modelName, userProvidedInstructions);
 
-    const modelParts = modelName.split("/");
-    this.provider = modelParts[0];
-    this.modelId = modelParts[1];
+    const model = parseModelName(modelName);
+    if (!model) {
+      throw new Error(
+        `Invalid model name format: ${modelName}. Expected format: provider/model-id`,
+      );
+    }
+    this.provider = model.provider;
+    this.modelId = model.modelId;
 
     this.apiKey = (clientOptions?.apiKey as string) || "";
 

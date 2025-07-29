@@ -47,6 +47,10 @@ import {
 } from "../types/stagehandErrors";
 import { z } from "zod/v3";
 import { GotoOptions } from "@/types/playwright";
+import {
+  ensureModelNameHasProvider,
+  extractProvider,
+} from "./agent/utils/modelUtils";
 
 dotenv.config({ path: ".env" });
 
@@ -587,10 +591,10 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        modelApiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0],
-          this.logger,
-        );
+        const provider = extractProvider(this.modelName);
+        if (provider) {
+          modelApiKey = loadApiKeyFromEnv(provider, this.logger);
+        }
       } else {
         // Temporary add for legacy providers
         modelApiKey =
@@ -992,20 +996,9 @@ export class Stagehand {
       this.stagehandPage.page,
     );
 
-    let modelName = options?.model || this.modelName;
-    if (!modelName.includes("/")) {
-      if (
-        modelName.includes("gpt") ||
-        modelName.includes("o3") ||
-        modelName.includes("o1")
-      ) {
-        modelName = `openai/${modelName}`;
-      } else if (modelName.includes("claude")) {
-        modelName = `anthropic/${modelName}`;
-      } else {
-        modelName = `openai/${modelName}`;
-      }
-    }
+    const modelName = ensureModelNameHasProvider(
+      options?.model || this.modelName,
+    );
 
     const agent = provider.getAgent({
       modelName,
