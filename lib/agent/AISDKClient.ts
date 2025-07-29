@@ -6,17 +6,9 @@ import {
   type StreamTextResult,
   type ToolCall,
   type ToolResult,
-  type FinishReason as AIFinishReason,
+  type FinishReason,
 } from "ai";
 import { getAISDKLanguageModel } from "../llm/LLMProvider";
-
-type TokenUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-};
-
-type FinishReason = AIFinishReason;
 
 import {
   AgentAction,
@@ -24,17 +16,20 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "@/types/agent";
-import { AgentClient } from "./AgentClient";
+import { AISDKBaseClient } from "./AISDKBaseClient";
 import { createAgentTools } from "./tools";
 import { Page } from "../../types/page";
 import { Stagehand } from "../index";
 import { parseModelName } from "./utils/modelUtils";
+import { buildAISDKSystemPrompt } from "./utils/aiSDKUtils";
 
-/**
- * Client for AI SDK integration with Anthropic
- * This implementation uses the Vercel AI SDK with automatic tool execution
- */
-export class AISDKClient extends AgentClient {
+type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+export class AISDKClient extends AISDKBaseClient {
   private apiKey: string;
   private provider: string;
   private modelId: string;
@@ -66,56 +61,6 @@ export class AISDKClient extends AgentClient {
 
     this.stagehandInstance = clientOptions?.stagehand as Stagehand;
     this.page = clientOptions?.page as Page;
-  }
-
-  // These methods are not used by AI SDK but required by base class
-  setViewport(): void {}
-
-  setCurrentUrl(): void {}
-
-  setScreenshotProvider(): void {}
-
-  setActionHandler(): void {}
-
-  async captureScreenshot(): Promise<unknown> {
-    throw new Error(
-      "AISDKClient does not use captureScreenshot. Screenshots are handled through the AI SDK tools.",
-    );
-  }
-
-  /**
-   * Build system prompt for the AI SDK agent
-   */
-  private buildSystemPrompt(userGoal: string): string {
-    const currentDateTime = new Date().toLocaleString();
-    const userInstructions = this.userProvidedInstructions
-      ? `\n\nAdditional instructions from user: ${this.userProvidedInstructions}`
-      : "";
-
-    return `You are a helpful web automation assistant using Stagehand tools to accomplish the user's goal: ${userGoal}${userInstructions}
-
-PRIMARY APPROACH:
-1. THINK first - Use the think tool to analyze the goal, break down your approach, and communicate your plan to the user
-2. Take ONE atomic step at a time toward completion
-
-ACTION EXECUTION HIERARCHY:
-
-STEP 1: UNDERSTAND THE PAGE
-- Use getText to get complete page context before taking actions
-- Use screenshot for visual confirmation when needed
-
-STEP 2: TAKE ACTIONS
-- Use navigate to go to URLs
-- Use actClick to click on buttons, links, or any clickable elements
-- Use actType to type text into input fields or text areas
-- Use wait after actions that may cause navigation
-
-STEP 3: VERIFY RESULTS
-- Take screenshot to verify success when needed
-- Use getText to confirm changes
-
-
-Current date and time: ${currentDateTime}`;
   }
 
   async streamText(options: {
@@ -186,7 +131,10 @@ Current date and time: ${currentDateTime}`;
       this.apiKey,
     );
 
-    const systemPrompt = this.buildSystemPrompt(instruction);
+    const systemPrompt = buildAISDKSystemPrompt(
+      instruction,
+      this.userProvidedInstructions,
+    );
     const actions: AgentAction[] = [];
     let completed = false;
     let finalMessage = "";

@@ -1,6 +1,13 @@
 import { AISDKClient } from "./AISDKClient";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
+import {
+  buildAISDKSystemPrompt,
+  buildAISDKMessages,
+  createAbortableStream,
+  processToolCallStream,
+  trackStreamedText,
+} from "./utils/aiSDKUtils";
 
 import type {
   CoreMessage,
@@ -8,7 +15,7 @@ import type {
   ToolSet,
   ToolCall,
   ToolResult,
-  FinishReason as AIFinishReason,
+  FinishReason,
   StepResult,
 } from "ai";
 
@@ -17,8 +24,6 @@ type TokenUsage = {
   completionTokens: number;
   totalTokens: number;
 };
-
-type FinishReason = AIFinishReason;
 
 /**
  * Extended AI SDK Agent interface that exposes streaming capabilities by default
@@ -159,17 +164,9 @@ export class AISDKAgent {
     streamedText: string;
     stop: () => void;
   }> {
-    const system = this.buildSystemPrompt(options.instruction);
+    const system = buildAISDKSystemPrompt(options.instruction);
+    const messages = buildAISDKMessages(options.instruction, options.messages);
 
-    // Build messages array - include history if provided
-    const messages: CoreMessage[] = options.messages
-      ? [
-          ...(options.messages as CoreMessage[]),
-          { role: "user", content: options.instruction },
-        ]
-      : [{ role: "user", content: options.instruction }];
-
-    // Create abort controller for stopping the stream
     const abortController = new AbortController();
     let streamedText = "";
 
@@ -189,106 +186,38 @@ export class AISDKAgent {
         : undefined,
       onError: options.onError,
       onFinish: options.onFinish
-        ? (
-            event: Omit<StepResult<ToolSet>, "stepType" | "isContinued"> & {
-              readonly steps: StepResult<ToolSet>[];
-            },
-          ) => {
-            const result = {
+        ? (event) =>
+            options.onFinish!({
               ...event,
               messages: event.response?.messages || [],
-            };
-            return options.onFinish!(result);
-          }
+            })
         : undefined,
     });
 
-    // Process stream for tool call callbacks if provided
     if (options.onToolCall) {
-      (async () => {
-        try {
-          for await (const part of result.fullStream) {
-            if (abortController.signal.aborted) break;
-            if (part.type === "tool-call") {
-              options.onToolCall(part.toolName, part.args);
-            }
-          }
-        } catch {
-          // Stream was aborted or errored
-        }
-      })();
+      processToolCallStream(
+        result.fullStream,
+        options.onToolCall,
+        abortController.signal,
+      );
     }
 
-    // Track streamed text
-    (async () => {
-      try {
-        for await (const textPart of result.textStream) {
-          if (abortController.signal.aborted) break;
-          streamedText += textPart;
-        }
-      } catch {
-        // Stream was aborted or errored
-      }
-    })();
-
-    // Create wrapped streams that respect abort signal
-    const createAbortableStream = <T>(
-      originalStream: AsyncIterable<T> & ReadableStream<T>,
-    ) => {
-      const reader = originalStream[Symbol.asyncIterator]();
-
-      return new ReadableStream<T>({
-        async pull(controller) {
-          if (abortController.signal.aborted) {
-            controller.close();
-            return;
-          }
-
-          const { done, value } = await reader.next();
-          if (done || abortController.signal.aborted) {
-            controller.close();
-          } else {
-            controller.enqueue(value);
-          }
-        },
-        cancel() {
-          abortController.abort();
-        },
-      }) as AsyncIterable<T> & ReadableStream<T>;
-    };
+    trackStreamedText(result.textStream, abortController.signal).then(
+      (text) => {
+        streamedText = text;
+      },
+    );
 
     return {
-      textStream: createAbortableStream(result.textStream),
-      fullStream: createAbortableStream(result.fullStream),
+      textStream: createAbortableStream(result.textStream, abortController),
+      fullStream: createAbortableStream(result.fullStream, abortController),
       usage: result.usage,
       text: result.text,
       toolCalls: result.toolCalls,
       toolResults: result.toolResults,
       finishReason: result.finishReason,
       streamedText,
-      stop: () => {
-        abortController.abort();
-      },
+      stop: () => abortController.abort(),
     };
-  }
-
-  private buildSystemPrompt(userGoal: string): string {
-    const currentDateTime = new Date().toLocaleString();
-
-    return `You are a helpful web automation assistant using Stagehand tools to accomplish the user's goal: ${userGoal}
-
-PRIMARY APPROACH:
-1. THINK first - Use the think tool to analyze the goal and plan
-2. Take ONE atomic step at a time toward completion
-
-ACTION EXECUTION:
-- Use getText to understand the page
-- Use navigate to go to URLs
-- Use actClick to click elements
-- Use actType to type text
-- Use wait after actions that may cause navigation
-- Use screenshot to verify results
-
-Current date and time: ${currentDateTime}`;
   }
 }
