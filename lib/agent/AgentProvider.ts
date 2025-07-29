@@ -111,7 +111,7 @@ export class AgentProvider {
     userProvidedInstructions?: string;
     experimental?: boolean;
   }): AISDKAgent {
-    if (options.experimental && options.provider === "aisdk") {
+    if (options.provider === "aisdk") {
       if (!options.modelName) {
         throw new Error(
           'Stagehand Agent requires a model. Use format: { provider: "aisdk", model: "provider/model-id" }',
