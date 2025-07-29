@@ -616,8 +616,7 @@ export class Stagehand {
       this.llmClient = llmClient;
       this.logger({
         category: "init",
-        message:
-          "Custom LLM clients are currently not supported in API mode",
+        message: "Custom LLM clients are currently not supported in API mode",
         level: 1,
       });
       this.usingAPI = false;
