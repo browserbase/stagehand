@@ -12,6 +12,7 @@ import {
 import { loadApiKeyFromEnv, providerEnvVarMap } from "../utils";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
+import { parseModelName } from "./utils/modelUtils";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -118,12 +119,12 @@ export class AgentProvider {
         );
       }
       const modelName = options.modelName;
-      const modelParts = modelName.split("/");
-      if (modelParts.length !== 2) {
+      const model = parseModelName(modelName);
+      if (!model) {
         throw new Error(`Invalid model format. Use "provider/model-id" format`);
       }
 
-      const provider = modelParts[0];
+      const provider = model.provider;
       const apiKey =
         options.clientOptions?.apiKey ||
         loadApiKeyFromEnv(provider, this.logger);
