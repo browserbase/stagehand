@@ -81,16 +81,10 @@ export function createAbortableStream<T>(
  */
 export function buildAISDKMessages(
   instruction: string,
-  previousMessages?: Array<{
-    role: "system" | "user" | "assistant";
-    content: string;
-  }>,
+  previousMessages?: CoreMessage[],
 ): CoreMessage[] {
   if (previousMessages) {
-    return [
-      ...previousMessages,
-      { role: "user", content: instruction },
-    ] as CoreMessage[];
+    return [...previousMessages, { role: "user", content: instruction }];
   }
   return [{ role: "user", content: instruction }];
 }

@@ -4,9 +4,7 @@ import {
   type TextStreamPart,
   type ToolSet,
   type StreamTextResult,
-  type ToolCall,
-  type ToolResult,
-  type FinishReason,
+  type StepResult,
 } from "ai";
 import { getAISDKLanguageModel } from "../llm/LLMProvider";
 
@@ -22,12 +20,6 @@ import { Page } from "../../types/page";
 import { Stagehand } from "../index";
 import { parseModelName } from "./utils/modelUtils";
 import { buildAISDKSystemPrompt } from "./utils/aiSDKUtils";
-
-type TokenUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-};
 
 export class AISDKClient extends AISDKBaseClient {
   private apiKey: string;
@@ -70,15 +62,7 @@ export class AISDKClient extends AISDKBaseClient {
     maxSteps?: number;
     maxTokens?: number;
     tools?: ToolSet;
-    onStepFinish?: (event: {
-      stepType: "initial" | "continue" | "tool-result";
-      finishReason: FinishReason;
-      usage: TokenUsage;
-      text: string;
-      reasoning?: string;
-      toolCalls?: ToolCall<string, unknown>[];
-      toolResults?: ToolResult<string, unknown, unknown>[];
-    }) => void;
+    onStepFinish?: (event: StepResult<ToolSet>) => void;
     onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
     onError?: (event: { error: unknown }) => Promise<void> | void;
     onFinish?: Parameters<typeof streamText>[0]["onFinish"];
