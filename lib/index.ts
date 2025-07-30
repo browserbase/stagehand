@@ -47,10 +47,6 @@ import {
 } from "../types/stagehandErrors";
 import { z } from "zod/v3";
 import { GotoOptions } from "@/types/playwright";
-import {
-  ensureModelNameHasProvider,
-  extractProvider,
-} from "./agent/utils/modelUtils";
 
 dotenv.config({ path: ".env" });
 
@@ -591,8 +587,9 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        const provider = extractProvider(this.modelName);
-        if (provider) {
+        if (this.modelName.includes("/")) {
+          const firstSlashIndex = this.modelName.indexOf("/");
+          const provider = this.modelName.substring(0, firstSlashIndex);
           modelApiKey = loadApiKeyFromEnv(provider, this.logger);
         }
       } else {
@@ -996,9 +993,7 @@ export class Stagehand {
       this.stagehandPage.page,
     );
 
-    const modelName = ensureModelNameHasProvider(
-      options?.model || this.modelName,
-    );
+    const modelName = options?.model || this.modelName;
 
     const agent = provider.getAgent({
       modelName,

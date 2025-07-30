@@ -42,6 +42,10 @@ export class AISdkClient extends LLMClient {
     this.enableCaching = enableCaching;
   }
 
+  get languageModel(): LanguageModel {
+    return this.model;
+  }
+
   async createChatCompletion<T = ChatCompletion>({
     options,
   }: CreateChatCompletionOptions): Promise<T> {

@@ -7,12 +7,9 @@ import { AISDKAgent } from "./AISDKAgent";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
-  MissingEnvironmentVariableError,
 } from "@/types/stagehandErrors";
-import { loadApiKeyFromEnv, providerEnvVarMap } from "../utils";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
-import { parseModelName } from "./utils/modelUtils";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -119,30 +116,12 @@ export class AgentProvider {
         );
       }
       const modelName = options.modelName;
-      const model = parseModelName(modelName);
-      if (!model) {
-        throw new Error(`Invalid model format. Use "provider/model-id" format`);
-      }
-
-      const provider = model.provider;
-      const apiKey =
-        options.clientOptions?.apiKey ||
-        loadApiKeyFromEnv(provider, this.logger);
-
-      if (!apiKey) {
-        const envVarName =
-          providerEnvVarMap[provider] || `${provider.toUpperCase()}_API_KEY`;
-        throw new MissingEnvironmentVariableError(
-          envVarName,
-          "Stagehand Agent",
-        );
-      }
 
       return new AISDKAgent({
         stagehand: this.stagehandInstance,
         page: this.page,
         modelName,
-        apiKey: apiKey as string,
+        apiKey: options.clientOptions?.apiKey as string,
         userProvidedInstructions: options.userProvidedInstructions,
       });
     }

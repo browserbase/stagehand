@@ -1,6 +1,7 @@
-import { AISDKClient } from "./AISDKClient";
 import { Stagehand } from "../index";
 import { Page } from "../../types/page";
+import { LLMClient } from "../llm/LLMClient";
+import { createAgentTools } from "./tools";
 import {
   buildAISDKSystemPrompt,
   buildAISDKMessages,
@@ -8,6 +9,8 @@ import {
   processToolCallStream,
   trackStreamedText,
 } from "./utils/aiSDKUtils";
+import { streamText, type LanguageModel } from "ai";
+import { AISdkClient } from "../llm/aisdk";
 
 import type {
   CoreMessage,
@@ -39,9 +42,11 @@ type ExtendedStreamResult = {
  * This provides a higher-level abstraction over the AISDKClient
  */
 export class AISDKAgent {
-  private client: AISDKClient;
+  private llmClient: LLMClient;
   private stagehand: Stagehand;
   private page: Page;
+  private userProvidedInstructions?: string;
+  private languageModel: LanguageModel;
 
   constructor(options: {
     stagehand: Stagehand;
@@ -52,17 +57,23 @@ export class AISDKAgent {
   }) {
     this.stagehand = options.stagehand;
     this.page = options.page;
+    this.userProvidedInstructions = options.userProvidedInstructions;
 
-    this.client = new AISDKClient(
-      "aisdk",
-      options.modelName,
-      options.userProvidedInstructions,
-      {
-        apiKey: options.apiKey,
-        stagehand: options.stagehand,
-        page: options.page,
-      },
+    this.llmClient = this.stagehand.llmProvider.getClient(
+      options.modelName as Parameters<
+        typeof this.stagehand.llmProvider.getClient
+      >[0],
+      { apiKey: options.apiKey },
     );
+
+    if ("languageModel" in this.llmClient && this.llmClient.type === "aisdk") {
+      this.languageModel = (this.llmClient as AISdkClient).languageModel;
+    } else {
+      throw new Error(
+        `AISDKAgent requires an AI SDK compatible model. Model "${options.modelName}" is not supported by the AI SDK. ` +
+          `Use models in "provider/model-id" format (e.g., "openai/gpt-4", "anthropic/claude-3-5-sonnet").`,
+      );
+    }
   }
 
   async execute(options: {
@@ -106,7 +117,20 @@ export class AISDKAgent {
     onStepFinish?: (event: StepResult<ToolSet>) => void;
     onChunk?: (event: { chunk: TextStreamPart<ToolSet> }) => void;
   }) {
-    return this.client.streamText(options);
+    const tools = options.tools || createAgentTools(this.page, this.stagehand);
+
+    return streamText({
+      model: this.languageModel,
+      messages: options.messages,
+      system: options.system,
+      temperature: options.temperature,
+      maxSteps: options.maxSteps || 10,
+      maxTokens: options.maxTokens,
+      tools,
+      toolCallStreaming: false,
+      onStepFinish: options.onStepFinish,
+      onChunk: options.onChunk,
+    });
   }
 
   /**
@@ -142,12 +166,17 @@ export class AISDKAgent {
       messagesPromiseResolve = resolve;
     });
 
-    const result = await this.client.streamText({
+    const tools = createAgentTools(this.page, this.stagehand);
+
+    const result = streamText({
+      model: this.languageModel,
       messages: aiMessages,
       system,
-      maxSteps: options.maxSteps,
+      maxSteps: options.maxSteps || 10,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+      tools,
+      toolCallStreaming: false,
       onStepFinish: options.onStepFinish,
       onChunk: options.onTextDelta
         ? (event) => {
