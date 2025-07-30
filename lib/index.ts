@@ -912,45 +912,20 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method, or AISDKAgent when experimental + aisdk
    */
-  async agent(
-    options: AgentConfig & { provider: "aisdk" },
-  ): Promise<AISDKAgent>;
-  async agent(options?: AgentConfig): Promise<{
+  agent(options: AgentConfig & { provider: "aisdk" }): AISDKAgent;
+  agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-  }>;
-  async agent(options?: AgentConfig): Promise<
+  };
+  agent(options?: AgentConfig):
     | AISDKAgent
     | {
         execute: (
           instructionOrOptions: string | AgentExecuteOptions,
         ) => Promise<AgentResult>;
-      }
-  > {
-    const tools = options?.integrations
-      ? await resolveTools(options?.integrations, options?.tools)
-      : options?.tools || {};
-
+      } {
     if (options?.provider === "openai" || options?.provider === "anthropic") {
-      const agentHandler = new StagehandAgentHandler(
-        this,
-        this.stagehandPage,
-        this.logger,
-        {
-          modelName: options.model,
-          clientOptions: options.options,
-          userProvidedInstructions:
-            options.instructions ??
-            `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${this.stagehandPage.page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
-          agentType: options.provider,
-          experimental: this.experimental,
-        },
-        tools,
-      );
-
       this.log({
         category: "agent",
         message: "Creating agent instance",
@@ -993,6 +968,33 @@ export class Stagehand {
 
             return await this.apiClient.agentExecute(options, executeOptions);
           }
+
+          let finalTools = options?.tools || {};
+          if (options?.integrations && options.integrations.length > 0) {
+            finalTools = await resolveTools(
+              options.integrations,
+              options?.tools,
+            );
+          }
+
+          // Create the agent handler with resolved tools at execute time
+          const agentHandler = new StagehandAgentHandler(
+            this,
+            this.stagehandPage,
+            this.logger,
+            {
+              modelName: options.model,
+              clientOptions: options.options,
+              userProvidedInstructions:
+                options.instructions ??
+                `You are a helpful assistant that can use a web browser.
+          You are currently on the following page: ${this.stagehandPage.page.url()}.
+          Do not ask follow up questions, the user will trust your judgement.`,
+              agentType: options.provider,
+              experimental: this.experimental,
+            },
+            finalTools,
+          );
 
           return await agentHandler.execute(executeOptions);
         },

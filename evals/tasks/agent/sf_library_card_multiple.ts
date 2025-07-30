@@ -16,12 +16,11 @@ export const sf_library_card_multiple: EvalFunction = async ({
     instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. The current page is ${await stagehand.page.title()}`,
   });
 
-  const agentResult = await agent.execute({
+  await agent.execute({
     instruction:
       "Fill in ALL the required fields with mock data. DO NOT submit the form",
     maxSteps: 20,
   });
-  logger.log(agentResult);
 
   const evaluator = new Evaluator(stagehand);
   const result = await evaluator.evaluate({

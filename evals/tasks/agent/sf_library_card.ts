@@ -16,11 +16,10 @@ export const sf_library_card: EvalFunction = async ({
     instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. The current page is ${await stagehand.page.title()}`,
   });
 
-  const agentResult = await agent.execute({
+  await agent.execute({
     instruction: "Fill in the 'Residential Address' field with '166 Geary St'",
     maxSteps: 3,
   });
-  logger.log(agentResult);
 
   await stagehand.page.mouse.wheel(0, -1000);
   const evaluator = new Evaluator(stagehand);

@@ -15,12 +15,11 @@ export const iframe_form_multiple: EvalFunction = async ({
     model: modelName,
   });
 
-  const agentResult = await agent.execute({
+  await agent.execute({
     instruction:
       "Fill in the form name with 'John Smith', the email with 'john.smith@example.com', and select the 'Are you the domain owner?' option as 'No'",
     maxSteps: 10,
   });
-  logger.log(agentResult);
 
   await stagehand.page.mouse.wheel(0, -1000);
   const evaluator = new Evaluator(stagehand);

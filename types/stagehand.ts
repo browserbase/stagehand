@@ -279,9 +279,9 @@ export interface AgentConfig {
    */
   options?: Record<string, unknown>;
   /**
-   * MCP integrations
+   * MCP integrations - Array of Client objects
    */
-  integrations?: (Client & { serverUrl?: string })[];
+  integrations?: Client[];
   /**
    * Tools passed to the agent client
    */

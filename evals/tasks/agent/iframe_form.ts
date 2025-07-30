@@ -10,16 +10,15 @@ export const iframe_form: EvalFunction = async ({
 }) => {
   await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
 
-  const agent = await stagehand.agent({
+  const agent = stagehand.agent({
     provider: "anthropic",
     model: modelName,
   });
 
-  const agentResult = await agent.execute({
+  await agent.execute({
     instruction: "Fill in the form name with 'John Smith'",
     maxSteps: 3,
   });
-  logger.log(agentResult);
 
   await stagehand.page.mouse.wheel(0, -1000);
   const evaluator = new Evaluator(stagehand);
@@ -39,11 +38,10 @@ export const iframe_form: EvalFunction = async ({
     };
   }
 
-  const agentResult2 = await agent.execute({
+  await agent.execute({
     instruction: "Fill in the form email with 'john.smith@example.com'",
     maxSteps: 3,
   });
-  logger.log(agentResult2);
 
   await stagehand.page.mouse.wheel(0, -1000);
   const result2 = await evaluator.evaluate({
