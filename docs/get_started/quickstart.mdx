@@ -174,6 +174,87 @@ Use the package manager of your choice to install the dependencies. We also have
 </Step>
 </Steps>
 
+### Adding Stagehand to an existing project: 
+
+<Steps>
+
+<Step title="Install Stagehand">
+
+```bash
+npm install @browserbasehq/stagehand
+```
+
+</Step>
+
+<Step title="Set up environment variables">
+
+Create a `.env` file or export environment variables:
+
+```bash
+export BROWSERBASE_API_KEY="your_browserbase_api_key"
+export BROWSERBASE_PROJECT_ID="your_browserbase_project_id"
+export OPENAI_API_KEY="your_openai_api_key"  # Configurable to other models
+```
+
+</Step>
+
+<Step title="Create your first script">
+
+Create a file `index.ts`:
+
+```typescript
+// index.ts
+import { Stagehand, ConstructorParams } from "@browserbasehq/stagehand";
+import dotenv from "dotenv";
+import { z } from "zod";
+
+dotenv.config();
+
+export async function main() {
+  const config: ConstructorParams = {
+    env: "BROWSERBASE", // or "LOCAL"
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    verbose: 1,
+  };
+
+  const stagehand = new Stagehand(config);
+
+  try {
+    await stagehand.init();
+    const page = stagehand.page;
+
+    await page.goto("https://docs.stagehand.dev/");
+    await page.act("click the quickstart link");
+
+    const result = await page.extract({
+      instruction: "extract the main heading of the page",
+      schema: z.object({
+        heading: z.string(),
+      }),
+    });
+
+    console.log(`Extracted: ${result.heading}`);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    await stagehand.close();
+  }
+}
+
+main();
+```
+</Step>
+
+<Step title="Run the script">
+
+```bash
+npx tsx index.ts
+```
+
+</Step>
+</Steps>
+
 </Tab>
 
 <Tab title="Python">

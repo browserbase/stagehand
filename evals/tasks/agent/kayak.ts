@@ -65,6 +65,6 @@ export const kayak: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    stagehand.close();
+    await stagehand.close();
   }
 };

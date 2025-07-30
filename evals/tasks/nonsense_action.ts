@@ -20,7 +20,6 @@ export const nonsense_action: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error(`Error in nonsense_action function: ${error.message}`);
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),

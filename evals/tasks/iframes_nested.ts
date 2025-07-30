@@ -38,10 +38,10 @@ export const iframes_nested: EvalFunction = async ({
   } catch (error) {
     return {
       _success: false,
+      error: error,
       logs: logger.getLogs(),
       debugUrl,
       sessionUrl,
-      error,
     };
   } finally {
     await stagehand.close();

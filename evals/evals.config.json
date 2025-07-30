@@ -106,14 +106,6 @@
       "categories": ["experimental"]
     },
     {
-      "name": "expedia",
-      "categories": ["experimental"]
-    },
-    {
-      "name": "expedia_search",
-      "categories": ["experimental"]
-    },
-    {
       "name": "extract_aigrant_companies",
       "categories": ["regression"]
     },
@@ -131,10 +123,6 @@
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": ["experimental"]
-    },
-    {
-      "name": "google_jobs",
       "categories": ["experimental"]
     },
     {
@@ -393,6 +381,22 @@
     },
     {
       "name": "hidden_input_dropdown",
+      "categories": ["act"]
+    },
+    {
+      "name": "nested_iframes_2",
+      "categories": ["act"]
+    },
+    {
+      "name": "heal_scroll_50",
+      "categories": ["act"]
+    },
+    {
+      "name": "heal_simple_google_search",
+      "categories": ["regression", "act"]
+    },
+    {
+      "name": "heal_custom_dropdown",
       "categories": ["act"]
     }
   ]

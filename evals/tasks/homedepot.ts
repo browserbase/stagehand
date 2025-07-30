@@ -9,21 +9,17 @@ export const homedepot: EvalFunction = async ({
 }) => {
   try {
     await stagehand.page.goto("https://www.homedepot.com/");
-    await stagehand.page.act("search for gas grills");
+    await stagehand.page.act("enter 'gas grills' in the search bar");
+    await stagehand.page.act("press enter");
     await stagehand.page.act("click on the best selling gas grill");
     await stagehand.page.act("click on the Product Details");
-    await stagehand.page.act("find the Primary Burner BTU");
 
     const productSpecs = await stagehand.page.extract({
       instruction: "Extract the Primary exact Burner BTU of the product",
       schema: z.object({
-        productSpecs: z
-          .array(
-            z.object({
-              burnerBTU: z.string().describe("Primary Burner BTU exact value"),
-            }),
-          )
-          .describe("Gas grill Primary Burner BTU exact value"),
+        productSpecs: z.object({
+          burnerBTU: z.number().describe("Primary Burner BTU exact value"),
+        }),
       }),
     });
 
@@ -38,13 +34,7 @@ export const homedepot: EvalFunction = async ({
       },
     });
 
-    if (
-      !productSpecs ||
-      !productSpecs.productSpecs ||
-      productSpecs.productSpecs.length !== 1
-    ) {
-      await stagehand.close();
-
+    if (!productSpecs || !productSpecs.productSpecs) {
       return {
         _success: false,
         productSpecs,
@@ -54,14 +44,10 @@ export const homedepot: EvalFunction = async ({
       };
     }
 
-    const hasFourZerosAndOne4 =
-      (productSpecs.productSpecs[0].burnerBTU.match(/0/g) || []).length === 4 &&
-      (productSpecs.productSpecs[0].burnerBTU.match(/4/g) || []).length === 1;
-
-    await stagehand.close();
+    const isLargerThan1000 = productSpecs.productSpecs.burnerBTU >= 10000;
 
     return {
-      _success: hasFourZerosAndOne4,
+      _success: isLargerThan1000,
       productSpecs,
       debugUrl,
       sessionUrl,
@@ -83,8 +69,6 @@ export const homedepot: EvalFunction = async ({
       },
     });
 
-    await stagehand.close();
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),
@@ -92,5 +76,7 @@ export const homedepot: EvalFunction = async ({
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } finally {
+    await stagehand.close();
   }
 };

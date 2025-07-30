@@ -29,8 +29,6 @@ export const instructions: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    console.error("Error or timeout occurred:", error);
-
     return {
       _success: false,
       error: JSON.parse(JSON.stringify(error, null, 2)),

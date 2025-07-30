@@ -25,10 +25,11 @@ import {
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
+import { AISDKAgent } from "./agent/AISDKAgent";
+import { AgentProvider } from "./agent/AgentProvider";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandOperatorHandler } from "./handlers/operatorHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { StagehandLogger } from "./logger";
@@ -45,8 +46,12 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
 } from "../types/stagehandErrors";
-import { resolveTools } from "./mcp/utils";
+import {
+  ensureModelNameHasProvider,
+  extractProvider,
+} from "./agent/utils/modelUtils";
 import { connectToMCPServer } from "./mcp/connection";
+import { resolveTools } from "./mcp/utils";
 
 dotenv.config({ path: ".env" });
 
@@ -587,10 +592,10 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        modelApiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0],
-          this.logger,
-        );
+        const provider = extractProvider(this.modelName);
+        if (provider) {
+          modelApiKey = loadApiKeyFromEnv(provider, this.logger);
+        }
       } else {
         // Temporary add for legacy providers
         modelApiKey =
@@ -615,6 +620,12 @@ export class Stagehand {
 
     if (llmClient) {
       this.llmClient = llmClient;
+      this.logger({
+        category: "init",
+        message: "Custom LLM clients are currently not supported in API mode",
+        level: 1,
+      });
+      this.usingAPI = false;
     } else {
       try {
         // try to set a default LLM client
@@ -899,98 +910,113 @@ export class Stagehand {
 
   /**
    * Create an agent instance that can be executed with different instructions
-   * @returns An agent instance with execute() method
+   * @returns An agent instance with execute() method, or AISDKAgent when experimental + aisdk
    */
+  async agent(
+    options: AgentConfig & { provider: "aisdk" },
+  ): Promise<AISDKAgent>;
   async agent(options?: AgentConfig): Promise<{
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-  }> {
+  }>;
+  async agent(options?: AgentConfig): Promise<
+    | AISDKAgent
+    | {
+        execute: (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ) => Promise<AgentResult>;
+      }
+  > {
     const tools = options?.integrations
       ? await resolveTools(options?.integrations, options?.tools)
       : options?.tools || {};
 
-    if (!options || !options.provider) {
-      // use open operator agent
+    if (options?.provider === "openai" || options?.provider === "anthropic") {
+      const agentHandler = new StagehandAgentHandler(
+        this,
+        this.stagehandPage,
+        this.logger,
+        {
+          modelName: options.model,
+          clientOptions: options.options,
+          userProvidedInstructions:
+            options.instructions ??
+            `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
+          agentType: options.provider,
+          experimental: this.experimental,
+        },
+        tools,
+      );
+
+      this.log({
+        category: "agent",
+        message: "Creating agent instance",
+        level: 1,
+      });
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          // later we want to abstract this to a function that also performs filtration/ranking of tools
-          return new StagehandOperatorHandler(
-            this.stagehandPage,
-            this.logger,
-            this.llmClient,
-            tools,
-          ).execute(instructionOrOptions);
+          const executeOptions: AgentExecuteOptions =
+            typeof instructionOrOptions === "string"
+              ? { instruction: instructionOrOptions }
+              : instructionOrOptions;
+
+          if (!executeOptions.instruction) {
+            throw new StagehandError(
+              "Instruction is required for agent execution",
+            );
+          }
+
+          if (this.usingAPI) {
+            if (!this.apiClient) {
+              throw new StagehandNotInitializedError("API client");
+            }
+
+            if (!options.options) {
+              options.options = {};
+            }
+
+            if (options.provider === "anthropic") {
+              options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+            } else if (options.provider === "openai") {
+              options.options.apiKey = process.env.OPENAI_API_KEY;
+            }
+
+            if (!options.options.apiKey) {
+              throw new StagehandError(
+                `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+              );
+            }
+
+            return await this.apiClient.agentExecute(options, executeOptions);
+          }
+
+          return await agentHandler.execute(executeOptions);
         },
       };
     }
 
-    const agentHandler = new StagehandAgentHandler(
-      this,
-      this.stagehandPage,
+    const provider = new AgentProvider(
       this.logger,
-      {
-        modelName: options.model,
-        clientOptions: options.options,
-        userProvidedInstructions:
-          options.instructions ??
-          `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${this.stagehandPage.page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
-        agentType: options.provider,
-      },
-      tools,
+      this,
+      this.stagehandPage.page,
     );
 
-    this.log({
-      category: "agent",
-      message: "Creating agent instance",
-      level: 1,
+    const modelName = ensureModelNameHasProvider(
+      options?.model || this.modelName,
+    );
+
+    const agent = provider.getAgent({
+      modelName,
+      provider: "aisdk",
+      clientOptions: options?.options,
+      userProvidedInstructions: options?.instructions,
     });
 
-    return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-        const executeOptions: AgentExecuteOptions =
-          typeof instructionOrOptions === "string"
-            ? { instruction: instructionOrOptions }
-            : instructionOrOptions;
-
-        if (!executeOptions.instruction) {
-          throw new StagehandError(
-            "Instruction is required for agent execution",
-          );
-        }
-
-        if (this.usingAPI) {
-          if (!this.apiClient) {
-            throw new StagehandNotInitializedError("API client");
-          }
-
-          if (!options.options) {
-            options.options = {};
-          }
-
-          if (options.provider === "anthropic") {
-            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
-          } else if (options.provider === "openai") {
-            options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "google") {
-            options.options.apiKey = process.env.GOOGLE_API_KEY;
-          }
-
-          if (!options.options.apiKey) {
-            throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
-            );
-          }
-
-          return await this.apiClient.agentExecute(options, executeOptions);
-        }
-
-        return await agentHandler.execute(executeOptions);
-      },
-    };
+    return agent as AISDKAgent;
   }
 }
 
@@ -998,11 +1024,11 @@ export * from "../types/agent";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
-export * from "../types/operator";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
 export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
+export { AISDKAgent } from "./agent/AISDKAgent";
 export * from "./llm/LLMClient";
 export { connectToMCPServer };

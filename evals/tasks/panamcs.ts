@@ -6,61 +6,70 @@ export const panamcs: EvalFunction = async ({
   stagehand,
   logger,
 }) => {
-  await stagehand.page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
-  );
+  try {
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
+    );
 
-  const observations = await stagehand.page.observe(
-    "click the 'about us' link",
-  );
+    const observations = await stagehand.page.observe(
+      "click the 'about us' link",
+    );
 
-  if (observations.length === 0) {
-    await stagehand.close();
+    if (observations.length === 0) {
+      return {
+        _success: false,
+        observations,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+
+    const expectedLocator = `#menu > li:nth-child(1) > a`;
+
+    const expectedResult = await stagehand.page
+      .locator(expectedLocator)
+      .first()
+      .innerText();
+
+    let foundMatch = false;
+    for (const observation of observations) {
+      try {
+        const observationResult = await stagehand.page
+          .locator(observation.selector)
+          .first()
+          .innerText();
+
+        if (observationResult === expectedResult) {
+          foundMatch = true;
+          break;
+        }
+      } catch (error) {
+        console.warn(
+          `Failed to check observation with selector ${observation.selector}:`,
+          error.message,
+        );
+        continue;
+      }
+    }
+
     return {
-      _success: false,
+      _success: foundMatch,
+      expected: expectedResult,
       observations,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
   }
-
-  const expectedLocator = `#menu > li:nth-child(1) > a`;
-
-  const expectedResult = await stagehand.page
-    .locator(expectedLocator)
-    .first()
-    .innerText();
-
-  let foundMatch = false;
-  for (const observation of observations) {
-    try {
-      const observationResult = await stagehand.page
-        .locator(observation.selector)
-        .first()
-        .innerText();
-
-      if (observationResult === expectedResult) {
-        foundMatch = true;
-        break;
-      }
-    } catch (error) {
-      console.warn(
-        `Failed to check observation with selector ${observation.selector}:`,
-        error.message,
-      );
-      continue;
-    }
-  }
-
-  await stagehand.close();
-
-  return {
-    _success: foundMatch,
-    expected: expectedResult,
-    observations,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
 };

@@ -894,6 +894,7 @@ export async function getAccessibilityTreeWithFrames(
       const frameId = await getCDPFrameId(stagehandPage, frame);
 
       snapshots.push({
+        frame,
         tree: res.simplified.trimEnd(),
         xpathMap: res.xpathMap as Record<EncodedId, string>,
         urlMap: res.idToUrl as Record<string, string>,
@@ -918,15 +919,15 @@ export async function getAccessibilityTreeWithFrames(
   const combinedXpathMap: Record<EncodedId, string> = {};
   const combinedUrlMap: Record<EncodedId, string> = {};
 
-  const seg = new Map<Frame | null, string>();
-  for (const s of snapshots) seg.set(s.parentFrame, s.frameXpath);
+  const seg = new Map<Frame, string>();
+  for (const s of snapshots) seg.set(s.frame, s.frameXpath);
 
   /* recursively build the full prefix for a frame */
   function fullPrefix(f: Frame | null): string {
-    if (!f) return ""; // reached main
+    if (!f || f === main) return "";
     const parent = f.parentFrame();
     const above = fullPrefix(parent);
-    const hop = seg.get(parent) ?? "";
+    const hop = seg.get(f) ?? "";
     return hop === "/"
       ? above
       : above
