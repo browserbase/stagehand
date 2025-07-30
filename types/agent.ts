@@ -27,9 +27,35 @@ export interface AgentOptions {
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
+  messages?: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>;
+  onToolCall?: (toolName: string, args: unknown) => void;
+  onTextDelta?: (text: string) => void;
+  onStepFinish?: (stepInfo: {
+    stepType: "initial" | "continue" | "tool-result";
+    finishReason:
+      | "stop"
+      | "length"
+      | "content-filter"
+      | "tool-calls"
+      | "error"
+      | "other"
+      | "unknown";
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    text: string;
+    reasoning?: string;
+    toolCalls?: unknown[];
+    toolResults?: unknown[];
+  }) => void;
 }
 
-export type AgentProviderType = "openai" | "anthropic";
+export type AgentProviderType = "openai" | "anthropic" | "aisdk";
 
 export interface AgentClientOptions {
   apiKey: string;
@@ -39,7 +65,7 @@ export interface AgentClientOptions {
   [key: string]: unknown;
 }
 
-export type AgentType = "openai" | "anthropic";
+export type AgentType = "openai" | "anthropic" | "aisdk";
 
 export interface AgentExecutionOptions {
   options: AgentExecuteOptions;
@@ -52,6 +78,7 @@ export interface AgentHandlerOptions {
   clientOptions?: Record<string, unknown>;
   userProvidedInstructions?: string;
   agentType: AgentType;
+  experimental?: boolean;
 }
 
 export interface ActionExecutionResult {

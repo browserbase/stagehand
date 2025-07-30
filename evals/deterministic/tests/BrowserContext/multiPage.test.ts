@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
-import { Page } from "@browserbasehq/stagehand";
 
 import http from "http";
 import express from "express";
@@ -128,26 +127,24 @@ test.describe("StagehandContext - Multi-page Support", () => {
    * Test popup handling
    */
   test("should handle popups with enhanced capabilities", async () => {
-    const mainPage = stagehand.page;
-    let popupPage: Page | null = null;
+    await stagehand.page.goto(`http://localhost:${serverPort}/page1`);
+    await stagehand.page.click("#popupBtn");
 
-    mainPage.on("popup", (page: Page) => {
-      popupPage = page;
-    });
+    await expect.poll(() => stagehand.context.pages().length).toBe(2);
 
-    await mainPage.goto(`http://localhost:${serverPort}/page1`);
-    await mainPage.click("#popupBtn");
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_original, popupPage] = stagehand.context.pages();
 
-    // Verify popup has enhanced capabilities
-    expect(popupPage).not.toBeNull();
-    expect(typeof popupPage.act).toBe("function");
-    expect(typeof popupPage.extract).toBe("function");
-    expect(typeof popupPage.observe).toBe("function");
+    await popupPage.waitForLoadState();
 
-    if (popupPage) {
-      await popupPage.waitForLoadState();
-      expect(await popupPage.title()).toBe("Page 2");
-    }
+    const get = (k: string) =>
+      (popupPage as unknown as Record<string, unknown>)[k];
+
+    expect(typeof get("act")).toBe("function");
+    expect(typeof get("extract")).toBe("function");
+    expect(typeof get("observe")).toBe("function");
+
+    expect(await popupPage.title()).toBe("Page 2");
   });
 
   /**

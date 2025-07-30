@@ -6,23 +6,33 @@ export const bidnet: EvalFunction = async ({
   sessionUrl,
   stagehand,
 }) => {
-  await stagehand.page.goto("https://www.bidnetdirect.com/");
+  try {
+    await stagehand.page.goto("https://www.bidnetdirect.com/");
 
-  await stagehand.page.act({
-    action: 'Click on the "Construction" keyword',
-  });
+    await stagehand.page.act({
+      action: 'Click on the "Construction" keyword',
+    });
 
-  const expectedUrl =
-    "https://www.bidnetdirect.com/public/solicitations/open?keywords=Construction";
-  const currentUrl = stagehand.page.url();
+    const expectedUrl =
+      "https://www.bidnetdirect.com/public/solicitations/open?keywords=Construction";
+    const currentUrl = stagehand.page.url();
 
-  await stagehand.close();
-
-  return {
-    _success: currentUrl.startsWith(expectedUrl),
-    currentUrl,
-    debugUrl,
-    sessionUrl,
-    logs: logger.getLogs(),
-  };
+    return {
+      _success: currentUrl.startsWith(expectedUrl),
+      currentUrl,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      error: error,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
 };

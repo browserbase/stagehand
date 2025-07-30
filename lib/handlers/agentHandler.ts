@@ -1,18 +1,18 @@
-import { StagehandPage } from "../StagehandPage";
-import { AgentProvider } from "../agent/AgentProvider";
-import { StagehandAgent } from "../agent/StagehandAgent";
-import { AgentClient } from "../agent/AgentClient";
-import { LogLine } from "../../types/log";
 import {
-  AgentExecuteOptions,
-  AgentAction,
-  AgentResult,
-  AgentHandlerOptions,
   ActionExecutionResult,
+  AgentAction,
+  AgentExecuteOptions,
+  AgentHandlerOptions,
+  AgentResult,
 } from "@/types/agent";
-import { Stagehand } from "../index";
 import { StagehandFunctionName } from "@/types/stagehand";
 import { ToolSet } from "ai/dist";
+import { LogLine } from "../../types/log";
+import { StagehandPage } from "../StagehandPage";
+import { AgentClient } from "../agent/AgentClient";
+import { AgentProvider } from "../agent/AgentProvider";
+import { StagehandAgent } from "../agent/StagehandAgent";
+import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -44,6 +44,7 @@ export class StagehandAgentHandler {
       options.clientOptions || {},
       options.userProvidedInstructions,
       tools,
+      options.experimental,
     );
 
     // Store the client

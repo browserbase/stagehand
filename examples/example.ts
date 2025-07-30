@@ -4,7 +4,6 @@
  *
  * npx create-browser-app@latest my-browser-app
  */
-
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "../stagehand.config";
 

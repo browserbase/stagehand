@@ -1,17 +1,20 @@
 import type {
   BrowserContext as PlaywrightContext,
+  CDPSession,
   Page as PlaywrightPage,
 } from "playwright";
 import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";
 import { EnhancedContext } from "../types/context";
+import { Protocol } from "devtools-protocol";
 
 export class StagehandContext {
   private readonly stagehand: Stagehand;
   private readonly intContext: EnhancedContext;
   private pageMap: WeakMap<PlaywrightPage, StagehandPage>;
   private activeStagehandPage: StagehandPage | null = null;
+  private readonly frameIdMap: Map<string, StagehandPage> = new Map();
 
   private constructor(context: PlaywrightContext, stagehand: Stagehand) {
     this.stagehand = stagehand;
@@ -83,6 +86,7 @@ export class StagehandContext {
     const existingPages = context.pages();
     for (const page of existingPages) {
       const stagehandPage = await instance.createStagehandPage(page);
+      await instance.attachFrameNavigatedListener(page);
       // Set the first page as active
       if (!instance.activeStagehandPage) {
         instance.setActivePage(stagehandPage);
@@ -90,16 +94,42 @@ export class StagehandContext {
     }
 
     context.on("page", (pwPage) => {
-      instance.handleNewPlaywrightPage(pwPage).catch((err) =>
-        stagehand.logger({
-          category: "context",
-          message: `Failed to initialise new page: ${err}`,
-          level: 0,
-        }),
-      );
+      instance
+        .attachFrameNavigatedListener(pwPage)
+        .catch((err) =>
+          stagehand.logger({
+            category: "cdp",
+            message: `Failed to attach frameNavigated listener: ${err}`,
+            level: 0,
+          }),
+        )
+        .finally(() =>
+          instance.handleNewPlaywrightPage(pwPage).catch((err) =>
+            stagehand.logger({
+              category: "context",
+              message: `Failed to initialise new page: ${err}`,
+              level: 0,
+            }),
+          ),
+        );
     });
 
     return instance;
+  }
+  public get frameIdLookup(): ReadonlyMap<string, StagehandPage> {
+    return this.frameIdMap;
+  }
+
+  public registerFrameId(frameId: string, page: StagehandPage): void {
+    this.frameIdMap.set(frameId, page);
+  }
+
+  public unregisterFrameId(frameId: string): void {
+    this.frameIdMap.delete(frameId);
+  }
+
+  public getStagehandPageByFrameId(frameId: string): StagehandPage | undefined {
+    return this.frameIdMap.get(frameId);
   }
 
   public get context(): EnhancedContext {
@@ -139,5 +169,34 @@ export class StagehandContext {
       stagehandPage = await this.createStagehandPage(pwPage);
     }
     this.setActivePage(stagehandPage);
+  }
+
+  private async attachFrameNavigatedListener(
+    pwPage: PlaywrightPage,
+  ): Promise<void> {
+    const shPage = this.pageMap.get(pwPage);
+    if (!shPage) return;
+    const session: CDPSession = await this.intContext.newCDPSession(pwPage);
+    await session.send("Page.enable");
+
+    pwPage.once("close", () => {
+      this.unregisterFrameId(shPage.frameId);
+    });
+
+    session.on(
+      "Page.frameNavigated",
+      (evt: Protocol.Page.FrameNavigatedEvent): void => {
+        const { frame } = evt;
+
+        if (!frame.parentId) {
+          const oldId = shPage.frameId;
+          if (frame.id !== oldId) {
+            if (oldId) this.unregisterFrameId(oldId);
+            this.registerFrameId(frame.id, shPage);
+            shPage.updateRootFrameId(frame.id);
+          }
+        }
+      },
+    );
   }
 }

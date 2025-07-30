@@ -147,10 +147,35 @@ export class StagehandActHandler {
           : method
             ? `${method} ${observe.description}`
             : observe.description;
-        // Call act with the ObserveResult description
-        return await this.stagehandPage.act({
-          action: actCommand,
+        const instruction = buildActObservePrompt(
+          actCommand,
+          Object.values(SupportedPlaywrightAction),
+          {},
+        );
+        const observeResults = await this.stagehandPage.observe({
+          instruction,
         });
+        if (observeResults.length === 0) {
+          return {
+            success: false,
+            message: `Failed to self heal act: No observe results found for action`,
+            action: actCommand,
+          };
+        }
+        const element: ObserveResult = observeResults[0];
+        await this._performPlaywrightMethod(
+          // override previously provided method and arguments
+          observe.method,
+          observe.arguments,
+          // only update selector
+          element.selector,
+          domSettleTimeoutMs,
+        );
+        return {
+          success: true,
+          message: `Action [${element.method}] performed successfully on selector: ${element.selector}`,
+          action: observe.description || `ObserveResult action (${method})`,
+        };
       } catch (err) {
         this.logger({
           category: "action",
@@ -282,9 +307,10 @@ export class StagehandActHandler {
   private async _performPlaywrightMethod(
     method: string,
     args: unknown[],
-    xpath: string,
+    rawXPath: string,
     domSettleTimeoutMs?: number,
   ) {
+    const xpath = rawXPath.replace(/^xpath=/i, "").trim();
     const locator = deepLocator(this.stagehandPage.page, xpath).first();
     const initialUrl = this.stagehandPage.page.url();
 
