@@ -24,35 +24,58 @@ async function runErrorHandlingExample() {
       },
     });
 
-    const { streamedText, text } = await agent.execute({
+    const { text, messages } = await agent.execute({
       instruction: "order me shampoo from amazon using random info ",
-      maxSteps: 15,
+      maxSteps: 5,
       onError: (error) => {
         console.error("Error message:", error);
       },
       onToolCall: (toolName, args) => {
         console.log(`Tool: ${toolName}, Args: ${JSON.stringify(args)}`);
       },
-      onTextDelta: (text) => {
-        console.log(text);
-      },
       onStepFinish: (stepInfo) => {
-        console.log(stepInfo);
+        console.log("stepInfo", stepInfo);
       },
       onFinish: (result) => {
-        console.log(result);
+        console.log("finish result", result);
       },
     });
+    const chatMessages = await messages;
+    console.log("chatMessages: first execution finished", chatMessages);
+    console.log("starting second execution");
+    const {
+      streamedText: streamedText2,
+      text: text2,
+      messages: messages2,
+    } = await agent.execute({
+      instruction: "continue bro",
+      messages: chatMessages,
+      maxSteps: 5,
+      onError: (error) => {
+        console.error("Error message:", error);
+      },
+      onToolCall: (toolName, args) => {
+        console.log(`Tool: ${toolName}, Args: ${JSON.stringify(args)}`);
+      },
+      onStepFinish: (stepInfo) => {
+        console.log("stepInfo", stepInfo);
+      },
+      onFinish: (result) => {
+        console.log("finish result", result);
+      },
+    });
+    // Wait for the second execution to complete
+    const finalText2 = await text2;
+    const finalMessages2 = await messages2;
 
-    //stop the stream
+    console.log("streamedText2:", streamedText2);
+    console.log("finalText2:", finalText2);
+    console.log("Second execution messages count:", finalMessages2.length);
+    console.log("\n\nSecond execution completed successfully");
 
-    //stream the text
-    for (const chunk of streamedText) {
-      console.log(chunk);
-    }
-    //get the final text
+    // Also wait for first execution text if needed
     const finalText = await text;
-    console.log("\n\nFinal result:", finalText);
+    console.log("\n\nFirst execution final text:", finalText);
   } catch (error) {
     console.error("\n Fatal error:", error);
   } finally {

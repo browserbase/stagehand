@@ -29,6 +29,7 @@ type ExtendedStreamResult = {
   toolCalls: Promise<ToolCall<string, unknown>[]>;
   toolResults: Promise<ToolResult<string, unknown, unknown>[]>;
   finishReason: Promise<FinishReason>;
+  messages: Promise<CoreMessage[]>;
   streamedText: string;
   stop: () => void;
 };
@@ -129,13 +130,20 @@ export class AISDKAgent {
     ) => Promise<void> | void;
   }): Promise<ExtendedStreamResult> {
     const system = buildAISDKSystemPrompt(options.instruction);
-    const messages = buildAISDKMessages(options.instruction, options.messages);
+    const aiMessages = buildAISDKMessages(
+      options.instruction,
+      options.messages,
+    );
 
     const abortController = new AbortController();
     let streamedText = "";
+    let messagesPromiseResolve: (messages: CoreMessage[]) => void;
+    const messagesPromise = new Promise<CoreMessage[]>((resolve) => {
+      messagesPromiseResolve = resolve;
+    });
 
     const result = await this.client.streamText({
-      messages,
+      messages: aiMessages,
       system,
       maxSteps: options.maxSteps,
       temperature: options.temperature,
@@ -159,10 +167,13 @@ export class AISDKAgent {
           });
         }
 
+        const messages = event.response?.messages || [];
+        messagesPromiseResolve(messages);
+
         if (options.onFinish) {
           options.onFinish({
             ...event,
-            messages: event.response?.messages || [],
+            messages,
           });
         }
       },
@@ -190,6 +201,7 @@ export class AISDKAgent {
       toolCalls: result.toolCalls,
       toolResults: result.toolResults,
       finishReason: result.finishReason,
+      messages: messagesPromise,
       streamedText,
       stop: () => abortController.abort(),
     };
