@@ -141,7 +141,6 @@ export class Evaluator {
       }
       // Keep evaluationResult as "INVALID"
     }
-    console.log("evaluationResult: ", evaluationResult);
 
     return {
       evaluation: evaluationResult,
