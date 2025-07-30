@@ -17,6 +17,8 @@ import {
   EvaluationResult,
   BatchEvaluateOptions,
 } from "@/types/evaluator";
+import { LLMParsedResponse } from "@/lib/inference";
+import { LLMResponse } from "@/lib/llm/LLMClient";
 
 dotenv.config();
 
@@ -66,7 +68,9 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    const response = await llmClient.createChatCompletion({
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
       logger: this.stagehand.logger,
       options: {
         messages: [
@@ -76,8 +80,7 @@ export class Evaluator {
         image: { buffer: imageBuffer },
       },
     });
-
-    const rawResponse = response.choices[0].message.content;
+    const rawResponse = response.data as unknown as string;
     let evaluationResult: "YES" | "NO" | "INVALID" = "INVALID";
     let reasoning = `Failed to process response. Raw response: ${rawResponse}`;
 
@@ -138,6 +141,7 @@ export class Evaluator {
       }
       // Keep evaluationResult as "INVALID"
     }
+    console.log("evaluationResult: ", evaluationResult);
 
     return {
       evaluation: evaluationResult,
@@ -183,7 +187,9 @@ export class Evaluator {
     );
 
     // Use the model-specific LLM client to evaluate the screenshot with all questions
-    const response = await llmClient.createChatCompletion({
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
       logger: this.stagehand.logger,
       options: {
         messages: [
@@ -202,7 +208,7 @@ export class Evaluator {
       },
     });
 
-    const rawResponse = response.choices[0].message.content;
+    const rawResponse = response.data as unknown as string;
     let finalResults: EvaluationResult[] = [];
 
     try {
