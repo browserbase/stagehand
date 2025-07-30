@@ -103,9 +103,9 @@ export interface ConstructorParams {
 }
 
 export interface InitResult {
-  debugUrl: string;
-  sessionUrl: string;
-  sessionId: string;
+  debugUrl?: string;
+  sessionUrl?: string;
+  sessionId?: string;
 }
 
 export interface ActOptions {
@@ -256,6 +256,8 @@ export interface AgentExecuteParams {
   context?: string;
 }
 
+// NOTE: This contradicts the docs, which say that provider and model are required
+//       https://docs.stagehand.dev/reference/agent#arguments%3A-agentoptions
 /**
  * Configuration for agent functionality
  */
