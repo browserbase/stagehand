@@ -34,7 +34,7 @@ export class StagehandAPI {
   private apiKey: string;
   private projectId: string;
   private sessionId?: string;
-  private modelApiKey: string;
+  private modelApiKey?: string;
   private logger: (message: LogLine) => void;
   private fetchWithCookies;
 
@@ -65,6 +65,8 @@ export class StagehandAPI {
     this.modelApiKey = modelApiKey;
 
     const region = browserbaseSessionCreateParams?.region;
+    // NOTE: Looks like there was some discussion here -- I personally agree that this should throw
+    //       Thread: https://github.com/browserbase/stagehand/pull/801#discussion_r2138856174
     if (region && region !== "us-west-2") {
       return { sessionId: browserbaseSessionID ?? null, available: false };
     }
@@ -165,6 +167,8 @@ export class StagehandAPI {
     return response;
   }
 
+  // NOTE: This is a strange way to process SSE, and also doesn't guarantee that it returns T (actually explicitly returns null in one case)
+  //       I feel pretty confused by this, so I'll leave this here to refactor later
   private async execute<T>({
     method,
     args,
@@ -237,6 +241,14 @@ export class StagehandAPI {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
+    // These must be set for a request to be made successfully
+    if (!this.modelApiKey) {
+      throw new StagehandAPIError("modelApiKey is required");
+    }
+    if (!this.sessionId) {
+      throw new StagehandAPIError("sessionId is required");
+    }
+
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
       "x-bb-project-id": this.projectId,
