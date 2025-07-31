@@ -19,6 +19,7 @@ import {
 } from "@/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
+import { LogLine } from "@/types/log";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ export class Evaluator {
   private stagehand: Stagehand;
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions | { apiKey: string };
+  private silentLogger: (message: LogLine) => void;
   // Define regex patterns directly in the class or as constants if preferred elsewhere
   private yesPattern = /^(YES|Y|TRUE|CORRECT|AFFIRMATIVE)/i;
   private noPattern = /^(NO|N|FALSE|INCORRECT|NEGATIVE)/i;
@@ -36,10 +38,12 @@ export class Evaluator {
     modelClientOptions?: ClientOptions,
   ) {
     this.stagehand = stagehand;
-    this.modelName = modelName || "google/gemini-2.0-flash";
+    this.modelName = modelName || "google/gemini-2.5-flash";
     this.modelClientOptions = modelClientOptions || {
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
     };
+    // Create a silent logger function that doesn't output anything
+    this.silentLogger = () => {};
   }
 
   /**
@@ -71,7 +75,7 @@ export class Evaluator {
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
-      logger: this.stagehand.logger,
+      logger: this.silentLogger,
       options: {
         messages: [
           { role: "system", content: systemPrompt },
@@ -189,7 +193,7 @@ export class Evaluator {
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
-      logger: this.stagehand.logger,
+      logger: this.silentLogger,
       options: {
         messages: [
           {
