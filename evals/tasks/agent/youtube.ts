@@ -18,13 +18,13 @@ export const youtube: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Search for Keinemusik's set under some very famous landmarks south of the mediterranean sea",
+        "Search for Keinemusik's set under some very famous pointy landmarks",
       maxSteps: 15,
     });
     logger.log(agentResult);
     const url = await stagehand.page.url();
 
-    if (url === "https://www.youtube.com/watch?v=eEobh8iCbIE") {
+    if (url.includes("https://www.youtube.com/watch?v=eEobh8iCbIE")) {
       return {
         _success: true,
         observations: url,

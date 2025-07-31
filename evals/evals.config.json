@@ -410,6 +410,10 @@
     {
       "name": "agent/google_maps_2",
       "categories": ["agent"]
+    },
+    {
+      "name": "agent/youtube",
+      "categories": ["agent"]
     }
   ]
 }
