@@ -114,25 +114,23 @@ export class StagehandPage {
     this.userProvidedInstructions = userProvidedInstructions;
     this.waitForCaptchaSolves = waitForCaptchaSolves ?? false;
 
-    if (this.llmClient) {
-      this.actHandler = new StagehandActHandler({
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        selfHeal: this.stagehand.selfHeal,
-      });
-      this.extractHandler = new StagehandExtractHandler({
-        stagehand: this.stagehand,
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        userProvidedInstructions,
-      });
-      this.observeHandler = new StagehandObserveHandler({
-        stagehand: this.stagehand,
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        userProvidedInstructions,
-      });
-    }
+    this.actHandler = new StagehandActHandler({
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      selfHeal: this.stagehand.selfHeal,
+    });
+    this.extractHandler = new StagehandExtractHandler({
+      stagehand: this.stagehand,
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      userProvidedInstructions,
+    });
+    this.observeHandler = new StagehandObserveHandler({
+      stagehand: this.stagehand,
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      userProvidedInstructions,
+    });
   }
 
   public ordinalForFrameId(fid: string | undefined): number {
