@@ -41,6 +41,7 @@
     "@eslint/js": "^9.16.0",
     "@langchain/core": "^0.3.40",
     "@langchain/openai": "^0.4.4",
+    "@lmnr-ai/lmnr": "^0.6.12",
     "@types/adm-zip": "^0.5.7",
     "@types/cheerio": "^0.22.35",
     "@types/express": "^4.17.21",
