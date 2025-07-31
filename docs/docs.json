@@ -101,8 +101,9 @@
     }
   },
   "integrations": {
-    "koala": {
-      "publicApiKey": "pk_6e508a479e95d94298f034e98ec54590ccf4"
+    "posthog": {
+      "apiKey": "phc_hmwkFrlc9UVrdE1jyG8AEKoCQCSr8dScjsRpKoLBEiV",
+      "apiHost": "https://us.i.posthog.com"
     }
   }
 }
