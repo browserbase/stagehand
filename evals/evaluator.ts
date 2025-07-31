@@ -60,7 +60,8 @@ export class Evaluator {
       question,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given the state of a task (most times in the form of a screenshot) and a question. Provide a detailed reasoning for your answer.
           Return your response as a JSON object with the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }`,
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
       strictResponse = false,
     } = options;
@@ -167,7 +168,8 @@ export class Evaluator {
       questions,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task in the screenshot. Provide a detailed reasoning for your answer.
           Return your response as a JSON array, where each object corresponds to a question and has the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }`,
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
       strictResponse = false,
     } = options;

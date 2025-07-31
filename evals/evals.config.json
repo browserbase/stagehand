@@ -406,6 +406,10 @@
     {
       "name": "agent/google_maps",
       "categories": ["agent"]
+    },
+    {
+      "name": "agent/google_maps_2",
+      "categories": ["agent"]
     }
   ]
 }
