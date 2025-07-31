@@ -201,7 +201,7 @@ export interface LocalBrowserLaunchOptions {
     urlFilter?: string | RegExp;
   };
   recordVideo?: { dir: string; size?: { width: number; height: number } };
-  viewport?: { width: number; height: number };
+  viewport?: { width: number; height: number } | null;
   deviceScaleFactor?: number;
   timezoneId?: string;
   bypassCSP?: boolean;
