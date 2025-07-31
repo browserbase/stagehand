@@ -1,5 +1,5 @@
 import { LogLine } from "../../types/log";
-import { Stagehand, StagehandFunctionName } from "../index";
+import { ObserveResult, Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
@@ -55,7 +55,7 @@ export class StagehandObserveHandler {
     drawOverlay?: boolean;
     fromAct?: boolean;
     iframes?: boolean;
-  }) {
+  }): Promise<ObserveResult[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
@@ -131,7 +131,7 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (discoveredIframes.length > 0) {
+    if (discoveredIframes && discoveredIframes.length > 0) {
       this.logger({
         category: "observation",
         message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
@@ -151,7 +151,7 @@ export class StagehandObserveHandler {
       });
     }
 
-    const elementsWithSelectors = (
+    const elementsWithSelectors: ObserveResult[] = (
       await Promise.all(
         observationResponse.elements.map(async (element) => {
           const { elementId, ...rest } = element;
