@@ -398,6 +398,10 @@
     {
       "name": "heal_custom_dropdown",
       "categories": ["act"]
+    },
+    {
+      "name": "extract_pdf_detection",
+      "categories": ["extract"]
     }
   ]
 }

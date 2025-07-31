@@ -49,6 +49,7 @@ const StagehandConfig = {
     },
   },
   selfHeal: true,
+  reductoApiKey: process.env.REDUCTO_API_KEY,
 };
 
 /**

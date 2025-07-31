@@ -47,6 +47,10 @@ export interface ConstructorParams {
    */
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   /**
+   * Your Reducto API key for PDF extraction
+   */
+  reductoApiKey?: string;
+  /**
    * Enable caching of LLM responses
    * @default true
    */
@@ -138,6 +142,8 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   selector?: string;
   iframes?: boolean;
   frameId?: string;
+  pdfUrl?: string;
+  pdfFilepath?: string;
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
