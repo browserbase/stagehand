@@ -905,7 +905,7 @@ export class Stagehand {
 
   /**
    * Create an agent instance that can be executed with different instructions
-   * @returns An agent instance with execute() method, or AISDKAgent when experimental + aisdk
+   * @returns An agent instance with execute() method, or AISDKAgent when aisdk provider is used
    */
   agent(options: AgentConfig & { provider: "aisdk" }): AISDKAgent;
   agent(options?: AgentConfig): {
