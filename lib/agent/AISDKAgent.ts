@@ -9,7 +9,13 @@ import {
   processToolCallStream,
   trackStreamedText,
 } from "./utils/aiSDKUtils";
-import { streamText, type LanguageModel } from "ai";
+import {
+  streamText,
+  type LanguageModel,
+  wrapLanguageModel,
+  type LanguageModelV1Middleware,
+  type LanguageModelV1CallOptions,
+} from "ai";
 import { AISdkClient } from "../llm/aisdk";
 import { LLMProvider } from "../llm/LLMProvider";
 import { AvailableModel } from "../../types/model";
@@ -90,7 +96,33 @@ export class AISDKAgent {
     );
 
     if ("languageModel" in this.llmClient && this.llmClient.type === "aisdk") {
-      this.languageModel = (this.llmClient as AISdkClient).languageModel;
+      const baseModel = (this.llmClient as AISdkClient).languageModel;
+
+      //  middleware for custom message processing
+      const messageProcessingMiddleware: LanguageModelV1Middleware = {
+        transformParams: async ({
+          params,
+        }: {
+          params: LanguageModelV1CallOptions;
+        }) => {
+          const processedPrompt = params.prompt.map((message) => {
+            // custom message processing logic will go here
+            return {
+              ...message,
+            };
+          });
+
+          return {
+            ...params,
+            prompt: processedPrompt,
+          };
+        },
+      };
+
+      this.languageModel = wrapLanguageModel({
+        model: baseModel,
+        middleware: messageProcessingMiddleware,
+      });
     } else {
       throw new StagehandError(
         `AISDKAgent requires an AI SDK compatible model. Model "${options.modelName}" is not supported by the AI SDK. ` +
