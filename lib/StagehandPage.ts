@@ -737,9 +737,11 @@ ${scriptContent} \
 
       // NOTE: The current code early exits on empty string, but proceeds with { instruction: "" }
       //       This is a bit confusing, but it's consistent with the old behavior.
+      // NOTE: instruction and schema should be defined at this point as per the docs, see ExtractOptions interface definition
+      //       The below default values should be removed in the future
       const {
         instruction = "",
-        schema,
+        schema = defaultExtractSchema,
         modelName,
         modelClientOptions,
         domSettleTimeoutMs,

@@ -125,6 +125,8 @@ export interface ActResult {
   action: string;
 }
 
+// NOTE: This contradicts the docs, which say that instruction and schema are required
+//       https://docs.stagehand.dev/reference/extract#arguments%3A-extractoptions%3Ct-extends-z-anyzodobject%3E
 export interface ExtractOptions<T extends z.AnyZodObject> {
   instruction?: string;
   schema?: T;
