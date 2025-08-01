@@ -1,18 +1,18 @@
-import { ZodType } from "zod";
-import { LLMTool } from "../../types/llm";
-import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
 import {
-  generateObject,
-  generateText,
-  streamText,
-  streamObject,
-  experimental_generateImage,
   embed,
   embedMany,
-  experimental_transcribe,
+  experimental_generateImage,
   experimental_generateSpeech,
+  experimental_transcribe,
+  generateObject,
+  generateText,
+  streamObject,
+  streamText,
+  ToolSet,
 } from "ai";
+import { ZodType } from "zod";
+import { LogLine } from "../../types/log";
+import { AvailableModel, ClientOptions } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -56,7 +56,7 @@ export interface ChatCompletionOptions {
     name: string;
     schema: ZodType;
   };
-  tools?: LLMTool[];
+  tools?: ToolSet;
   tool_choice?: "auto" | "none" | "required";
   maxTokens?: number;
   requestId?: string;

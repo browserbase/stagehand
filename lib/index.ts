@@ -1,52 +1,53 @@
+import { ApiResponse, ErrorResponse } from "@/types/api";
 import { Browserbase } from "@browserbasehq/sdk";
-import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { Browser, chromium } from "playwright";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { AvailableModel, ClientOptions } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
 import {
+  ActOptions,
+  AgentConfig,
   ConstructorParams,
+  ExtractOptions,
+  HistoryEntry,
   InitResult,
   LocalBrowserLaunchOptions,
-  AgentConfig,
-  StagehandMetrics,
-  StagehandFunctionName,
-  HistoryEntry,
-  ActOptions,
-  ExtractOptions,
   ObserveOptions,
+  StagehandFunctionName,
+  StagehandMetrics,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
+import { AISDKAgent } from "./agent/AISDKAgent";
+import { AgentProvider } from "./agent/AgentProvider";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
+import { StagehandAgentHandler } from "./handlers/agentHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { ClientOptions } from "../types/model";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
-import { ApiResponse, ErrorResponse } from "@/types/api";
-import { AgentExecuteOptions, AgentResult } from "../types/agent";
-import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { AgentProvider } from "./agent/AgentProvider";
 import { StagehandLogger } from "./logger";
-import { AISDKAgent } from "./agent/AISDKAgent";
+import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 
-import {
-  StagehandError,
-  StagehandNotInitializedError,
-  MissingEnvironmentVariableError,
-  UnsupportedModelError,
-  UnsupportedAISDKModelProviderError,
-  InvalidAISDKModelFormatError,
-  StagehandInitError,
-} from "../types/stagehandErrors";
-import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
+import { z } from "zod";
+import {
+  InvalidAISDKModelFormatError,
+  MissingEnvironmentVariableError,
+  StagehandError,
+  StagehandInitError,
+  StagehandNotInitializedError,
+  UnsupportedAISDKModelProviderError,
+  UnsupportedModelError,
+} from "../types/stagehandErrors";
+import { connectToMCPServer } from "./mcp/connection";
+import { resolveTools } from "./mcp/utils";
 
 dotenv.config({ path: ".env" });
 
@@ -921,23 +922,6 @@ export class Stagehand {
         ) => Promise<AgentResult>;
       } {
     if (options?.provider === "openai" || options?.provider === "anthropic") {
-      const agentHandler = new StagehandAgentHandler(
-        this,
-        this.stagehandPage,
-        this.logger,
-        {
-          modelName: options.model,
-          clientOptions: options.options,
-          userProvidedInstructions:
-            options.instructions ??
-            `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${this.stagehandPage.page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
-          agentType: options.provider,
-          experimental: this.experimental,
-        },
-      );
-
       this.log({
         category: "agent",
         message: "Creating agent instance",
@@ -981,6 +965,33 @@ export class Stagehand {
             return await this.apiClient.agentExecute(options, executeOptions);
           }
 
+          let finalTools = options?.tools || {};
+          if (options?.integrations && options.integrations.length > 0) {
+            finalTools = await resolveTools(
+              options.integrations,
+              options?.tools,
+            );
+          }
+
+          // Create the agent handler with resolved tools at execute time
+          const agentHandler = new StagehandAgentHandler(
+            this,
+            this.stagehandPage,
+            this.logger,
+            {
+              modelName: options.model,
+              clientOptions: options.options,
+              userProvidedInstructions:
+                options.instructions ??
+                `You are a helpful assistant that can use a web browser.
+          You are currently on the following page: ${this.stagehandPage.page.url()}.
+          Do not ask follow up questions, the user will trust your judgement.`,
+              agentType: options.provider,
+              experimental: this.experimental,
+            },
+            finalTools,
+          );
+
           return await agentHandler.execute(executeOptions);
         },
       };
@@ -1005,14 +1016,15 @@ export class Stagehand {
   }
 }
 
+export * from "../types/agent";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
-export { AISDKAgent } from "./agent/AISDKAgent";
 export * from "../types/stagehand";
-export * from "../types/agent";
-export * from "./llm/LLMClient";
-export * from "../types/stagehandErrors";
 export * from "../types/stagehandApiErrors";
+export * from "../types/stagehandErrors";
+export { AISDKAgent } from "./agent/AISDKAgent";
+export * from "./llm/LLMClient";
+export { connectToMCPServer };

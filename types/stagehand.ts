@@ -1,11 +1,13 @@
 import Browserbase from "@browserbasehq/sdk";
+import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
+import { ToolSet } from "ai/dist";
+import { Cookie } from "playwright";
 import { z } from "zod";
+import { LLMClient } from "../lib/llm/LLMClient";
 import { LLMProvider } from "../lib/llm/LLMProvider";
+import { AgentProviderType } from "./agent";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "playwright";
-import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
   /**
@@ -276,6 +278,14 @@ export interface AgentConfig {
    * Additional options to pass to the agent client
    */
   options?: Record<string, unknown>;
+  /**
+   * MCP integrations - Array of Client objects
+   */
+  integrations?: (Client | string)[];
+  /**
+   * Tools passed to the agent client
+   */
+  tools?: ToolSet;
 }
 
 export enum StagehandFunctionName {

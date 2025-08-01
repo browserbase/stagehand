@@ -25,7 +25,7 @@ async function main() {
     const page = stagehand.page;
 
     // Create a computer use agent
-    const agent = stagehand.agent({
+    const agent = await stagehand.agent({
       provider: "openai",
       // For Anthropic, use claude-sonnet-4-20250514 or claude-3-7-sonnet-latest
       model: "computer-use-preview",

@@ -192,13 +192,13 @@ export class GoogleClient extends LLMClient {
   private formatTools(
     tools?: ChatCompletionOptions["tools"],
   ): Tool[] | undefined {
-    if (!tools || tools.length === 0) {
+    if (!tools || Object.keys(tools).length === 0) {
       return undefined;
     }
 
     return [
       {
-        functionDeclarations: tools.map((tool) => {
+        functionDeclarations: Object.entries(tools).map(([name, tool]) => {
           let parameters: Schema | undefined = undefined;
           if (tool.parameters) {
             parameters = {
@@ -210,7 +210,7 @@ export class GoogleClient extends LLMClient {
             };
           }
           return {
-            name: tool.name,
+            name,
             description: tool.description,
             parameters: parameters,
           };

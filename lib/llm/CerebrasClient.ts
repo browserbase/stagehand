@@ -133,18 +133,20 @@ export class CerebrasClient extends LLMClient {
     });
 
     // Format tools if provided
-    let tools = options.tools?.map((tool) => ({
-      type: "function" as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: {
-          type: "object",
-          properties: tool.parameters.properties,
-          required: tool.parameters.required,
-        },
-      },
-    }));
+    let tools = options.tools
+      ? Object.entries(options.tools).map(([name, tool]) => ({
+          type: "function" as const,
+          function: {
+            name,
+            description: tool.description,
+            parameters: {
+              type: "object",
+              properties: tool.parameters.properties,
+              required: tool.parameters.required,
+            },
+          },
+        }))
+      : undefined;
 
     // Add response model as a tool if provided
     if (options.response_model) {

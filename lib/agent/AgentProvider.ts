@@ -1,15 +1,16 @@
-import { LogLine } from "@/types/log";
-import { AgentClient } from "./AgentClient";
 import { AgentType } from "@/types/agent";
-import { OpenAICUAClient } from "./OpenAICUAClient";
-import { AnthropicCUAClient } from "./AnthropicCUAClient";
-import { AISDKAgent } from "./AISDKAgent";
+import { LogLine } from "@/types/log";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
 } from "@/types/stagehandErrors";
-import { Stagehand } from "../index";
+import { ToolSet } from "ai";
 import { Page } from "../../types/page";
+import { Stagehand } from "../index";
+import { AgentClient } from "./AgentClient";
+import { AISDKAgent } from "./AISDKAgent";
+import { AnthropicCUAClient } from "./AnthropicCUAClient";
+import { OpenAICUAClient } from "./OpenAICUAClient";
 
 // Map model names to their provider types
 const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -46,6 +47,7 @@ export class AgentProvider {
     modelName: string,
     clientOptions?: Record<string, unknown>,
     userProvidedInstructions?: string,
+    tools?: ToolSet,
     experimental?: boolean,
   ): AgentClient {
     const type = AgentProvider.getAgentProvider(modelName);
@@ -63,6 +65,7 @@ export class AgentProvider {
             modelName,
             userProvidedInstructions,
             clientOptions,
+            tools,
           );
         case "anthropic":
           return new AnthropicCUAClient(
@@ -70,6 +73,7 @@ export class AgentProvider {
             modelName,
             userProvidedInstructions,
             clientOptions,
+            tools,
             experimental,
           );
         default:

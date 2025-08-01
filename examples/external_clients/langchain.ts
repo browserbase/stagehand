@@ -76,7 +76,15 @@ export class LangchainClient extends LLMClient {
       } as T;
     }
 
-    const modelWithTools = this.model.bindTools(options.tools);
+    const modelWithTools = this.model.bindTools(
+      options.tools
+        ? Object.entries(options.tools).map(([name, tool]) => ({
+            name,
+            description: tool.description,
+            schema: tool.parameters,
+          }))
+        : [],
+    );
     const response = await modelWithTools.invoke(formattedMessages);
 
     return {

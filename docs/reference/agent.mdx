@@ -6,13 +6,13 @@ icon: 'robot'
 
 <CodeGroup>
 ```typescript TypeScript
-const agent = stagehand.agent();
+const agent = await stagehand.agent();
 await agent.execute("Sign me up for a library card");
 ```
 
 ```python Python
 # Native Stagehand agent support for Python is coming soon.
-# agent = stagehand.agent()
+# agent = await stagehand.agent()
 # await agent.execute("Sign me up for a library card")
 ```
 </CodeGroup>
@@ -24,7 +24,7 @@ Web Agents in Stagehand are fully customizable. You can use any LLM / VLM / Comp
 <CodeGroup>
 ```typescript TypeScript
 // For Computer Use Agent (CUA) models
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
   provider: "openai",
   model: "computer-use-preview",
   instructions: "You are a helpful assistant that can use a web browser.",
@@ -42,7 +42,7 @@ await agent.execute({
 
 ```python Python
 # For Computer Use Agent (CUA) models
-agent = stagehand.agent({
+agent = await stagehand.agent({
     model="computer-use-preview",
     instructions="You are a helpful assistant that can use a web browser.",
     options={

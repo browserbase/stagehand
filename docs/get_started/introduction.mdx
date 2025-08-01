@@ -74,7 +74,7 @@ await page.goto("https://github.com/browserbase/stagehand");
 
 // Use a simple agent to automate a workflow
 // You can save/replay these actions exactly the same way
-const agent = stagehand.agent();
+const agent = await stagehand.agent();
 const { message, actions } = await agent.execute(
 	"Extract the top contributor's username"
 );
@@ -89,7 +89,7 @@ await page.goto("https://github.com/browserbase/stagehand")
 
 # Use a simple agent to automate a workflow
 # You can save/replay these actions exactly the same way
-agent = stagehand.agent()
+agent = await stagehand.agent()
 result = await agent.execute("Extract the top contributor's username")
 
 # Save/Replay your Stagehand actions
@@ -137,7 +137,7 @@ print(result.extraction)
 // You can use a Computer Use agent to automate an entire workflow
 await page.goto("https://github.com/browserbase/stagehand-python");
 
-const agent = stagehand.agent({
+const agent = await stagehand.agent({
 	provider: "openai",
 	model: "computer-use-preview"
 });
@@ -149,7 +149,7 @@ console.log(result);
 # You can use a Computer Use agent to automate an entire workflow
 await page.goto("https://github.com/browserbase/stagehand")
 
-agent = stagehand.agent(
+agent = await stagehand.agent(
   model="computer-use-preview"
 )
 result = await agent.execute("Extract the top contributor's username")

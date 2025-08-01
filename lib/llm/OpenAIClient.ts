@@ -334,14 +334,16 @@ export class OpenAIClient extends LLMClient {
       messages: formattedMessages,
       response_format: responseFormat,
       stream: false,
-      tools: options.tools?.map((tool) => ({
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-        type: "function",
-      })),
+      tools: options.tools
+        ? Object.entries(options.tools).map(([name, tool]) => ({
+            function: {
+              name,
+              description: tool.description,
+              parameters: tool.parameters,
+            },
+            type: "function",
+          }))
+        : undefined,
     };
 
     const response = await this.client.chat.completions.create(body);

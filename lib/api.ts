@@ -153,7 +153,22 @@ export class StagehandAPI {
   ): Promise<AgentResult> {
     return this.execute<AgentResult>({
       method: "agentExecute",
-      args: { agentConfig, executeOptions },
+      args: {
+        agentConfig: {
+          ...agentConfig,
+          integrations: agentConfig.integrations?.map((integration) => {
+            if (typeof integration === "string") {
+              return integration;
+            } else {
+              // When using API mode, integrations should be strings, not Client objects
+              throw new StagehandAPIError(
+                "When using API mode (useApi: true), integrations should be server URLs (strings), not Client objects.",
+              );
+            }
+          }),
+        },
+        executeOptions,
+      },
     });
   }
 

@@ -28,7 +28,7 @@ async function main() {
   await stagehand.init();
 
   try {
-    const agent = stagehand.agent();
+    const agent = await stagehand.agent();
 
     // Execute the agent
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);

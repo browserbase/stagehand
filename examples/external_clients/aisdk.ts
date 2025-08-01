@@ -101,8 +101,8 @@ export class AISdkClient extends LLMClient {
 
     const tools: Record<string, CoreTool> = {};
 
-    for (const rawTool of options.tools) {
-      tools[rawTool.name] = {
+    for (const [name, rawTool] of Object.entries(options.tools || {})) {
+      tools[name] = {
         description: rawTool.description,
         parameters: rawTool.parameters,
       };
