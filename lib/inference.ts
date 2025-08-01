@@ -289,7 +289,14 @@ export async function observe({
       .describe("an array of accessible elements that match the instruction"),
   });
 
-  type ObserveResponse = z.infer<typeof observeSchema>;
+  type ObserveResponse = {
+    elements: {
+      elementId: string;
+      description: string;
+      method?: string;
+      arguments?: string[];
+    }[];
+  };
 
   const messages: ChatMessage[] = [
     buildObserveSystemPrompt(userProvidedInstructions),
