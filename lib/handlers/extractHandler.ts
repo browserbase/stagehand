@@ -26,12 +26,7 @@ export class StagehandExtractHandler {
     userProvidedInstructions,
   }: {
     stagehand: Stagehand;
-    logger: (message: {
-      category?: string;
-      message: string;
-      level?: number;
-      auxiliary?: { [key: string]: { value: string; type: string } };
-    }) => void;
+    logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
   }) {
@@ -154,7 +149,7 @@ export class StagehandExtractHandler {
           combinedTree,
           combinedUrlMap,
           combinedXpathMap: {} as Record<EncodedId, string>,
-          discoveredIframes: [] as undefined,
+          discoveredIframes: [],
         }))
       : getAccessibilityTree(this.stagehandPage, this.logger, targetXpath).then(
           ({ simplified, idToUrl, iframes: frameNodes }) => ({
