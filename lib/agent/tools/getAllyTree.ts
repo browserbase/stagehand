@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Page } from "../../../types/page";
 import { countTokens } from "../utils/tokens";
 
-export const createGetTextTool = (page: Page) => {
+export const createGetAccessibilityTreeTool = (page: Page) => {
   return tool({
     description: `gets the accessibility (ARIA) tree from the current page. this is useful for understanding the page structure and accessibility features. it should provide full context of what is on the page`,
     parameters: z.object({}),
