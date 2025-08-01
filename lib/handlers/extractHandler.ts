@@ -36,30 +36,33 @@ export class StagehandExtractHandler {
     this.userProvidedInstructions = userProvidedInstructions;
   }
 
-  public async extract<T extends z.AnyZodObject>({
-    instruction,
-    schema,
-    content = {},
-    llmClient,
-    requestId,
-    domSettleTimeoutMs,
-    useTextExtract,
-    selector,
-    iframes,
-  }: {
-    instruction?: string;
-    schema?: T;
+  public async extract(): Promise<{ page_text?: string }>;
+  public async extract<T extends z.AnyZodObject>(args: {
+    instruction: string;
+    schema: T;
     content?: z.infer<T>;
-    chunksSeen?: Array<number>;
-    llmClient?: LLMClient;
-    requestId?: string;
+    chunksSeen?: Array<number>; // NOTE: This is unused, seems like this should be deleted
+    llmClient: LLMClient;
+    requestId: string;
     domSettleTimeoutMs?: number;
     useTextExtract?: boolean;
     selector?: string;
     iframes?: boolean;
-  } = {}): Promise<z.infer<T>> {
-    const noArgsCalled = !instruction && !schema && !llmClient && !selector;
-    if (noArgsCalled) {
+  }): Promise<z.infer<T>>;
+
+  public async extract<T extends z.AnyZodObject>(args?: {
+    instruction: string;
+    schema: T;
+    content?: z.infer<T>;
+    chunksSeen?: Array<number>; // NOTE: This is unused, seems like this should be deleted
+    llmClient: LLMClient;
+    requestId: string;
+    domSettleTimeoutMs?: number;
+    useTextExtract?: boolean;
+    selector?: string;
+    iframes?: boolean;
+  }): Promise<z.infer<T> | { page_text?: string }> {
+    if (!args) {
       this.logger({
         category: "extraction",
         message: "Extracting the entire page text.",
@@ -67,6 +70,18 @@ export class StagehandExtractHandler {
       });
       return this.extractPageText();
     }
+
+    const {
+      instruction,
+      schema,
+      content = {},
+      llmClient,
+      requestId,
+      domSettleTimeoutMs,
+      useTextExtract,
+      selector,
+      iframes,
+    } = args;
 
     if (useTextExtract !== undefined) {
       this.logger({
@@ -117,7 +132,7 @@ export class StagehandExtractHandler {
     schema: T;
     content?: z.infer<T>;
     llmClient: LLMClient;
-    requestId?: string;
+    requestId: string;
     domSettleTimeoutMs?: number;
     selector?: string;
     iframes?: boolean;
