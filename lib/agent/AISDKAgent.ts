@@ -11,6 +11,9 @@ import {
 } from "./utils/aiSDKUtils";
 import { streamText, type LanguageModel } from "ai";
 import { AISdkClient } from "../llm/aisdk";
+import { LLMProvider } from "../llm/LLMProvider";
+import { AvailableModel } from "../../types/model";
+import { StagehandError } from "../../types/stagehandErrors";
 
 import type {
   CoreMessage,
@@ -59,19 +62,40 @@ export class AISDKAgent {
     this.page = options.page;
     this.userProvidedInstructions = options.userProvidedInstructions;
 
+    // Transform model name to provider/model format if needed
+    let modelName = options.modelName;
+    if (!modelName.includes("/")) {
+      try {
+        const provider = LLMProvider.getModelProvider(
+          modelName as AvailableModel,
+        );
+        if (provider && provider !== "aisdk") {
+          modelName = `${provider}/${modelName}`;
+          this.stagehand.log({
+            category: "agent",
+            message: `Transformed model name: ${options.modelName} → ${modelName}`,
+            level: 2,
+          });
+        }
+      } catch {
+        throw new StagehandError(
+          `Model "${modelName}" not recognized. Please use the "provider/model-id" format (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet").`,
+        );
+      }
+    }
+
     this.llmClient = this.stagehand.llmProvider.getClient(
-      options.modelName as Parameters<
-        typeof this.stagehand.llmProvider.getClient
-      >[0],
+      modelName as Parameters<typeof this.stagehand.llmProvider.getClient>[0],
       { apiKey: options.apiKey },
     );
 
     if ("languageModel" in this.llmClient && this.llmClient.type === "aisdk") {
       this.languageModel = (this.llmClient as AISdkClient).languageModel;
     } else {
-      throw new Error(
+      throw new StagehandError(
         `AISDKAgent requires an AI SDK compatible model. Model "${options.modelName}" is not supported by the AI SDK. ` +
-          `Use models in "provider/model-id" format (e.g., "openai/gpt-4", "anthropic/claude-3-5-sonnet").`,
+          `Use either a simple model name (e.g., "gpt-4o", "claude-3-5-sonnet-latest") or ` +
+          `the "provider/model-id" format (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet").`,
       );
     }
   }
