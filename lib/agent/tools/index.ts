@@ -4,7 +4,7 @@ import { Stagehand } from "../../index";
 import { thinkTool } from "./think";
 import { createScreenshotTool } from "./screenshot";
 import { createNavigateTool } from "./navigate";
-import { createGetTextTool } from "./getAllyTree";
+import { createGetAccessibilityTreeTool } from "./getAllyTree";
 import { createWaitTool } from "./wait";
 import { createActClickTool, createActTypeTool } from "./act";
 
@@ -17,7 +17,7 @@ export const createAgentTools = (page: Page, stagehand: Stagehand): ToolSet => {
     think: thinkTool,
     screenshot: createScreenshotTool(page),
     navigate: createNavigateTool(stagehand),
-    getText: createGetTextTool(page),
+    getAccessibilityTree: createGetAccessibilityTreeTool(page),
     wait: createWaitTool(),
     actClick: createActClickTool(stagehand),
     actType: createActTypeTool(stagehand),
