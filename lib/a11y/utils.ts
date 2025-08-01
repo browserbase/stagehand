@@ -206,7 +206,11 @@ export async function buildBackendIdMaps(
       xpathMap[enc] = path;
 
       // recurse into sub-document if <iframe>
-      if (lc(node.nodeName) === "iframe" && node.contentDocument) {
+      if (
+        node.nodeName &&
+        lc(node.nodeName) === "iframe" &&
+        node.contentDocument
+      ) {
         const childFid = node.contentDocument.frameId ?? fid;
         stack.push({ node: node.contentDocument, path: "", fid: childFid });
       }
@@ -263,7 +267,8 @@ async function cleanStructuralNodes(
   logger?: (l: LogLine) => void,
 ): Promise<AccessibilityNode | null> {
   // 0. ignore negative pseudo-nodes
-  if (+node.nodeId < 0) return null;
+  // NOTE: Nodes with non-numeric node.nodeId won't be ignored: Number(node.nodeId) returns NaN, and NaN < 0 is false
+  if (!node.nodeId || Number(node.nodeId) < 0) return null;
 
   // 1. leaf check
   if (!node.children?.length) {
