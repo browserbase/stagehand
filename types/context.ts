@@ -111,7 +111,7 @@ export interface FrameSnapshot {
   urlMap: Record<EncodedId, string>;
   frameXpath: string;
   backendNodeId: number | null;
-  parentFrame?: Frame;
+  parentFrame: Frame | null;
   /** CDP frame identifier for this snapshot; used to generate stable EncodedIds. */
   frameId?: string;
 }

@@ -1,12 +1,9 @@
+import { LogLine } from "../../types/log";
 import { BaseCache, CacheEntry } from "./BaseCache";
 
 export class LLMCache extends BaseCache<CacheEntry> {
   constructor(
-    logger: (message: {
-      category?: string;
-      message: string;
-      level?: number;
-    }) => void,
+    logger: (message: LogLine) => void,
     cacheDir?: string,
     cacheFile?: string,
   ) {

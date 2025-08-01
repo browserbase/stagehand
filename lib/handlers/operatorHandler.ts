@@ -30,6 +30,7 @@ export class StagehandOperatorHandler {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
+    this.messages = [];
   }
 
   public async execute(
@@ -74,7 +75,7 @@ export class StagehandOperatorHandler {
             let result: string = "";
             if (action.type === "act") {
               const args = action.playwrightArguments as ObserveResult;
-              result = `Performed a "${args.method}" action ${args.arguments.length > 0 ? `with arguments: ${args.arguments.map((arg) => `"${arg}"`).join(", ")}` : ""} on "${args.description}"`;
+              result = `Performed a "${args.method}" action ${args.arguments && args.arguments.length > 0 ? `with arguments: ${args.arguments.map((arg) => `"${arg}"`).join(", ")}` : ""} on "${args.description}"`;
             } else if (action.type === "extract") {
               result = `Extracted data: ${action.extractionResult}`;
             }

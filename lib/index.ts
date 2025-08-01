@@ -93,8 +93,8 @@ async function getBrowser(
 
     let debugUrl: string | undefined = undefined;
     let sessionUrl: string | undefined = undefined;
-    let sessionId: string;
-    let connectUrl: string;
+    let sessionId: string | undefined = undefined;
+    let connectUrl: string | undefined = undefined;
 
     const browserbase = new Browserbase({
       apiKey,
@@ -112,6 +112,12 @@ async function getBrowser(
           );
         }
 
+        if (!session.connectUrl) {
+          throw new StagehandError(
+            `Session ${browserbaseSessionID} has no connect URL`,
+          );
+        }
+
         sessionId = browserbaseSessionID;
         connectUrl = session.connectUrl;
 
@@ -126,18 +132,24 @@ async function getBrowser(
             },
           },
         });
-      } catch (error) {
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const errorStack =
+          (error instanceof Error ? error.stack : undefined) ??
+          "No stack trace available";
+
         logger({
           category: "init",
           message: "failed to resume session",
           level: 0,
           auxiliary: {
             error: {
-              value: error.message,
+              value: errorMessage,
               type: "string",
             },
             trace: {
-              value: error.stack,
+              value: errorStack,
               type: "string",
             },
           },
@@ -169,6 +181,7 @@ async function getBrowser(
 
       sessionId = session.id;
       connectUrl = session.connectUrl;
+
       logger({
         category: "init",
         message: "created new browserbase session",
@@ -181,6 +194,7 @@ async function getBrowser(
         },
       });
     }
+
     if (!connectUrl.includes("connect.connect")) {
       logger({
         category: "init",
@@ -314,7 +328,7 @@ async function getBrowser(
       context.addCookies(localBrowserLaunchOptions.cookies);
     }
     // This will always be when null launched with chromium.launchPersistentContext, but not when connected over CDP to an existing browser
-    const browser = context.browser();
+    const browser = context.browser() ?? undefined;
 
     logger({
       category: "init",
@@ -369,7 +383,7 @@ export class Stagehand {
   private stagehandContext!: StagehandContext;
   public browserbaseSessionID?: string;
   public readonly domSettleTimeoutMs: number;
-  public readonly debugDom: boolean;
+  public readonly debugDom: boolean = false; // NOTE: This field was deprecated and isn't in the constructor params, should be deleted
   public readonly headless: boolean;
   public verbose: 0 | 1 | 2;
   public llmProvider: LLMProvider;
@@ -378,7 +392,7 @@ export class Stagehand {
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
   private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
-  public variables: { [key: string]: unknown };
+  public variables: { [key: string]: unknown } = {}; // NOTE: This field is never referenced, should be deleted
   private contextPath?: string;
   public llmClient: LLMClient;
   public readonly userProvidedInstructions?: string;
@@ -389,10 +403,10 @@ export class Stagehand {
   private localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
   public readonly selfHeal: boolean;
   private cleanupCalled = false;
-  public readonly actTimeoutMs: number;
+  public readonly actTimeoutMs: number = 30_000; // NOTE: This field is never used for anything but isn't deprecated, should this be deleted?
   public readonly logInferenceToFile?: boolean;
   private stagehandLogger: StagehandLogger;
-  private disablePino: boolean;
+  private disablePino: boolean; // NOTE: This field is never directly read from, should this be deleted?
   private modelClientOptions: ClientOptions;
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
@@ -531,7 +545,7 @@ export class Stagehand {
       waitForCaptchaSolves = false,
       logInferenceToFile = false,
       selfHeal = false,
-      disablePino,
+      disablePino = false,
       experimental = false,
     }: ConstructorParams = {
       env: "BROWSERBASE",
@@ -550,9 +564,7 @@ export class Stagehand {
       this.externalLogger,
     );
 
-    this.enableCaching =
-      enableCaching ??
-      (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
+    this.enableCaching = enableCaching ?? process.env.ENABLE_CACHING === "true";
 
     this.llmProvider =
       llmProvider || new LLMProvider(this.logger, this.enableCaching);
@@ -581,7 +593,7 @@ export class Stagehand {
     this.stagehandLogger.setVerbosity(this.verbose);
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
 
-    let modelApiKey: string | undefined;
+    let modelApiKey: string | undefined = undefined;
 
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
@@ -592,17 +604,29 @@ export class Stagehand {
         );
       } else {
         // Temporary add for legacy providers
-        modelApiKey =
-          LLMProvider.getModelProvider(this.modelName) === "openai"
-            ? process.env.OPENAI_API_KEY ||
-              this.llmClient?.clientOptions?.apiKey
-            : LLMProvider.getModelProvider(this.modelName) === "anthropic"
-              ? process.env.ANTHROPIC_API_KEY ||
-                this.llmClient?.clientOptions?.apiKey
-              : LLMProvider.getModelProvider(this.modelName) === "google"
-                ? process.env.GOOGLE_API_KEY ||
-                  this.llmClient?.clientOptions?.apiKey
-                : undefined;
+        const modelProvider = LLMProvider.getModelProvider(this.modelName);
+        switch (modelProvider) {
+          case "openai":
+            modelApiKey =
+              process.env.OPENAI_API_KEY ??
+              modelClientOptions?.apiKey ??
+              undefined;
+            break;
+          case "anthropic":
+            modelApiKey =
+              process.env.ANTHROPIC_API_KEY ??
+              modelClientOptions?.apiKey ??
+              undefined;
+            break;
+          case "google":
+            modelApiKey =
+              process.env.GOOGLE_API_KEY ??
+              modelClientOptions?.apiKey ??
+              undefined;
+            break;
+          default:
+            modelApiKey = undefined;
+        }
       }
       this.modelClientOptions = {
         ...modelClientOptions,
@@ -628,13 +652,20 @@ export class Stagehand {
           this.modelClientOptions,
         );
       } catch (error) {
+        // NOTE: I added the code to log and rethrow the error if it's not one of these instances,
+        // but I don't understand why we would try to proceed from failing to initialize the LLM
+        // client ever. Assuming we shouldn't, it makes more sense to remove the if statement or
+        // remove the try/catch completely.
         if (
           error instanceof UnsupportedAISDKModelProviderError ||
           error instanceof InvalidAISDKModelFormatError
         ) {
           throw error;
         }
-        this.llmClient = undefined;
+        console.error(
+          `Unexpected error while initializing LLM client: ${error}`,
+        );
+        throw error;
       }
     }
 
@@ -749,6 +780,13 @@ export class Stagehand {
     }
 
     if (this.usingAPI) {
+      // NOTE: This should theoretically never trigger because of the constructor, but this is safe
+      if (!this.apiKey || !this.projectId) {
+        throw new StagehandInitError(
+          "API mode requires both apiKey and projectId to be defined",
+        );
+      }
+
       this.apiClient = new StagehandAPI({
         apiKey: this.apiKey,
         projectId: this.projectId,
@@ -756,6 +794,11 @@ export class Stagehand {
       });
 
       const modelApiKey = this.modelClientOptions?.apiKey;
+      if (!modelApiKey) {
+        throw new StagehandInitError(
+          `API mode requires a model API key for ${this.modelName} to be defined`,
+        );
+      }
       const { sessionId, available } = await this.apiClient.init({
         modelName: this.modelName,
         modelApiKey: modelApiKey,
@@ -770,7 +813,7 @@ export class Stagehand {
         browserbaseSessionID: this.browserbaseSessionID,
       });
       if (!available) {
-        this.apiClient = null;
+        this.apiClient = undefined;
       }
       this.browserbaseSessionID = sessionId;
     }
@@ -863,7 +906,7 @@ export class Stagehand {
           throw new StagehandError((body as ErrorResponse).message);
         }
       }
-      this.apiClient = null;
+      this.apiClient = undefined;
       return;
     } else {
       await this.context.close();
@@ -911,7 +954,8 @@ export class Stagehand {
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
-    if (!options || !options.provider) {
+    // NOTE: If AgentConfig matched the docs, we would only need to check !options (see AgentConfig definition)
+    if (!options || !options.provider || !options.model) {
       // use open operator agent
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {

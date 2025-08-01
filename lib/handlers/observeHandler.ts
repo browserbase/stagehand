@@ -1,5 +1,5 @@
 import { LogLine } from "../../types/log";
-import { Stagehand, StagehandFunctionName } from "../index";
+import { ObserveResult, Stagehand, StagehandFunctionName } from "../index";
 import { observe } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
@@ -55,7 +55,7 @@ export class StagehandObserveHandler {
     drawOverlay?: boolean;
     fromAct?: boolean;
     iframes?: boolean;
-  }) {
+  }): Promise<ObserveResult[]> {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
     }
@@ -131,7 +131,7 @@ export class StagehandObserveHandler {
     );
 
     //Add iframes to the observation response if there are any on the page
-    if (discoveredIframes.length > 0) {
+    if (discoveredIframes && discoveredIframes.length > 0) {
       this.logger({
         category: "observation",
         message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
@@ -151,67 +151,67 @@ export class StagehandObserveHandler {
       });
     }
 
-    const elementsWithSelectors = (
-      await Promise.all(
-        observationResponse.elements.map(async (element) => {
-          const { elementId, ...rest } = element;
+    // NOTE: Not sure why this was a Promise.all? Feel free to keep if you want the parallelization,
+    //       but I think it's unnecessary and can be removed
+    const elementsWithSelectors: ObserveResult[] = observationResponse.elements
+      .map((element) => {
+        const { elementId, ...rest } = element;
 
-          // Generate xpath for the given element if not found in selectorMap
-          this.logger({
-            category: "observation",
-            message: "Getting xpath for element",
-            level: 1,
-            auxiliary: {
-              elementId: {
-                value: elementId.toString(),
-                type: "string",
-              },
+        // Generate xpath for the given element if not found in selectorMap
+        this.logger({
+          category: "observation",
+          message: "Getting xpath for element",
+          level: 1,
+          auxiliary: {
+            elementId: {
+              value: elementId.toString(),
+              type: "string",
             },
-          });
+          },
+        });
 
-          if (elementId.includes("-")) {
-            const lookUpIndex = elementId as EncodedId;
-            const xpath: string | undefined = combinedXpathMap[lookUpIndex];
+        if (elementId.includes("-")) {
+          const lookUpIndex = elementId as EncodedId;
+          const xpath: string | undefined = combinedXpathMap[lookUpIndex];
 
-            const trimmedXpath = trimTrailingTextNode(xpath);
+          const trimmedXpath = trimTrailingTextNode(xpath);
 
-            if (!trimmedXpath || trimmedXpath === "") {
-              this.logger({
-                category: "observation",
-                message: `Empty xpath returned for element`,
-                auxiliary: {
-                  observeResult: {
-                    value: JSON.stringify(element),
-                    type: "object",
-                  },
-                },
-                level: 1,
-              });
-              return undefined;
-            }
-
-            return {
-              ...rest,
-              selector: `xpath=${trimmedXpath}`,
-              // Provisioning or future use if we want to use direct CDP
-              // backendNodeId: elementId,
-            };
-          } else {
+          if (!trimmedXpath || trimmedXpath === "") {
             this.logger({
               category: "observation",
-              message: `Element is inside a shadow DOM: ${elementId}`,
-              level: 0,
+              message: `Empty xpath returned for element`,
+              auxiliary: {
+                observeResult: {
+                  value: JSON.stringify(element),
+                  type: "object",
+                },
+              },
+              level: 1,
             });
-            return {
-              description: "an element inside a shadow DOM",
-              method: "not-supported",
-              arguments: [] as string[],
-              selector: "not-supported",
-            };
+            return undefined;
           }
-        }),
-      )
-    ).filter(<T>(e: T | undefined): e is T => e !== undefined);
+
+          return {
+            ...rest,
+            selector: `xpath=${trimmedXpath}`,
+            // Provisioning or future use if we want to use direct CDP
+            // backendNodeId: elementId,
+          };
+        } else {
+          this.logger({
+            category: "observation",
+            message: `Element is inside a shadow DOM: ${elementId}`,
+            level: 0,
+          });
+          return {
+            description: "an element inside a shadow DOM",
+            method: "not-supported",
+            arguments: [] as string[],
+            selector: "not-supported",
+          };
+        }
+      })
+      .filter(<T>(e: T | undefined): e is T => e !== undefined);
 
     this.logger({
       category: "observation",
