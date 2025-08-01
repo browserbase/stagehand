@@ -67,8 +67,9 @@ export class StagehandAPI {
     const region = browserbaseSessionCreateParams?.region;
     // NOTE: Looks like there was some discussion here -- I personally agree that this should throw
     //       Thread: https://github.com/browserbase/stagehand/pull/801#discussion_r2138856174
+    //       I'm changing the fallback value to "" to make TS happy for now, but this probably shouldn't be the case
     if (region && region !== "us-west-2") {
-      return { sessionId: browserbaseSessionID ?? null, available: false };
+      return { sessionId: browserbaseSessionID ?? "", available: false };
     }
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
@@ -201,8 +202,9 @@ export class StagehandAPI {
     while (true) {
       const { value, done } = await reader.read();
 
+      // NOTE: This is a tempfix to make TS happy, but needing this is a code smell
       if (done && !buffer) {
-        return null;
+        return null as T;
       }
 
       buffer += decoder.decode(value, { stream: true });
@@ -235,6 +237,9 @@ export class StagehandAPI {
 
       if (done) break;
     }
+
+    // NOTE: This is a tempfix to make TS happy, but needing this is a code smell
+    return null as T;
   }
 
   private async request(
