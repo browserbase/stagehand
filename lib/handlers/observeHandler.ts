@@ -151,67 +151,67 @@ export class StagehandObserveHandler {
       });
     }
 
-    const elementsWithSelectors: ObserveResult[] = (
-      await Promise.all(
-        observationResponse.elements.map(async (element) => {
-          const { elementId, ...rest } = element;
+    // NOTE: Not sure why this was a Promise.all? Feel free to keep if you want the parallelization,
+    //       but I think it's unnecessary and can be removed
+    const elementsWithSelectors: ObserveResult[] = observationResponse.elements
+      .map((element) => {
+        const { elementId, ...rest } = element;
 
-          // Generate xpath for the given element if not found in selectorMap
-          this.logger({
-            category: "observation",
-            message: "Getting xpath for element",
-            level: 1,
-            auxiliary: {
-              elementId: {
-                value: elementId.toString(),
-                type: "string",
-              },
+        // Generate xpath for the given element if not found in selectorMap
+        this.logger({
+          category: "observation",
+          message: "Getting xpath for element",
+          level: 1,
+          auxiliary: {
+            elementId: {
+              value: elementId.toString(),
+              type: "string",
             },
-          });
+          },
+        });
 
-          if (elementId.includes("-")) {
-            const lookUpIndex = elementId as EncodedId;
-            const xpath: string | undefined = combinedXpathMap[lookUpIndex];
+        if (elementId.includes("-")) {
+          const lookUpIndex = elementId as EncodedId;
+          const xpath: string | undefined = combinedXpathMap[lookUpIndex];
 
-            const trimmedXpath = trimTrailingTextNode(xpath);
+          const trimmedXpath = trimTrailingTextNode(xpath);
 
-            if (!trimmedXpath || trimmedXpath === "") {
-              this.logger({
-                category: "observation",
-                message: `Empty xpath returned for element`,
-                auxiliary: {
-                  observeResult: {
-                    value: JSON.stringify(element),
-                    type: "object",
-                  },
-                },
-                level: 1,
-              });
-              return undefined;
-            }
-
-            return {
-              ...rest,
-              selector: `xpath=${trimmedXpath}`,
-              // Provisioning or future use if we want to use direct CDP
-              // backendNodeId: elementId,
-            };
-          } else {
+          if (!trimmedXpath || trimmedXpath === "") {
             this.logger({
               category: "observation",
-              message: `Element is inside a shadow DOM: ${elementId}`,
-              level: 0,
+              message: `Empty xpath returned for element`,
+              auxiliary: {
+                observeResult: {
+                  value: JSON.stringify(element),
+                  type: "object",
+                },
+              },
+              level: 1,
             });
-            return {
-              description: "an element inside a shadow DOM",
-              method: "not-supported",
-              arguments: [] as string[],
-              selector: "not-supported",
-            };
+            return undefined;
           }
-        }),
-      )
-    ).filter(<T>(e: T | undefined): e is T => e !== undefined);
+
+          return {
+            ...rest,
+            selector: `xpath=${trimmedXpath}`,
+            // Provisioning or future use if we want to use direct CDP
+            // backendNodeId: elementId,
+          };
+        } else {
+          this.logger({
+            category: "observation",
+            message: `Element is inside a shadow DOM: ${elementId}`,
+            level: 0,
+          });
+          return {
+            description: "an element inside a shadow DOM",
+            method: "not-supported",
+            arguments: [] as string[],
+            selector: "not-supported",
+          };
+        }
+      })
+      .filter(<T>(e: T | undefined): e is T => e !== undefined);
 
     this.logger({
       category: "observation",
