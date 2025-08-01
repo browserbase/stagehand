@@ -587,11 +587,10 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        if (this.modelName.includes("/")) {
-          const firstSlashIndex = this.modelName.indexOf("/");
-          const provider = this.modelName.substring(0, firstSlashIndex);
-          modelApiKey = loadApiKeyFromEnv(provider, this.logger);
-        }
+        modelApiKey = loadApiKeyFromEnv(
+          this.modelName.split("/")[0],
+          this.logger,
+        );
       } else {
         // Temporary add for legacy providers
         modelApiKey =
