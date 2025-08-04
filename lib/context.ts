@@ -3,6 +3,8 @@ import { LogLine } from "@/types/log";
 import { z } from "zod";
 import { StagehandPage } from "./StagehandPage";
 import { AccessibilityNode } from "../types/context";
+import { injectUrls } from "./utils";
+import { transformUrlStringsToNumericIds } from "./handlers/extractHandler";
 import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
@@ -81,6 +83,7 @@ export class ContextManager {
     contextMessage: ChatMessage;
     allMessages: ChatMessage[];
     optimizedElements?: string;
+    urlMapping?: Record<string, string>;
   }> {
     this.logger({
       category: "context",
@@ -90,6 +93,7 @@ export class ContextManager {
 
     const contentParts: (ChatMessageTextContent | ChatMessageImageContent)[] =
       [];
+    let combinedUrlMap: Record<string, string> | undefined = undefined;
 
     if (takeScreenshot) {
       const screenshot = await this.stagehandPage.page.screenshot();
@@ -111,19 +115,24 @@ export class ContextManager {
     }
 
     if (includeAccessibilityTree) {
-      const { combinedTree, discoveredIframes } = await (iframes
+      const result = await (iframes
         ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
-            ({ combinedTree }) => ({
+            ({ combinedTree, combinedUrlMap }) => ({
               combinedTree,
               discoveredIframes: [] as AccessibilityNode[],
+              combinedUrlMap,
             }),
           )
         : getAccessibilityTree(this.stagehandPage, this.logger).then(
-            ({ simplified, iframes: frameNodes }) => ({
+            ({ simplified, iframes: frameNodes, idToUrl }) => ({
               combinedTree: simplified,
               discoveredIframes: frameNodes,
+              combinedUrlMap: idToUrl,
             }),
           ));
+
+      const { combinedTree, discoveredIframes } = result;
+      combinedUrlMap = result.combinedUrlMap;
 
       if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
         this.logger({
@@ -189,6 +198,7 @@ export class ContextManager {
         ? [...this.messages]
         : [...this.messages, contextMessage],
       optimizedElements: domElements,
+      urlMapping: includeAccessibilityTree ? combinedUrlMap : undefined,
     };
   }
 
@@ -233,6 +243,10 @@ export class ContextManager {
       message: "Performing extraction with ContextManager",
       level: 1,
     });
+
+    // Transform user defined schema to replace string().url() with .number() (same as extractHandler)
+    const [transformedSchema, urlFieldPaths] =
+      transformUrlStringsToNumericIds(schema);
 
     const metadataSchema = z.object({
       progress: z
@@ -301,7 +315,7 @@ ONLY print the content using the print_extracted_data tool provided.`
         options: {
           messages: extractCallMessages,
           response_model: {
-            schema,
+            schema: transformedSchema,
             name: "Extraction",
           },
           temperature: 0.1,
@@ -316,6 +330,21 @@ ONLY print the content using the print_extracted_data tool provided.`
 
     const { data: extractedData, usage: extractUsage } =
       extractionResponse as LLMParsedResponse<ExtractionResponse>;
+
+    // Get URL mapping from buildContext if available
+    let urlMapping: Record<string, string> | undefined = undefined;
+    if (urlFieldPaths.length > 0) {
+      // Build context to get URL mapping
+      const contextData = await this.buildContext({
+        method: "extract",
+        instruction,
+        takeScreenshot: false,
+        includeAccessibilityTree: true, // Need this to get URL mapping
+        domElements,
+        appendToHistory: false,
+      });
+      urlMapping = contextData.urlMapping;
+    }
 
     // Build metadata system message
     const metadataSystemContent = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
@@ -369,6 +398,13 @@ chunksTotal: ${chunksTotal}`,
       (metadataUsage?.completion_tokens ?? 0);
     const totalInferenceTimeMs =
       extractEndTime - extractStartTime + (metadataEndTime - metadataStartTime);
+
+    // Revert to original schema and populate with URLs (same as extractHandler)
+    if (urlMapping && urlFieldPaths.length > 0) {
+      for (const { segments } of urlFieldPaths) {
+        injectUrls(extractedData, segments, urlMapping);
+      }
+    }
 
     return {
       data: extractedData,
