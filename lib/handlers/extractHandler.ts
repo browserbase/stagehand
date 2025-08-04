@@ -2,15 +2,11 @@ import { z, ZodTypeAny } from "zod";
 import { LogLine } from "../../types/log";
 import { ZodPathSegments } from "../../types/stagehand";
 import { LLMClient } from "../llm/LLMClient";
-import { injectUrls, transformSchema } from "../utils";
+import { transformSchema } from "../utils";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand, StagehandFunctionName } from "../index";
 import { pageTextSchema } from "../../types/page";
-import {
-  getAccessibilityTree,
-  getAccessibilityTreeWithFrames,
-} from "@/lib/a11y/utils";
-import { EncodedId } from "@/types/context";
+// Removed direct accessibility tree imports - now handled by ContextManager
 import { ContextManager } from "../context";
 
 export class StagehandExtractHandler {
@@ -51,9 +47,9 @@ export class StagehandExtractHandler {
     content = {},
     llmClient,
     requestId,
-    domSettleTimeoutMs,
+    domSettleTimeoutMs: _domSettleTimeoutMs, // eslint-disable-line @typescript-eslint/no-unused-vars
     useTextExtract,
-    selector,
+    selector: _selector,
     iframes,
   }: {
     instruction?: string;
@@ -67,7 +63,7 @@ export class StagehandExtractHandler {
     selector?: string;
     iframes?: boolean;
   } = {}): Promise<z.infer<T>> {
-    const noArgsCalled = !instruction && !schema && !llmClient && !selector;
+    const noArgsCalled = !instruction && !schema && !llmClient && !_selector;
     if (noArgsCalled) {
       this.logger({
         category: "extraction",
@@ -90,23 +86,21 @@ export class StagehandExtractHandler {
       schema,
       content,
       requestId,
-      domSettleTimeoutMs,
-      selector,
       iframes,
     });
   }
 
-  private async extractPageText(
-    domSettleTimeoutMs?: number,
-  ): Promise<{ page_text?: string }> {
-    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
-    this.logger({
-      category: "extraction",
-      message: "Getting accessibility tree data",
-      level: 1,
+  private async extractPageText(): Promise<{ page_text?: string }> {
+    // Use ContextManager to get accessibility tree
+    const contextData = await this.contextManager.buildContext({
+      method: "extract",
+      instruction: "extract page text",
+      takeScreenshot: false,
+      includeAccessibilityTree: true,
+      appendToHistory: false,
     });
-    const outputString = tree.simplified;
+
+    const outputString = contextData.optimizedElements;
 
     const result = { page_text: outputString };
     return pageTextSchema.parse(result);
@@ -116,16 +110,12 @@ export class StagehandExtractHandler {
     instruction,
     schema,
     requestId,
-    domSettleTimeoutMs,
-    selector,
     iframes,
   }: {
     instruction: string;
     schema: T;
     content?: z.infer<T>;
     requestId?: string;
-    domSettleTimeoutMs?: number;
-    selector?: string;
     iframes?: boolean;
   }): Promise<z.infer<T>> {
     this.logger({
@@ -140,49 +130,22 @@ export class StagehandExtractHandler {
       },
     });
 
-    await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    const targetXpath = selector?.replace(/^xpath=/, "") ?? "";
-    const {
-      combinedTree: outputString,
-      combinedUrlMap: idToUrlMapping,
-      discoveredIframes,
-    } = await (iframes
-      ? getAccessibilityTreeWithFrames(
-          this.stagehandPage,
-          this.logger,
-          targetXpath,
-        ).then(({ combinedTree, combinedUrlMap }) => ({
-          combinedTree,
-          combinedUrlMap,
-          combinedXpathMap: {} as Record<EncodedId, string>,
-          discoveredIframes: [] as undefined,
-        }))
-      : getAccessibilityTree(this.stagehandPage, this.logger, targetXpath).then(
-          ({ simplified, idToUrl, iframes: frameNodes }) => ({
-            combinedTree: simplified,
-            combinedUrlMap: idToUrl as Record<EncodedId, string>,
-            combinedXpathMap: {} as Record<EncodedId, string>,
-            discoveredIframes: frameNodes,
-          }),
-        ));
-
-    this.logger({
-      category: "extraction",
-      message: "Got accessibility tree data",
-      level: 1,
+    // Use ContextManager to get accessibility tree with all the proper handling
+    const contextData = await this.contextManager.buildContext({
+      method: "extract",
+      instruction,
+      takeScreenshot: false,
+      includeAccessibilityTree: true,
+      appendToHistory: false,
+      iframes,
     });
 
-    if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
-      this.logger({
-        category: "extraction",
-        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
-        level: 1,
-      });
-    }
+    const outputString = contextData.optimizedElements;
+    // Note: idToUrlMapping will be handled internally by ContextManager during performExtract
 
     // Transform user defined schema to replace string().url() with .number()
-    const [transformedSchema, urlFieldPaths] =
-      transformUrlStringsToNumericIds(schema);
+    // Note: URL field transformation is now handled internally by ContextManager
+    const [transformedSchema] = transformUrlStringsToNumericIds(schema);
 
     // Optimize DOM elements using ContextManager if available
     let optimizedDomElements = outputString;
@@ -277,10 +240,7 @@ export class StagehandExtractHandler {
       });
     }
 
-    // revert to original schema and populate with URLs
-    for (const { segments } of urlFieldPaths) {
-      injectUrls(output, segments, idToUrlMapping);
-    }
+    // URL mapping is now handled internally by ContextManager during performExtract
 
     return output as z.infer<T>;
   }

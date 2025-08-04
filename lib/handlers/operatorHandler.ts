@@ -8,7 +8,7 @@ import {
 } from "@/types/operator";
 import { LLMParsedResponse } from "../context";
 import { ChatMessage, LLMClient } from "../llm/LLMClient";
-import { buildOperatorSystemPrompt } from "../prompt";
+// Removed dependency on prompt.ts - using inline prompt building
 import { StagehandPage } from "../StagehandPage";
 import { ObserveResult } from "@/types/stagehand";
 import {
@@ -40,7 +40,19 @@ export class StagehandOperatorHandler {
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
-    this.messages = [buildOperatorSystemPrompt(options.instruction)];
+    this.messages = [
+      {
+        role: "system",
+        content: `You are an intelligent browser automation assistant that helps users interact with web pages.
+
+Your task: ${options.instruction}
+
+You can observe elements on the page, take actions like clicking and typing, and extract information. 
+Work systematically towards completing the user's request.
+
+Always provide clear reasoning for your actions and indicate when the task has been completed.`,
+      },
+    ];
     let completed = false;
     let currentStep = 0;
     const maxSteps = options.maxSteps || 10;

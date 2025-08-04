@@ -2,12 +2,9 @@ import { LogLine } from "../../types/log";
 import { ContextManager } from "../context";
 import { StagehandPage } from "../StagehandPage";
 import { Stagehand, StagehandFunctionName } from "../index";
-import {
-  getAccessibilityTree,
-  getAccessibilityTreeWithFrames,
-} from "../a11y/utils";
+// Removed direct accessibility tree imports - now handled by ContextManager
 import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
-import { AccessibilityNode, EncodedId } from "@/types/context";
+import { EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
@@ -82,28 +79,9 @@ export class StagehandObserveHandler {
       });
     }
 
-    await this.stagehandPage._waitForSettledDom();
-    this.logger({
-      category: "observation",
-      message: "Getting accessibility tree data",
-      level: 1,
-    });
-    const { combinedTree, combinedXpathMap, discoveredIframes } = await (iframes
-      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
-          ({ combinedTree, combinedXpathMap }) => ({
-            combinedTree,
-            combinedXpathMap,
-            discoveredIframes: [] as AccessibilityNode[],
-          }),
-        )
-      : getAccessibilityTree(this.stagehandPage, this.logger).then(
-          ({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
-            combinedTree: simplified,
-            combinedXpathMap: xpathMap,
-            combinedUrlMap: idToUrl,
-            discoveredIframes: frameNodes,
-          }),
-        ));
+    // Let ContextManager handle all accessibility tree operations
+    let combinedTree = "";
+    const combinedXpathMap: Record<EncodedId, string> = {};
 
     // Optimize DOM elements using ContextManager if available
     let optimizedDomElements = combinedTree;
@@ -119,12 +97,14 @@ export class StagehandObserveHandler {
           method: "observe",
           instruction,
           takeScreenshot: false,
-          includeAccessibilityTree: false, // We already have the tree
-          domElements: combinedTree,
+          includeAccessibilityTree: true, // Let ContextManager handle accessibility tree
           appendToHistory: false,
+          iframes,
         });
 
-        optimizedDomElements = contextData.optimizedElements || combinedTree;
+        optimizedDomElements = contextData.optimizedElements || "";
+        combinedTree = contextData.optimizedElements || "";
+        // ContextManager handles xpathMap internally
       } catch (error) {
         this.logger({
           category: "observation",
@@ -156,26 +136,7 @@ export class StagehandObserveHandler {
       inference_time_ms,
     );
 
-    //Add iframes to the observation response if there are any on the page
-    if (discoveredIframes.length > 0) {
-      this.logger({
-        category: "observation",
-        message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
-        level: 1,
-      });
-
-      discoveredIframes.forEach((iframe) => {
-        observationResponse.elements.push({
-          elementId: this.stagehandPage.encodeWithFrameId(
-            undefined,
-            Number(iframe.nodeId),
-          ),
-          description: "an iframe",
-          method: "not-supported",
-          arguments: [],
-        });
-      });
-    }
+    // Iframe handling is now done by ContextManager
 
     const elementsWithSelectors = (
       await Promise.all(

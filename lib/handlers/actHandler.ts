@@ -12,7 +12,7 @@ import {
   ObserveOptions,
 } from "@/types/stagehand";
 import { MethodHandlerContext, SupportedPlaywrightAction } from "@/types/act";
-import { buildActObservePrompt } from "../prompt";
+// Removed dependency on prompt.ts - using inline prompt building
 import {
   methodHandlerMap,
   fallbackLocatorMethod,
@@ -151,11 +151,13 @@ export class StagehandActHandler {
           : method
             ? `${method} ${observe.description}`
             : observe.description;
-        const instruction = buildActObservePrompt(
-          actCommand,
-          Object.values(SupportedPlaywrightAction),
-          {},
-        );
+        const instruction = `You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
+
+The user wants to: ${actCommand}
+
+Available actions: ${Object.values(SupportedPlaywrightAction).join(", ")}
+
+Find the relevant elements on the page that can be used to complete this task.`;
         const observeResults = await this.stagehandPage.observe({
           instruction,
         });
@@ -245,11 +247,15 @@ export class StagehandActHandler {
     // we did this so that we can cleanly call a Promise.race, and race
     // doObserveAndAct against the user defined timeoutMs (if one was defined)
     const doObserveAndAct = async (): Promise<ActResult> => {
-      const instruction = buildActObservePrompt(
-        action,
-        Object.values(SupportedPlaywrightAction),
-        actionOrOptions.variables,
-      );
+      const instruction = `You are helping the user automate the browser by finding elements based on what the user wants to observe in the page.
+
+The user wants to: ${action}
+
+Available actions: ${Object.values(SupportedPlaywrightAction).join(", ")}
+
+${actionOrOptions.variables ? `Additional context: ${JSON.stringify(actionOrOptions.variables)}` : ""}
+
+Find the relevant elements on the page that can be used to complete this task.`;
 
       const observeResults = await observeHandler.observe({
         instruction,

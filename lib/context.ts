@@ -94,6 +94,7 @@ export class ContextManager {
     const contentParts: (ChatMessageTextContent | ChatMessageImageContent)[] =
       [];
     let combinedUrlMap: Record<string, string> | undefined = undefined;
+    let accessibilityTreeContent: string | undefined = undefined;
 
     if (takeScreenshot) {
       const screenshot = await this.stagehandPage.page.screenshot();
@@ -133,6 +134,7 @@ export class ContextManager {
 
       const { combinedTree, discoveredIframes } = result;
       combinedUrlMap = result.combinedUrlMap;
+      accessibilityTreeContent = combinedTree;
 
       if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
         this.logger({
@@ -197,7 +199,7 @@ export class ContextManager {
       allMessages: appendToHistory
         ? [...this.messages]
         : [...this.messages, contextMessage],
-      optimizedElements: domElements,
+      optimizedElements: accessibilityTreeContent || domElements,
       urlMapping: includeAccessibilityTree ? combinedUrlMap : undefined,
     };
   }
