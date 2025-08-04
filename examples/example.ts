@@ -14,13 +14,19 @@ async function example(stagehand: Stagehand) {
    */
   const page = stagehand.page;
   await page.goto("https://aigrant.com/");
-  await page.extract({
+  const result = await page.extract({
     instruction: "extract the names and titles of the advisors and speakers",
     schema: z.object({
-      name: z.string(),
-      title: z.string(),
+      people: z.array(
+        z.object({
+          name: z.string(),
+          title: z.string(),
+        }),
+      ),
     }),
   });
+
+  console.log(result);
 }
 
 (async () => {
@@ -28,6 +34,7 @@ async function example(stagehand: Stagehand) {
     ...StagehandConfig,
     env: "LOCAL",
     useAPI: false,
+    verbose: 0,
   });
   await stagehand.init();
   await example(stagehand);

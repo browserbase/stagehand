@@ -123,25 +123,6 @@ export class OpenAIClient extends LLMClient {
 
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
 
-    logger({
-      category: "openai",
-      message: "creating chat completion",
-      level: 2,
-      auxiliary: {
-        options: {
-          value: JSON.stringify({
-            ...optionsWithoutImageAndRequestId,
-            requestId,
-          }),
-          type: "object",
-        },
-        modelName: {
-          value: this.modelName,
-          type: "string",
-        },
-      },
-    });
-
     const cacheOptions = {
       model: this.modelName,
       messages: options.messages,
@@ -265,6 +246,14 @@ export class OpenAIClient extends LLMClient {
         openAiOptions: {
           value: JSON.stringify(openAiOptions),
           type: "object",
+        },
+        modelName: {
+          value: this.modelName,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
+          type: "string",
         },
       },
     });

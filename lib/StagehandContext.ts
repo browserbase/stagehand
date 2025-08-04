@@ -73,6 +73,12 @@ export class StagehandContext {
       this.stagehand.apiClient,
       this.stagehand.waitForCaptchaSolves,
     ).init();
+
+    // Initialize handlers if contextManager is available
+    if (this.stagehand.contextManager) {
+      stagehandPage.initializeHandlers(this.stagehand.userProvidedInstructions);
+    }
+
     this.pageMap.set(page, stagehandPage);
     return stagehandPage;
   }

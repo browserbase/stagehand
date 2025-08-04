@@ -114,6 +114,13 @@ export class StagehandPage {
     this.userProvidedInstructions = userProvidedInstructions;
     this.waitForCaptchaSolves = waitForCaptchaSolves ?? false;
 
+    // Don't initialize handlers here - they will be initialized after contextManager is available
+  }
+
+  /**
+   * Initialize handlers after contextManager is available
+   */
+  public initializeHandlers(userProvidedInstructions?: string): void {
     if (this.llmClient) {
       this.actHandler = new StagehandActHandler({
         logger: this.stagehand.logger,
@@ -388,6 +395,14 @@ ${scriptContent} \
                   );
 
                   await newStagehandPage.init();
+
+                  // Initialize handlers if contextManager is available
+                  if (stagehand.contextManager) {
+                    newStagehandPage.initializeHandlers(
+                      stagehand.userProvidedInstructions,
+                    );
+                  }
+
                   listener(newStagehandPage.page);
                 });
               }

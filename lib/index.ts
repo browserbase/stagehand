@@ -826,6 +826,9 @@ export class Stagehand {
       llmClient: this.llmClient,
     });
 
+    // Initialize handlers now that contextManager is available
+    this.stagehandPage.initializeHandlers(this.userProvidedInstructions);
+
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });
     }
