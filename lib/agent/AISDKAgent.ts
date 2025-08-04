@@ -77,11 +77,6 @@ export class AISDKAgent {
         );
         if (provider && provider !== "aisdk") {
           modelName = `${provider}/${modelName}`;
-          this.stagehand.log({
-            category: "agent",
-            message: `Transformed model name: ${options.modelName} → ${modelName}`,
-            level: 2,
-          });
         }
       } catch {
         throw new StagehandError(
