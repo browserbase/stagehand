@@ -46,6 +46,7 @@ import {
 } from "../types/stagehandErrors";
 import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
+import { ContextManager } from "./context";
 
 dotenv.config({ path: ".env" });
 
@@ -400,6 +401,7 @@ export class Stagehand {
   private _history: Array<HistoryEntry> = [];
   public readonly experimental: boolean;
   private _livePageProxy?: Page;
+  private _contextManager!: ContextManager;
 
   private createLivePageProxy<T extends Page>(): T {
     const proto = Object.getPrototypeOf(this.stagehandPage.page) as object;
@@ -464,6 +466,10 @@ export class Stagehand {
 
   public get isClosed(): boolean {
     return this._isClosed;
+  }
+
+  public get contextManager(): ContextManager {
+    return this._contextManager;
   }
 
   public updateMetrics(
@@ -812,6 +818,13 @@ export class Stagehand {
 
     const defaultPage = (await this.stagehandContext.getStagehandPages())[0];
     this.stagehandPage = defaultPage;
+
+    // Initialize ContextManager (always enabled)
+    this._contextManager = new ContextManager({
+      logger: this.logger,
+      page: this.stagehandPage,
+      llmClient: this.llmClient,
+    });
 
     if (this.headless) {
       await this.page.setViewportSize({ width: 1280, height: 720 });

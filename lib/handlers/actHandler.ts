@@ -4,7 +4,6 @@ import {
   PlaywrightCommandException,
   PlaywrightCommandMethodNotSupportedException,
 } from "../../types/playwright";
-import { LLMClient } from "../llm/LLMClient";
 import { StagehandPage } from "../StagehandPage";
 import {
   ActResult,
@@ -21,6 +20,7 @@ import {
 } from "./handlerUtils/actHandlerUtils";
 import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
 import { StagehandInvalidArgumentError } from "@/types/stagehandErrors";
+import { ContextManager } from "../context";
 /**
  * NOTE: Vision support has been removed from this version of Stagehand.
  * If useVision or verifierUseVision is set to true, a warning is logged and
@@ -30,19 +30,23 @@ export class StagehandActHandler {
   private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
   private readonly selfHeal: boolean;
+  private readonly contextManager: ContextManager;
 
   constructor({
     logger,
     stagehandPage,
     selfHeal,
+    contextManager,
   }: {
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     selfHeal: boolean;
+    contextManager: ContextManager;
   }) {
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.selfHeal = selfHeal;
+    this.contextManager = contextManager;
   }
 
   /**
@@ -202,7 +206,6 @@ export class StagehandActHandler {
   public async observeAct(
     actionOrOptions: ActOptions,
     observeHandler: StagehandObserveHandler,
-    llmClient: LLMClient,
     requestId: string,
   ): Promise<ActResult> {
     // Extract the action string
@@ -250,7 +253,6 @@ export class StagehandActHandler {
 
       const observeResults = await observeHandler.observe({
         instruction,
-        llmClient,
         requestId,
         drawOverlay: false,
         returnAction: true,

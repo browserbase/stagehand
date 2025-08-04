@@ -1,7 +1,6 @@
 import { z, ZodTypeAny } from "zod";
 import { LogLine } from "../../types/log";
 import { ZodPathSegments } from "../../types/stagehand";
-import { extract } from "../inference";
 import { LLMClient } from "../llm/LLMClient";
 import { injectUrls, transformSchema } from "../utils";
 import { StagehandPage } from "../StagehandPage";
@@ -12,18 +11,21 @@ import {
   getAccessibilityTreeWithFrames,
 } from "@/lib/a11y/utils";
 import { EncodedId } from "@/types/context";
+import { ContextManager } from "../context";
 
 export class StagehandExtractHandler {
   private readonly stagehand: Stagehand;
   private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
   private readonly userProvidedInstructions?: string;
+  private readonly contextManager: ContextManager;
 
   constructor({
     stagehand,
     logger,
     stagehandPage,
     userProvidedInstructions,
+    contextManager,
   }: {
     stagehand: Stagehand;
     logger: (message: {
@@ -34,11 +36,13 @@ export class StagehandExtractHandler {
     }) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
+    contextManager: ContextManager;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.contextManager = contextManager;
   }
 
   public async extract<T extends z.AnyZodObject>({
@@ -85,7 +89,6 @@ export class StagehandExtractHandler {
       instruction,
       schema,
       content,
-      llmClient,
       requestId,
       domSettleTimeoutMs,
       selector,
@@ -112,7 +115,6 @@ export class StagehandExtractHandler {
   private async domExtract<T extends z.AnyZodObject>({
     instruction,
     schema,
-    llmClient,
     requestId,
     domSettleTimeoutMs,
     selector,
@@ -121,7 +123,6 @@ export class StagehandExtractHandler {
     instruction: string;
     schema: T;
     content?: z.infer<T>;
-    llmClient: LLMClient;
     requestId?: string;
     domSettleTimeoutMs?: number;
     selector?: string;
@@ -183,26 +184,53 @@ export class StagehandExtractHandler {
     const [transformedSchema, urlFieldPaths] =
       transformUrlStringsToNumericIds(schema);
 
+    // Optimize DOM elements using ContextManager if available
+    let optimizedDomElements = outputString;
+    if (this.contextManager) {
+      try {
+        this.logger({
+          category: "extraction",
+          message:
+            "Using ContextManager to optimize DOM elements for extraction",
+          level: 1,
+        });
+
+        const contextData = await this.contextManager.buildContext({
+          method: "extract",
+          instruction,
+          takeScreenshot: false,
+          includeAccessibilityTree: false, // We already have the tree
+          domElements: outputString,
+          appendToHistory: false,
+        });
+
+        optimizedDomElements = contextData.optimizedElements || outputString;
+      } catch (error) {
+        this.logger({
+          category: "extraction",
+          message: `ContextManager optimization failed, using original DOM: ${error}`,
+          level: 1,
+        });
+      }
+    }
+
     // call extract inference with transformed schema
-    const extractionResponse = await extract({
+    const extractionResponse = await this.contextManager.performExtract({
       instruction,
-      domElements: outputString,
+      domElements: optimizedDomElements,
       schema: transformedSchema,
       chunksSeen: 1,
       chunksTotal: 1,
-      llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
-      logger: this.logger,
-      logInferenceToFile: this.stagehand.logInferenceToFile,
     });
 
     const {
+      data: output,
       metadata: { completed },
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: inferenceTimeMs,
-      ...output
     } = extractionResponse;
 
     this.stagehand.updateMetrics(

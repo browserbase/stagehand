@@ -6,19 +6,28 @@
  */
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "../stagehand.config";
+import { z } from "zod";
 
 async function example(stagehand: Stagehand) {
   /**
    * Add your code here!
    */
   const page = stagehand.page;
-  await page.goto("https://docs.stagehand.dev");
-  await page.act("click the quickstart button");
+  await page.goto("https://aigrant.com/");
+  await page.extract({
+    instruction: "extract the names and titles of the advisors and speakers",
+    schema: z.object({
+      name: z.string(),
+      title: z.string(),
+    }),
+  });
 }
 
 (async () => {
   const stagehand = new Stagehand({
     ...StagehandConfig,
+    env: "LOCAL",
+    useAPI: false,
   });
   await stagehand.init();
   await example(stagehand);

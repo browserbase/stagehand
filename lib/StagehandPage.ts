@@ -119,18 +119,21 @@ export class StagehandPage {
         logger: this.stagehand.logger,
         stagehandPage: this,
         selfHeal: this.stagehand.selfHeal,
+        contextManager: this.stagehand.contextManager,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        contextManager: this.stagehand.contextManager,
       });
       this.observeHandler = new StagehandObserveHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        contextManager: this.stagehand.contextManager,
       });
     }
   }
@@ -679,7 +682,6 @@ ${scriptContent} \
       const result = await this.actHandler.observeAct(
         actionOrOptions,
         this.observeHandler,
-        llmClient,
         requestId,
       );
       this.stagehand.addToHistory("act", actionOrOptions, result);
@@ -774,7 +776,6 @@ ${scriptContent} \
         .extract({
           instruction,
           schema,
-          llmClient,
           requestId,
           domSettleTimeoutMs,
           useTextExtract,
@@ -883,7 +884,6 @@ ${scriptContent} \
       const result = await this.observeHandler
         .observe({
           instruction,
-          llmClient,
           requestId,
           domSettleTimeoutMs,
           returnAction,

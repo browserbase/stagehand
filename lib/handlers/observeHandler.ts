@@ -1,19 +1,19 @@
 import { LogLine } from "../../types/log";
-import { Stagehand, StagehandFunctionName } from "../index";
-import { observe } from "../inference";
-import { LLMClient } from "../llm/LLMClient";
+import { ContextManager } from "../context";
 import { StagehandPage } from "../StagehandPage";
-import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
+import { Stagehand, StagehandFunctionName } from "../index";
 import {
   getAccessibilityTree,
   getAccessibilityTreeWithFrames,
 } from "../a11y/utils";
+import { drawObserveOverlay, trimTrailingTextNode } from "../utils";
 import { AccessibilityNode, EncodedId } from "@/types/context";
 
 export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
   private readonly stagehandPage: StagehandPage;
+  private readonly contextManager: ContextManager;
 
   private readonly userProvidedInstructions?: string;
   constructor({
@@ -21,21 +21,23 @@ export class StagehandObserveHandler {
     logger,
     stagehandPage,
     userProvidedInstructions,
+    contextManager,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
+    contextManager: ContextManager;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.contextManager = contextManager;
   }
 
   public async observe({
     instruction,
-    llmClient,
     requestId,
     returnAction,
     onlyVisible,
@@ -44,7 +46,6 @@ export class StagehandObserveHandler {
     iframes,
   }: {
     instruction: string;
-    llmClient: LLMClient;
     requestId: string;
     domSettleTimeoutMs?: number;
     returnAction?: boolean;
@@ -104,17 +105,42 @@ export class StagehandObserveHandler {
           }),
         ));
 
+    // Optimize DOM elements using ContextManager if available
+    let optimizedDomElements = combinedTree;
+    if (this.contextManager) {
+      try {
+        this.logger({
+          category: "observation",
+          message: "Using ContextManager to optimize DOM elements",
+          level: 1,
+        });
+
+        const contextData = await this.contextManager.buildContext({
+          method: "observe",
+          instruction,
+          takeScreenshot: false,
+          includeAccessibilityTree: false, // We already have the tree
+          domElements: combinedTree,
+          appendToHistory: false,
+        });
+
+        optimizedDomElements = contextData.optimizedElements || combinedTree;
+      } catch (error) {
+        this.logger({
+          category: "observation",
+          message: `ContextManager optimization failed, using original DOM: ${error}`,
+          level: 1,
+        });
+      }
+    }
+
     // No screenshot or vision-based annotation is performed
-    const observationResponse = await observe({
+    const observationResponse = await this.contextManager.performObserve({
       instruction,
-      domElements: combinedTree,
-      llmClient,
+      domElements: optimizedDomElements,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
-      logger: this.logger,
       returnAction,
-      logInferenceToFile: this.stagehand.logInferenceToFile,
-      fromAct: fromAct,
     });
 
     const {

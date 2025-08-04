@@ -6,7 +6,7 @@ import {
   OperatorSummary,
   operatorSummarySchema,
 } from "@/types/operator";
-import { LLMParsedResponse } from "../inference";
+import { LLMParsedResponse } from "../context";
 import { ChatMessage, LLMClient } from "../llm/LLMClient";
 import { buildOperatorSystemPrompt } from "../prompt";
 import { StagehandPage } from "../StagehandPage";
