@@ -27,6 +27,11 @@ async function example(stagehand: Stagehand) {
   });
 
   console.log(result);
+
+  await page.act({
+    action: "click on the name of the 5th person that was extracted",
+    iframes: true,
+  });
 }
 
 (async () => {
@@ -34,7 +39,7 @@ async function example(stagehand: Stagehand) {
     ...StagehandConfig,
     env: "LOCAL",
     useAPI: false,
-    verbose: 0,
+    verbose: 2,
   });
   await stagehand.init();
   await example(stagehand);

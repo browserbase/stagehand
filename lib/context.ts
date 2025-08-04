@@ -2,7 +2,11 @@ import { LLMTool } from "@/types/llm";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
 import { StagehandPage } from "./StagehandPage";
-import { getAccessibilityTree } from "./a11y/utils";
+import { AccessibilityNode } from "../types/context";
+import {
+  getAccessibilityTree,
+  getAccessibilityTreeWithFrames,
+} from "./a11y/utils";
 import {
   ChatMessage,
   ChatMessageImageContent,
@@ -63,6 +67,7 @@ export class ContextManager {
     domElements,
     tools,
     appendToHistory = false,
+    iframes = false,
   }: {
     method: "extract" | "observe" | "act" | "observe-act";
     instruction: string;
@@ -71,6 +76,7 @@ export class ContextManager {
     domElements?: string;
     tools?: Record<string, LLMTool>;
     appendToHistory?: boolean;
+    iframes?: boolean;
   }): Promise<{
     contextMessage: ChatMessage;
     allMessages: ChatMessage[];
@@ -105,12 +111,28 @@ export class ContextManager {
     }
 
     if (includeAccessibilityTree) {
-      const tree = await getAccessibilityTree(
-        this.stagehandPage,
-        this.logger,
-        undefined,
-        this.stagehandPage.page.mainFrame(),
-      );
+      const { combinedTree, discoveredIframes } = await (iframes
+        ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
+            ({ combinedTree }) => ({
+              combinedTree,
+              discoveredIframes: [] as AccessibilityNode[],
+            }),
+          )
+        : getAccessibilityTree(this.stagehandPage, this.logger).then(
+            ({ simplified, iframes: frameNodes }) => ({
+              combinedTree: simplified,
+              discoveredIframes: frameNodes,
+            }),
+          ));
+
+      if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
+        this.logger({
+          category: "context",
+          message: `Warning: found ${discoveredIframes.length} iframe(s) on the page. If you wish to interact with iframe content, please make sure you are setting iframes: true`,
+          level: 1,
+        });
+      }
+
       contentParts.push(
         {
           type: "text",
@@ -118,7 +140,7 @@ export class ContextManager {
         },
         {
           type: "text",
-          text: tree.simplified,
+          text: combinedTree,
         },
       );
     }
