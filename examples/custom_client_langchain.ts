@@ -3,7 +3,7 @@
  *
  * You will need to reference the Langchain Client in /external_clients/langchain.ts
  */
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 import { LangchainClient } from "./external_clients/langchain";

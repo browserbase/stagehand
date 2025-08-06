@@ -44,7 +44,7 @@ import {
   InvalidAISDKModelFormatError,
   StagehandInitError,
 } from "../types/stagehandErrors";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { GotoOptions } from "@/types/playwright";
 
 dotenv.config({ path: ".env" });

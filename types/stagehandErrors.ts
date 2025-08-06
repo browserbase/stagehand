@@ -1,4 +1,4 @@
-import { ZodError } from "zod";
+import { ZodError } from "zod/v3";
 import { STAGEHAND_VERSION } from "../lib/version.js";
 
 export class StagehandError extends Error {

@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const extract_github_commits: EvalFunction = async ({
   logger,
