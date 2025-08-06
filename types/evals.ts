@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { AvailableModel } from "../types/model";
 import type { LogLine } from "../types/log";
 import type { EvalCase } from "braintrust";

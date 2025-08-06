@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const imdb_movie_details: EvalFunction = async ({
   debugUrl,

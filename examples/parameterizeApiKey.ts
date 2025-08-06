@@ -1,5 +1,5 @@
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 /**
  * This example shows how to parameterize the API key for the LLM provider.

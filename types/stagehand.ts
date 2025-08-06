@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";

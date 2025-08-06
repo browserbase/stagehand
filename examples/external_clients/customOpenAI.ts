@@ -22,7 +22,7 @@ import type {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {

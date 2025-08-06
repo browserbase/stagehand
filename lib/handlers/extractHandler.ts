@@ -1,4 +1,4 @@
-import { z, ZodTypeAny } from "zod";
+import { z, ZodTypeAny } from "zod/v3";
 import { LogLine } from "../../types/log";
 import { ZodPathSegments } from "../../types/stagehand";
 import { extract } from "../inference";
