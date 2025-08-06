@@ -17,7 +17,7 @@ import {
   EvaluationResult,
   BatchEvaluateOptions,
 } from "@/types/evaluator";
-import { LLMParsedResponse } from "@/lib/context";
+import { LLMParsedResponse } from "@/types/llm";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 
 dotenv.config();

@@ -6,7 +6,7 @@ import {
   OperatorSummary,
   operatorSummarySchema,
 } from "@/types/operator";
-import { LLMParsedResponse } from "../context";
+import { LLMParsedResponse } from "@/types/llm";
 import { ChatMessage, LLMClient } from "../llm/LLMClient";
 // Removed dependency on prompt.ts - using inline prompt building
 import { StagehandPage } from "../StagehandPage";

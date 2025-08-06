@@ -1,8 +1,17 @@
-import { LLMTool } from "@/types/llm";
+import { LLMParsedResponse } from "@/types/llm";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
 import { StagehandPage } from "./StagehandPage";
-import { AccessibilityNode } from "../types/context";
+import {
+  AccessibilityNode,
+  ContextManagerConstructor,
+  BuildContextOptions,
+  BuildContextResult,
+  PerformExtractOptions,
+  PerformExtractResult,
+  PerformObserveOptions,
+  PerformObserveResult,
+} from "../types/context";
 import { injectUrls } from "./utils";
 import { transformUrlStringsToNumericIds } from "./handlers/extractHandler";
 import {
@@ -16,34 +25,6 @@ import {
   LLMClient,
 } from "./llm/LLMClient";
 import { StagehandFunctionName } from "@/types/stagehand";
-
-export interface LLMUsage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-}
-
-export interface LLMParsedResponse<T> {
-  data: T;
-  usage?: LLMUsage;
-  promptData?: {
-    calls: Array<{
-      type: string;
-      messages: ChatMessage[];
-      system: string;
-      schema: unknown;
-      config: unknown;
-      usage?: { prompt_tokens: number; completion_tokens: number };
-    }>;
-    requestId: string;
-  };
-}
-
-export interface ContextManagerConstructor {
-  logger: (message: LogLine) => void;
-  page: StagehandPage;
-  llmClient: LLMClient;
-}
 
 export class ContextManager {
   private logger: (message: LogLine) => void;
@@ -77,25 +58,11 @@ export class ContextManager {
     method,
     instruction,
     takeScreenshot = false,
-    includeAccessibilityTree = false,
+    includeAccessibilityTree = true,
     tools,
     appendToHistory = false,
     iframes = false,
-  }: {
-    method: StagehandFunctionName;
-    instruction: string;
-    takeScreenshot?: boolean;
-    includeAccessibilityTree?: boolean;
-    tools?: Record<string, LLMTool>;
-    appendToHistory?: boolean;
-    iframes?: boolean;
-  }): Promise<{
-    contextMessage: ChatMessage;
-    allMessages: ChatMessage[];
-    optimizedElements?: string;
-    urlMapping?: Record<string, string>;
-    xpathMap?: Record<string, string>;
-  }> {
+  }: BuildContextOptions): Promise<BuildContextResult> {
     this.logger({
       category: "context",
       message: `Building context for ${method} operation: "${instruction}"`,
@@ -245,8 +212,6 @@ Here is the user's instruction: "${instruction}"`,
     this.appendMessage(message);
   }
 
-  // INFERENCE METHODS (replacing inference.ts)
-
   public async performExtract<T extends z.ZodObject<z.ZodRawShape>>({
     instruction,
     schema,
@@ -255,35 +220,7 @@ Here is the user's instruction: "${instruction}"`,
     requestId,
     userProvidedInstructions,
     iframes = false,
-  }: {
-    instruction: string;
-    schema: T;
-    chunksSeen?: number;
-    chunksTotal?: number;
-    requestId: string;
-    userProvidedInstructions?: string;
-    iframes?: boolean;
-  }): Promise<{
-    data: z.infer<T>;
-    metadata: {
-      completed: boolean;
-      progress: string;
-    };
-    prompt_tokens: number;
-    completion_tokens: number;
-    inference_time_ms: number;
-    promptData?: {
-      calls: Array<{
-        type: string;
-        messages: ChatMessage[];
-        system: string;
-        schema: unknown;
-        config: unknown;
-        usage?: { prompt_tokens: number; completion_tokens: number };
-      }>;
-      requestId: string;
-    };
-  }> {
+  }: PerformExtractOptions<T>): Promise<PerformExtractResult<T>> {
     this.logger({
       category: "context",
       message: "Performing extraction with ContextManager",
@@ -515,35 +452,7 @@ chunksTotal: ${chunksTotal}`,
     userProvidedInstructions,
     returnAction = false,
     iframes = false,
-  }: {
-    instruction: string;
-    requestId: string;
-    userProvidedInstructions?: string;
-    returnAction?: boolean;
-    iframes?: boolean;
-  }): Promise<{
-    elements: Array<{
-      elementId: string;
-      description: string;
-      method?: string;
-      arguments?: string[];
-    }>;
-    xpathMapping: Record<string, string>;
-    prompt_tokens: number;
-    completion_tokens: number;
-    inference_time_ms: number;
-    promptData?: {
-      calls: Array<{
-        type: string;
-        messages: ChatMessage[];
-        system: string;
-        schema: unknown;
-        config: unknown;
-        usage?: { prompt_tokens: number; completion_tokens: number };
-      }>;
-      requestId: string;
-    };
-  }> {
+  }: PerformObserveOptions): Promise<PerformObserveResult> {
     this.logger({
       category: "context",
       message: "Performing observation with ContextManager",
