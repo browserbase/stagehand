@@ -187,6 +187,24 @@ export class StagehandAgentHandler {
         result.usage.output_tokens,
         result.usage.inference_time_ms,
       );
+
+      // Log inference data to files if enabled
+      const instruction =
+        typeof optionsOrInstruction === "string"
+          ? optionsOrInstruction
+          : optionsOrInstruction.instruction;
+
+      this.stagehand.logInferenceData(StagehandFunctionName.AGENT, {
+        instruction,
+        response: result,
+        promptTokens: result.usage.input_tokens,
+        completionTokens: result.usage.output_tokens,
+        inferenceTimeMs: result.usage.inference_time_ms,
+        metadata: {
+          success: result.success,
+          actionsCount: result.actions?.length || 0,
+        },
+      });
     }
 
     // The actions are now executed during the agent's execution flow

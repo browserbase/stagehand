@@ -26,12 +26,15 @@ export interface LLMParsedResponse<T> {
   data: T;
   usage?: LLMUsage;
   promptData?: {
-    messages: ChatMessage[];
-    system?: string;
-    tools?: unknown[];
-    schema?: unknown;
-    config?: unknown;
-    requestPayload?: unknown;
+    calls: Array<{
+      type: string;
+      messages: ChatMessage[];
+      system: string;
+      schema: unknown;
+      config: unknown;
+      usage?: { prompt_tokens: number; completion_tokens: number };
+    }>;
+    requestId: string;
   };
 }
 
@@ -39,26 +42,18 @@ export interface ContextManagerConstructor {
   logger: (message: LogLine) => void;
   page: StagehandPage;
   llmClient: LLMClient;
-  stagehandInstance?: unknown; // Reference to Stagehand instance for inference logging
 }
 
 export class ContextManager {
   private logger: (message: LogLine) => void;
   private stagehandPage: StagehandPage;
   private llmClient: LLMClient;
-  private stagehandInstance?: unknown;
   private messages: ChatMessage[] = [];
 
-  constructor({
-    logger,
-    page,
-    llmClient,
-    stagehandInstance,
-  }: ContextManagerConstructor) {
+  constructor({ logger, page, llmClient }: ContextManagerConstructor) {
     this.logger = logger;
     this.stagehandPage = page;
     this.llmClient = llmClient;
-    this.stagehandInstance = stagehandInstance;
 
     this.appendMessage({
       role: "system",
@@ -246,6 +241,17 @@ export class ContextManager {
     prompt_tokens: number;
     completion_tokens: number;
     inference_time_ms: number;
+    promptData?: {
+      calls: Array<{
+        type: string;
+        messages: ChatMessage[];
+        system: string;
+        schema: unknown;
+        config: unknown;
+        usage?: { prompt_tokens: number; completion_tokens: number };
+      }>;
+      requestId: string;
+    };
   }> {
     this.logger({
       category: "context",
@@ -347,13 +353,13 @@ ${userProvidedInstructions}`
           requestId,
         },
         logger: this.logger,
-        functionName: "extract",
-        stagehandInstance: this.stagehandInstance,
       });
     const extractEndTime = Date.now();
 
     const { data: extractedData, usage: extractUsage } =
       extractionResponse as LLMParsedResponse<ExtractionResponse>;
+
+    // We'll build this after the metadata call is complete
 
     // Get URL mapping from passed contextData if available
     let urlMapping: Record<string, string> | undefined = undefined;
@@ -420,6 +426,45 @@ chunksTotal: ${chunksTotal}`,
       }
     }
 
+    // Complete prompt data capture with both calls
+    const promptData = {
+      calls: [
+        {
+          type: "extraction",
+          messages: extractCallMessages,
+          system: extractSystemContent,
+          schema: transformedSchema,
+          config: {
+            temperature: 0.1,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+          },
+          usage: {
+            prompt_tokens: extractUsage?.prompt_tokens ?? 0,
+            completion_tokens: extractUsage?.completion_tokens ?? 0,
+          },
+        },
+        {
+          type: "metadata",
+          messages: metadataCallMessages,
+          system: metadataSystemContent,
+          schema: metadataSchema,
+          config: {
+            temperature: 0.1,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+          },
+          usage: {
+            prompt_tokens: metadataUsage?.prompt_tokens ?? 0,
+            completion_tokens: metadataUsage?.completion_tokens ?? 0,
+          },
+        },
+      ],
+      requestId,
+    };
+
     return {
       data: extractedData,
       metadata: {
@@ -429,6 +474,7 @@ chunksTotal: ${chunksTotal}`,
       prompt_tokens: totalPromptTokens,
       completion_tokens: totalCompletionTokens,
       inference_time_ms: totalInferenceTimeMs,
+      promptData,
     };
   }
 
@@ -455,6 +501,17 @@ chunksTotal: ${chunksTotal}`,
     prompt_tokens: number;
     completion_tokens: number;
     inference_time_ms: number;
+    promptData?: {
+      calls: Array<{
+        type: string;
+        messages: ChatMessage[];
+        system: string;
+        schema: unknown;
+        config: unknown;
+        usage?: { prompt_tokens: number; completion_tokens: number };
+      }>;
+      requestId: string;
+    };
   }> {
     this.logger({
       category: "context",
@@ -556,14 +613,35 @@ ${userProvidedInstructions}`
           requestId,
         },
         logger: this.logger,
-        functionName: "observe",
-        stagehandInstance: this.stagehandInstance,
       });
     const end = Date.now();
     const usageTimeMs = end - start;
 
     const { data: observeData, usage: observeUsage } =
       rawResponse as LLMParsedResponse<ObserveResponse>;
+
+    // Capture prompt data for inference logging
+    const promptData = {
+      calls: [
+        {
+          type: "observe",
+          messages,
+          system: observeSystemContent,
+          schema: observeSchema,
+          config: {
+            temperature: 0.1,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+          },
+          usage: {
+            prompt_tokens: observeUsage?.prompt_tokens ?? 0,
+            completion_tokens: observeUsage?.completion_tokens ?? 0,
+          },
+        },
+      ],
+      requestId,
+    };
     const promptTokens = observeUsage?.prompt_tokens ?? 0;
     const completionTokens = observeUsage?.completion_tokens ?? 0;
 
@@ -589,6 +667,7 @@ ${userProvidedInstructions}`
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: usageTimeMs,
+      promptData,
     };
   }
 }

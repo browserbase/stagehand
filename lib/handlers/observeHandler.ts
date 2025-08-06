@@ -98,6 +98,7 @@ export class StagehandObserveHandler {
       prompt_tokens = 0,
       completion_tokens = 0,
       inference_time_ms = 0,
+      promptData,
     } = observationResponse;
 
     this.stagehand.updateMetrics(
@@ -105,6 +106,25 @@ export class StagehandObserveHandler {
       prompt_tokens,
       completion_tokens,
       inference_time_ms,
+    );
+
+    // Log inference data to files if enabled
+    this.stagehand.logInferenceData(
+      fromAct ? StagehandFunctionName.ACT : StagehandFunctionName.OBSERVE,
+      {
+        instruction,
+        requestId,
+        response: observationResponse,
+        promptTokens: prompt_tokens,
+        completionTokens: completion_tokens,
+        inferenceTimeMs: inference_time_ms,
+        promptData,
+        metadata: {
+          fromAct,
+          returnAction,
+          elementsFound: elements.length,
+        },
+      },
     );
 
     // Iframe handling is now done by ContextManager

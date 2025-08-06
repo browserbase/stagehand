@@ -150,6 +150,7 @@ export class StagehandExtractHandler {
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: inferenceTimeMs,
+      promptData,
     } = extractionResponse;
 
     this.stagehand.updateMetrics(
@@ -158,6 +159,21 @@ export class StagehandExtractHandler {
       completionTokens,
       inferenceTimeMs,
     );
+
+    // Log inference data to files if enabled
+    this.stagehand.logInferenceData(StagehandFunctionName.EXTRACT, {
+      instruction,
+      requestId,
+      response: extractionResponse,
+      promptTokens,
+      completionTokens,
+      inferenceTimeMs,
+      promptData,
+      metadata: {
+        completed,
+        schemaKeys: schema ? Object.keys(schema.shape) : [],
+      },
+    });
 
     this.logger({
       category: "extraction",

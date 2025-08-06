@@ -58,8 +58,6 @@ export class OpenAIClient extends LLMClient {
     options: optionsInitial,
     logger,
     retries = 3,
-    functionName,
-    stagehandInstance,
   }: CreateChatCompletionOptions): Promise<T> {
     let options: Partial<ChatCompletionOptions> = optionsInitial;
 
@@ -335,63 +333,7 @@ export class OpenAIClient extends LLMClient {
       })),
     };
 
-    // Capture prompt data for inference logging
-    const startTime = Date.now();
-    const promptData = {
-      messages: options.messages,
-      system: options.messages?.find((m) => m.role === "system")?.content,
-      tools: options.tools,
-      schema: options.response_model?.schema,
-      config: {
-        temperature: options.temperature,
-        top_p: options.top_p,
-        frequency_penalty: options.frequency_penalty,
-        presence_penalty: options.presence_penalty,
-      },
-      requestPayload: body,
-    };
-
     const response = await this.client.chat.completions.create(body);
-    const endTime = Date.now();
-
-    // Log inference data if enabled and we have the necessary info
-    if (functionName && stagehandInstance && response.usage) {
-      try {
-        const inferenceTimeMs = endTime - startTime;
-        (
-          stagehandInstance as {
-            logInferenceData: (fn: string, data: unknown) => void;
-          }
-        ).logInferenceData(functionName, {
-          instruction: options.requestId, // Use requestId as instruction placeholder for now
-          requestId: options.requestId,
-          response: {
-            data: response,
-            usage: response.usage,
-          },
-          promptTokens: response.usage.prompt_tokens || 0,
-          completionTokens: response.usage.completion_tokens || 0,
-          inferenceTimeMs,
-          promptData,
-          metadata: {
-            model: this.modelName,
-            provider: this.type,
-          },
-        });
-      } catch (error) {
-        logger({
-          category: "openai",
-          message: "Failed to log inference data",
-          level: 1,
-          auxiliary: {
-            error: {
-              value: JSON.stringify(error),
-              type: "object",
-            },
-          },
-        });
-      }
-    }
 
     // For O1 models, we need to parse the tool call response manually and add it to the response.
     if (isToolsOverridedForO1) {

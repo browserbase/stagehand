@@ -47,7 +47,7 @@ import {
 import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
 import { ContextManager } from "./context";
-import { appendSummary, writeTimestampedJsonFile } from "./inferenceLogUtils";
+import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
 
 // Inference logging data structures
 interface InferenceLogData {
@@ -58,12 +58,15 @@ interface InferenceLogData {
   completionTokens: number;
   inferenceTimeMs: number;
   promptData?: {
-    messages: unknown[];
-    system?: string;
-    tools?: unknown[];
-    schema?: unknown;
-    config?: unknown;
-    requestPayload?: unknown;
+    calls: Array<{
+      type: string;
+      messages: unknown[];
+      system: string;
+      schema: unknown;
+      config: unknown;
+      usage?: { prompt_tokens: number; completion_tokens: number };
+    }>;
+    requestId: string;
   };
   timestamp: string;
   url?: string;
@@ -551,12 +554,15 @@ export class Stagehand {
       completionTokens: number;
       inferenceTimeMs: number;
       promptData?: {
-        messages: unknown[];
-        system?: string;
-        tools?: unknown[];
-        schema?: unknown;
-        config?: unknown;
-        requestPayload?: unknown;
+        calls: Array<{
+          type: string;
+          messages: unknown[];
+          system: string;
+          schema: unknown;
+          config: unknown;
+          usage?: { prompt_tokens: number; completion_tokens: number };
+        }>;
+        requestId: string;
       };
       metadata?: Record<string, unknown>;
     },
@@ -579,7 +585,7 @@ export class Stagehand {
 
     try {
       // Write detailed log file with timestamp
-      const { fileName } = writeTimestampedJsonFile(
+      const { fileName } = writeTimestampedTxtFile(
         `${inferenceType}_summary`,
         inferenceType,
         logData,
@@ -918,7 +924,6 @@ export class Stagehand {
       logger: this.logger,
       page: this.stagehandPage,
       llmClient: this.llmClient,
-      stagehandInstance: this,
     });
 
     // Initialize handlers now that contextManager is available

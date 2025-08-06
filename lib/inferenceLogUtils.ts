@@ -34,10 +34,10 @@ function getTimestamp(): string {
 }
 
 /**
- * Writes `data` as formatted JSON into a file in `directory`, using a prefix plus timestamp.
+ * Writes `data` as JSON into a file in `directory`, using a prefix plus timestamp.
  * Returns both the file name and the timestamp used, so you can log them.
  */
-export function writeTimestampedJsonFile(
+export function writeTimestampedTxtFile(
   directory: string,
   prefix: string,
   data: unknown,
@@ -50,10 +50,13 @@ export function writeTimestampedJsonFile(
   }
 
   const timestamp = getTimestamp();
-  const fileName = `${timestamp}_${prefix}.json`;
+  const fileName = `${timestamp}_${prefix}.txt`;
   const filePath = path.join(subDir, fileName);
 
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify(data, null, 2).replace(/\\n/g, "\n"),
+  );
 
   return { fileName, timestamp };
 }
