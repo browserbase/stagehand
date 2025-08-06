@@ -15,6 +15,7 @@ import {
   ChatMessageTextContent,
   LLMClient,
 } from "./llm/LLMClient";
+import { StagehandFunctionName } from "@/types/stagehand";
 
 export interface LLMUsage {
   prompt_tokens: number;
@@ -81,7 +82,7 @@ export class ContextManager {
     appendToHistory = false,
     iframes = false,
   }: {
-    method: "extract" | "observe" | "act" | "observe-act";
+    method: StagehandFunctionName;
     instruction: string;
     takeScreenshot?: boolean;
     includeAccessibilityTree?: boolean;
@@ -93,6 +94,7 @@ export class ContextManager {
     allMessages: ChatMessage[];
     optimizedElements?: string;
     urlMapping?: Record<string, string>;
+    xpathMap?: Record<string, string>;
   }> {
     this.logger({
       category: "context",
@@ -103,6 +105,7 @@ export class ContextManager {
     const contentParts: (ChatMessageTextContent | ChatMessageImageContent)[] =
       [];
     let combinedUrlMap: Record<string, string> | undefined = undefined;
+    let xpathMap: Record<string, string> | undefined = undefined;
     let accessibilityTreeContent: string | undefined = undefined;
 
     if (takeScreenshot) {
@@ -127,22 +130,26 @@ export class ContextManager {
     if (includeAccessibilityTree) {
       const result = await (iframes
         ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
-            ({ combinedTree, combinedUrlMap }) => ({
+            ({ combinedTree, combinedUrlMap, combinedXpathMap }) => ({
               combinedTree,
               discoveredIframes: [] as AccessibilityNode[],
               combinedUrlMap,
+              xpathMap: combinedXpathMap,
             }),
           )
         : getAccessibilityTree(this.stagehandPage, this.logger).then(
-            ({ simplified, iframes: frameNodes, idToUrl }) => ({
+            ({ simplified, iframes: frameNodes, idToUrl, xpathMap }) => ({
               combinedTree: simplified,
               discoveredIframes: frameNodes,
               combinedUrlMap: idToUrl,
+              xpathMap,
             }),
           ));
 
       const { combinedTree, discoveredIframes } = result;
       combinedUrlMap = result.combinedUrlMap;
+      xpathMap = result.xpathMap;
+
       accessibilityTreeContent = combinedTree;
 
       if (discoveredIframes !== undefined && discoveredIframes.length > 0) {
@@ -176,10 +183,33 @@ export class ContextManager {
       });
     }
 
-    contentParts.push({
-      type: "text",
-      text: instruction,
-    });
+    if (method === StagehandFunctionName.EXTRACT) {
+      contentParts.push({
+        type: "text",
+        text: `Use all the information provided to you to extract the information requested by the user.
+
+Here is the user's instruction: "${instruction}"`,
+      });
+    } else if (method === StagehandFunctionName.OBSERVE) {
+      contentParts.push({
+        type: "text",
+        text: `Use all the information provided to you to find and return all elements that match the user's instruction.
+
+Here is the user's instruction: "${instruction}"`,
+      });
+    } else if (method === StagehandFunctionName.ACT) {
+      contentParts.push({
+        type: "text",
+        text: `Use all the information provided to you to determine the best way to perform the user's requested action.
+
+Here is the user's instruction: "${instruction}"`,
+      });
+    } else {
+      contentParts.push({
+        type: "text",
+        text: `Here is the user's instruction: "${instruction}"`,
+      });
+    }
 
     const contextMessage: ChatMessage = {
       role: "user",
@@ -203,6 +233,7 @@ export class ContextManager {
         : [...this.messages, contextMessage],
       optimizedElements: accessibilityTreeContent,
       urlMapping: includeAccessibilityTree ? combinedUrlMap : undefined,
+      xpathMap: includeAccessibilityTree ? xpathMap : undefined,
     };
   }
 
@@ -261,7 +292,7 @@ export class ContextManager {
 
     // Build context internally - instruction is only passed once here
     const contextData = await this.buildContext({
-      method: "extract",
+      method: StagehandFunctionName.EXTRACT,
       instruction,
       takeScreenshot: false,
       includeAccessibilityTree: true,
@@ -521,7 +552,7 @@ chunksTotal: ${chunksTotal}`,
 
     // Build context internally - instruction is only passed once here
     const contextData = await this.buildContext({
-      method: "observe",
+      method: StagehandFunctionName.OBSERVE,
       instruction,
       takeScreenshot: false,
       includeAccessibilityTree: true,
@@ -529,7 +560,7 @@ chunksTotal: ${chunksTotal}`,
       iframes,
     });
 
-    const xpathMapping = contextData.urlMapping || {};
+    const xpathMapping = contextData.xpathMap || {};
 
     const observeSchema = z.object({
       elements: z
@@ -663,7 +694,7 @@ ${userProvidedInstructions}`
 
     return {
       elements: parsedElements,
-      xpathMapping,
+      xpathMapping: xpathMapping,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: usageTimeMs,
