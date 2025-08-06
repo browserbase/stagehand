@@ -25,24 +25,40 @@ export interface LLMUsage {
 export interface LLMParsedResponse<T> {
   data: T;
   usage?: LLMUsage;
+  promptData?: {
+    messages: ChatMessage[];
+    system?: string;
+    tools?: unknown[];
+    schema?: unknown;
+    config?: unknown;
+    requestPayload?: unknown;
+  };
 }
 
 export interface ContextManagerConstructor {
   logger: (message: LogLine) => void;
   page: StagehandPage;
   llmClient: LLMClient;
+  stagehandInstance?: unknown; // Reference to Stagehand instance for inference logging
 }
 
 export class ContextManager {
   private logger: (message: LogLine) => void;
   private stagehandPage: StagehandPage;
   private llmClient: LLMClient;
+  private stagehandInstance?: unknown;
   private messages: ChatMessage[] = [];
 
-  constructor({ logger, page, llmClient }: ContextManagerConstructor) {
+  constructor({
+    logger,
+    page,
+    llmClient,
+    stagehandInstance,
+  }: ContextManagerConstructor) {
     this.logger = logger;
     this.stagehandPage = page;
     this.llmClient = llmClient;
+    this.stagehandInstance = stagehandInstance;
 
     this.appendMessage({
       role: "system",
@@ -66,7 +82,6 @@ export class ContextManager {
     instruction,
     takeScreenshot = false,
     includeAccessibilityTree = false,
-    domElements,
     tools,
     appendToHistory = false,
     iframes = false,
@@ -75,7 +90,6 @@ export class ContextManager {
     instruction: string;
     takeScreenshot?: boolean;
     includeAccessibilityTree?: boolean;
-    domElements?: string;
     tools?: Record<string, LLMTool>;
     appendToHistory?: boolean;
     iframes?: boolean;
@@ -156,13 +170,6 @@ export class ContextManager {
       );
     }
 
-    if (domElements) {
-      contentParts.push({
-        type: "text",
-        text: `Here are the current DOM elements:\n${domElements}`,
-      });
-    }
-
     if (tools) {
       contentParts.push({
         type: "text",
@@ -176,7 +183,7 @@ export class ContextManager {
 
     contentParts.push({
       type: "text",
-      text: domElements ? `Instruction: ${instruction}` : instruction,
+      text: instruction,
     });
 
     const contextMessage: ChatMessage = {
@@ -199,7 +206,7 @@ export class ContextManager {
       allMessages: appendToHistory
         ? [...this.messages]
         : [...this.messages, contextMessage],
-      optimizedElements: accessibilityTreeContent || domElements,
+      optimizedElements: accessibilityTreeContent,
       urlMapping: includeAccessibilityTree ? combinedUrlMap : undefined,
     };
   }
@@ -216,20 +223,20 @@ export class ContextManager {
 
   public async performExtract<T extends z.ZodObject<z.ZodRawShape>>({
     instruction,
-    domElements,
     schema,
     chunksSeen = 1,
     chunksTotal = 1,
     requestId,
     userProvidedInstructions,
+    iframes = false,
   }: {
     instruction: string;
-    domElements: string;
     schema: T;
     chunksSeen?: number;
     chunksTotal?: number;
     requestId: string;
     userProvidedInstructions?: string;
+    iframes?: boolean;
   }): Promise<{
     data: z.infer<T>;
     metadata: {
@@ -245,6 +252,31 @@ export class ContextManager {
       message: "Performing extraction with ContextManager",
       level: 1,
     });
+
+    // Build context internally - instruction is only passed once here
+    const contextData = await this.buildContext({
+      method: "extract",
+      instruction,
+      takeScreenshot: false,
+      includeAccessibilityTree: true,
+      appendToHistory: false,
+      iframes,
+    });
+
+    // Add Anthropic-specific instructions if using Anthropic
+    const isUsingAnthropic = this.llmClient.type === "anthropic";
+    const userMessage = { ...contextData.contextMessage };
+
+    if (isUsingAnthropic && Array.isArray(userMessage.content)) {
+      // Add Anthropic-specific instruction to the last text content part
+      const lastTextPart = userMessage.content[userMessage.content.length - 1];
+      if (lastTextPart.type === "text") {
+        lastTextPart.text += `
+
+ONLY print the content using the print_extracted_data tool provided.
+ONLY print the content using the print_extracted_data tool provided.`;
+      }
+    }
 
     // Transform user defined schema to replace string().url() with .number() (same as extractHandler)
     const [transformedSchema, urlFieldPaths] =
@@ -265,8 +297,6 @@ export class ContextManager {
 
     type ExtractionResponse = z.infer<T>;
     type MetadataResponse = z.infer<typeof metadataSchema>;
-
-    const isUsingAnthropic = this.llmClient.type === "anthropic";
 
     // Build extract system message
     const extractSystemContent =
@@ -298,17 +328,7 @@ ${userProvidedInstructions}`
         role: "system",
         content: extractSystemContent,
       },
-      {
-        role: "user",
-        content: `Instruction: ${instruction}
-DOM: ${domElements}${
-          isUsingAnthropic
-            ? `
-ONLY print the content using the print_extracted_data tool provided.
-ONLY print the content using the print_extracted_data tool provided.`
-            : ""
-        }`,
-      },
+      userMessage,
     ];
 
     const extractStartTime = Date.now();
@@ -327,24 +347,17 @@ ONLY print the content using the print_extracted_data tool provided.`
           requestId,
         },
         logger: this.logger,
+        functionName: "extract",
+        stagehandInstance: this.stagehandInstance,
       });
     const extractEndTime = Date.now();
 
     const { data: extractedData, usage: extractUsage } =
       extractionResponse as LLMParsedResponse<ExtractionResponse>;
 
-    // Get URL mapping from buildContext if available
+    // Get URL mapping from passed contextData if available
     let urlMapping: Record<string, string> | undefined = undefined;
     if (urlFieldPaths.length > 0) {
-      // Build context to get URL mapping
-      const contextData = await this.buildContext({
-        method: "extract",
-        instruction,
-        takeScreenshot: false,
-        includeAccessibilityTree: true, // Need this to get URL mapping
-        domElements,
-        appendToHistory: false,
-      });
       urlMapping = contextData.urlMapping;
     }
 
@@ -352,9 +365,9 @@ ONLY print the content using the print_extracted_data tool provided.`
     const metadataSystemContent = `You are an AI assistant tasked with evaluating the progress and completion status of an extraction task.
 Analyze the extraction response and determine if the task is completed or if more information is needed.
 Strictly abide by the following criteria:
-1. Once the instruction has been satisfied by the current extraction response, ALWAYS set completion status to true and stop processing, regardless of remaining chunks.
+1. Once the extraction has satisfied the requirements, ALWAYS set completion status to true and stop processing, regardless of remaining chunks.
 2. Only set completion status to false if BOTH of these conditions are true:
-   - The instruction has not been satisfied yet
+   - The extraction requirements have not been satisfied yet
    - There are still chunks left to process (chunksTotal > chunksSeen)`;
 
     const metadataCallMessages: ChatMessage[] = [
@@ -364,8 +377,7 @@ Strictly abide by the following criteria:
       },
       {
         role: "user",
-        content: `Instruction: ${instruction}
-Extracted content: ${JSON.stringify(extractedData, null, 2)}
+        content: `Extracted content: ${JSON.stringify(extractedData, null, 2)}
 chunksSeen: ${chunksSeen}
 chunksTotal: ${chunksTotal}`,
       },
@@ -422,16 +434,16 @@ chunksTotal: ${chunksTotal}`,
 
   public async performObserve({
     instruction,
-    domElements,
     requestId,
     userProvidedInstructions,
     returnAction = false,
+    iframes = false,
   }: {
     instruction: string;
-    domElements: string;
     requestId: string;
     userProvidedInstructions?: string;
     returnAction?: boolean;
+    iframes?: boolean;
   }): Promise<{
     elements: Array<{
       elementId: string;
@@ -439,6 +451,7 @@ chunksTotal: ${chunksTotal}`,
       method?: string;
       arguments?: string[];
     }>;
+    xpathMapping: Record<string, string>;
     prompt_tokens: number;
     completion_tokens: number;
     inference_time_ms: number;
@@ -448,6 +461,18 @@ chunksTotal: ${chunksTotal}`,
       message: "Performing observation with ContextManager",
       level: 1,
     });
+
+    // Build context internally - instruction is only passed once here
+    const contextData = await this.buildContext({
+      method: "observe",
+      instruction,
+      takeScreenshot: false,
+      includeAccessibilityTree: true,
+      appendToHistory: false,
+      iframes,
+    });
+
+    const xpathMapping = contextData.urlMapping || {};
 
     const observeSchema = z.object({
       elements: z
@@ -512,11 +537,7 @@ ${userProvidedInstructions}`
         role: "system",
         content: observeSystemContent,
       },
-      {
-        role: "user",
-        content: `instruction: ${instruction}
-Accessibility Tree: \n${domElements}`,
-      },
+      contextData.contextMessage,
     ];
 
     const start = Date.now();
@@ -535,6 +556,8 @@ Accessibility Tree: \n${domElements}`,
           requestId,
         },
         logger: this.logger,
+        functionName: "observe",
+        stagehandInstance: this.stagehandInstance,
       });
     const end = Date.now();
     const usageTimeMs = end - start;
@@ -562,6 +585,7 @@ Accessibility Tree: \n${domElements}`,
 
     return {
       elements: parsedElements,
+      xpathMapping,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       inference_time_ms: usageTimeMs,

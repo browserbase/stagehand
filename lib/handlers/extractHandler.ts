@@ -91,18 +91,17 @@ export class StagehandExtractHandler {
   }
 
   private async extractPageText(): Promise<{ page_text?: string }> {
-    // Use ContextManager to get accessibility tree
-    const contextData = await this.contextManager.buildContext({
-      method: "extract",
+    // Call performExtract - it builds context internally with the instruction
+    const extractionResponse = await this.contextManager.performExtract({
       instruction: "extract page text",
-      takeScreenshot: false,
-      includeAccessibilityTree: true,
-      appendToHistory: false,
+      schema: pageTextSchema,
+      chunksSeen: 1,
+      chunksTotal: 1,
+      requestId: Math.random().toString(36).substring(2),
+      userProvidedInstructions: this.userProvidedInstructions,
     });
 
-    const outputString = contextData.optimizedElements;
-
-    const result = { page_text: outputString };
+    const result = { page_text: extractionResponse.data.page_text };
     return pageTextSchema.parse(result);
   }
 
@@ -130,62 +129,19 @@ export class StagehandExtractHandler {
       },
     });
 
-    // Use ContextManager to get accessibility tree with all the proper handling
-    const contextData = await this.contextManager.buildContext({
-      method: "extract",
-      instruction,
-      takeScreenshot: false,
-      includeAccessibilityTree: true,
-      appendToHistory: false,
-      iframes,
-    });
-
-    const outputString = contextData.optimizedElements;
-    // Note: idToUrlMapping will be handled internally by ContextManager during performExtract
-
     // Transform user defined schema to replace string().url() with .number()
     // Note: URL field transformation is now handled internally by ContextManager
     const [transformedSchema] = transformUrlStringsToNumericIds(schema);
 
-    // Optimize DOM elements using ContextManager if available
-    let optimizedDomElements = outputString;
-    if (this.contextManager) {
-      try {
-        this.logger({
-          category: "extraction",
-          message:
-            "Using ContextManager to optimize DOM elements for extraction",
-          level: 1,
-        });
-
-        const contextData = await this.contextManager.buildContext({
-          method: "extract",
-          instruction,
-          takeScreenshot: false,
-          includeAccessibilityTree: false, // We already have the tree
-          domElements: outputString,
-          appendToHistory: false,
-        });
-
-        optimizedDomElements = contextData.optimizedElements || outputString;
-      } catch (error) {
-        this.logger({
-          category: "extraction",
-          message: `ContextManager optimization failed, using original DOM: ${error}`,
-          level: 1,
-        });
-      }
-    }
-
-    // call extract inference with transformed schema
+    // Call performExtract - it builds context internally with the instruction
     const extractionResponse = await this.contextManager.performExtract({
       instruction,
-      domElements: optimizedDomElements,
       schema: transformedSchema,
       chunksSeen: 1,
       chunksTotal: 1,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
+      iframes,
     });
 
     const {

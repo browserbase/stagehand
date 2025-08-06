@@ -94,6 +94,8 @@ export interface CreateChatCompletionOptions {
   options: ChatCompletionOptions;
   logger: (message: LogLine) => void;
   retries?: number;
+  functionName?: string; // extract, act, observe, agent
+  stagehandInstance?: unknown; // Reference to Stagehand instance for inference logging
 }
 
 export abstract class LLMClient {

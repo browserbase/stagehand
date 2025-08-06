@@ -60,11 +60,15 @@ export class StagehandObserveHandler {
 
     this.logger({
       category: "observation",
-      message: "starting observation",
+      message: "starting observe",
       level: 1,
       auxiliary: {
         instruction: {
           value: instruction,
+          type: "string",
+        },
+        requestId: {
+          value: requestId,
           type: "string",
         },
       },
@@ -79,51 +83,18 @@ export class StagehandObserveHandler {
       });
     }
 
-    // Let ContextManager handle all accessibility tree operations
-    let combinedTree = "";
-    const combinedXpathMap: Record<EncodedId, string> = {};
-
-    // Optimize DOM elements using ContextManager if available
-    let optimizedDomElements = combinedTree;
-    if (this.contextManager) {
-      try {
-        this.logger({
-          category: "observation",
-          message: "Using ContextManager to optimize DOM elements",
-          level: 1,
-        });
-
-        const contextData = await this.contextManager.buildContext({
-          method: "observe",
-          instruction,
-          takeScreenshot: false,
-          includeAccessibilityTree: true, // Let ContextManager handle accessibility tree
-          appendToHistory: false,
-          iframes,
-        });
-
-        optimizedDomElements = contextData.optimizedElements || "";
-        combinedTree = contextData.optimizedElements || "";
-        // ContextManager handles xpathMap internally
-      } catch (error) {
-        this.logger({
-          category: "observation",
-          message: `ContextManager optimization failed, using original DOM: ${error}`,
-          level: 1,
-        });
-      }
-    }
-
-    // No screenshot or vision-based annotation is performed
+    // Call performObserve - it builds context internally with the instruction
     const observationResponse = await this.contextManager.performObserve({
       instruction,
-      domElements: optimizedDomElements,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       returnAction,
+      iframes,
     });
 
     const {
+      elements,
+      xpathMapping: combinedXpathMap,
       prompt_tokens = 0,
       completion_tokens = 0,
       inference_time_ms = 0,
@@ -140,7 +111,7 @@ export class StagehandObserveHandler {
 
     const elementsWithSelectors = (
       await Promise.all(
-        observationResponse.elements.map(async (element) => {
+        elements.map(async (element) => {
           const { elementId, ...rest } = element;
 
           // Generate xpath for the given element if not found in selectorMap

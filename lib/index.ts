@@ -47,6 +47,28 @@ import {
 import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
 import { ContextManager } from "./context";
+import { appendSummary, writeTimestampedJsonFile } from "./inferenceLogUtils";
+
+// Inference logging data structures
+interface InferenceLogData {
+  instruction?: string;
+  requestId?: string;
+  response: unknown;
+  promptTokens: number;
+  completionTokens: number;
+  inferenceTimeMs: number;
+  promptData?: {
+    messages: unknown[];
+    system?: string;
+    tools?: unknown[];
+    schema?: unknown;
+    config?: unknown;
+    requestPayload?: unknown;
+  };
+  timestamp: string;
+  url?: string;
+  metadata?: Record<string, unknown>;
+}
 
 dotenv.config({ path: ".env" });
 
@@ -516,6 +538,78 @@ export class Stagehand {
     this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
+  /**
+   * Log inference data to files when logInferenceToFile is enabled
+   */
+  public logInferenceData(
+    functionName: StagehandFunctionName,
+    data: {
+      instruction?: string;
+      requestId?: string;
+      response: unknown;
+      promptTokens: number;
+      completionTokens: number;
+      inferenceTimeMs: number;
+      promptData?: {
+        messages: unknown[];
+        system?: string;
+        tools?: unknown[];
+        schema?: unknown;
+        config?: unknown;
+        requestPayload?: unknown;
+      };
+      metadata?: Record<string, unknown>;
+    },
+  ): void {
+    if (!this.logInferenceToFile) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const url = this.stagehandPage?.page?.url?.() || "unknown";
+
+    const logData: InferenceLogData = {
+      ...data,
+      timestamp,
+      url,
+    };
+
+    // Determine the inference type string for file naming
+    const inferenceType = functionName.toLowerCase();
+
+    try {
+      // Write detailed log file with timestamp
+      const { fileName } = writeTimestampedJsonFile(
+        `${inferenceType}_summary`,
+        inferenceType,
+        logData,
+      );
+
+      // Append summary entry
+      const summaryEntry = {
+        fileName,
+        timestamp,
+        instruction: data.instruction || "N/A",
+        promptTokens: data.promptTokens,
+        completionTokens: data.completionTokens,
+        inferenceTimeMs: data.inferenceTimeMs,
+        url,
+        requestId: data.requestId,
+      };
+
+      appendSummary(inferenceType, summaryEntry);
+
+      this.stagehandLogger.info(`Inference data logged to ${fileName}`, {
+        category: "inference-logging",
+      });
+    } catch (error) {
+      this.stagehandLogger.warn(
+        `Failed to log inference data: ${error instanceof Error ? error.message : String(error)}`,
+        { category: "inference-logging" },
+      );
+    }
+  }
+
   constructor(
     {
       env,
@@ -824,6 +918,7 @@ export class Stagehand {
       logger: this.logger,
       page: this.stagehandPage,
       llmClient: this.llmClient,
+      stagehandInstance: this,
     });
 
     // Initialize handlers now that contextManager is available
