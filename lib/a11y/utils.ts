@@ -447,7 +447,8 @@ export async function getCDPFrameId(
   for (let p = frame.parentFrame(); p; p = p.parentFrame()) depth++;
 
   const findByUrlDepth = (node: CdpFrameTree, lvl = 0): string | undefined => {
-    if (lvl === depth && node.frame.url === url) return node.frame.id;
+    if (lvl === depth && normalizeUrl(node.frame.url) === normalizeUrl(url))
+      return node.frame.id;
     for (const child of node.childFrames ?? []) {
       const id = findByUrlDepth(child, lvl + 1);
       if (id) return id;
@@ -1204,5 +1205,42 @@ export async function resolveFrameChain(
         throw new XPathResolutionError(absPath);
       }
     }
+  }
+}
+
+function normalizeUrl(raw: string | URL | null | undefined): string {
+  // return early for falsy values
+  if (raw == null) return "";
+
+  // 2 Convert to string (covers URL objects transparently)
+  const rawStr = String(raw).trim();
+  if (rawStr === "") return "";
+
+  try {
+    // Parse with WHATWG URL; supply a dummy base for relative paths
+    const url = new URL(
+      rawStr,
+      rawStr.match(/^https?:\/\//) ? undefined : "http://dummy.local",
+    );
+
+    // Normalizations
+    url.hash = ""; // drop fragment
+    if (
+      (url.protocol === "http:" && url.port === "80") ||
+      (url.protocol === "https:" && url.port === "443")
+    ) {
+      url.port = ""; // default port → empty
+    }
+    let out = url.toString();
+
+    // Remove trailing slash (but keep single “/” after protocol)
+    if (out.endsWith("/") && !/^[a-z]+:\/\/[^/]+\/$/i.test(out)) {
+      out = out.slice(0, -1);
+    }
+    return out;
+  } catch {
+    // Fallback: quick & safe string ops
+    const noFrag = rawStr.split("#")[0];
+    return noFrag.replace(/\/+$/, ""); // trim 1+ trailing “/”
   }
 }
