@@ -117,6 +117,7 @@ export interface ActOptions {
   timeoutMs?: number;
   iframes?: boolean;
   frameId?: string;
+  dynamic?: boolean;
 }
 
 export interface ActResult {
@@ -138,6 +139,7 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   selector?: string;
   iframes?: boolean;
   frameId?: string;
+  dynamic?: boolean;
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
@@ -155,6 +157,7 @@ export interface ObserveOptions {
   drawOverlay?: boolean;
   iframes?: boolean;
   frameId?: string;
+  dynamic?: boolean;
 }
 
 export interface ObserveResult {

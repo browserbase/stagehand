@@ -183,6 +183,7 @@ export interface BuildContextOptions {
   tools?: Record<string, LLMTool>;
   appendToHistory?: boolean;
   iframes?: boolean;
+  dynamic?: boolean;
 }
 
 export interface BuildContextResult {
@@ -198,6 +199,7 @@ export interface PerformExtractOptions<T extends z.ZodObject<z.ZodRawShape>>
   schema: T;
   chunksSeen?: number;
   chunksTotal?: number;
+  dynamic?: boolean;
 }
 
 export interface PerformExtractResult<T extends z.ZodObject<z.ZodRawShape>>
@@ -211,6 +213,7 @@ export interface PerformExtractResult<T extends z.ZodObject<z.ZodRawShape>>
 
 export interface PerformObserveOptions extends BasePerformOptions {
   returnAction?: boolean;
+  dynamic?: boolean;
 }
 
 export interface ObservedElement {

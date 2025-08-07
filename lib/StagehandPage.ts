@@ -753,6 +753,7 @@ ${scriptContent} \
         useTextExtract,
         selector,
         iframes,
+        dynamic,
       } = options;
 
       if (this.api) {
@@ -796,6 +797,7 @@ ${scriptContent} \
           useTextExtract,
           selector,
           iframes,
+          dynamic,
         })
         .catch((e) => {
           this.stagehand.log({
@@ -856,6 +858,7 @@ ${scriptContent} \
         onlyVisible,
         drawOverlay,
         iframes,
+        dynamic,
       } = options;
 
       if (this.api) {
@@ -905,6 +908,7 @@ ${scriptContent} \
           onlyVisible,
           drawOverlay,
           iframes,
+          dynamic,
         })
         .catch((e) => {
           this.stagehand.log({

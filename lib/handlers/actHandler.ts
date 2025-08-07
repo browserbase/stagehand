@@ -237,6 +237,8 @@ Find the relevant elements on the page that can be used to complete this task.`;
         observeOptions.modelName = actionOrOptions.modelName;
       if (actionOrOptions.modelClientOptions)
         observeOptions.modelClientOptions = actionOrOptions.modelClientOptions;
+      if (actionOrOptions.dynamic)
+        observeOptions.dynamic = actionOrOptions.dynamic;
     } else {
       throw new StagehandInvalidArgumentError(
         "Invalid argument. Valid arguments are: a string, an ActOptions object with an `action` field not empty, or an ObserveResult with a `selector` and `method` field.",
@@ -264,6 +266,7 @@ Find the relevant elements on the page that can be used to complete this task.`;
         returnAction: true,
         fromAct: true,
         iframes: actionOrOptions?.iframes,
+        dynamic: actionOrOptions?.dynamic,
       });
 
       if (observeResults.length === 0) {

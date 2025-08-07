@@ -51,6 +51,7 @@ export class StagehandExtractHandler {
     useTextExtract,
     selector: _selector,
     iframes,
+    dynamic,
   }: {
     instruction?: string;
     schema?: T;
@@ -62,6 +63,7 @@ export class StagehandExtractHandler {
     useTextExtract?: boolean;
     selector?: string;
     iframes?: boolean;
+    dynamic?: boolean;
   } = {}): Promise<z.infer<T>> {
     const noArgsCalled = !instruction && !schema && !llmClient && !_selector;
     if (noArgsCalled) {
@@ -87,6 +89,7 @@ export class StagehandExtractHandler {
       content,
       requestId,
       iframes,
+      dynamic,
     });
   }
 
@@ -110,12 +113,14 @@ export class StagehandExtractHandler {
     schema,
     requestId,
     iframes,
+    dynamic,
   }: {
     instruction: string;
     schema: T;
     content?: z.infer<T>;
     requestId?: string;
     iframes?: boolean;
+    dynamic?: boolean;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -142,6 +147,7 @@ export class StagehandExtractHandler {
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,
       iframes,
+      dynamic,
     });
 
     const {
@@ -175,28 +181,11 @@ export class StagehandExtractHandler {
       },
     });
 
-    this.logger({
-      category: "extraction",
-      message: "received extraction response",
-      auxiliary: {
-        extraction_response: {
-          value: JSON.stringify(extractionResponse),
-          type: "object",
-        },
-      },
-    });
-
     if (completed) {
       this.logger({
         category: "extraction",
         message: "extraction completed successfully",
         level: 1,
-        auxiliary: {
-          extraction_response: {
-            value: JSON.stringify(extractionResponse),
-            type: "object",
-          },
-        },
       });
     } else {
       this.logger({

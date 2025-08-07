@@ -1,4 +1,4 @@
-import { LLMParsedResponse } from "@/types/llm";
+import { LLMParsedResponse, LLMTool } from "@/types/llm";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
 import { StagehandPage } from "./StagehandPage";
@@ -39,7 +39,10 @@ export class ContextManager {
 
     this.appendMessage({
       role: "system",
-      content: `You are an intelligent browser automation assistant that helps users interact with web pages through extraction, observation, and action.
+      content: [
+        {
+          type: "text",
+          text: `You are an intelligent browser automation assistant that helps users interact with web pages through extraction, observation, and action.
       
       You will be given different types of tasks:
       1. EXTRACT: Extract specific information from the page
@@ -47,6 +50,8 @@ export class ContextManager {
       3. ACT: Determine the best action to perform on an element
       
       Always provide accurate, precise responses based on the accessibility tree and any screenshots provided.`,
+        },
+      ],
     });
   }
 
@@ -62,12 +67,48 @@ export class ContextManager {
     tools,
     appendToHistory = false,
     iframes = false,
+    dynamic = false,
   }: BuildContextOptions): Promise<BuildContextResult> {
     this.logger({
       category: "context",
       message: `Building context for ${method} operation: "${instruction}"`,
       level: 1,
     });
+
+    // If dynamic mode is enabled, use LLM to determine optimal context
+    if (dynamic) {
+      try {
+        const dynamicContextDecision = await this.determineDynamicContext({
+          method,
+          instruction,
+          tools,
+        });
+
+        // Override the parameters based on LLM decision
+        takeScreenshot = dynamicContextDecision.takeScreenshot;
+        includeAccessibilityTree =
+          dynamicContextDecision.includeAccessibilityTree;
+        iframes = dynamicContextDecision.handleIframes;
+
+        // Filter tools if recommended
+        if (tools && dynamicContextDecision.filteredTools) {
+          tools = dynamicContextDecision.filteredTools;
+        }
+
+        this.logger({
+          category: "context",
+          message: `Dynamic context analysis completed - screenshot: ${takeScreenshot}, a11y: ${includeAccessibilityTree}, iframes: ${iframes}, tools: ${Object.keys(tools || {}).length}`,
+          level: 1,
+        });
+      } catch (error) {
+        this.logger({
+          category: "context",
+          message: `Dynamic context analysis failed, falling back to defaults: ${error.message}`,
+          level: 1,
+        });
+        // Continue with the original parameter values
+      }
+    }
 
     const contentParts: (ChatMessageTextContent | ChatMessageImageContent)[] =
       [];
@@ -187,12 +228,6 @@ Here is the user's instruction: "${instruction}"`,
       this.appendMessage(contextMessage);
     }
 
-    this.logger({
-      category: "context",
-      message: `Completed ${method} operation with context built`,
-      level: 1,
-    });
-
     return {
       contextMessage,
       allMessages: appendToHistory
@@ -220,6 +255,7 @@ Here is the user's instruction: "${instruction}"`,
     requestId,
     userProvidedInstructions,
     iframes = false,
+    dynamic = false,
   }: PerformExtractOptions<T>): Promise<PerformExtractResult<T>> {
     this.logger({
       category: "context",
@@ -235,6 +271,7 @@ Here is the user's instruction: "${instruction}"`,
       includeAccessibilityTree: true,
       appendToHistory: false,
       iframes,
+      dynamic,
     });
 
     // Add Anthropic-specific instructions if using Anthropic
@@ -300,7 +337,12 @@ ${userProvidedInstructions}`
     const extractCallMessages: ChatMessage[] = [
       {
         role: "system",
-        content: extractSystemContent,
+        content: [
+          {
+            type: "text",
+            text: extractSystemContent,
+          },
+        ],
       },
       userMessage,
     ];
@@ -347,13 +389,23 @@ Strictly abide by the following criteria:
     const metadataCallMessages: ChatMessage[] = [
       {
         role: "system",
-        content: metadataSystemContent,
+        content: [
+          {
+            type: "text",
+            text: metadataSystemContent,
+          },
+        ],
       },
       {
         role: "user",
-        content: `Extracted content: ${JSON.stringify(extractedData, null, 2)}
+        content: [
+          {
+            type: "text",
+            text: `Extracted content: ${JSON.stringify(extractedData, null, 2)}
 chunksSeen: ${chunksSeen}
 chunksTotal: ${chunksTotal}`,
+          },
+        ],
       },
     ];
 
@@ -452,6 +504,7 @@ chunksTotal: ${chunksTotal}`,
     userProvidedInstructions,
     returnAction = false,
     iframes = false,
+    dynamic = false,
   }: PerformObserveOptions): Promise<PerformObserveResult> {
     this.logger({
       category: "context",
@@ -467,6 +520,7 @@ chunksTotal: ${chunksTotal}`,
       includeAccessibilityTree: true,
       appendToHistory: false,
       iframes,
+      dynamic,
     });
 
     const xpathMapping = contextData.xpathMap || {};
@@ -532,7 +586,12 @@ ${userProvidedInstructions}`
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: observeSystemContent,
+        content: [
+          {
+            type: "text",
+            text: observeSystemContent,
+          },
+        ],
       },
       contextData.contextMessage,
     ];
@@ -609,5 +668,260 @@ ${userProvidedInstructions}`
       inference_time_ms: usageTimeMs,
       promptData,
     };
+  }
+
+  private async determineDynamicContext({
+    method,
+    instruction,
+    tools,
+  }: {
+    method: StagehandFunctionName;
+    instruction: string;
+    tools?: Record<string, LLMTool>;
+  }): Promise<{
+    takeScreenshot: boolean;
+    includeAccessibilityTree: boolean;
+    handleIframes: boolean;
+    filteredTools?: Record<string, LLMTool>;
+  }> {
+    this.logger({
+      category: "context",
+      message: "Analyzing page properties for dynamic context selection",
+      level: 1,
+    });
+
+    // Extract page properties to help LLM make informed decisions
+    const pageProperties = await this.extractPageProperties();
+
+    // Define schema for LLM response
+    const contextDecisionSchema = z.object({
+      takeScreenshot: z
+        .boolean()
+        .describe(
+          "Whether to take a screenshot. Useful for visual layouts, complex forms, or when user instruction refers to visual elements",
+        ),
+      includeAccessibilityTree: z
+        .boolean()
+        .describe(
+          "Whether to include the accessibility tree. Essential for most interactions but can be skipped for simple page analysis",
+        ),
+      handleIframes: z
+        .boolean()
+        .describe(
+          "Whether to handle iframes. Enable if the page likely contains embedded content or the instruction suggests interaction within frames",
+        ),
+      toolsToKeep: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Array of tool names to keep. Only include tools that are relevant to the current instruction. If not provided, all tools will be kept",
+        ),
+      reasoning: z.string().describe("Brief explanation of the decisions made"),
+    });
+
+    type ContextDecisionResponse = z.infer<typeof contextDecisionSchema>;
+
+    const systemMessage = `You are an expert at analyzing web pages and user instructions to determine the optimal context needed for browser automation tasks.
+
+Your goal is to decide what context information to include based on:
+1. The user's instruction and what they want to accomplish
+2. Properties of the current page
+3. The type of operation being performed (${method})
+
+INSTRUCTION ANALYSIS - Enable features based on instruction patterns:
+
+Screenshots should be enabled when the instruction mentions:
+- Visual elements: "button", "link", "image", "icon", "color", "appearance"
+- Layout references: "top", "bottom", "left", "right", "center", "corner", "sidebar"
+- Visual descriptions: "red button", "large text", "highlighted", "visible", "display"
+- Complex UI: "dropdown", "menu", "modal", "popup", "overlay"
+- Spatial relationships: "next to", "above", "below", "beside"
+
+Accessibility trees should be enabled for:
+- Most interactions: "click", "type", "fill", "select", "choose", "press"
+- Element targeting: "find", "locate", "identify", "search for"
+- Form operations: "submit", "input", "checkbox", "radio", "textarea"
+- Navigation: "go to", "navigate", "scroll", "page"
+- Content extraction where DOM structure matters
+
+iFrames should be enabled when instruction mentions:
+- Embedded content: "video", "advertisement", "embed", "frame", "widget"
+- Third-party content: "social media", "payment", "login form", "chat"
+- Cross-domain interactions: "external", "different domain"
+- Page properties show hasFrames: true
+
+Tool filtering should consider:
+- Extract operations: keep only extraction-related tools
+- Navigation tasks: keep only navigation/action tools  
+- Form interactions: keep form-related tools
+- Data analysis: keep analysis/processing tools
+
+CONTEXT PRIORITIZATION:
+- For EXTRACT: Prioritize accessibility tree, consider screenshots for visual data
+- For OBSERVE: Always use accessibility tree, add screenshots for visual targeting
+- For ACT: Use accessibility tree, add screenshots for complex visual interactions
+
+Be decisive and practical. Prefer minimal context that still accomplishes the task effectively.`;
+
+    const userMessage = `Operation: ${method}
+User Instruction: "${instruction}"
+
+INSTRUCTION ANALYSIS:
+Analyze the instruction for these patterns:
+- Visual keywords: ${this.extractKeywordMatches(instruction, ["button", "link", "image", "icon", "color", "red", "blue", "green", "visible", "display", "appearance", "highlighted"])}
+- Layout keywords: ${this.extractKeywordMatches(instruction, ["top", "bottom", "left", "right", "center", "corner", "sidebar", "next to", "above", "below", "beside"])}
+- Interaction keywords: ${this.extractKeywordMatches(instruction, ["click", "type", "fill", "select", "choose", "press", "submit", "input", "checkbox", "radio"])}
+- Content keywords: ${this.extractKeywordMatches(instruction, ["extract", "find", "locate", "identify", "search", "get", "retrieve"])}
+- Iframe keywords: ${this.extractKeywordMatches(instruction, ["video", "advertisement", "embed", "frame", "widget", "social media", "payment", "login form", "chat"])}
+
+Page Properties:
+${JSON.stringify(pageProperties, null, 2)}
+
+Available Tools: ${
+      tools
+        ? Object.keys(tools)
+            .map((name) => `${name}: ${tools[name].description}`)
+            .join("\n")
+        : "None"
+    }
+
+Based on the instruction analysis, page properties, and operation type, determine the optimal context configuration.`;
+
+    const messages: ChatMessage[] = [
+      {
+        role: "system",
+        content: systemMessage,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: userMessage,
+          },
+        ],
+      },
+    ];
+
+    try {
+      const response =
+        await this.llmClient.createChatCompletion<ContextDecisionResponse>({
+          options: {
+            messages,
+            response_model: {
+              schema: contextDecisionSchema,
+              name: "ContextDecision",
+            },
+            temperature: 0.1,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+          },
+          logger: this.logger,
+        });
+
+      const { data: decision } =
+        response as LLMParsedResponse<ContextDecisionResponse>;
+
+      this.logger({
+        category: "context",
+        message: `Dynamic context decision: ${decision.reasoning}`,
+        level: 1,
+      });
+
+      let filteredTools: Record<string, LLMTool> | undefined = undefined;
+      if (tools && decision.toolsToKeep && decision.toolsToKeep.length > 0) {
+        filteredTools = {};
+        for (const toolName of decision.toolsToKeep) {
+          if (tools[toolName]) {
+            filteredTools[toolName] = tools[toolName];
+          }
+        }
+      }
+
+      return {
+        takeScreenshot: decision.takeScreenshot,
+        includeAccessibilityTree: decision.includeAccessibilityTree,
+        handleIframes: decision.handleIframes,
+        filteredTools,
+      };
+    } catch (error) {
+      this.logger({
+        category: "context",
+        message: `Error in dynamic context analysis, falling back to defaults: ${error}`,
+        level: 2,
+      });
+
+      // Fallback to reasonable defaults
+      return {
+        takeScreenshot: false,
+        includeAccessibilityTree: true,
+        handleIframes: false,
+      };
+    }
+  }
+
+  private async extractPageProperties(): Promise<{
+    url: string;
+    title: string;
+    hasFrames: boolean;
+    viewportSize: { width: number; height: number };
+    documentReadyState: string;
+    bodyTag: string | null;
+    metaDescription: string | null;
+    headingsCount: { h1: number; h2: number; h3: number };
+    formsCount: number;
+    buttonsCount: number;
+    linksCount: number;
+    imagesCount: number;
+  }> {
+    const page = this.stagehandPage.page;
+
+    const properties = await page.evaluate(() => {
+      const headings = {
+        h1: document.querySelectorAll("h1").length,
+        h2: document.querySelectorAll("h2").length,
+        h3: document.querySelectorAll("h3").length,
+      };
+
+      const metaDescription =
+        document
+          .querySelector('meta[name="description"]')
+          ?.getAttribute("content") || null;
+      const bodyTag = document.body
+        ? document.body.tagName.toLowerCase()
+        : null;
+
+      return {
+        url: window.location.href,
+        title: document.title,
+        hasFrames: window.frames.length > 0,
+        documentReadyState: document.readyState,
+        bodyTag,
+        metaDescription,
+        headingsCount: headings,
+        formsCount: document.querySelectorAll("form").length,
+        buttonsCount: document.querySelectorAll(
+          'button, input[type="button"], input[type="submit"]',
+        ).length,
+        linksCount: document.querySelectorAll("a[href]").length,
+        imagesCount: document.querySelectorAll("img").length,
+      };
+    });
+
+    const viewportSize = page.viewportSize() || { width: 0, height: 0 };
+
+    return {
+      ...properties,
+      viewportSize,
+    };
+  }
+
+  private extractKeywordMatches(text: string, keywords: string[]): string {
+    const lowerText = text.toLowerCase();
+    const matches = keywords.filter((keyword) =>
+      lowerText.includes(keyword.toLowerCase()),
+    );
+    return matches.length > 0 ? matches.join(", ") : "none";
   }
 }
