@@ -195,6 +195,9 @@ export async function buildBackendIdMaps(
     const stack: StackEntry[] = [{ node: startNode, path: "", fid: rootFid }];
     const seen = new Set<EncodedId>();
 
+    const joinStep = (base: string, step: string): string =>
+      base.endsWith("//") ? `${base}${step}` : `${base}/${step}`;
+
     while (stack.length) {
       const { node, path, fid } = stack.pop()!;
 
@@ -210,6 +213,16 @@ export async function buildBackendIdMaps(
       if (lc(node.nodeName) === "iframe" && node.contentDocument) {
         const childFid = node.contentDocument.frameId ?? fid;
         stack.push({ node: node.contentDocument, path: "", fid: childFid });
+      }
+
+      if (node.shadowRoots?.length) {
+        for (const shadowRoot of node.shadowRoots) {
+          stack.push({
+            node: shadowRoot,
+            path: `${path}//`,
+            fid,
+          });
+        }
       }
 
       // push children
@@ -234,7 +247,7 @@ export async function buildBackendIdMaps(
         for (let i = kids.length - 1; i >= 0; i--) {
           stack.push({
             node: kids[i]!,
-            path: `${path}/${segs[i]}`,
+            path: joinStep(path, segs[i]!),
             fid,
           });
         }
