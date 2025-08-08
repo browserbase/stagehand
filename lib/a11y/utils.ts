@@ -11,6 +11,7 @@ import {
   EncodedId,
   RichNode,
   ID_PATTERN,
+  CdpFrame,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -442,12 +443,14 @@ export async function getCDPFrameId(
   const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
   const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
 
-  const url = frame.url();
+  const targetUrl: string = frame.url();
   let depth = 0;
   for (let p = frame.parentFrame(); p; p = p.parentFrame()) depth++;
 
+  const withFragment = (f: CdpFrame): string => f.url + (f.urlFragment ?? "");
+
   const findByUrlDepth = (node: CdpFrameTree, lvl = 0): string | undefined => {
-    if (lvl === depth && normalizeUrl(node.frame.url) === normalizeUrl(url))
+    if (lvl === depth && withFragment(node.frame) === targetUrl)
       return node.frame.id;
     for (const child of node.childFrames ?? []) {
       const id = findByUrlDepth(child, lvl + 1);
@@ -468,7 +471,7 @@ export async function getCDPFrameId(
 
     return frameTree.frame.id; // root of OOPIF
   } catch (err) {
-    throw new StagehandIframeError(url, String(err));
+    throw new StagehandIframeError(targetUrl, String(err));
   }
 }
 
@@ -1205,42 +1208,5 @@ export async function resolveFrameChain(
         throw new XPathResolutionError(absPath);
       }
     }
-  }
-}
-
-function normalizeUrl(raw: string | URL | null | undefined): string {
-  // return early for falsy values
-  if (raw == null) return "";
-
-  // 2 Convert to string (covers URL objects transparently)
-  const rawStr = String(raw).trim();
-  if (rawStr === "") return "";
-
-  try {
-    // Parse with WHATWG URL; supply a dummy base for relative paths
-    const url = new URL(
-      rawStr,
-      rawStr.match(/^https?:\/\//) ? undefined : "http://dummy.local",
-    );
-
-    // Normalizations
-    url.hash = ""; // drop fragment
-    if (
-      (url.protocol === "http:" && url.port === "80") ||
-      (url.protocol === "https:" && url.port === "443")
-    ) {
-      url.port = ""; // default port → empty
-    }
-    let out = url.toString();
-
-    // Remove trailing slash (but keep single “/” after protocol)
-    if (out.endsWith("/") && !/^[a-z]+:\/\/[^/]+\/$/i.test(out)) {
-      out = out.slice(0, -1);
-    }
-    return out;
-  } catch {
-    // Fallback: quick & safe string ops
-    const noFrag = rawStr.split("#")[0];
-    return noFrag.replace(/\/+$/, ""); // trim 1+ trailing “/”
   }
 }
