@@ -2,7 +2,7 @@ import Browserbase from "@browserbasehq/sdk";
 import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
 import { ToolSet } from "ai";
 import { Cookie } from "playwright";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { LLMClient } from "../lib/llm/LLMClient";
 import { LLMProvider } from "../lib/llm/LLMProvider";
 import { AgentProviderType } from "./agent";

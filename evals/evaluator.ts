@@ -17,6 +17,9 @@ import {
   EvaluationResult,
   BatchEvaluateOptions,
 } from "@/types/evaluator";
+import { LLMParsedResponse } from "@/lib/inference";
+import { LLMResponse } from "@/lib/llm/LLMClient";
+import { LogLine } from "@/types/log";
 
 dotenv.config();
 
@@ -24,6 +27,7 @@ export class Evaluator {
   private stagehand: Stagehand;
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions | { apiKey: string };
+  private silentLogger: (message: LogLine) => void;
   // Define regex patterns directly in the class or as constants if preferred elsewhere
   private yesPattern = /^(YES|Y|TRUE|CORRECT|AFFIRMATIVE)/i;
   private noPattern = /^(NO|N|FALSE|INCORRECT|NEGATIVE)/i;
@@ -34,10 +38,12 @@ export class Evaluator {
     modelClientOptions?: ClientOptions,
   ) {
     this.stagehand = stagehand;
-    this.modelName = modelName || "google/gemini-2.0-flash";
+    this.modelName = modelName || "google/gemini-2.5-flash";
     this.modelClientOptions = modelClientOptions || {
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
     };
+    // Create a silent logger function that doesn't output anything
+    this.silentLogger = () => {};
   }
 
   /**
@@ -54,7 +60,8 @@ export class Evaluator {
       question,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given the state of a task (most times in the form of a screenshot) and a question. Provide a detailed reasoning for your answer.
           Return your response as a JSON object with the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }`,
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
       strictResponse = false,
     } = options;
@@ -66,8 +73,10 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    const response = await llmClient.createChatCompletion({
-      logger: this.stagehand.logger,
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
+      logger: this.silentLogger,
       options: {
         messages: [
           { role: "system", content: systemPrompt },
@@ -76,8 +85,7 @@ export class Evaluator {
         image: { buffer: imageBuffer },
       },
     });
-
-    const rawResponse = response.choices[0].message.content;
+    const rawResponse = response.data as unknown as string;
     let evaluationResult: "YES" | "NO" | "INVALID" = "INVALID";
     let reasoning = `Failed to process response. Raw response: ${rawResponse}`;
 
@@ -160,7 +168,8 @@ export class Evaluator {
       questions,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task in the screenshot. Provide a detailed reasoning for your answer.
           Return your response as a JSON array, where each object corresponds to a question and has the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }`,
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
       strictResponse = false,
     } = options;
@@ -183,8 +192,10 @@ export class Evaluator {
     );
 
     // Use the model-specific LLM client to evaluate the screenshot with all questions
-    const response = await llmClient.createChatCompletion({
-      logger: this.stagehand.logger,
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
+      logger: this.silentLogger,
       options: {
         messages: [
           {
@@ -202,7 +213,7 @@ export class Evaluator {
       },
     });
 
-    const rawResponse = response.choices[0].message.content;
+    const rawResponse = response.data as unknown as string;
     let finalResults: EvaluationResult[] = [];
 
     try {

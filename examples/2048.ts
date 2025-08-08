@@ -1,5 +1,5 @@
 import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 async function example() {
   console.log("🎮 Starting 2048 bot...");

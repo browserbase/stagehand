@@ -1,10 +1,12 @@
 import { ApiResponse, ErrorResponse } from "@/types/api";
+import { GotoOptions } from "@/types/playwright";
 import { Browserbase } from "@browserbasehq/sdk";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { Browser, chromium } from "playwright";
+import { z } from "zod/v3";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
@@ -23,19 +25,6 @@ import {
   StagehandFunctionName,
   StagehandMetrics,
 } from "../types/stagehand";
-import { StagehandContext } from "./StagehandContext";
-import { StagehandPage } from "./StagehandPage";
-import { StagehandAPI } from "./api";
-import { scriptContent } from "./dom/build/scriptContent";
-import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandOperatorHandler } from "./handlers/operatorHandler";
-import { LLMClient } from "./llm/LLMClient";
-import { LLMProvider } from "./llm/LLMProvider";
-import { StagehandLogger } from "./logger";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
-
-import { GotoOptions } from "@/types/playwright";
-import { z } from "zod";
 import {
   InvalidAISDKModelFormatError,
   MissingEnvironmentVariableError,
@@ -45,8 +34,18 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
 } from "../types/stagehandErrors";
+import { StagehandContext } from "./StagehandContext";
+import { StagehandPage } from "./StagehandPage";
+import { StagehandAPI } from "./api";
+import { scriptContent } from "./dom/build/scriptContent";
+import { StagehandAgentHandler } from "./handlers/agentHandler";
+import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+import { LLMClient } from "./llm/LLMClient";
+import { LLMProvider } from "./llm/LLMProvider";
+import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
+import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 
 dotenv.config({ path: ".env" });
 

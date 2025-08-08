@@ -10,7 +10,7 @@ import {
   streamObject,
   streamText,
 } from "ai";
-import { ZodType } from "zod";
+import { ZodType } from "zod/v3";
 import { LogLine } from "../../types/log";
 import { AvailableModel, ClientOptions } from "../../types/model";
 

@@ -27,6 +27,7 @@ export class StagehandContext {
           return async (): Promise<Page> => {
             const pwPage = await target.newPage();
             const stagehandPage = await this.createStagehandPage(pwPage);
+            await this.attachFrameNavigatedListener(pwPage);
             // Set as active page when created
             this.setActivePage(stagehandPage);
             return stagehandPage.page;
@@ -81,19 +82,8 @@ export class StagehandContext {
     stagehand: Stagehand,
   ): Promise<StagehandContext> {
     const instance = new StagehandContext(context, stagehand);
-
-    // Initialize existing pages
-    const existingPages = context.pages();
-    for (const page of existingPages) {
-      const stagehandPage = await instance.createStagehandPage(page);
-      await instance.attachFrameNavigatedListener(page);
-      // Set the first page as active
-      if (!instance.activeStagehandPage) {
-        instance.setActivePage(stagehandPage);
-      }
-    }
-
-    context.on("page", (pwPage) => {
+    context.on("page", async (pwPage) => {
+      await instance.handleNewPlaywrightPage(pwPage);
       instance
         .attachFrameNavigatedListener(pwPage)
         .catch((err) =>
@@ -113,6 +103,17 @@ export class StagehandContext {
           ),
         );
     });
+
+    // Initialize existing pages
+    const existingPages = context.pages();
+    for (const page of existingPages) {
+      const stagehandPage = await instance.createStagehandPage(page);
+      await instance.attachFrameNavigatedListener(page);
+      // Set the first page as active
+      if (!instance.activeStagehandPage) {
+        instance.setActivePage(stagehandPage);
+      }
+    }
 
     return instance;
   }
@@ -180,22 +181,19 @@ export class StagehandContext {
     await session.send("Page.enable");
 
     pwPage.once("close", () => {
-      this.unregisterFrameId(shPage.frameId);
+      if (shPage.frameId) this.unregisterFrameId(shPage.frameId);
     });
 
     session.on(
       "Page.frameNavigated",
       (evt: Protocol.Page.FrameNavigatedEvent): void => {
-        const { frame } = evt;
+        if (evt.frame.parentId) return;
+        if (evt.frame.id === shPage.frameId) return;
 
-        if (!frame.parentId) {
-          const oldId = shPage.frameId;
-          if (frame.id !== oldId) {
-            if (oldId) this.unregisterFrameId(oldId);
-            this.registerFrameId(frame.id, shPage);
-            shPage.updateRootFrameId(frame.id);
-          }
-        }
+        const oldId = shPage.frameId;
+        if (oldId) this.unregisterFrameId(oldId);
+        this.registerFrameId(evt.frame.id, shPage);
+        shPage.updateRootFrameId(evt.frame.id);
       },
     );
   }

@@ -1,5 +1,35 @@
 # @browserbasehq/stagehand
 
+## 2.4.2
+
+### Patch Changes
+
+- [#865](https://github.com/browserbase/stagehand/pull/865) [`6b4e6e3`](https://github.com/browserbase/stagehand/commit/6b4e6e3f31d5496cf15728e9018eddeb04839542) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - improve type safety for trimTrailingTextNode
+
+- [#897](https://github.com/browserbase/stagehand/pull/897) [`e77d018`](https://github.com/browserbase/stagehand/commit/e77d0188683ebf596dfb78dfafbbca1dc32993f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix selfHeal to remember intially received arguments
+
+- [#920](https://github.com/browserbase/stagehand/pull/920) [`c20adb9`](https://github.com/browserbase/stagehand/commit/c20adb95539fed8c56a4aa413262a9c65a8e6474) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: tab handling on API
+
+- [#882](https://github.com/browserbase/stagehand/pull/882) [`b86df93`](https://github.com/browserbase/stagehand/commit/b86df93b9136aae96292121a29c25f3d74d84bf7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove elements that don't have xpaths from observe response
+
+- [#905](https://github.com/browserbase/stagehand/pull/905) [`023c2c2`](https://github.com/browserbase/stagehand/commit/023c2c273b46d3792d7e5d3c902089487b16b531) Thanks [@tkattkat](https://github.com/tkattkat)! - Delete old images from anthropic cua client
+
+- [#925](https://github.com/browserbase/stagehand/pull/925) [`8c28647`](https://github.com/browserbase/stagehand/commit/8c2864755ecd05c8f7de235d4198deec0dd5f78e) Thanks [@miguelg719](https://github.com/miguelg719)! - Remove \_refreshPageFromApi()
+
+- [#887](https://github.com/browserbase/stagehand/pull/887) [`87e09c6`](https://github.com/browserbase/stagehand/commit/87e09c618940f364ec8af00455a19a17ec63cbd3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: allow xpaths with prepended 'xpath=' for targeted extract
+
+- [#864](https://github.com/browserbase/stagehand/pull/864) [`a611115`](https://github.com/browserbase/stagehand/commit/a61111525d70b450bdfc43f112380f44899c9e97) Thanks [@miguelg719](https://github.com/miguelg719)! - Temporarily patch custom clients serialization error on api
+
+- [#881](https://github.com/browserbase/stagehand/pull/881) [`69913fe`](https://github.com/browserbase/stagehand/commit/69913fe1dfb8201ae2aeffa5f049fb46ab02cbc2) Thanks [@miguelg719](https://github.com/miguelg719)! - Pass sdk version number to API for debugging
+
+- [#913](https://github.com/browserbase/stagehand/pull/913) [`b1b83a1`](https://github.com/browserbase/stagehand/commit/b1b83a1d334fe76e5f5f9dd32dc92c16b7d40ce6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - move iframe out of 'experimental'
+
+- [#891](https://github.com/browserbase/stagehand/pull/891) [`be8497c`](https://github.com/browserbase/stagehand/commit/be8497cb6b142cc893cea9692b8c47bd19514c60) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: nested iframe xpath bug
+
+- [#883](https://github.com/browserbase/stagehand/pull/883) [`98704c9`](https://github.com/browserbase/stagehand/commit/98704c9ed225ca25bbde4bb3dc286936e9c54471) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add timeout for JS click
+
+- [#907](https://github.com/browserbase/stagehand/pull/907) [`04978bd`](https://github.com/browserbase/stagehand/commit/04978bdd30d2edcbc69eb9fd91358a16975ea2eb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - store mapping of CDP frame ID -> page
+
 ## 2.4.1
 
 ### Patch Changes

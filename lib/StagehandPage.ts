@@ -1,7 +1,5 @@
-import { Browserbase } from "@browserbasehq/sdk";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
-import { chromium } from "playwright";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
@@ -23,16 +21,21 @@ import {
   StagehandNotInitializedError,
   StagehandEnvironmentError,
   CaptchaTimeoutError,
-  BrowserbaseSessionNotFoundError,
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
-  ExperimentalNotConfiguredError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
+
+async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
+  const { frameTree } = (await session.send(
+    "Page.getFrameTree",
+  )) as Protocol.Page.GetFrameTreeResponse;
+  return frameTree.frame.id;
+}
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -185,40 +188,6 @@ ${scriptContent} \
     }
   }
 
-  private async _refreshPageFromAPI() {
-    if (!this.api) return;
-
-    const sessionId = this.stagehand.browserbaseSessionID;
-    if (!sessionId) {
-      throw new BrowserbaseSessionNotFoundError();
-    }
-
-    const browserbase = new Browserbase({
-      apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
-    });
-
-    const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-
-    const connectUrl = sessionStatus.connectUrl;
-    const browser = await chromium.connectOverCDP(connectUrl);
-    const context = browser.contexts()[0];
-    const newPage = context.pages()[0];
-
-    const newStagehandPage = await new StagehandPage(
-      newPage,
-      this.stagehand,
-      this.intContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.api,
-    ).init();
-
-    this.intPage = newStagehandPage.page;
-
-    await this.intPage.waitForLoadState("domcontentloaded");
-    await this._waitForSettledDom();
-  }
-
   /**
    * Waits for a captcha to be solved when using Browserbase environment.
    *
@@ -367,7 +336,7 @@ ${scriptContent} \
               const result = this.api
                 ? await this.api.goto(url, {
                     ...options,
-                    frameId: this.frameId,
+                    frameId: this.rootFrameId,
                   })
                 : await rawGoto(url, options);
 
@@ -381,20 +350,17 @@ ${scriptContent} \
                 }
               }
 
-              if (this.api) {
-                await this._refreshPageFromAPI();
-              } else {
-                if (stagehand.debugDom) {
-                  this.stagehand.log({
-                    category: "deprecation",
-                    message:
-                      "Warning: debugDom is not supported in this version of Stagehand",
-                    level: 1,
-                  });
-                }
-                await target.waitForLoadState("domcontentloaded");
-                await this._waitForSettledDom();
+              if (this.stagehand.debugDom) {
+                this.stagehand.log({
+                  category: "deprecation",
+                  message:
+                    "Warning: debugDom is not supported in this version of Stagehand",
+                  level: 1,
+                });
               }
+              await target.waitForLoadState("domcontentloaded");
+              await this._waitForSettledDom();
+
               return result;
             };
           }
@@ -435,6 +401,13 @@ ${scriptContent} \
           return value;
         },
       };
+
+      const session = await this.getCDPClient(this.rawPage);
+      await session.send("Page.enable");
+
+      const rootId = await getCurrentRootFrameId(session);
+      this.updateRootFrameId(rootId);
+      this.intContext.registerFrameId(rootId, this);
 
       this.intPage = new Proxy(page, handler) as unknown as Page;
       this.initialized = true;
@@ -633,9 +606,6 @@ ${scriptContent} \
       // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
       // We need to ensure there is both a selector and a method in the ObserveResult.
       if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
-        if ("iframes" in actionOrOptions && !this.stagehand.experimental) {
-          throw new ExperimentalNotConfiguredError("iframes");
-        }
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
@@ -643,9 +613,8 @@ ${scriptContent} \
           if (this.api) {
             const result = await this.api.act({
               ...observeResult,
-              frameId: this.frameId,
+              frameId: this.rootFrameId,
             });
-            await this._refreshPageFromAPI();
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
           }
@@ -676,9 +645,8 @@ ${scriptContent} \
       const { action, modelName, modelClientOptions } = actionOrOptions;
 
       if (this.api) {
-        const opts = { ...actionOrOptions, frameId: this.frameId };
+        const opts = { ...actionOrOptions, frameId: this.rootFrameId };
         const result = await this.api.act(opts);
-        await this._refreshPageFromAPI();
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
@@ -738,7 +706,7 @@ ${scriptContent} \
       if (!instructionOrOptions) {
         let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({ frameId: this.frameId });
+          result = await this.api.extract<T>({ frameId: this.rootFrameId });
         } else {
           result = await this.extractHandler.extract();
         }
@@ -770,12 +738,8 @@ ${scriptContent} \
         iframes,
       } = options;
 
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
-
       if (this.api) {
-        const opts = { ...options, frameId: this.frameId };
+        const opts = { ...options, frameId: this.rootFrameId };
         const result = await this.api.extract<T>(opts);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
@@ -878,12 +842,8 @@ ${scriptContent} \
         iframes,
       } = options;
 
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
-
       if (this.api) {
-        const opts = { ...options, frameId: this.frameId };
+        const opts = { ...options, frameId: this.rootFrameId };
         const result = await this.api.observe(opts);
         this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;

@@ -22,7 +22,7 @@ export const heal_custom_dropdown: EvalFunction = async ({
     );
 
     await page.act({
-      description: "The dropdown",
+      description: "The 'Select a country' dropdown",
       selector: "/html/not-a-dropdown",
       arguments: [],
       method: "click",

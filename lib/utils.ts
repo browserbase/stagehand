@@ -1,11 +1,11 @@
-import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod";
+import { ID_PATTERN } from "@/types/context";
+import { ZodSchemaValidationError } from "@/types/stagehandErrors";
+import { Schema, Type } from "@google/genai";
+import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
-import { ZodPathSegments } from "../types/stagehand";
-import { Schema, Type } from "@google/genai";
 import { ModelProvider } from "../types/model";
-import { ZodSchemaValidationError } from "@/types/stagehandErrors";
-import { ID_PATTERN } from "@/types/context";
+import { ZodPathSegments } from "../types/stagehand";
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   const result = schema.safeParse(data);
