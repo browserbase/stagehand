@@ -12,6 +12,7 @@ import {
 } from "@/types/agent";
 import { Stagehand } from "../index";
 import { StagehandFunctionName } from "@/types/stagehand";
+import { handlePossiblePageNavigation } from "./handlerUtils/actHandlerUtils";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -215,6 +216,13 @@ export class StagehandAgentHandler {
           await this.page.mouse.click(x as number, y as number, {
             button: button as "left" | "right",
           });
+          await handlePossiblePageNavigation(
+            "clicked",
+            `(coordinates) x:${x}, y:${y}`,
+            this.page.url(),
+            this.stagehandPage,
+            this.logger,
+          );
           return { success: true };
         }
 

@@ -471,7 +471,7 @@ export async function fallbackLocatorMethod(ctx: MethodHandlerContext) {
   }
 }
 
-async function handlePossiblePageNavigation(
+export async function handlePossiblePageNavigation(
   actionDescription: string,
   xpath: string,
   initialUrl: string,
