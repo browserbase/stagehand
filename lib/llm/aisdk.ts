@@ -268,6 +268,7 @@ export class AISdkClient extends LLMClient {
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
+      temperature: options.temperature,
       tools,
     });
 
