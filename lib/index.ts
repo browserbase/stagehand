@@ -1,51 +1,52 @@
+import { ApiResponse, ErrorResponse } from "@/types/api";
 import { Browserbase } from "@browserbasehq/sdk";
-import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { Browser, chromium } from "playwright";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { AvailableModel, ClientOptions } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
 import {
+  ActOptions,
+  AgentConfig,
   ConstructorParams,
+  ExtractOptions,
+  HistoryEntry,
   InitResult,
   LocalBrowserLaunchOptions,
-  AgentConfig,
-  StagehandMetrics,
-  StagehandFunctionName,
-  HistoryEntry,
-  ActOptions,
-  ExtractOptions,
   ObserveOptions,
+  StagehandFunctionName,
+  StagehandMetrics,
 } from "../types/stagehand";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
-import { LLMClient } from "./llm/LLMClient";
-import { LLMProvider } from "./llm/LLMProvider";
-import { ClientOptions } from "../types/model";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
-import { ApiResponse, ErrorResponse } from "@/types/api";
-import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
 import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+import { LLMClient } from "./llm/LLMClient";
+import { LLMProvider } from "./llm/LLMProvider";
 import { StagehandLogger } from "./logger";
+import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 
-import {
-  StagehandError,
-  StagehandNotInitializedError,
-  MissingEnvironmentVariableError,
-  UnsupportedModelError,
-  UnsupportedAISDKModelProviderError,
-  InvalidAISDKModelFormatError,
-  StagehandInitError,
-} from "../types/stagehandErrors";
-import { z } from "zod";
 import { GotoOptions } from "@/types/playwright";
+import { z } from "zod";
+import {
+  InvalidAISDKModelFormatError,
+  MissingEnvironmentVariableError,
+  StagehandError,
+  StagehandInitError,
+  StagehandNotInitializedError,
+  UnsupportedAISDKModelProviderError,
+  UnsupportedModelError,
+} from "../types/stagehandErrors";
+import { connectToMCPServer } from "./mcp/connection";
+import { resolveTools } from "./mcp/utils";
 
 dotenv.config({ path: ".env" });
 
@@ -616,8 +617,7 @@ export class Stagehand {
       this.llmClient = llmClient;
       this.logger({
         category: "init",
-        message:
-          "Custom LLM clients are currently not supported in API mode",
+        message: "Custom LLM clients are currently not supported in API mode",
         level: 1,
       });
       this.usingAPI = false;
@@ -907,19 +907,26 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method
    */
-  agent(options?: AgentConfig): {
+  async agent(options?: AgentConfig): Promise<{
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-  } {
+  }> {
+    const tools = options?.integrations
+      ? await resolveTools(options?.integrations, options?.tools)
+      : (options?.tools ?? {});
+
     if (!options || !options.provider) {
       // use open operator agent
+
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          // later we want to abstract this to a function that also performs filtration/ranking of tools
           return new StagehandOperatorHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
+            tools,
           ).execute(instructionOrOptions);
         },
       };
@@ -938,8 +945,8 @@ export class Stagehand {
       You are currently on the following page: ${this.stagehandPage.page.url()}.
       Do not ask follow up questions, the user will trust your judgement.`,
         agentType: options.provider,
-        experimental: this.experimental,
       },
+      tools,
     );
 
     this.log({
@@ -993,14 +1000,15 @@ export class Stagehand {
   }
 }
 
+export * from "../types/agent";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
+export * from "../types/operator";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
-export * from "../types/operator";
-export * from "../types/agent";
-export * from "./llm/LLMClient";
-export * from "../types/stagehandErrors";
 export * from "../types/stagehandApiErrors";
+export * from "../types/stagehandErrors";
+export * from "./llm/LLMClient";
+export { connectToMCPServer };
