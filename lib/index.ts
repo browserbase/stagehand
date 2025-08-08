@@ -907,20 +907,20 @@ export class Stagehand {
    * Create an agent instance that can be executed with different instructions
    * @returns An agent instance with execute() method
    */
-  async agent(options?: AgentConfig): Promise<{
+  agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-  }> {
-    const tools = options?.integrations
-      ? await resolveTools(options?.integrations, options?.tools)
-      : (options?.tools ?? {});
-
+  } {
     if (!options || !options.provider) {
       // use open operator agent
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          const tools = options?.integrations
+            ? await resolveTools(options?.integrations, options?.tools)
+            : (options?.tools ?? {});
+
           // later we want to abstract this to a function that also performs filtration/ranking of tools
           return new StagehandOperatorHandler(
             this.stagehandPage,
@@ -932,23 +932,6 @@ export class Stagehand {
       };
     }
 
-    const agentHandler = new StagehandAgentHandler(
-      this,
-      this.stagehandPage,
-      this.logger,
-      {
-        modelName: options.model,
-        clientOptions: options.options,
-        userProvidedInstructions:
-          options.instructions ??
-          `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${this.stagehandPage.page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
-        agentType: options.provider,
-      },
-      tools,
-    );
-
     this.log({
       category: "agent",
       message: "Creating agent instance",
@@ -957,6 +940,27 @@ export class Stagehand {
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        const tools = options?.integrations
+          ? await resolveTools(options?.integrations, options?.tools)
+          : (options?.tools ?? {});
+
+        const agentHandler = new StagehandAgentHandler(
+          this,
+          this.stagehandPage,
+          this.logger,
+          {
+            modelName: options.model,
+            clientOptions: options.options,
+            userProvidedInstructions:
+              options.instructions ??
+              `You are a helpful assistant that can use a web browser.
+        You are currently on the following page: ${this.stagehandPage.page.url()}.
+        Do not ask follow up questions, the user will trust your judgement.`,
+            agentType: options.provider,
+          },
+          tools,
+        );
+
         const executeOptions: AgentExecuteOptions =
           typeof instructionOrOptions === "string"
             ? { instruction: instructionOrOptions }

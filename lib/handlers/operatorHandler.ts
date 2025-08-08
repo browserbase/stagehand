@@ -280,12 +280,19 @@ export class StagehandOperatorHandler {
     playwrightArguments?: ObserveResult;
     extractionResult?: unknown;
   }> {
+    const toolsArray = Object.entries(this.allTools).map(([name, tool]) => ({
+      type: "function" as const,
+      name,
+      description: tool.description,
+      parameters: tool.parameters,
+    }));
+
     const response = await this.llmClient.createChatCompletion<
       GenerateTextResult<ToolSet, string>
     >({
       options: {
         messages: this.messages as ChatMessage[],
-        tools: this.allTools,
+        tools: toolsArray,
         tool_choice: "auto",
         requestId: `operator-step-${currentStep}`,
       },

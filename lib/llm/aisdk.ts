@@ -2,7 +2,6 @@ import {
   CoreAssistantMessage,
   CoreMessage,
   CoreSystemMessage,
-  CoreTool,
   CoreUserMessage,
   generateObject,
   generateText,
@@ -10,12 +9,13 @@ import {
   LanguageModel,
   NoObjectGeneratedError,
   TextPart,
+  ToolSet,
 } from "ai";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { ChatCompletion } from "openai/resources";
 import { LLMCache } from "../cache/LLMCache";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -255,12 +255,11 @@ export class AISdkClient extends LLMClient {
       return result;
     }
 
-    const tools: Record<string, CoreTool> = {};
-
-    for (const rawTool of options.tools ?? []) {
-      tools[rawTool.name] = {
-        description: rawTool.description,
-        parameters: rawTool.parameters,
+    const tools: ToolSet = {};
+    for (const tool of options.tools) {
+      tools[tool.name] = {
+        description: tool.description,
+        parameters: tool.parameters,
       };
     }
 
@@ -277,6 +276,7 @@ export class AISdkClient extends LLMClient {
         completion_tokens: textResponse.usage.completionTokens ?? 0,
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
+      tool_calls: textResponse.toolCalls,
     } as T;
 
     if (this.enableCaching) {
