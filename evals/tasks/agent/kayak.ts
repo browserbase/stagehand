@@ -37,7 +37,8 @@ export const kayak: EvalFunction = async ({
       };
     }
     const { evaluation, reasoning } = await evaluator.evaluate({
-      question: "Are the flights shown sorted by price?",
+      question:
+        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
     });
 
     const success = evaluation === "YES";

@@ -51,7 +51,7 @@ export class AISdkClient extends LLMClient {
       level: 2,
       auxiliary: {
         options: {
-          value: JSON.stringify(options),
+          value: JSON.stringify({ ...options, image: undefined }),
           type: "object",
         },
         modelName: {
