@@ -164,6 +164,7 @@ export class AISdkClient extends LLMClient {
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
+          temperature: options.temperature,
         });
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
