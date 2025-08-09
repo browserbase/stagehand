@@ -522,8 +522,7 @@ ${scriptContent} \
 
       this.intPage = new Proxy(page, handler) as unknown as Page;
 
-      // Ensure our backdoor and selector engine are ready up front
-      await this.ensureStagehandScript();
+      // Ensure backdoor and selector engine are ready up front
       await this.ensureStagehandSelectorEngine();
 
       this.initialized = true;
