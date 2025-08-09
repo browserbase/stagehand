@@ -1,4 +1,9 @@
-import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
+import type {
+  CDPSession,
+  Page as PlaywrightPage,
+  Frame,
+  ElementHandle,
+} from "playwright";
 import { selectors } from "playwright";
 import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
