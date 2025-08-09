@@ -158,6 +158,7 @@ export class AISdkClient extends LLMClient {
     });
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
+    const isGPT5 = this.model.modelId.includes("gpt-5");
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -165,6 +166,14 @@ export class AISdkClient extends LLMClient {
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature: options.temperature,
+          providerOptions: isGPT5
+            ? {
+                openai: {
+                  textVerbosity: "low", // Making these the default for gpt-5 for now
+                  reasoningEffort: "minimal",
+                },
+              }
+            : undefined,
         });
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
