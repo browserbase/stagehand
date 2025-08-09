@@ -1,4 +1,10 @@
-import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
+import type {
+  CDPSession,
+  Page as PlaywrightPage,
+  Frame,
+  ElementHandle,
+} from "playwright";
+import { selectors } from "playwright";
 import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
@@ -29,6 +35,7 @@ import {
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
+import { StagehandBackdoor } from "@/lib/dom/global";
 
 async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   const { frameTree } = (await session.send(
@@ -36,6 +43,9 @@ async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   )) as Protocol.Page.GetFrameTreeResponse;
   return frameTree.frame.id;
 }
+
+/** ensure we register the custom selector only once per process */
+let stagehandSelectorRegistered = false;
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -186,6 +196,113 @@ ${scriptContent} \
         throw err;
       }
     }
+  }
+
+  /** Register the custom selector engine that pierces open/closed shadow roots. */
+  private async ensureStagehandSelectorEngine(): Promise<void> {
+    if (stagehandSelectorRegistered) return;
+    stagehandSelectorRegistered = true;
+
+    await selectors.register("stagehand", () => {
+      type Backdoor = {
+        getClosedRoot?: (host: Element) => ShadowRoot | undefined;
+      };
+
+      function parseSelector(input: string): { name: string; value: string } {
+        // Accept either:  "abc123"  → uses DEFAULT_ATTR
+        // or explicitly:  "data-__stagehand-id=abc123"
+        const raw = input.trim();
+        const eq = raw.indexOf("=");
+        if (eq === -1) {
+          return {
+            name: "data-__stagehand-id",
+            value: raw.replace(/^["']|["']$/g, ""),
+          };
+        }
+        const name = raw.slice(0, eq).trim();
+        const value = raw
+          .slice(eq + 1)
+          .trim()
+          .replace(/^["']|["']$/g, "");
+        return { name, value };
+      }
+
+      function pushChildren(node: Node, stack: Node[]): void {
+        if (node.nodeType === Node.DOCUMENT_NODE) {
+          const de = (node as Document).documentElement;
+          if (de) stack.push(de);
+          return;
+        }
+
+        if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+          const frag = node as DocumentFragment;
+          const hc = frag.children as HTMLCollection | undefined;
+          if (hc && hc.length) {
+            for (let i = hc.length - 1; i >= 0; i--)
+              stack.push(hc[i] as Element);
+          } else {
+            const cn = frag.childNodes;
+            for (let i = cn.length - 1; i >= 0; i--) stack.push(cn[i]);
+          }
+          return;
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element;
+          for (let i = el.children.length - 1; i >= 0; i--)
+            stack.push(el.children[i]);
+        }
+      }
+
+      function* traverseAllTrees(
+        start: Node,
+      ): Generator<Element, void, unknown> {
+        const backdoor = window.__stagehand__ as Backdoor | undefined;
+        const stack: Node[] = [];
+
+        if (start.nodeType === Node.DOCUMENT_NODE) {
+          const de = (start as Document).documentElement;
+          if (de) stack.push(de);
+        } else {
+          stack.push(start);
+        }
+
+        while (stack.length) {
+          const node = stack.pop()!;
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as Element;
+            yield el;
+
+            // open shadow
+            const open = el.shadowRoot as ShadowRoot | null;
+            if (open) stack.push(open);
+
+            // closed shadow via backdoor
+            const closed = backdoor?.getClosedRoot?.(el);
+            if (closed) stack.push(closed);
+          }
+          pushChildren(node, stack);
+        }
+      }
+
+      return {
+        query(root: Node, selector: string): Element | null {
+          const { name, value } = parseSelector(selector);
+          for (const el of traverseAllTrees(root)) {
+            if (el.getAttribute(name) === value) return el;
+          }
+          return null;
+        },
+        queryAll(root: Node, selector: string): Element[] {
+          const { name, value } = parseSelector(selector);
+          const out: Element[] = [];
+          for (const el of traverseAllTrees(root)) {
+            if (el.getAttribute(name) === value) out.push(el);
+          }
+          return out;
+        },
+      };
+    });
   }
 
   /**
@@ -410,6 +527,11 @@ ${scriptContent} \
       this.intContext.registerFrameId(rootId, this);
 
       this.intPage = new Proxy(page, handler) as unknown as Page;
+
+      // Ensure our backdoor and selector engine are ready up front
+      await this.ensureStagehandScript();
+      await this.ensureStagehandSelectorEngine();
+
       this.initialized = true;
       return this;
     } catch (err: unknown) {
@@ -998,5 +1120,24 @@ ${scriptContent} \
     target?: PlaywrightPage | Frame,
   ): Promise<void> {
     await this.sendCDP<void>(`${domain}.disable`, {}, target);
+  }
+
+  async getShadowRootHandle(
+    this: StagehandPage,
+    host: ElementHandle<Element>,
+  ): Promise<ElementHandle<ShadowRoot> | null> {
+    const h = await host.evaluateHandle((el: Element): ShadowRoot | null => {
+      // Open root?
+      if ((el as HTMLElement).shadowRoot)
+        return (el as HTMLElement).shadowRoot!;
+      // Closed root kept in our isolated world
+      return (
+        (
+          window as Window & { __stagehand__?: StagehandBackdoor }
+        ).__stagehand__?.getClosedRoot(el) ?? null
+      );
+    });
+
+    return h.asElement() as ElementHandle<ShadowRoot> | null;
   }
 }

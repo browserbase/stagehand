@@ -4,37 +4,179 @@ import { StagehandPage } from "../../StagehandPage";
 import { getNodeFromXpath } from "@/lib/dom/utils";
 import { Logger } from "../../../types/log";
 import { MethodHandlerContext } from "@/types/act";
-import { StagehandClickError } from "@/types/stagehandErrors";
+import {
+  StagehandClickError,
+  StagehandShadowRootMissingError,
+  StagehandShadowSegmentEmptyError,
+  StagehandShadowSegmentNotFoundError,
+} from "@/types/stagehandErrors";
 
 const IFRAME_STEP_RE = /^iframe(\[[^\]]+])?$/i;
 
-export function deepLocator(root: Page | FrameLocator, xpath: string): Locator {
-  // 1 ─ prepend with slash if not already included
-  if (!xpath.startsWith("/")) xpath = "/" + xpath;
+function stepToCss(step: string): string {
+  const m = step.match(/^([a-zA-Z*][\w-]*)(?:\[(\d+)])?$/);
+  if (!m) return step;
+  const [, tag, idxRaw] = m;
+  const idx = idxRaw ? Number(idxRaw) : null;
+  if (tag === "*") return idx ? `*:nth-child(${idx})` : `*`;
+  return idx ? `${tag}:nth-of-type(${idx})` : tag;
+}
 
-  // 2 ─ split into steps, accumulate until we hit an iframe step
-  const steps = xpath.split("/").filter(Boolean); // tokens
-  let ctx: Page | FrameLocator = root;
-  let buffer: string[] = [];
+const buildDirect = (steps: string[]) => steps.map(stepToCss).join(" > ");
+const buildDesc = (steps: string[]) => steps.map(stepToCss).join(" ");
 
-  const flushIntoFrame = () => {
-    if (buffer.length === 0) return;
-    const selector = "xpath=/" + buffer.join("/");
-    ctx = (ctx as Page | FrameLocator).frameLocator(selector);
-    buffer = [];
-  };
+/** Resolve one contiguous shadow segment and return a stable Locator. */
+async function resolveShadowSegment(
+  hostLoc: Locator,
+  shadowSteps: string[],
+  attr = "data-__stagehand-id",
+  timeout = 1500,
+): Promise<Locator> {
+  const direct = buildDirect(shadowSteps);
+  const desc = buildDesc(shadowSteps);
 
-  for (const step of steps) {
-    buffer.push(step);
-    if (IFRAME_STEP_RE.test(step)) {
-      // we've included the <iframe> element in buffer ⇒ descend
-      flushIntoFrame();
-    }
+  type Result = { id: string | null; noRoot: boolean };
+
+  const { id, noRoot } = await hostLoc.evaluate<
+    Result,
+    { direct: string; desc: string; attr: string; timeout: number }
+  >(
+    (host, { direct, desc, attr, timeout }) => {
+      interface StagehandClosedAccess {
+        getClosedRoot?: (h: Element) => ShadowRoot | undefined;
+      }
+      const backdoor = (
+        window as Window & {
+          __stagehand__?: StagehandClosedAccess;
+        }
+      ).__stagehand__;
+
+      const root =
+        (host as HTMLElement).shadowRoot ?? backdoor?.getClosedRoot?.(host);
+      if (!root) return { id: null, noRoot: true };
+
+      const tryFind = () =>
+        (root.querySelector(direct) as Element | null) ??
+        (root.querySelector(desc) as Element | null);
+
+      return new Promise<Result>((resolve) => {
+        const mark = (el: Element): Result => {
+          let v = el.getAttribute(attr);
+          if (!v) {
+            v =
+              "sh_" +
+              Math.random().toString(36).slice(2) +
+              Date.now().toString(36);
+            el.setAttribute(attr, v);
+          }
+          return { id: v, noRoot: false };
+        };
+
+        const first = tryFind();
+        if (first) return resolve(mark(first));
+
+        const start = Date.now();
+        const tick = () => {
+          const el = tryFind();
+          if (el) return resolve(mark(el));
+          if (Date.now() - start >= timeout)
+            return resolve({ id: null, noRoot: false });
+          setTimeout(tick, 50);
+        };
+        tick();
+      });
+    },
+    { direct, desc, attr, timeout },
+  );
+
+  if (noRoot) {
+    throw new StagehandShadowRootMissingError(
+      `segment='${shadowSteps.join("/")}'`,
+    );
+  }
+  if (!id) {
+    throw new StagehandShadowSegmentNotFoundError(shadowSteps.join("/"));
   }
 
-  // 3 ─ whatever is left in buffer addresses the target *inside* the last ctx
-  const finalSelector = "xpath=/" + buffer.join("/");
-  return (ctx as Page | FrameLocator).locator(finalSelector);
+  return hostLoc.locator(`stagehand=${id}`);
+}
+
+export async function deepLocator(
+  root: Page | FrameLocator,
+  xpath: string,
+): Promise<Locator> {
+  // 1 ─ prepend with slash if not already included
+  if (!xpath.startsWith("/")) xpath = "/" + xpath;
+  const tokens = xpath.split("/"); // keep "" from "//"
+
+  let ctx: Page | FrameLocator | Locator = root;
+  let buffer: string[] = [];
+  let elementScoped = false;
+
+  const xp = () => (elementScoped ? "xpath=./" : "xpath=/");
+
+  const flushIntoFrame = () => {
+    if (!buffer.length) return;
+    ctx = (ctx as Page | FrameLocator | Locator).frameLocator(
+      xp() + buffer.join("/"),
+    );
+    buffer = [];
+    elementScoped = false;
+  };
+
+  const flushIntoLocator = () => {
+    if (!buffer.length) return;
+    ctx = (ctx as Page | FrameLocator | Locator).locator(
+      xp() + buffer.join("/"),
+    );
+    buffer = [];
+    elementScoped = true;
+  };
+
+  for (let i = 1; i < tokens.length; i++) {
+    const step = tokens[i];
+
+    // Shadow hop: “//”
+    if (step === "") {
+      flushIntoLocator();
+
+      // collect full shadow segment until next hop/iframe/end
+      const seg: string[] = [];
+      let j = i + 1;
+      for (; j < tokens.length; j++) {
+        const t = tokens[j];
+        if (t === "" || IFRAME_STEP_RE.test(t)) break;
+        seg.push(t);
+      }
+      if (!seg.length) throw new StagehandShadowSegmentEmptyError();
+
+      // resolve inside the shadow root
+      ctx = await resolveShadowSegment(ctx as Locator, seg);
+      elementScoped = true;
+
+      i = j - 1;
+      continue;
+    }
+
+    // Normal DOM step
+    buffer.push(step);
+
+    // iframe hop → descend into frame
+    if (IFRAME_STEP_RE.test(step)) flushIntoFrame();
+  }
+
+  if (buffer.length === 0) {
+    // If we’re already element-scoped, we already have the final Locator.
+    if (elementScoped) return ctx as Locator;
+
+    // Otherwise (page/frame scoped), return the root element of the current doc.
+    return (ctx as Page | FrameLocator).locator("xpath=/");
+  }
+
+  // Otherwise, resolve the remaining buffered steps.
+  return (ctx as Page | FrameLocator | Locator).locator(
+    xp() + buffer.join("/"),
+  );
 }
 
 /**

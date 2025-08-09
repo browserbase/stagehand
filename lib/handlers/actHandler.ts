@@ -311,7 +311,7 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number,
   ) {
     const xpath = rawXPath.replace(/^xpath=/i, "").trim();
-    const locator = deepLocator(this.stagehandPage.page, xpath).first();
+    const locator = await deepLocator(this.stagehandPage.page, xpath);
     const initialUrl = this.stagehandPage.page.url();
 
     this.logger({
