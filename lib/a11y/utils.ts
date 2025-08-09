@@ -11,6 +11,7 @@ import {
   EncodedId,
   RichNode,
   ID_PATTERN,
+  CdpFrame,
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
@@ -442,12 +443,15 @@ export async function getCDPFrameId(
   const rootResp = (await sp.sendCDP("Page.getFrameTree")) as unknown;
   const { frameTree: root } = rootResp as { frameTree: CdpFrameTree };
 
-  const url = frame.url();
+  const targetUrl: string = frame.url();
   let depth = 0;
   for (let p = frame.parentFrame(); p; p = p.parentFrame()) depth++;
 
+  const withFragment = (f: CdpFrame): string => f.url + (f.urlFragment ?? "");
+
   const findByUrlDepth = (node: CdpFrameTree, lvl = 0): string | undefined => {
-    if (lvl === depth && node.frame.url === url) return node.frame.id;
+    if (lvl === depth && withFragment(node.frame) === targetUrl)
+      return node.frame.id;
     for (const child of node.childFrames ?? []) {
       const id = findByUrlDepth(child, lvl + 1);
       if (id) return id;
@@ -467,7 +471,7 @@ export async function getCDPFrameId(
 
     return frameTree.frame.id; // root of OOPIF
   } catch (err) {
-    throw new StagehandIframeError(url, String(err));
+    throw new StagehandIframeError(targetUrl, String(err));
   }
 }
 
