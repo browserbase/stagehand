@@ -1,9 +1,4 @@
-import type {
-  CDPSession,
-  Page as PlaywrightPage,
-  Frame,
-  ElementHandle,
-} from "playwright";
+import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
 import { selectors } from "playwright";
 import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
@@ -35,7 +30,6 @@ import {
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
-import { StagehandBackdoor } from "@/lib/dom/global";
 
 async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   const { frameTree } = (await session.send(
@@ -1120,24 +1114,5 @@ ${scriptContent} \
     target?: PlaywrightPage | Frame,
   ): Promise<void> {
     await this.sendCDP<void>(`${domain}.disable`, {}, target);
-  }
-
-  async getShadowRootHandle(
-    this: StagehandPage,
-    host: ElementHandle<Element>,
-  ): Promise<ElementHandle<ShadowRoot> | null> {
-    const h = await host.evaluateHandle((el: Element): ShadowRoot | null => {
-      // Open root?
-      if ((el as HTMLElement).shadowRoot)
-        return (el as HTMLElement).shadowRoot!;
-      // Closed root kept in our isolated world
-      return (
-        (
-          window as Window & { __stagehand__?: StagehandBackdoor }
-        ).__stagehand__?.getClosedRoot(el) ?? null
-      );
-    });
-
-    return h.asElement() as ElementHandle<ShadowRoot> | null;
   }
 }
