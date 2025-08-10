@@ -1,0 +1,82 @@
+import { EvalFunction } from "@/types/evals";
+import { Evaluator } from "@/evals/evaluator";
+
+export const kith: EvalFunction = async ({
+  debugUrl,
+  sessionUrl,
+  stagehand,
+  logger,
+}) => {
+  try {
+    const evaluator = new Evaluator(stagehand);
+    await stagehand.page.goto(
+      "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
+    );
+    const agent = stagehand.agent({
+      provider: "anthropic",
+      model: "claude-sonnet-4-20250514",
+      instructions: `You are a helpful assistant that can help me order shoes from kith. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
+      options: {
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      },
+    });
+
+    await agent.execute({
+      instruction:
+        "add the shoes to cart, go to checkout, and fill the shipping information",
+      maxSteps: 30,
+    });
+
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      question: "Did the agent fill the shipping information",
+    });
+
+    const success = evaluation === "YES";
+
+    await agent.execute({
+      instruction: "fill the payment information",
+      maxSteps: 30,
+    });
+
+    const { evaluation: evaluation2, reasoning: reasoning2 } =
+      await evaluator.evaluate({
+        question: "Did the agent fill the payment information",
+      });
+
+    const success2 = evaluation2 === "YES";
+
+    if (!success) {
+      return {
+        _success: false,
+        message: `${reasoning} ${reasoning2}`,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    } else if (!success2) {
+      return {
+        _success: false,
+        message: reasoning2,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+    return {
+      _success: true,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } catch (error) {
+    return {
+      _success: false,
+      message: error.message,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
+  } finally {
+    await stagehand.close();
+  }
+};
