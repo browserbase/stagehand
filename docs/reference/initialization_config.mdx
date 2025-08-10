@@ -27,14 +27,14 @@ const stagehand = new Stagehand({
     modelClientOptions: {
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY, /* Model API key */
     }, /* Configuration options for the model client */
-	apiKey: process.env.BROWSERBASE_API_KEY, 
+	apiKey: process.env.BROWSERBASE_API_KEY,
 	projectId: process.env.BROWSERBASE_PROJECT_ID,
 	/* API keys for authentication (if you want to use Browserbase) */
 	browserbaseSessionID:
       undefined, /* Can set Session ID for resuming Browserbase sessions */
     browserbaseSessionCreateParams: { /* Browser Session Params */
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
-      proxies: true, /* Using Browserbase's Proxies */ 
+      proxies: true, /* Using Browserbase's Proxies */
       browserSettings: {
 		advancedStealth: true, /* Only available on Scale Plans */
         blockAds: true, /* To Block Ad Popups (defaults to False) */
@@ -53,6 +53,7 @@ const stagehand = new Stagehand({
         executablePath: '/path/to/chrome', // Custom path to the Chrome executable.
         args: ['--no-sandbox', '--disable-setuid-sandbox'], // Additional launch arguments.
         env: { NODE_ENV: "production" }, // Environment variables for the browser process.
+        userAgent: 'Custom User Agent',
         handleSIGHUP: true,
         handleSIGINT: true,
         handleSIGTERM: true,
@@ -143,6 +144,7 @@ stagehand = Stagehand(
     local_browser_launch_options={
         "headless": True,  # Launches the browser in headless mode.
         "executable_path": "/path/to/chrome",  # Custom path to the Chrome executable.
+        "user_agent": "Custom User Agent",
         "args": ["--no-sandbox", "--disable-setuid-sandbox"],  # Additional launch arguments.
         "env": {"NODE_ENV": "production"},  # Environment variables for the browser process.
         "handle_sighup": True,
@@ -346,7 +348,7 @@ This constructor is used to create an instance of Stagehand.
   </ParamField>
 
   <ParamField path="verbose" type="integer" optional>
-    Enables several levels of logging during automation: 
+    Enables several levels of logging during automation:
     - `0`: **ERROR** (limited to no logging)
     - `1`: **INFO** (SDK-level logging)
     - `2`: **DEBUG** (Detailed logging and tracing)
@@ -359,11 +361,11 @@ This constructor is used to create an instance of Stagehand.
   <ParamField path="systemPrompt" type="string" optional>
     A custom system prompt to use for the LLM in addition to the default system prompt for act, extract, and observe methods.
   </ParamField>
-  
+
   <ParamField path="selfHeal" type="boolean" optional>
     Enables self-healing mode. When set to `true`, Stagehand will attempt to recover from errors (eg. outdated cached element not resolving) by retrying the last action. Defaults to `true`. Set to `false` to disable LLM inference on cache errors.
   </ParamField>
-  
+
 <ResponseField name="localBrowserLaunchOptions" type="LocalBrowserLaunchOptions">
   Provides comprehensive options for local browser instances.
   <Expandable title="properties">
@@ -381,6 +383,9 @@ This constructor is used to create an instance of Stagehand.
     </ResponseField>
     <ResponseField name="executablePath" type="string">
       Path to the browser executable.
+    </ResponseField>
+    <ResponseField name="userAgent" type="string">
+      User agent string to use for the browser.
     </ResponseField>
     <ResponseField name="handleSIGHUP" type="boolean">
       Option to handle the SIGHUP signal.
@@ -664,7 +669,7 @@ This constructor is used to create an instance of Stagehand.
   </ParamField>
 
   <ParamField path="verbose" type="integer" optional>
-    Enables several levels of logging during automation: 
+    Enables several levels of logging during automation:
     - `0`: **ERROR** (limited to no logging)
     - `1`: **INFO** (SDK-level logging)
     - `2`: **DEBUG** (Detailed logging and tracing)
@@ -673,7 +678,7 @@ This constructor is used to create an instance of Stagehand.
   <ParamField path="system_prompt" type="string" optional>
     A custom system prompt to use for the LLM in addition to the default system prompt for act, extract, and observe methods.
   </ParamField>
-  
+
   <ParamField path="self_heal" type="boolean" optional>
     Enables self-healing mode. When set to `true`, Stagehand will attempt to recover from errors (eg. outdated cached element not resolving) by retrying the last action. Defaults to `true`. Set to `false` to disable LLM inference on cache errors.
   </ParamField>
@@ -707,6 +712,9 @@ This constructor is used to create an instance of Stagehand.
     </ResponseField>
     <ResponseField name="executablePath" type="string">
       Path to the browser executable.
+    </ResponseField>
+    <ResponseField name="userAgent" type="string">
+      User agent string to use for the browser.
     </ResponseField>
     <ResponseField name="handleSIGHUP" type="boolean">
       Option to handle the SIGHUP signal.
