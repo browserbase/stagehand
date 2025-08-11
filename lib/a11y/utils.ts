@@ -169,11 +169,14 @@ export async function buildBackendIdMaps(
 
       let iframeNode: DOMNode | undefined;
       const locate = (n: DOMNode): boolean => {
-        if (n.backendNodeId === backendNodeId) return (iframeNode = n), true;
-        return (
-          (n.children?.some(locate) ?? false) ||
-          (n.contentDocument ? locate(n.contentDocument) : false)
-        );
+        if (n.backendNodeId === backendNodeId) {
+          iframeNode = n;
+          return true;
+        }
+        if (n.shadowRoots?.some(locate)) return true;
+        if (n.children?.some(locate)) return true;
+        if (n.contentDocument && locate(n.contentDocument)) return true;
+        return false;
       };
 
       if (!locate(root) || !iframeNode?.contentDocument) {
@@ -725,20 +728,43 @@ export async function getFrameRootXpath(
   const handle = await frame.frameElement();
   // Evaluate the element's absolute XPath within the page context
   return handle.evaluate((node: Element) => {
-    const pos = (el: Element) => {
+    function stepFor(el: Element): string {
+      const tag = el.tagName.toLowerCase();
       let i = 1;
       for (
         let sib = el.previousElementSibling;
         sib;
         sib = sib.previousElementSibling
-      )
-        if (sib.tagName === el.tagName) i += 1;
-      return i;
-    };
+      ) {
+        if (sib.tagName.toLowerCase() === tag) i++;
+      }
+      return `${tag}[${i}]`;
+    }
+
     const segs: string[] = [];
-    for (let el: Element | null = node; el; el = el.parentElement)
-      segs.unshift(`${el.tagName.toLowerCase()}[${pos(el)}]`);
-    return `/${segs.join("/")}`;
+    let el: Element | null = node;
+
+    while (el) {
+      segs.unshift(stepFor(el));
+      if (el.parentElement) {
+        el = el.parentElement;
+        continue;
+      }
+
+      // top of this tree: check if we’re inside a shadow root
+      const root = el.getRootNode(); // Document or ShadowRoot
+      if ((root as ShadowRoot).host) {
+        // Insert a shadow hop marker so the final path contains “//”
+        segs.unshift("");
+        el = (root as ShadowRoot).host;
+        continue;
+      }
+
+      break;
+    }
+
+    // Leading '/' + join; empty tokens become “//” between segments
+    return "/" + segs.join("/");
   });
 }
 
