@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 
-export const google_maps_3: EvalFunction = async ({
+export const amazon_shoes: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
@@ -8,7 +8,7 @@ export const google_maps_3: EvalFunction = async ({
   modelName,
 }) => {
   try {
-    await stagehand.page.goto("https://maps.google.com/");
+    await stagehand.page.goto("https://www.amazon.com/");
     const agent = stagehand.agent({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
@@ -17,8 +17,8 @@ export const google_maps_3: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Search for locksmiths open now but not open 24 hours in Texas City.",
-      maxSteps: 30,
+        "Find a pair of mens running shoes in black, size 7, 4+ stars and under $50 and add them to my cart on Amazon.",
+      maxSteps: 18,
     });
 
     const success = agentResult.success;

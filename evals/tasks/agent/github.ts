@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 
-export const google_maps_3: EvalFunction = async ({
+export const github: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
@@ -8,18 +8,20 @@ export const google_maps_3: EvalFunction = async ({
   modelName,
 }) => {
   try {
-    await stagehand.page.goto("https://maps.google.com/");
+    await stagehand.page.goto("https://github.com/");
+
     const agent = stagehand.agent({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful web automation assistant. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
+      instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. The current page is ${await stagehand.page.title()}`,
     });
 
     const agentResult = await agent.execute({
       instruction:
-        "Search for locksmiths open now but not open 24 hours in Texas City.",
-      maxSteps: 30,
+        "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
+      maxSteps: 14,
     });
+    logger.log(agentResult);
 
     const success = agentResult.success;
 
@@ -32,6 +34,7 @@ export const google_maps_3: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
+
     return {
       _success: true,
       debugUrl,
@@ -41,11 +44,13 @@ export const google_maps_3: EvalFunction = async ({
   } catch (error) {
     return {
       _success: false,
-      message: error.message,
+      error,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
-    };
+    } as unknown as ReturnType<EvalFunction> extends Promise<infer R>
+      ? R
+      : never;
   } finally {
     await stagehand.close();
   }

@@ -5,16 +5,14 @@ export const apple_tv: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
+  modelName,
 }) => {
   try {
     await stagehand.page.goto("https://www.apple.com/");
     const agent = stagehand.agent({
-      provider: "anthropic",
-      model: "claude-sonnet-4-20250514",
+      model: modelName,
+      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
       instructions: `You are a helpful web automation assistant. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
-      options: {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      },
     });
 
     const agentResult = await agent.execute({

@@ -6,6 +6,7 @@ export const kith: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
+  modelName,
 }) => {
   try {
     const evaluator = new Evaluator(stagehand);
@@ -13,12 +14,9 @@ export const kith: EvalFunction = async ({
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );
     const agent = stagehand.agent({
-      provider: "anthropic",
-      model: "claude-sonnet-4-20250514",
+      model: modelName,
+      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
       instructions: `You are a helpful assistant that can help me order shoes from kith. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
-      options: {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      },
     });
 
     await agent.execute({

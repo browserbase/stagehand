@@ -6,17 +6,15 @@ export const ubereats: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
+  modelName,
 }) => {
   try {
     const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://www.ubereats.com/");
     const agent = stagehand.agent({
-      provider: "anthropic",
-      model: "claude-sonnet-4-20250514",
+      model: modelName,
+      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
       instructions: `You are a helpful assistant that can help me order food from ubereats. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
-      options: {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      },
     });
     await agent.execute({
       instruction:
