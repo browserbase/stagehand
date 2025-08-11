@@ -12,7 +12,7 @@ import {
 import { LogLine } from "@/types/log";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolSet } from "ai/dist";
+import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
@@ -329,7 +329,7 @@ export class AnthropicCUAClient extends AgentClient {
         const toolResults = await this.takeAction(toolUseItems, logger);
 
         if (toolResults.length > 0) {
-          // We wrap the tool results in a user message
+          // Tool results are AnthropicToolResult[] which are compatible with AnthropicContentBlock[]
           const userToolResultsMessage: AnthropicMessage = {
             role: "user",
             content: toolResults as unknown as AnthropicContentBlock[],
@@ -494,8 +494,8 @@ export class AnthropicCUAClient extends AgentClient {
   async takeAction(
     toolUseItems: ToolUseItem[],
     logger: (message: LogLine) => void,
-  ): Promise<ResponseInputItem[]> {
-    const nextInputItems: ResponseInputItem[] = [];
+  ): Promise<AnthropicToolResult[]> {
+    const toolResults: AnthropicToolResult[] = [];
 
     logger({
       category: "agent",
@@ -546,7 +546,7 @@ export class AnthropicCUAClient extends AgentClient {
 
           // Add current URL if available
           if (this.currentUrl) {
-            nextInputItems.push({
+            toolResults.push({
               type: "tool_result",
               tool_use_id: item.id,
               content: [
@@ -558,7 +558,7 @@ export class AnthropicCUAClient extends AgentClient {
               ],
             });
           } else {
-            nextInputItems.push({
+            toolResults.push({
               type: "tool_result",
               tool_use_id: item.id,
               content: imageContent,
@@ -576,11 +576,24 @@ export class AnthropicCUAClient extends AgentClient {
           if (this.tools && item.name in this.tools) {
             try {
               const tool = this.tools[item.name];
+
+              logger({
+                category: "agent",
+                message: `Executing tool call: ${item.name} with args: ${JSON.stringify(item.input)}`,
+                level: 1,
+              });
+
               const result = await tool.execute(item.input, {
                 toolCallId: item.id,
                 messages: [],
               });
               toolResult = JSON.stringify(result);
+
+              logger({
+                category: "agent",
+                message: `Tool ${item.name} completed successfully. Result: ${toolResult}`,
+                level: 1,
+              });
             } catch (toolError) {
               const errorMessage =
                 toolError instanceof Error
@@ -596,10 +609,15 @@ export class AnthropicCUAClient extends AgentClient {
             }
           }
 
-          nextInputItems.push({
+          toolResults.push({
             type: "tool_result",
             tool_use_id: item.id,
-            content: toolResult,
+            content: [
+              {
+                type: "text",
+                text: toolResult,
+              },
+            ],
           });
 
           logger({
@@ -623,7 +641,7 @@ export class AnthropicCUAClient extends AgentClient {
           if (item.name === "computer") {
             const screenshot = await this.captureScreenshot();
 
-            nextInputItems.push({
+            toolResults.push({
               type: "tool_result",
               tool_use_id: item.id,
               content: [
@@ -648,11 +666,16 @@ export class AnthropicCUAClient extends AgentClient {
               level: 1,
             });
           } else {
-            // For other tools, return an error message as a string
-            nextInputItems.push({
+            // For other tools, return an error message as a text content block
+            toolResults.push({
               type: "tool_result",
               tool_use_id: item.id,
-              content: `Error: ${errorMessage}`,
+              content: [
+                {
+                  type: "text",
+                  text: `Error: ${errorMessage}`,
+                },
+              ],
             });
 
             logger({
@@ -669,10 +692,15 @@ export class AnthropicCUAClient extends AgentClient {
             level: 0,
           });
 
-          nextInputItems.push({
+          toolResults.push({
             type: "tool_result",
             tool_use_id: item.id,
-            content: `Error: ${errorMessage}`,
+            content: [
+              {
+                type: "text",
+                text: `Error: ${errorMessage}`,
+              },
+            ],
           });
 
           logger({
@@ -686,11 +714,11 @@ export class AnthropicCUAClient extends AgentClient {
 
     logger({
       category: "agent",
-      message: `Prepared ${nextInputItems.length} input items for next request`,
+      message: `Prepared ${toolResults.length} tool results for next request`,
       level: 2,
     });
 
-    return nextInputItems;
+    return toolResults;
   }
 
   private convertToolUseToAction(item: ToolUseItem): AgentAction | null {

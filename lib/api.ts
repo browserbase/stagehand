@@ -89,7 +89,12 @@ export class StagehandAPI {
         "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
       );
     } else if (sessionResponse.status !== 200) {
-      console.log(await sessionResponse.text());
+      const errorText = await sessionResponse.text();
+      this.logger({
+        category: "api",
+        message: `API error (${sessionResponse.status}): ${errorText}`,
+        level: 0,
+      });
       throw new StagehandHttpError(`Unknown error: ${sessionResponse.status}`);
     }
 

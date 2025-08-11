@@ -2,10 +2,11 @@ import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { OperatorSummary, operatorSummarySchema } from "@/types/operator";
 import { ObserveResult } from "@/types/stagehand";
-import { GenerateTextResult, ToolSet } from "ai/dist";
+import { ToolSet } from "ai/dist";
 import { z } from "zod";
+import { appendSummary, writeTimestampedTxtFile } from "../inferenceLogUtils";
 import { LLMParsedResponse } from "../inference";
-import { ChatMessage, LLMClient } from "../llm/LLMClient";
+import { ChatMessage, LLMClient, LLMResponse } from "../llm/LLMClient";
 import { buildOperatorSystemPrompt } from "../prompt";
 import { StagehandPage } from "../StagehandPage";
 
@@ -28,17 +29,20 @@ export class StagehandOperatorHandler {
   private llmClient: LLMClient;
   private messages: ExtendedChatMessage[];
   private allTools: ToolSet;
+  private logInferenceToFile: boolean;
 
   constructor(
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     mcpTools: ToolSet,
+    logInferenceToFile: boolean = false,
   ) {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
     this.messages = [];
+    this.logInferenceToFile = logInferenceToFile;
 
     // Create Stagehand method tools with proper Zod schemas
     const stagehandTools: ToolSet = {
@@ -287,35 +291,90 @@ export class StagehandOperatorHandler {
       parameters: tool.parameters,
     }));
 
-    const response = await this.llmClient.createChatCompletion<
-      GenerateTextResult<ToolSet, string>
-    >({
+    this.logger({
+      category: "agent",
+      message: `Available tools for step ${currentStep}: ${toolsArray.map((t) => t.name).join(", ")}`,
+      level: 1,
+    });
+
+    const requestId = `operator-step-${currentStep}`;
+    let callTimestamp = "";
+    let callFile = "";
+    if (this.logInferenceToFile) {
+      const { fileName, timestamp } = writeTimestampedTxtFile(
+        "agent_summary",
+        "agent_call",
+        {
+          requestId,
+          modelCall: "agent",
+          messages: this.messages,
+          tools: toolsArray,
+        },
+      );
+      callFile = fileName;
+      callTimestamp = timestamp;
+    }
+
+    const startTime = Date.now();
+    const response = await this.llmClient.createChatCompletion<LLMResponse>({
       options: {
         messages: this.messages as ChatMessage[],
         tools: toolsArray,
-        tool_choice: "auto",
-        requestId: `operator-step-${currentStep}`,
+        tool_choice: "required", // Force tool usage since operator expects tool calls
+        requestId,
       },
       logger: this.logger,
     });
+    const endTime = Date.now();
 
-    // Check if the response contains tool calls
-    const toolCalls = response.toolCalls;
+    // Extract tool calls from LLMResponse format
+    const toolCalls =
+      response.choices?.[0]?.message?.tool_calls?.map((tc) => ({
+        toolCallId: tc.id,
+        toolName: tc.function.name,
+        args: JSON.parse(tc.function.arguments),
+      })) || [];
+
+    const responseText = response.choices?.[0]?.message?.content || "";
+
+    // Log the response if inference logging is enabled
+    if (this.logInferenceToFile) {
+      const { fileName } = writeTimestampedTxtFile(
+        "agent_summary",
+        "agent_response",
+        {
+          requestId,
+          modelResponse: "agent",
+          rawResponse: {
+            text: responseText,
+            toolCalls: toolCalls,
+            usage: response.usage,
+          },
+        },
+      );
+
+      appendSummary("agent", {
+        agent_inference_type: "agent",
+        timestamp: callTimestamp,
+        LLM_input_file: callFile,
+        LLM_output_file: fileName,
+        prompt_tokens: response.usage?.prompt_tokens ?? 0,
+        completion_tokens: response.usage?.completion_tokens ?? 0,
+        inference_time_ms: endTime - startTime,
+      });
+    }
+
+    this.logger({
+      category: "agent",
+      message: `LLM response - ${toolCalls?.length || 0}, Text: "${responseText || "none"}"`,
+      level: 1,
+    });
 
     if (toolCalls && toolCalls.length > 0) {
-      // Add the tool results to the conversation
-
+      // Add the assistant message with tool calls to the conversation
       this.messages.push({
         role: "assistant",
-        content:
-          `The following tool calls were made in this step:\n\n` +
-          toolCalls
-            .map(
-              (tc, idx) =>
-                `#${idx + 1}: Tool "${tc.toolName}" was called with arguments: ${JSON.stringify(tc.args)}`,
-            )
-            .join("\n") +
-          `\n\nRaw tool calls: ${JSON.stringify(toolCalls)}`,
+        content: responseText || "",
         tool_calls: toolCalls.map((tc) => ({
           id: tc.toolCallId,
           type: "function",
@@ -325,6 +384,79 @@ export class StagehandOperatorHandler {
           },
         })),
       });
+
+      // Execute each tool call and collect results
+      const toolResults: string[] = [];
+      for (const toolCall of toolCalls) {
+        const toolName = toolCall.toolName;
+        const toolArgs = toolCall.args;
+
+        this.logger({
+          category: "agent",
+          message: `Executing tool call: ${toolName} with args: ${JSON.stringify(toolArgs)}`,
+          level: 1,
+        });
+
+        const tool = this.allTools[toolName];
+        if (!tool) {
+          const errorMsg = `Tool ${toolName} not found`;
+          this.logger({
+            category: "agent",
+            message: errorMsg,
+            level: 0,
+          });
+          toolResults.push(errorMsg);
+          continue;
+        }
+
+        try {
+          // Execute the tool function
+          const result = await tool.execute(toolArgs, {
+            toolCallId: toolCall.toolCallId,
+            messages: [],
+          });
+          const stringifiedResult = JSON.stringify(result, null, 2);
+          this.logger({
+            category: "agent",
+            message: `Tool ${toolName} completed successfully. Result: ${stringifiedResult}`,
+            level: 1,
+          });
+          toolResults.push(stringifiedResult);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const errorMsg = `Error executing tool ${toolName}: ${errorMessage}`;
+          this.logger({
+            category: "agent",
+            message: errorMsg,
+            level: 0,
+          });
+          toolResults.push(errorMsg);
+        }
+      }
+
+      // Add tool results to the conversation as user messages
+      for (let i = 0; i < toolCalls.length; i++) {
+        const toolCall = toolCalls[i];
+        const toolResult = toolResults[i];
+
+        // Ensure the text content is not empty for Anthropic API
+        const resultText =
+          toolResult && toolResult.trim()
+            ? `Tool "${toolCall.toolName}" result:\n${toolResult}`
+            : `Tool "${toolCall.toolName}" completed with no output.`;
+
+        this.messages.push({
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: resultText,
+            },
+          ],
+          tool_call_id: toolCall.toolCallId,
+        });
+      }
 
       // Check if any tool call was a close action
       for (const toolCall of toolCalls) {
@@ -342,10 +474,16 @@ export class StagehandOperatorHandler {
       return this.getNextStep(currentStep);
     }
 
-    // If no tool calls, treat as a close action
+    // If no tool calls, this is an error - the LLM should always use tools
+    this.logger({
+      category: "agent",
+      message: `ERROR: LLM did not make any tool calls despite being required to. Response text: "${responseText}". This indicates a configuration issue.`,
+      level: 0,
+    });
+
     return {
       method: "close",
-      reasoning: "No tool calls made, closing task",
+      reasoning: "No tool calls made - LLM failed to use required tools",
       taskComplete: false,
     };
   }
@@ -390,29 +528,72 @@ export class StagehandOperatorHandler {
   }
 
   private async getSummary(goal: string): Promise<string> {
-    const { data: response } =
+    const requestId = "operator-summary";
+    const summaryMessages = [
+      ...this.messages,
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Now use the steps taken to answer the original instruction of ${goal}.`,
+          },
+        ],
+      },
+    ];
+
+    let callTimestamp = "";
+    let callFile = "";
+    if (this.logInferenceToFile) {
+      const { fileName, timestamp } = writeTimestampedTxtFile(
+        "agent_summary",
+        "agent_summary_call",
+        {
+          requestId,
+          modelCall: "agent_summary",
+          messages: summaryMessages,
+        },
+      );
+      callFile = fileName;
+      callTimestamp = timestamp;
+    }
+
+    const startTime = Date.now();
+    const { data: response, usage } =
       (await this.llmClient.createChatCompletion<OperatorSummary>({
         options: {
-          messages: [
-            ...this.messages,
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `Now use the steps taken to answer the original instruction of ${goal}.`,
-                },
-              ],
-            },
-          ],
+          messages: summaryMessages as ChatMessage[],
           response_model: {
             name: "operatorSummarySchema",
             schema: operatorSummarySchema,
           },
-          requestId: "operator-summary",
+          requestId,
         },
         logger: this.logger,
       })) as LLMParsedResponse<OperatorSummary>;
+    const endTime = Date.now();
+
+    if (this.logInferenceToFile) {
+      const { fileName } = writeTimestampedTxtFile(
+        "agent_summary",
+        "agent_summary_response",
+        {
+          requestId,
+          modelResponse: "agent_summary",
+          rawResponse: response,
+        },
+      );
+
+      appendSummary("agent", {
+        agent_inference_type: "agent_summary",
+        timestamp: callTimestamp,
+        LLM_input_file: callFile,
+        LLM_output_file: fileName,
+        prompt_tokens: usage?.prompt_tokens ?? 0,
+        completion_tokens: usage?.completion_tokens ?? 0,
+        inference_time_ms: endTime - startTime,
+      });
+    }
 
     return response.answer;
   }

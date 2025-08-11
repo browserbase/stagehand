@@ -29,7 +29,6 @@ export const resolveTools = async (
           description: tool.description,
           parameters: jsonSchemaToZod(tool.inputSchema as JsonSchema),
           execute: async (input) => {
-            console.log("Calling tool", tool.name, input);
             const result = await clientInstance.callTool({
               name: tool.name,
               arguments: input,

@@ -565,11 +565,24 @@ export class OpenAICUAClient extends AgentClient {
             try {
               const tool = this.tools[item.name];
               const args = JSON.parse(item.arguments);
+
+              logger({
+                category: "agent",
+                message: `Executing tool call: ${item.name} with args: ${item.arguments}`,
+                level: 1,
+              });
+
               const result = await tool.execute(args, {
                 toolCallId: item.call_id,
                 messages: [],
               });
               toolResult = JSON.stringify(result);
+
+              logger({
+                category: "agent",
+                message: `Tool ${item.name} completed successfully. Result: ${toolResult}`,
+                level: 1,
+              });
             } catch (toolError) {
               const errorMessage =
                 toolError instanceof Error

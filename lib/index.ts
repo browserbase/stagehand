@@ -926,6 +926,7 @@ export class Stagehand {
             this.logger,
             this.llmClient,
             tools,
+            this.logInferenceToFile,
           ).execute(instructionOrOptions);
         },
       };

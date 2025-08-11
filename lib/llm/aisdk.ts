@@ -256,27 +256,62 @@ export class AISdkClient extends LLMClient {
     }
 
     const tools: ToolSet = {};
-    for (const tool of options.tools) {
-      tools[tool.name] = {
-        description: tool.description,
-        parameters: tool.parameters,
-      };
+    if (options.tools && options.tools.length > 0) {
+      for (const tool of options.tools) {
+        tools[tool.name] = {
+          description: tool.description,
+          parameters: tool.parameters,
+        };
+      }
     }
 
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
-      tools,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
+      toolChoice:
+        Object.keys(tools).length > 0
+          ? options.tool_choice === "required"
+            ? "required"
+            : "auto"
+          : undefined,
     });
 
+    // Transform AI SDK response to match LLMResponse format expected by operator handler
+    const transformedToolCalls = (textResponse.toolCalls || []).map(
+      (toolCall) => ({
+        id:
+          toolCall.toolCallId ||
+          `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: "function",
+        function: {
+          name: toolCall.toolName,
+          arguments: JSON.stringify(toolCall.args),
+        },
+      }),
+    );
+
     const result = {
-      data: textResponse.text,
+      id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: this.model.modelId,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: textResponse.text || null,
+            tool_calls: transformedToolCalls,
+          },
+          finish_reason: textResponse.finishReason || "stop",
+        },
+      ],
       usage: {
         prompt_tokens: textResponse.usage.promptTokens ?? 0,
         completion_tokens: textResponse.usage.completionTokens ?? 0,
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
-      tool_calls: textResponse.toolCalls,
     } as T;
 
     if (this.enableCaching) {
