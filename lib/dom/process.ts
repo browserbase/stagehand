@@ -125,12 +125,14 @@ export async function getScrollableElementXpaths(
     },
   };
 
-  Object.defineProperty(window, "__stagehand__", {
-    value: backdoor,
-    enumerable: false,
-    writable: false,
-    configurable: false,
-  });
+  if (!("__stagehand__" in window)) {
+    Object.defineProperty(window, "__stagehand__", {
+      value: backdoor,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
 })();
 
 window.getScrollableElementXpaths = getScrollableElementXpaths;
