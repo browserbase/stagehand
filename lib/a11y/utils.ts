@@ -118,11 +118,13 @@ const lc = (raw: string): string => {
 /**
  * Build mappings from CDP backendNodeIds to HTML tag names and relative XPaths.
  *
+ * @param experimental - Whether to use experimental behaviour.
  * @param sp - The StagehandPage wrapper for Playwright and CDP calls.
  * @param targetFrame - Optional Playwright.Frame whose DOM subtree to map; defaults to main frame.
  * @returns A Promise resolving to BackendIdMaps containing tagNameMap and xpathMap.
  */
 export async function buildBackendIdMaps(
+  experimental: boolean,
   sp: StagehandPage,
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
@@ -169,14 +171,22 @@ export async function buildBackendIdMaps(
 
       let iframeNode: DOMNode | undefined;
       const locate = (n: DOMNode): boolean => {
-        if (n.backendNodeId === backendNodeId) {
-          iframeNode = n;
-          return true;
+        if (experimental) {
+          if (n.backendNodeId === backendNodeId) {
+            iframeNode = n;
+            return true;
+          }
+          if (n.shadowRoots?.some(locate)) return true;
+          if (n.children?.some(locate)) return true;
+          if (n.contentDocument && locate(n.contentDocument)) return true;
+          return false;
+        } else {
+          if (n.backendNodeId === backendNodeId) return (iframeNode = n), true;
+          return (
+            (n.children?.some(locate) ?? false) ||
+            (n.contentDocument ? locate(n.contentDocument) : false)
+          );
         }
-        if (n.shadowRoots?.some(locate)) return true;
-        if (n.children?.some(locate)) return true;
-        if (n.contentDocument && locate(n.contentDocument)) return true;
-        return false;
       };
 
       if (!locate(root) || !iframeNode?.contentDocument) {
@@ -218,7 +228,7 @@ export async function buildBackendIdMaps(
         stack.push({ node: node.contentDocument, path: "", fid: childFid });
       }
 
-      if (node.shadowRoots?.length) {
+      if (node.shadowRoots?.length && experimental) {
         for (const shadowRoot of node.shadowRoots) {
           stack.push({
             node: shadowRoot,
@@ -502,6 +512,7 @@ export async function getCDPFrameId(
  * @returns A Promise resolving to a TreeResult with the hierarchical AX tree and related metadata.
  */
 export async function getAccessibilityTree(
+  experimental: boolean,
   stagehandPage: StagehandPage,
   logger: (log: LogLine) => void,
   selector?: string,
@@ -509,6 +520,7 @@ export async function getAccessibilityTree(
 ): Promise<TreeResult> {
   // 0. DOM helpers (maps, xpath)
   const { tagNameMap, xpathMap } = await buildBackendIdMaps(
+    experimental,
     stagehandPage,
     targetFrame,
   );
@@ -717,7 +729,7 @@ export async function getFrameRootBackendNodeId(
  * @param frame - The Playwright.Frame whose iframe element to locate.
  * @returns A Promise resolving to the XPath of the iframe element, or "/" if no frame provided.
  */
-export async function getFrameRootXpath(
+export async function getFrameRootXpathWithShadow(
   frame: Frame | undefined,
 ): Promise<string> {
   // Return root path when no frame context is provided
@@ -765,6 +777,34 @@ export async function getFrameRootXpath(
 
     // Leading '/' + join; empty tokens become “//” between segments
     return "/" + segs.join("/");
+  });
+}
+
+export async function getFrameRootXpath(
+  frame: Frame | undefined,
+): Promise<string> {
+  // Return root path when no frame context is provided
+  if (!frame) {
+    return "/";
+  }
+  // Obtain the element handle of the iframe in the embedding document
+  const handle = await frame.frameElement();
+  // Evaluate the element's absolute XPath within the page context
+  return handle.evaluate((node: Element) => {
+    const pos = (el: Element) => {
+      let i = 1;
+      for (
+        let sib = el.previousElementSibling;
+        sib;
+        sib = sib.previousElementSibling
+      )
+        if (sib.tagName === el.tagName) i += 1;
+      return i;
+    };
+    const segs: string[] = [];
+    for (let el: Element | null = node; el; el = el.parentElement)
+      segs.unshift(`${el.tagName.toLowerCase()}[${pos(el)}]`);
+    return `/${segs.join("/")}`;
   });
 }
 
@@ -872,6 +912,7 @@ export function injectSubtrees(
  * @returns A Promise resolving to CombinedA11yResult with combined tree text, xpath map, and URL map.
  */
 export async function getAccessibilityTreeWithFrames(
+  experimental: boolean,
   stagehandPage: StagehandPage,
   logger: (l: LogLine) => void,
   rootXPath?: string,
@@ -919,6 +960,7 @@ export async function getAccessibilityTreeWithFrames(
 
     try {
       const res = await getAccessibilityTree(
+        experimental,
         stagehandPage,
         logger,
         selector,
@@ -931,7 +973,13 @@ export async function getAccessibilityTreeWithFrames(
           ? null
           : await getFrameRootBackendNodeId(stagehandPage, frame);
 
-      const frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
+      let frameXpath;
+      if (experimental) {
+        frameXpath =
+          frame === main ? "/" : await getFrameRootXpathWithShadow(frame);
+      } else {
+        frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
+      }
 
       // Resolve the CDP frameId for this Playwright Frame (undefined for main)
       const frameId = await getCDPFrameId(stagehandPage, frame);

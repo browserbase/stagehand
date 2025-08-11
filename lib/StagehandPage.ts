@@ -123,18 +123,21 @@ export class StagehandPage {
         logger: this.stagehand.logger,
         stagehandPage: this,
         selfHeal: this.stagehand.selfHeal,
+        experimental: this.stagehand.experimental,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        experimental: this.stagehand.experimental,
       });
       this.observeHandler = new StagehandObserveHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        experimental: this.stagehand.experimental,
       });
     }
   }

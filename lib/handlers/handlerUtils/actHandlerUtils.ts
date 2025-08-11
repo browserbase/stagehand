@@ -101,7 +101,7 @@ async function resolveShadowSegment(
   return hostLoc.locator(`stagehand=${id}`);
 }
 
-export async function deepLocator(
+export async function deepLocatorWithShadow(
   root: Page | FrameLocator,
   xpath: string,
 ): Promise<Locator> {
@@ -177,6 +177,35 @@ export async function deepLocator(
   return (ctx as Page | FrameLocator | Locator).locator(
     xp() + buffer.join("/"),
   );
+}
+
+export function deepLocator(root: Page | FrameLocator, xpath: string): Locator {
+  // 1 ─ prepend with slash if not already included
+  if (!xpath.startsWith("/")) xpath = "/" + xpath;
+
+  // 2 ─ split into steps, accumulate until we hit an iframe step
+  const steps = xpath.split("/").filter(Boolean); // tokens
+  let ctx: Page | FrameLocator = root;
+  let buffer: string[] = [];
+
+  const flushIntoFrame = () => {
+    if (buffer.length === 0) return;
+    const selector = "xpath=/" + buffer.join("/");
+    ctx = (ctx as Page | FrameLocator).frameLocator(selector);
+    buffer = [];
+  };
+
+  for (const step of steps) {
+    buffer.push(step);
+    if (IFRAME_STEP_RE.test(step)) {
+      // we've included the <iframe> element in buffer ⇒ descend
+      flushIntoFrame();
+    }
+  }
+
+  // 3 ─ whatever is left in buffer addresses the target *inside* the last ctx
+  const finalSelector = "xpath=/" + buffer.join("/");
+  return (ctx as Page | FrameLocator).locator(finalSelector);
 }
 
 /**
