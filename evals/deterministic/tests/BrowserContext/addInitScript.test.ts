@@ -17,7 +17,9 @@ test.describe("StagehandContext - addInitScript", () => {
     });
 
     const pageA = await context.newPage();
-    await pageA.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
+    await pageA.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+    );
 
     const resultA = await pageA.evaluate(() => {
       const w = window as typeof window & {

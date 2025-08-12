@@ -16,7 +16,8 @@ test.describe("StagehandContext - Cookies", () => {
 
   test("should add cookies and retrieve them", async () => {
     const context = stagehand.context; // This is the wrapped BrowserContext
-    const url = "https://browserbase.github.io/stagehand-eval-sites/sites/example";
+    const url =
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example";
 
     await context.addCookies([
       {
@@ -41,7 +42,8 @@ test.describe("StagehandContext - Cookies", () => {
 
   test("should clear all cookies", async () => {
     const context = stagehand.context;
-    const url = "https://browserbase.github.io/stagehand-eval-sites/sites/example";
+    const url =
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example";
 
     await context.addCookies([
       {

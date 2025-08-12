@@ -10,7 +10,9 @@ test.describe("StagehandPage - bringToFront", () => {
     const { page: page1 } = stagehand;
 
     const page2 = await stagehand.context.newPage();
-    await page2.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
+    await page2.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+    );
     const page2Title = await page2.title();
     console.log("Page2 Title:", page2Title);
 

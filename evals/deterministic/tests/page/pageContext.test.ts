@@ -31,7 +31,7 @@ test.describe("StagehandPage - page.context()", () => {
       {
         name: "stagehandTestCookie",
         value: "hello-stagehand",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: Math.floor(Date.now() / 1000) + 3600, // 1 hour
         httpOnly: false,
@@ -40,19 +40,26 @@ test.describe("StagehandPage - page.context()", () => {
       },
     ]);
 
-    const cookies = await stagehandContext.cookies("https://browserbase.github.io/stagehand-eval-sites/sites/example");
+    const cookies = await stagehandContext.cookies(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example/",
+    );
 
     const testCookie = cookies.find((c) => c.name === "stagehandTestCookie");
     expect(testCookie).toBeDefined();
     expect(testCookie?.value).toBe("hello-stagehand");
 
     const extraPage = await pageContext.newPage();
-    await extraPage.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
+    await extraPage.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+      { waitUntil: "networkidle" },
+    );
     const contextPages = stagehandContext.pages();
 
     // The newly created page should be recognized by stagehandContext as well.
     const foundExtraPage = contextPages.find(
-      (p) => p.url() === "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+      (p) =>
+        p.url() ===
+        "https://browserbase.github.io/stagehand-eval-sites/sites/example/",
     );
     expect(foundExtraPage).toBeDefined();
   });
