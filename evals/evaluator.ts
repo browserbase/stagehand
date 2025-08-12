@@ -80,9 +80,19 @@ export class Evaluator {
       options: {
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: question },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: question },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                },
+              },
+            ],
+          },
         ],
-        image: { buffer: imageBuffer },
       },
     });
     const rawResponse = response.data as unknown as string;
@@ -204,12 +214,17 @@ export class Evaluator {
           },
           {
             role: "user",
-            content: formattedQuestions,
+            content: [
+              { type: "text", text: formattedQuestions },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                },
+              },
+            ],
           },
         ],
-        image: {
-          buffer: imageBuffer,
-        },
       },
     });
 

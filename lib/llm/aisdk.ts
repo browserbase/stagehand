@@ -157,22 +157,6 @@ export class AISdkClient extends LLMClient {
       };
     });
 
-    if (options.image) {
-      const imageMessage: CoreUserMessage = {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            image: `data:image/jpeg;base64,${options.image.buffer.toString("base64")}`,
-          },
-          ...(options.image.description
-            ? [{ type: "text", text: options.image.description } as TextPart]
-            : []),
-        ],
-      };
-      formattedMessages.push(imageMessage);
-    }
-
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
     if (options.response_model) {
