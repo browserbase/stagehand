@@ -28,6 +28,10 @@ export interface BatchEvaluateOptions {
    * @default 1000
    */
   screenshotDelayMs?: number;
+  /**
+   * The reasoning behind the evaluation
+   */
+  reasoning?: string;
 }
 
 /**
