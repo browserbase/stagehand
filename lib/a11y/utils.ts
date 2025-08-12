@@ -1009,15 +1009,6 @@ export async function findScrollableElementIds(
         window.getScrollableElementXpaths(),
       );
 
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
-  console.log(`scrollable element xpaths: ${xpaths}`);
   const backendIds = new Set<number>();
 
   for (const xpath of xpaths) {
