@@ -419,5 +419,15 @@
       "name": "agent/sign_in",
       "categories": ["agent"]
     }
+    ,
+    {
+      "name": "agent/webarena_gaia",
+      "categories": ["agent"]
+    }
+    ,
+    {
+      "name": "agent/webvoyager",
+      "categories": ["agent"]
+    }
   ]
 }
