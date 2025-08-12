@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add image support to ai sdk LLM client
+Properly handle images in evaluator + clean up response parsing logic 
