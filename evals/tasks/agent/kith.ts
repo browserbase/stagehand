@@ -31,41 +31,44 @@ export const kith: EvalFunction = async ({
 
     const success = evaluation === "YES";
 
-    await agent.execute({
-      instruction: "fill the payment information",
-      maxSteps: 30,
-    });
-
-    const { evaluation: evaluation2, reasoning: reasoning2 } =
-      await evaluator.evaluate({
-        question: "Did the agent fill the payment information",
+    if (success) {
+      await agent.execute({
+        instruction: "fill the payment information",
+        maxSteps: 30,
       });
 
-    const success2 = evaluation2 === "YES";
+      const { evaluation: evaluation2, reasoning: reasoning2 } =
+        await evaluator.evaluate({
+          question: "Did the agent fill the payment information",
+        });
 
-    if (!success) {
+      const success2 = evaluation2 === "YES";
+
+      if (success2) {
+        return {
+          _success: true,
+          debugUrl,
+          sessionUrl,
+          logs: logger.getLogs(),
+        };
+      } else {
+        return {
+          _success: false,
+          message: reasoning2,
+          debugUrl,
+          sessionUrl,
+          logs: logger.getLogs(),
+        };
+      }
+    } else {
       return {
         _success: false,
-        message: `${reasoning} ${reasoning2}`,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    } else if (!success2) {
-      return {
-        _success: false,
-        message: reasoning2,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
-    return {
-      _success: true,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
   } catch (error) {
     return {
       _success: false,
