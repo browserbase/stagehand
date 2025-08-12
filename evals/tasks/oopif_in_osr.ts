@@ -30,12 +30,19 @@ export const oopif_in_osr: EvalFunction = async ({
     if (pageText.includes("nunya")) {
       return {
         _success: true,
-        message: `successfully clicked the button`,
+        message: `successfully filled the form`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
+    return {
+      _success: false,
+      message: `unable to fill the form`,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
     return {
       _success: false,

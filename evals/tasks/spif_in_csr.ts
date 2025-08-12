@@ -33,6 +33,13 @@ export const spif_in_csr: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
+    return {
+      _success: false,
+      message: `unable to click on the button`,
+      debugUrl,
+      sessionUrl,
+      logs: logger.getLogs(),
+    };
   } catch (error) {
     return {
       _success: false,
