@@ -26,7 +26,6 @@ export const iframe_form: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.evaluate({
       question: "Is the form name input filled with 'John Smith'?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {
@@ -48,7 +47,6 @@ export const iframe_form: EvalFunction = async ({
     await stagehand.page.mouse.wheel(0, -1000);
     const result2 = await evaluator.evaluate({
       question: "Is the form email input filled with 'john.smith@example.com'?",
-      strictResponse: true,
     });
 
     if (result2.evaluation !== "YES" && result2.evaluation !== "NO") {

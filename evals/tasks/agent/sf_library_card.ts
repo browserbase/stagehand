@@ -29,7 +29,6 @@ export const sf_library_card: EvalFunction = async ({
     const result = await evaluator.evaluate({
       question:
         "Does the page show the 'Residential Address' field filled with '166 Geary St'?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {

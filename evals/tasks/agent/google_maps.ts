@@ -28,7 +28,6 @@ export const google_maps: EvalFunction = async ({
     const result = await evaluator.evaluate({
       question:
         "Does the page show the time it takes to drive from San Francisco to New York at all?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {
