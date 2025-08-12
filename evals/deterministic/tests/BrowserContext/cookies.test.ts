@@ -16,13 +16,14 @@ test.describe("StagehandContext - Cookies", () => {
 
   test("should add cookies and retrieve them", async () => {
     const context = stagehand.context; // This is the wrapped BrowserContext
-    const url = "https://example.com";
+    const url =
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example";
 
     await context.addCookies([
       {
         name: "myCookie",
         value: "myValue",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: Math.floor(Date.now() / 1000) + 3600,
         httpOnly: false,
@@ -41,13 +42,14 @@ test.describe("StagehandContext - Cookies", () => {
 
   test("should clear all cookies", async () => {
     const context = stagehand.context;
-    const url = "https://example.com";
+    const url =
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example";
 
     await context.addCookies([
       {
         name: "myOtherCookie",
         value: "anotherValue",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: Math.floor(Date.now() / 1000) + 3600,
         httpOnly: false,
