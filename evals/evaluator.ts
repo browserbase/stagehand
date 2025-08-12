@@ -10,7 +10,6 @@ import {
   ClientOptions,
   Stagehand,
 } from "@browserbasehq/stagehand";
-import { LLMResponseError } from "@/types/stagehandErrors";
 import dotenv from "dotenv";
 import {
   EvaluateOptions,
@@ -53,12 +52,11 @@ export class Evaluator {
 
   /**
    * Evaluates the current state of the page against a specific question.
-   * Expects a JSON object response: { "evaluation": "YES" | "NO", "reasoning": "..." }
+   * Uses structured response generation to ensure proper format.
    * Returns the evaluation result with normalized response and success status.
    *
    * @param options - The options for evaluation
    * @returns A promise that resolves to an EvaluationResult
-   * @throws Error if strictResponse is true and response is not clearly YES or NO, or if JSON parsing/validation fails.
    */
   async evaluate(options: EvaluateOptions): Promise<EvaluationResult> {
     const {
@@ -68,7 +66,6 @@ export class Evaluator {
           { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
           Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
-      strictResponse = false,
     } = options;
 
     await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
@@ -118,13 +115,6 @@ export class Evaluator {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      if (strictResponse) {
-        throw new LLMResponseError(
-          "Evaluator",
-          `Failed to get structured response: ${errorMessage}`,
-        );
-      }
-
       return {
         evaluation: "INVALID" as const,
         reasoning: `Failed to get structured response: ${errorMessage}`,
@@ -134,11 +124,11 @@ export class Evaluator {
 
   /**
    * Evaluates the current state of the page against multiple questions in a single screenshot.
+   * Uses structured response generation to ensure proper format.
    * Returns an array of evaluation results.
    *
    * @param options - The options for batch evaluation
    * @returns A promise that resolves to an array of EvaluationResults
-   * @throws Error if strictResponse is true and any response is not clearly YES or NO
    */
   async batchEvaluate(
     options: BatchEvaluateOptions,
@@ -150,7 +140,6 @@ export class Evaluator {
           { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
           Be critical about the question and the answer, the slightest detail might be the difference between yes and no.`,
       screenshotDelayMs = 1000,
-      strictResponse = false,
     } = options;
 
     // Wait for the specified delay before taking screenshot
@@ -206,13 +195,6 @@ export class Evaluator {
         typeof BatchEvaluationSchema
       >;
 
-      if (results.length !== questions.length && strictResponse) {
-        throw new LLMResponseError(
-          "Evaluator",
-          `Expected ${questions.length} results, but got ${results.length}`,
-        );
-      }
-
       // Pad with INVALID results if we got fewer than expected
       const finalResults: EvaluationResult[] = [];
       for (let i = 0; i < questions.length; i++) {
@@ -233,13 +215,6 @@ export class Evaluator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-
-      if (strictResponse) {
-        throw new LLMResponseError(
-          "Evaluator",
-          `Failed to get structured response: ${errorMessage}`,
-        );
-      }
 
       // Fallback: return INVALID for all questions
       return questions.map(() => ({

@@ -27,7 +27,6 @@ export const sf_library_card_multiple: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.evaluate({
       question: "Does the page show all the required fields filled?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {
