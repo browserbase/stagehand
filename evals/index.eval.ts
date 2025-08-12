@@ -200,7 +200,7 @@ const generateFilteredTestcases = (): Testcase[] => {
 
     // Load GAIA dataset from env or default path
     const gaiaFilePath = process.env.EVAL_GAIA_FILE ||
-      path.join(__dirname, "..", "WebVoyager", "data", "GAIA_web.jsonl");
+      path.join(__dirname, "datasets", "gaia", "GAIA_web.jsonl");
 
     let gaiaLines: string[] = [];
     try {
