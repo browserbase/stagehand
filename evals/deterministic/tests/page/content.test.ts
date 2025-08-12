@@ -8,7 +8,7 @@ test.describe("StagehandPage - content", () => {
     await stagehand.init();
 
     const page = stagehand.page;
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
     const html = await page.content();
     expect(html).toContain("<title>Example Domain</title>");
     expect(html).toContain("<h1>Example Domain</h1>");

@@ -16,7 +16,7 @@ test.describe("StagehandPage - addInitScript", () => {
       w.__testInitScriptVar = "Hello from init script!";
     });
 
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
 
     const result = await page.evaluate(() => {
       const w = window as typeof window & {

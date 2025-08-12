@@ -9,14 +9,14 @@ test.describe("StagehandPage - Navigation", () => {
 
     const page = stagehand.page;
 
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
-    expect(page.url()).toBe("https://browserbase.github.io/stagehand-eval-sites/sites/example//");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example");
+    expect(page.url()).toBe("https://browserbase.github.io/stagehand-eval-sites/sites/example");
 
     await page.goto("https://docs.browserbase.com/introduction");
     expect(page.url()).toBe("https://docs.browserbase.com/introduction");
 
     await page.goBack();
-    expect(page.url()).toBe("https://browserbase.github.io/stagehand-eval-sites/sites/example//");
+    expect(page.url()).toBe("https://browserbase.github.io/stagehand-eval-sites/sites/example");
 
     await page.goForward();
     expect(page.url()).toBe("https://docs.browserbase.com/introduction");
