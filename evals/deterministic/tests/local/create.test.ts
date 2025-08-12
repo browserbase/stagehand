@@ -109,7 +109,7 @@ test.describe("Local browser launch options", () => {
       {
         name: "testCookie",
         value: "testValue",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: -1,
         httpOnly: false,
@@ -128,7 +128,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
     const cookies = await stagehand.context.cookies();
 
     expect(cookies[0]).toMatchObject(
@@ -155,7 +155,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
 
     const location = await page.evaluate(() => {
       return new Promise((resolve) => {
@@ -188,7 +188,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
 
     const { locale, timezone } = await page.evaluate(() => ({
       locale: navigator.language,
@@ -218,7 +218,7 @@ test.describe("Local browser launch options", () => {
     await stagehand.init();
 
     const page = await stagehand.context.newPage();
-    await page.goto("https://example.com");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
     await stagehand.close();
 
     const videos = fs.readdirSync(videoDir);

@@ -8,7 +8,7 @@ test.describe("StagehandPage - page.on()", () => {
     await stagehand.init();
 
     const page = stagehand.page;
-    await page.goto("https://example.com");
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
 
     const messages: string[] = [];
     page.on("console", (msg) => {
@@ -27,7 +27,7 @@ test.describe("StagehandPage - page.on()", () => {
     await stagehand.init();
 
     const page = stagehand.page;
-    await page.goto("https://example.com", { waitUntil: "commit" });
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/", { waitUntil: "commit" });
 
     page.on("dialog", async (dialog) => {
       expect(dialog.message()).toBe("Test alert");
@@ -44,7 +44,7 @@ test.describe("StagehandPage - page.on()", () => {
     await stagehand.init();
 
     const page = stagehand.page;
-    await page.goto("https://example.com", { waitUntil: "commit" });
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/", { waitUntil: "commit" });
 
     const requests: string[] = [];
     const responses: string[] = [];
@@ -57,10 +57,10 @@ test.describe("StagehandPage - page.on()", () => {
       responses.push(response.url());
     });
 
-    await page.goto("https://example.com", { waitUntil: "commit" });
+    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/", { waitUntil: "commit" });
 
-    expect(requests).toContain("https://example.com/");
-    expect(responses).toContain("https://example.com/");
+    expect(requests).toContain("https://browserbase.github.io/stagehand-eval-sites/sites/example//");
+    expect(responses).toContain("https://browserbase.github.io/stagehand-eval-sites/sites/example//");
 
     await stagehand.close();
   });

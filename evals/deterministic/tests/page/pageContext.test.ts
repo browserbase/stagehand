@@ -40,19 +40,19 @@ test.describe("StagehandPage - page.context()", () => {
       },
     ]);
 
-    const cookies = await stagehandContext.cookies("https://example.com");
+    const cookies = await stagehandContext.cookies("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
 
     const testCookie = cookies.find((c) => c.name === "stagehandTestCookie");
     expect(testCookie).toBeDefined();
     expect(testCookie?.value).toBe("hello-stagehand");
 
     const extraPage = await pageContext.newPage();
-    await extraPage.goto("https://example.com");
+    await extraPage.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
     const contextPages = stagehandContext.pages();
 
     // The newly created page should be recognized by stagehandContext as well.
     const foundExtraPage = contextPages.find(
-      (p) => p.url() === "https://example.com/",
+      (p) => p.url() === "https://browserbase.github.io/stagehand-eval-sites/sites/example//",
     );
     expect(foundExtraPage).toBeDefined();
   });
