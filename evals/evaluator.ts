@@ -20,17 +20,22 @@ import {
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
+import { z } from "zod";
 
 dotenv.config();
+
+const EvaluationSchema = z.object({
+  evaluation: z.enum(["YES", "NO"]),
+  reasoning: z.string(),
+});
+
+const BatchEvaluationSchema = z.array(EvaluationSchema);
 
 export class Evaluator {
   private stagehand: Stagehand;
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions | { apiKey: string };
   private silentLogger: (message: LogLine) => void;
-  // Define regex patterns directly in the class or as constants if preferred elsewhere
-  private yesPattern = /^(YES|Y|TRUE|CORRECT|AFFIRMATIVE)/i;
-  private noPattern = /^(NO|N|FALSE|INCORRECT|NEGATIVE)/i;
 
   constructor(
     stagehand: Stagehand,
@@ -93,74 +98,38 @@ export class Evaluator {
             ],
           },
         ],
+        response_model: {
+          name: "EvaluationResult",
+          schema: EvaluationSchema,
+        },
       },
     });
-    const rawResponse = response.data as unknown as string;
-    let evaluationResult: "YES" | "NO" | "INVALID" = "INVALID";
-    let reasoning = `Failed to process response. Raw response: ${rawResponse}`;
 
     try {
-      // Clean potential markdown fences
-      const cleanedResponse = rawResponse
-        .replace(/^```json\s*/, "")
-        .replace(/\s*```$/, "")
-        .trim();
+      const result = response.data as unknown as z.infer<
+        typeof EvaluationSchema
+      >;
 
-      // Attempt to parse the JSON object
-      const parsedResult: { evaluation: unknown; reasoning: unknown } =
-        JSON.parse(cleanedResponse);
-
-      // Validate structure
-      if (
-        typeof parsedResult !== "object" ||
-        parsedResult === null ||
-        typeof parsedResult.evaluation !== "string" ||
-        typeof parsedResult.reasoning !== "string"
-      ) {
-        throw new LLMResponseError(
-          "Evaluator",
-          `Invalid JSON structure received: ${JSON.stringify(parsedResult)}`,
-        );
-      }
-
-      const evaluationString = parsedResult.evaluation.trim().toUpperCase();
-      reasoning = parsedResult.reasoning.trim(); // Update reasoning from parsed object
-
-      // Use regex patterns to validate the evaluation string
-      const isYes = this.yesPattern.test(evaluationString);
-      const isNo = this.noPattern.test(evaluationString);
-
-      if (isYes) {
-        evaluationResult = "YES";
-      } else if (isNo) {
-        evaluationResult = "NO";
-      } else {
-        // Parsed JSON but evaluation value wasn't YES/NO variant
-        if (strictResponse) {
-          throw new LLMResponseError(
-            "Evaluator",
-            `Invalid evaluation value in JSON: ${parsedResult.evaluation}`,
-          );
-        }
-        // Keep INVALID, reasoning already updated
-        reasoning = `Invalid evaluation value: ${parsedResult.evaluation}. Reasoning: ${reasoning}`;
-      }
+      return {
+        evaluation: result.evaluation,
+        reasoning: result.reasoning,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      // Update reasoning with error details
-      reasoning = `Processing error: ${errorMessage}. Raw response: ${rawResponse}`;
-      if (strictResponse) {
-        // Re-throw error if in strict mode
-        throw new LLMResponseError("Evaluator", reasoning);
-      }
-      // Keep evaluationResult as "INVALID"
-    }
 
-    return {
-      evaluation: evaluationResult,
-      reasoning: reasoning,
-    };
+      if (strictResponse) {
+        throw new LLMResponseError(
+          "Evaluator",
+          `Failed to get structured response: ${errorMessage}`,
+        );
+      }
+
+      return {
+        evaluation: "INVALID" as const,
+        reasoning: `Failed to get structured response: ${errorMessage}`,
+      };
+    }
   }
 
   /**
@@ -225,119 +194,58 @@ export class Evaluator {
             ],
           },
         ],
+        response_model: {
+          name: "BatchEvaluationResult",
+          schema: BatchEvaluationSchema,
+        },
       },
     });
 
-    const rawResponse = response.data as unknown as string;
-    let finalResults: EvaluationResult[] = [];
-
     try {
-      // Clean potential markdown fences
-      const cleanedResponse = rawResponse
-        .replace(/^```json\s*/, "")
-        .replace(/\s*```$/, "")
-        .trim();
+      const results = response.data as unknown as z.infer<
+        typeof BatchEvaluationSchema
+      >;
 
-      // Attempt to parse the JSON array
-      const parsedResults: { evaluation: unknown; reasoning: unknown }[] =
-        JSON.parse(cleanedResponse);
-
-      if (!Array.isArray(parsedResults)) {
+      if (results.length !== questions.length && strictResponse) {
         throw new LLMResponseError(
           "Evaluator",
-          "Response is not a JSON array.",
+          `Expected ${questions.length} results, but got ${results.length}`,
         );
       }
 
-      if (parsedResults.length !== questions.length && strictResponse) {
-        throw new LLMResponseError(
-          "Evaluator",
-          `Expected ${questions.length} results, but got ${parsedResults.length}`,
-        );
-      }
-
+      // Pad with INVALID results if we got fewer than expected
+      const finalResults: EvaluationResult[] = [];
       for (let i = 0; i < questions.length; i++) {
-        if (i < parsedResults.length) {
-          const item = parsedResults[i];
-          // Ensure item is an object and has the required properties
-          if (
-            typeof item !== "object" ||
-            item === null ||
-            typeof item.evaluation !== "string" ||
-            typeof item.reasoning !== "string"
-          ) {
-            if (strictResponse) {
-              throw new LLMResponseError(
-                "Evaluator",
-                `Invalid object structure for question ${i + 1}: ${JSON.stringify(item)}`,
-              );
-            }
-            finalResults.push({
-              evaluation: "INVALID",
-              reasoning: `Invalid object structure received: ${JSON.stringify(
-                item,
-              )}`,
-            });
-            continue; // Move to the next question
-          }
-
-          // Use regex patterns for validation
-          const evaluationString = item.evaluation.trim().toUpperCase();
-          const reasoning = item.reasoning.trim();
-          const isYes = this.yesPattern.test(evaluationString);
-          const isNo = this.noPattern.test(evaluationString);
-
-          if (isYes) {
-            finalResults.push({ evaluation: "YES", reasoning: reasoning });
-          } else if (isNo) {
-            finalResults.push({ evaluation: "NO", reasoning: reasoning });
-          } else {
-            // Invalid evaluation value
-            if (strictResponse) {
-              throw new LLMResponseError(
-                "Evaluator",
-                `Invalid evaluation value for question ${i + 1}: ${item.evaluation}`,
-              );
-            }
-            finalResults.push({
-              evaluation: "INVALID",
-              reasoning: `Invalid evaluation value: ${item.evaluation}. Reasoning: ${reasoning}`,
-            });
-          }
+        if (i < results.length) {
+          finalResults.push({
+            evaluation: results[i].evaluation,
+            reasoning: results[i].reasoning,
+          });
         } else {
-          // Missing result for this question
-          if (strictResponse) {
-            throw new LLMResponseError(
-              "Evaluator",
-              `No response found for question ${i + 1}`,
-            );
-          }
           finalResults.push({
             evaluation: "INVALID",
             reasoning: "No response found for this question.",
           });
         }
       }
+
+      return finalResults;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      // If JSON parsing fails or structure is wrong, handle based on strictResponse
+
       if (strictResponse) {
         throw new LLMResponseError(
           "Evaluator",
-          `Failed to parse LLM response or invalid format: ${rawResponse}. Error: ${errorMessage}`,
+          `Failed to get structured response: ${errorMessage}`,
         );
       }
-      // Fallback: return INVALID for all questions
-      finalResults = []; // Clear any potentially partially filled results
-      for (let i = 0; i < questions.length; i++) {
-        finalResults.push({
-          evaluation: "INVALID",
-          reasoning: `Failed to parse response. Raw response: ${rawResponse}. Error: ${errorMessage}`,
-        });
-      }
-    }
 
-    return finalResults;
+      // Fallback: return INVALID for all questions
+      return questions.map(() => ({
+        evaluation: "INVALID" as const,
+        reasoning: `Failed to get structured response: ${errorMessage}`,
+      }));
+    }
   }
 }
