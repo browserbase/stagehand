@@ -324,11 +324,51 @@
       "categories": ["agent"]
     },
     {
+      "name": "agent/github_react_version",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/steam_games",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/ubereats",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/kith",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/apple_tv",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/apple_trade_in",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/arxiv_gpt_report",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/wolframalpha_weight_loss",
+      "categories": ["agent"]
+    },
+    {
       "name": "agent/sf_library_card",
       "categories": ["agent"]
     },
     {
       "name": "agent/sf_library_card_multiple",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/hugging_face",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/google_maps_3",
       "categories": ["agent"]
     },
     {
@@ -422,6 +462,31 @@
     {
       "name": "namespace_xpath",
       "categories": ["act"]
+    }
+    ,
+    {
+      "name": "agent/nba_trades",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/hotel_booking",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/github",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/all_recipes",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/amazon_shoes",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/google_shopping",
+      "categories": ["agent"]
     }
   ]
 }
