@@ -13,7 +13,7 @@ test.describe("StagehandPage - Navigation", () => {
       "https://browserbase.github.io/stagehand-eval-sites/sites/example",
     );
     expect(page.url()).toBe(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example/",
     );
 
     await page.goto("https://docs.browserbase.com/introduction");
@@ -21,7 +21,7 @@ test.describe("StagehandPage - Navigation", () => {
 
     await page.goBack();
     expect(page.url()).toBe(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example/",
     );
 
     await page.goForward();

@@ -23,7 +23,7 @@ test.describe("StagehandContext - Cookies", () => {
       {
         name: "myCookie",
         value: "myValue",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: Math.floor(Date.now() / 1000) + 3600,
         httpOnly: false,
@@ -49,7 +49,7 @@ test.describe("StagehandContext - Cookies", () => {
       {
         name: "myOtherCookie",
         value: "anotherValue",
-        domain: "example.com",
+        domain: "browserbase.github.io",
         path: "/",
         expires: Math.floor(Date.now() / 1000) + 3600,
         httpOnly: false,
