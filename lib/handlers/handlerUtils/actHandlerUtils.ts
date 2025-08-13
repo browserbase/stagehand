@@ -1,7 +1,6 @@
 import { Page, Locator, FrameLocator } from "playwright";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
-import { getNodeFromXpath } from "@/lib/dom/utils";
 import { Logger } from "../../../types/log";
 import { MethodHandlerContext } from "@/types/act";
 import { StagehandClickError } from "@/types/stagehandErrors";
@@ -59,7 +58,7 @@ export const methodHandlerMap: Record<
 };
 
 export async function scrollToNextChunk(ctx: MethodHandlerContext) {
-  const { stagehandPage, xpath, logger } = ctx;
+  const { locator, logger, xpath } = ctx;
 
   logger({
     category: "action",
@@ -71,40 +70,45 @@ export async function scrollToNextChunk(ctx: MethodHandlerContext) {
   });
 
   try {
-    await stagehandPage.page.evaluate(
-      ({ xpath }) => {
-        const elementNode = getNodeFromXpath(xpath);
-        if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          throw Error(`Could not locate element to scroll on.`);
-        }
+    await locator.evaluate(
+      (element) => {
+        const waitForScrollEnd = (el: HTMLElement | Element) =>
+          new Promise<void>((resolve) => {
+            let last = el.scrollTop ?? 0;
+            const check = () => {
+              const cur = el.scrollTop ?? 0;
+              if (cur === last) return resolve();
+              last = cur;
+              requestAnimationFrame(check);
+            };
+            requestAnimationFrame(check);
+          });
 
-        const element = elementNode as HTMLElement;
         const tagName = element.tagName.toLowerCase();
-        let height: number;
 
         if (tagName === "html" || tagName === "body") {
-          height = window.visualViewport.height;
-          window.scrollBy({
-            top: height,
-            left: 0,
-            behavior: "smooth",
-          });
+          const height = window.visualViewport?.height ?? window.innerHeight;
 
-          const scrollingEl =
-            document.scrollingElement || document.documentElement;
-          return window.waitForElementScrollEnd(scrollingEl as HTMLElement);
-        } else {
-          height = element.getBoundingClientRect().height;
-          element.scrollBy({
-            top: height,
-            left: 0,
-            behavior: "smooth",
-          });
+          window.scrollBy({ top: height, left: 0, behavior: "smooth" });
 
-          return window.waitForElementScrollEnd(element);
+          const scrollingRoot = (document.scrollingElement ??
+            document.documentElement) as HTMLElement;
+
+          return waitForScrollEnd(scrollingRoot);
         }
+
+        const height = (element as HTMLElement).getBoundingClientRect().height;
+
+        (element as HTMLElement).scrollBy({
+          top: height,
+          left: 0,
+          behavior: "smooth",
+        });
+
+        return waitForScrollEnd(element);
       },
-      { xpath },
+      undefined,
+      { timeout: 10_000 },
     );
   } catch (e) {
     logger({
@@ -122,7 +126,7 @@ export async function scrollToNextChunk(ctx: MethodHandlerContext) {
 }
 
 export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
-  const { stagehandPage, xpath, logger } = ctx;
+  const { locator, logger, xpath } = ctx;
 
   logger({
     category: "action",
@@ -134,39 +138,41 @@ export async function scrollToPreviousChunk(ctx: MethodHandlerContext) {
   });
 
   try {
-    await stagehandPage.page.evaluate(
-      ({ xpath }) => {
-        const elementNode = getNodeFromXpath(xpath);
-        if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          throw Error(`Could not locate element to scroll on.`);
-        }
+    await locator.evaluate(
+      (element) => {
+        const waitForScrollEnd = (el: HTMLElement | Element) =>
+          new Promise<void>((resolve) => {
+            let last = el.scrollTop ?? 0;
+            const check = () => {
+              const cur = el.scrollTop ?? 0;
+              if (cur === last) return resolve();
+              last = cur;
+              requestAnimationFrame(check);
+            };
+            requestAnimationFrame(check);
+          });
 
-        const element = elementNode as HTMLElement;
         const tagName = element.tagName.toLowerCase();
-        let height: number;
 
         if (tagName === "html" || tagName === "body") {
-          height = window.visualViewport.height;
-          window.scrollBy({
-            top: -height,
-            left: 0,
-            behavior: "smooth",
-          });
+          const height = window.visualViewport?.height ?? window.innerHeight;
+          window.scrollBy({ top: -height, left: 0, behavior: "smooth" });
 
-          const scrollingEl =
-            document.scrollingElement || document.documentElement;
-          return window.waitForElementScrollEnd(scrollingEl as HTMLElement);
-        } else {
-          height = element.getBoundingClientRect().height;
-          element.scrollBy({
-            top: -height,
-            left: 0,
-            behavior: "smooth",
-          });
-          return window.waitForElementScrollEnd(element);
+          const rootScrollingEl = (document.scrollingElement ??
+            document.documentElement) as HTMLElement;
+
+          return waitForScrollEnd(rootScrollingEl);
         }
+        const height = (element as HTMLElement).getBoundingClientRect().height;
+        (element as HTMLElement).scrollBy({
+          top: -height,
+          left: 0,
+          behavior: "smooth",
+        });
+        return waitForScrollEnd(element);
       },
-      { xpath },
+      undefined,
+      { timeout: 10_000 },
     );
   } catch (e) {
     logger({
@@ -215,7 +221,7 @@ export async function scrollElementIntoView(ctx: MethodHandlerContext) {
 }
 
 export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
-  const { args, stagehandPage, xpath, logger } = ctx;
+  const { args, xpath, logger, locator } = ctx;
 
   logger({
     category: "action",
@@ -230,20 +236,14 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
   try {
     const [yArg = "0%"] = args as string[];
 
-    await stagehandPage.page.evaluate(
-      ({ xpath, yArg }) => {
+    await locator.evaluate<void, { yArg: string }>(
+      (element, { yArg }) => {
         function parsePercent(val: string): number {
           const cleaned = val.trim().replace("%", "");
           const num = parseFloat(cleaned);
           return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
         }
 
-        const elementNode = getNodeFromXpath(xpath);
-        if (!elementNode || elementNode.nodeType !== Node.ELEMENT_NODE) {
-          throw Error(`Could not locate element to scroll on.`);
-        }
-
-        const element = elementNode as HTMLElement;
         const yPct = parsePercent(yArg);
 
         if (element.tagName.toLowerCase() === "html") {
@@ -266,7 +266,8 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
           });
         }
       },
-      { xpath, yArg },
+      { yArg },
+      { timeout: 10_000 },
     );
   } catch (e) {
     logger({
