@@ -1,4 +1,5 @@
 import { EvalFunction } from "@/types/evals";
+import { z } from "zod";
 
 export const apple_tv: EvalFunction = async ({
   debugUrl,
@@ -16,7 +17,20 @@ export const apple_tv: EvalFunction = async ({
       maxSteps: 30,
     });
 
-    const success = agentResult.success;
+    const { height, width } = await stagehand.page.extract({
+      modelName: "google/gemini-2.5-flash",
+      instruction: "Extract the size and weight of the Apple TV 4K",
+      schema: z.object({
+        height: z.number().describe("The height of the Apple TV 4K in inches"),
+        width: z.number().describe("The width of the Apple TV 4K in inches"),
+      }),
+    });
+
+    const success =
+      agentResult.success &&
+      height === 1.2 &&
+      width === 3.66 &&
+      stagehand.page.url().includes("https://www.apple.com/apple-tv-4k/specs/");
 
     if (!success) {
       return {

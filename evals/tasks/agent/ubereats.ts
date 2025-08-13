@@ -22,7 +22,9 @@ export const ubereats: EvalFunction = async ({
       question: "Did the agent make it to the login page?",
     });
 
-    const success = evaluation === "YES";
+    const success =
+      evaluation === "YES" &&
+      stagehand.page.url().includes("https://auth.uber.com/");
     if (!success) {
       return {
         _success: false,

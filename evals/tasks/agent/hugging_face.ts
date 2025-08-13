@@ -1,4 +1,5 @@
 import { EvalFunction } from "@/types/evals";
+import { z } from "zod";
 
 export const hugging_face: EvalFunction = async ({
   debugUrl,
@@ -9,15 +10,21 @@ export const hugging_face: EvalFunction = async ({
 }) => {
   try {
     await stagehand.page.goto("https://huggingface.co/");
-
     const agentResult = await agent.execute({
       instruction:
         "Search for a model on Hugging Face with an Apache-2.0 license that has received the highest number of likes.",
-      maxSteps: 30,
+      maxSteps: 15,
     });
 
-    const success = agentResult.success;
-
+    const { modelName } = await stagehand.page.extract({
+      modelName: "google/gemini-2.5-flash",
+      instruction: "Extract the name of the model",
+      schema: z.object({
+        modelName: z.string(),
+      }),
+    });
+    console.log(`modelName: ${modelName}`);
+    const success = agentResult.success && modelName === "Kokoro-82M";
     if (!success) {
       return {
         _success: false,

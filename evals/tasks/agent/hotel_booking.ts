@@ -1,5 +1,6 @@
+//this eval is expected to fail.
 import { EvalFunction } from "@/types/evals";
-
+import { Evaluator } from "@/evals/evaluator";
 export const hotel_booking: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -17,12 +18,18 @@ export const hotel_booking: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const success = agentResult.success;
+    const evaluator = new Evaluator(stagehand);
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      question:
+        "Does the page show a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025?",
+    });
+
+    const success = agentResult.success && evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

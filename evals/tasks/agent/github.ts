@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/types/evals";
-
+import { Evaluator } from "@/evals/evaluator";
 export const github: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -9,7 +9,7 @@ export const github: EvalFunction = async ({
 }) => {
   try {
     await stagehand.page.goto("https://github.com/");
-
+    const evaluator = new Evaluator(stagehand);
     const agentResult = await agent.execute({
       instruction:
         "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
@@ -17,12 +17,17 @@ export const github: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const success = agentResult.success;
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      question:
+        "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
+    });
+
+    const success = agentResult.success && evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

@@ -1,3 +1,4 @@
+import { Evaluator } from "@/evals/evaluator";
 import { EvalFunction } from "@/types/evals";
 
 export const google_shopping: EvalFunction = async ({
@@ -12,17 +13,23 @@ export const google_shopping: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Create a list of drip coffee makers that are on sale and within $25-60 and have a black finish.",
+        "Find a drip coffee maker that is on sale and within $25-60 and has a black finish",
       maxSteps: 20,
     });
     logger.log(agentResult);
 
-    const success = agentResult.success;
+    const evaluator = new Evaluator(stagehand);
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      question:
+        "Does the page show a drip coffee maker that is on sale and within $25-60 and has a black finish?",
+    });
+
+    const success = agentResult.success && evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

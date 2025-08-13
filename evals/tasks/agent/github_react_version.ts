@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/types/evals";
-
+import { Evaluator } from "@/evals/evaluator";
 export const github_react_version: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -8,20 +8,25 @@ export const github_react_version: EvalFunction = async ({
   agent,
 }) => {
   try {
+    const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://github.com/");
-
-    const agentResult = await agent.execute({
+    await agent.execute({
       instruction:
-        "Check the latest release version of React and the date it was published",
-      maxSteps: 30,
+        "Check the latest release version of React and the date it was published. ",
+      maxSteps: 20,
     });
-
-    const success = agentResult.success;
-
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      question:
+        "Does the page show the latest version of react and the date it was published",
+    });
+    console.log(`evaluation: ${evaluation}`);
+    console.log(`reasoning: ${reasoning}`);
+    // only use url check for now, as using extract on the version is prone to breaking in future
+    const success = evaluation === "YES";
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

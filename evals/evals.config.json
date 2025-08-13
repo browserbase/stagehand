@@ -352,10 +352,6 @@
       "categories": ["agent"]
     },
     {
-      "name": "agent/wolframalpha_weight_loss",
-      "categories": ["agent"]
-    },
-    {
       "name": "agent/sf_library_card",
       "categories": ["agent"]
     },
@@ -478,10 +474,6 @@
     },
     {
       "name": "agent/all_recipes",
-      "categories": ["agent"]
-    },
-    {
-      "name": "agent/amazon_shoes",
       "categories": ["agent"]
     },
     {

@@ -16,7 +16,10 @@ export const steam_games: EvalFunction = async ({
       maxSteps: 30,
     });
 
-    const success = agentResult.success;
+    //strictly used url check and no extract as the top games / players can vary
+    const success =
+      agentResult.success &&
+      stagehand.page.url().includes("https://store.steampowered.com/");
 
     if (!success) {
       return {
