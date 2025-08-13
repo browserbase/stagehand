@@ -47,12 +47,15 @@ export const webarena_gaia: EvalFunction = async ({
     });
 
     const message = result?.message || "";
-    const hasFinal = typeof message === "string" && /Final Answer\s*:\s*(.+)/i.test(message);
+    const hasFinal =
+      typeof message === "string" && /Final Answer\s*:\s*(.+)/i.test(message);
     const providedAnswer = hasFinal
       ? (message.match(/Final Answer\s*:\s*(.+)/i)?.[1] || "").trim()
       : "";
 
-    const expected = (params as any).expected as string | undefined;
+    const expected = (params as Record<string, unknown>).expected as
+      | string
+      | undefined;
     const success = expected
       ? hasFinal && providedAnswer.trim() === expected.trim()
       : hasFinal;
@@ -73,5 +76,3 @@ export const webarena_gaia: EvalFunction = async ({
     };
   }
 };
-
-

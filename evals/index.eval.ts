@@ -12,7 +12,6 @@
  * - Runs each selected task against each selected model in parallel, collecting results.
  * - Saves a summary of the evaluation results to `eval-summary.json`.
  */
-import fs from "fs";
 import path from "path";
 import process from "process";
 import {
@@ -37,6 +36,9 @@ import { AISdkClient } from "@/examples/external_clients/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import { LogLine } from "@/types/log";
+import { generateSummary } from "./core/summary";
+import { buildGAIATestcases } from "./suites/gaia";
+import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 
 dotenv.config();
 
@@ -53,88 +55,6 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
-
-/**
- * generateSummary:
- * After all evaluations have finished, aggregate the results into a summary.
- * This summary includes:
- * - Which tasks passed or failed (with model and categories).
- * - Category-wise success percentages.
- * - Model-wise success percentages.
- *
- * The summary is written to `eval-summary.json` for further analysis.
- */
-const generateSummary = async (
-  results: SummaryResult[],
-  experimentName: string,
-) => {
-  // Determine passed testcases (those with _success: true)
-  const passed = results
-    .filter((r) => r.output._success)
-    .map((r) => ({
-      eval: r.input.name,
-      model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
-    }));
-
-  // Determine failed testcases (those with _success: false)
-  const failed = results
-    .filter((r) => !r.output._success)
-    .map((r) => ({
-      eval: r.input.name,
-      model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
-    }));
-
-  // Calculate success counts for each category
-  const categorySuccessCounts: Record<
-    string,
-    { total: number; success: number }
-  > = {};
-  for (const taskName of Object.keys(tasksByName)) {
-    const taskCategories = tasksByName[taskName].categories;
-    const taskResults = results.filter((r) => r.input.name === taskName);
-    const successCount = taskResults.filter((r) => r.output._success).length;
-
-    for (const cat of taskCategories) {
-      if (!categorySuccessCounts[cat]) {
-        categorySuccessCounts[cat] = { total: 0, success: 0 };
-      }
-      categorySuccessCounts[cat].total += taskResults.length;
-      categorySuccessCounts[cat].success += successCount;
-    }
-  }
-
-  // Compute percentage success per category
-  const categories: Record<string, number> = {};
-  for (const [cat, counts] of Object.entries(categorySuccessCounts)) {
-    categories[cat] = Math.round((counts.success / counts.total) * 100);
-  }
-
-  // Compute percentage success per model
-  const models: Record<string, number> = {};
-  const allModels = [...new Set(results.map((r) => r.input.modelName))];
-  for (const model of allModels) {
-    const modelResults = results.filter((r) => r.input.modelName === model);
-    const successCount = modelResults.filter((r) => r.output._success).length;
-    models[model] = Math.round((successCount / modelResults.length) * 100);
-  }
-
-  // Format and write the summary to a JSON file
-  const formattedSummary = {
-    experimentName,
-    passed,
-    failed,
-    categories,
-    models,
-  };
-
-  fs.writeFileSync(
-    "eval-summary.json",
-    JSON.stringify(formattedSummary, null, 2),
-  );
-  console.log("Evaluation summary written to eval-summary.json");
-};
 
 /**
  * generateFilteredTestcases:
@@ -195,172 +115,13 @@ const generateFilteredTestcases = (): Testcase[] => {
   let allTestcases: Testcase[] = [];
 
   if (isGAIATaskIncluded) {
-    // Remove the umbrella task to avoid creating a single placeholder testcase
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webarena_gaia");
-
-    // Load GAIA dataset from env or default path
-    const gaiaFilePath = process.env.EVAL_GAIA_FILE ||
-      path.join(__dirname, "datasets", "gaia", "GAIA_web.jsonl");
-
-    let gaiaLines: string[] = [];
-    try {
-      const content = fs.readFileSync(gaiaFilePath, "utf-8");
-      gaiaLines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    } catch (e) {
-      console.warn(
-        `Could not read GAIA file at ${gaiaFilePath}. Set EVAL_GAIA_FILE to override. Error: ${e instanceof Error ? e.message : String(e)}`,
-      );
-      gaiaLines = [];
-    }
-
-    const levelFilter = process.env.EVAL_GAIA_LEVEL
-      ? Number(process.env.EVAL_GAIA_LEVEL)
-      : undefined;
-    const maxCases = process.env.EVAL_GAIA_LIMIT
-      ? Number(process.env.EVAL_GAIA_LIMIT)
-      : 25;
-
-    type GaiaRow = {
-      id: string;
-      Level?: number;
-      web: string;
-      ques: string;
-      [key: string]: unknown;
-    };
-
-    const gaiaRows: GaiaRow[] = [];
-    for (const line of gaiaLines) {
-      try {
-        const parsed = JSON.parse(line) as GaiaRow;
-        if (typeof parsed.id === "string" && typeof parsed.web === "string" && typeof parsed.ques === "string") {
-          if (!levelFilter || parsed.Level === levelFilter) {
-            gaiaRows.push(parsed);
-          }
-        }
-      } catch {
-        // skip invalid lines
-      }
-      if (gaiaRows.length >= maxCases) break;
-    }
-
-    // Create fanned-out testcases for each model and row
-    for (const model of currentModels) {
-      for (const row of gaiaRows) {
-        // Pull final answer if present (field name is "Final answer" in GAIA)
-        const finalAnswer = (row as any)["Final answer"];
-
-        const input: EvalInput = {
-          name: "agent/webarena_gaia",
-          modelName: model as AvailableModel,
-          params: {
-            id: row.id,
-            level: row.Level,
-            web: row.web,
-            ques: row.ques,
-            expected: typeof finalAnswer === "string" ? finalAnswer : undefined,
-          },
-        };
-        allTestcases.push({
-          input,
-          name: input.name,
-          tags: [
-            model,
-            input.name,
-            ...(tasksConfig.find((t) => t.name === input.name)?.categories || []).map(
-              (x) => `category/${x}`,
-            ),
-            `gaia/id/${row.id}`,
-            row.Level ? `gaia/level/${row.Level}` : "gaia/level/unknown",
-          ],
-          metadata: {
-            model: model as AvailableModel,
-            test: `${input.name}:${row.id}`,
-          },
-          expected: true,
-        });
-      }
-    }
+    allTestcases.push(...buildGAIATestcases(currentModels));
   }
 
   if (isWebVoyagerTaskIncluded) {
-    // Remove umbrella task to avoid a single placeholder testcase
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
-
-    // Read from local copied dataset under evals/datasets
-    const voyagerFilePath = path.join(
-      __dirname,
-      "datasets",
-      "webvoyager",
-      "WebVoyager_data.jsonl",
-    );
-
-    let lines: string[] = [];
-    try {
-      const content = fs.readFileSync(voyagerFilePath, "utf-8");
-      lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    } catch (e) {
-      console.warn(
-        `Could not read WebVoyager file at ${voyagerFilePath}. Error: ${e instanceof Error ? e.message : String(e)}`,
-      );
-      lines = [];
-    }
-
-    const maxCases = process.env.EVAL_WEBVOYAGER_LIMIT
-      ? Number(process.env.EVAL_WEBVOYAGER_LIMIT)
-      : 25;
-
-    type VoyagerRow = {
-      id: string;
-      web: string;
-      ques: string;
-      web_name?: string;
-      [key: string]: unknown;
-    };
-
-    const rows: VoyagerRow[] = [];
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as VoyagerRow;
-        if (typeof parsed.id === "string" && typeof parsed.web === "string" && typeof parsed.ques === "string") {
-          rows.push(parsed);
-        }
-      } catch {
-        // skip invalid
-      }
-      if (rows.length >= maxCases) break;
-    }
-
-    for (const model of currentModels) {
-      for (const row of rows) {
-        const input: EvalInput = {
-          name: "agent/webvoyager",
-          modelName: model as AvailableModel,
-          params: {
-            id: row.id,
-            web: row.web,
-            ques: row.ques,
-            web_name: row.web_name,
-          },
-        };
-        allTestcases.push({
-          input,
-          name: input.name,
-          tags: [
-            model,
-            input.name,
-            ...(tasksConfig.find((t) => t.name === input.name)?.categories || []).map(
-              (x) => `category/${x}`,
-            ),
-            `webvoyager/id/${row.id}`,
-          ],
-          metadata: {
-            model: model as AvailableModel,
-            test: `${input.name}:${row.id}`,
-          },
-          expected: true,
-        });
-      }
-    }
+    allTestcases.push(...buildWebVoyagerTestcases(currentModels));
   }
 
   // Create a list of all remaining testcases using the determined task names and models
@@ -402,7 +163,10 @@ const generateFilteredTestcases = (): Testcase[] => {
   console.log(
     "Final test cases to run:",
     allTestcases
-      .map((t, i) => `${i}: ${t.name} (${t.input.modelName}): ${tasksByName[t.name].categories}`)
+      .map(
+        (t, i) =>
+          `${i}: ${t.name} (${t.input.modelName}): ${tasksByName[t.name].categories}`,
+      )
       .join("\n"),
   );
 
@@ -542,7 +306,7 @@ const generateFilteredTestcases = (): Testcase[] => {
             });
           }
           // Attach per-test parameters (for data-driven tasks)
-          (taskInput as any).taskParams = input.params;
+          taskInput.taskParams = input.params;
           let result;
           try {
             result = await taskFunction(taskInput);

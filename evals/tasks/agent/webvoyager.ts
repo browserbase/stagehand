@@ -40,7 +40,8 @@ export const webvoyager: EvalFunction = async ({
     });
 
     const message = result?.message || "";
-    const success = typeof message === "string" && /Final Answer\s*:/i.test(message);
+    const success =
+      typeof message === "string" && /Final Answer\s*:/i.test(message);
 
     return {
       _success: !!success,
@@ -58,5 +59,3 @@ export const webvoyager: EvalFunction = async ({
     };
   }
 };
-
-
