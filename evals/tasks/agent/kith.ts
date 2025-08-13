@@ -17,7 +17,7 @@ export const kith: EvalFunction = async ({
     await agent.execute({
       instruction:
         "add the shoes to cart, go to checkout, and fill the shipping information",
-      maxSteps: 30,
+      maxSteps: 15,
     });
 
     const { evaluation, reasoning } = await evaluator.evaluate({
@@ -29,7 +29,7 @@ export const kith: EvalFunction = async ({
     if (success) {
       await agent.execute({
         instruction: "fill the payment information",
-        maxSteps: 30,
+        maxSteps: 10,
       });
 
       const { evaluation: evaluation2, reasoning: reasoning2 } =
