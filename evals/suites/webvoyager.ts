@@ -27,6 +27,9 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   const maxCases = process.env.EVAL_WEBVOYAGER_LIMIT
     ? Number(process.env.EVAL_WEBVOYAGER_LIMIT)
     : 25;
+  const sampleCount = process.env.EVAL_WEBVOYAGER_SAMPLE
+    ? Number(process.env.EVAL_WEBVOYAGER_SAMPLE)
+    : undefined;
 
   type VoyagerRow = {
     id: string;
@@ -37,6 +40,7 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   };
 
   const rows: VoyagerRow[] = [];
+  const candidates: VoyagerRow[] = [];
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line) as VoyagerRow;
@@ -45,12 +49,19 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
         typeof parsed.web === "string" &&
         typeof parsed.ques === "string"
       ) {
-        rows.push(parsed);
+        candidates.push(parsed);
       }
     } catch {
       // skip invalid
     }
-    if (rows.length >= maxCases) break;
+  }
+  if (sampleCount && sampleCount > 0) {
+    rows.push(...sampleUniform(candidates, sampleCount));
+  } else {
+    for (const row of candidates) {
+      rows.push(row);
+      if (rows.length >= maxCases) break;
+    }
   }
 
   const allTestcases: Testcase[] = [];
@@ -88,3 +99,16 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
 
   return allTestcases;
 };
+
+function sampleUniform<T>(arr: T[], k: number): T[] {
+  const n = arr.length;
+  if (k >= n) return arr.slice();
+  const copy = arr.slice();
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = tmp;
+  }
+  return copy.slice(0, k);
+}

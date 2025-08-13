@@ -26,6 +26,9 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const maxCases = process.env.EVAL_GAIA_LIMIT
     ? Number(process.env.EVAL_GAIA_LIMIT)
     : 25;
+  const sampleCount = process.env.EVAL_GAIA_SAMPLE
+    ? Number(process.env.EVAL_GAIA_SAMPLE)
+    : undefined;
 
   type GaiaRow = {
     id: string;
@@ -36,6 +39,7 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
   };
 
   const gaiaRows: GaiaRow[] = [];
+  const candidates: GaiaRow[] = [];
   for (const line of gaiaLines) {
     try {
       const parsed = JSON.parse(line) as GaiaRow;
@@ -45,13 +49,20 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
         typeof parsed.ques === "string"
       ) {
         if (!levelFilter || parsed.Level === levelFilter) {
-          gaiaRows.push(parsed);
+          candidates.push(parsed);
         }
       }
     } catch {
       // skip invalid lines
     }
-    if (gaiaRows.length >= maxCases) break;
+  }
+  if (sampleCount && sampleCount > 0) {
+    gaiaRows.push(...sampleUniform(candidates, sampleCount));
+  } else {
+    for (const row of candidates) {
+      gaiaRows.push(row);
+      if (gaiaRows.length >= maxCases) break;
+    }
   }
 
   const allTestcases: Testcase[] = [];
@@ -94,3 +105,16 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
 
   return allTestcases;
 };
+
+function sampleUniform<T>(arr: T[], k: number): T[] {
+  const n = arr.length;
+  if (k >= n) return arr.slice();
+  const copy = arr.slice();
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = tmp;
+  }
+  return copy.slice(0, k);
+}
