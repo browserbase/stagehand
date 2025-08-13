@@ -1090,7 +1090,7 @@ async function getFrameExecutionContextId(
     {
       frameId,
       worldName: WORLD_NAME,
-      grantUniveralAccess: true,
+      grantUniversalAccess: true,
     },
     frame,
   );
