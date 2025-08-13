@@ -418,6 +418,10 @@
     {
       "name": "agent/sign_in",
       "categories": ["agent"]
+    },
+    {
+      "name": "iframe_scroll",
+      "categories": ["act"]
     }
   ]
 }
