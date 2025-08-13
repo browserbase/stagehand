@@ -9,6 +9,8 @@ import {
   ClientOptions,
   ModelProvider,
 } from "../../types/model";
+import { ClientOptions as OpenAIClientOptions } from "openai";
+import { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
 import { LLMCache } from "../cache/LLMCache";
 import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
@@ -150,7 +152,7 @@ export class LLMProvider {
         },
       },
     });
-    this.cache.deleteCacheForRequestId(requestId);
+    this.cache?.deleteCacheForRequestId(requestId);
   }
 
   getClient(
@@ -165,7 +167,7 @@ export class LLMProvider {
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
-        clientOptions?.apiKey,
+        clientOptions?.apiKey ?? undefined,
       );
 
       return new AISdkClient({
@@ -188,7 +190,7 @@ export class LLMProvider {
           enableCaching: this.enableCaching,
           cache: this.cache,
           modelName: availableModel,
-          clientOptions,
+          clientOptions: clientOptions as OpenAIClientOptions,
         });
       case "anthropic":
         return new AnthropicClient({
@@ -196,7 +198,7 @@ export class LLMProvider {
           enableCaching: this.enableCaching,
           cache: this.cache,
           modelName: availableModel,
-          clientOptions,
+          clientOptions: clientOptions as AnthropicClientOptions,
         });
       case "cerebras":
         return new CerebrasClient({
@@ -204,7 +206,7 @@ export class LLMProvider {
           enableCaching: this.enableCaching,
           cache: this.cache,
           modelName: availableModel,
-          clientOptions,
+          clientOptions: clientOptions as OpenAIClientOptions,
         });
       case "groq":
         return new GroqClient({
@@ -212,7 +214,7 @@ export class LLMProvider {
           enableCaching: this.enableCaching,
           cache: this.cache,
           modelName: availableModel,
-          clientOptions,
+          clientOptions: clientOptions as OpenAIClientOptions,
         });
       case "google":
         return new GoogleClient({

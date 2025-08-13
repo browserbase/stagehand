@@ -65,8 +65,11 @@ export class StagehandActHandler {
       },
     });
 
+    // NOTE: This function seems to assume `method` is always defined, but
+    //       the function signature doesn't guarantee that and no checks are made
+    //       Feel free to extract this case into a different error message
     const method = observe.method;
-    if (method === "not-supported") {
+    if (!method || method === "not-supported") {
       this.logger({
         category: "action",
         message: "Cannot execute ObserveResult with unsupported method",
@@ -107,6 +110,13 @@ export class StagehandActHandler {
         action: observe.description || `ObserveResult action (${method})`,
       };
     } catch (err) {
+      // NOTE: I've used this pattern because it's technically safer, but I duplicated this a lot
+      //       Feel free to extract this to a helper function or just use TS assertions to mute
+      //       the error messages, I'll leave that to you
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStack =
+        (err instanceof Error ? err.stack : undefined) ??
+        "No stack trace available";
       if (
         !this.selfHeal ||
         err instanceof PlaywrightCommandMethodNotSupportedException
@@ -116,13 +126,16 @@ export class StagehandActHandler {
           message: "Error performing act from an ObserveResult",
           level: 1,
           auxiliary: {
-            error: { value: err.message, type: "string" },
-            trace: { value: err.stack, type: "string" },
+            error: { value: errorMessage, type: "string" },
+            trace: {
+              value: errorStack,
+              type: "string",
+            },
           },
         });
         return {
           success: false,
-          message: `Failed to perform act: ${err.message}`,
+          message: `Failed to perform act: ${errorMessage}`,
           action: observe.description || `ObserveResult action (${method})`,
         };
       }
@@ -133,8 +146,11 @@ export class StagehandActHandler {
           "Error performing act from an ObserveResult. Reprocessing the page and trying again",
         level: 1,
         auxiliary: {
-          error: { value: err.message, type: "string" },
-          trace: { value: err.stack, type: "string" },
+          error: { value: errorMessage, type: "string" },
+          trace: {
+            value: errorStack,
+            type: "string",
+          },
           observeResult: { value: JSON.stringify(observe), type: "object" },
         },
       });
@@ -165,8 +181,8 @@ export class StagehandActHandler {
         const element: ObserveResult = observeResults[0];
         await this._performPlaywrightMethod(
           // override previously provided method and arguments
-          observe.method,
-          observe.arguments,
+          method,
+          args,
           // only update selector
           element.selector,
           domSettleTimeoutMs,
@@ -177,18 +193,28 @@ export class StagehandActHandler {
           action: observe.description || `ObserveResult action (${method})`,
         };
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const errorStack =
+          (err instanceof Error ? err.stack : undefined) ??
+          "No stack trace available";
         this.logger({
           category: "action",
           message: "Error performing act from an ObserveResult on fallback",
           level: 1,
           auxiliary: {
-            error: { value: err.message, type: "string" },
-            trace: { value: err.stack, type: "string" },
+            error: {
+              value: errorMessage,
+              type: "string",
+            },
+            trace: {
+              value: errorStack,
+              type: "string",
+            },
           },
         });
         return {
           success: false,
-          message: `Failed to perform act: ${err.message}`,
+          message: `Failed to perform act: ${err instanceof Error ? err.message : String(err)}`,
           action: observe.description || `ObserveResult action (${method})`,
         };
       }
@@ -270,7 +296,7 @@ export class StagehandActHandler {
 
       if (actionOrOptions.variables) {
         Object.keys(actionOrOptions.variables).forEach((key) => {
-          element.arguments = element.arguments.map((arg) =>
+          element.arguments = element.arguments?.map((arg) =>
             arg.replace(`%${key}%`, actionOrOptions.variables![key]),
           );
         });
@@ -365,19 +391,24 @@ export class StagehandActHandler {
       // Always wait for DOM to settle
       await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const errorStack =
+        (e instanceof Error ? e.stack : undefined) ??
+        "No stack trace available";
+
       this.logger({
         category: "action",
         message: "error performing method",
         level: 1,
         auxiliary: {
-          error: { value: e.message, type: "string" },
-          trace: { value: e.stack, type: "string" },
+          error: { value: errorMessage, type: "string" },
+          trace: { value: errorStack, type: "string" },
           method: { value: method, type: "string" },
           xpath: { value: xpath, type: "string" },
           args: { value: JSON.stringify(args), type: "object" },
         },
       });
-      throw new PlaywrightCommandException(e.message);
+      throw new PlaywrightCommandException(errorMessage);
     }
   }
 }

@@ -47,7 +47,7 @@ export class StagehandPage {
   private observeHandler: StagehandObserveHandler;
   private llmClient: LLMClient;
   private cdpClient: CDPSession | null = null;
-  private api: StagehandAPI;
+  private api?: StagehandAPI;
   private userProvidedInstructions?: string;
   private waitForCaptchaSolves: boolean;
   private initialized: boolean = false;
@@ -101,7 +101,8 @@ export class StagehandPage {
         const value = target[prop];
         // If the property is a function, wrap it to update active page before execution
         if (typeof value === "function" && prop !== "on") {
-          return (...args: unknown[]) => value.apply(target, args);
+          return (...args: unknown[]) =>
+            (value as (...a: unknown[]) => unknown).apply(target, args);
         }
         return value;
       },
@@ -114,25 +115,23 @@ export class StagehandPage {
     this.userProvidedInstructions = userProvidedInstructions;
     this.waitForCaptchaSolves = waitForCaptchaSolves ?? false;
 
-    if (this.llmClient) {
-      this.actHandler = new StagehandActHandler({
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        selfHeal: this.stagehand.selfHeal,
-      });
-      this.extractHandler = new StagehandExtractHandler({
-        stagehand: this.stagehand,
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        userProvidedInstructions,
-      });
-      this.observeHandler = new StagehandObserveHandler({
-        stagehand: this.stagehand,
-        logger: this.stagehand.logger,
-        stagehandPage: this,
-        userProvidedInstructions,
-      });
-    }
+    this.actHandler = new StagehandActHandler({
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      selfHeal: this.stagehand.selfHeal,
+    });
+    this.extractHandler = new StagehandExtractHandler({
+      stagehand: this.stagehand,
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      userProvidedInstructions,
+    });
+    this.observeHandler = new StagehandObserveHandler({
+      stagehand: this.stagehand,
+      logger: this.stagehand.logger,
+      stagehandPage: this,
+      userProvidedInstructions,
+    });
   }
 
   public ordinalForFrameId(fid: string | undefined): number {
@@ -180,7 +179,10 @@ ${scriptContent} \
           level: 1,
           auxiliary: {
             error: { value: (err as Error).message, type: "string" },
-            trace: { value: (err as Error).stack, type: "string" },
+            trace: {
+              value: (err as Error).stack ?? "No stack trace available",
+              type: "string",
+            },
           },
         });
         throw err;
@@ -280,17 +282,18 @@ ${scriptContent} \
             }
 
             // Use type assertion to safely call the method with proper typing
+            type EnhancedOptions =
+              | ActOptions
+              | ExtractOptions<z.AnyZodObject>
+              | ObserveOptions;
             type EnhancedMethod = (
-              options:
-                | ActOptions
-                | ExtractOptions<z.AnyZodObject>
-                | ObserveOptions,
+              options: EnhancedOptions,
             ) => Promise<
               ActResult | ExtractResult<z.AnyZodObject> | ObserveResult[]
             >;
 
             const method = this[prop as keyof StagehandPage] as EnhancedMethod;
-            return (options: unknown) => method.call(this, options);
+            return (options: EnhancedOptions) => method.call(this, options);
           }
 
           // Handle screenshots with CDP
@@ -395,7 +398,8 @@ ${scriptContent} \
 
           // For all other method calls, update active page
           if (typeof value === "function") {
-            return (...args: unknown[]) => value.apply(target, args);
+            return (...args: unknown[]) =>
+              (value as (...a: unknown[]) => unknown).apply(target, args);
           }
 
           return value;
@@ -702,15 +706,19 @@ ${scriptContent} \
 
       await clearOverlays(this.page);
 
-      // check if user called extract() with no arguments
-      if (!instructionOrOptions) {
+      // check if user called extract() with no arguments or empty string
+      // NOTE: This explicitly matches the old behavior of early exiting on empty string,
+      //       but it might make more sense to only early exit on undefined.
+      if (instructionOrOptions === undefined || instructionOrOptions === "") {
         let result: ExtractResult<T>;
         if (this.api) {
           result = await this.api.extract<T>({ frameId: this.rootFrameId });
         } else {
           result = await this.extractHandler.extract();
         }
-        this.stagehand.addToHistory("extract", instructionOrOptions, result);
+        // NOTE: This always pushes empty string into the history because of `addToHistory`'s
+        //       type signature, feel free to change this to something else.
+        this.stagehand.addToHistory("extract", "", result);
         return result;
       }
 
@@ -718,18 +726,22 @@ ${scriptContent} \
         typeof instructionOrOptions === "string"
           ? {
               instruction: instructionOrOptions,
-              schema: defaultExtractSchema as T,
+              schema: defaultExtractSchema as unknown as T,
             }
           : instructionOrOptions.schema
             ? instructionOrOptions
             : {
                 ...instructionOrOptions,
-                schema: defaultExtractSchema as T,
+                schema: defaultExtractSchema as unknown as T,
               };
 
+      // NOTE: The current code early exits on empty string, but proceeds with { instruction: "" }
+      //       This is a bit confusing, but it's consistent with the old behavior.
+      // NOTE: instruction and schema should be defined at this point as per the docs, see ExtractOptions interface definition
+      //       The below default values should be removed in the future
       const {
-        instruction,
-        schema,
+        instruction = "",
+        schema = defaultExtractSchema,
         modelName,
         modelClientOptions,
         domSettleTimeoutMs,
@@ -832,7 +844,7 @@ ${scriptContent} \
           : instructionOrOptions || {};
 
       const {
-        instruction,
+        instruction = "",
         modelName,
         modelClientOptions,
         domSettleTimeoutMs,
@@ -845,7 +857,11 @@ ${scriptContent} \
       if (this.api) {
         const opts = { ...options, frameId: this.rootFrameId };
         const result = await this.api.observe(opts);
-        this.stagehand.addToHistory("observe", instructionOrOptions, result);
+        this.stagehand.addToHistory(
+          "observe",
+          instructionOrOptions ?? "",
+          result,
+        );
         return result;
       }
 
@@ -923,7 +939,11 @@ ${scriptContent} \
           throw e;
         });
 
-      this.stagehand.addToHistory("observe", instructionOrOptions, result);
+      this.stagehand.addToHistory(
+        "observe",
+        instructionOrOptions ?? "",
+        result,
+      );
 
       return result;
     } catch (err: unknown) {

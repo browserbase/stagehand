@@ -103,9 +103,9 @@ export interface ConstructorParams {
 }
 
 export interface InitResult {
-  debugUrl: string;
-  sessionUrl: string;
-  sessionId: string;
+  debugUrl?: string;
+  sessionUrl?: string;
+  sessionId?: string;
 }
 
 export interface ActOptions {
@@ -125,6 +125,8 @@ export interface ActResult {
   action: string;
 }
 
+// NOTE: This contradicts the docs, which say that instruction and schema are required
+//       https://docs.stagehand.dev/reference/extract#arguments%3A-extractoptions%3Ct-extends-z-anyzodobject%3E
 export interface ExtractOptions<T extends z.AnyZodObject> {
   instruction?: string;
   schema?: T;
@@ -256,6 +258,8 @@ export interface AgentExecuteParams {
   context?: string;
 }
 
+// NOTE: This contradicts the docs, which say that provider and model are required
+//       https://docs.stagehand.dev/reference/agent#arguments%3A-agentoptions
 /**
  * Configuration for agent functionality
  */

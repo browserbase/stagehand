@@ -178,6 +178,9 @@ export async function extract({
     });
   const metadataEndTime = Date.now();
 
+  // NOTE: This is suspicious -- analyzed statically, this shouldn't work at all:
+  //       I suspect llmClient.createChatCompletion's return type in TS is wrong, so
+  //       I'm won't mess with this yet (same for all other LLMParsedResponse<T> usages)
   const {
     data: {
       completed: metadataResponseCompleted,
@@ -292,7 +295,14 @@ export async function observe({
       .describe("an array of accessible elements that match the instruction"),
   });
 
-  type ObserveResponse = z.infer<typeof observeSchema>;
+  type ObserveResponse = {
+    elements: {
+      elementId: string;
+      description: string;
+      method?: string;
+      arguments?: string[];
+    }[];
+  };
 
   const messages: ChatMessage[] = [
     buildObserveSystemPrompt(userProvidedInstructions),
