@@ -28,7 +28,6 @@ export const google_flights: EvalFunction = async ({
     const result = await evaluator.evaluate({
       question:
         "Does the page show flights (options, available flights, not a search form) from San Francisco to New York?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {

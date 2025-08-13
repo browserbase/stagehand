@@ -12,11 +12,6 @@ export interface EvaluateOptions {
    * @default 1000
    */
   screenshotDelayMs?: number;
-  /**
-   * Whether to throw an error if the response is not a clear YES or NO
-   * @default false
-   */
-  strictResponse?: boolean;
 }
 
 export interface BatchEvaluateOptions {
@@ -33,11 +28,6 @@ export interface BatchEvaluateOptions {
    * @default 1000
    */
   screenshotDelayMs?: number;
-  /**
-   * Whether to throw an error if any response is not a clear YES or NO
-   * @default false
-   */
-  strictResponse?: boolean;
   /**
    * The reasoning behind the evaluation
    */

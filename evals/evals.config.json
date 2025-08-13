@@ -422,6 +422,10 @@
     {
       "name": "iframe_scroll",
       "categories": ["act"]
+    },
+    {
+      "name": "namespace_xpath",
+      "categories": ["act"]
     }
   ]
 }
