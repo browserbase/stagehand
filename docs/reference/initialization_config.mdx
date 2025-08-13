@@ -489,7 +489,9 @@ This constructor is used to create an instance of Stagehand.
         </ResponseField>
       </Expandable>
     </ResponseField>
-    <ResponseField name="viewport" type="object">
+    <ResponseField name="viewport" type="object | null">
+      The size of the viewport. If set to `null`, the viewport will be set to the size of the operating system window. Defaults to `{ width: 1024, height: 768 }`.
+
       <Expandable title="properties">
         <ResponseField name="width" type="number">
           Width of the viewport.

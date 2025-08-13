@@ -280,13 +280,19 @@ async function getBrowser(
     const context = await chromium.launchPersistentContext(userDataDir, {
       acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
       headless: localBrowserLaunchOptions?.headless ?? headless,
-      viewport: {
-        width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
-        height: localBrowserLaunchOptions?.viewport?.height ?? 768,
-      },
+      viewport:
+        localBrowserLaunchOptions?.viewport === null
+          ? null
+          : {
+              width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
+              height: localBrowserLaunchOptions?.viewport?.height ?? 768,
+            },
       locale: localBrowserLaunchOptions?.locale ?? "en-US",
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
-      deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+      deviceScaleFactor:
+        localBrowserLaunchOptions?.viewport === null
+          ? undefined
+          : (localBrowserLaunchOptions?.deviceScaleFactor ?? 1),
       args: localBrowserLaunchOptions?.args ?? [
         "--disable-blink-features=AutomationControlled",
       ],
