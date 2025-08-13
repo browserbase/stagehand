@@ -13,6 +13,7 @@ export type StagehandInitResult = {
   sessionUrl: string;
   stagehandConfig: ConstructorParams;
   modelName: AvailableModel;
+  agent: ReturnType<Stagehand["agent"]>;
 };
 
 export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
