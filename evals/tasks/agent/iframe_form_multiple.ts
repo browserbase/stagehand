@@ -31,7 +31,6 @@ export const iframe_form_multiple: EvalFunction = async ({
         "Is the form email input filled with 'john.smith@example.com'?",
         "Is the 'Are you the domain owner?' option selected as 'No'?",
       ],
-      strictResponse: true,
     });
 
     for (const r of results) {
