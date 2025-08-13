@@ -43,7 +43,9 @@ test.describe("StagehandPage - addLocatorHandler and removeLocatorHandler", () =
       },
     );
 
-    await page.goto("https://example.com");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+    );
     await page.setContent(overlayHTML);
 
     await page.waitForTimeout(5000);
@@ -75,7 +77,9 @@ test.describe("StagehandPage - addLocatorHandler and removeLocatorHandler", () =
     await page.removeLocatorHandler(locator);
     console.log("Locator handler removed — overlay will not be dismissed now.");
 
-    await page.goto("https://example.com");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+    );
     await page.setContent(overlayHTML);
 
     await page.waitForTimeout(5000);

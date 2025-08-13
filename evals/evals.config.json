@@ -454,6 +454,10 @@
     {
       "name": "osr_in_spif",
       "categories": ["act"]
+    },
+    {
+      "name": "namespace_xpath",
+      "categories": ["act"]
     }
   ]
 }
