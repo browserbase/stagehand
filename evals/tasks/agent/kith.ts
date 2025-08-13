@@ -6,18 +6,13 @@ export const kith: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto(
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that can help me order shoes from kith. DON'T ASK FOLLOW UP QUESTIONS UNTIL YOU HAVE FULFILLED THE USER'S REQUEST. Today is ${new Date().toLocaleDateString()}.`,
-    });
 
     await agent.execute({
       instruction:
