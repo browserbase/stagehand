@@ -90,10 +90,12 @@ export function generateExperimentName({
   evalName,
   category,
   environment,
+  isFullStack = false,
 }: {
   evalName?: string;
   category?: string;
   environment: string;
+  isFullStack?: boolean;
 }): string {
   const timestamp = generateTimestamp();
   if (evalName) {
@@ -102,7 +104,9 @@ export function generateExperimentName({
   if (category) {
     return `${category}_${environment.toLowerCase()}_${timestamp}`;
   }
-  return `all_${environment.toLowerCase()}_${timestamp}`;
+
+  const prefix = isFullStack ? "fullstack_all" : "all";
+  return `${prefix}_${environment.toLowerCase()}_${timestamp}`;
 }
 
 export function logLineToString(logLine: LogLine): string {
