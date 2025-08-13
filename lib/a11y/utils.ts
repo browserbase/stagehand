@@ -222,13 +222,18 @@ export async function buildBackendIdMaps(
           const tag = lc(String(child.nodeName));
           const key = `${child.nodeType}:${tag}`;
           const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
-          segs.push(
-            child.nodeType === 3
-              ? `text()[${idx}]`
-              : child.nodeType === 8
-                ? `comment()[${idx}]`
+          if (child.nodeType === 3) {
+            segs.push(`text()[${idx}]`);
+          } else if (child.nodeType === 8) {
+            segs.push(`comment()[${idx}]`);
+          } else {
+            // Element node: if qualified (e.g. "as:ajaxinclude"), switch to name()='as:ajaxinclude'
+            segs.push(
+              tag.includes(":")
+                ? `*[name()='${tag}'][${idx}]`
                 : `${tag}[${idx}]`,
-          );
+            );
+          }
         }
         // push R→L so traversal remains L→R
         for (let i = kids.length - 1; i >= 0; i--) {
