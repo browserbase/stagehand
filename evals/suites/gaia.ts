@@ -1,4 +1,3 @@
-import fs from "fs";
 import path from "path";
 import type { Testcase, EvalInput } from "@/types/evals";
 import type { AvailableModel } from "@/types/model";
@@ -30,11 +29,13 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
     [key: string]: unknown;
   };
 
-  function isGaiaRow(parsed: any): parsed is GaiaRow {
+  function isGaiaRow(parsed: unknown): parsed is GaiaRow {
+    if (parsed === null || typeof parsed !== "object") return false;
+    const obj = parsed as Record<string, unknown>;
     return (
-      typeof parsed.id === "string" &&
-      typeof parsed.web === "string" &&
-      typeof parsed.ques === "string"
+      typeof obj.id === "string" &&
+      typeof obj.web === "string" &&
+      typeof obj.ques === "string"
     );
   }
 

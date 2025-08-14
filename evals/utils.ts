@@ -172,7 +172,7 @@ export function readJsonlFile(filePath: string): string[] {
 
 export function parseJsonlRows<T>(
   lines: string[],
-  validator: (parsed: any) => parsed is T,
+  validator: (parsed: unknown) => parsed is T,
 ): T[] {
   const candidates: T[] = [];
   for (const line of lines) {

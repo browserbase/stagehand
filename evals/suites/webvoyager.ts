@@ -1,4 +1,3 @@
-import fs from "fs";
 import path from "path";
 import type { Testcase, EvalInput } from "@/types/evals";
 import type { AvailableModel } from "@/types/model";
@@ -31,11 +30,13 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
     [key: string]: unknown;
   };
 
-  function isVoyagerRow(parsed: any): parsed is VoyagerRow {
+  function isVoyagerRow(parsed: unknown): parsed is VoyagerRow {
+    if (parsed === null || typeof parsed !== "object") return false;
+    const obj = parsed as Record<string, unknown>;
     return (
-      typeof parsed.id === "string" &&
-      typeof parsed.web === "string" &&
-      typeof parsed.ques === "string"
+      typeof obj.id === "string" &&
+      typeof obj.web === "string" &&
+      typeof obj.ques === "string"
     );
   }
 
