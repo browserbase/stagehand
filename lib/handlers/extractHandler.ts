@@ -18,12 +18,14 @@ export class StagehandExtractHandler {
   private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
   private readonly userProvidedInstructions?: string;
+  private readonly experimental: boolean;
 
   constructor({
     stagehand,
     logger,
     stagehandPage,
     userProvidedInstructions,
+    experimental,
   }: {
     stagehand: Stagehand;
     logger: (message: {
@@ -34,11 +36,13 @@ export class StagehandExtractHandler {
     }) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
+    experimental: boolean;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.experimental = experimental;
   }
 
   public async extract<T extends z.AnyZodObject>({
@@ -97,7 +101,11 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs?: number,
   ): Promise<{ page_text?: string }> {
     await this.stagehandPage._waitForSettledDom(domSettleTimeoutMs);
-    const tree = await getAccessibilityTree(this.stagehandPage, this.logger);
+    const tree = await getAccessibilityTree(
+      this.experimental,
+      this.stagehandPage,
+      this.logger,
+    );
     this.logger({
       category: "extraction",
       message: "Getting accessibility tree data",
@@ -147,6 +155,7 @@ export class StagehandExtractHandler {
       discoveredIframes,
     } = await (iframes
       ? getAccessibilityTreeWithFrames(
+          this.experimental,
           this.stagehandPage,
           this.logger,
           targetXpath,
@@ -156,14 +165,17 @@ export class StagehandExtractHandler {
           combinedXpathMap: {} as Record<EncodedId, string>,
           discoveredIframes: [] as undefined,
         }))
-      : getAccessibilityTree(this.stagehandPage, this.logger, targetXpath).then(
-          ({ simplified, idToUrl, iframes: frameNodes }) => ({
-            combinedTree: simplified,
-            combinedUrlMap: idToUrl as Record<EncodedId, string>,
-            combinedXpathMap: {} as Record<EncodedId, string>,
-            discoveredIframes: frameNodes,
-          }),
-        ));
+      : getAccessibilityTree(
+          this.experimental,
+          this.stagehandPage,
+          this.logger,
+          targetXpath,
+        ).then(({ simplified, idToUrl, iframes: frameNodes }) => ({
+          combinedTree: simplified,
+          combinedUrlMap: idToUrl as Record<EncodedId, string>,
+          combinedXpathMap: {} as Record<EncodedId, string>,
+          discoveredIframes: frameNodes,
+        })));
 
     this.logger({
       category: "extraction",

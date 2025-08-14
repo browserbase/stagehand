@@ -14,6 +14,7 @@ export class StagehandObserveHandler {
   private readonly stagehand: Stagehand;
   private readonly logger: (logLine: LogLine) => void;
   private readonly stagehandPage: StagehandPage;
+  private readonly experimental: boolean;
 
   private readonly userProvidedInstructions?: string;
   constructor({
@@ -21,16 +22,19 @@ export class StagehandObserveHandler {
     logger,
     stagehandPage,
     userProvidedInstructions,
+    experimental,
   }: {
     stagehand: Stagehand;
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     userProvidedInstructions?: string;
+    experimental: boolean;
   }) {
     this.stagehand = stagehand;
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.userProvidedInstructions = userProvidedInstructions;
+    this.experimental = experimental;
   }
 
   public async observe({
@@ -88,21 +92,25 @@ export class StagehandObserveHandler {
       level: 1,
     });
     const { combinedTree, combinedXpathMap, discoveredIframes } = await (iframes
-      ? getAccessibilityTreeWithFrames(this.stagehandPage, this.logger).then(
-          ({ combinedTree, combinedXpathMap }) => ({
-            combinedTree,
-            combinedXpathMap,
-            discoveredIframes: [] as AccessibilityNode[],
-          }),
-        )
-      : getAccessibilityTree(this.stagehandPage, this.logger).then(
-          ({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
-            combinedTree: simplified,
-            combinedXpathMap: xpathMap,
-            combinedUrlMap: idToUrl,
-            discoveredIframes: frameNodes,
-          }),
-        ));
+      ? getAccessibilityTreeWithFrames(
+          this.experimental,
+          this.stagehandPage,
+          this.logger,
+        ).then(({ combinedTree, combinedXpathMap }) => ({
+          combinedTree,
+          combinedXpathMap,
+          discoveredIframes: [] as AccessibilityNode[],
+        }))
+      : getAccessibilityTree(
+          this.experimental,
+          this.stagehandPage,
+          this.logger,
+        ).then(({ simplified, xpathMap, idToUrl, iframes: frameNodes }) => ({
+          combinedTree: simplified,
+          combinedXpathMap: xpathMap,
+          combinedUrlMap: idToUrl,
+          discoveredIframes: frameNodes,
+        })));
 
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({

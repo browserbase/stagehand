@@ -1,4 +1,9 @@
-export {};
+export interface StagehandBackdoor {
+  /** Closed shadow-root accessors */
+  getClosedRoot(host: Element): ShadowRoot | undefined;
+  queryClosed(host: Element, selector: string): Element[];
+  xpathClosed(host: Element, xpath: string): Node[];
+}
 declare global {
   interface Window {
     __stagehandInjected?: boolean;
@@ -8,5 +13,6 @@ declare global {
     getScrollableElementXpaths: (topN?: number) => Promise<string[]>;
     getNodeFromXpath: (xpath: string) => Node | null;
     waitForElementScrollEnd: (element: HTMLElement) => Promise<void>;
+    readonly __stagehand__?: StagehandBackdoor;
   }
 }
