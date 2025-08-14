@@ -3,6 +3,7 @@ import path from "path";
 import type { Testcase, EvalInput } from "@/types/evals";
 import type { AvailableModel } from "@/types/model";
 import { tasksConfig } from "../taskConfig";
+import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
 export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
   const voyagerFilePath = path.join(
@@ -13,16 +14,7 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
     "WebVoyager_data.jsonl",
   );
 
-  let lines: string[] = [];
-  try {
-    const content = fs.readFileSync(voyagerFilePath, "utf-8");
-    lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  } catch (e) {
-    console.warn(
-      `Could not read WebVoyager file at ${voyagerFilePath}. Error: ${e instanceof Error ? e.message : String(e)}`,
-    );
-    lines = [];
-  }
+  const lines = readJsonlFile(voyagerFilePath);
 
   const maxCases = process.env.EVAL_WEBVOYAGER_LIMIT
     ? Number(process.env.EVAL_WEBVOYAGER_LIMIT)
@@ -39,30 +31,16 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
     [key: string]: unknown;
   };
 
-  const rows: VoyagerRow[] = [];
-  const candidates: VoyagerRow[] = [];
-  for (const line of lines) {
-    try {
-      const parsed = JSON.parse(line) as VoyagerRow;
-      if (
-        typeof parsed.id === "string" &&
-        typeof parsed.web === "string" &&
-        typeof parsed.ques === "string"
-      ) {
-        candidates.push(parsed);
-      }
-    } catch {
-      // skip invalid
-    }
+  function isVoyagerRow(parsed: any): parsed is VoyagerRow {
+    return (
+      typeof parsed.id === "string" &&
+      typeof parsed.web === "string" &&
+      typeof parsed.ques === "string"
+    );
   }
-  if (sampleCount && sampleCount > 0) {
-    rows.push(...sampleUniform(candidates, sampleCount));
-  } else {
-    for (const row of candidates) {
-      rows.push(row);
-      if (rows.length >= maxCases) break;
-    }
-  }
+
+  const candidates = parseJsonlRows(lines, isVoyagerRow);
+  const rows = applySampling(candidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
   for (const model of models) {
@@ -99,16 +77,3 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
 
   return allTestcases;
 };
-
-function sampleUniform<T>(arr: T[], k: number): T[] {
-  const n = arr.length;
-  if (k >= n) return arr.slice();
-  const copy = arr.slice();
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = copy[i];
-    copy[i] = copy[j];
-    copy[j] = tmp;
-  }
-  return copy.slice(0, k);
-}

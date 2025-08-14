@@ -3,22 +3,14 @@ import path from "path";
 import type { Testcase, EvalInput } from "@/types/evals";
 import type { AvailableModel } from "@/types/model";
 import { tasksConfig } from "../taskConfig";
+import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
 export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const gaiaFilePath =
     process.env.EVAL_GAIA_FILE ||
     path.join(__dirname, "..", "datasets", "gaia", "GAIA_web.jsonl");
 
-  let gaiaLines: string[] = [];
-  try {
-    const content = fs.readFileSync(gaiaFilePath, "utf-8");
-    gaiaLines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  } catch (e) {
-    console.warn(
-      `Could not read GAIA file at ${gaiaFilePath}. Set EVAL_GAIA_FILE to override. Error: ${e instanceof Error ? e.message : String(e)}`,
-    );
-    gaiaLines = [];
-  }
+  const gaiaLines = readJsonlFile(gaiaFilePath);
 
   const levelFilter = process.env.EVAL_GAIA_LEVEL
     ? Number(process.env.EVAL_GAIA_LEVEL)
@@ -38,32 +30,22 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
     [key: string]: unknown;
   };
 
-  const gaiaRows: GaiaRow[] = [];
-  const candidates: GaiaRow[] = [];
-  for (const line of gaiaLines) {
-    try {
-      const parsed = JSON.parse(line) as GaiaRow;
-      if (
-        typeof parsed.id === "string" &&
-        typeof parsed.web === "string" &&
-        typeof parsed.ques === "string"
-      ) {
-        if (!levelFilter || parsed.Level === levelFilter) {
-          candidates.push(parsed);
-        }
-      }
-    } catch {
-      // skip invalid lines
-    }
+  function isGaiaRow(parsed: any): parsed is GaiaRow {
+    return (
+      typeof parsed.id === "string" &&
+      typeof parsed.web === "string" &&
+      typeof parsed.ques === "string"
+    );
   }
-  if (sampleCount && sampleCount > 0) {
-    gaiaRows.push(...sampleUniform(candidates, sampleCount));
-  } else {
-    for (const row of candidates) {
-      gaiaRows.push(row);
-      if (gaiaRows.length >= maxCases) break;
-    }
-  }
+
+  const candidates = parseJsonlRows(gaiaLines, isGaiaRow);
+
+  // Filter by level if specified
+  const filteredCandidates = levelFilter
+    ? candidates.filter((row) => row.Level === levelFilter)
+    : candidates;
+
+  const gaiaRows = applySampling(filteredCandidates, sampleCount, maxCases);
 
   const allTestcases: Testcase[] = [];
   for (const model of models) {
@@ -105,16 +87,3 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
 
   return allTestcases;
 };
-
-function sampleUniform<T>(arr: T[], k: number): T[] {
-  const n = arr.length;
-  if (k >= n) return arr.slice();
-  const copy = arr.slice();
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = copy[i];
-    copy[i] = copy[j];
-    copy[j] = tmp;
-  }
-  return copy.slice(0, k);
-}
