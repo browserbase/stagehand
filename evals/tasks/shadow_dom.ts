@@ -11,9 +11,14 @@ export const shadow_dom: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
-    const result = await page.act("click the button");
+    await page.act("click the button");
+    const extraction = await page.extract({
+      instruction: "extract the page text",
+    });
 
-    if (!result.success && result.message.includes("not-supported")) {
+    const pageText = extraction.extraction;
+
+    if (pageText.includes("button successfully clicked")) {
       return {
         _success: true,
         debugUrl,
