@@ -1,19 +1,25 @@
 import { EvalFunction } from "@/types/evals";
 
-export const shadow_dom: EvalFunction = async ({
+export const spif_in_osr: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
   logger,
 }) => {
+  // this eval is designed to test whether stagehand can successfully
+  // click inside a SPIF (same process iframe) that is inside an
+  // OSR (open mode shadow) root
+
   const page = stagehand.page;
   try {
     await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
+      "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-open-shadow-dom/",
     );
-    await page.act("click the button");
+    await page.act({ action: "click the button", iframes: true });
+
     const extraction = await page.extract({
-      instruction: "extract the page text",
+      instruction: "extract the entire page text",
+      iframes: true,
     });
 
     const pageText = extraction.extraction;
@@ -21,6 +27,7 @@ export const shadow_dom: EvalFunction = async ({
     if (pageText.includes("button successfully clicked")) {
       return {
         _success: true,
+        message: `successfully clicked the button`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -28,6 +35,7 @@ export const shadow_dom: EvalFunction = async ({
     }
     return {
       _success: false,
+      message: `unable to click on the button`,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

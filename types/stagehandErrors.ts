@@ -229,3 +229,27 @@ export class StagehandInitError extends StagehandError {
     super(message);
   }
 }
+
+export class StagehandShadowRootMissingError extends StagehandError {
+  constructor(detail?: string) {
+    super(
+      `No shadow root present on the resolved host` +
+        (detail ? `: ${detail}` : ""),
+    );
+  }
+}
+
+export class StagehandShadowSegmentEmptyError extends StagehandError {
+  constructor() {
+    super(`Empty selector segment after shadow-DOM hop ("//")`);
+  }
+}
+
+export class StagehandShadowSegmentNotFoundError extends StagehandError {
+  constructor(segment: string, hint?: string) {
+    super(
+      `Shadow segment '${segment}' matched no element inside shadow root` +
+        (hint ? ` ${hint}` : ""),
+    );
+  }
+}

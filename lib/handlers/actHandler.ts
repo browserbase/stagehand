@@ -18,6 +18,7 @@ import {
   methodHandlerMap,
   fallbackLocatorMethod,
   deepLocator,
+  deepLocatorWithShadow,
 } from "./handlerUtils/actHandlerUtils";
 import { StagehandObserveHandler } from "@/lib/handlers/observeHandler";
 import { StagehandInvalidArgumentError } from "@/types/stagehandErrors";
@@ -30,19 +31,23 @@ export class StagehandActHandler {
   private readonly stagehandPage: StagehandPage;
   private readonly logger: (logLine: LogLine) => void;
   private readonly selfHeal: boolean;
+  private readonly experimental: boolean;
 
   constructor({
     logger,
     stagehandPage,
     selfHeal,
+    experimental,
   }: {
     logger: (logLine: LogLine) => void;
     stagehandPage: StagehandPage;
     selfHeal: boolean;
+    experimental: boolean;
   }) {
     this.logger = logger;
     this.stagehandPage = stagehandPage;
     this.selfHeal = selfHeal;
+    this.experimental = experimental;
   }
 
   /**
@@ -311,7 +316,13 @@ export class StagehandActHandler {
     domSettleTimeoutMs?: number,
   ) {
     const xpath = rawXPath.replace(/^xpath=/i, "").trim();
-    const locator = deepLocator(this.stagehandPage.page, xpath).first();
+    let locator;
+    if (this.experimental) {
+      locator = await deepLocatorWithShadow(this.stagehandPage.page, xpath);
+    } else {
+      locator = deepLocator(this.stagehandPage.page, xpath);
+    }
+
     const initialUrl = this.stagehandPage.page.url();
 
     this.logger({

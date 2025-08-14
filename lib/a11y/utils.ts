@@ -30,6 +30,8 @@ const PUA_END = 0xf8ff;
 
 const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
 
+const WORLD_NAME = "stagehand-world";
+
 /**
  * Clean a string by removing private-use unicode characters, normalizing whitespace,
  * and trimming the result.
@@ -118,11 +120,13 @@ const lc = (raw: string): string => {
 /**
  * Build mappings from CDP backendNodeIds to HTML tag names and relative XPaths.
  *
+ * @param experimental - Whether to use experimental behaviour.
  * @param sp - The StagehandPage wrapper for Playwright and CDP calls.
  * @param targetFrame - Optional Playwright.Frame whose DOM subtree to map; defaults to main frame.
  * @returns A Promise resolving to BackendIdMaps containing tagNameMap and xpathMap.
  */
 export async function buildBackendIdMaps(
+  experimental: boolean,
   sp: StagehandPage,
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
@@ -169,11 +173,22 @@ export async function buildBackendIdMaps(
 
       let iframeNode: DOMNode | undefined;
       const locate = (n: DOMNode): boolean => {
-        if (n.backendNodeId === backendNodeId) return (iframeNode = n), true;
-        return (
-          (n.children?.some(locate) ?? false) ||
-          (n.contentDocument ? locate(n.contentDocument) : false)
-        );
+        if (experimental) {
+          if (n.backendNodeId === backendNodeId) {
+            iframeNode = n;
+            return true;
+          }
+          if (n.shadowRoots?.some(locate)) return true;
+          if (n.children?.some(locate)) return true;
+          if (n.contentDocument && locate(n.contentDocument)) return true;
+          return false;
+        } else {
+          if (n.backendNodeId === backendNodeId) return (iframeNode = n), true;
+          return (
+            (n.children?.some(locate) ?? false) ||
+            (n.contentDocument ? locate(n.contentDocument) : false)
+          );
+        }
       };
 
       if (!locate(root) || !iframeNode?.contentDocument) {
@@ -195,6 +210,9 @@ export async function buildBackendIdMaps(
     const stack: StackEntry[] = [{ node: startNode, path: "", fid: rootFid }];
     const seen = new Set<EncodedId>();
 
+    const joinStep = (base: string, step: string): string =>
+      base.endsWith("//") ? `${base}${step}` : `${base}/${step}`;
+
     while (stack.length) {
       const { node, path, fid } = stack.pop()!;
 
@@ -212,6 +230,16 @@ export async function buildBackendIdMaps(
         stack.push({ node: node.contentDocument, path: "", fid: childFid });
       }
 
+      if (node.shadowRoots?.length && experimental) {
+        for (const shadowRoot of node.shadowRoots) {
+          stack.push({
+            node: shadowRoot,
+            path: `${path}//`,
+            fid,
+          });
+        }
+      }
+
       // push children
       const kids = node.children ?? [];
       if (kids.length) {
@@ -222,19 +250,24 @@ export async function buildBackendIdMaps(
           const tag = lc(String(child.nodeName));
           const key = `${child.nodeType}:${tag}`;
           const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
-          segs.push(
-            child.nodeType === 3
-              ? `text()[${idx}]`
-              : child.nodeType === 8
-                ? `comment()[${idx}]`
+          if (child.nodeType === 3) {
+            segs.push(`text()[${idx}]`);
+          } else if (child.nodeType === 8) {
+            segs.push(`comment()[${idx}]`);
+          } else {
+            // Element node: if qualified (e.g. "as:ajaxinclude"), switch to name()='as:ajaxinclude'
+            segs.push(
+              tag.includes(":")
+                ? `*[name()='${tag}'][${idx}]`
                 : `${tag}[${idx}]`,
-          );
+            );
+          }
         }
         // push R→L so traversal remains L→R
         for (let i = kids.length - 1; i >= 0; i--) {
           stack.push({
             node: kids[i]!,
-            path: `${path}/${segs[i]}`,
+            path: joinStep(path, segs[i]!),
             fid,
           });
         }
@@ -486,6 +519,7 @@ export async function getCDPFrameId(
  * @returns A Promise resolving to a TreeResult with the hierarchical AX tree and related metadata.
  */
 export async function getAccessibilityTree(
+  experimental: boolean,
   stagehandPage: StagehandPage,
   logger: (log: LogLine) => void,
   selector?: string,
@@ -493,6 +527,7 @@ export async function getAccessibilityTree(
 ): Promise<TreeResult> {
   // 0. DOM helpers (maps, xpath)
   const { tagNameMap, xpathMap } = await buildBackendIdMaps(
+    experimental,
     stagehandPage,
     targetFrame,
   );
@@ -701,6 +736,57 @@ export async function getFrameRootBackendNodeId(
  * @param frame - The Playwright.Frame whose iframe element to locate.
  * @returns A Promise resolving to the XPath of the iframe element, or "/" if no frame provided.
  */
+export async function getFrameRootXpathWithShadow(
+  frame: Frame | undefined,
+): Promise<string> {
+  // Return root path when no frame context is provided
+  if (!frame) {
+    return "/";
+  }
+  // Obtain the element handle of the iframe in the embedding document
+  const handle = await frame.frameElement();
+  // Evaluate the element's absolute XPath within the page context
+  return handle.evaluate((node: Element) => {
+    function stepFor(el: Element): string {
+      const tag = el.tagName.toLowerCase();
+      let i = 1;
+      for (
+        let sib = el.previousElementSibling;
+        sib;
+        sib = sib.previousElementSibling
+      ) {
+        if (sib.tagName.toLowerCase() === tag) i++;
+      }
+      return `${tag}[${i}]`;
+    }
+
+    const segs: string[] = [];
+    let el: Element | null = node;
+
+    while (el) {
+      segs.unshift(stepFor(el));
+      if (el.parentElement) {
+        el = el.parentElement;
+        continue;
+      }
+
+      // top of this tree: check if we’re inside a shadow root
+      const root = el.getRootNode(); // Document or ShadowRoot
+      if ((root as ShadowRoot).host) {
+        // Insert a shadow hop marker so the final path contains “//”
+        segs.unshift("");
+        el = (root as ShadowRoot).host;
+        continue;
+      }
+
+      break;
+    }
+
+    // Leading '/' + join; empty tokens become “//” between segments
+    return "/" + segs.join("/");
+  });
+}
+
 export async function getFrameRootXpath(
   frame: Frame | undefined,
 ): Promise<string> {
@@ -833,6 +919,7 @@ export function injectSubtrees(
  * @returns A Promise resolving to CombinedA11yResult with combined tree text, xpath map, and URL map.
  */
 export async function getAccessibilityTreeWithFrames(
+  experimental: boolean,
   stagehandPage: StagehandPage,
   logger: (l: LogLine) => void,
   rootXPath?: string,
@@ -880,6 +967,7 @@ export async function getAccessibilityTreeWithFrames(
 
     try {
       const res = await getAccessibilityTree(
+        experimental,
         stagehandPage,
         logger,
         selector,
@@ -892,7 +980,13 @@ export async function getAccessibilityTreeWithFrames(
           ? null
           : await getFrameRootBackendNodeId(stagehandPage, frame);
 
-      const frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
+      let frameXpath;
+      if (experimental) {
+        frameXpath =
+          frame === main ? "/" : await getFrameRootXpathWithShadow(frame);
+      } else {
+        frameXpath = frame === main ? "/" : await getFrameRootXpath(frame);
+      }
 
       // Resolve the CDP frameId for this Playwright Frame (undefined for main)
       const frameId = await getCDPFrameId(stagehandPage, frame);
@@ -1040,6 +1134,8 @@ export async function resolveObjectIdForXPath(
   xpath: string,
   targetFrame?: Frame,
 ): Promise<string | null> {
+  const contextId = await getFrameExecutionContextId(page, targetFrame);
+
   const { result } = await page.sendCDP<{
     result?: { objectId?: string };
   }>(
@@ -1058,11 +1154,40 @@ export async function resolveObjectIdForXPath(
         })();
       `,
       returnByValue: false,
+      ...(contextId !== undefined ? { contextId } : {}),
     },
     targetFrame,
   );
   if (!result?.objectId) throw new StagehandElementNotFoundError([xpath]);
   return result.objectId;
+}
+
+/**
+ * Returns a stable executionContextId for the given frame by creating (or reusing)
+ * an isolated world in that frame.
+ */
+async function getFrameExecutionContextId(
+  stagehandPage: StagehandPage,
+  frame: Frame,
+): Promise<number | undefined> {
+  if (!frame || frame === stagehandPage.page.mainFrame()) {
+    // Main frame (or no frame): use the default world.
+    return undefined;
+  }
+  const frameId: string = await getCDPFrameId(stagehandPage, frame);
+  const { executionContextId } = await stagehandPage.sendCDP<{
+    executionContextId: number;
+  }>(
+    "Page.createIsolatedWorld",
+    {
+      frameId,
+      worldName: WORLD_NAME,
+      grantUniversalAccess: true,
+    },
+    frame,
+  );
+
+  return executionContextId;
 }
 
 /**
