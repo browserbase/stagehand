@@ -1,7 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "@/evals/evaluator";
-
-export const kayak: EvalFunction = async ({
+export const github_react_version: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
@@ -10,31 +9,19 @@ export const kayak: EvalFunction = async ({
 }) => {
   try {
     const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://www.kayak.com");
-
+    await stagehand.page.goto("https://github.com/");
     await agent.execute({
-      instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: 15,
+      instruction:
+        "Check the latest release version of React and the date it was published. ",
+      maxSteps: 20,
     });
-    await agent.execute({
-      instruction: "Sort the flights by price",
-      maxSteps: 5,
-    });
-
-    if (stagehand.context.pages().length !== 2) {
-      return {
-        _success: false,
-        message: "No new pages were opened",
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
     const { evaluation, reasoning } = await evaluator.evaluate({
       question:
-        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
+        "Does the page show the latest version of react and the date it was published",
     });
-
+    console.log(`evaluation: ${evaluation}`);
+    console.log(`reasoning: ${reasoning}`);
+    // only use url check for now, as using extract on the version is prone to breaking in future
     const success = evaluation === "YES";
     if (!success) {
       return {

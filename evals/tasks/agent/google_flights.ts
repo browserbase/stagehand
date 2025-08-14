@@ -6,16 +6,10 @@ export const google_flights: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     await stagehand.page.goto("https://google.com/travel/flights");
-
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. Today is ${new Date().toISOString().slice(0, 10)}. The current page is ${await stagehand.page.title()}`,
-    });
 
     const agentResult = await agent.execute({
       instruction:
