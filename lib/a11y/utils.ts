@@ -30,6 +30,8 @@ const PUA_END = 0xf8ff;
 
 const NBSP_CHARS = new Set<number>([0x00a0, 0x202f, 0x2007, 0xfeff]);
 
+const WORLD_NAME = "stagehand-world";
+
 /**
  * Clean a string by removing private-use unicode characters, normalizing whitespace,
  * and trimming the result.
@@ -1132,6 +1134,8 @@ export async function resolveObjectIdForXPath(
   xpath: string,
   targetFrame?: Frame,
 ): Promise<string | null> {
+  const contextId = await getFrameExecutionContextId(page, targetFrame);
+
   const { result } = await page.sendCDP<{
     result?: { objectId?: string };
   }>(
@@ -1150,11 +1154,40 @@ export async function resolveObjectIdForXPath(
         })();
       `,
       returnByValue: false,
+      ...(contextId !== undefined ? { contextId } : {}),
     },
     targetFrame,
   );
   if (!result?.objectId) throw new StagehandElementNotFoundError([xpath]);
   return result.objectId;
+}
+
+/**
+ * Returns a stable executionContextId for the given frame by creating (or reusing)
+ * an isolated world in that frame.
+ */
+async function getFrameExecutionContextId(
+  stagehandPage: StagehandPage,
+  frame: Frame,
+): Promise<number | undefined> {
+  if (!frame || frame === stagehandPage.page.mainFrame()) {
+    // Main frame (or no frame): use the default world.
+    return undefined;
+  }
+  const frameId: string = await getCDPFrameId(stagehandPage, frame);
+  const { executionContextId } = await stagehandPage.sendCDP<{
+    executionContextId: number;
+  }>(
+    "Page.createIsolatedWorld",
+    {
+      frameId,
+      worldName: WORLD_NAME,
+      grantUniversalAccess: true,
+    },
+    frame,
+  );
+
+  return executionContextId;
 }
 
 /**
