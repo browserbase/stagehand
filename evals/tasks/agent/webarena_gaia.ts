@@ -23,7 +23,17 @@ export const webarena_gaia: EvalFunction = async ({
       ques?: string;
     };
 
+    
+
     if (!params.web || !params.ques) {
+      logger.error({
+        category: "gaia",
+        level: 0,
+        message: `Missing GAIA params (web, ques).`,
+        auxiliary: {
+          params: { value: JSON.stringify(params), type: "object" },
+        },
+      });
       return {
         _success: false,
         error: `Missing GAIA params (web, ques). Got: ${JSON.stringify(params)}`,
@@ -34,6 +44,7 @@ export const webarena_gaia: EvalFunction = async ({
     }
 
     await stagehand.page.goto(params.web);
+    
 
     const agent = stagehand.agent({
       model: modelName,
@@ -45,6 +56,7 @@ export const webarena_gaia: EvalFunction = async ({
       instruction: params.ques,
       maxSteps: 20,
     });
+    
 
     const message = result?.message || "";
     const hasFinal =
@@ -52,6 +64,7 @@ export const webarena_gaia: EvalFunction = async ({
     const providedAnswer = hasFinal
       ? (message.match(/Final Answer\s*:\s*(.+)/i)?.[1] || "").trim()
       : "";
+    
 
     const expected = (params as Record<string, unknown>).expected as
       | string
@@ -60,6 +73,8 @@ export const webarena_gaia: EvalFunction = async ({
       ? hasFinal && providedAnswer.trim() === expected.trim()
       : hasFinal;
 
+    
+
     return {
       _success: !!success,
       debugUrl,
@@ -67,6 +82,21 @@ export const webarena_gaia: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
+    logger.error({
+      category: "gaia",
+      level: 0,
+      message: `Unhandled error in GAIA task`,
+      auxiliary: {
+        error: {
+          value: error instanceof Error ? error.message : String(error),
+          type: "string",
+        },
+        trace: {
+          value: error instanceof Error && error.stack ? error.stack : "",
+          type: "string",
+        },
+      },
+    });
     return {
       _success: false,
       error,

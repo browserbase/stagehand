@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
+import dotenv from "dotenv";
+// need to do this since our env setup is running me up to the wazzoo
+dotenv.config({ override: true });
 
 const args: readonly string[] = process.argv.slice(2);
 

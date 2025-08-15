@@ -101,6 +101,15 @@ export const initStagehand = async ({
 
   const { debugUrl, sessionUrl } = await stagehand.init();
 
+  // Increase runtime verbosity for evals explicitly
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - setVerbosity is available on Stagehand logger
+    stagehand.logger?.setVerbosity?.(2);
+  } catch {
+    // ignore if logger does not expose setVerbosity
+  }
+
   // Set navigation timeout to 60 seconds for evaluations
   stagehand.context.setDefaultNavigationTimeout(60_000);
 

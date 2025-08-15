@@ -37,26 +37,22 @@ export class AgentProvider {
     userProvidedInstructions?: string,
     experimental?: boolean,
   ): AgentClient {
+    const normalizedModelName = AgentProvider.normalizeModelName(modelName);
     const type = AgentProvider.getAgentProvider(modelName);
-    this.logger({
-      category: "agent",
-      message: `Getting agent client for type: ${type}, model: ${modelName}`,
-      level: 2,
-    });
 
     try {
       switch (type) {
         case "openai":
           return new OpenAICUAClient(
             type,
-            modelName,
+            normalizedModelName,
             userProvidedInstructions,
             clientOptions,
           );
         case "anthropic":
           return new AnthropicCUAClient(
             type,
-            modelName,
+            normalizedModelName,
             userProvidedInstructions,
             clientOptions,
             experimental,
@@ -80,14 +76,26 @@ export class AgentProvider {
   }
 
   static getAgentProvider(modelName: string): AgentType {
-    // First check the exact model name in the map
-    if (modelName in modelToAgentProviderMap) {
-      return modelToAgentProviderMap[modelName];
+    const normalized = AgentProvider.normalizeModelName(modelName);
+
+    // First check the exact (normalized) model name in the map
+    if (normalized in modelToAgentProviderMap) {
+      return modelToAgentProviderMap[normalized];
     }
 
     throw new UnsupportedModelError(
       Object.keys(modelToAgentProviderMap),
       "Computer Use Agent",
     );
+  }
+
+  /**
+   * Normalize names that include a provider prefix like "openai/<model>" or "anthropic/<model>"
+   * Returns just the model id portion (e.g. "claude-3-7-sonnet-latest").
+   */
+  private static normalizeModelName(modelName: string): string {
+    if (!modelName) return modelName;
+    const parts = modelName.split("/");
+    return parts.length > 1 ? parts[1] : modelName;
   }
 }
