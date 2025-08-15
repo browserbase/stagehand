@@ -37,7 +37,6 @@ export class AgentProvider {
     userProvidedInstructions?: string,
     experimental?: boolean,
   ): AgentClient {
-    const normalizedModelName = AgentProvider.normalizeModelName(modelName);
     const type = AgentProvider.getAgentProvider(modelName);
 
     try {
@@ -45,14 +44,14 @@ export class AgentProvider {
         case "openai":
           return new OpenAICUAClient(
             type,
-            normalizedModelName,
+            modelName,
             userProvidedInstructions,
             clientOptions,
           );
         case "anthropic":
           return new AnthropicCUAClient(
             type,
-            normalizedModelName,
+            modelName,
             userProvidedInstructions,
             clientOptions,
             experimental,

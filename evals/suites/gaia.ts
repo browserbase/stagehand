@@ -11,8 +11,6 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
 
   const gaiaLines = readJsonlFile(gaiaFilePath);
 
-  
-
   const levelFilter = process.env.EVAL_GAIA_LEVEL
     ? Number(process.env.EVAL_GAIA_LEVEL)
     : undefined;
@@ -43,16 +41,12 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
 
   const candidates = parseJsonlRows(gaiaLines, isGaiaRow);
 
-  
-
   // Filter by level if specified
   const filteredCandidates = levelFilter
     ? candidates.filter((row) => row.Level === levelFilter)
     : candidates;
 
   const gaiaRows = applySampling(filteredCandidates, sampleCount, maxCases);
-
-  
 
   const allTestcases: Testcase[] = [];
   for (const model of models) {
@@ -91,8 +85,6 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
       });
     }
   }
-
-  
 
   return allTestcases;
 };

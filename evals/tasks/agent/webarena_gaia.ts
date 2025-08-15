@@ -23,8 +23,6 @@ export const webarena_gaia: EvalFunction = async ({
       ques?: string;
     };
 
-    
-
     if (!params.web || !params.ques) {
       logger.error({
         category: "gaia",
@@ -44,7 +42,6 @@ export const webarena_gaia: EvalFunction = async ({
     }
 
     await stagehand.page.goto(params.web);
-    
 
     const agent = stagehand.agent({
       model: modelName,
@@ -56,7 +53,6 @@ export const webarena_gaia: EvalFunction = async ({
       instruction: params.ques,
       maxSteps: 20,
     });
-    
 
     const message = result?.message || "";
     const hasFinal =
@@ -64,7 +60,6 @@ export const webarena_gaia: EvalFunction = async ({
     const providedAnswer = hasFinal
       ? (message.match(/Final Answer\s*:\s*(.+)/i)?.[1] || "").trim()
       : "";
-    
 
     const expected = (params as Record<string, unknown>).expected as
       | string
@@ -72,8 +67,6 @@ export const webarena_gaia: EvalFunction = async ({
     const success = expected
       ? hasFinal && providedAnswer.trim() === expected.trim()
       : hasFinal;
-
-    
 
     return {
       _success: !!success,

@@ -38,7 +38,6 @@ export const webvoyager: EvalFunction = async ({
       instruction: params.ques,
       maxSteps: 20,
     });
-    
 
     const message = result?.message || "";
     const success =

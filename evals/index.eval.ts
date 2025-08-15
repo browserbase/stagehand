@@ -32,6 +32,7 @@ import { StagehandEvalError } from "@/types/stagehandErrors";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
+import { AgentProvider } from "@/lib/agent/AgentProvider";
 import { AISdkClient } from "@/examples/external_clients/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
@@ -207,7 +208,6 @@ const generateFilteredTestcases = (): Testcase[] => {
       task: async (input: EvalInput) => {
         const logger = new EvalLogger();
         try {
-          
           // Dynamically import the task based on its name
           const taskModulePath = path.join(
             __dirname,
@@ -262,7 +262,19 @@ const generateFilteredTestcases = (): Testcase[] => {
           let taskInput: Awaited<ReturnType<typeof initStagehand>>;
 
           if (USE_API) {
-            const [provider] = input.modelName.split("/") as [string, string];
+            // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
+            let provider: string;
+            if (input.modelName.includes("/")) {
+              provider = input.modelName.split("/")[0];
+            } else {
+              // Fall back to agent provider inference for bare agent model names (e.g., "computer-use-preview")
+              try {
+                provider = AgentProvider.getAgentProvider(input.modelName);
+              } catch {
+                // If not an agent model, leave provider undefined to trigger helpful error below
+                provider = undefined as unknown as string;
+              }
+            }
 
             const logFn = (line: LogLine): void => logger.log(line);
             const apiKey = loadApiKeyFromEnv(provider, logFn);
