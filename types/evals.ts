@@ -13,6 +13,8 @@ export type StagehandInitResult = {
   sessionUrl: string;
   stagehandConfig: ConstructorParams;
   modelName: AvailableModel;
+  // Optional per-test parameters to pass into a task
+  taskParams?: Record<string, unknown>;
 };
 
 export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
@@ -40,18 +42,20 @@ export type EvalCategory = z.infer<typeof EvalCategorySchema>;
 export interface EvalInput {
   name: string;
   modelName: AvailableModel;
+  // Optional per-test parameters, used by data-driven tasks
+  params?: Record<string, unknown>;
 }
 
 export interface Testcase
   extends EvalCase<
     EvalInput,
     unknown,
-    { model: AvailableModel; test: string }
+    { model: AvailableModel; test: string; categories?: string[] }
   > {
   input: EvalInput;
   name: string;
   tags: string[];
-  metadata: { model: AvailableModel; test: string };
+  metadata: { model: AvailableModel; test: string; categories?: string[] };
   expected: unknown;
 }
 

@@ -463,5 +463,15 @@
       "name": "iframe_scroll",
       "categories": ["act"]
     }
+    ,
+    {
+      "name": "agent/webarena_gaia",
+      "categories": ["agent"]
+    }
+    ,
+    {
+      "name": "agent/webvoyager",
+      "categories": ["agent"]
+    }
   ]
 }
