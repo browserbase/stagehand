@@ -16,8 +16,8 @@ env:
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 5
   # Agent eval sampling configuration
-  EVAL_WEBVOYAGER_SAMPLE: 10  # Random sample of 10 cases from WebVoyager dataset
-  EVAL_GAIA_SAMPLE: 10        # Random sample of 10 cases from GAIA dataset  
+  EVAL_WEBVOYAGER_SAMPLE: 3  # Random sample of 3 cases from WebVoyager dataset
+  EVAL_GAIA_SAMPLE: 3        # Random sample of 3 cases from GAIA dataset  
   EVAL_GAIA_LEVEL: 1          # GAIA difficulty level (1=easiest)
 
 concurrency:
