@@ -583,12 +583,8 @@ jobs:
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
       HEADLESS: true
       EVAL_ENV: browserbase
-      # Override global sampling for agent evals in CI
-      EVAL_WEBVOYAGER_SAMPLE: 10  # Random sample of 10 cases
-      EVAL_GAIA_SAMPLE: 10        # Random sample of 10 cases
-      EVAL_GAIA_LEVEL: 1          # Only Level 1 (easiest) tasks
-      # Use faster models for agent evals in CI
-      EVAL_MODELS: "openai/gpt-4o-mini,anthropic/claude-3-5-sonnet-latest"
+      # Use agent models for agent evals in CI
+      EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
       EVAL_TRIAL_COUNT: 2  # Reduce trials for agent evals
       EVAL_MAX_CONCURRENCY: 10  # Lower concurrency for agent evals
     steps:
@@ -624,7 +620,7 @@ jobs:
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run evals category agent
+        run: pnpm run evals category agent api=true
 
       - name: Log Agent Evals Performance
         if: needs.determine-evals.outputs.run-agent == 'true'
