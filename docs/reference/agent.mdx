@@ -42,18 +42,18 @@ await agent.execute({
 
 ```python Python
 # For Computer Use Agent (CUA) models
-agent = stagehand.agent({
+agent = stagehand.agent(
     model="computer-use-preview",
     instructions="You are a helpful assistant that can use a web browser.",
     options={
       "apiKey": os.getenv("OPENAI_API_KEY"),
     },
-})
+)
 
 # You can define additional options like max_steps and auto_screenshot
 result = await agent.execute({
-    instruction="Sign me up for a library card",
-    max_steps=20
+    "instruction": "Sign me up for a library card",
+    "max_steps": 20
 })
 
 ```
