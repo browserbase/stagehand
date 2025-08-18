@@ -4,23 +4,32 @@
  *
  * npx create-browser-app@latest my-browser-app
  */
-import { Stagehand } from "@browserbasehq/stagehand";
-import StagehandConfig from "../stagehand.config";
+import { V3 } from "../lib/v3/v3";
+import { chromium } from "playwright";
+// import dotenv from "dotenv";
+// dotenv.config();
 
-async function example(stagehand: Stagehand) {
+async function example(v3: V3) {
   /**
    * Add your code here!
    */
-  const page = stagehand.page;
-  await page.goto("https://docs.stagehand.dev");
-  await page.act("click the quickstart button");
+  const wsEndpoint = v3.connectURL();
+  const pwBrowser = await chromium.connectOverCDP(wsEndpoint);
+  const defaultContext = pwBrowser.contexts()[0];
+  const page = defaultContext?.pages()[0];
+  await page.goto("https://google.com");
+
+  await v3.extract({ instruction: "yeeeeeeeee", page });
 }
 
 (async () => {
-  const stagehand = new Stagehand({
-    ...StagehandConfig,
+  const v3 = new V3({
+    env: "LOCAL", // or "BROWSERBASE"
+    // apiKey: process.env.BROWSERBASE_API_KEY, // needed if using Browserbase
+    // projectId: process.env.BROWSERBASE_PROJECT_ID, // needed if using Browserbase
+    headless: false,
   });
-  await stagehand.init();
-  await example(stagehand);
-  await stagehand.close();
+  await v3.init();
+  await example(v3);
+  // await v3.close();
 })();
