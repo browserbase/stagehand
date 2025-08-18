@@ -17,6 +17,9 @@ importers:
       '@google/genai':
         specifier: ^0.8.0
         version: 0.8.0
+      '@tracerbench/protocol-connection':
+        specifier: ^2.1.0
+        version: 2.1.0(devtools-protocol@0.0.1464554)
       ai:
         specifier: ^4.3.9
         version: 4.3.12(react@19.1.0)(zod@3.25.67)
@@ -1569,6 +1572,17 @@ packages:
 
   '@tootallnate/quickjs-emscripten@0.23.0':
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
+
+  '@tracerbench/message-transport@2.1.0':
+    resolution: {integrity: sha512-q4nJrTJN17utnpjbWQSnVX0uyES6Oh4PFW9F/2rZxKKfVjnLO5bzNChHmKsK+w0QAlv2VYiowVu7Sx4VsIAmeQ==}
+
+  '@tracerbench/protocol-connection@2.1.0':
+    resolution: {integrity: sha512-JiyBGIMk745UZDzWK1jASU4XElQnGM7GAP89Tkc3+tawO7RmTLW04bW1RhVT/Kzy+aCC8xkCR1OuKXLF4KXLrQ==}
+    peerDependencies:
+      devtools-protocol: '*'
+
+  '@tracerbench/protocol-transport@2.1.0':
+    resolution: {integrity: sha512-OkiJM3nK8p9sGWDLPbJimD8qwm1oouB4QrVXSV/65LMm9oGSoh7q7hPWbUtTKU5ps/R26HIlTBXSeW1O2q3W0Q==}
 
   '@types/adm-zip@0.5.7':
     resolution: {integrity: sha512-DNEs/QvmyRLurdQPChqq0Md4zGvPwHerAJYWk9l2jCbD1VPpnzRJorOdiq4zsw09NFbYnhfsoEhWtxIzXpn2yw==}
@@ -4388,6 +4402,9 @@ packages:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
     engines: {node: '>=10'}
 
+  race-cancellation@0.4.1:
+    resolution: {integrity: sha512-TF1vf4q/a5mwER9DoIuniE/qNIRM3Begyoe+21VUKgsyQAT4iIfSqlK7aG4Of1J1wzeATqVwbDP0dwX9GhaGcw==}
+
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
@@ -6895,6 +6912,20 @@ snapshots:
       defer-to-connect: 2.0.1
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
+
+  '@tracerbench/message-transport@2.1.0': {}
+
+  '@tracerbench/protocol-connection@2.1.0(devtools-protocol@0.0.1464554)':
+    dependencies:
+      '@tracerbench/message-transport': 2.1.0
+      '@tracerbench/protocol-transport': 2.1.0
+      devtools-protocol: 0.0.1464554
+      race-cancellation: 0.4.1
+
+  '@tracerbench/protocol-transport@2.1.0':
+    dependencies:
+      '@tracerbench/message-transport': 2.1.0
+      race-cancellation: 0.4.1
 
   '@types/adm-zip@0.5.7':
     dependencies:
@@ -10448,6 +10479,8 @@ snapshots:
   quick-format-unescaped@4.0.4: {}
 
   quick-lru@5.1.1: {}
+
+  race-cancellation@0.4.1: {}
 
   range-parser@1.2.1: {}
 
