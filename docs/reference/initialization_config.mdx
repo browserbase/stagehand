@@ -38,6 +38,10 @@ const stagehand = new Stagehand({
       browserSettings: {
 		advancedStealth: true, /* Only available on Scale Plans */
         blockAds: true, /* To Block Ad Popups (defaults to False) */
+        context: {
+          id: "<context-id>", /* The Browserbase Context ID. Will be a 36 character uuid. */
+          persist: true, /* Whether or not to persist the context after browsing. Defaults to false. */
+        },
         viewport: { // Browser Size (ie 1920x1080, 1024x768)
           width: 1024,
           height: 768,
@@ -126,6 +130,10 @@ stagehand = Stagehand(
         "browser_settings": {
             "advanced_stealth": True,  # Only available on Scale Plans
             "block_ads": True,  # To Block Ad Popups (defaults to False)
+            "context": {
+              "id": "<context-id>",  # The Browserbase Context ID. Will be a 36 character uuid.
+              "persist": True,  # Whether or not to persist the context after browsing. Defaults to false.
+            },
             "viewport": {  # Browser Size (ie 1920x1080, 1024x768)
                 "width": 1024,
                 "height": 768,

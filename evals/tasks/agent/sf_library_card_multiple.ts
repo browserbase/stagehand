@@ -6,16 +6,10 @@ export const sf_library_card_multiple: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     await stagehand.page.goto("https://sflib1.sfpl.org/selfreg");
-
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. The current page is ${await stagehand.page.title()}`,
-    });
 
     const agentResult = await agent.execute({
       instruction:
@@ -27,7 +21,6 @@ export const sf_library_card_multiple: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.evaluate({
       question: "Does the page show all the required fields filled?",
-      strictResponse: true,
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {

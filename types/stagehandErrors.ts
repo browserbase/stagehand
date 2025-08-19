@@ -1,4 +1,4 @@
-import { ZodError } from "zod";
+import { ZodError } from "zod/v3";
 import { STAGEHAND_VERSION } from "../lib/version.js";
 
 export class StagehandError extends Error {
@@ -227,5 +227,29 @@ ${JSON.stringify(issues, null, 2)}`);
 export class StagehandInitError extends StagehandError {
   constructor(message: string) {
     super(message);
+  }
+}
+
+export class StagehandShadowRootMissingError extends StagehandError {
+  constructor(detail?: string) {
+    super(
+      `No shadow root present on the resolved host` +
+        (detail ? `: ${detail}` : ""),
+    );
+  }
+}
+
+export class StagehandShadowSegmentEmptyError extends StagehandError {
+  constructor() {
+    super(`Empty selector segment after shadow-DOM hop ("//")`);
+  }
+}
+
+export class StagehandShadowSegmentNotFoundError extends StagehandError {
+  constructor(segment: string, hint?: string) {
+    super(
+      `Shadow segment '${segment}' matched no element inside shadow root` +
+        (hint ? ` ${hint}` : ""),
+    );
   }
 }

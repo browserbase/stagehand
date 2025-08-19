@@ -9,7 +9,7 @@ description: "Configure your browser automation with command-line flags, environ
 The Browserbase MCP server supports extensive configuration options through command-line flags and environment variables. Configure browser behavior, proxy settings, stealth modes, model selection, and more to customize your browser automation workflows.
 
 <Note>
-Command-line flags are only available when running the server locally (`npx @browserbasehq/mcp` with flags or local development setup).
+Command-line flags are only available when running the server locally (`npx @browserbasehq/mcp-server-browserbase` with flags or local development setup).
 </Note>
 
 ## Environment Variables
@@ -75,7 +75,7 @@ When using our remote hosted server, we provide the LLM costs for Gemini, the [b
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp"],
+      "args": ["@browserbasehq/mcp-server-browserbase"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "BROWSERBASE_PROJECT_ID": "your_project_id",
@@ -143,7 +143,7 @@ Enable Browserbase proxies for IP rotation and geo-location testing.
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp", "--proxies"],
+      "args": ["@browserbasehq/mcp-server-browserbase", "--proxies"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "BROWSERBASE_PROJECT_ID": "your_project_id",
@@ -169,7 +169,7 @@ Enable advanced anti-detection features for enhanced stealth browsing.
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp", "--advancedStealth"],
+      "args": ["@browserbasehq/mcp-server-browserbase", "--advancedStealth"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "BROWSERBASE_PROJECT_ID": "your_project_id",
@@ -193,7 +193,7 @@ Use persistent browser contexts to maintain authentication and state across sess
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp", "--contextId", "your_context_id"],
+      "args": ["@browserbasehq/mcp-server-browserbase", "--contextId", "your_context_id"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "BROWSERBASE_PROJECT_ID": "your_project_id"
@@ -217,7 +217,7 @@ Customize browser window dimensions. Default is 1024x768. Recommended aspect rat
     "browserbase": {
       "command": "npx",
       "args": [
-        "@browserbasehq/mcp",
+        "@browserbasehq/mcp-server-browserbase",
         "--browserWidth", "1920",
         "--browserHeight", "1080"
       ],
@@ -250,7 +250,7 @@ Cookies must be in [Playwright Cookie format](https://playwright.dev/docs/api/cl
     "browserbase": {
       "command": "npx",
       "args": [
-        "@browserbasehq/mcp",
+        "@browserbasehq/mcp-server-browserbase",
         "--cookies",
         "[{\"name\": \"session\", \"value\": \"abc123\", \"domain\": \".example.com\", \"path\": \"/\", \"httpOnly\": true, \"secure\": true}]"
       ],
@@ -303,7 +303,7 @@ When using any custom model (non-default), you must provide your own API key for
     "browserbase": {
       "command": "npx",
       "args": [
-        "@browserbasehq/mcp",
+        "@browserbasehq/mcp-server-browserbase",
         "--modelName", "openai/gpt-4o",
         "--modelApiKey", "your_openai_api_key"
       ],
@@ -322,7 +322,7 @@ When using any custom model (non-default), you must provide your own API key for
     "browserbase": {
       "command": "npx",
       "args": [
-        "@browserbasehq/mcp",
+        "@browserbasehq/mcp-server-browserbase",
         "--modelName", "anthropic/claude-3-5-sonnet-latest",
         "--modelApiKey", "your_anthropic_api_key"
       ],
@@ -349,7 +349,7 @@ Enable detailed logging for troubleshooting and development.
   "mcpServers": {
     "browserbase": {
       "command": "npx",
-      "args": ["@browserbasehq/mcp"],
+      "args": ["@browserbasehq/mcp-server-browserbase"],
       "env": {
         "BROWSERBASE_API_KEY": "your_api_key",
         "BROWSERBASE_PROJECT_ID": "your_project_id",
@@ -371,7 +371,7 @@ Configure custom host and port for SHTTP transport.
     "browserbase": {
       "command": "npx",
       "args": [
-        "@browserbasehq/mcp",
+        "@browserbasehq/mcp-server-browserbase",
         "--host", "0.0.0.0",
         "--port", "8080"
       ],

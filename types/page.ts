@@ -3,7 +3,7 @@ import type {
   BrowserContext as PlaywrightContext,
   Page as PlaywrightPage,
 } from "playwright";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type {
   ActOptions,
   ActResult,

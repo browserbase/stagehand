@@ -8,7 +8,7 @@
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/stagehand.config";
 import { AISdkClient } from "./external_clients/aisdk";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { openai } from "@ai-sdk/openai";
 
 async function example() {

@@ -1,4 +1,4 @@
-import { ZodFirstPartyTypeKind as Kind, z } from "zod";
+import { ZodFirstPartyTypeKind as Kind, z } from "zod/v3";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
 import { ZodPathSegments } from "../types/stagehand";

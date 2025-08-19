@@ -18,6 +18,7 @@ import {
 } from "@browserbasehq/stagehand";
 import { EvalLogger } from "./logger";
 import type { StagehandInitResult } from "@/types/evals";
+import type { AgentConfig } from "@/dist";
 import { AvailableModel } from "@browserbasehq/stagehand";
 
 /**
@@ -48,6 +49,7 @@ const StagehandConfig = {
       },
     },
   },
+  selfHeal: true,
 };
 
 /**
@@ -103,6 +105,19 @@ export const initStagehand = async ({
   // Set navigation timeout to 60 seconds for evaluations
   stagehand.context.setDefaultNavigationTimeout(60_000);
 
+  const isCUAModel = (model: string): boolean =>
+    model.includes("computer-use-preview") || model.startsWith("claude");
+
+  let agentConfig: AgentConfig | undefined;
+  if (isCUAModel(modelName)) {
+    agentConfig = {
+      model: modelName,
+      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
+    } as AgentConfig;
+  }
+
+  const agent = stagehand.agent(agentConfig);
+
   return {
     stagehand,
     stagehandConfig: config,
@@ -110,5 +125,6 @@ export const initStagehand = async ({
     debugUrl,
     sessionUrl,
     modelName,
+    agent,
   };
 };

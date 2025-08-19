@@ -145,3 +145,9 @@ export type ResponseInputItem =
       call_id: string;
       output: string;
     };
+
+export interface AgentInstance {
+  execute: (
+    instructionOrOptions: string | AgentExecuteOptions,
+  ) => Promise<AgentResult>;
+}

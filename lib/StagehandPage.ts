@@ -1,8 +1,7 @@
 import "./debug";
-import { Browserbase } from "@browserbasehq/sdk";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
-import { chromium } from "playwright";
-import { z } from "zod";
+import { selectors } from "playwright";
+import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
 import {
   ExtractOptions,
@@ -24,17 +23,25 @@ import {
   StagehandNotInitializedError,
   StagehandEnvironmentError,
   CaptchaTimeoutError,
-  BrowserbaseSessionNotFoundError,
   MissingLLMConfigurationError,
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
-  ExperimentalNotConfiguredError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
 import { markStagehandCDPCall } from "./debug";
+
+async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
+  const { frameTree } = (await session.send(
+    "Page.getFrameTree",
+  )) as Protocol.Page.GetFrameTreeResponse;
+  return frameTree.frame.id;
+}
+
+/** ensure we register the custom selector only once per process */
+let stagehandSelectorRegistered = false;
 
 export class StagehandPage {
   private stagehand: Stagehand;
@@ -57,6 +64,16 @@ export class StagehandPage {
   private fidOrdinals: Map<string | undefined, number> = new Map([
     [undefined, 0],
   ]);
+
+  private rootFrameId!: string;
+
+  public get frameId(): string {
+    return this.rootFrameId;
+  }
+
+  public updateRootFrameId(newId: string): void {
+    this.rootFrameId = newId;
+  }
 
   constructor(
     page: PlaywrightPage,
@@ -108,18 +125,21 @@ export class StagehandPage {
         logger: this.stagehand.logger,
         stagehandPage: this,
         selfHeal: this.stagehand.selfHeal,
+        experimental: this.stagehand.experimental,
       });
       this.extractHandler = new StagehandExtractHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        experimental: this.stagehand.experimental,
       });
       this.observeHandler = new StagehandObserveHandler({
         stagehand: this.stagehand,
         logger: this.stagehand.logger,
         stagehandPage: this,
         userProvidedInstructions,
+        experimental: this.stagehand.experimental,
       });
     }
   }
@@ -177,38 +197,111 @@ ${scriptContent} \
     }
   }
 
-  private async _refreshPageFromAPI() {
-    if (!this.api) return;
+  /** Register the custom selector engine that pierces open/closed shadow roots. */
+  private async ensureStagehandSelectorEngine(): Promise<void> {
+    if (stagehandSelectorRegistered) return;
+    stagehandSelectorRegistered = true;
 
-    const sessionId = this.stagehand.browserbaseSessionID;
-    if (!sessionId) {
-      throw new BrowserbaseSessionNotFoundError();
-    }
+    await selectors.register("stagehand", () => {
+      type Backdoor = {
+        getClosedRoot?: (host: Element) => ShadowRoot | undefined;
+      };
 
-    const browserbase = new Browserbase({
-      apiKey: this.stagehand["apiKey"] ?? process.env.BROWSERBASE_API_KEY,
+      function parseSelector(input: string): { name: string; value: string } {
+        // Accept either:  "abc123"  → uses DEFAULT_ATTR
+        // or explicitly:  "data-__stagehand-id=abc123"
+        const raw = input.trim();
+        const eq = raw.indexOf("=");
+        if (eq === -1) {
+          return {
+            name: "data-__stagehand-id",
+            value: raw.replace(/^["']|["']$/g, ""),
+          };
+        }
+        const name = raw.slice(0, eq).trim();
+        const value = raw
+          .slice(eq + 1)
+          .trim()
+          .replace(/^["']|["']$/g, "");
+        return { name, value };
+      }
+
+      function pushChildren(node: Node, stack: Node[]): void {
+        if (node.nodeType === Node.DOCUMENT_NODE) {
+          const de = (node as Document).documentElement;
+          if (de) stack.push(de);
+          return;
+        }
+
+        if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+          const frag = node as DocumentFragment;
+          const hc = frag.children as HTMLCollection | undefined;
+          if (hc && hc.length) {
+            for (let i = hc.length - 1; i >= 0; i--)
+              stack.push(hc[i] as Element);
+          } else {
+            const cn = frag.childNodes;
+            for (let i = cn.length - 1; i >= 0; i--) stack.push(cn[i]);
+          }
+          return;
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element;
+          for (let i = el.children.length - 1; i >= 0; i--)
+            stack.push(el.children[i]);
+        }
+      }
+
+      function* traverseAllTrees(
+        start: Node,
+      ): Generator<Element, void, unknown> {
+        const backdoor = window.__stagehand__ as Backdoor | undefined;
+        const stack: Node[] = [];
+
+        if (start.nodeType === Node.DOCUMENT_NODE) {
+          const de = (start as Document).documentElement;
+          if (de) stack.push(de);
+        } else {
+          stack.push(start);
+        }
+
+        while (stack.length) {
+          const node = stack.pop()!;
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as Element;
+            yield el;
+
+            // open shadow
+            const open = el.shadowRoot as ShadowRoot | null;
+            if (open) stack.push(open);
+
+            // closed shadow via backdoor
+            const closed = backdoor?.getClosedRoot?.(el);
+            if (closed) stack.push(closed);
+          }
+          pushChildren(node, stack);
+        }
+      }
+
+      return {
+        query(root: Node, selector: string): Element | null {
+          const { name, value } = parseSelector(selector);
+          for (const el of traverseAllTrees(root)) {
+            if (el.getAttribute(name) === value) return el;
+          }
+          return null;
+        },
+        queryAll(root: Node, selector: string): Element[] {
+          const { name, value } = parseSelector(selector);
+          const out: Element[] = [];
+          for (const el of traverseAllTrees(root)) {
+            if (el.getAttribute(name) === value) out.push(el);
+          }
+          return out;
+        },
+      };
     });
-
-    const sessionStatus = await browserbase.sessions.retrieve(sessionId);
-
-    const connectUrl = sessionStatus.connectUrl;
-    const browser = await chromium.connectOverCDP(connectUrl);
-    const context = browser.contexts()[0];
-    const newPage = context.pages()[0];
-
-    const newStagehandPage = await new StagehandPage(
-      newPage,
-      this.stagehand,
-      this.intContext,
-      this.llmClient,
-      this.userProvidedInstructions,
-      this.api,
-    ).init();
-
-    this.intPage = newStagehandPage.page;
-
-    await this.intPage.waitForLoadState("domcontentloaded");
-    await this._waitForSettledDom();
   }
 
   /**
@@ -354,12 +447,13 @@ ${scriptContent} \
           // Handle goto specially
           if (prop === "goto") {
             return async (url: string, options: GotoOptions) => {
-              this.intContext.setActivePage(this);
 
-              // Use the raw page directly for navigation
               const result = this.api
-                ? await this.api.goto(url, options)
-                : await target.goto(url, options);
+                ? await this.api.goto(url, {
+                    ...options,
+                    frameId: this.rootFrameId,
+                  })
+                : await rawGoto(url, options);
 
               this.stagehand.addToHistory("navigate", { url, options }, result);
 
@@ -371,37 +465,18 @@ ${scriptContent} \
                 }
               }
 
-              if (this.api) {
-                await this._refreshPageFromAPI();
-              } else {
-                if (stagehand.debugDom) {
-                  this.stagehand.log({
-                    category: "deprecation",
-                    message:
-                      "Warning: debugDom is not supported in this version of Stagehand",
-                    level: 1,
-                  });
-                }
-                await target.waitForLoadState("domcontentloaded");
-                // Skip DOM settling during initial navigation
-                if (this.initialized) {
-                  try {
-                    await this._waitForSettledDom();
-                  } catch (err) {
-                    this.stagehand.log({
-                      category: "navigation",
-                      message: "Failed to wait for settled DOM, continuing",
-                      level: 2,
-                      auxiliary: {
-                        error: {
-                          value: (err as Error).message,
-                          type: "string",
-                        },
-                      },
-                    });
-                  }
-                }
+
+              if (this.stagehand.debugDom) {
+                this.stagehand.log({
+                  category: "deprecation",
+                  message:
+                    "Warning: debugDom is not supported in this version of Stagehand",
+                  level: 1,
+                });
               }
+              await target.waitForLoadState("domcontentloaded");
+              await this._waitForSettledDom();
+
               return result;
             };
           }
@@ -443,7 +518,18 @@ ${scriptContent} \
         },
       };
 
+      const session = await this.getCDPClient(this.rawPage);
+      await session.send("Page.enable");
+
+      const rootId = await getCurrentRootFrameId(session);
+      this.updateRootFrameId(rootId);
+      this.intContext.registerFrameId(rootId, this);
+
       this.intPage = new Proxy(page, handler) as unknown as Page;
+
+      // Ensure backdoor and selector engine are ready up front
+      await this.ensureStagehandSelectorEngine();
+
       this.initialized = true;
       return this;
     } catch (err: unknown) {
@@ -645,16 +731,15 @@ ${scriptContent} \
       // If actionOrOptions is an ObserveResult, we call actFromObserveResult.
       // We need to ensure there is both a selector and a method in the ObserveResult.
       if (typeof actionOrOptions === "object" && actionOrOptions !== null) {
-        if ("iframes" in actionOrOptions && !this.stagehand.experimental) {
-          throw new ExperimentalNotConfiguredError("iframes");
-        }
         // If it has selector AND method => treat as ObserveResult
         if ("selector" in actionOrOptions && "method" in actionOrOptions) {
           const observeResult = actionOrOptions as ObserveResult;
 
           if (this.api) {
-            const result = await this.api.act(observeResult);
-            await this._refreshPageFromAPI();
+            const result = await this.api.act({
+              ...observeResult,
+              frameId: this.rootFrameId,
+            });
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
           }
@@ -685,8 +770,8 @@ ${scriptContent} \
       const { action, modelName, modelClientOptions } = actionOrOptions;
 
       if (this.api) {
-        const result = await this.api.act(actionOrOptions);
-        await this._refreshPageFromAPI();
+        const opts = { ...actionOrOptions, frameId: this.rootFrameId };
+        const result = await this.api.act(opts);
         this.stagehand.addToHistory("act", actionOrOptions, result);
         return result;
       }
@@ -746,7 +831,7 @@ ${scriptContent} \
       if (!instructionOrOptions) {
         let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({});
+          result = await this.api.extract<T>({ frameId: this.rootFrameId });
         } else {
           result = await this.extractHandler.extract();
         }
@@ -778,12 +863,9 @@ ${scriptContent} \
         iframes,
       } = options;
 
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
-
       if (this.api) {
-        const result = await this.api.extract<T>(options);
+        const opts = { ...options, frameId: this.rootFrameId };
+        const result = await this.api.extract<T>(opts);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
         return result;
       }
@@ -885,12 +967,9 @@ ${scriptContent} \
         iframes,
       } = options;
 
-      if (iframes !== undefined && !this.stagehand.experimental) {
-        throw new ExperimentalNotConfiguredError("iframes");
-      }
-
       if (this.api) {
-        const result = await this.api.observe(options);
+        const opts = { ...options, frameId: this.rootFrameId };
+        const result = await this.api.observe(opts);
         this.stagehand.addToHistory("observe", instructionOrOptions, result);
         return result;
       }

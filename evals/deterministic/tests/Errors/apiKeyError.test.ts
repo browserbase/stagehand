@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 test.describe("API key/LLMClient error", () => {
   test("Should confirm that we get an error if we call extract without LLM API key or LLMClient", async () => {

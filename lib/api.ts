@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import zodToJsonSchema from "zod-to-json-schema";
 import {
   ApiResponse,
@@ -123,7 +123,7 @@ export class StagehandAPI {
     if (!options.schema) {
       return this.execute<ExtractResult<T>>({
         method: "extract",
-        args: {},
+        args: { ...options },
       });
     }
     const parsedSchema = zodToJsonSchema(options.schema);

@@ -11,6 +11,59 @@ For Stagehand's Cursor rules, check out [this file](https://github.com/browserba
 
 If you're using Windsurf, you can use the same rules by adding them to your `.windsurfrules` file.
 
+### Manage multiple pages explicitly (Stagehand v≥ 2.4.1, TypeScript)
+<Tabs>
+<Tab title="TypeScript">
+Stagehand can now keep **multiple pages open at the same time** and run
+`act()`, `observe()` and `extract()` on each of them.
+
+#### What changed?
+
+* **Before v2.4.1** Stagehand silently closed every new tab and re‑used the first tab.
+  A single Page instance (`stagehand.page`) was always valid.
+* **Since v2.4.1** New tabs stay open. You can switch between them or operate on all of them in parallel.
+
+#### The live‑page proxy (`stagehand.page`)
+
+For backward compatibility, `stagehand.page` is now a **live proxy** that always
+points to the **most recently opened page**.
+We recommend using it for things like agents, which often don't have the ability to operate on multiple pages.
+If you need more control and precision, we recommend managing pages yourself.
+
+#### Recommended workflow
+<CodeGroup>
+```typescript TypeScript
+// Create (or let the site create) additional pages.
+await stagehand.context.newPage(); // e.g. open a blank page
+const pages = stagehand.context.pages();
+
+const [page1, page2] = pages;
+
+// Work on each page deterministically
+await page1.goto('https://github.com/browserbase/stagehand');
+await page2.goto('https://github.com/browserbase/stagehand-python');
+
+const [{ extraction: repo1 }, { extraction: repo2 }] = await Promise.all([
+    page1.extract('extract the repository name'),
+    page2.extract('extract the repository name'),
+]);
+
+// should log "page1 repo: stagehand"
+console.log(`page1 repo: ${repo1}`);
+
+// should log "page2 repo: stagehand-python"
+console.log(`page2 repo: ${repo2}`);
+```
+</CodeGroup>
+</Tab>
+<Tab title="Python">
+<Tip>
+Multi tab support is not yet implemented in Python, but it's coming soon!
+Setting `use_api=True` in your stagehand config will keep tabs open.
+</Tip>
+</Tab>
+</Tabs>
+
 ### Avoid sending sensitive information to LLMs
 
 You can use `variables` in an `act` call to avoid sending sensitive information to LLMs.

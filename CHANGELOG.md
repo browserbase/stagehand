@@ -1,5 +1,55 @@
 # @browserbasehq/stagehand
 
+## 2.4.3
+
+### Patch Changes
+
+- [#951](https://github.com/browserbase/stagehand/pull/951) [`f45afdc`](https://github.com/browserbase/stagehand/commit/f45afdccc8680650755fee66ffbeac32b41e075d) Thanks [@miguelg719](https://github.com/miguelg719)! - Patch GPT-5 new api format
+
+- [#954](https://github.com/browserbase/stagehand/pull/954) [`261bba4`](https://github.com/browserbase/stagehand/commit/261bba43fa79ac3af95328e673ef3e9fced3279b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for shadow DOMs (open & closed mode) when experimental: true
+
+- [#944](https://github.com/browserbase/stagehand/pull/944) [`8de7bd8`](https://github.com/browserbase/stagehand/commit/8de7bd8635c2051cd8025e365c6c8aa83d81c7e7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Bump zod version compatibility and add pathing spec
+
+- [#919](https://github.com/browserbase/stagehand/pull/919) [`3d80421`](https://github.com/browserbase/stagehand/commit/3d804210a106a6828c7fa50f8b765b10afd4cc6a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable scrolling inside of iframes
+
+- [#963](https://github.com/browserbase/stagehand/pull/963) [`0ead63d`](https://github.com/browserbase/stagehand/commit/0ead63d6526f6c286362b74b6407c8bebc900e69) Thanks [@tkattkat](https://github.com/tkattkat)! - Properly handle images in evaluator + clean up response parsing logic
+
+- [#961](https://github.com/browserbase/stagehand/pull/961) [`8422828`](https://github.com/browserbase/stagehand/commit/8422828c4cd5fd5ebcf348cfbdb40c768bb76dd9) Thanks [@tkattkat](https://github.com/tkattkat)! - Add more evals for stagehand agent
+
+- [#946](https://github.com/browserbase/stagehand/pull/946) [`b769206`](https://github.com/browserbase/stagehand/commit/b7692060f98a2f49aeeefb90d8789ed034b08ec2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: unable to act on/get content from some same process iframes
+
+- [#962](https://github.com/browserbase/stagehand/pull/962) [`72d2683`](https://github.com/browserbase/stagehand/commit/72d2683202af7e578d98367893964b33e0828de5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle namespaced elements in xpath build step
+
+## 2.4.2
+
+### Patch Changes
+
+- [#865](https://github.com/browserbase/stagehand/pull/865) [`6b4e6e3`](https://github.com/browserbase/stagehand/commit/6b4e6e3f31d5496cf15728e9018eddeb04839542) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - improve type safety for trimTrailingTextNode
+
+- [#897](https://github.com/browserbase/stagehand/pull/897) [`e77d018`](https://github.com/browserbase/stagehand/commit/e77d0188683ebf596dfb78dfafbbca1dc32993f0) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix selfHeal to remember intially received arguments
+
+- [#920](https://github.com/browserbase/stagehand/pull/920) [`c20adb9`](https://github.com/browserbase/stagehand/commit/c20adb95539fed8c56a4aa413262a9c65a8e6474) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: tab handling on API
+
+- [#882](https://github.com/browserbase/stagehand/pull/882) [`b86df93`](https://github.com/browserbase/stagehand/commit/b86df93b9136aae96292121a29c25f3d74d84bf7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - remove elements that don't have xpaths from observe response
+
+- [#905](https://github.com/browserbase/stagehand/pull/905) [`023c2c2`](https://github.com/browserbase/stagehand/commit/023c2c273b46d3792d7e5d3c902089487b16b531) Thanks [@tkattkat](https://github.com/tkattkat)! - Delete old images from anthropic cua client
+
+- [#925](https://github.com/browserbase/stagehand/pull/925) [`8c28647`](https://github.com/browserbase/stagehand/commit/8c2864755ecd05c8f7de235d4198deec0dd5f78e) Thanks [@miguelg719](https://github.com/miguelg719)! - Remove \_refreshPageFromApi()
+
+- [#887](https://github.com/browserbase/stagehand/pull/887) [`87e09c6`](https://github.com/browserbase/stagehand/commit/87e09c618940f364ec8af00455a19a17ec63cbd3) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: allow xpaths with prepended 'xpath=' for targeted extract
+
+- [#864](https://github.com/browserbase/stagehand/pull/864) [`a611115`](https://github.com/browserbase/stagehand/commit/a61111525d70b450bdfc43f112380f44899c9e97) Thanks [@miguelg719](https://github.com/miguelg719)! - Temporarily patch custom clients serialization error on api
+
+- [#881](https://github.com/browserbase/stagehand/pull/881) [`69913fe`](https://github.com/browserbase/stagehand/commit/69913fe1dfb8201ae2aeffa5f049fb46ab02cbc2) Thanks [@miguelg719](https://github.com/miguelg719)! - Pass sdk version number to API for debugging
+
+- [#913](https://github.com/browserbase/stagehand/pull/913) [`b1b83a1`](https://github.com/browserbase/stagehand/commit/b1b83a1d334fe76e5f5f9dd32dc92c16b7d40ce6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - move iframe out of 'experimental'
+
+- [#891](https://github.com/browserbase/stagehand/pull/891) [`be8497c`](https://github.com/browserbase/stagehand/commit/be8497cb6b142cc893cea9692b8c47bd19514c60) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: nested iframe xpath bug
+
+- [#883](https://github.com/browserbase/stagehand/pull/883) [`98704c9`](https://github.com/browserbase/stagehand/commit/98704c9ed225ca25bbde4bb3dc286936e9c54471) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add timeout for JS click
+
+- [#907](https://github.com/browserbase/stagehand/pull/907) [`04978bd`](https://github.com/browserbase/stagehand/commit/04978bdd30d2edcbc69eb9fd91358a16975ea2eb) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - store mapping of CDP frame ID -> page
+
 ## 2.4.1
 
 ### Patch Changes

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { EvalFunction } from "../../types/evals";
 
 export const extract_zillow: EvalFunction = async ({
