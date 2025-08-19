@@ -2,14 +2,15 @@ import {
   CoreAssistantMessage,
   CoreMessage,
   CoreSystemMessage,
-  CoreTool,
   CoreUserMessage,
   generateObject,
   generateText,
+  streamText,
   ImagePart,
   LanguageModel,
   NoObjectGeneratedError,
   TextPart,
+  ToolSet,
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 import { LogLine } from "../../types/log";
@@ -157,8 +158,29 @@ export class AISdkClient extends LLMClient {
       };
     });
 
-    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
+
+    if (options.stream) {
+      const stream = streamText({
+        model: this.model,
+        messages: formattedMessages,
+        temperature: options.temperature,
+        tools: options.tools as unknown as ToolSet,
+        maxSteps: options.maxSteps,
+        providerOptions: isGPT5
+          ? {
+              openai: {
+                textVerbosity: "low",
+                reasoningEffort: "minimal",
+              },
+            }
+          : undefined,
+      });
+
+      return stream as unknown as T;
+    }
+
+    let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -265,20 +287,11 @@ export class AISdkClient extends LLMClient {
       return result;
     }
 
-    const tools: Record<string, CoreTool> = {};
-
-    for (const rawTool of options.tools ?? []) {
-      tools[rawTool.name] = {
-        description: rawTool.description,
-        parameters: rawTool.parameters,
-      };
-    }
-
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
       temperature: options.temperature,
-      tools,
+      tools: options.tools as unknown as ToolSet,
     });
 
     const result = {

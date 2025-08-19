@@ -60,6 +60,8 @@ export interface ChatCompletionOptions {
   tool_choice?: "auto" | "none" | "required";
   maxTokens?: number;
   requestId?: string;
+  maxSteps?: number;
+  stream?: boolean;
 }
 
 export type LLMResponse = {
