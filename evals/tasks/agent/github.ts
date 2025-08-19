@@ -47,9 +47,7 @@ export const github: EvalFunction = async ({
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
-    } as unknown as ReturnType<EvalFunction> extends Promise<infer R>
-      ? R
-      : never;
+    };
   } finally {
     await stagehand.close();
   }
