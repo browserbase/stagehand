@@ -1,5 +1,6 @@
 import { LaunchedChrome } from "chrome-launcher";
 import Browserbase from "@browserbasehq/sdk";
+import { Page } from "./understudy/page";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -45,9 +46,9 @@ export type ActParams = {
   page?: PlaywrightPage | PuppeteerPage;
 };
 
-export interface ActHandlderParams {
+export interface ActHandlerParams {
   instruction: string;
-  frameId?: string;
+  page: Page;
 }
 
 export type ExtractParams = {
@@ -57,7 +58,7 @@ export type ExtractParams = {
 
 export interface ExtractHandlerParams {
   instruction: string;
-  frameId?: string;
+  page: Page;
 }
 
 export type ObserveParams = {
@@ -65,7 +66,7 @@ export type ObserveParams = {
   page?: PlaywrightPage | PuppeteerPage;
 };
 
-export interface ObserveHandlderParams {
+export interface ObserveHandlerParams {
   instruction: string;
-  frameId?: string;
+  page: Page;
 }

@@ -1,13 +1,9 @@
-import { ObserveHandlderParams } from "@/lib/v3/types";
+import { ObserveHandlerParams } from "@/lib/v3/types";
 
 export class ObserveHandler {
-  async observe(params: ObserveHandlderParams): Promise<void> {
-    const { instruction, frameId } = params;
+  async observe(params: ObserveHandlerParams): Promise<void> {
+    const { instruction, page } = params;
     console.log(`[ObserveHandler] instruction: ${instruction}`);
-    if (frameId) {
-      console.log(`[ObserveHandler] frameId: ${frameId}`);
-    } else {
-      console.log("[ObserveHandler] no frameId provided");
-    }
+    console.log(`[ObserveHandler] main frame ID: ${page.mainFrame().frameId}`);
   }
 }

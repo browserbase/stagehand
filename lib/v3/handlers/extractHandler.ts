@@ -2,12 +2,8 @@ import { ExtractHandlerParams } from "@/lib/v3/types";
 
 export class ExtractHandler {
   async extract(params: ExtractHandlerParams): Promise<void> {
-    const { instruction, frameId } = params;
+    const { instruction, page } = params;
     console.log(`[ExtractHandler] instruction: ${instruction}`);
-    if (frameId) {
-      console.log(`[ExtractHandler] frameId: ${frameId}`);
-    } else {
-      console.log("[ExtractHandler] no frameId provided");
-    }
+    console.log(`[ExtractHandler] frame ID: ${page.mainFrame().frameId}`);
   }
 }

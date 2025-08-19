@@ -8,15 +8,16 @@ import {
   PlaywrightPage,
   PuppeteerPage,
   ActParams,
-  ActHandlderParams,
+  ActHandlerParams,
   ExtractHandlerParams,
   ExtractParams,
   ObserveParams,
-  ObserveHandlderParams,
+  ObserveHandlerParams,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
+import { V3Context } from "@/lib/v3/understudy/context";
 
 export class V3 {
   private readonly opts: V3Options;
@@ -24,6 +25,7 @@ export class V3 {
   private actHandler: ActHandler | null = null;
   private extractHandler: ExtractHandler | null = null;
   private observeHandler: ObserveHandler | null = null;
+  private ctx: V3Context | null = null;
 
   constructor(opts: V3Options) {
     this.opts = opts;
@@ -61,9 +63,13 @@ export class V3 {
     const frameId = params.page
       ? await this.resolveTopFrameId(params.page)
       : undefined;
-    const handlerParams: ActHandlderParams = {
+
+    const page = frameId
+      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      : undefined;
+    const handlerParams: ActHandlerParams = {
       instruction: params.instruction,
-      frameId: frameId,
+      page,
     };
     return this.actHandler.act(handlerParams);
   }
@@ -76,9 +82,12 @@ export class V3 {
       ? await this.resolveTopFrameId(params.page)
       : undefined;
 
+    const page = frameId
+      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      : undefined;
     const handlerParams: ExtractHandlerParams = {
       instruction: params.instruction,
-      frameId: frameId,
+      page,
     };
     return this.extractHandler.extract(handlerParams);
   }
@@ -91,9 +100,13 @@ export class V3 {
       ? await this.resolveTopFrameId(params.page)
       : undefined;
 
-    const handlerParams: ObserveHandlderParams = {
+    const page = frameId
+      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      : undefined;
+
+    const handlerParams: ObserveHandlerParams = {
       instruction: params.instruction,
-      frameId: frameId,
+      page,
     };
 
     return this.observeHandler.observe(handlerParams);
@@ -109,15 +122,12 @@ export class V3 {
 
   /** Best-effort cleanup. */
   async close(): Promise<void> {
+    await this.ctx?.close();
     if (this.state.kind === "LOCAL") {
       await this.state.chrome.kill();
-      this.state = { kind: "UNINITIALIZED" };
-      return;
     }
-
-    if (this.state.kind === "BROWSERBASE") {
-      this.state = { kind: "UNINITIALIZED" };
-    }
+    this.state = { kind: "UNINITIALIZED" };
+    this.ctx = null;
   }
 
   private async initLocal(): Promise<{ ws: string; chrome: LaunchedChrome }> {
@@ -142,6 +152,7 @@ export class V3 {
 
     const timeoutMs = this.opts.connectTimeoutMs ?? 15_000;
     const ws = await this.waitForWebSocketDebuggerUrl(chrome.port, timeoutMs);
+    this.ctx = await V3Context.create(ws);
     return { ws, chrome };
   }
 
@@ -169,7 +180,7 @@ export class V3 {
         "Browserbase session creation returned an unexpected shape.",
       );
     }
-
+    this.ctx = await V3Context.create(session.connectUrl);
     return { ws: session.connectUrl, sessionId: session.id, bb };
   }
 

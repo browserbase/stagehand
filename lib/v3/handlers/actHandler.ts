@@ -1,13 +1,9 @@
-import { ActHandlderParams } from "@/lib/v3/types";
+import { ActHandlerParams } from "@/lib/v3/types";
 
 export class ActHandler {
-  async act(params: ActHandlderParams): Promise<void> {
-    const { instruction, frameId } = params;
+  async act(params: ActHandlerParams): Promise<void> {
+    const { instruction, page } = params;
     console.log(`[ActHandler] instruction: ${instruction}`);
-    if (frameId) {
-      console.log(`[ActHandler] frameId: ${frameId}`);
-    } else {
-      console.log("[ActHandler] no frameId provided");
-    }
+    console.log(`[ActHandler] frame ID: ${page.mainFrame().frameId}`);
   }
 }
