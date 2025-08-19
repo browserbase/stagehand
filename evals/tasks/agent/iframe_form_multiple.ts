@@ -6,15 +6,10 @@ export const iframe_form_multiple: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
-
-    const agent = stagehand.agent({
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      model: modelName,
-    });
 
     const agentResult = await agent.execute({
       instruction:

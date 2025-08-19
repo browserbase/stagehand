@@ -1,7 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "@/evals/evaluator";
-
-export const kayak: EvalFunction = async ({
+export const github: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   stagehand,
@@ -9,33 +8,22 @@ export const kayak: EvalFunction = async ({
   agent,
 }) => {
   try {
+    await stagehand.page.goto("https://github.com/");
     const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://www.kayak.com");
-
-    await agent.execute({
-      instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: 15,
+    const agentResult = await agent.execute({
+      instruction:
+        "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
+      maxSteps: 14,
     });
-    await agent.execute({
-      instruction: "Sort the flights by price",
-      maxSteps: 5,
-    });
+    logger.log(agentResult);
 
-    if (stagehand.context.pages().length !== 2) {
-      return {
-        _success: false,
-        message: "No new pages were opened",
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
     const { evaluation, reasoning } = await evaluator.evaluate({
       question:
-        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
+        "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
     });
 
-    const success = evaluation === "YES";
+    const success = agentResult.success && evaluation === "YES";
+
     if (!success) {
       return {
         _success: false,
@@ -45,6 +33,7 @@ export const kayak: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
+
     return {
       _success: true,
       debugUrl,
@@ -54,7 +43,7 @@ export const kayak: EvalFunction = async ({
   } catch (error) {
     return {
       _success: false,
-      message: error.message,
+      error,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
