@@ -162,7 +162,7 @@ export interface ObserveResult {
   description: string;
   backendNodeId?: number;
   method?: string;
-  arguments?: string[];
+  arguments?: unknown[];
 }
 
 export interface LocalBrowserLaunchOptions {
