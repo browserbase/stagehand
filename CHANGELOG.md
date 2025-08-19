@@ -1,5 +1,25 @@
 # @browserbasehq/stagehand
 
+## 2.4.3
+
+### Patch Changes
+
+- [#951](https://github.com/browserbase/stagehand/pull/951) [`f45afdc`](https://github.com/browserbase/stagehand/commit/f45afdccc8680650755fee66ffbeac32b41e075d) Thanks [@miguelg719](https://github.com/miguelg719)! - Patch GPT-5 new api format
+
+- [#954](https://github.com/browserbase/stagehand/pull/954) [`261bba4`](https://github.com/browserbase/stagehand/commit/261bba43fa79ac3af95328e673ef3e9fced3279b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for shadow DOMs (open & closed mode) when experimental: true
+
+- [#944](https://github.com/browserbase/stagehand/pull/944) [`8de7bd8`](https://github.com/browserbase/stagehand/commit/8de7bd8635c2051cd8025e365c6c8aa83d81c7e7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Bump zod version compatibility and add pathing spec
+
+- [#919](https://github.com/browserbase/stagehand/pull/919) [`3d80421`](https://github.com/browserbase/stagehand/commit/3d804210a106a6828c7fa50f8b765b10afd4cc6a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable scrolling inside of iframes
+
+- [#963](https://github.com/browserbase/stagehand/pull/963) [`0ead63d`](https://github.com/browserbase/stagehand/commit/0ead63d6526f6c286362b74b6407c8bebc900e69) Thanks [@tkattkat](https://github.com/tkattkat)! - Properly handle images in evaluator + clean up response parsing logic
+
+- [#961](https://github.com/browserbase/stagehand/pull/961) [`8422828`](https://github.com/browserbase/stagehand/commit/8422828c4cd5fd5ebcf348cfbdb40c768bb76dd9) Thanks [@tkattkat](https://github.com/tkattkat)! - Add more evals for stagehand agent
+
+- [#946](https://github.com/browserbase/stagehand/pull/946) [`b769206`](https://github.com/browserbase/stagehand/commit/b7692060f98a2f49aeeefb90d8789ed034b08ec2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: unable to act on/get content from some same process iframes
+
+- [#962](https://github.com/browserbase/stagehand/pull/962) [`72d2683`](https://github.com/browserbase/stagehand/commit/72d2683202af7e578d98367893964b33e0828de5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle namespaced elements in xpath build step
+
 ## 2.4.2
 
 ### Patch Changes
