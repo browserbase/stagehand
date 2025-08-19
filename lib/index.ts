@@ -1,3 +1,4 @@
+import "./debug";
 import { Browserbase } from "@browserbasehq/sdk";
 import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";
@@ -27,6 +28,7 @@ import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
+import { markStagehandCDPCall } from "./debug";
 import { ClientOptions } from "../types/model";
 import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
@@ -828,8 +830,12 @@ export class Stagehand {
     });
 
     const session = await this.context.newCDPSession(this.page);
+
+    // Mark this as a Stagehand CDP call
+    markStagehandCDPCall("Browser.setDownloadBehavior");
+
     await session.send("Browser.setDownloadBehavior", {
-      behavior: "allow",
+      behavior: "allow" as const,
       downloadPath: this.downloadsPath,
       eventsEnabled: true,
     });

@@ -15,6 +15,7 @@ import {
 } from "../../types/context";
 import { StagehandPage } from "../StagehandPage";
 import { LogLine } from "../../types/log";
+import { markStagehandCDPCall } from "../debug";
 import {
   ContentFrameNotFoundError,
   StagehandDomProcessError,
@@ -149,10 +150,15 @@ export async function buildBackendIdMaps(
 
   try {
     // 1. full DOM tree
-    const { root } = (await session.send("DOM.getDocument", {
+    markStagehandCDPCall("DOM.getDocument");
+    const result = (await session.send("DOM.getDocument", {
       depth: -1,
       pierce: true,
-    })) as { root: DOMNode };
+    })) as {
+      root: DOMNode;
+    };
+
+    const { root } = result;
 
     // 2. pick start node + root frame-id
     let startNode: DOMNode = root;
@@ -499,7 +505,9 @@ export async function getCDPFrameId(
   try {
     const sess = await sp.context.newCDPSession(frame); // throws if detached
 
+    markStagehandCDPCall("Page.getFrameTree");
     const ownResp = (await sess.send("Page.getFrameTree")) as unknown;
+
     const { frameTree } = ownResp as { frameTree: CdpFrameTree };
 
     return frameTree.frame.id; // root of OOPIF
@@ -723,9 +731,12 @@ export async function getFrameRootBackendNodeId(
   }
 
   // Retrieve the DOM node that owns the frame via CDP
-  const { backendNodeId } = (await cdp.send("DOM.getFrameOwner", {
+  markStagehandCDPCall("DOM.getFrameOwner");
+  const frameOwnerResult = (await cdp.send("DOM.getFrameOwner", {
     frameId: fid,
   })) as FrameOwnerResult;
+
+  const { backendNodeId } = frameOwnerResult;
 
   return backendNodeId ?? null;
 }

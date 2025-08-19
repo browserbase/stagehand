@@ -1,3 +1,4 @@
+import "./debug";
 import type {
   BrowserContext as PlaywrightContext,
   CDPSession,

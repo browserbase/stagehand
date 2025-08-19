@@ -1,3 +1,4 @@
+import "./debug";
 import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
 import { selectors } from "playwright";
 import { z } from "zod/v3";
@@ -30,6 +31,7 @@ import {
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
 import type { Protocol } from "devtools-protocol";
+import { markStagehandCDPCall } from "./debug";
 
 async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   const { frameTree } = (await session.send(
@@ -447,6 +449,7 @@ ${scriptContent} \
             const rawGoto: typeof target.goto =
               Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
+
               const result = this.api
                 ? await this.api.goto(url, {
                     ...options,
@@ -463,6 +466,7 @@ ${scriptContent} \
                   // ignore
                 }
               }
+
 
               if (this.stagehand.debugDom) {
                 this.stagehand.log({
@@ -585,8 +589,13 @@ ${scriptContent} \
     const hasDoc = !!(await this.page.title().catch(() => false));
     if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
 
+    markStagehandCDPCall("Network.enable");
     await client.send("Network.enable");
+
+    markStagehandCDPCall("Page.enable");
     await client.send("Page.enable");
+
+    markStagehandCDPCall("Target.setAutoAttach");
     await client.send("Target.setAutoAttach", {
       autoAttach: true,
       waitForDebuggerOnStart: false,
@@ -1060,7 +1069,9 @@ ${scriptContent} \
     target: PlaywrightPage | Frame = this.page,
   ): Promise<CDPSession> {
     const cached = this.cdpClients.get(target);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
     try {
       const session = await this.context.newCDPSession(target);
@@ -1096,10 +1107,15 @@ ${scriptContent} \
   ): Promise<T> {
     const client = await this.getCDPClient(target ?? this.page);
 
-    return client.send(
+    // Mark this as a Stagehand CDP call
+    markStagehandCDPCall(method);
+
+    const result = (await client.send(
       method as Parameters<CDPSession["send"]>[0],
       params as Parameters<CDPSession["send"]>[1],
-    ) as Promise<T>;
+    )) as T;
+
+    return result;
   }
 
   /** Enable a CDP domain (e.g. `"Network"` or `"DOM"`) on the chosen target. */
