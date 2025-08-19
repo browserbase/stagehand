@@ -446,6 +446,8 @@ ${scriptContent} \
 
           // Handle goto specially
           if (prop === "goto") {
+            const rawGoto: typeof target.goto =
+              Object.getPrototypeOf(target).goto.bind(target);
             return async (url: string, options: GotoOptions) => {
 
               const result = this.api
