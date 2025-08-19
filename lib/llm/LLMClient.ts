@@ -12,6 +12,7 @@ import {
   embedMany,
   experimental_transcribe,
   experimental_generateSpeech,
+  ToolSet,
 } from "ai";
 
 export interface ChatMessage {
@@ -57,6 +58,7 @@ export interface ChatCompletionOptions {
     schema: ZodType;
   };
   tools?: LLMTool[];
+  aiSDKTools?: ToolSet;
   tool_choice?: "auto" | "none" | "required";
   maxTokens?: number;
   requestId?: string;

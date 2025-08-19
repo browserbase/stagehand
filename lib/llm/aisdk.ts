@@ -10,7 +10,6 @@ import {
   LanguageModel,
   NoObjectGeneratedError,
   TextPart,
-  ToolSet,
 } from "ai";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 import { LogLine } from "../../types/log";
@@ -165,7 +164,7 @@ export class AISdkClient extends LLMClient {
         model: this.model,
         messages: formattedMessages,
         temperature: options.temperature,
-        tools: options.tools as unknown as ToolSet,
+        tools: options.aiSDKTools,
         maxSteps: options.maxSteps,
         providerOptions: isGPT5
           ? {
@@ -291,7 +290,7 @@ export class AISdkClient extends LLMClient {
       model: this.model,
       messages: formattedMessages,
       temperature: options.temperature,
-      tools: options.tools as unknown as ToolSet,
+      tools: options.aiSDKTools,
     });
 
     const result = {
