@@ -488,45 +488,6 @@ export class StagehandOperatorHandler {
     };
   }
 
-  private async executeToolCalls(
-    toolCalls: Array<{
-      id: string;
-      type: string;
-      function: {
-        name: string;
-        arguments: string;
-      };
-    }>,
-  ): Promise<string> {
-    const results: string[] = [];
-
-    for (const toolCall of toolCalls) {
-      const toolName = toolCall.function.name;
-      const toolArgs = JSON.parse(toolCall.function.arguments);
-
-      const tool = this.allTools[toolName];
-      if (!tool) {
-        results.push(`Tool ${toolName} not found`);
-        continue;
-      }
-
-      try {
-        // Execute the tool function
-        const result = await tool.execute(toolArgs, {
-          toolCallId: toolCall.id,
-          messages: [],
-        });
-        results.push(JSON.stringify(result));
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        results.push(`Error executing tool ${toolName}: ${errorMessage}`);
-      }
-    }
-
-    return results.join("\n");
-  }
-
   private async getSummary(goal: string): Promise<string> {
     const requestId = "operator-summary";
     const summaryMessages = [
