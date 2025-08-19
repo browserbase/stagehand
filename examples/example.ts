@@ -17,9 +17,15 @@ async function example(v3: V3) {
   const pwBrowser = await chromium.connectOverCDP(wsEndpoint);
   const defaultContext = pwBrowser.contexts()[0];
   const page = defaultContext?.pages()[0];
-  await page.goto("https://google.com");
+  await page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/",
+  );
 
-  await v3.extract({ instruction: "yeeeeeeeee", page });
+  const [page2] = await Promise.all([
+    defaultContext.waitForEvent("page"), // resolves with the new Page object
+    page.locator("xpath=/html/body/button").click(), // action that triggers new tab
+  ]);
+  await v3.act({ instruction: "yeeeeeeeee", page: page2 });
 }
 
 (async () => {
