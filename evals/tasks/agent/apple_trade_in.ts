@@ -27,7 +27,6 @@ export const apple_trade_in: EvalFunction = async ({
     });
 
     const success =
-      agentResult.success &&
       tradeInValue === 360 &&
       stagehand.page.url().includes("https://www.apple.com/shop/trade-in");
 

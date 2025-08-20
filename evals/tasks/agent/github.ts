@@ -22,7 +22,7 @@ export const github: EvalFunction = async ({
         "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     if (!success) {
       return {

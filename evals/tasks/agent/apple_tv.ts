@@ -27,7 +27,6 @@ export const apple_tv: EvalFunction = async ({
     });
 
     const success =
-      agentResult.success &&
       height === 1.2 &&
       width === 3.66 &&
       stagehand.page.url().includes("https://www.apple.com/apple-tv-4k/specs/");

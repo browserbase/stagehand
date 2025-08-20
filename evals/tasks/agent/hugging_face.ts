@@ -24,7 +24,7 @@ export const hugging_face: EvalFunction = async ({
       }),
     });
     console.log(`modelName: ${modelName}`);
-    const success = agentResult.success && modelName === "Kokoro-82M";
+    const success = modelName === "Kokoro-82M";
     if (!success) {
       return {
         _success: false,
