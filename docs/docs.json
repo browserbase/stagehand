@@ -42,7 +42,8 @@
           {
             "group": "Observe",
             "pages": [
-              "basics/observe/overview"
+              "basics/observe/overview",
+              "basics/observe/original_overview"
             ]
           }
         ]
