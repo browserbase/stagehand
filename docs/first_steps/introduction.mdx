@@ -6,7 +6,7 @@ description: 'Stagehand allows you to build web automations with natural languag
 
 The quickest way to start with Stagehand is with our CLI. It scaffolds a ready‑to‑run Stagehand app with sensible defaults, and an example script.
 
-## 1) Create a project
+## 1) Create a sample project
 
 <CodeGroup>
 ```bash Bash
@@ -42,8 +42,8 @@ async function main() {
 
   await stagehand.init();
 
-  console.log(`\n\x1b[36mStagehand Session Started\x1b[0m`);
-  console.log(`Watch live: \x1b[34mhttps://browserbase.com/sessions/${stagehand.browserbaseSessionID}\x1b[0m\n`);
+  console.log(`Stagehand Session Started`);
+  console.log(`Watch live: https://browserbase.com/sessions/${stagehand.browserbaseSessionID}\n`);
 
   const page = stagehand.page;
 
