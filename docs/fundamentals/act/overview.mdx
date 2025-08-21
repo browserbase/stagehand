@@ -3,7 +3,7 @@ title: Act
 ---
 
 ### What is `act()`?
-The `act()` method enables Stagehand to interact with a web page. Provide a single action like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`. It's the primary way to automate user interactions on any website.
+The `act()` method enables Stagehand to interact with a web page. Provide a **single** action like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`. It's the primary way to automate user interactions on any website.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -19,7 +19,43 @@ await page.act("click on add to cart")
 Shadow DOM support is now available! Set `experimental: true` in your Stagehand configuration to enable it. See the [configuration guide](/configuration/environment) for more details.
 </Note>
 
-### Supported actions
+## Best practices
+
+With `act()`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use [Agent](/fundamentals/agent/overview).
+
+**Do this**
+
+<CodeGroup>
+```typescript TypeScript
+// Break it into single-step actions
+await page.act("open the filters panel");
+await page.act("choose 4-star rating");
+await page.act("click the apply button");
+```
+
+```python Python
+# Break it into single-step actions
+await page.act("open the filters panel")
+await page.act("choose 4-star rating")
+await page.act("click the apply button")
+```
+</CodeGroup>
+
+**Don't do this - use [Agent](/fundamentals/agent/overview)**
+
+<CodeGroup>
+```typescript TypeScript
+// Too complex - trying to do multiple things at once
+await page.act("open the filters panel, choose 4-star rating, and click apply");
+```
+
+```python Python
+# Too complex - trying to do multiple things at once
+await page.act("open the filters panel, choose 4-star rating, and click apply")
+```
+</CodeGroup>
+
+### Suggested actions
 
 Here are common actions that `act()` can perform. Keep each step small and focused.
 
@@ -57,65 +93,25 @@ Here are common actions that `act()` can perform. Keep each step small and focus
     </tr>
   </tbody>
   </table>
-
-### Best practices
-
-With `act()`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use [Agent](/fundamentals/agent/overview).
-
-**Don't do this**
-
-<CodeGroup>
-```typescript TypeScript
-// Too complex - trying to do multiple things at once
-await page.act("open the filters panel, choose 4-star rating, and click apply");
-```
-
-```python Python
-# Too complex - trying to do multiple things at once
-await page.act("open the filters panel, choose 4-star rating, and click apply")
-```
-</CodeGroup>
-
-**Do this instead**
-
-<CodeGroup>
-```typescript TypeScript
-// Break it into single-step actions
-await page.act("open the filters panel");
-await page.act("choose 4-star rating");
-await page.act("click the apply button");
-```
-
-```python Python
-# Break it into single-step actions
-await page.act("open the filters panel")
-await page.act("choose 4-star rating")
-await page.act("click the apply button")
-```
-</CodeGroup>
-
+  
 ### Using variables
 
 Variables won't be shared with LLM providers. Use them for passwords, API keys, and other sensitive data.
-
-<Warning>
-When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/environment) and [secure browser agent guide](/guides/secure-browser-agent) for more details.
-</Warning>
 
 <CodeGroup>
 ```typescript TypeScript
 await page.act({
   action: "enter %username% in the email field",
   variables: {
-    username: "user@example.com",
-  },
+    username: "user@example.com"
+  }
 });
 
 await page.act({
   action: "enter %password% in the password field",
   variables: {
-    password: process.env.USER_PASSWORD as string,
-  },
+    password: process.env.USER_PASSWORD
+  }
 });
 ```
 
@@ -137,6 +133,10 @@ await page.act(
 )
 ```
 </CodeGroup>
+
+<Warning>
+When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/environment) and [secure browser agent guide](/guides/secure-browser-agent) for more details.
+</Warning>
 
 ### Observe before acting
 
@@ -171,7 +171,7 @@ Here is a sample `ObserveResult`:
 ```
 
 <Note>
-In Python, the `ObserveResult` is wrapped in a Pydantic model. Use `model_dump()` to get the `dict` equivalent.
+In Python, the `ObserveResult` is a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/). Use `model_dump()` to convert the result to a dictionary.
 </Note>
 
 ## Next steps
