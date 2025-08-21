@@ -21,23 +21,18 @@
       {
         "group": "The Basics",
         "pages": [
+          "basics/act",
           "basics/observe",
-          {
-            "group": "Agent",
-            "pages": [
-              "basics/agent/overview"
-            ]
-          },
-          {
-            "group": "Act",
-            "pages": [
-              "basics/act/overview"
-            ]
-          },
           {
             "group": "Extract",
             "pages": [
               "basics/extract/overview"
+            ]
+          },
+          {
+            "group": "Agent",
+            "pages": [
+              "basics/agent/overview"
             ]
           }
         ]
