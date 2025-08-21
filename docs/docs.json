@@ -22,35 +22,11 @@
       },
       {
         "group": "Fundamentals",
-        "dropdowns": [{
-          "dropdown": "Agent",
-            "pages": [
-              "agent/overview",
-              "agent/stagehand_agent",
-              "agent/cua"
-            ]
-          },
-          {
-            "dropdown": "Act",
-            "pages": [
-              "act/overview",
-              "act/overview"
-            ]
-          },
-          {
-            "dropdown": "Extract",
-            "pages": [
-              "extract/overview",
-              "extract/extract_data"
-            ]
-          },
-          {
-            "dropdown": "Observe",
-            "pages": [
-              "observe/overview",
-              "observe/observe_data"
-            ]
-          }
+        "pages": [
+          "fundamentals/agent/overview",
+          "fundamentals/act/overview",
+          "fundamentals/extract/overview",
+          "fundamentals/observe/overview"
         ]
       },
       {
@@ -100,7 +76,7 @@
         },
         {
           "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/reference/introduction",
+          "href": "https://docs.stagehand.dev/getting_started/introduction",
           "icon": "code"
         }
       ]
