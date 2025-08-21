@@ -290,6 +290,10 @@ Resolves to the structured data as defined by the provided `schema`.
     Defines the structure of the data to extract
   </ParamField>
 
+  <ParamField path="iframes" type="boolean" optional>
+      Set `iframes=True` if the extraction content exists within an iframe. <br /> **Only works with `use_api=True`**.
+  </ParamField>
+
   <ParamField path="model_name" type="AvailableModel" optional>
     Specifies the model to use
   </ParamField>
