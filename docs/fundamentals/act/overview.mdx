@@ -5,15 +5,9 @@ title: Act
 ### What is `act()`?
 The `act()` method enables Stagehand to interact with a web page. Provide a **single** action like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`. It's the primary way to automate user interactions on any website.
 
-<CodeGroup>
-```typescript TypeScript
-await page.act("click on add to cart");
 ```
-
-```python Python
 await page.act("click on add to cart")
 ```
-</CodeGroup>
 
 <Note>
 Shadow DOM support is now available! Set `experimental: true` in your Stagehand configuration to enable it. See the [configuration guide](/configuration/environment) for more details.
