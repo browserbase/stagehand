@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import type { AvailableModel } from "../types/model";
 import type { LogLine } from "../types/log";
+import type { AgentInstance } from "../types/agent";
 import type { EvalCase } from "braintrust";
 import { Stagehand } from "@/dist";
 import { ConstructorParams } from "@/dist";
@@ -15,6 +16,7 @@ export type StagehandInitResult = {
   modelName: AvailableModel;
   // Optional per-test parameters to pass into a task
   taskParams?: Record<string, unknown>;
+  agent: AgentInstance;
 };
 
 export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
