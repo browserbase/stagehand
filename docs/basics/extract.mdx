@@ -3,7 +3,7 @@ title: Extract
 ---
 
 ## What is `extract()`?
-The `extract` method grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` [with no parameters](#extract-with-no-parameters), or call `extract` with just a [natural language prompt](#extract-with-just-a-prompt).
+The `extract` method grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
 
 <Note>
 For TypeScript, the extract schemas are defined using zod schemas.
@@ -174,54 +174,9 @@ apartments = await page.extract(
 ```
 </CodeGroup>
 
-
-### Extract with no parameters
-
-Calling `extract` with no parameters will return hierarchical tree representation of the root DOM. This will not be passed through an LLM. It will look something like this:
-
-```
-Accessibility Tree:
-[0-2] RootWebArea: What is Stagehand? - 🤘 Stagehand
-  [0-37] scrollable
-    [0-118] body
-      [0-239] div
-        [0-240] div
-          [0-241] scrollable
-            [0-242] div
-              [0-244] link: 🤘 Stagehand home page light logo
-                [0-245] span
-                  [0-246] StaticText: 🤘 Stagehand
-                  [0-247] StaticText: home page
-                [0-14] image: light logo
-              [0-10] button: Toggle dark mode
-                [0-249] image
-            [0-265] div
-              [0-266] button: Search... ⌘K
-                [0-267] div
-                  [0-268] image
-                  [0-272] StaticText: Search...
-```
-
-Here is how you can call `extract` with no parameters
-<CodeGroup>
-```typescript TypeScript
-const pageText = await page.extract();
-```
-
-```python Python
-page_text = await page.extract()
-```
-</CodeGroup>
-
-Your output schema will look like:
-```JSON JSON
-{ page_text: string }
-```
-
-
 ### Extract with just a prompt
 
-You can call extract with just a natural language prompt:
+You can call `extract` with just a natural language prompt:
 
 <CodeGroup>
 ```typescript TypeScript
@@ -239,75 +194,35 @@ When you call `extract` with just a prompt, your output schema will look like:
 ```
 
 
-<Tabs>
-<Tab title="TypeScript">
-### **Arguments:** [`ExtractOptions<T extends z.AnyZodObject>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+### Extract with no parameters
 
-  <ParamField path="instruction" type="string" optional>
-    Provides instructions for extraction
-  </ParamField>
+Calling `extract` with no parameters will return hierarchical tree representation of the root DOM. This will not be passed through an LLM. It will look something like this:
 
-  <ParamField path="schema" type="z.AnyZodObject" optional>
-    Defines the structure of the data to extract (TypeScript only)
-  </ParamField>
+```
+Accessibility Tree:
+[0-2] RootWebArea: What is Stagehand? - 🤘 Stagehand
+  [0-37] scrollable
+    [0-118] body
+      [0-241] scrollable
+        [0-242] div
+          [0-244] link: 🤘 Stagehand home page light logo
+            [0-245] span
+              [0-246] StaticText: 🤘 Stagehand
+              [0-247] StaticText: home page
+```
 
-  <ParamField path="iframes" type="boolean" optional>
-      Set `iframes: true` if the extraction content exists within an iframe.
-  </ParamField>
+Here is how you can call `extract` with no parameters
+<CodeGroup>
+```typescript TypeScript
+const pageText = await page.extract();
+```
 
-  <ParamField path="selector" type="string" optional>
-      An xpath that can be used to reduce the scope of an extraction. If an xpath is passed in, `extract` will only process
-      the contents of the HTML element that the xpath points to. Useful for reducing input tokens and increasing extraction
-      accuracy.
-  </ParamField>
+```python Python
+page_text = await page.extract()
+```
+</CodeGroup>
 
-  <ParamField path="modelName" type="AvailableModel" optional>
-    Specifies the model to use
-  </ParamField>
-
-  <ParamField path="modelClientOptions" type="object" optional>
-    Configuration options for the model client. See [`ClientOptions`](https://github.com/browserbase/stagehand/blob/main/types/model.ts).
-  </ParamField>
-
-  <ParamField path="domSettleTimeoutMs" type="number" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
-
-### **Returns:** [`Promise<ExtractResult<T extends z.AnyZodObject>>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
-
-Resolves to the structured data as defined by the provided `schema`.
-
-</Tab>
-
-<Tab title="Python">
-### **Arguments:** [`ExtractOptions<T extends BaseModel>`](https://github.com/browserbase/stagehand-python/blob/main/stagehand/types/page.py)
-
-  <ParamField path="instruction" type="string" optional>
-    Provides instructions for extraction
-  </ParamField>
-
-  <ParamField path="schema" type="BaseModel" optional>
-    Defines the structure of the data to extract
-  </ParamField>
-
-  <ParamField path="iframes" type="boolean" optional>
-      Set `iframes=True` if the extraction content exists within an iframe. <br /> **Only works with `use_api=True`**.
-  </ParamField>
-
-  <ParamField path="model_name" type="AvailableModel" optional>
-    Specifies the model to use
-  </ParamField>
-
-  <ParamField path="model_client_options" type="dict" optional>
-    Configuration options for the model client. See [`ClientOptions`](https://github.com/browserbase/stagehand/blob/main/types/model.ts).
-  </ParamField>
-
-  <ParamField path="dom_settle_timeout_ms" type="int" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
-
-### **Returns:** [`Promise<ExtractResult<BaseModel>>`](https://github.com/browserbase/stagehand-python/blob/main/stagehand/types/page.py)
-
-Resolves to the structured data as defined by the provided `schema`.
-</Tab>
-</Tabs>
+Your output schema will look like:
+```JSON JSON
+{ page_text: string }
+```
