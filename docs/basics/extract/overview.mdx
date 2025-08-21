@@ -1,8 +1,9 @@
 ---
-title: Overview
+title: Extract
 ---
 
-`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` [with no parameters](#extract-with-no-parameters), or call `extract` with just a [natural language prompt](#extract-with-just-a-prompt).
+## What is `extract()`?
+The `extract` method grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` [with no parameters](#extract-with-no-parameters), or call `extract` with just a [natural language prompt](#extract-with-just-a-prompt).
 
 <Note>
 For TypeScript, the extract schemas are defined using zod schemas.
@@ -36,7 +37,7 @@ item = await page.extract(
 </CodeGroup>
 
 Your output schema will look like:
-```
+```JSON JSON
 { price: number }
 ```
 
@@ -72,6 +73,10 @@ extraction = await page.extract(
 print("the link to the contact us page is: ", extraction.link)
 ```
 </CodeGroup>
+
+<Tip>
+Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs -> URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final `ExtractResult`.
+</Tip>
 
 ### Extract a list of objects
 
@@ -115,7 +120,7 @@ print("the apartment list is: ", apartments)
 </CodeGroup>
 
 Your output schema will look like:
-```
+```JSON JSON
 list_of_apartments: [
     {
       address: "street address here",
@@ -127,9 +132,7 @@ list_of_apartments: [
         price: "1010.00",
         square_feet: "500"
     },
-    .
-    .
-    .
+    ...
 ]
 ```
 
@@ -211,7 +214,7 @@ page_text = await page.extract()
 </CodeGroup>
 
 Your output schema will look like:
-```
+```JSON JSON
 { page_text: string }
 ```
 
@@ -231,7 +234,7 @@ result = await page.extract("extract the name of the repository")
 </CodeGroup>
 
 When you call `extract` with just a prompt, your output schema will look like:
-```
+```JSON JSON
 { extraction: string }
 ```
 
