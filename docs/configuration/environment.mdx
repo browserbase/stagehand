@@ -244,8 +244,7 @@ The local environment runs browsers directly on your machine, providing full con
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  env: "LOCAL",
-  verbose: 1,
+  env: "LOCAL"
 });
   
 await stagehand.init();
@@ -255,8 +254,7 @@ console.log("Session ID:", stagehand.sessionId);
 from stagehand import Stagehand
 
 stagehand = Stagehand(
-    env="LOCAL",
-    verbose=1,
+    env="LOCAL"
 )
 
 await stagehand.init()
@@ -323,6 +321,35 @@ await stagehand.init()
 
 ### Connecting to your local browser
 
+Connect to your existing local Chrome/Chromium browser instead of launching a new one. This lets you automate your normal browser with all your existing tabs, extensions and settings.
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+	env: "LOCAL",
+  localBrowserLaunchOptions: {
+	cdpUrl: 'http://localhost:9222'
+  }
+});
+
+await stagehand.init();
+```
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="LOCAL",
+    local_browser_launch_options={
+      cdp_url="http://localhost:9222"
+    }
+)
+
+await stagehand.init()
+```
+</CodeGroup>
+
 ## Troubleshooting
 
 ### Common Issues
@@ -342,7 +369,7 @@ await stagehand.init()
 
 <Accordion title="Session Timeout Issues">
 - Increase session timeout in `browserbaseSessionCreateParams.timeout`
-- Use `keepAlive: true` for long-running sessions (Startup plan required)
+- Use `keepAlive: true` for long-running sessions
 - Monitor session usage to avoid unexpected terminations
 </Accordion>
 </AccordionGroup>
