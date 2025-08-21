@@ -21,30 +21,10 @@
       {
         "group": "The Basics",
         "pages": [
-          {
-            "group": "Agent",
-            "pages": [
-              "fundamentals/agent/overview"
-            ]
-          },
-          {
-            "group": "Act",
-            "pages": [
-              "fundamentals/act/overview"
-            ]
-          },
-          {
-            "group": "Extract",
-            "pages": [
-              "fundamentals/extract/overview"
-            ]
-          },
-          {
-            "group": "Observe",
-            "pages": [
-              "fundamentals/observe/overview"
-            ]
-          }
+          "basics/act",
+          "basics/extract",
+          "basics/observe",
+          "basics/agent"
         ]
       },
       {
@@ -52,6 +32,7 @@
         "pages": [
           "configuration/environment",
           "configuration/observability",
+          "configuration/logging",
           "configuration/llm_customization",
           "configuration/evals"
         ]
@@ -61,12 +42,15 @@
         "pages": [
           "best_practices/caching",
           "best_practices/running_evals",
+          "best_practices/multitab_handling",
           "best_practices/working_with_iframes",
-          "best_practices/custom_llms",
           "best_practices/customize_browser",
           "best_practices/computer_use",
           "best_practices/contributing",
-          "best_practices/playwright_interop"
+          "best_practices/playwright_interop",
+          "best_practices/interact_with_page",
+          "best_practices/build_agent",
+          "best_practices/creating_custom_evals"
         ]
       },
       {
@@ -127,5 +111,8 @@
       "apiKey": "phc_hmwkFrlc9UVrdE1jyG8AEKoCQCSr8dScjsRpKoLBEiV",
       "apiHost": "https://us.i.posthog.com"
     }
+  },
+  "contextual": {
+    "options": ["chatgpt", "claude", "copy", "view"]
   }
 }
