@@ -2,7 +2,7 @@
 title: Act
 ---
 
-### What is `act()`?
+## What is `act()`?
 The `act()` method enables Stagehand to interact with a web page. Provide a **single** action like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`. It's the primary way to automate user interactions on any website.
 
 ```
@@ -49,7 +49,7 @@ await page.act("open the filters panel, choose 4-star rating, and click apply")
 ```
 </CodeGroup>
 
-### Suggested actions
+## Suggested actions
 
 Here are common actions that `act()` can perform. Keep each step small and focused.
 
@@ -88,7 +88,7 @@ Here are common actions that `act()` can perform. Keep each step small and focus
   </tbody>
   </table>
   
-### Using variables
+## Using variables
 
 Variables won't be shared with LLM providers. Use them for passwords, API keys, and other sensitive data.
 
@@ -132,7 +132,7 @@ await page.act(
 When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/environment) and [secure browser agent guide](/guides/secure-browser-agent) for more details.
 </Warning>
 
-### Observe before acting
+## Observe before acting
 
 Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act()` to execute it.
 
@@ -153,7 +153,7 @@ if results:
 ```
 </CodeGroup>
 
-Here is a sample `ObserveResult`:
+Here is a sample `observe()` result:
 
 ```json
 {
@@ -165,7 +165,7 @@ Here is a sample `ObserveResult`:
 ```
 
 <Note>
-In Python, the `ObserveResult` is a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/). Use `model_dump()` to convert the result to a dictionary.
+Self-healing is enabled by default. Self-healing activates when you pass an `observe()` result or cached action to `act()`. To disable it, see [Stagehand configuration](/configuration/environment).
 </Note>
 
 ## Next steps
