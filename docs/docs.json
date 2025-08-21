@@ -22,6 +22,7 @@
         "group": "The Basics",
         "pages": [
           "basics/act",
+          "basics/extract",
           "basics/observe",
           {
             "group": "Extract",
