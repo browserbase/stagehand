@@ -1,10 +1,118 @@
 ---
 title: Overview
+description: 'Preview actions before executing them'
 ---
 
+## What is `observe()`?
 
+`observe()` helps you preview what's possible on a page before taking actions. It scans the page and returns a list of suggested actions on interactive elements tailored to what you're looking for.
 
+```
+await page.observe("Find the login button");
+```
 
+## Key benefits
 
+- **Preview actions** - See what elements are available and get suggested actions
+- **Verify element presence** - Check if specific buttons, forms, or links exist
+- **Plan multi-step** - Build context about the page to minimize LLM calls downstream
+- **Cache actions** - Remember actions for the future and avoid LLM calls
 
+## When to use `observe()`
 
+<CardGroup cols={2}>
+  <Card title="Explore" icon="compass">
+    When you're unsure what's on a page or need to discover available actions
+  </Card>
+  <Card title="Plan" icon="map">
+    When building complex workflows, plan ahead all the actions you'll need to take
+  </Card>
+  <Card title="Cache" icon="database">
+    When you want to remember actions for the future and avoid LLM calls
+  </Card>
+    <Card title="Validate" icon="check">
+    Before performing critical actions to ensure elements exist
+  </Card>
+</CardGroup>
+
+## How it works
+
+Call `observe()` to get an array of actionable elements. Each result includes:
+- **Selector** - XPath to locate the element
+- **Description** - What the element is
+- **Method** - Suggested action (click, type, etc.)
+- **Arguments** - Any parameters needed for the action
+
+<CodeGroup>
+```typescript TypeScript
+// Get all actionable elements
+const observations = await page.observe();
+
+// Find specific elements
+const buttons = await page.observe({
+  instruction: "Find all submit buttons",
+});
+
+// Use observation to perform action
+const [submitButton] = buttons;
+await page.act(submitButton);
+```
+
+```python Python
+# Get all actionable elements
+observations = await page.observe()
+
+# Find specific elements
+buttons = await page.observe("Find all submit buttons")
+
+# Use observation to perform action
+submit_button = buttons[0]
+await page.act(submit_button)
+```
+</CodeGroup>
+
+<Tip>
+Pass an `ObserveResult` directly to `act()` for faster execution - it skips LLM inference since the action is already determined.
+</Tip>
+
+## Common patterns
+
+### Check before acting
+```typescript
+const searchBars = await page.observe({
+  instruction: "Find search input fields"
+});
+
+if (searchBars.length > 0) {
+  await page.act(searchBars[0]);
+} else {
+  console.log("No search bar found on this page");
+}
+```
+
+### Build adaptive workflows
+```typescript
+const observations = await page.observe();
+const hasLoginButton = observations.some(
+  o => o.description.toLowerCase().includes('login')
+);
+
+if (hasLoginButton) {
+  // Handle logged-out state
+} else {
+  // Continue with logged-in flow
+}
+```
+
+### Debug failed actions
+```typescript
+// If an action fails, observe to understand why
+try {
+  await page.act("Click submit");
+} catch (error) {
+  const elements = await page.observe({
+    instruction: "Find submit buttons or forms"
+  });
+  console.log("Available elements:", elements);
+}
+```
