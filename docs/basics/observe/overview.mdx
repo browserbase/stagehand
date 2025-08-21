@@ -8,7 +8,7 @@ description: 'Preview actions before executing them'
 `observe()` helps you preview what's possible on a page before taking actions. It scans the page and returns a list of suggested actions on interactive elements tailored to what you're looking for.
 
 ```
-await page.observe("Find the login button");
+await page.observe("Find the login button")
 ```
 
 ## Key benefits
@@ -21,7 +21,7 @@ await page.observe("Find the login button");
 ## When to use `observe()`
 
 <CardGroup cols={2}>
-  <Card title="Explore" icon="compass">
+  <Card title="Explore" icon="compass" href="/basics/observe/overview#is-the-element-on-the-page-?">
     When you're unsure what's on a page or need to discover available actions
   </Card>
   <Card title="Plan" icon="map">
@@ -38,10 +38,19 @@ await page.observe("Find the login button");
 ## How it works
 
 Call `observe()` to get an array of actionable elements. Each result includes:
+```json
+{
+	description: "The quickstart link",
+	method: "click",
+	selector: "/html/body/div[1]/div[1]/a",
+	arguments: [],
+}
+```
 - **Selector** - XPath to locate the element
 - **Description** - What the element is
 - **Method** - Suggested action (click, type, etc.)
 - **Arguments** - Any parameters needed for the action
+
 
 <CodeGroup>
 ```typescript TypeScript
@@ -77,7 +86,7 @@ Pass an `ObserveResult` directly to `act()` for faster execution - it skips LLM 
 
 ## Common patterns
 
-### Check before acting
+### Is the element on the page?
 ```typescript
 const searchBars = await page.observe({
   instruction: "Find search input fields"
