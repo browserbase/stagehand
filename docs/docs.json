@@ -11,40 +11,67 @@
   "navigation": {
     "groups": [
       {
-        "group": "Get Started",
+        "group": "Getting Started",
         "pages": [
-          "get_started/introduction",
-          "get_started/quickstart",
-          "get_started/integrate_stagehand"
+          "getting_started/typescript",
+          "getting_started/python",
+          "getting_started/mcp",
+          "getting_started/director",
+          "getting_started/ai_rules"
         ]
       },
       {
-        "group": "Concepts",
-        "pages": ["concepts/act", "concepts/agent"]
-      },
-      {
-        "group": "Playbooks",
-        "pages": [
-          "examples/best_practices",
-          "examples/caching",
-          "examples/running_evals",
-          "examples/nextjs",
-          "examples/custom_llms",
-          "examples/customize_browser",
-          "examples/computer_use",
-          "examples/contributing"
+        "group": "Fundamentals",
+        "dropdowns": [{
+          "dropdown": "Agent",
+            "pages": [
+              "agent/overview",
+              "agent/stagehand_agent",
+              "agent/cua"
+            ]
+          },
+          {
+            "dropdown": "Act",
+            "pages": [
+              "act/overview",
+              "act/overview"
+            ]
+          },
+          {
+            "dropdown": "Extract",
+            "pages": [
+              "extract/overview",
+              "extract/extract_data"
+            ]
+          },
+          {
+            "dropdown": "Observe",
+            "pages": [
+              "observe/overview",
+              "observe/observe_data"
+            ]
+          }
         ]
       },
       {
-        "group": "Reference",
+        "group": "Configuration",
         "pages": [
-          "reference/initialization_config",
-          "reference/agent",
-          "reference/act",
-          "reference/extract",
-          "reference/observe",
-          "reference/playwright_interop",
-          "integrations/guides"
+          "configuration/environment",
+          "configuration/observability",
+          "configuration/llm_customization",
+          "configuration/evals"
+        ]
+      },
+      {
+        "group": "Best Practices",
+        "pages": [
+          "best_practices/caching",
+          "best_practices/running_evals",
+          "best_practices/nextjs",
+          "best_practices/custom_llms",
+          "best_practices/customize_browser",
+          "best_practices/computer_use",
+          "best_practices/contributing"
         ]
       },
       {
@@ -72,7 +99,7 @@
           "icon": "scroll"
         },
         {
-          "anchor": "Reference",
+          "anchor": "Stagehand by Browserbase",
           "href": "https://docs.stagehand.dev/reference/introduction",
           "icon": "code"
         }
