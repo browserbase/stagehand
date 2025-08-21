@@ -21,7 +21,7 @@ await page.observe("Find the login button")
 ## When to use `observe()`
 
 <CardGroup cols={2}>
-  <Card title="Explore" icon="compass" href="/basics/observe/overview#is-the-element-on-the-page-?">
+  <Card title="Explore" icon="compass" href="/basics/observe/overview#is-the-element-on-the-page%3F">
     When you're unsure what's on a page or need to discover available actions
   </Card>
   <Card title="Plan" icon="map">
@@ -50,6 +50,11 @@ Call `observe()` to get an array of actionable elements. Each result includes:
 - **Description** - What the element is
 - **Method** - Suggested action (click, type, etc.)
 - **Arguments** - Any parameters needed for the action
+
+The previews observe returns enhance traditional automation deterministic scripts by providing additional context that can guide an LLM to self heal (TODO insert link) your automation whenever the page changes.
+For example, if a login button is moved from the center of a page to the header (TODO: diagram?) Stagehand will identify this and ask the LLM to find the new button location.
+
+
 
 
 <CodeGroup>
