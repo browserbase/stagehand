@@ -1,7 +1,7 @@
 ---
 title: Observe
 sidebarTitle: Observe
-description: 'Discover actionable elements and plan precise automation workflows'
+description: 'Find suggested actions for your workflows'
 ---
 
 ## What is `observe()`?
@@ -72,7 +72,7 @@ Each observation returns detailed information about actionable elements:
 ```typescript TypeScript
 // Observe → Act workflow 
 const buttons = await page.observe("Find submit buttons");
-await page.act(buttons[0]); // Fast execution, no LLM inference
+await page.act(buttons[0]); // Fast execution, no LLM inference with self healing
 
 // Direct act (slower, requires LLM inference)  
 await page.act("Click the submit button");
@@ -80,14 +80,14 @@ await page.act("Click the submit button");
 ```python Python
 # Observe → Act workflow 
 buttons = await page.observe("Find submit buttons")
-await page.act(buttons[0]) # Fast execution, no LLM inference
+await page.act(buttons[0]) # Fast execution, no LLM inference with self healing
 
 # Direct act (slower, requires LLM inference)  
 await page.act("Click the submit button")
 ```
 </CodeGroup>
 <Note>
-**Performance Tip**: Pass `ObserveResult` objects directly to `act()` to skip LLM inference and execute actions immediately. This can reduce automation time by 2-3x for known actions.
+**Performance Tip**: Pass `ObserveResult` objects directly to `act()` to skip LLM inference and execute actions immediately. This can reduce automation time by 2-3x for known actions. To avoid script maintenance, check out [self healing](/basics/act/self-healing) for more details.
 </Note>
 </Tab>
 
@@ -100,7 +100,8 @@ const tableElements = await page.observe("Find data tables");
 if (tableElements.length > 0) {
   const data = await page.extract({
     instruction: "Extract product information from the table",
-    schema: { products: [{ name: "string", price: "number" }] }
+    schema: { products: [{ name: "string", price: "number" }] },
+    selector: tableElements[0].selector // Optional, but recommended for reduced LLM token usage
   });
 }
 ```
@@ -111,7 +112,8 @@ table_elements = await page.observe("Find data tables")
 if len(table_elements) > 0:
   data = await page.extract({
     instruction: "Extract product information from the table",
-    schema: { products: [{ name: "string", price: "number" }] }
+    schema: { products: [{ name: "string", price: "number" }] },
+    selector: table_elements[0].selector # Optional, but recommended for reduced LLM token usage
   })
 ```
 </CodeGroup>
