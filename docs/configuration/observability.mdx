@@ -28,26 +28,20 @@ Browserbase provides real-time visibility into your automation sessions:
 **Session Management & API Access**
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { Browserbase } from "@browserbasehq/sdk";
+
+const browserbase = new Browserbase({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+});
 
 const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  env: "BROWSERBASE"
 });
 
 await stagehand.init();
 
-// Access session details
-console.log("Session ID:", stagehand.sessionId);
-console.log("Session URL:", `https://app.browserbase.com/sessions/${stagehand.sessionId}`);
-
-// Retrieve session information via API
-const sessionInfo = await fetch(`https://api.browserbase.com/v1/sessions/${stagehand.sessionId}`, {
-  headers: {
-    'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
-  }
-}).then(res => res.json());
+const sessionInfo = await browserbase.sessions.retrieve(stagehand.sessionId);
 
 console.log("Session status:", sessionInfo.status);
 console.log("Session region:", sessionInfo.region);
@@ -58,30 +52,21 @@ console.log("Proxy bytes:", sessionInfo.proxyBytes);
 
 ```python Python
 import os
-import requests
 from stagehand import Stagehand
+from browserbase import Browserbase
+
+browserbase = Browserbase(
+  api_key=os.getenv("BROWSERBASE_API_KEY"),
+)
 
 stagehand = Stagehand(
     env="BROWSERBASE",
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
 )
 
 await stagehand.init()
 
-# Access session details
-print(f"Session ID: {stagehand.session_id}")
-print(f"Session URL: https://app.browserbase.com/sessions/{stagehand.session_id}")
+session_info = browserbase.sessions.retrieve(stagehand.session_id)
 
-# Retrieve session information via API
-response = requests.get(
-    f"https://api.browserbase.com/v1/sessions/{stagehand.session_id}",
-    headers={
-        "X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY"),
-    }
-)
-
-session_info = response.json()
 print(f"Session status: {session_info['status']}")
 print(f"Session region: {session_info['region']}")
 print(f"CPU usage: {session_info['avgCpuUsage']}")
@@ -92,74 +77,23 @@ print(f"Proxy bytes: {session_info['proxyBytes']}")
 
 ### Session Analytics & Insights
 
-**Real-Time Monitoring**
-- Live session status tracking with automatic updates
-- Resource utilization metrics (CPU, memory, network)
-- Geographic distribution across regions
-- Concurrent session management and scaling
+<CardGroup>
+  <Card title="Real-Time Monitoring" icon="chart-line">
+    Monitor live session status, resource usage, and geographic distribution. Scale and manage concurrent sessions with real-time insights.
+  </Card>
 
-**Session Recordings & Replay**
-- Complete session recordings for post-execution analysis
-- Frame-by-frame inspection of automation steps
-- Network request waterfall and timing analysis
-- Visual debugging with browser interaction replay
+  <Card title="Session Recordings" icon="video">
+    Review complete session recordings with frame-by-frame playback. Analyze network requests and debug browser interactions visually.
+  </Card>
 
-**API-Driven Session Management**
-- Programmatic access to session data and metrics
-- Automated session lifecycle management
-- Custom metadata tracking and filtering
-- Integration with monitoring and alerting systems
+  <Card title="API Management" icon="code">
+    Programmatically access session data, automate lifecycle management, and integrate with monitoring systems through our API.
+  </Card>
 
-<CodeGroup>
-```typescript TypeScript
-// Monitor session performance with analytics tracking
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
-});
-
-// Initialize and track session metrics
-await stagehand.init();
-console.log(`Session started: ${stagehand.sessionId}`);
-console.log(`Monitor at: https://app.browserbase.com/sessions/${stagehand.sessionId}`);
-
-// Track automation performance
-const startTime = Date.now();
-// ... perform automation tasks
-const metrics = stagehand.metrics;
-console.log('Session Performance:', {
-  totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens,
-  totalTime: Date.now() - startTime,
-  sessionUrl: `https://app.browserbase.com/sessions/${stagehand.sessionId}`
-});
-```
-
-```python Python
-# Monitor session performance with analytics tracking
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-)
-
-# Initialize and track session metrics
-await stagehand.init()
-print(f"Session started: {stagehand.session_id}")
-print(f"Monitor at: https://app.browserbase.com/sessions/{stagehand.session_id}")
-
-# Track automation performance
-import time
-start_time = time.time()
-# ... perform automation tasks
-metrics = stagehand.metrics
-print('Session Performance:', {
-    'total_tokens': metrics['total_prompt_tokens'] + metrics['total_completion_tokens'],
-    'total_time': (time.time() - start_time) * 1000,
-    'session_url': f"https://app.browserbase.com/sessions/{stagehand.session_id}"
-})
-```
-</CodeGroup>
+  <Card title="Usage Monitoring" icon="chart-bar">
+    Track resource consumption, session duration, and API usage. Get detailed breakdowns of costs and utilization across your automation.
+  </Card>
+</CardGroup>
 
 ### Session Monitoring & Filtering
 
@@ -167,15 +101,17 @@ Query and monitor sessions by status and metadata:
 
 <CodeGroup>
 ```typescript TypeScript
+import { Browserbase } from "@browserbasehq/sdk";
+
+const browserbase = new Browserbase({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+});
+
 // List sessions with filtering
 async function getFilteredSessions() {
-  const response = await fetch('https://api.browserbase.com/v1/sessions?status=RUNNING', {
-    headers: {
-      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
-    }
+  const sessions = await browserbase.sessions.list({
+    status: 'RUNNING'
   });
-  
-  const sessions = await response.json();
   
   return sessions.map(session => ({
     id: session.id,
@@ -192,28 +128,24 @@ async function getFilteredSessions() {
 
 // Query sessions by metadata
 async function querySessionsByMetadata(query: string) {
-  const response = await fetch(`https://api.browserbase.com/v1/sessions?q=${encodeURIComponent(query)}`, {
-    headers: {
-      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
-    }
+  const sessions = await browserbase.sessions.list({
+    q: query
   });
   
-  return response.json();
+  return sessions;
 }
 ```
 
 ```python Python
-import requests
-import urllib.parse
+import os
+from browserbase import Browserbase
+
+browserbase = Browserbase(
+    api_key=os.getenv("BROWSERBASE_API_KEY"),
+)
 
 def get_filtered_sessions():
-    response = requests.get(
-        "https://api.browserbase.com/v1/sessions",
-        params={"status": "RUNNING"},
-        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
-    )
-    
-    sessions = response.json()
+    sessions = browserbase.sessions.list(status="RUNNING")
     
     return [{
         'id': session['id'],
@@ -228,78 +160,9 @@ def get_filtered_sessions():
     } for session in sessions]
 
 def query_sessions_by_metadata(query):
-    response = requests.get(
-        "https://api.browserbase.com/v1/sessions",
-        params={"q": query},
-        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
-    )
+    sessions = browserbase.sessions.list(q=query)
     
-    return response.json()
-```
-</CodeGroup>
-
-### Session Analytics
-
-Track automation performance and resource usage:
-
-<CodeGroup>
-```typescript TypeScript
-// Get comprehensive session analytics
-async function getSessionAnalytics(sessionId: string) {
-  const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
-    headers: {
-      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
-    }
-  });
-  
-  const session = await response.json();
-  
-  return {
-    id: session.id,
-    status: session.status,
-    duration: session.endedAt ? 
-      new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime() : null,
-    region: session.region,
-    avgCpuUsage: session.avgCpuUsage,
-    memoryUsage: session.memoryUsage,
-    proxyBytes: session.proxyBytes,
-    keepAlive: session.keepAlive,
-    connectUrl: session.connectUrl,
-    userMetadata: session.userMetadata
-  };
-}
-```
-
-```python Python
-from datetime import datetime
-
-def get_session_analytics(session_id):
-    response = requests.get(
-        f"https://api.browserbase.com/v1/sessions/{session_id}",
-        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
-    )
-    
-    session = response.json()
-    
-    # Calculate duration if session is completed
-    duration = None
-    if session.get('endedAt') and session.get('startedAt'):
-        start = datetime.fromisoformat(session['startedAt'].replace('Z', '+00:00'))
-        end = datetime.fromisoformat(session['endedAt'].replace('Z', '+00:00'))
-        duration = int((end - start).total_seconds() * 1000)  # milliseconds
-    
-    return {
-        'id': session['id'],
-        'status': session['status'],
-        'duration': duration,
-        'region': session['region'],
-        'avg_cpu_usage': session['avgCpuUsage'],
-        'memory_usage': session['memoryUsage'],
-        'proxy_bytes': session['proxyBytes'],
-        'keep_alive': session['keepAlive'],
-        'connect_url': session['connectUrl'],
-        'user_metadata': session['userMetadata']
-    }
+    return sessions
 ```
 </CodeGroup>
 
@@ -307,11 +170,11 @@ def get_session_analytics(session_id):
 
 For local development, Stagehand provides performance monitoring and resource tracking capabilities directly on your machine.
 
-### Local Performance Tracking
+### Performance Tracking
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -362,13 +225,13 @@ print('Local Performance Summary:', {
 ```
 </CodeGroup>
 
-### Resource Usage Monitoring
+## Resource Usage Monitoring
 
 When running locally, monitor system resource usage and browser performance:
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 import * as os from 'os';
 import { performance } from 'perf_hooks';
 
@@ -470,132 +333,46 @@ print('Resource Usage:', monitor.get_resource_summary())
 ```
 </CodeGroup>
 
-### Automation Metrics Comparison
 
-Compare performance between different automation approaches:
+  <Card title="LLM Usage" icon="chart-line" href="/configuration/evals">
+    Monitor token usage, costs, and speed. Set up automated alerting for critical failures. Implement cost tracking across different environments. Use session analytics to optimize automation workflows.
+  </Card>
 
-<CodeGroup>
-```typescript TypeScript
-class LocalPerformanceMonitor {
-  private actionTimes: Map<string, number> = new Map();
-  private startTimes: Map<string, number> = new Map();
-  
-  logActionStart(action: string) {
-    this.startTimes.set(action, Date.now());
-  }
-  
-  logActionEnd(action: string) {
-    const startTime = this.startTimes.get(action);
-    if (startTime) {
-      const duration = Date.now() - startTime;
-      this.actionTimes.set(action, duration);
-      console.log(`⏱️ ${action} completed in ${duration}ms`);
-    }
-  }
-  
-  getPerformanceReport() {
-    const report = Array.from(this.actionTimes.entries()).map(([action, time]) => ({
-      action,
-      duration: time,
-      slow: time > 5000
-    }));
-    
-    return report.sort((a, b) => b.duration - a.duration);
-  }
-}
 
-const monitor = new LocalPerformanceMonitor();
+## Best Practices
 
-const stagehand = new Stagehand({
-  env: "LOCAL",
-  logger: (logLine) => {
-    console.log(`[${logLine.category}] ${logLine.message}`);
-    
-    // Track action performance
-    if (logLine.category === 'action' && logLine.auxiliary?.executionTime) {
-      const duration = parseFloat(logLine.auxiliary.executionTime.value);
-      console.log(`⏱️ Action duration: ${duration}ms`);
-    }
-  }
-});
-```
-
-```python Python
-import time
-from typing import Dict, List
-
-class LocalPerformanceMonitor:
-    def __init__(self):
-        self.action_times: Dict[str, float] = {}
-        self.start_times: Dict[str, float] = {}
-    
-    def log_action_start(self, action: str):
-        self.start_times[action] = time.time() * 1000
-    
-    def log_action_end(self, action: str):
-        start_time = self.start_times.get(action)
-        if start_time:
-            duration = time.time() * 1000 - start_time
-            self.action_times[action] = duration
-            print(f"⏱️ {action} completed in {duration:.0f}ms")
-    
-    def get_performance_report(self) -> List[Dict]:
-        report = [
-            {
-                'action': action,
-                'duration': time,
-                'slow': time > 5000
-            }
-            for action, time in self.action_times.items()
-        ]
-        return sorted(report, key=lambda x: x['duration'], reverse=True)
-
-monitor = LocalPerformanceMonitor()
-
-def performance_logger(log_line):
-    print(f"[{log_line.get('category')}] {log_line.get('message')}")
-    
-    # Track action performance
-    if (log_line.get('category') == 'action' and 
-        log_line.get('auxiliary', {}).get('executionTime')):
-        duration = float(log_line['auxiliary']['executionTime']['value'])
-        print(f"⏱️ Action duration: {duration:.0f}ms")
-
-stagehand = Stagehand(
-    env="LOCAL",
-    logger=performance_logger
-)
-```
-</CodeGroup>
-
-## Monitoring Best Practices
-
-### Production Monitoring
+<AccordionGroup>
+<Accordion title="Production Monitoring">
 - Track session success rates and failure patterns
 - Monitor resource usage and scaling requirements
 - Set up automated alerting for critical failures
 - Implement cost tracking across different environments
 - Use session analytics to optimize automation workflows
+</Accordion>
 
-### Performance Optimization
+<Accordion title="Performance Optimization">
 - Compare Browserbase vs local execution times
 - Monitor token usage and inference costs across models
 - Track geographic performance differences
 - Identify bottlenecks in automation workflows
 - Optimize for cost-effectiveness and speed
+</Accordion>
 
-### Operational Insights
+<Accordion title="Operational Insights">
 - Track session distribution across regions
 - Monitor concurrent session limits and scaling
 - Analyze failure patterns and common error scenarios
 - Use session recordings for root cause analysis
 - Implement custom metadata for workflow categorization
+</Accordion>
 
-### Integration & Alerting
+<Accordion title="Integration & Alerting">
 - Integrate session APIs with monitoring dashboards
 - Set up automated notifications for session failures  
 - Track SLA compliance and performance benchmarks
 - Monitor resource costs and usage patterns
 - Use analytics data for capacity planning and optimization
+</Accordion>
+</AccordionGroup>
 
 For detailed logging and debugging capabilities, see [Logging](/configuration/logging).
