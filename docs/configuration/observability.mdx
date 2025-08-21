@@ -1,12 +1,12 @@
 ---
 title: Observability
 sidebarTitle: Observability
-description: Monitor and debug your Stagehand automation with comprehensive visibility into browser sessions and execution
+description: Monitor and track your Stagehand automation with comprehensive session visibility, performance metrics, and analytics
 ---
 
-Stagehand provides powerful observability features to help you monitor, debug, and optimize your browser automation workflows. The approach differs between Browserbase and local environments.
+Stagehand provides powerful observability features to help you monitor, track performance, and analyze your browser automation workflows. Focus on session monitoring, resource usage, and operational insights for both Browserbase and local environments.
 
-## Browserbase Observability
+## Browserbase Session Monitoring
 
 When running on Browserbase, you gain access to comprehensive cloud-based monitoring and session management through the Browserbase API and dashboard.
 
@@ -14,17 +14,18 @@ When running on Browserbase, you gain access to comprehensive cloud-based monito
   <img src="/media/observability.gif" alt="Browserbase Session Observability" width="400" />
 </div>
 
-### Session Monitoring & API Visibility
+### Live Session Visibility
 
 Browserbase provides real-time visibility into your automation sessions:
 
-**Live Session Dashboard**
-- Real-time browser screen recording
-- Network request monitoring
-- Console logs and errors
-- Performance metrics and timing
+**Session Dashboard Features**
+- Real-time browser screen recording and replay
+- Network request monitoring with detailed timing
+- JavaScript console logs and error tracking
+- CPU and memory usage metrics
+- Session status and duration tracking
 
-**Session Management API**
+**Session Management & API Access**
 <CodeGroup>
 ```typescript TypeScript
 import { Stagehand } from "@browserbase/stagehand";
@@ -89,68 +90,74 @@ print(f"Proxy bytes: {session_info['proxyBytes']}")
 ```
 </CodeGroup>
 
-### Browserbase Debugging Features
+### Session Analytics & Insights
 
-**Session Inspector**
-- Real-time monitoring and debugging tools for your browser sessions
-- Live view of browser interactions and page state
-- Network request monitoring with detailed timing
+**Real-Time Monitoring**
+- Live session status tracking with automatic updates
+- Resource utilization metrics (CPU, memory, network)
+- Geographic distribution across regions
+- Concurrent session management and scaling
 
-**Session Replay**
+**Session Recordings & Replay**
 - Complete session recordings for post-execution analysis
-- Replay functionality to inspect actions performed and network requests
 - Frame-by-frame inspection of automation steps
+- Network request waterfall and timing analysis
+- Visual debugging with browser interaction replay
 
-**Session Logs & Downloads**
-- Access to comprehensive session logs via API endpoints
-- Download session artifacts and recordings
-- JavaScript console errors and network failures tracking
-- Session status monitoring with real-time updates
+**API-Driven Session Management**
+- Programmatic access to session data and metrics
+- Automated session lifecycle management
+- Custom metadata tracking and filtering
+- Integration with monitoring and alerting systems
 
 <CodeGroup>
 ```typescript TypeScript
-// Enable detailed logging for Browserbase sessions
+// Monitor session performance with analytics tracking
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
-  verbose: 1, // Enable info-level logging
-  logger: (logLine) => {
-    console.log(`[${logLine.category}] ${logLine.message}`);
-    
-    // Track errors for monitoring
-    if (logLine.level === 0) {
-      console.error("Automation error:", {
-        category: logLine.category,
-        message: logLine.message,
-        sessionId: stagehand.sessionId,
-        timestamp: logLine.timestamp
-      });
-    }
-  }
+});
+
+// Initialize and track session metrics
+await stagehand.init();
+console.log(`Session started: ${stagehand.sessionId}`);
+console.log(`Monitor at: https://app.browserbase.com/sessions/${stagehand.sessionId}`);
+
+// Track automation performance
+const startTime = Date.now();
+// ... perform automation tasks
+const metrics = stagehand.metrics;
+console.log('Session Performance:', {
+  totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens,
+  totalTime: Date.now() - startTime,
+  sessionUrl: `https://app.browserbase.com/sessions/${stagehand.sessionId}`
 });
 ```
 
 ```python Python
-def browserbase_logger(log_line):
-    print(f"[{log_line.get('category')}] {log_line.get('message')}")
-    
-    # Track errors for monitoring
-    if log_line.get('level') == 0:
-        print("Automation error:", {
-            'category': log_line.get('category'),
-            'message': log_line.get('message'),
-            'session_id': stagehand.session_id,
-            'timestamp': log_line.get('timestamp')
-        })
-
+# Monitor session performance with analytics tracking
 stagehand = Stagehand(
     env="BROWSERBASE",
     api_key=os.getenv("BROWSERBASE_API_KEY"),
     project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-    verbose=1,  # Enable info-level logging
-    logger=browserbase_logger
 )
+
+# Initialize and track session metrics
+await stagehand.init()
+print(f"Session started: {stagehand.session_id}")
+print(f"Monitor at: https://app.browserbase.com/sessions/{stagehand.session_id}")
+
+# Track automation performance
+import time
+start_time = time.time()
+# ... perform automation tasks
+metrics = stagehand.metrics
+print('Session Performance:', {
+    'total_tokens': metrics['total_prompt_tokens'] + metrics['total_completion_tokens'],
+    'total_time': (time.time() - start_time) * 1000,
+    'session_url': f"https://app.browserbase.com/sessions/{stagehand.session_id}"
+})
 ```
 </CodeGroup>
 
@@ -296,11 +303,11 @@ def get_session_analytics(session_id):
 ```
 </CodeGroup>
 
-## Local Observability
+## Local Environment Monitoring
 
-For local development, Stagehand provides detailed logging and debugging capabilities directly on your machine.
+For local development, Stagehand provides performance monitoring and resource tracking capabilities directly on your machine.
 
-### Development Logging
+### Local Performance Tracking
 
 <CodeGroup>
 ```typescript TypeScript
@@ -308,96 +315,164 @@ import { Stagehand } from "@browserbase/stagehand";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
-  verbose: 2, // DEBUG level - shows all internal operations
-  logger: (logLine) => {
-    // Color-coded console output
-    const colors = {
-      browser: '\x1b[34m', // blue
-      action: '\x1b[32m',  // green
-      llm: '\x1b[35m',     // magenta
-      error: '\x1b[31m',   // red
-    };
-    
-    const color = colors[logLine.category] || '\x1b[0m';
-    const reset = '\x1b[0m';
-    
-    console.log(`${color}[${logLine.category}]${reset} ${logLine.message}`);
-    
-    // Log additional context for debugging
-    if (logLine.auxiliary) {
-      console.log('  Context:', logLine.auxiliary);
-    }
-  }
+  verbose: 1, // Monitor performance without debug noise
+});
+
+// Track local automation metrics
+const startTime = Date.now();
+const initialMetrics = stagehand.metrics;
+
+// ... perform automation tasks
+
+const finalMetrics = stagehand.metrics;
+const executionTime = Date.now() - startTime;
+
+console.log('Local Performance Summary:', {
+  executionTime: `${executionTime}ms`,
+  totalTokens: finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens,
+  averageResponseTime: finalMetrics.totalInferenceTimeMs / 3, // Assuming 3 operations
+  tokensPerSecond: (finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens) / (executionTime / 1000)
 });
 ```
 
 ```python Python
 from stagehand import Stagehand
-
-def development_logger(log_line):
-    # Color-coded console output
-    colors = {
-        'browser': '\033[34m',  # blue
-        'action': '\033[32m',   # green
-        'llm': '\033[35m',      # magenta
-        'error': '\033[31m',    # red
-    }
-    
-    color = colors.get(log_line.get('category'), '\033[0m')
-    reset = '\033[0m'
-    
-    print(f"{color}[{log_line.get('category')}]{reset} {log_line.get('message')}")
-    
-    # Log additional context for debugging
-    if log_line.get('auxiliary'):
-        print(f"  Context: {log_line.get('auxiliary')}")
+import time
 
 stagehand = Stagehand(
     env="LOCAL",
-    verbose=2,  # DEBUG level - shows all internal operations
-    logger=development_logger
+    verbose=1,  # Monitor performance without debug noise
 )
+
+# Track local automation metrics
+start_time = time.time()
+initial_metrics = stagehand.metrics
+
+# ... perform automation tasks
+
+final_metrics = stagehand.metrics
+execution_time = (time.time() - start_time) * 1000  # Convert to ms
+
+print('Local Performance Summary:', {
+    'execution_time': f"{execution_time:.0f}ms",
+    'total_tokens': final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens'],
+    'average_response_time': final_metrics['total_inference_time_ms'] / 3,  # Assuming 3 operations
+    'tokens_per_second': (final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens']) / (execution_time / 1000)
+})
 ```
 </CodeGroup>
 
-### Browser DevTools Integration
+### Resource Usage Monitoring
 
-When running locally, you can access Chrome DevTools directly:
+When running locally, monitor system resource usage and browser performance:
 
 <CodeGroup>
 ```typescript TypeScript
-const stagehand = new Stagehand({
-  env: "LOCAL",
-  localBrowserLaunchOptions: {
-    headless: false,  // Show browser window
-    devtools: true,   // Auto-open DevTools
-    slowMo: 250,      // Slow down actions for debugging
-  }
-});
+import { Stagehand } from "@browserbase/stagehand";
+import * as os from 'os';
+import { performance } from 'perf_hooks';
 
-// The browser will open with DevTools automatically
-// You can inspect elements, monitor network, and debug JavaScript
-await stagehand.init();
+class LocalResourceMonitor {
+  private cpuUsage: number[] = [];
+  private memoryUsage: number[] = [];
+  
+  startMonitoring() {
+    const interval = setInterval(() => {
+      // Track system resources
+      const memUsage = process.memoryUsage();
+      this.memoryUsage.push(memUsage.heapUsed / 1024 / 1024); // MB
+      
+      // Track CPU (simplified)
+      const loadAvg = os.loadavg()[0];
+      this.cpuUsage.push(loadAvg);
+    }, 1000);
+    
+    return interval;
+  }
+  
+  getResourceSummary() {
+    return {
+      avgMemoryUsage: this.memoryUsage.reduce((a, b) => a + b, 0) / this.memoryUsage.length,
+      peakMemoryUsage: Math.max(...this.memoryUsage),
+      avgCpuLoad: this.cpuUsage.reduce((a, b) => a + b, 0) / this.cpuUsage.length,
+      totalDataPoints: this.cpuUsage.length
+    };
+  }
+}
+
+const monitor = new LocalResourceMonitor();
+const interval = monitor.startMonitoring();
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+
+// ... run automation
+
+clearInterval(interval);
+console.log('Resource Usage:', monitor.getResourceSummary());
 ```
 
 ```python Python
-stagehand = Stagehand(
-    env="LOCAL",
-    headless=False,  # Show browser window
-    local_browser_launch_options={
-        "devtools": True,   # Auto-open DevTools
-        "slow_mo": 250,     # Slow down actions for debugging
-    }
-)
+import psutil
+import time
+from typing import List
+from stagehand import Stagehand
 
-# The browser will open with DevTools automatically
-await stagehand.init()
+class LocalResourceMonitor:
+    def __init__(self):
+        self.cpu_usage: List[float] = []
+        self.memory_usage: List[float] = []
+        self.monitoring = False
+    
+    def start_monitoring(self):
+        self.monitoring = True
+        import threading
+        
+        def monitor_resources():
+            while self.monitoring:
+                # Track CPU and memory usage
+                cpu_percent = psutil.cpu_percent(interval=1)
+                memory_info = psutil.virtual_memory()
+                
+                self.cpu_usage.append(cpu_percent)
+                self.memory_usage.append(memory_info.percent)
+                
+                time.sleep(1)
+        
+        thread = threading.Thread(target=monitor_resources)
+        thread.daemon = True
+        thread.start()
+        return thread
+    
+    def stop_monitoring(self):
+        self.monitoring = False
+    
+    def get_resource_summary(self):
+        if not self.cpu_usage or not self.memory_usage:
+            return {'error': 'No monitoring data collected'}
+        
+        return {
+            'avg_cpu_usage': sum(self.cpu_usage) / len(self.cpu_usage),
+            'peak_cpu_usage': max(self.cpu_usage),
+            'avg_memory_usage': sum(self.memory_usage) / len(self.memory_usage),
+            'peak_memory_usage': max(self.memory_usage),
+            'total_data_points': len(self.cpu_usage)
+        }
+
+monitor = LocalResourceMonitor()
+monitor.start_monitoring()
+
+stagehand = Stagehand(env="LOCAL")
+
+# ... run automation
+
+monitor.stop_monitoring()
+print('Resource Usage:', monitor.get_resource_summary())
 ```
 </CodeGroup>
 
-### Local Performance Monitoring
+### Automation Metrics Comparison
 
-Track automation performance in your local environment:
+Compare performance between different automation approaches:
 
 <CodeGroup>
 ```typescript TypeScript
@@ -493,22 +568,34 @@ stagehand = Stagehand(
 ```
 </CodeGroup>
 
-### Debugging Best Practices
+## Monitoring Best Practices
 
-**For Development:**
-- Use `verbose: 2` to see all internal operations
-- Enable browser window and DevTools for visual debugging
-- Implement performance monitoring to identify slow operations
-- Use structured logging to track automation flow
+### Production Monitoring
+- Track session success rates and failure patterns
+- Monitor resource usage and scaling requirements
+- Set up automated alerting for critical failures
+- Implement cost tracking across different environments
+- Use session analytics to optimize automation workflows
 
-**For Production:**
-- Use `verbose: 1` for operational visibility without noise  
-- Implement error tracking and alerting
-- Monitor session success rates and performance metrics
-- Set up log aggregation for centralized monitoring
+### Performance Optimization
+- Compare Browserbase vs local execution times
+- Monitor token usage and inference costs across models
+- Track geographic performance differences
+- Identify bottlenecks in automation workflows
+- Optimize for cost-effectiveness and speed
 
-**Troubleshooting Common Issues:**
-- Check session recordings in Browserbase for visual debugging
-- Monitor network logs for failed requests
-- Use observe() method to understand page state before actions
-- Track LLM cache performance for optimization opportunities
+### Operational Insights
+- Track session distribution across regions
+- Monitor concurrent session limits and scaling
+- Analyze failure patterns and common error scenarios
+- Use session recordings for root cause analysis
+- Implement custom metadata for workflow categorization
+
+### Integration & Alerting
+- Integrate session APIs with monitoring dashboards
+- Set up automated notifications for session failures  
+- Track SLA compliance and performance benchmarks
+- Monitor resource costs and usage patterns
+- Use analytics data for capacity planning and optimization
+
+For detailed logging and debugging capabilities, see [Logging](/configuration/logging).

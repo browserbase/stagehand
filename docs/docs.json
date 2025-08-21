@@ -52,9 +52,9 @@
         "pages": [
           "configuration/environment",
           "configuration/observability",
+          "configuration/logging",
           "configuration/llm_customization",
-          "configuration/evals",
-          "configuration/logging"
+          "configuration/evals"
         ]
       },
       {
