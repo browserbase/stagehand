@@ -131,6 +131,6 @@
     }
   },
   "contextual": {
-    "options": ["chatgpt", "claude", "copy", "view", "perplexity"]
+    "options": ["chatgpt", "claude", "copy", "view"]
   }
 }
