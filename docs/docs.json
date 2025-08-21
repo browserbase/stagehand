@@ -11,17 +11,15 @@
   "navigation": {
     "groups": [
       {
-        "group": "Getting Started",
+        "group": "First Steps",
         "pages": [
-          "getting_started/typescript",
-          "getting_started/python",
-          "getting_started/mcp",
-          "getting_started/director",
-          "getting_started/ai_rules"
+          "first_steps/introduction",
+          "first_steps/installation",
+          "first_steps/ai_rules"
         ]
       },
       {
-        "group": "Fundamentals",
+        "group": "The Basics",
         "pages": [
           {
             "group": "Agent",
