@@ -82,7 +82,7 @@ Stagehand uses the format `provider/model-name` for model specification.
 <Tabs>
 <Tab title="Google (Recommended)">
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   modelName: "google/gemini-2.5-pro",
@@ -103,7 +103,7 @@ stagehand = Stagehand(
 </Tab>
 <Tab title="OpenAI">
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   modelName: "openai/gpt-4o",
@@ -125,7 +125,7 @@ stagehand = Stagehand(
 
 <Tab title="Anthropic">
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   modelName: "anthropic/claude-3-7-sonnet-latest",
@@ -213,7 +213,7 @@ To get started, you can use the [Vercel AI SDK external client](https://github.c
 // Install/import the provider you want to use.
 // For example, to use OpenAI, import `openai` from @ai-sdk/openai
 import { bedrock } from "@ai-sdk/amazon-bedrock";
-import { AISdkClient } from "./aisdkClient.ts";
+import { AISdkClient } from "./external_clients/aisdk";
 
 const stagehand = new Stagehand({
   llmClient: new AISdkClient({
