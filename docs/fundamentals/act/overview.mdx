@@ -1,6 +1,9 @@
 ---
-title: Overview
+title: Act
 ---
+
+### What is `act()`?
+The `act()` method enables Stagehand to interact with a web page. Provide a single action like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`. It's the primary way to automate user interactions on any website.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -12,145 +15,181 @@ await page.act("click on add to cart")
 ```
 </CodeGroup>
 
-`act()` allows Stagehand to interact with a web page. Provide an `action` like `"Click on the add to cart button"`, or `"Type 'Browserbase' into the search bar"`.
+<Info>
+Shadow DOM support is now available! Set `experimental: true` in your Stagehand configuration to enable it. See the [configuration guide](/configuration/environment) for more details.
+</Info>
 
-You can define variables that will not be shared with LLM providers
+### Supported actions
+
+Here are common actions that `act()` can perform. Keep each step small and focused.
+
+<table style={{ width: '100%' }}>
+  <thead>
+    <tr>
+      <th style={{ textAlign: 'left' }}>Action</th>
+      <th style={{ textAlign: 'left' }}>Example instruction</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Click</td>
+      <td><code>click the button</code></td>
+    </tr>
+    <tr>
+      <td>Fill</td>
+      <td><code>fill the field with &lt;value&gt;</code></td>
+    </tr>
+    <tr>
+      <td>Type</td>
+      <td><code>type &lt;text&gt; into the search box</code></td>
+    </tr>
+    <tr>
+      <td>Press</td>
+      <td><code>press &lt;key&gt; in the search field</code></td>
+    </tr>
+    <tr>
+      <td>Scroll</td>
+      <td><code>scroll to &lt;position&gt;</code></td>
+    </tr>
+    <tr>
+      <td>Select from dropdown</td>
+      <td><code>select &lt;value&gt; from the dropdown</code></td>
+    </tr>
+  </tbody>
+  </table>
+
+### Best practices
+
+With `act()`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use [Agent](/fundamentals/agent/overview).
+
+**Don't do this**
+
+<CodeGroup>
+```typescript TypeScript
+// Too complex - trying to do multiple things at once
+await page.act("open the filters panel, choose 4-star rating, and click apply");
+```
+
+```python Python
+# Too complex - trying to do multiple things at once
+await page.act("open the filters panel, choose 4-star rating, and click apply")
+```
+</CodeGroup>
+
+**Do this instead**
+
+<CodeGroup>
+```typescript TypeScript
+// Break it into single-step actions
+await page.act("open the filters panel");
+await page.act("choose 4-star rating");
+await page.act("click the apply button");
+```
+
+```python Python
+# Break it into single-step actions
+await page.act("open the filters panel")
+await page.act("choose 4-star rating")
+await page.act("click the apply button")
+```
+</CodeGroup>
+
+### Using variables
+
+Variables won't be shared with LLM providers. Use them for passwords, API keys, and other sensitive data.
+
+<Warning>
+When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/environment) and [secure browser agent guide](/guides/secure-browser-agent) for more details.
+</Warning>
 
 <CodeGroup>
 ```typescript TypeScript
 await page.act({
-  action: "fill in the form with %username% and %password%",
+  action: "enter %username% in the email field",
   variables: {
-    username: "john.doe",
-    password: "secretpass123",
+    username: "user@example.com",
+  },
+});
+
+await page.act({
+  action: "enter %password% in the password field",
+  variables: {
+    password: process.env.USER_PASSWORD as string,
   },
 });
 ```
 
 ```python Python
-await page.act({
-  "fill in the form with %username% and %password%",
+# If using Python, set `use_api: true` in your Stagehand configuration
+
+await page.act(
+  "enter %username% in the email field",
   variables={
-    "username": "john.doe",
-    "password": "secretpass123",
-  },
-})
+      "username": "user@example.com"
+  }
+)
+
+await page.act(
+  "enter %password% in the password field",
+  variables={
+      "password": os.environ.get("USER_PASSWORD")
+  }
+)
 ```
 </CodeGroup>
 
-Small atomic goals perform the best. Avoid using `act()` to perform complex actions. For multi-step actions, use [`Agent`](/reference/agent) instead
+### Observe before acting
 
-<Tip>
-You can pass an `ObserveResult` to `act()` to perform the suggested action, which will yield a faster and cheaper result (no LLM inference).
-</Tip>
+Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act()` to execute it.
 
-### **Arguments:** [`ActOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)  |  [`ObserveResult`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+<CodeGroup>
+```typescript TypeScript
+const [action] = await page.observe("click the login button");
 
-<Tabs>
-<Tab title="TypeScript">
-`ActOptions`:
-  <ParamField path="action" type="string" required>
-    Describes the action to perform
-  </ParamField>
+if (action) {
+  await page.act(action);
+}
+```
 
-  <ParamField path="modelName" type="AvailableModel" optional>
-    Specifies the model to use
-  </ParamField>
+```python Python
+results = await page.observe("click the login button")
 
-  <ParamField path="modelClientOptions" type="object" optional>
-    Configuration options for the model client
-  </ParamField>
+if results:
+    await page.act(results[0])
+```
+</CodeGroup>
 
-  <ParamField path="variables" type="Record<string, string>" optional>
-    Variables to use in the action. Variables in the action string are referenced using %variable_name%
-  </ParamField>
+Here is a sample `ObserveResult`:
 
-  <ParamField path="iframes" type="boolean" optional>
-    Set `iframes: true` if the target element exists within an iframe
-  </ParamField>
+```json
+{
+  "description": "A brief description of the component",
+  "method": "click",
+  "arguments": [],
+  "selector": "xpath=/html/body[1]/div[1]/main[1]/button[1]"
+}
+```
 
-  <ParamField path="domSettleTimeoutMs" type="number" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
+<Note>
+In Python, the `ObserveResult` is wrapped in a Pydantic model. Use `model_dump()` to get the `dict` equivalent.
+</Note>
 
-  <ParamField path="timeoutMs" type="number" optional>
-      Timeout in milliseconds for the action being performed.
-  </ParamField>
+## Next steps
 
-`ObserveResult`:
- <ParamField path="selector" type="string" required>
-    A string representing the element selector
-  </ParamField>
+<CardGroup cols={2}>
+   <Card title="Analyze pages with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/fundamentals/observe/overview">
+    Use `observe()` to plan precise, single-step actions before executing them.
+  </Card>
 
-  <ParamField path="description" type="string" required>
-    A string describing the possible action
-  </ParamField>
+  <Card title="Extract data with extract()" icon="table" iconType="sharp-solid" href="/fundamentals/extract/overview">
+    Use `extract()` with a data schema to pull clean, typed data from any page.
+  </Card>
 
-  <ParamField path="method" type="string" required>
-    The method to call on the element
-  </ParamField>
+  <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/guides/caching-actions">
+    Speed up repeated automations by caching actions.
+  </Card>
 
-  <ParamField path="arguments" type="object" required>
-    The arguments to pass to the method
-  </ParamField>
-</Tab>
-
-<Tab title="Python">
-
-`ActOptions`:
-  <ParamField path="action" type="string" required>
-    Describes the action to perform
-  </ParamField>
-
-  <ParamField path="model_name" type="string" optional>
-    Specifies the model to use
-  </ParamField>
-
-  <ParamField path="model_client_options" type="dict" optional>
-    Configuration options for the model client
-  </ParamField>
-
-  <ParamField path="variables" type="dict" optional>
-    Variables to use in the action. Variables in the action string are referenced using %variable_name%
-  </ParamField>
-
-  <ParamField path="dom_settle_timeout_ms" type="int" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
-
-  <ParamField path="timeout_ms" type="int" optional>
-      Timeout in milliseconds for the action being performed.
-  </ParamField>
-
-`ObserveResult`:
- <ParamField path="selector" type="string" required>
-    A string representing the element selector
-  </ParamField>
-
-  <ParamField path="description" type="string" required>
-    A string describing the possible action
-  </ParamField>
-
-  <ParamField path="method" type="string" required>
-    The method to call on the element
-  </ParamField>
-
-  <ParamField path="arguments" type="object" required>
-    The arguments to pass to the method
-  </ParamField>
-</Tab>
-</Tabs>
-
-### **Returns:** [`Promise<ActResult>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
-
-  <ParamField path="success" type="boolean" required>
-    If the action was completed successfully
-  </ParamField>
-
-  <ParamField path="message" type="string" required>
-    Details about the action's execution
-  </ParamField>
-
-  <ParamField path="action" type="string" required>
-    The action performed
-  </ParamField>
+  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/guides/working-with-iframes">
+    Learn best practices for interacting with elements inside iframes.
+  </Card>
+</CardGroup>
