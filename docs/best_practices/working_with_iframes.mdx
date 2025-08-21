@@ -40,9 +40,9 @@ results = await page.observe({
 
 ### Tips
 
-- Prefer planning with `observe({ iframes: true })` when you are unsure whether an element is in an iframe.
-- If an element intermittently fails to be found, it may be inside a transient or lazy‑loaded iframe. Add small waits between steps or re‑run `observe()`.
-- For cross‑origin iframes, visibility or timing constraints may differ from the top page. Use focused, single‑step actions and consider `observe()` + cached actions for reliability.
+- Iframes can increase processing time. For best performance, use the iframe option only when necessary.
+- When you are unsure whether an element will be in an iframe, you can verify the presence of iframes in Stagehand logs.
+- If an element intermittently fails to be found, it may be inside a lazy‑loaded iframe. Add small waits between steps or re‑run your action.
 
 <Note>
 You can enable experimental features (like Shadow DOM support) via your Stagehand configuration. See the [configuration guide](/configuration/environment).
