@@ -21,6 +21,7 @@
       {
         "group": "The Basics",
         "pages": [
+          "basics/observe",
           {
             "group": "Agent",
             "pages": [
@@ -37,13 +38,6 @@
             "group": "Extract",
             "pages": [
               "basics/extract/overview"
-            ]
-          },
-          {
-            "group": "Observe",
-            "pages": [
-              "basics/observe/overview",
-              "basics/observe/original_overview"
             ]
           }
         ]
