@@ -24,18 +24,7 @@
           "basics/act",
           "basics/extract",
           "basics/observe",
-          {
-            "group": "Extract",
-            "pages": [
-              "basics/extract/overview"
-            ]
-          },
-          {
-            "group": "Agent",
-            "pages": [
-              "basics/agent/overview"
-            ]
-          }
+          "basics/agent"
         ]
       },
       {
