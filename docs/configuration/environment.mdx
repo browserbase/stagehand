@@ -43,8 +43,6 @@ import { Stagehand } from "@browserbase/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  projectId: process.env.BROWSERBASE_PROJECT_ID,
 });
 
 await stagehand.init();
@@ -56,8 +54,6 @@ from stagehand import Stagehand
 
 stagehand = Stagehand(
     env="BROWSERBASE",
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
 )
 
 await stagehand.init()
@@ -74,6 +70,7 @@ import { Stagehand } from "@browserbase/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
+  // Optional: API Key and Project ID will be pulled directly from your environment
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
   browserbaseSessionCreateParams: {
@@ -95,6 +92,7 @@ from stagehand import Stagehand
 
 stagehand = Stagehand(
     env="BROWSERBASE",
+    # Optional: API Key and Project ID will be pulled directly from your environment
     api_key=os.getenv("BROWSERBASE_API_KEY"),
     project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
     browserbase_session_create_params={
@@ -126,7 +124,7 @@ print(f"Session ID: {stagehand.session_id}")
         timeout: 3600, // 1 hour session timeout
         keepAlive: true, // Available on Startup plan
         browserSettings: {
-          advancedStealth: true,
+          advancedStealth: false, // this is a Scale Plan feature - reach out to support@browserbase.com to enable
           blockAds: true,
           solveCaptchas: true,
           recordSession: false,
@@ -161,7 +159,7 @@ print(f"Session ID: {stagehand.session_id}")
             "timeout": 3600,  # 1 hour session timeout
             "keep_alive": True,  # Available on Startup plan
             "browser_settings": {
-                "advanced_stealth": True,
+                "advanced_stealth": False,  # this is a Scale Plan feature - reach out to support@browserbase.com to enable
                 "block_ads": True,
                 "solve_captchas": True,
                 "record_session": False,
@@ -197,7 +195,7 @@ Resume a previously created Browserbase session:
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
@@ -243,7 +241,7 @@ The local environment runs browsers directly on your machine, providing full con
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -266,13 +264,13 @@ print(f"Session ID: {stagehand.session_id}")
 ```
 </CodeGroup>
 
-### Local Browser Configuration
+### Advanced Local Configuration
 
 Customize browser launch options for local development:
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "LOCAL",
@@ -301,7 +299,7 @@ from stagehand import Stagehand
 
 stagehand = Stagehand(
     env="LOCAL",
-    headless=False,  # Show browser window
+    headless=True,  # Show browser window
     local_browser_launch_options={
         "devtools": True,  # Open developer tools
         "viewport": {"width": 1280, "height": 720},
@@ -323,56 +321,7 @@ await stagehand.init()
 ```
 </CodeGroup>
 
-### User Data Directory
-
-Persist browser data between sessions using a custom user data directory:
-
-<CodeGroup>
-```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
-
-// For Browserbase sessions
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  browserbaseSessionCreateParams: {
-    userDataDir: "/path/to/user/data/directory",
-  },
-});
-
-// For Local sessions
-const localStagehand = new Stagehand({
-  env: "LOCAL",
-  localBrowserLaunchOptions: {
-    userDataDir: "./browser-data",
-  },
-});
-
-await stagehand.init();
-console.log("Session ID:", stagehand.sessionId);
-```
-```python Python
-from stagehand import Stagehand
-
-# For Browserbase sessions
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    browserbase_session_create_params={
-        "user_data_dir": "/path/to/user/data/directory",
-    },
-)
-
-# For Local sessions
-local_stagehand = Stagehand(
-    env="LOCAL",
-    local_browser_launch_options={
-        "user_data_dir": "./browser-data",
-    },
-)
-
-await stagehand.init()
-print(f"Session ID: {stagehand.session_id}")
-```
-</CodeGroup>
+### Connecting to your local browser
 
 ## Troubleshooting
 
