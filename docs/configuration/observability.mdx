@@ -1,38 +1,70 @@
 ---
 title: Observability
+sidebarTitle: Observability
 ---
 
-Stagehand provides a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. You can override the default logger by passing in a custom logger function to the constructor.
+## Overview
+
+Stagehand provides comprehensive observability through structured logging, performance monitoring, and debugging capabilities. The framework offers flexible logging architecture with custom logger integration, detailed event tracking, and session-level monitoring for both development and production environments.
+
+<div style={{ textAlign: "center" }}>
+  <img src="/media/observability.gif" alt="Centered GIF" width="400" />
+</div>
+
+## Core Observability Components
+
+### Logging Architecture
+* **Structured Event Logging** with LogLine objects
+* **Custom Logger Integration** for external monitoring systems
+* **Multi-Level Verbosity Control** for different environments
+* **Auxiliary Metadata** for enhanced debugging context
+
+### Monitoring Capabilities
+* **Action-Level Tracking**: Success rates, execution times, error patterns
+* **Session-Level Monitoring**: Browser state, network activity, resource usage
+* **Page-Level Observation**: DOM element discovery and interaction analysis
+
+## Logging Configuration
+
+### Basic Logger Setup
 
 <CodeGroup>
 ```typescript TypeScript
+import { Stagehand, LogLine } from "@browserbase/stagehand";
+
 const stagehand = new Stagehand({
-	logger: (logLine: LogLine) => {
-		console.log(`[${logLine.category}] ${logLine.message}`);
-	},
+  logger: (logLine: LogLine) => {
+    console.log(`[${logLine.category}] ${logLine.message}`);
+  },
+  verbose: 1, // INFO level logging
+  disablePino: false, // Enable structured logging
 });
 ```
 
 ```python Python
-from stagehand import Stagehand, StagehandConfig
+from stagehand import Stagehand
 
 def custom_logger(log_line):
     print(f"[{log_line.get('category')}] {log_line.get('message')}")
 
-stagehand = Stagehand(StagehandConfig(
+stagehand = Stagehand(
     logger=custom_logger,
-))
+    verbose=1,  # INFO level logging
+    use_rich_logging=True,  # Colorized console output
+)
 ```
 </CodeGroup>
 
-Below is the list of fields in the `LogLine` object. `message` is the main log message content, and `auxiliary` contains parameters that can be used to provide additional context and color to the log.
+### LogLine Structure Reference
+
+The `LogLine` object provides comprehensive logging information with the following structure:
 
 <ParamField path="id" type="string" optional>
   Unique identifier for the log line
 </ParamField>
 
 <ParamField path="category" type="string" optional>
-  Category/type of the log message
+  Category/type of the log message (e.g., "llm_cache", "browser", "action")
 </ParamField>
 
 <ParamField path="message" type="string" required>
@@ -40,164 +72,392 @@ Below is the list of fields in the `LogLine` object. `message` is the main log m
 </ParamField>
 
 <ParamField path="level" type="0 | 1 | 2" optional>
-  Logging verbosity level
+  Logging verbosity level (0: ERROR, 1: INFO, 2: DEBUG)
 </ParamField>
 
 <ParamField path="timestamp" type="string" optional>
-  Timestamp of when the log was created
+  ISO timestamp of when the log was created
 </ParamField>
 
 <ParamField path="auxiliary" type="object" optional>
-  Additional metadata where each key contains a `value` and `type`. The `value` will always be a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"`
+  Additional metadata where each key contains a `value` and `type`. The `value` is always a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"`
 </ParamField>
 
-You can see an example of a log line in [`OpenAIClient.ts`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/lib/llm/OpenAIClient.ts#L79-L93). You'll notice here how `auxiliary` contains a `requestId` and `cachedResponse`.
+### Advanced Logger Implementation
 
-<CodeGroup>
-```typescript TypeScript
-this.logger({
-	category: "llm_cache",
-	message: "LLM cache hit - returning cached response",
-	level: 1,
-	auxiliary: {
-		requestId: {
-			value: options.requestId,
-			type: "string",
-		},
-		cachedResponse: {
-			value: JSON.stringify(cachedResponse),
-			type: "object",
-		},
-	}
-});
-```
-
-```python Python
-import json
-
-self.logger({
-    "category": "llm_cache",
-    "message": "LLM cache hit - returning cached response",
-    "level": 1,
-    "auxiliary": {
-        "requestId": {
-            "value": options.request_id,
-            "type": "string",
-        },
-        "cachedResponse": {
-            "value": json.dumps(cached_response),
-            "type": "object",
-        },
-    }
-})
-```
-</CodeGroup>
-
-`observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
-
-<CodeGroup>
-```typescript TypeScript
-const observations = await page.observe();
-```
-
-```python Python
-observations = await page.observe()
-```
-</CodeGroup>
-
-`observe()` returns an array of objects, each with an XPath `selector` and short `description`.
-
-If you are looking for a specific element, you can also pass in an instruction to observe:
-
-<CodeGroup>
-```typescript TypeScript
-const observations = await page.observe({
-  instruction: "Find the buttons on this page",
-});
-```
-
-```python Python
-observations = await page.observe("Find the buttons on this page")
-```
-</CodeGroup>
-
-Observe can also return a suggested action for the candidate element by setting the `returnAction` option to true. Here is a sample `ObserveResult`:
-```json
-  {
-    "description": "A brief description of the component",
-    "method": 'click',
-    "arguments": [],
-    "selector": 'xpath=/html/body[1]/div[1]/main[1]/button[1]'
-  }
-```
-
-<Note>
-In Python, the ObserveResult is wrapped in a Pydantic model. You can use model_dump() to get the `dict` equivalent.
-</Note>
-
-### **Arguments:** [`ObserveOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
 <Tabs>
-<Tab title="TypeScript">
-
-  <ParamField path="instruction" type="string" optional>
-    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
-  </ParamField>
-
-  <ParamField path="returnAction" type="boolean" optional>
-    Returns an observe result object that contains a suggested action for the candidate element. The suggestion includes method, and arguments (if any). Defaults to `true`.
-  </ParamField>
-
-  <ParamField path="iframes" type="boolean" optional>
-    Set `iframes: true` if content from iframes should be included in the observation.
-  </ParamField>
-
-  <ParamField path="modelName" type="AvailableModel" optional>
-    Specifies the model to use
-  </ParamField>
-
-  <ParamField path="modelClientOptions" type="object" optional>
-    Configuration options for the model client
-  </ParamField>
-
-  <ParamField path="domSettleTimeoutMs" type="number" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
-</Tab>
-
-<Tab title="Python">
-  <ParamField path="instruction" type="string" optional>
-    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
-  </ParamField>
-
-  <ParamField path="model_name" type="AvailableModel" optional>
-    Specifies the model to use
-  </ParamField>
-
-  <ParamField path="model_client_options" type="object" optional>
-    Configuration options for the model client
-  </ParamField>
-
-  <ParamField path="dom_settle_timeout_ms" type="number" optional>
-    Timeout in milliseconds for waiting for the DOM to settle
-  </ParamField>
-</Tab>
+  <Tab title="Structured Logging">
+    ```typescript TypeScript
+    const structuredLogger = (logLine: LogLine) => {
+      const logEntry = {
+        timestamp: logLine.timestamp || new Date().toISOString(),
+        level: logLine.level,
+        category: logLine.category,
+        message: logLine.message,
+        sessionId: stagehand.sessionId,
+        auxiliary: logLine.auxiliary
+      };
+      
+      // Send to external monitoring system
+      if (logLine.level === 0) { // ERROR level
+        errorTracker.captureException(new Error(logLine.message), logEntry);
+      }
+      
+      // Send to log aggregation service
+      winston.log(logEntry.level === 0 ? 'error' : 'info', logEntry);
+    };
+    ```
+  </Tab>
+  <Tab title="Performance Monitoring">
+    ```typescript TypeScript
+    const performanceLogger = (logLine: LogLine) => {
+      // Track LLM cache performance
+      if (logLine.category === 'llm_cache') {
+        metrics.recordCacheHit({
+          requestId: logLine.auxiliary?.requestId?.value,
+          cacheHit: logLine.message.includes('cache hit')
+        });
+      }
+      
+      // Monitor action execution times
+      if (logLine.category === 'action' && logLine.auxiliary?.executionTime) {
+        metrics.histogram('stagehand_action_duration', 
+          parseFloat(logLine.auxiliary.executionTime.value), {
+          action_type: logLine.auxiliary?.actionType?.value
+        });
+      }
+    };
+    ```
+  </Tab>
 </Tabs>
 
-### **Returns:** [`Promise<ObserveResult[]>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+### Verbosity Level Configuration
 
-Each `ObserveResult` object contains a `selector` and `description`.
-  <ParamField path="selector" type="string" required>
-    A string representing the element selector
-  </ParamField>
+<CodeGroup>
+```typescript TypeScript
+// Environment-specific logging configuration
+const getLoggerConfig = (environment: string) => {
+  switch (environment) {
+    case 'production':
+      return {
+        verbose: 1, // INFO level only
+        logger: productionLogger,
+        disablePino: false
+      };
+    case 'development':
+      return {
+        verbose: 2, // DEBUG level
+        logger: developmentLogger,
+        disablePino: false
+      };
+    case 'testing':
+      return {
+        verbose: 0, // ERROR level only
+        logger: testLogger,
+        disablePino: true
+      };
+  }
+};
 
-  <ParamField path="description" type="string" required>
-    A string describing the possible action
-  </ParamField>
+const stagehand = new Stagehand(getLoggerConfig(process.env.NODE_ENV));
+```
 
-  <ParamField path="method" type="string" optional>
-    The method to call on the element
-  </ParamField>
+```python Python
+def get_logger_config(environment: str):
+    if environment == 'production':
+        return {
+            'verbose': 1,  # INFO level only
+            'logger': production_logger,
+            'use_rich_logging': False
+        }
+    elif environment == 'development':
+        return {
+            'verbose': 2,  # DEBUG level
+            'logger': development_logger,
+            'use_rich_logging': True
+        }
+    else:  # testing
+        return {
+            'verbose': 0,  # ERROR level only
+            'logger': test_logger,
+            'use_rich_logging': False
+        }
 
-  <ParamField path="arguments" type="object" optional>
-    The arguments to pass to the method
-  </ParamField>
+stagehand = Stagehand(**get_logger_config(os.getenv('ENVIRONMENT', 'development')))
+```
+</CodeGroup>
+
+## Page Observation & Analysis
+
+### Basic Page Observation
+
+<CodeGroup>
+```typescript TypeScript
+// General page observation
+const observations = await page.observe();
+
+// Targeted observation with specific instructions
+const buttonObservations = await page.observe({
+  instruction: "Find all clickable buttons on this page",
+  returnAction: true, // Include suggested actions
+  iframes: true, // Include iframe content
+});
+```
+
+```python Python
+# General page observation
+observations = await page.observe()
+
+# Targeted observation with specific instructions
+button_observations = await page.observe(
+    instruction="Find all clickable buttons on this page"
+)
+```
+</CodeGroup>
+
+### ObserveResult Analysis
+
+The `observe()` method returns detailed information about page elements:
+
+```json
+{
+  "description": "Submit form button with blue background",
+  "method": "click",
+  "arguments": [],
+  "selector": "xpath=/html/body[1]/div[1]/form[1]/button[1]"
+}
+```
+
+<ParamField path="selector" type="string" required>
+  XPath selector for the element
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  Human-readable description of the element and its function
+</ParamField>
+
+<ParamField path="method" type="string" optional>
+  Suggested interaction method (click, type, hover, etc.)
+</ParamField>
+
+<ParamField path="arguments" type="object" optional>
+  Additional arguments for the suggested action
+</ParamField>
+
+### Advanced Observation Patterns
+
+<Tabs>
+  <Tab title="Element Discovery">
+    ```typescript TypeScript
+    // Discover interactive elements for automation planning
+    const discoverPageElements = async (page: any) => {
+      const observations = await page.observe({
+        instruction: "Find all interactive elements including forms, buttons, and links",
+        returnAction: true
+      });
+      
+      // Categorize elements by type
+      const elementTypes = observations.reduce((acc, obs) => {
+        const type = obs.method || 'unknown';
+        acc[type] = acc[type] || [];
+        acc[type].push(obs);
+        return acc;
+      }, {});
+      
+      return elementTypes;
+    };
+    ```
+  </Tab>
+  <Tab title="Observation Logging">
+    ```typescript TypeScript
+    const observationLogger = async (page: any, instruction: string) => {
+      const startTime = Date.now();
+      
+      try {
+        const observations = await page.observe({ instruction });
+        const duration = Date.now() - startTime;
+        
+        logger.info('Page observation completed', {
+          instruction,
+          elementCount: observations.length,
+          duration,
+          elements: observations.map(obs => ({
+            selector: obs.selector,
+            description: obs.description,
+            method: obs.method
+          }))
+        });
+        
+        return observations;
+      } catch (error) {
+        logger.error('Page observation failed', {
+          instruction,
+          duration: Date.now() - startTime,
+          error: error.message
+        });
+        throw error;
+      }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Production Monitoring Integration
+
+### APM Integration Examples
+
+<Tabs>
+  <Tab title="OpenTelemetry">
+    ```typescript TypeScript
+    import { trace, metrics } from '@opentelemetry/api';
+    
+    const tracer = trace.getTracer('stagehand-automation');
+    const meter = metrics.getMeter('stagehand-metrics');
+    
+    const actionDurationHistogram = meter.createHistogram('stagehand_action_duration', {
+      description: 'Duration of Stagehand actions in milliseconds'
+    });
+    
+    const telemetryLogger = (logLine: LogLine) => {
+      const span = tracer.startSpan(`stagehand.${logLine.category}`);
+      
+      span.setAttributes({
+        'stagehand.category': logLine.category,
+        'stagehand.level': logLine.level?.toString(),
+        'stagehand.session_id': stagehand.sessionId
+      });
+      
+      // Record metrics for performance tracking
+      if (logLine.auxiliary?.executionTime) {
+        actionDurationHistogram.record(
+          parseFloat(logLine.auxiliary.executionTime.value),
+          { category: logLine.category }
+        );
+      }
+      
+      span.addEvent(logLine.message, logLine.auxiliary);
+      span.end();
+    };
+    ```
+  </Tab>
+  <Tab title="DataDog Integration">
+    ```typescript TypeScript
+    import { StatsD } from 'node-statsd';
+    
+    const statsd = new StatsD();
+    
+    const datadogLogger = (logLine: LogLine) => {
+      // Increment counters for different log categories
+      statsd.increment('stagehand.logs.total', 1, {
+        category: logLine.category,
+        level: logLine.level?.toString()
+      });
+      
+      // Track execution times
+      if (logLine.auxiliary?.executionTime) {
+        statsd.histogram('stagehand.action.duration', 
+          parseFloat(logLine.auxiliary.executionTime.value), {
+          category: logLine.category
+        });
+      }
+      
+      // Send errors to DataDog
+      if (logLine.level === 0) {
+        statsd.increment('stagehand.errors.total', 1, {
+          category: logLine.category
+        });
+      }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Health Check Implementation
+
+```typescript
+interface HealthCheckResult {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  checks: {
+    sessionActive: boolean;
+    llmProvider: boolean;
+    observationCapable: boolean;
+  };
+  metrics: {
+    lastActionTime: number;
+    errorRate: number;
+    averageResponseTime: number;
+  };
+}
+
+class StagehandHealthMonitor {
+  private stagehand: Stagehand;
+  private healthMetrics: Map<string, number> = new Map();
+  
+  constructor(stagehand: Stagehand) {
+    this.stagehand = stagehand;
+    this.setupHealthLogger();
+  }
+  
+  private setupHealthLogger() {
+    const originalLogger = this.stagehand.logger;
+    
+    this.stagehand.logger = (logLine: LogLine) => {
+      // Track health metrics from logs
+      this.updateHealthMetrics(logLine);
+      
+      // Call original logger
+      if (originalLogger) {
+        originalLogger(logLine);
+      }
+    };
+  }
+  
+  async performHealthCheck(): Promise<HealthCheckResult> {
+    const checks = {
+      sessionActive: await this.checkSessionHealth(),
+      llmProvider: await this.checkLLMHealth(),
+      observationCapable: await this.checkObservationHealth()
+    };
+    
+    const metrics = {
+      lastActionTime: this.healthMetrics.get('lastActionTime') || 0,
+      errorRate: this.calculateErrorRate(),
+      averageResponseTime: this.healthMetrics.get('avgResponseTime') || 0
+    };
+    
+    return {
+      status: this.determineOverallHealth(checks, metrics),
+      checks,
+      metrics
+    };
+  }
+}
+```
+
+## Best Practices & Recommendations
+
+### Development Environment
+
+1. **Use DEBUG logging level** (`verbose: 2`) for detailed troubleshooting
+2. **Enable rich logging** for better console visibility
+3. **Implement observation logging** to understand page interaction patterns
+4. **Monitor action execution times** to identify performance bottlenecks
+
+### Production Environment
+
+1. **Use INFO logging level** (`verbose: 1`) for operational visibility
+2. **Integrate with APM systems** for comprehensive monitoring
+3. **Implement structured logging** with correlation IDs
+4. **Set up alerting** for error rates and performance degradation
+
+### Performance Optimization
+
+> **Note**
+> Implement efficient logging strategies to minimize performance impact while maintaining observability.
+
+- **Batch log submissions** to external systems to reduce overhead
+- **Use sampling** for high-volume debug logs in production
+- **Implement log rotation** for local file-based logging
+- **Cache observation results** for repeated page analysis
+
+This comprehensive observability framework enables effective monitoring, debugging, and optimization of Stagehand automation workflows across all deployment environments.
