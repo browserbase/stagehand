@@ -24,25 +24,25 @@
           {
             "group": "Agent",
             "pages": [
-              "fundamentals/agent/overview"
+              "basics/agent/overview"
             ]
           },
           {
             "group": "Act",
             "pages": [
-              "fundamentals/act/overview"
+              "basics/act/overview"
             ]
           },
           {
             "group": "Extract",
             "pages": [
-              "fundamentals/extract/overview"
+              "basics/extract/overview"
             ]
           },
           {
             "group": "Observe",
             "pages": [
-              "fundamentals/observe/overview"
+              "basics/observe/overview"
             ]
           }
         ]
@@ -66,7 +66,9 @@
           "best_practices/customize_browser",
           "best_practices/computer_use",
           "best_practices/contributing",
-          "best_practices/playwright_interop"
+          "best_practices/playwright_interop",
+          "best_practices/interact_with_page",
+          "best_practices/build_agent"
         ]
       },
       {
@@ -127,5 +129,8 @@
       "apiKey": "phc_hmwkFrlc9UVrdE1jyG8AEKoCQCSr8dScjsRpKoLBEiV",
       "apiHost": "https://us.i.posthog.com"
     }
+  },
+  "contextual": {
+    "options": ["chatgpt", "claude", "copy", "view", "perplexity"]
   }
 }
