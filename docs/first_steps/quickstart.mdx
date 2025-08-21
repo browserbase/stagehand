@@ -3,10 +3,12 @@ title: Quickstart
 description: 'Stagehand allows you to build web automations with natural language and code.'
 ---
 
-The quickest way to start with Stagehand is with our CLI. It scaffolds a ready-to-run Stagehand app with sensible defaults, and an example script.
+If this is your **first time using Stagehand**, you should try [Director](https://director.ai) first. It's an agent that allows you to build Stagehand workflows using natural language.
+
+Otherwise, the quickest way to start with Stagehand is with our CLI. It scaffolds a ready‑to‑run Stagehand app with sensible defaults, and an example script.
 
 <Note>
-  If you are a Python developer, follow the <a href="/first_steps/installation#python">Python installation instructions</a>.
+This quickstart is for **TypeScript**. For **Python**, see the [installation guide](/first_steps/installation).
 </Note>
 
 ## 1) Create a sample project
@@ -46,7 +48,7 @@ async function main() {
   await stagehand.init();
 
   console.log(`Stagehand Session Started`);
-  console.log(`Watch live: https://browserbase.com/sessions/${stagehand.browserbaseSessionID}\n`);
+  console.log(`Watch live: https://browserbase.com/sessions/${stagehand.browserbaseSessionID}`);
 
   const page = stagehand.page;
 
@@ -55,11 +57,18 @@ async function main() {
   const extractResult = await page.extract("Extract the value proposition from the page.");
   console.log(`Extract result:\n`, extractResult);
 
-  const actResult = await page.act("Click the 'Get Started' button.");
+  const actResult = await page.act("Click the 'Evals' button.");
   console.log(`Act result:\n`, actResult);
 
   const observeResult = await page.observe("What can I click on this page?");
   console.log(`Observe result:\n`, observeResult);
+
+  const agent = await stagehand.agent({
+    instructions: "You're a helpful assistant that can control a web browser.",
+  });
+
+  const agentResult = await agent.execute("What is the most accurate model to use in Stagehand?");
+  console.log(`Agent result:\n`, agentResult);
 
   await stagehand.close();
 }
@@ -68,6 +77,7 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
 ```
 </CodeGroup>
 
