@@ -47,9 +47,9 @@ Stagehand supports major LLM providers with structured output capabilities:
 
 | Provider | Best Models | Strengths | Use Case |
 |----------|-------------|-----------|----------|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini` | High accuracy, reliable | Production, complex sites |
+| **OpenAI** | `gpt-4.1`, `gpt-4.1-mini` | High accuracy, reliable | Production, complex sites |
 | **Anthropic** | `claude-3-7-sonnet-latest` | Excellent reasoning | Complex automation tasks |
-| **Google** | `gemini-2.0-flash`, `gemini-2.5-pro` | Fast, cost-effective | High-volume automation |
+| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | Fast, cost-effective | High-volume automation |
 
 ### Additional Providers
 
@@ -63,7 +63,7 @@ Stagehand supports major LLM providers with structured output capabilities:
 - **DeepSeek** - Cost-effective alternative
 - **Perplexity** - Real-time web data
 - **Ollama** - Local deployment (limited accuracy)
-- **Run any model included in AI SDK** - Find supported models in the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers)
+- **Run any model included in AI SDK** - Find supported models in the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) (Follow the guide [here](/configuration/llm_customization#vercel-ai-sdk) to get started.)
 </Expandable>
 
 ## Basic Configuration
@@ -73,19 +73,20 @@ Stagehand supports major LLM providers with structured output capabilities:
 Stagehand uses the format `provider/model-name` for model specification.
 
 **Examples:**
-- OpenAI: `openai/gpt-4o`
+- OpenAI: `openai/gpt-4.1`
 - Anthropic: `anthropic/claude-3-7-sonnet-latest`
-- Google: `google/gemini-2.5-pro`
+- Google: `google/gemini-2.5-flash` (Recommended)
 
 ### Quick Start Examples
 
 <Tabs>
 <Tab title="Google (Recommended)">
+<CodeGroup>
 ```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  modelName: "google/gemini-2.5-pro",
+  modelName: "google/gemini-2.5-flash",
   modelClientOptions: {
     apiKey: process.env.GOOGLE_API_KEY,
   },
@@ -96,17 +97,19 @@ import os
 from stagehand import Stagehand
 
 stagehand = Stagehand(
-    model_name="google/gemini-2.5-pro",
-    model_client_options={"api_key": os.getenv("GOOGLE_API_KEY")},
+    model_name="google/gemini-2.5-flash",
+    model_api_key=os.getenv("GOOGLE_API_KEY")
 )
 ```
+</CodeGroup>
 </Tab>
 <Tab title="OpenAI">
+<CodeGroup>
 ```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  modelName: "openai/gpt-4o",
+  modelName: "openai/gpt-4.1",
   modelClientOptions: {
     apiKey: process.env.OPENAI_API_KEY,
   },
@@ -117,13 +120,15 @@ import os
 from stagehand import Stagehand
 
 stagehand = Stagehand(
-    model_name="openai/gpt-4o",
-    model_client_options={"api_key": os.getenv("OPENAI_API_KEY")},
+    model_name="openai/gpt-4.1",
+    model_api_key=os.getenv("OPENAI_API_KEY")
 )
 ```
+</CodeGroup>
 </Tab>
 
 <Tab title="Anthropic">
+<CodeGroup>
 ```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
@@ -134,16 +139,16 @@ const stagehand = new Stagehand({
   },
 });
 ```
-
 ```python Python
 import os
 from stagehand import Stagehand
 
 stagehand = Stagehand(
     model_name="anthropic/claude-3-7-sonnet-latest",
-    model_client_options={"api_key": os.getenv("ANTHROPIC_API_KEY")},
+    model_api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 ```
+</CodeGroup>
 </Tab>
 </Tabs>
 
@@ -230,14 +235,21 @@ const stagehand = new Stagehand({
 <Accordion title="Model doesn't support structured outputs">
 **Error**: `Model does not support structured outputs`
 
-**Solution**: 
-Use models that support function calling/structured outputs:
-- **OpenAI**: GPT-4o, GPT-4o-mini, GPT-4-turbo
-- **Anthropic**: Claude 3.7 Sonnet Latest, Claude 3.5 Sonnet, Claude 3 Haiku
-- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash, Gemini 1.5 Pro
-- **Groq**: Llama 3.3 70B Versatile
+**Solution**:
+Use models that support function calling/structured outputs. The minimum requirements are:
 
-**Note**: Avoid older models like GPT-3.5-turbo or base Llama models without structured output fine-tuning.
+- Model must support JSON/structured outputs
+- Model must have strong reasoning capabilities
+- Model must be able to handle complex instructions
+
+For each provider, use their latest models that meet these requirements. Some examples:
+
+- **OpenAI**: GPT-4 series or newer
+- **Anthropic**: Claude 3 series or newer 
+- **Google**: Gemini 2 series or newer
+- **Other providers**: Latest models with structured output support
+
+**Note**: Avoid base language models without structured output capabilities or fine-tuning for instruction following. When in doubt, check our [Model Evaluation](https://www.stagehand.dev/evals) page for up-to-date recommendations.
 </Accordion>
 
 <Accordion title="Authentication errors">
@@ -254,9 +266,9 @@ Use models that support function calling/structured outputs:
 **Symptoms**: Actions work sometimes but fail other times
 
 **Causes & Solutions**:
-- **Weak models**: Use more capable models - **recommended: Gemini 2.5 Pro**, GPT-4o, or Claude 3.7 Sonnet Latest
+- **Weak models**: Use more capable models - check our [Model Evaluation](https://www.stagehand.dev/evals) page for current recommendations
 - **High temperature**: Set temperature to 0 for deterministic outputs
-- **Complex pages**: Switch to most capable models like GPT-4o or Claude 3.7 Sonnet Latest
+- **Complex pages**: Switch to models with higher accuracy scores on our [Model Evaluation](https://www.stagehand.dev/evals) page
 - **Rate limits**: Implement retry logic with exponential backoff
 - **Context limits**: Reduce page complexity or use models with larger context windows
 - **Prompt clarity**: Ensure your automation instructions are clear and specific
@@ -266,14 +278,14 @@ Use models that support function calling/structured outputs:
 **Issue**: Automation takes too long to respond
 
 **Solutions**:
-- **Switch to faster models**: 
-  - **Google Gemini 2.0 Flash** (good speed/accuracy balance)
-  - **GPT-4o-mini** (faster than GPT-4o)
+- **Use fast models**: Choose models optimized for speed
+  - Any model with < 1s response time
+  - Models with "fast" or "flash" variants
 - **Optimize settings**: 
   - Use `verbose: 0` to minimize token usage
-  - Set lower temperature (0) for faster processing
-  - Reduce max tokens if possible
-- **Local deployment**: Use Ollama for zero-latency (with accuracy trade-offs)
+  - Set temperature to 0 for fastest processing
+  - Keep max tokens as low as possible
+- **Consider local deployment**: Local models can provide lowest latency
 - **Batch operations**: Group multiple actions when possible
 </Accordion>
 
@@ -282,9 +294,9 @@ Use models that support function calling/structured outputs:
 
 **Cost Optimization Strategies**:
 1. **Switch to cost-effective models**: 
-   - **Gemini 2.5 Pro** (best value for high capability)
-   - **Gemini 2.0 Flash** (ultra cost-effective)
-   - **GPT-4o-mini** (cheaper than GPT-4o)
+   - Check our [Model Evaluation](https://www.stagehand.dev/evals) page for current cost-performance benchmarks
+   - Choose models with lower cost per token that still meet accuracy requirements
+   - Consider models optimized for speed to reduce total runtime costs
 2. **Optimize token usage**: 
    - Set `verbose: 0` to reduce logging overhead
    - Use concise prompts and limit response length
@@ -296,13 +308,12 @@ Use models that support function calling/structured outputs:
 </AccordionGroup>
 
 ### Best Practices
-
-1. **Start with recommended models**: Gemini 2.5 Pro for best results
-2. **Test thoroughly**: Different models excel at different types of websites and complexity levels
-3. **Monitor costs**: Set up billing alerts and track token usage per automation run
-4. **Use appropriate temperature**: 0 for deterministic automation, 0.1-0.3 for creative tasks
-5. **Implement fallbacks**: Have backup models in case your primary model fails or hits rate limits
-6. **Cache strategically**: Store successful action patterns to reduce redundant LLM calls
-7. **Version control**: Track which model versions work best for your specific use cases
-8. **A/B testing**: Compare model performance on representative automation tasks
+1. **Choose models**: Start with Gemini 2.5 Pro - see our [Model Evaluation](/configuration/evals) page
+2. **Test models**: Evaluate performance on your specific use cases in our [Model Evaluation](/configuration/evals) guide
+3. **Track costs**: Monitor token usage and set alerts using our [Observability](/configuration/observability) tools
+4. **Set temperature**: 0 for automation, 0.1-0.3 for creative tasks as covered in [AI Rules](/first_steps/ai_rules)
+5. **Use fallbacks**: Configure backup models following our [Best Practices](/best_practices/caching)
+6. **Cache results**: Store successful patterns using our [Caching Guide](/best_practices/caching)
+7. **Version models**: Track effective model versions as described in our [Contributing](/best_practices/contributing) guide
+8. **Compare models**: Run A/B tests using [Custom Evals](/best_practices/creating_custom_evals)
 

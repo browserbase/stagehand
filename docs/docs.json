@@ -53,7 +53,8 @@
           "configuration/environment",
           "configuration/observability",
           "configuration/llm_customization",
-          "configuration/evals"
+          "configuration/evals",
+          "configuration/logging"
         ]
       },
       {
