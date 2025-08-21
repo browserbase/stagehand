@@ -1,3 +1,203 @@
 ---
 title: Observability
 ---
+
+Stagehand provides a [`LogLine`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/types/log.ts#L1-L13) object. You can override the default logger by passing in a custom logger function to the constructor.
+
+<CodeGroup>
+```typescript TypeScript
+const stagehand = new Stagehand({
+	logger: (logLine: LogLine) => {
+		console.log(`[${logLine.category}] ${logLine.message}`);
+	},
+});
+```
+
+```python Python
+from stagehand import Stagehand, StagehandConfig
+
+def custom_logger(log_line):
+    print(f"[{log_line.get('category')}] {log_line.get('message')}")
+
+stagehand = Stagehand(StagehandConfig(
+    logger=custom_logger,
+))
+```
+</CodeGroup>
+
+Below is the list of fields in the `LogLine` object. `message` is the main log message content, and `auxiliary` contains parameters that can be used to provide additional context and color to the log.
+
+<ParamField path="id" type="string" optional>
+  Unique identifier for the log line
+</ParamField>
+
+<ParamField path="category" type="string" optional>
+  Category/type of the log message
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  The main log message content
+</ParamField>
+
+<ParamField path="level" type="0 | 1 | 2" optional>
+  Logging verbosity level
+</ParamField>
+
+<ParamField path="timestamp" type="string" optional>
+  Timestamp of when the log was created
+</ParamField>
+
+<ParamField path="auxiliary" type="object" optional>
+  Additional metadata where each key contains a `value` and `type`. The `value` will always be a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"`
+</ParamField>
+
+You can see an example of a log line in [`OpenAIClient.ts`](https://github.com/browserbase/stagehand/blob/9605836ee6b8207ed7dc9146e12ced1c78630d59/lib/llm/OpenAIClient.ts#L79-L93). You'll notice here how `auxiliary` contains a `requestId` and `cachedResponse`.
+
+<CodeGroup>
+```typescript TypeScript
+this.logger({
+	category: "llm_cache",
+	message: "LLM cache hit - returning cached response",
+	level: 1,
+	auxiliary: {
+		requestId: {
+			value: options.requestId,
+			type: "string",
+		},
+		cachedResponse: {
+			value: JSON.stringify(cachedResponse),
+			type: "object",
+		},
+	}
+});
+```
+
+```python Python
+import json
+
+self.logger({
+    "category": "llm_cache",
+    "message": "LLM cache hit - returning cached response",
+    "level": 1,
+    "auxiliary": {
+        "requestId": {
+            "value": options.request_id,
+            "type": "string",
+        },
+        "cachedResponse": {
+            "value": json.dumps(cached_response),
+            "type": "object",
+        },
+    }
+})
+```
+</CodeGroup>
+
+`observe()` is used to get a list of actions that can be taken on the current page. It's useful for adding context to your planning step, or if you unsure of what page you're on.
+
+<CodeGroup>
+```typescript TypeScript
+const observations = await page.observe();
+```
+
+```python Python
+observations = await page.observe()
+```
+</CodeGroup>
+
+`observe()` returns an array of objects, each with an XPath `selector` and short `description`.
+
+If you are looking for a specific element, you can also pass in an instruction to observe:
+
+<CodeGroup>
+```typescript TypeScript
+const observations = await page.observe({
+  instruction: "Find the buttons on this page",
+});
+```
+
+```python Python
+observations = await page.observe("Find the buttons on this page")
+```
+</CodeGroup>
+
+Observe can also return a suggested action for the candidate element by setting the `returnAction` option to true. Here is a sample `ObserveResult`:
+```json
+  {
+    "description": "A brief description of the component",
+    "method": 'click',
+    "arguments": [],
+    "selector": 'xpath=/html/body[1]/div[1]/main[1]/button[1]'
+  }
+```
+
+<Note>
+In Python, the ObserveResult is wrapped in a Pydantic model. You can use model_dump() to get the `dict` equivalent.
+</Note>
+
+### **Arguments:** [`ObserveOptions`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+<Tabs>
+<Tab title="TypeScript">
+
+  <ParamField path="instruction" type="string" optional>
+    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
+  </ParamField>
+
+  <ParamField path="returnAction" type="boolean" optional>
+    Returns an observe result object that contains a suggested action for the candidate element. The suggestion includes method, and arguments (if any). Defaults to `true`.
+  </ParamField>
+
+  <ParamField path="iframes" type="boolean" optional>
+    Set `iframes: true` if content from iframes should be included in the observation.
+  </ParamField>
+
+  <ParamField path="modelName" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="modelClientOptions" type="object" optional>
+    Configuration options for the model client
+  </ParamField>
+
+  <ParamField path="domSettleTimeoutMs" type="number" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+</Tab>
+
+<Tab title="Python">
+  <ParamField path="instruction" type="string" optional>
+    Provides instructions for the observation. Defaults to "Find actions that can be performed on this page."
+  </ParamField>
+
+  <ParamField path="model_name" type="AvailableModel" optional>
+    Specifies the model to use
+  </ParamField>
+
+  <ParamField path="model_client_options" type="object" optional>
+    Configuration options for the model client
+  </ParamField>
+
+  <ParamField path="dom_settle_timeout_ms" type="number" optional>
+    Timeout in milliseconds for waiting for the DOM to settle
+  </ParamField>
+</Tab>
+</Tabs>
+
+### **Returns:** [`Promise<ObserveResult[]>`](https://github.com/browserbase/stagehand/blob/main/types/stagehand.ts)
+
+Each `ObserveResult` object contains a `selector` and `description`.
+  <ParamField path="selector" type="string" required>
+    A string representing the element selector
+  </ParamField>
+
+  <ParamField path="description" type="string" required>
+    A string describing the possible action
+  </ParamField>
+
+  <ParamField path="method" type="string" optional>
+    The method to call on the element
+  </ParamField>
+
+  <ParamField path="arguments" type="object" optional>
+    The arguments to pass to the method
+  </ParamField>
