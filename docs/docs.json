@@ -129,5 +129,8 @@
       "apiKey": "phc_hmwkFrlc9UVrdE1jyG8AEKoCQCSr8dScjsRpKoLBEiV",
       "apiHost": "https://us.i.posthog.com"
     }
+  },
+  "contextual": {
+    "options": ["chatgpt", "claude", "copy", "view", "perplexity"]
   }
 }
