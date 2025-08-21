@@ -60,9 +60,7 @@
         "group": "Best Practices",
         "pages": [
           "best_practices/caching",
-          "best_practices/running_evals",
           "best_practices/nextjs",
-          "best_practices/custom_llms",
           "best_practices/customize_browser",
           "best_practices/computer_use",
           "best_practices/contributing",

@@ -1,463 +1,514 @@
 ---
 title: Observability
 sidebarTitle: Observability
+description: Monitor and debug your Stagehand automation with comprehensive visibility into browser sessions and execution
 ---
 
-## Overview
+Stagehand provides powerful observability features to help you monitor, debug, and optimize your browser automation workflows. The approach differs between Browserbase and local environments.
 
-Stagehand provides comprehensive observability through structured logging, performance monitoring, and debugging capabilities. The framework offers flexible logging architecture with custom logger integration, detailed event tracking, and session-level monitoring for both development and production environments.
+## Browserbase Observability
+
+When running on Browserbase, you gain access to comprehensive cloud-based monitoring and session management through the Browserbase API and dashboard.
 
 <div style={{ textAlign: "center" }}>
-  <img src="/media/observability.gif" alt="Centered GIF" width="400" />
+  <img src="/media/observability.gif" alt="Browserbase Session Observability" width="400" />
 </div>
 
-## Core Observability Components
+### Session Monitoring & API Visibility
 
-### Logging Architecture
-* **Structured Event Logging** with LogLine objects
-* **Custom Logger Integration** for external monitoring systems
-* **Multi-Level Verbosity Control** for different environments
-* **Auxiliary Metadata** for enhanced debugging context
+Browserbase provides real-time visibility into your automation sessions:
 
-### Monitoring Capabilities
-* **Action-Level Tracking**: Success rates, execution times, error patterns
-* **Session-Level Monitoring**: Browser state, network activity, resource usage
-* **Page-Level Observation**: DOM element discovery and interaction analysis
+**Live Session Dashboard**
+- Real-time browser screen recording
+- Network request monitoring
+- Console logs and errors
+- Performance metrics and timing
 
-## Logging Configuration
+**Session Management API**
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbase/stagehand";
 
-### Basic Logger Setup
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+});
+
+await stagehand.init();
+
+// Access session details
+console.log("Session ID:", stagehand.sessionId);
+console.log("Session URL:", `https://app.browserbase.com/sessions/${stagehand.sessionId}`);
+
+// Retrieve session information via API
+const sessionInfo = await fetch(`https://api.browserbase.com/v1/sessions/${stagehand.sessionId}`, {
+  headers: {
+    'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
+  }
+}).then(res => res.json());
+
+console.log("Session status:", sessionInfo.status);
+console.log("Session region:", sessionInfo.region);
+console.log("CPU usage:", sessionInfo.avgCpuUsage);
+console.log("Memory usage:", sessionInfo.memoryUsage);
+console.log("Proxy bytes:", sessionInfo.proxyBytes);
+```
+
+```python Python
+import os
+import requests
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    api_key=os.getenv("BROWSERBASE_API_KEY"),
+    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+)
+
+await stagehand.init()
+
+# Access session details
+print(f"Session ID: {stagehand.session_id}")
+print(f"Session URL: https://app.browserbase.com/sessions/{stagehand.session_id}")
+
+# Retrieve session information via API
+response = requests.get(
+    f"https://api.browserbase.com/v1/sessions/{stagehand.session_id}",
+    headers={
+        "X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY"),
+    }
+)
+
+session_info = response.json()
+print(f"Session status: {session_info['status']}")
+print(f"Session region: {session_info['region']}")
+print(f"CPU usage: {session_info['avgCpuUsage']}")
+print(f"Memory usage: {session_info['memoryUsage']}")
+print(f"Proxy bytes: {session_info['proxyBytes']}")
+```
+</CodeGroup>
+
+### Browserbase Debugging Features
+
+**Session Inspector**
+- Real-time monitoring and debugging tools for your browser sessions
+- Live view of browser interactions and page state
+- Network request monitoring with detailed timing
+
+**Session Replay**
+- Complete session recordings for post-execution analysis
+- Replay functionality to inspect actions performed and network requests
+- Frame-by-frame inspection of automation steps
+
+**Session Logs & Downloads**
+- Access to comprehensive session logs via API endpoints
+- Download session artifacts and recordings
+- JavaScript console errors and network failures tracking
+- Session status monitoring with real-time updates
 
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand, LogLine } from "@browserbase/stagehand";
+// Enable detailed logging for Browserbase sessions
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  verbose: 1, // Enable info-level logging
+  logger: (logLine) => {
+    console.log(`[${logLine.category}] ${logLine.message}`);
+    
+    // Track errors for monitoring
+    if (logLine.level === 0) {
+      console.error("Automation error:", {
+        category: logLine.category,
+        message: logLine.message,
+        sessionId: stagehand.sessionId,
+        timestamp: logLine.timestamp
+      });
+    }
+  }
+});
+```
+
+```python Python
+def browserbase_logger(log_line):
+    print(f"[{log_line.get('category')}] {log_line.get('message')}")
+    
+    # Track errors for monitoring
+    if log_line.get('level') == 0:
+        print("Automation error:", {
+            'category': log_line.get('category'),
+            'message': log_line.get('message'),
+            'session_id': stagehand.session_id,
+            'timestamp': log_line.get('timestamp')
+        })
+
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    api_key=os.getenv("BROWSERBASE_API_KEY"),
+    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+    verbose=1,  # Enable info-level logging
+    logger=browserbase_logger
+)
+```
+</CodeGroup>
+
+### Session Monitoring & Filtering
+
+Query and monitor sessions by status and metadata:
+
+<CodeGroup>
+```typescript TypeScript
+// List sessions with filtering
+async function getFilteredSessions() {
+  const response = await fetch('https://api.browserbase.com/v1/sessions?status=RUNNING', {
+    headers: {
+      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
+    }
+  });
+  
+  const sessions = await response.json();
+  
+  return sessions.map(session => ({
+    id: session.id,
+    status: session.status, // RUNNING, COMPLETED, ERROR, TIMED_OUT
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    region: session.region,
+    avgCpuUsage: session.avgCpuUsage,
+    memoryUsage: session.memoryUsage,
+    proxyBytes: session.proxyBytes,
+    userMetadata: session.userMetadata
+  }));
+}
+
+// Query sessions by metadata
+async function querySessionsByMetadata(query: string) {
+  const response = await fetch(`https://api.browserbase.com/v1/sessions?q=${encodeURIComponent(query)}`, {
+    headers: {
+      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
+    }
+  });
+  
+  return response.json();
+}
+```
+
+```python Python
+import requests
+import urllib.parse
+
+def get_filtered_sessions():
+    response = requests.get(
+        "https://api.browserbase.com/v1/sessions",
+        params={"status": "RUNNING"},
+        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
+    )
+    
+    sessions = response.json()
+    
+    return [{
+        'id': session['id'],
+        'status': session['status'],  # RUNNING, COMPLETED, ERROR, TIMED_OUT
+        'started_at': session['startedAt'],
+        'ended_at': session['endedAt'],
+        'region': session['region'],
+        'avg_cpu_usage': session['avgCpuUsage'],
+        'memory_usage': session['memoryUsage'],
+        'proxy_bytes': session['proxyBytes'],
+        'user_metadata': session['userMetadata']
+    } for session in sessions]
+
+def query_sessions_by_metadata(query):
+    response = requests.get(
+        "https://api.browserbase.com/v1/sessions",
+        params={"q": query},
+        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
+    )
+    
+    return response.json()
+```
+</CodeGroup>
+
+### Session Analytics
+
+Track automation performance and resource usage:
+
+<CodeGroup>
+```typescript TypeScript
+// Get comprehensive session analytics
+async function getSessionAnalytics(sessionId: string) {
+  const response = await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
+    headers: {
+      'X-BB-API-Key': process.env.BROWSERBASE_API_KEY,
+    }
+  });
+  
+  const session = await response.json();
+  
+  return {
+    id: session.id,
+    status: session.status,
+    duration: session.endedAt ? 
+      new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime() : null,
+    region: session.region,
+    avgCpuUsage: session.avgCpuUsage,
+    memoryUsage: session.memoryUsage,
+    proxyBytes: session.proxyBytes,
+    keepAlive: session.keepAlive,
+    connectUrl: session.connectUrl,
+    userMetadata: session.userMetadata
+  };
+}
+```
+
+```python Python
+from datetime import datetime
+
+def get_session_analytics(session_id):
+    response = requests.get(
+        f"https://api.browserbase.com/v1/sessions/{session_id}",
+        headers={"X-BB-API-Key": os.getenv("BROWSERBASE_API_KEY")}
+    )
+    
+    session = response.json()
+    
+    # Calculate duration if session is completed
+    duration = None
+    if session.get('endedAt') and session.get('startedAt'):
+        start = datetime.fromisoformat(session['startedAt'].replace('Z', '+00:00'))
+        end = datetime.fromisoformat(session['endedAt'].replace('Z', '+00:00'))
+        duration = int((end - start).total_seconds() * 1000)  # milliseconds
+    
+    return {
+        'id': session['id'],
+        'status': session['status'],
+        'duration': duration,
+        'region': session['region'],
+        'avg_cpu_usage': session['avgCpuUsage'],
+        'memory_usage': session['memoryUsage'],
+        'proxy_bytes': session['proxyBytes'],
+        'keep_alive': session['keepAlive'],
+        'connect_url': session['connectUrl'],
+        'user_metadata': session['userMetadata']
+    }
+```
+</CodeGroup>
+
+## Local Observability
+
+For local development, Stagehand provides detailed logging and debugging capabilities directly on your machine.
+
+### Development Logging
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbase/stagehand";
 
 const stagehand = new Stagehand({
-  logger: (logLine: LogLine) => {
-    console.log(`[${logLine.category}] ${logLine.message}`);
-  },
-  verbose: 1, // INFO level logging
-  disablePino: false, // Enable structured logging
+  env: "LOCAL",
+  verbose: 2, // DEBUG level - shows all internal operations
+  logger: (logLine) => {
+    // Color-coded console output
+    const colors = {
+      browser: '\x1b[34m', // blue
+      action: '\x1b[32m',  // green
+      llm: '\x1b[35m',     // magenta
+      error: '\x1b[31m',   // red
+    };
+    
+    const color = colors[logLine.category] || '\x1b[0m';
+    const reset = '\x1b[0m';
+    
+    console.log(`${color}[${logLine.category}]${reset} ${logLine.message}`);
+    
+    // Log additional context for debugging
+    if (logLine.auxiliary) {
+      console.log('  Context:', logLine.auxiliary);
+    }
+  }
 });
 ```
 
 ```python Python
 from stagehand import Stagehand
 
-def custom_logger(log_line):
-    print(f"[{log_line.get('category')}] {log_line.get('message')}")
+def development_logger(log_line):
+    # Color-coded console output
+    colors = {
+        'browser': '\033[34m',  # blue
+        'action': '\033[32m',   # green
+        'llm': '\033[35m',      # magenta
+        'error': '\033[31m',    # red
+    }
+    
+    color = colors.get(log_line.get('category'), '\033[0m')
+    reset = '\033[0m'
+    
+    print(f"{color}[{log_line.get('category')}]{reset} {log_line.get('message')}")
+    
+    # Log additional context for debugging
+    if log_line.get('auxiliary'):
+        print(f"  Context: {log_line.get('auxiliary')}")
 
 stagehand = Stagehand(
-    logger=custom_logger,
-    verbose=1,  # INFO level logging
-    use_rich_logging=True,  # Colorized console output
+    env="LOCAL",
+    verbose=2,  # DEBUG level - shows all internal operations
+    logger=development_logger
 )
 ```
 </CodeGroup>
 
-### LogLine Structure Reference
+### Browser DevTools Integration
 
-The `LogLine` object provides comprehensive logging information with the following structure:
-
-<ParamField path="id" type="string" optional>
-  Unique identifier for the log line
-</ParamField>
-
-<ParamField path="category" type="string" optional>
-  Category/type of the log message (e.g., "llm_cache", "browser", "action")
-</ParamField>
-
-<ParamField path="message" type="string" required>
-  The main log message content
-</ParamField>
-
-<ParamField path="level" type="0 | 1 | 2" optional>
-  Logging verbosity level (0: ERROR, 1: INFO, 2: DEBUG)
-</ParamField>
-
-<ParamField path="timestamp" type="string" optional>
-  ISO timestamp of when the log was created
-</ParamField>
-
-<ParamField path="auxiliary" type="object" optional>
-  Additional metadata where each key contains a `value` and `type`. The `value` is always a string, but `type` can be `"object"`, `"string"`, `"html"`, `"integer"`, `"float"`, or `"boolean"`
-</ParamField>
-
-### Advanced Logger Implementation
-
-<Tabs>
-  <Tab title="Structured Logging">
-    ```typescript TypeScript
-    const structuredLogger = (logLine: LogLine) => {
-      const logEntry = {
-        timestamp: logLine.timestamp || new Date().toISOString(),
-        level: logLine.level,
-        category: logLine.category,
-        message: logLine.message,
-        sessionId: stagehand.sessionId,
-        auxiliary: logLine.auxiliary
-      };
-      
-      // Send to external monitoring system
-      if (logLine.level === 0) { // ERROR level
-        errorTracker.captureException(new Error(logLine.message), logEntry);
-      }
-      
-      // Send to log aggregation service
-      winston.log(logEntry.level === 0 ? 'error' : 'info', logEntry);
-    };
-    ```
-  </Tab>
-  <Tab title="Performance Monitoring">
-    ```typescript TypeScript
-    const performanceLogger = (logLine: LogLine) => {
-      // Track LLM cache performance
-      if (logLine.category === 'llm_cache') {
-        metrics.recordCacheHit({
-          requestId: logLine.auxiliary?.requestId?.value,
-          cacheHit: logLine.message.includes('cache hit')
-        });
-      }
-      
-      // Monitor action execution times
-      if (logLine.category === 'action' && logLine.auxiliary?.executionTime) {
-        metrics.histogram('stagehand_action_duration', 
-          parseFloat(logLine.auxiliary.executionTime.value), {
-          action_type: logLine.auxiliary?.actionType?.value
-        });
-      }
-    };
-    ```
-  </Tab>
-</Tabs>
-
-### Verbosity Level Configuration
+When running locally, you can access Chrome DevTools directly:
 
 <CodeGroup>
 ```typescript TypeScript
-// Environment-specific logging configuration
-const getLoggerConfig = (environment: string) => {
-  switch (environment) {
-    case 'production':
-      return {
-        verbose: 1, // INFO level only
-        logger: productionLogger,
-        disablePino: false
-      };
-    case 'development':
-      return {
-        verbose: 2, // DEBUG level
-        logger: developmentLogger,
-        disablePino: false
-      };
-    case 'testing':
-      return {
-        verbose: 0, // ERROR level only
-        logger: testLogger,
-        disablePino: true
-      };
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    headless: false,  // Show browser window
+    devtools: true,   // Auto-open DevTools
+    slowMo: 250,      // Slow down actions for debugging
   }
-};
+});
 
-const stagehand = new Stagehand(getLoggerConfig(process.env.NODE_ENV));
+// The browser will open with DevTools automatically
+// You can inspect elements, monitor network, and debug JavaScript
+await stagehand.init();
 ```
 
 ```python Python
-def get_logger_config(environment: str):
-    if environment == 'production':
-        return {
-            'verbose': 1,  # INFO level only
-            'logger': production_logger,
-            'use_rich_logging': False
-        }
-    elif environment == 'development':
-        return {
-            'verbose': 2,  # DEBUG level
-            'logger': development_logger,
-            'use_rich_logging': True
-        }
-    else:  # testing
-        return {
-            'verbose': 0,  # ERROR level only
-            'logger': test_logger,
-            'use_rich_logging': False
-        }
+stagehand = Stagehand(
+    env="LOCAL",
+    headless=False,  # Show browser window
+    local_browser_launch_options={
+        "devtools": True,   # Auto-open DevTools
+        "slow_mo": 250,     # Slow down actions for debugging
+    }
+)
 
-stagehand = Stagehand(**get_logger_config(os.getenv('ENVIRONMENT', 'development')))
+# The browser will open with DevTools automatically
+await stagehand.init()
 ```
 </CodeGroup>
 
-## Page Observation & Analysis
+### Local Performance Monitoring
 
-### Basic Page Observation
+Track automation performance in your local environment:
 
 <CodeGroup>
 ```typescript TypeScript
-// General page observation
-const observations = await page.observe();
+class LocalPerformanceMonitor {
+  private actionTimes: Map<string, number> = new Map();
+  private startTimes: Map<string, number> = new Map();
+  
+  logActionStart(action: string) {
+    this.startTimes.set(action, Date.now());
+  }
+  
+  logActionEnd(action: string) {
+    const startTime = this.startTimes.get(action);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      this.actionTimes.set(action, duration);
+      console.log(`⏱️ ${action} completed in ${duration}ms`);
+    }
+  }
+  
+  getPerformanceReport() {
+    const report = Array.from(this.actionTimes.entries()).map(([action, time]) => ({
+      action,
+      duration: time,
+      slow: time > 5000
+    }));
+    
+    return report.sort((a, b) => b.duration - a.duration);
+  }
+}
 
-// Targeted observation with specific instructions
-const buttonObservations = await page.observe({
-  instruction: "Find all clickable buttons on this page",
-  returnAction: true, // Include suggested actions
-  iframes: true, // Include iframe content
+const monitor = new LocalPerformanceMonitor();
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  logger: (logLine) => {
+    console.log(`[${logLine.category}] ${logLine.message}`);
+    
+    // Track action performance
+    if (logLine.category === 'action' && logLine.auxiliary?.executionTime) {
+      const duration = parseFloat(logLine.auxiliary.executionTime.value);
+      console.log(`⏱️ Action duration: ${duration}ms`);
+    }
+  }
 });
 ```
 
 ```python Python
-# General page observation
-observations = await page.observe()
+import time
+from typing import Dict, List
 
-# Targeted observation with specific instructions
-button_observations = await page.observe(
-    instruction="Find all clickable buttons on this page"
+class LocalPerformanceMonitor:
+    def __init__(self):
+        self.action_times: Dict[str, float] = {}
+        self.start_times: Dict[str, float] = {}
+    
+    def log_action_start(self, action: str):
+        self.start_times[action] = time.time() * 1000
+    
+    def log_action_end(self, action: str):
+        start_time = self.start_times.get(action)
+        if start_time:
+            duration = time.time() * 1000 - start_time
+            self.action_times[action] = duration
+            print(f"⏱️ {action} completed in {duration:.0f}ms")
+    
+    def get_performance_report(self) -> List[Dict]:
+        report = [
+            {
+                'action': action,
+                'duration': time,
+                'slow': time > 5000
+            }
+            for action, time in self.action_times.items()
+        ]
+        return sorted(report, key=lambda x: x['duration'], reverse=True)
+
+monitor = LocalPerformanceMonitor()
+
+def performance_logger(log_line):
+    print(f"[{log_line.get('category')}] {log_line.get('message')}")
+    
+    # Track action performance
+    if (log_line.get('category') == 'action' and 
+        log_line.get('auxiliary', {}).get('executionTime')):
+        duration = float(log_line['auxiliary']['executionTime']['value'])
+        print(f"⏱️ Action duration: {duration:.0f}ms")
+
+stagehand = Stagehand(
+    env="LOCAL",
+    logger=performance_logger
 )
 ```
 </CodeGroup>
 
-### ObserveResult Analysis
+### Debugging Best Practices
 
-The `observe()` method returns detailed information about page elements:
+**For Development:**
+- Use `verbose: 2` to see all internal operations
+- Enable browser window and DevTools for visual debugging
+- Implement performance monitoring to identify slow operations
+- Use structured logging to track automation flow
 
-```json
-{
-  "description": "Submit form button with blue background",
-  "method": "click",
-  "arguments": [],
-  "selector": "xpath=/html/body[1]/div[1]/form[1]/button[1]"
-}
-```
+**For Production:**
+- Use `verbose: 1` for operational visibility without noise  
+- Implement error tracking and alerting
+- Monitor session success rates and performance metrics
+- Set up log aggregation for centralized monitoring
 
-<ParamField path="selector" type="string" required>
-  XPath selector for the element
-</ParamField>
-
-<ParamField path="description" type="string" required>
-  Human-readable description of the element and its function
-</ParamField>
-
-<ParamField path="method" type="string" optional>
-  Suggested interaction method (click, type, hover, etc.)
-</ParamField>
-
-<ParamField path="arguments" type="object" optional>
-  Additional arguments for the suggested action
-</ParamField>
-
-### Advanced Observation Patterns
-
-<Tabs>
-  <Tab title="Element Discovery">
-    ```typescript TypeScript
-    // Discover interactive elements for automation planning
-    const discoverPageElements = async (page: any) => {
-      const observations = await page.observe({
-        instruction: "Find all interactive elements including forms, buttons, and links",
-        returnAction: true
-      });
-      
-      // Categorize elements by type
-      const elementTypes = observations.reduce((acc, obs) => {
-        const type = obs.method || 'unknown';
-        acc[type] = acc[type] || [];
-        acc[type].push(obs);
-        return acc;
-      }, {});
-      
-      return elementTypes;
-    };
-    ```
-  </Tab>
-  <Tab title="Observation Logging">
-    ```typescript TypeScript
-    const observationLogger = async (page: any, instruction: string) => {
-      const startTime = Date.now();
-      
-      try {
-        const observations = await page.observe({ instruction });
-        const duration = Date.now() - startTime;
-        
-        logger.info('Page observation completed', {
-          instruction,
-          elementCount: observations.length,
-          duration,
-          elements: observations.map(obs => ({
-            selector: obs.selector,
-            description: obs.description,
-            method: obs.method
-          }))
-        });
-        
-        return observations;
-      } catch (error) {
-        logger.error('Page observation failed', {
-          instruction,
-          duration: Date.now() - startTime,
-          error: error.message
-        });
-        throw error;
-      }
-    };
-    ```
-  </Tab>
-</Tabs>
-
-## Production Monitoring Integration
-
-### APM Integration Examples
-
-<Tabs>
-  <Tab title="OpenTelemetry">
-    ```typescript TypeScript
-    import { trace, metrics } from '@opentelemetry/api';
-    
-    const tracer = trace.getTracer('stagehand-automation');
-    const meter = metrics.getMeter('stagehand-metrics');
-    
-    const actionDurationHistogram = meter.createHistogram('stagehand_action_duration', {
-      description: 'Duration of Stagehand actions in milliseconds'
-    });
-    
-    const telemetryLogger = (logLine: LogLine) => {
-      const span = tracer.startSpan(`stagehand.${logLine.category}`);
-      
-      span.setAttributes({
-        'stagehand.category': logLine.category,
-        'stagehand.level': logLine.level?.toString(),
-        'stagehand.session_id': stagehand.sessionId
-      });
-      
-      // Record metrics for performance tracking
-      if (logLine.auxiliary?.executionTime) {
-        actionDurationHistogram.record(
-          parseFloat(logLine.auxiliary.executionTime.value),
-          { category: logLine.category }
-        );
-      }
-      
-      span.addEvent(logLine.message, logLine.auxiliary);
-      span.end();
-    };
-    ```
-  </Tab>
-  <Tab title="DataDog Integration">
-    ```typescript TypeScript
-    import { StatsD } from 'node-statsd';
-    
-    const statsd = new StatsD();
-    
-    const datadogLogger = (logLine: LogLine) => {
-      // Increment counters for different log categories
-      statsd.increment('stagehand.logs.total', 1, {
-        category: logLine.category,
-        level: logLine.level?.toString()
-      });
-      
-      // Track execution times
-      if (logLine.auxiliary?.executionTime) {
-        statsd.histogram('stagehand.action.duration', 
-          parseFloat(logLine.auxiliary.executionTime.value), {
-          category: logLine.category
-        });
-      }
-      
-      // Send errors to DataDog
-      if (logLine.level === 0) {
-        statsd.increment('stagehand.errors.total', 1, {
-          category: logLine.category
-        });
-      }
-    };
-    ```
-  </Tab>
-</Tabs>
-
-### Health Check Implementation
-
-```typescript
-interface HealthCheckResult {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  checks: {
-    sessionActive: boolean;
-    llmProvider: boolean;
-    observationCapable: boolean;
-  };
-  metrics: {
-    lastActionTime: number;
-    errorRate: number;
-    averageResponseTime: number;
-  };
-}
-
-class StagehandHealthMonitor {
-  private stagehand: Stagehand;
-  private healthMetrics: Map<string, number> = new Map();
-  
-  constructor(stagehand: Stagehand) {
-    this.stagehand = stagehand;
-    this.setupHealthLogger();
-  }
-  
-  private setupHealthLogger() {
-    const originalLogger = this.stagehand.logger;
-    
-    this.stagehand.logger = (logLine: LogLine) => {
-      // Track health metrics from logs
-      this.updateHealthMetrics(logLine);
-      
-      // Call original logger
-      if (originalLogger) {
-        originalLogger(logLine);
-      }
-    };
-  }
-  
-  async performHealthCheck(): Promise<HealthCheckResult> {
-    const checks = {
-      sessionActive: await this.checkSessionHealth(),
-      llmProvider: await this.checkLLMHealth(),
-      observationCapable: await this.checkObservationHealth()
-    };
-    
-    const metrics = {
-      lastActionTime: this.healthMetrics.get('lastActionTime') || 0,
-      errorRate: this.calculateErrorRate(),
-      averageResponseTime: this.healthMetrics.get('avgResponseTime') || 0
-    };
-    
-    return {
-      status: this.determineOverallHealth(checks, metrics),
-      checks,
-      metrics
-    };
-  }
-}
-```
-
-## Best Practices & Recommendations
-
-### Development Environment
-
-1. **Use DEBUG logging level** (`verbose: 2`) for detailed troubleshooting
-2. **Enable rich logging** for better console visibility
-3. **Implement observation logging** to understand page interaction patterns
-4. **Monitor action execution times** to identify performance bottlenecks
-
-### Production Environment
-
-1. **Use INFO logging level** (`verbose: 1`) for operational visibility
-2. **Integrate with APM systems** for comprehensive monitoring
-3. **Implement structured logging** with correlation IDs
-4. **Set up alerting** for error rates and performance degradation
-
-### Performance Optimization
-
-> **Note**
-> Implement efficient logging strategies to minimize performance impact while maintaining observability.
-
-- **Batch log submissions** to external systems to reduce overhead
-- **Use sampling** for high-volume debug logs in production
-- **Implement log rotation** for local file-based logging
-- **Cache observation results** for repeated page analysis
-
-This comprehensive observability framework enables effective monitoring, debugging, and optimization of Stagehand automation workflows across all deployment environments.
+**Troubleshooting Common Issues:**
+- Check session recordings in Browserbase for visual debugging
+- Monitor network logs for failed requests
+- Use observe() method to understand page state before actions
+- Track LLM cache performance for optimization opportunities
