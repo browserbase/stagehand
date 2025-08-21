@@ -21,6 +21,54 @@ Evaluations help you understand how well your automation performs, which models 
   View real-time performance comparisons across different LLMs on the [Stagehand Evals Dashboard](https://www.stagehand.dev/evals)
 </Card>
 
+## Comprehensive Evaluations
+
+Evaluations help you systematically test and improve your automation workflows. Stagehand provides both built-in evaluations and tools to create your own.
+
+<Tip>
+To run evals, you'll need to clone the [Stagehand repo](https://github.com/browserbase/stagehand) and run `npm install` to install the dependencies.
+</Tip>
+
+We have three types of evals:
+1. **Deterministic Evals** - These are evals that are deterministic and can be run without any LLM inference.
+2. **LLM-based Evals** - These are evals that test the underlying functionality of Stagehand's AI primitives.
+
+
+### LLM-based Evals
+
+<Tip>
+To run LLM evals, you'll need a [Braintrust account](https://www.braintrust.dev/docs/).
+</Tip>
+
+To run LLM-based evals, you can run `npm run evals` from within the Stagehand repo. This will test the functionality of the LLM primitives within Stagehand to make sure they're working as expected.
+
+Evals are grouped into three categories:
+1. **Act Evals** - These are evals that test the functionality of the `act` method.
+2. **Extract Evals** - These are evals that test the functionality of the `extract` method.
+3. **Observe Evals** - These are evals that test the functionality of the `observe` method.
+4. **Combination Evals** - These are evals that test the functionality of the `act`, `extract`, and `observe` methods together.
+
+#### Configuring and Running Evals
+You can view the specific evals in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks). Each eval is grouped into eval categories based on [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json). You can specify models to run and other general task config in [`evals/taskConfig.ts`](https://github.com/browserbase/stagehand/blob/main/evals/taskConfig.ts).
+
+To run a specific eval, you can run `npm run evals <eval>`, or run all evals in a category with `npm run evals category <category>`.
+
+
+#### Viewing eval results
+![Eval results](/images/evals.png)
+
+Eval results are viewable on Braintrust. You can view the results of a specific eval by going to the Braintrust URL specified in the terminal when you run `npm run evals`.
+
+By default, each eval will run five times per model. The "Exact Match" column shows the percentage of times the eval was correct. The "Error Rate" column shows the percentage of times the eval errored out.
+
+You can use the Braintrust UI to filter by model/eval and aggregate results across all evals.
+
+### Deterministic Evals
+
+To run deterministic evals, you can just run `npm run e2e` from within the Stagehand repo. This will test the functionality of Playwright within Stagehand to make sure it's working as expected.
+
+These tests are in [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic) and test on both Browserbase browsers and local headless Chromium browsers.
+
 ## Real-Time Metrics & Monitoring
 
 ### Basic Usage Tracking
@@ -118,190 +166,20 @@ The metrics object provides detailed breakdown by Stagehand operation:
 ```
 </CodeGroup>
 
-### Cost Calculation & Analysis
+### Log Inference to File
 
-<CodeGroup>
-```typescript TypeScript
-// Calculate costs for different providers
-function calculateCost(metrics: any, provider: string = 'openai', model: string = 'gpt-4o') {
-  const pricing = {
-    'openai': {
-      'gpt-4o': { input: 2.50, output: 10.00 },
-      'gpt-4o-mini': { input: 0.15, output: 0.60 }
-    },
-    'google': {
-      'gemini-2.5-pro': { input: 1.25, output: 5.00 },
-      'gemini-2.0-flash': { input: 0.075, output: 0.30 }
-    },
-    'anthropic': {
-      'claude-3-7-sonnet-latest': { input: 3.00, output: 15.00 }
-    }
-  };
-  
-  const rates = pricing[provider]?.[model];
-  if (!rates) return null;
-  
-  const inputCost = (metrics.totalPromptTokens / 1000000) * rates.input;
-  const outputCost = (metrics.totalCompletionTokens / 1000000) * rates.output;
-  
-  return {
-    inputCost: inputCost.toFixed(4),
-    outputCost: outputCost.toFixed(4),
-    totalCost: (inputCost + outputCost).toFixed(4),
-    breakdown: {
-      act: ((metrics.actPromptTokens + metrics.actCompletionTokens) / 1000000) * (rates.input + rates.output),
-      extract: ((metrics.extractPromptTokens + metrics.extractCompletionTokens) / 1000000) * (rates.input + rates.output),
-      observe: ((metrics.observePromptTokens + metrics.observeCompletionTokens) / 1000000) * (rates.input + rates.output)
-    }
-  };
-}
-
-// Usage
-const cost = calculateCost(stagehand.metrics, 'google', 'gemini-2.5-pro');
-console.log(`Total cost: $${cost?.totalCost}`);
-```
-
-```python Python
-def calculate_cost(metrics, provider='openai', model='gpt-4o'):
-    pricing = {
-        'openai': {
-            'gpt-4o': {'input': 2.50, 'output': 10.00},
-            'gpt-4o-mini': {'input': 0.15, 'output': 0.60}
-        },
-        'google': {
-            'gemini-2.5-pro': {'input': 1.25, 'output': 5.00},
-            'gemini-2.0-flash': {'input': 0.075, 'output': 0.30}
-        },
-        'anthropic': {
-            'claude-3-7-sonnet-latest': {'input': 3.00, 'output': 15.00}
-        }
-    }
-    
-    rates = pricing.get(provider, {}).get(model)
-    if not rates:
-        return None
-    
-    input_cost = (metrics['total_prompt_tokens'] / 1000000) * rates['input']
-    output_cost = (metrics['total_completion_tokens'] / 1000000) * rates['output']
-    
-    return {
-        'input_cost': round(input_cost, 4),
-        'output_cost': round(output_cost, 4),
-        'total_cost': round(input_cost + output_cost, 4),
-        'breakdown': {
-            'act': ((metrics['act_prompt_tokens'] + metrics['act_completion_tokens']) / 1000000) * (rates['input'] + rates['output']),
-            'extract': ((metrics['extract_prompt_tokens'] + metrics['extract_completion_tokens']) / 1000000) * (rates['input'] + rates['output']),
-            'observe': ((metrics['observe_prompt_tokens'] + metrics['observe_completion_tokens']) / 1000000) * (rates['input'] + rates['output'])
-        }
-    }
-
-# Usage
-cost = calculate_cost(stagehand.metrics, 'google', 'gemini-2.5-pro')
-print(f"Total cost: ${cost['total_cost']}")
-```
-</CodeGroup>
-
-### Performance Analysis
-
-<CodeGroup>
-```typescript TypeScript
-// Analyze performance patterns
-function analyzePerformance(metrics: any) {
-  const analysis = {
-    // Token efficiency by operation
-    tokenEfficiency: {
-      act: metrics.actPromptTokens / (metrics.actCompletionTokens || 1),
-      extract: metrics.extractPromptTokens / (metrics.extractCompletionTokens || 1),
-      observe: metrics.observePromptTokens / (metrics.observeCompletionTokens || 1)
-    },
-    
-    // Speed analysis (tokens per second)
-    speed: {
-      overall: (metrics.totalPromptTokens + metrics.totalCompletionTokens) / (metrics.totalInferenceTimeMs / 1000),
-      act: (metrics.actPromptTokens + metrics.actCompletionTokens) / (metrics.actInferenceTimeMs / 1000),
-      extract: (metrics.extractPromptTokens + metrics.extractCompletionTokens) / (metrics.extractInferenceTimeMs / 1000),
-      observe: (metrics.observePromptTokens + metrics.observeCompletionTokens) / (metrics.observeInferenceTimeMs / 1000)
-    },
-    
-    // Cost per operation
-    costBreakdown: calculateCost(metrics)?.breakdown
-  };
-  
-  // Performance recommendations
-  const recommendations = [];
-  if (analysis.tokenEfficiency.act > 100) {
-    recommendations.push('Consider using a more efficient model for act operations');
-  }
-  if (analysis.speed.overall < 10) {
-    recommendations.push('Consider using a faster model like Gemini 2.0 Flash or Groq');
-  }
-  
-  return { analysis, recommendations };
-}
-
-const performance = analyzePerformance(stagehand.metrics);
-console.log('Performance Analysis:', performance);
-```
-
-```python Python
-def analyze_performance(metrics):
-    analysis = {
-        # Token efficiency by operation
-        'token_efficiency': {
-            'act': metrics['act_prompt_tokens'] / max(metrics['act_completion_tokens'], 1),
-            'extract': metrics['extract_prompt_tokens'] / max(metrics['extract_completion_tokens'], 1),
-            'observe': metrics['observe_prompt_tokens'] / max(metrics['observe_completion_tokens'], 1)
-        },
-        
-        # Speed analysis (tokens per second)
-        'speed': {
-            'overall': (metrics['total_prompt_tokens'] + metrics['total_completion_tokens']) / (metrics['total_inference_time_ms'] / 1000),
-            'act': (metrics['act_prompt_tokens'] + metrics['act_completion_tokens']) / (metrics['act_inference_time_ms'] / 1000),
-            'extract': (metrics['extract_prompt_tokens'] + metrics['extract_completion_tokens']) / (metrics['extract_inference_time_ms'] / 1000),
-            'observe': (metrics['observe_prompt_tokens'] + metrics['observe_completion_tokens']) / (metrics['observe_inference_time_ms'] / 1000)
-        },
-        
-        # Cost per operation
-        'cost_breakdown': calculate_cost(metrics)['breakdown'] if calculate_cost(metrics) else None
-    }
-    
-    # Performance recommendations
-    recommendations = []
-    if analysis['token_efficiency']['act'] > 100:
-        recommendations.append('Consider using a more efficient model for act operations')
-    if analysis['speed']['overall'] < 10:
-        recommendations.append('Consider using a faster model like Gemini 2.0 Flash or Groq')
-    
-    return {'analysis': analysis, 'recommendations': recommendations}
-
-performance = analyze_performance(stagehand.metrics)
-print('Performance Analysis:', performance)
-```
-</CodeGroup>
-
-### Detailed Logging & Debugging
-
-For comprehensive analysis, enable detailed logging:
+You can also log inference to a file by setting `logInferenceToFile` to `true`. This will create a directory called `inference_summary` in the root of the Stagehand repo.
 
 <CodeGroup>
 ```typescript TypeScript
 const stagehand = new Stagehand({
-  logInferenceToFile: true,  // Creates detailed logs in inference_summary/
-  verbose: 1,               // Show info-level logs
-  logger: (logLine) => {
-    // Custom logging for metrics tracking
-    if (logLine.category === 'action' && logLine.auxiliary?.executionTime) {
-      console.log(`Action took ${logLine.auxiliary.executionTime.value}ms`);
-    }
-  }
+  logInferenceToFile: true,    
 });
 ```
+
 ```python Python
 stagehand = Stagehand(
-    log_inference_to_file=True,  # Creates detailed logs in inference_summary/
-    verbose=1,                   # Show info-level logs
-    logger=lambda log_line: print(f"Action took {log_line.get('auxiliary', {}).get('executionTime', {}).get('value', 0)}ms") 
-           if log_line.get('category') == 'action' else None
+    log_inference_to_file=True,             
 )
 ```
 </CodeGroup>
@@ -345,53 +223,8 @@ Each operation creates detailed logs for analysis:
 }
 ```
 
-## Comprehensive Evaluations
 
-Evaluations help you systematically test and improve your automation workflows. Stagehand provides both built-in evaluations and tools to create your own.
-
-<Tip>
-To run evals, you'll need to clone the [Stagehand repo](https://github.com/browserbase/stagehand) and run `npm install` to install the dependencies.
-</Tip>
-
-We have three types of evals:
-1. **Deterministic Evals** - These are evals that are deterministic and can be run without any LLM inference.
-2. **LLM-based Evals** - These are evals that test the underlying functionality of Stagehand's AI primitives.
-
-### Deterministic Evals
-
-To run deterministic evals, you can just run `npm run e2e` from within the Stagehand repo. This will test the functionality of Playwright within Stagehand to make sure it's working as expected.
-
-These tests are in [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic) and test on both Browserbase browsers and local headless Chromium browsers.
-
-### LLM-based Evals
-
-<Tip>
-To run LLM evals, you'll need a [Braintrust account](https://www.braintrust.dev/docs/).
-</Tip>
-
-To run LLM-based evals, you can run `npm run evals` from within the Stagehand repo. This will test the functionality of the LLM primitives within Stagehand to make sure they're working as expected.
-
-Evals are grouped into three categories:
-1. **Act Evals** - These are evals that test the functionality of the `act` method.
-2. **Extract Evals** - These are evals that test the functionality of the `extract` method.
-3. **Observe Evals** - These are evals that test the functionality of the `observe` method.
-4. **Combination Evals** - These are evals that test the functionality of the `act`, `extract`, and `observe` methods together.
-
-#### Configuring and Running Evals
-You can view the specific evals in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks). Each eval is grouped into eval categories based on [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json). You can specify models to run and other general task config in [`evals/taskConfig.ts`](https://github.com/browserbase/stagehand/blob/main/evals/taskConfig.ts).
-
-To run a specific eval, you can run `npm run evals <eval>`, or run all evals in a category with `npm run evals category <category>`.
-
-#### Viewing eval results
-![Eval results](/images/evals.png)
-
-Eval results are viewable on Braintrust. You can view the results of a specific eval by going to the Braintrust URL specified in the terminal when you run `npm run evals`.
-
-By default, each eval will run five times per model. The "Exact Match" column shows the percentage of times the eval was correct. The "Error Rate" column shows the percentage of times the eval errored out.
-
-You can use the Braintrust UI to filter by model/eval and aggregate results across all evals.
-
-### Best Practices for Custom Evals
+## Best Practices for Custom Evals
 
 <AccordionGroup>
 <Accordion title="Test Design Principles">
