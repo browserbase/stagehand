@@ -1,26 +1,90 @@
 ---
-title: Overview
+title: Agent
 ---
+
+## What is `agent()?`
+
+Web automation is evolving. Writing scripts for every interaction can be tedious and time consuming. **Stagehand agent understands what you want and figures out how to do it**.
+
+Agent turns high level tasks into a autonomous browser workflows. Ask `agent()` to `find all open pull requests` or `fill out this form with my company details` and it will complete the task **fully autonomously**.
+
+## Best Practices
+
+Following these best practices will improve your agent's success rate, reduce execution time, and minimize unexpected errors during task completion.
+### Start on the Right Page
+Navigate to your target page before executing tasks:
+
+**Do this**
 <CodeGroup>
 ```typescript TypeScript
-const agent = stagehand.agent();
-await agent.execute("Sign me up for a library card");
+await page.goto('https://github.com/browserbase/stagehand');
+await agent.execute('Get me the latest PR on the stagehand repo');
 ```
 
 ```python Python
-# Native Stagehand agent support for Python is coming soon.
-# agent = stagehand.agent()
-# await agent.execute("Sign me up for a library card")
+await page.goto("https://github.com/browserbase/stagehand")
+result = await agent.execute("Get me the latest PR on the stagehand repo")
 ```
 </CodeGroup>
 
-Software has always been deterministic and repeatable, but with AI agents it's difficult to replicate a workflow. **Stagehand combines the best of both worlds: intelligence and determinism**.
+**Don't do this**
+<CodeGroup>
+```typescript TypeScript
+await agent.execute('Go to GitHub and find the latest PR on browserbase/stagehand');
+```
 
-Web Agents in Stagehand are fully customizable. You can use any LLM / VLM / Computer Use provider, set system prompts, add custom tools, and more.
+```python Python
+result = await agent.execute("Go to GitHub and find the latest PR on browserbase/stagehand")
+```
+</CodeGroup>
+
+### Be Specific
+Provide detailed instructions for better results:
+
+**Do this**
+<CodeGroup>
+```typescript TypeScript
+await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating");
+```
+
+```python Python
+result = await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating")
+```
+</CodeGroup>
+
+**Don't do this**
+<CodeGroup>
+```typescript TypeScript
+await agent.execute("Find a restaurant");
+```
+
+```python Python
+result = await agent.execute("Find a restaurant")
+```
+</CodeGroup>
+
+## Choose your agent
+
+Stagehand offers two agent types:
+
+<Tabs>
+<Tab title="Computer Use Agent">
+### How It Works
+
+- Take screenshots of the interface
+- Process visual information to understand the UI
+- Generate mouse and keyboard actions based on visual understanding
+
+### Available Models
+
+Use specialized computer use models (e.g., `computer-use-preview` from OpenAI or `claude-sonnet-4-20250514` from Anthropic)
+
+### Configuration
+
+You can customize the agent by specifying the LLM provider and model, setting custom instructions for behavior, and configuring provider-specific options like API keys.
 
 <CodeGroup>
 ```typescript TypeScript
-// For Computer Use Agent (CUA) models
 const agent = stagehand.agent({
   provider: "openai",
   model: "computer-use-preview",
@@ -29,49 +93,73 @@ const agent = stagehand.agent({
     apiKey: process.env.OPENAI_API_KEY,
   },
 });
-
-// You can define additional options like max_steps and auto_screenshot
-await agent.execute({
-  instruction: "Sign me up for a library card",
-  maxSteps: 20,
-})
 ```
 
 ```python Python
-# For Computer Use Agent (CUA) models
 agent = stagehand.agent({
-    model="computer-use-preview",
-    instructions="You are a helpful assistant that can use a web browser.",
-    options={
+    "model": "computer-use-preview",
+    "instructions": "You are a helpful assistant that can use a web browser.",
+    "options": {
       "apiKey": os.getenv("OPENAI_API_KEY"),
     },
 })
-
-# You can define additional options like max_steps and auto_screenshot
-result = await agent.execute({
-    instruction="Sign me up for a library card",
-    max_steps=20
-})
-
 ```
 </CodeGroup>
 
-### **Arguments:** [`AgentOptions`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
+<Warning>
+Stagehand uses a 1024x768 viewport by default - the optimal size for Computer Use Agents. Other viewport sizes may reduce performance. If you need to modify the viewport, you can edit in the [Stagehand Configurations](/configuration/environment).
+</Warning>
+
+### Examples
+
+Execute a task
+
+<CodeGroup>
+```typescript TypeScript
+await agent.execute("Sign me up for a library card");
+```
+
+```python Python
+result = await agent.execute("Sign me up for a library card")
+```
+</CodeGroup>
+
+Execute with options
+
+<CodeGroup>
+```typescript TypeScript
+await agent.execute({
+  instruction: "Sign me up for a library card",
+  maxSteps: 20,
+});
+```
+
+```python Python
+result = await agent.execute({
+    "instruction": "Sign me up for a library card",
+    "max_steps": 20
+})
+```
+</CodeGroup>
+
+#### Arguments
+
+##### `AgentOptions`
 
 <Tabs>
 <Tab title="TypeScript">
-<ParamField path="provider" type="string" required>
-  Specifies the LLM provider.
-  Currently supporting:
-  - **OpenAI**:  `openai`
-  - **Anthropic**:  `anthropic`
-</ParamField>
-
 <ParamField path="model" type="string" required>
   Specifies the LLM model.
   Currently supporting:
   - **OpenAI**:  `computer-use-preview`
   - **Anthropic**:  `claude-sonnet-4-20250514` and `claude-3-7-sonnet-latest`
+</ParamField>
+
+<ParamField path="provider" type="string" required>
+  Specifies the LLM provider.
+  Currently supporting:
+  - **OpenAI**:  `openai`
+  - **Anthropic**:  `anthropic`
 </ParamField>
 
 <ParamField path="instructions" type="string">
@@ -91,13 +179,6 @@ result = await agent.execute({
   - **Anthropic**:  `claude-sonnet-4-20250514` and `claude-3-7-sonnet-latest`
 </ParamField>
 
-<ParamField path="provider" type="string" optional>
-  Specifies the LLM provider.
-  Currently supporting:
-  - **OpenAI**:  `openai`
-  - **Anthropic**:  `anthropic`
-</ParamField>
-
 <ParamField path="instructions" type="string">
   Specifies the system prompt
 </ParamField>
@@ -108,29 +189,169 @@ result = await agent.execute({
 </Tab>
 </Tabs>
 
-### **Returns:** [`Promise<AgentResult>`](https://github.com/browserbase/stagehand/blob/main/types/agent.ts)
+#### Execute Arguments
 
-  <ParamField path="success" type="boolean">
-    If the agent execution completed without errors
-  </ParamField>
+<ParamField path="instruction" type="string" required>
+  The task instruction for the agent to execute
+</ParamField>
 
-  <ParamField path="message" type="string">
-    Summary or error message from the agent
-  </ParamField>
+<ParamField path="maxSteps" type="number">
+  Maximum number of steps the agent can take (default: 10)
+</ParamField>
 
-  <ParamField path="actions" type="AgentAction[]">
-    List of actions performed during execution
-  </ParamField>
+#### Execute Returns
 
-  <ParamField path="completed" type="boolean">
-    Whether the agent fully completed its task (can be false even if success is true)
-  </ParamField>
+<Tabs>
+<Tab title="TypeScript">
+##### `Promise<AgentResult>`
 
-  <ParamField path="metadata" type="Record<string, unknown> | dict">
-    Optional additional data about the execution
-  </ParamField>
+<ParamField path="success" type="boolean">
+  If the agent execution completed without errors
+</ParamField>
 
+<ParamField path="message" type="string">
+  Summary or error message from the agent
+</ParamField>
 
+<ParamField path="actions" type="AgentAction[]">
+  List of actions performed during execution
+</ParamField>
 
+<ParamField path="completed" type="boolean">
+  Whether the agent fully completed its task (can be false even if success is true)
+</ParamField>
 
+<ParamField path="metadata" type="Record<string, unknown>">
+  Optional additional data about the execution
+</ParamField>
+</Tab>
+
+<Tab title="Python">
+##### `AgentExecuteResult`
+
+<ParamField path="success" type="bool">
+  If the agent execution completed without errors
+</ParamField>
+
+<ParamField path="message" type="str | None">
+  Summary or error message from the agent
+</ParamField>
+
+<ParamField path="actions" type="list[dict]">
+  List of actions performed during execution (plain dicts, no usage)
+</ParamField>
+</Tab>
+</Tabs>
+</Tab>
+
+<Tab title="Stagehand Agent">
+### How It Works
+
+- Accesses the DOM directly to understand the pages structure
+- Executes actions through Stagehand's native act, extract, and observe methods
+- Supports any model that Stagehand supports for its other methods (act, extract, observe)
+
+### Available Models
+
+Stagehand supports all major LLM providers including OpenAI, Anthropic, Google, and more. See our [LLM customization guide](/configuration/llm_customization) for more details.
+
+### Configuration
+
+You can customize the agent by specifying the LLM model, setting custom instructions for behavior, and configuring model-specific options. The Stagehand Agent uses your existing Stagehand configuration by default.
+
+<CodeGroup>
+```typescript TypeScript
+const agent = stagehand.agent({
+  model: "gpt-4o",
+  instructions: "You are a helpful assistant that can use a web browser.",
+});
+```
+
+```python Python
+agent = stagehand.agent({
+    "model": "gpt-4o",
+    "instructions": "You are a helpful assistant that can use a web browser.",
+})
+```
+</CodeGroup>
+
+### Examples
+
+Execute a task
+
+<CodeGroup>
+```typescript TypeScript
+await agent.execute("Sign me up for a library card");
+```
+
+```python Python
+result = await agent.execute("Sign me up for a library card")
+```
+</CodeGroup>
+
+Execute with options
+
+<CodeGroup>
+```typescript TypeScript
+await agent.execute({
+  instruction: "Fill out the contact form",
+  maxSteps: 10,
+});
+```
+
+```python Python
+result = await agent.execute({
+    "instruction": "Fill out the contact form",
+    "max_steps": 10
+})
+```
+</CodeGroup>
+
+### Arguments
+
+#### `AgentOptions`
+
+<ParamField path="model" type="string">
+  Specifies the LLM model. Supports all models available in Stagehand.
+</ParamField>
+
+<ParamField path="instructions" type="string">
+  Specifies the system prompt
+</ParamField>
+
+#### Execute Arguments
+
+<ParamField path="instruction" type="string" required>
+  The task instruction for the agent to execute
+</ParamField>
+
+<ParamField path="maxSteps" type="number">
+  Maximum number of steps the agent can take (default: 10)
+</ParamField>
+
+#### Execute Returns
+
+##### `Promise<AgentResult>`
+
+<ParamField path="success" type="boolean">
+  If the agent execution completed without errors
+</ParamField>
+
+<ParamField path="message" type="string">
+  Summary or error message from the agent
+</ParamField>
+
+<ParamField path="actions" type="AgentAction[]">
+  List of actions performed during execution
+</ParamField>
+
+<ParamField path="completed" type="boolean">
+  Whether the agent fully completed its task (can be false even if success is true)
+</ParamField>
+
+<ParamField path="metadata" type="Record<string, unknown>">
+  Optional additional data about the execution
+</ParamField>
+</Tab>
+</Tabs>
 
