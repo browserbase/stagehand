@@ -66,7 +66,8 @@
           "best_practices/contributing",
           "best_practices/playwright_interop",
           "best_practices/interact_with_page",
-          "best_practices/build_agent"
+          "best_practices/build_agent",
+          "best_practices/creating_custom_evals"
         ]
       },
       {

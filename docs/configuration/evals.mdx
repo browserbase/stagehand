@@ -283,9 +283,8 @@ print('Performance Analysis:', performance)
 
 For comprehensive analysis, enable detailed logging:
 
-<Tabs>
-<Tab title="TypeScript">
-```typescript
+<CodeGroup>
+```typescript TypeScript
 const stagehand = new Stagehand({
   logInferenceToFile: true,  // Creates detailed logs in inference_summary/
   verbose: 1,               // Show info-level logs
@@ -297,9 +296,7 @@ const stagehand = new Stagehand({
   }
 });
 ```
-</Tab>
-<Tab title="Python">
-```python
+```python Python
 stagehand = Stagehand(
     log_inference_to_file=True,  # Creates detailed logs in inference_summary/
     verbose=1,                   # Show info-level logs
@@ -307,9 +304,7 @@ stagehand = Stagehand(
            if log_line.get('category') == 'action' else None
 )
 ```
-</Tab>
-</Tabs>
-
+</CodeGroup>
 The `inference_summary` directory provides granular analysis data:
 ```
 inference_summary/
@@ -396,7 +391,70 @@ By default, each eval will run five times per model. The "Exact Match" column sh
 
 You can use the Braintrust UI to filter by model/eval and aggregate results across all evals.
 
-#### Adding new evals
-To add a new eval, you can create a new file in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks) and add it to the appropriate category in [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json).
+### Best Practices for Custom Evals
 
+<AccordionGroup>
+<Accordion title="Test Design Principles">
+- **Atomic**: Each test should validate one specific capability
+- **Deterministic**: Tests should produce consistent results
+- **Realistic**: Use real-world scenarios and websites
+- **Measurable**: Define clear success/failure criteria
+</Accordion>
 
+<Accordion title="Performance Optimization">
+- **Parallel Execution**: Design tests to run independently
+- **Resource Management**: Clean up after each test
+- **Timeout Handling**: Set appropriate timeouts for operations
+- **Error Recovery**: Handle failures gracefully
+</Accordion>
+
+<Accordion title="Data Quality">
+- **Ground Truth**: Establish reliable expected outcomes
+- **Edge Cases**: Test boundary conditions and error scenarios
+- **Statistical Significance**: Run multiple iterations for reliability
+- **Version Control**: Track changes to test cases over time
+</Accordion>
+</AccordionGroup>
+
+### Troubleshooting Evaluations
+<AccordionGroup>
+<Accordion title="Evaluation Timeouts">
+**Symptoms**: Tests fail with timeout errors
+
+**Solutions**:
+- Increase timeout in `taskConfig.ts`
+- Use faster models (Gemini 2.5 Flash, GPT-4o Mini)
+- Optimize test scenarios to be less complex
+- Check network connectivity to LLM providers
+</Accordion>
+
+<Accordion title="Inconsistent Results">
+**Symptoms**: Same test passes/fails randomly
+
+**Solutions**:
+- Set temperature to 0 for deterministic outputs
+- Increase repetitions for statistical significance
+- Use more capable models for complex tasks
+- Check for dynamic website content affecting tests
+</Accordion>
+
+<Accordion title="High Evaluation Costs">
+**Symptoms**: Token usage exceeding budget
+
+**Solutions**:
+- Use cost-effective models (Gemini 2.0 Flash, GPT-4o Mini)
+- Reduce repetitions for initial testing
+- Focus on specific evaluation categories
+- Use local browser environment to reduce Browserbase costs
+</Accordion>
+
+<Accordion title="Braintrust Integration Issues">
+**Symptoms**: Results not uploading to dashboard
+
+**Solutions**:
+- Check Braintrust API key configuration
+- Verify internet connectivity
+- Update Braintrust SDK to latest version
+- Check project permissions in Braintrust dashboard
+</Accordion>
+</AccordionGroup>
