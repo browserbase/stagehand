@@ -17,13 +17,13 @@ icon: 'arrow-pointer'
 
 ```typescript
 // String instruction
-await page.act(instruction: string): Promise<void>
+await page.act(instruction: string): Promise<ActResult>
 
 // With ActOptions
-await page.act(options: ActOptions): Promise<void>
+await page.act(options: ActOptions): Promise<ActResult>
 
 // Execute observed action
-await page.act(observeResult: ObserveResult): Promise<void>
+await page.act(observeResult: ObserveResult): Promise<ActResult>
 ```
 
 **ActOptions Interface:**
@@ -44,7 +44,7 @@ interface ActOptions {
 
 ```python
 # String instruction
-await page.act(instruction: str) -> None
+await page.act(instruction: str) -> ActResult
 
 # With parameters
 await page.act(
@@ -55,11 +55,10 @@ await page.act(
     model_name: AvailableModel = None,
     model_client_options: Dict = None,
     iframes: bool = None,
-    frame_id: str = None
-) -> None
+) -> ActResult
 
 # Execute observed action
-await page.act(observe_result: ObserveResult) -> None
+await page.act(observe_result: ObserveResult) : ActResult
 ```
 
 </Tab>
@@ -119,7 +118,7 @@ await page.act(observe_result: ObserveResult) -> None
   The action that was performed.
 </ParamField>
 
-```JSON Response
+```Example Response
 {
   success: true,
   message: 'Action [scrollTo] performed successfully on selector: /html[1]',
