@@ -72,7 +72,7 @@
             ]
           },
           {
-            "group": "crewAI",
+            "group": "CrewAI",
             "pages": [
               "integrations/crew-ai/introduction",
               "integrations/crew-ai/configuration"
@@ -86,9 +86,10 @@
             ]
           },
           {
-            "group": "Next.js",
+            "group": "Next.js + Vercel",
             "pages": [
-                  "integrations/nextjs/configuration"
+              "integrations/vercel/introduction",
+              "integrations/vercel/configuration"
             ]
           }
         ]
