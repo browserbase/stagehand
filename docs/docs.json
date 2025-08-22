@@ -69,6 +69,15 @@
           "integrations/langchain",
           "integrations/crew-ai"
         ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "references/act",
+          "references/extract",
+          "references/observe",
+          "references/agent"
+        ]
       }
     ],
     "global": {
