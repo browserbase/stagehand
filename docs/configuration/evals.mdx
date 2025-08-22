@@ -69,6 +69,85 @@ To run deterministic evals, you can just run `npm run e2e` from within the Stage
 
 These tests are in [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic) and test on both Browserbase browsers and local headless Chromium browsers.
 
+## Creating Custom Evaluations
+
+### Step-by-Step Guide
+
+<Steps>
+<Step title="Create Evaluation File">
+Create a new file in `evals/tasks/your-eval.ts`:
+
+```typescript
+import { EvalTask } from '../types';
+
+export const customEvalTask: EvalTask = {
+  name: 'custom_task_name',
+  description: 'Test specific automation workflow',
+  
+  // Test setup
+  setup: async ({ page }) => {
+    await page.goto('https://example.com');
+  },
+  
+  // The actual test
+  task: async ({ stagehand, page }) => {
+    // Your automation logic
+    await stagehand.act({ action: 'click the login button' });
+    const result = await stagehand.extract({ 
+      instruction: 'Get the user name',
+      schema: { username: 'string' }
+    });
+    return result;
+  },
+  
+  // Validation
+  validate: (result, expected) => {
+    return result.username === expected.username;
+  },
+  
+  // Test cases
+  testCases: [
+    {
+      input: { /* test input */ },
+      expected: { username: 'john_doe' }
+    }
+  ],
+  
+  // Evaluation criteria
+  scoring: {
+    exactMatch: true,
+    timeout: 30000,
+    retries: 2
+  }
+};
+```
+</Step>
+
+<Step title="Add to Configuration">
+Update `evals/evals.config.json`:
+
+```json
+{
+  "categories": {
+    "custom": ["custom_task_name"],
+    "existing_category": ["custom_task_name"]
+  }
+}
+```
+</Step>
+
+<Step title="Run Your Evaluation">
+```bash
+# Test your custom evaluation
+npm run evals custom_task_name
+
+# Run the entire custom category
+npm run evals category custom
+```
+</Step>
+</Steps>
+
+
 ## Best Practices for Custom Evals
 
 <AccordionGroup>

@@ -49,17 +49,13 @@
         "pages": [
           "best-practices/caching",
           "best-practices/cost-optimization",
-          "best-practices/debugging-workflows",
           "best-practices/using-multiple-tabs",
           "best-practices/working-with-iframes",
           "best-practices/deployments",
-          "best-practices/customize-browser",
           "best-practices/computer-use",
           "best-practices/contributing",
           "best-practices/playwright-interop",
-          "best-practices/interact-with-page",
           "best-practices/build-agent",
-          "best-practices/creating-custom-evals",
           "best-practices/agent-fallbacks"
         ]
       },
@@ -87,6 +83,12 @@
             "pages": [
               "integrations/langchain/introduction",
               "integrations/langchain/configuration"
+            ]
+          },
+          {
+            "group": "Next.js",
+            "pages": [
+                  "integrations/nextjs/configuration"
             ]
           }
         ]
