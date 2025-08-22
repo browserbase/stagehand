@@ -182,7 +182,7 @@ You can provide additional context to your schema to help the model extract the 
 ```typescript TypeScript
 const apartments = await page.extract({
  instruction:
-   "Extract ALL the apartment listings and their details, including address, price, and square feet."
+   "Extract ALL the apartment listings and their details, including address, price, and square feet.",
  schema: z.object({
    list_of_apartments: z.array(
      z.object({
