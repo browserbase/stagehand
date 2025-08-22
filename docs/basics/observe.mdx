@@ -17,10 +17,10 @@ Calling `observe` turns any page into a checklist of reliable, executable action
   <Card title="Explore" icon="compass" href="/basics/observe#observe-with-act">
     When you're unsure what's on a page or need to discover available actions
   </Card>
-  <Card title="Plan" icon="map" href="/basics/observe#observe-with-act">
+  <Card title="Plan" icon="map" href="/basics/observe#plan-ahead">
     When building complex workflows, plan ahead all the actions you'll need to take
   </Card>
-  <Card title="Cache" icon="database" href="/basics/observe#determine-your-automation">
+  <Card title="Cache" icon="database" href="/basics/observe#remember-actions">
     When you want to remember actions for the future and avoid LLM calls
   </Card>
     <Card title="Validate" icon="check" href="/basics/observe#observe-with-act">
@@ -34,7 +34,7 @@ Calling `observe` supercharges other Stagehand methods. Use it to plan workflows
 
 ### Observe with Act
 
-Using `observe` to plan workflows is a great way to speed up `act`. For example, you can ask `observe` to find all the fields in a form and then use `act` to fill them in one by one without added LLM inference.
+Using `observe` helps you explore what's possible on a page by giving you a list of suggested actions.
 
 <Note>
 **Performance Tip**: Acting on multiple `observe` suggestions will minimize the number of LLM calls for multi-step actions and speed up your workflow 2-3x.
@@ -60,7 +60,7 @@ This will return a list of suggestions with the following structure
   "arguments": []
 }
 ```
-You can validate the action (method, selector, arguments...) and then pass it to `act` to avoid extra LLM inference
+You can **validate** the action (method, selector, arguments...) and then pass it to `act` to **avoid extra LLM inference**.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -70,6 +70,33 @@ await page.act(buttons[0]); // No LLM!
 await page.act(buttons[0]) # No LLM!
 ```
 </CodeGroup>
+
+#### Plan ahead
+
+You can use multiple suggestions from `observe` to preview a batch of actions. For example, when filling a form you could ask `observe` to find all the fields and then pass them in to `act`. **Call the LLM once, act multiple times**.
+
+<CodeGroup>
+```typescript TypeScript
+const fields = await page.observe("Find all the fields in the form");
+for (const field of fields) {
+  await page.act(field); // No LLM!
+}
+```
+```python Python
+fields = await page.observe("Find all the fields in the form")
+for field in fields:
+  await page.act(field) # No LLM!
+```
+</CodeGroup>
+
+#### Remember actions
+
+Most websites don't change often, they keep the same layout/structure. You can store your `observe` results in a cache and reuse them for future runs. 
+As long as the page doesn't change the action will be the same, if the page changes [self-healing](/basics/act) will loop the LLM back in so you don't have to maintain your script. 
+
+<Card title="Build your own cache" icon="database">
+  Check out the guide guide on how to build your own action cache
+</Card>
 
 ### Observe and Extract
 
@@ -81,83 +108,41 @@ Using `observe` to focus `extract` on a specific section of the page (like a tab
 <CodeGroup>
 ```typescript TypeScript
 // Use observe to validate elements before extraction
-const tableElements = await page.observe("Find data tables");
+const [ table ] = await page.observe("Find the data table");
 
-if (tableElements.length > 0) {
-  const data = await page.extract({
-    instruction: "Extract product information from the table",
-    schema: { products: [{ name: "string", price: "number" }] },
-    selector: tableElements[0].selector // Optional, but recommended for reduced LLM token usage
-  });
-}
+const { data } = await page.extract({
+  instruction: "Extract data from the table",
+  schema: z.object({
+    data: z.string()
+  }),
+  selector: table.selector // Reduce context scope needed for extraction
+});
 ```
 ```python Python
 # Use observe to validate elements before extraction
-table_elements = await page.observe("Find data tables")
+[ table ] = await page.observe("Find the data table")
 
-if len(table_elements) > 0:
-  data = await page.extract({
-    instruction: "Extract product information from the table",
-    schema: { products: [{ name: "string", price: "number" }] },
-    selector: table_elements[0].selector # Optional, but recommended for reduced LLM token usage
-  })
+extraction = await page.extract(
+  "Extract data from the table",
+  schema=Data, # Pydantic schema
+  selector=table.selector # Reduce context scope needed for extraction
+)
 ```
 </CodeGroup>
 
-
-### Determine your automation
-
-Each observation returns detailed information about actionable elements:
-
-```json
-{
-  "selector": "xpath=/html/body/div[1]/form/button[1]",
-  "description": "Submit button for contact form",
-  "method": "click",
-  "arguments": []
-}
-```
-
-- **selector**: XPath to precisely locate the element for reliable targeting
-- **description**: Summary of the element and its purpose
-- **method**: Suggested action such as `click`, `type`, `hover`, or `select` (check out [supported actions](/basics/act/overview))
-- **arguments**: Extra parameters when needed; usually empty for simple clicks
-
-
 ## Best Practices
 
-### When to Use Observe
-
-<CardGroup cols={2}>
-  <Card title="✅ Use Observe When">
-    <ul>
-      <li><strong>Exploring unknown pages</strong> – Understanding available actions</li>
-      <li><strong>Building complex workflows</strong> – Planning multi-step automation</li>
-      <li><strong>Error recovery</strong> – Finding alternatives when actions fail</li>
-      <li><strong>Performance optimization</strong> – Caching actions to reduce LLM calls</li>
-      <li><strong>Conditional logic</strong> – Making decisions based on page state</li>
-      <li><strong>Quality assurance</strong> – Validating elements exist before acting</li>
-    </ul>
-  </Card>
-  <Card title="❌ Avoid Observe When">
-    <ul>
-      <li><strong>Simple, known actions</strong> – Direct <code>act()</code> is faster for obvious elements</li>
-      <li><strong>Real-time interactions</strong> – Chat systems, live updates where speed matters</li>
-      <li><strong>Static workflows</strong> – Same actions on identical pages every time</li>
-      <li><strong>Cost-sensitive operations</strong> – When minimizing LLM calls is critical</li>
-      <li><strong>Simple boolean checks</strong> – Use targeted <code>extract()</code> for true/false queries</li>
-    </ul>
-  </Card>
-</CardGroup>
-
-### Optimization Guidelines
-
-1. **Cache Intelligently**: Store observations for reuse on similar page types
-2. **Batch Requests**: Combine multiple requirements into single observations  
-3. **Choose Models Wisely**: Use faster models for simple observations
-4. **Scope Instructions**: Be specific to reduce analysis time and cost
-5. **Handle Errors Gracefully**: Always check observation results before acting
-6. **Monitor Performance**: Track observation speed and accuracy over time
+- **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps before you act.
+- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` objects directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference and speed up multi-step flows.
+- **Draw the line: action vs. info**
+  - If a yes/no answer will gate an action, use `observe` (e.g., "Find the Submit button"); then conditionally `act`.
+  - If you just need information (not to act), use `extract` (e.g., "What’s the page title?", "How many results are listed?").
+- **Scope `extract` with selectors from `observe`**: First `observe("Find the data table")`, then pass `selector` to `extract` to reduce tokens and boost accuracy.
+- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit without repeated LLM calls.
+- **Validate before critical actions**: Review the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks and flaky runs.
+- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing to recover if layouts shift.
+- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") yield faster, cheaper, more accurate suggestions.
+- **Mind iframes and load**: If elements live in an iframe, set `iframes: true`, and wait for `networkidle` before observing.
 
 ## Troubleshooting
 
@@ -168,83 +153,27 @@ Each observation returns detailed information about actionable elements:
 **Solutions**:
 - Make sure the element exists on the page
 - Use explicit instructions to find the element
-- Ensure page has fully loaded: `await page.waitForLoadState('networkidle')`
-- Increase DOM settle timeout: `domSettleTimeoutMs: 60000`
-- Check if content is in iframes: `iframes: true`
+- Ensure page has fully loaded
 - Look at the [debugging](/basics/debugging) logs, if the element is there then the LLM might be hallucinating/not catching it. 
-
-```typescript
-// Debug empty results
-const observations = await page.observe({
-  instruction: "Find any clickable elements, buttons, or links",
-  domSettleTimeoutMs: 45000,
-  iframes: true
-});
-
-if (observations.length === 0) {
-  console.log("Page HTML:", await page.content());
-}
-```
 </Accordion>
 
 <Accordion title="Inaccurate element descriptions">
 **Problem**: Descriptions don't match actual elements
 
 **Solutions**:
-- Use more capable models: `modelName: "anthropic/claude-3-7-sonnet-latest"`
+- Use more capable models: check [evals](https://stagehand.dev/evals) for the best models for your use case
 - Provide more specific instructions
-- Set deterministic model behavior: `modelClientOptions: { temperature: 0 }`
-- Take screenshots for debugging
+- Log inference to file (see [debugging](/basics/debugging)) to get an LLM trace
 
-```typescript
-const observations = await page.observe({
-  instruction: "Find the main call-to-action button on this e-commerce product page",
-  modelName: "gpt-4o", // More accurate model
-  modelClientOptions: { temperature: 0 } // Deterministic
-});
-```
 </Accordion>
-
-<Accordion title="Slow performance">
-**Problem**: `observe()` takes too long
+<Accordion title="Wrong method identified">
+**Problem**: The method identified is not valid
 
 **Solutions**:
-- Use faster models: `modelName: "google/gemini-2.0-flash"`
-- Be more specific with instructions to reduce analysis scope
-- Cache observations for similar pages
-- Reduce DOM settle timeout if appropriate
+- Check the [supported actions](/basics/act/overview)
+- Provide more specific instructions
+- Validate the method, if invalid override with one of the supported ones
 
-```typescript
-// Optimized for speed
-const observations = await page.observe({
-  instruction: "Find only the most important buttons", // Specific scope
-  modelName: "google/gemini-2.0-flash", // Fast model
-  domSettleTimeoutMs: 15000 // Shorter timeout
-});
-```
-</Accordion>
-
-<Accordion title="High costs from too many LLM calls">
-**Problem**: Frequent observations causing high token usage
-
-**Solutions**:
-- Implement caching for similar page types
-- Batch multiple requirements into single observation
-- Use cheaper models for simple observations
-- Cache and reuse ObserveResults
-
-```typescript
-// Cost-optimized observation
-const cachedObservations = actionCache.get(pageType);
-if (cachedObservations) return cachedObservations;
-
-const observations = await page.observe({
-  instruction: "Find navigation, forms, buttons, and key content areas", // Batch request
-  modelName: "google/gemini-2.0-flash" // Cost-effective model
-});
-
-actionCache.set(pageType, observations);
-```
 </Accordion>
 </AccordionGroup>
 
