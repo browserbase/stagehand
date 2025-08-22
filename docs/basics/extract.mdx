@@ -1,11 +1,17 @@
 ---
 title: Extract
+description: Extract structured data from a webpage.
 ---
 
 ## What is `extract()`?
-The `extract` method grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
 
-## Why use Extract?
+```typescript
+page.extract("extract the name of the repository");
+```
+
+`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
+
+## Why use `extract()`?
 
 <CardGroup cols={2}>
   <Card title="Structured" icon="brackets-curly" href="#extract-a-list-of-objects">
@@ -21,6 +27,8 @@ For TypeScript, the extract schemas are defined using zod schemas.
 
 For Python, the extract schemas are defined using pydantic models.
 </Note>
+
+## Using `extract()`
 
 ### Extract a single object
 
@@ -51,43 +59,6 @@ Your output schema will look like:
 ```Example
 { price: number }
 ```
-
-### Extract a link
-<Note>
-To extract links or URLs, in the TypeScript version of Stagehand, you'll need to define the relevant field as `z.string().url()`.
-In Python, you'll need to define it as `HttpUrl`.
-</Note>
-
-Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
-
-<CodeGroup>
-```typescript TypeScript
-const extraction = await page.extract({
-  instruction: "extract the link to the 'contact us' page",
-  schema: z.object({
-    link: z.string().url(), // note the usage of z.string().url() here
-  }),
-});
-
-console.log("the link to the contact us page is: ", extraction.link);
-```
-
-```python Python
-class Extraction(BaseModel):
-    link: HttpUrl # note the usage of HttpUrl here
-
-extraction = await page.extract(
-    "extract the link to the 'contact us' page", 
-    schema=Extraction
-)
-
-print("the link to the contact us page is: ", extraction.link)
-```
-</CodeGroup>
-
-<Tip>
-Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs -> URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final `ExtractResult`.
-</Tip>
 
 ### Extract a list of objects
 
@@ -147,6 +118,63 @@ list_of_apartments: [
 ]
 ```
 
+### Extract with just a prompt
+
+You can call `extract` with just a natural language prompt:
+
+<CodeGroup>
+```typescript TypeScript
+const result = await page.extract("extract the name of the repository");
+```
+
+```python Python
+result = await page.extract("extract the name of the repository")
+```
+</CodeGroup>
+
+When you call `extract` with just a prompt, your output schema will look like:
+```Example
+{ extraction: string }
+```
+
+
+### Extract a link
+<Note>
+To extract links or URLs, in the TypeScript version of Stagehand, you'll need to define the relevant field as `z.string().url()`.
+In Python, you'll need to define it as `HttpUrl`.
+</Note>
+
+Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
+
+<CodeGroup>
+```typescript TypeScript
+const extraction = await page.extract({
+  instruction: "extract the link to the 'contact us' page",
+  schema: z.object({
+    link: z.string().url(), // note the usage of z.string().url() here
+  }),
+});
+
+console.log("the link to the contact us page is: ", extraction.link);
+```
+
+```python Python
+class Extraction(BaseModel):
+    link: HttpUrl # note the usage of HttpUrl here
+
+extraction = await page.extract(
+    "extract the link to the 'contact us' page", 
+    schema=Extraction
+)
+
+print("the link to the contact us page is: ", extraction.link)
+```
+</CodeGroup>
+
+<Tip>
+Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs -> URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final `ExtractResult`.
+</Tip>
+
 
 ### Extract with additional context
 
@@ -185,27 +213,24 @@ apartments = await page.extract(
 ```
 </CodeGroup>
 
-### Extract with just a prompt
+### Extract with no parameters
 
-You can call `extract` with just a natural language prompt:
+Here is how you can call `extract` with no parameters.
 
 <CodeGroup>
 ```typescript TypeScript
-const result = await page.extract("extract the name of the repository");
+const pageText = await page.extract();
 ```
 
 ```python Python
-result = await page.extract("extract the name of the repository")
+page_text = await page.extract()
 ```
 </CodeGroup>
 
-When you call `extract` with just a prompt, your output schema will look like:
+Output schema:
 ```Example
-{ extraction: string }
+{ page_text: string }
 ```
-
-
-### Extract with no parameters
 
 Calling `extract` with no parameters will return hierarchical tree representation of the root DOM. This will not be passed through an LLM. It will look something like this:
 
@@ -220,22 +245,6 @@ Accessibility Tree:
             [0-245] span
               [0-246] StaticText: 🤘 Stagehand
               [0-247] StaticText: home page
-```
-
-Here is how you can call `extract` with no parameters
-<CodeGroup>
-```typescript TypeScript
-const pageText = await page.extract();
-```
-
-```python Python
-page_text = await page.extract()
-```
-</CodeGroup>
-
-Your output schema will look like:
-```Example
-{ page_text: string }
 ```
 
 ## Next steps

@@ -6,9 +6,11 @@ description: 'Automate complex workflows with AI powered browser agents'
 ## What is `agent()?`
 
 ``` typescript
-await agent.execute("apply for a job at browserbase")
+agent.execute("apply for a job at browserbase")
 ```
-Agent turns high level tasks into **fully autonomous** browser workflows.
+`agent` turns high level tasks into **fully autonomous** browser workflows. You can customize the agent by specifying the LLM provider and model, setting custom instructions for behavior, and configuring provider-specific options like API keys.
+
+## Why use `agent()`?
 
 <CardGroup cols={2}>
   <Card title="Natural Language Instructions" icon="wand-magic-sparkles">
@@ -28,9 +30,10 @@ Agent turns high level tasks into **fully autonomous** browser workflows.
   </Card>
 </CardGroup>
 
-## Configuration
 
-You can customize the agent by specifying the LLM provider and model, setting custom instructions for behavior, and configuring provider-specific options like API keys.
+## Using `agent()`
+
+Here is how you can use `agent()` to create an agent.
 
 <CodeGroup>
 ```typescript TypeScript
