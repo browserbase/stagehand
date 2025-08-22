@@ -56,7 +56,8 @@
           "best-practices/contributing",
           "best-practices/playwright-interop",
           "best-practices/build-agent",
-          "best-practices/agent-fallbacks"
+          "best-practices/agent-fallbacks",
+          "best-practices/prompting-best-practices"
         ]
       },
       {
