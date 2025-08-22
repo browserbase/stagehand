@@ -6,3 +6,222 @@ description: 'Deploy your AI agents and automations to the cloud'
 <Tip>
 **🌟 Preview: Browser Functions** - Deploy your web automation code directly on Browserbase with browser functions. Scale your `act()` automations in the cloud with zero infrastructure setup. Reach out to hello@browserbase.com to get beta access.
 </Tip>
+
+## Deploy on Vercel
+
+Securely run Stagehand on Browserbase inside a Vercel Function. This guide shows a minimal, production-safe HTTP endpoint you can call directly or on a schedule.
+
+### Short answer
+- **Wrap your script as a Vercel Function** (no Next.js needed)
+- **Set environment variables**
+- **Deploy with Vercel**
+
+### 1. Install Vercel CLI
+
+To download and install Vercel CLI, run one of the following commands:
+
+<CodeGroup>
+```bash pnpm
+pnpm i -g vercel
+```
+```bash yarn
+yarn global add vercel
+```
+```bash npm
+npm i -g vercel
+```
+```bash bun
+bun add -g vercel
+```
+</CodeGroup>
+
+### 2. Project layout
+
+```text
+your-project/
+  api/
+    run.ts
+  package.json
+  tsconfig.json
+  vercel.json
+```
+
+Create the structure with:
+
+```bash
+mkdir -p api
+touch api/run.ts package.json vercel.json tsconfig.json
+```
+
+### 3. `api/run.ts` (Node.js runtime)
+
+```typescript
+// api/run.ts
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  try {
+    const stagehand = new Stagehand({
+      env: "BROWSERBASE",
+      apiKey: process.env.BROWSERBASE_API_KEY,
+      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      // optional session params
+      browserbaseSessionCreateParams: {
+        proxies: true,
+        region: "us-west-2",
+        browserSettings: {
+          blockAds: true,
+          viewport: { width: 1920, height: 1080 },
+        },
+      },
+    });
+
+    await stagehand.init();
+    const page = stagehand.page;
+
+    await page.goto("https://example.com");
+    await page.act("Click the sign in button");
+
+    const data = await page.extract({
+      instruction: "extract the page title",
+      schema: z.object({ title: z.string() }),
+    });
+
+    await stagehand.close();
+
+    res.status(200).json({ ok: true, data });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+}
+```
+
+### 4. `package.json`
+
+```json
+{
+  "name": "bb-stagehand-on-vercel",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@browserbasehq/stagehand": "^0.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^20.12.12"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  }
+}
+```
+
+### 5. `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "outDir": ".vercel/output/functions",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.ts"]
+}
+```
+
+### 6. `vercel.json`
+
+```json
+{
+  "functions": {
+    "api/run.ts": {
+      "runtime": "nodejs22.x",
+      "maxDuration": 60
+    }
+  }
+}
+```
+
+Increase `maxDuration` as your plan allows. See Vercel’s docs for up-to-date limits. Edge runtime may allow longer limits on Pro/Enterprise with Fluid compute.
+
+### 7. Environment variables
+
+Do not commit `.env` in production. Add variables via Vercel CLI:
+
+```bash
+vercel env add BROWSERBASE_API_KEY
+vercel env add BROWSERBASE_PROJECT_ID
+# (and your model key if needed)
+vercel env add OPENAI_API_KEY
+```
+
+See also: [Browser Environment](/configuration/environment) for details on required variables.
+
+### Test locally (optional)
+
+Replicate the Vercel environment locally to exercise your Function before deploying. Run from the project root.
+
+```bash
+# ensure dependencies are installed
+npm install
+
+# start the local Vercel dev server
+vercel dev
+```
+
+Useful options:
+
+```bash
+# specify port
+vercel dev --listen 5005
+
+# skip interactive setup prompts
+vercel dev --yes
+```
+
+If your framework’s dev server already supports Functions (e.g., `next dev` for Next.js), prefer that. For this non-framework “Other” project, `vercel dev` is recommended.
+
+### 8. Deploy
+
+```bash
+vercel
+vercel --prod
+```
+
+### 9. Call it
+
+```bash
+curl -X POST https://<your-deployment>/api/run
+```
+
+### Optional: Cron on Vercel
+
+Hit the same endpoint on a schedule by extending `vercel.json`:
+
+```json
+{
+  "functions": {
+    "api/run.ts": { "runtime": "nodejs22.x", "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+
+### Notes that matter
+- **No local browsers needed** with `env: "BROWSERBASE"`; Browserbase provides the browsers.
+- **Keep the function fast**: Offload browser work to Browserbase and return JSON promptly.
+- **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
+- **Vercel recognizes** `/api/*.ts` functions for non-framework projects—see Vercel Functions docs for behavior and limits.
+
