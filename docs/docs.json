@@ -20,6 +20,7 @@
       {
         "group": "First Steps",
         "pages": [
+          "first-steps/introduction",
           "first-steps/quickstart",
           "first-steps/installation",
           "first-steps/ai-rules"
@@ -113,7 +114,7 @@
         },
         {
           "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/introduction",
+          "href": "https://docs.stagehand.dev/first-steps/introduction",
           "icon": "code"
         }
       ]
