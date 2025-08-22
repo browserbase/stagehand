@@ -136,9 +136,9 @@ await stagehand.page.goto("https://www.google.com");
 
 const agent = stagehand.agent({
 	// You can use either OpenAI or Anthropic
-	provider: "openai",
-	// The model to use (claude-3-7-sonnet-latest for Anthropic)
-	model: "computer-use-preview",
+	provider: "anthropic",
+	// The model to use (computer-use-preview for OpenAI)
+	model: "claude-sonnet-4-20250514",
 
 	// Customize the system prompt
 	instructions: `You are a helpful assistant that can use a web browser.
@@ -146,7 +146,7 @@ const agent = stagehand.agent({
 
 	// Customize the API key
 	options: {
-		apiKey: process.env.OPENAI_API_KEY,
+		apiKey: process.env.ANTHROPIC_API_KEY,
 	},
 });
 
@@ -169,7 +169,7 @@ agent = stagehand.agent({
 
     # Customize the API key
     options={
-        "apiKey": os.getenv("OPENAI_API_KEY"),
+        "apiKey": os.getenv("ANTHROPIC_API_KEY"),
     },
 })
 
