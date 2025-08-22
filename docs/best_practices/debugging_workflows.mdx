@@ -13,7 +13,7 @@ const stagehand = new Stagehand({
 
 ### Logging Inference to a File
 <Note>
-logging inference to a file will not work when `useAPI: true`. If you are running your script on Browserbase, ensure you have `useAPI: false` in your Stagehand constructor.
+logging inference to a file **will not work** when `useAPI: true`. If you are running your script on Browserbase, ensure you have `useAPI: false` in your Stagehand constructor.
 </Note>
 Stagehand allows you to log inference calls for `act`, `extract`, and `observe` to a file on your machine.
 You can think of it as a conversation history between Stagehand and the LLM. Here is how you can configure it in your Stagehand constructor:
@@ -52,7 +52,7 @@ If Stagehand is unable to take an action or extract some information from a page
 to see whether that element was in an iframe, shadow dom, etc.
 <br />
 You can also [copy the XPath](https://devtoolstips.org/tips/en/copy-element-xpath/) of an element from the Chrome Devtools UI, paste it into the `selector` field in an `ObserveResult` object, and pass that object into `act`. For example:
-```TypeScript
+```typescript
 const observeResult = {
   description: "the submit button",
   method: "click",
