@@ -31,10 +31,10 @@
       {
         "group": "Configuration",
         "pages": [
-          "configuration/environment",
+          "configuration/browser",
           "configuration/observability",
           "configuration/logging",
-          "configuration/llm_customization",
+          "configuration/models",
           "configuration/evals"
         ]
       },
@@ -42,7 +42,9 @@
         "group": "Best Practices",
         "pages": [
           "best_practices/caching",
+          "best_practices/cost_optimization",
           "best_practices/running_evals",
+          "best_practices/debugging_workflows",
           "best_practices/multitab_handling",
           "best_practices/working_with_iframes",
           "best_practices/customize_browser",
@@ -66,8 +68,29 @@
               "integrations/mcp/configuration"
             ]
           },
-          "integrations/langchain",
-          "integrations/crew-ai"
+          {
+            "group": "crewAI",
+            "pages": [
+              "integrations/crew-ai/introduction",
+              "integrations/crew-ai/configuration"
+            ]
+          },
+          {
+            "group": "Langchain",
+            "pages": [
+              "integrations/langchain/introduction",
+              "integrations/langchain/configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "references/act",
+          "references/extract",
+          "references/observe",
+          "references/agent"
         ]
       }
     ],
