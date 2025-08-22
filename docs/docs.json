@@ -8,6 +8,13 @@
     "dark": "#FFC83C"
   },
   "favicon": "/images/favicon.svg",
+  "seo": {
+    "indexing": "all",
+    "metatags": {
+      "og:type": "website",
+      "og:site_name": "Stagehand Docs"
+    }
+  },
   "navigation": {
     "groups": [
       {
