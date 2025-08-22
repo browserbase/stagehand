@@ -30,10 +30,10 @@
       {
         "group": "Configuration",
         "pages": [
-          "configuration/environment",
+          "configuration/browser",
           "configuration/observability",
           "configuration/logging",
-          "configuration/llm_customization",
+          "configuration/models",
           "configuration/evals"
         ]
       },
@@ -42,8 +42,8 @@
         "pages": [
           "best_practices/caching",
           "best_practices/running_evals",
-          "best_practices/nextjs",
-          "best_practices/custom_llms",
+          "best_practices/multitab_handling",
+          "best_practices/working_with_iframes",
           "best_practices/customize_browser",
           "best_practices/computer_use",
           "best_practices/contributing",
