@@ -134,8 +134,10 @@ await page.observe({
     instruction: "the instruction to execute",
     returnAction: true, // return the action to execute
   });
+
   await page.act(results[0]);
   ```
+  
 - When writing code that needs to extract data from the page, use Stagehand `extract`. Explicitly pass the following params by default:
 
 ```typescript
@@ -155,8 +157,11 @@ import { Stagehand, Page, BrowserContext } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   env: "BROWSERBASE"
 });
+
 await stagehand.init();
+
 const page = stagehand.page; // Playwright Page with act, extract, and observe methods
+
 const context = stagehand.context; // Playwright BrowserContext
 ```
 ### Configuration Options
@@ -208,12 +213,17 @@ Act `action` should be as atomic and specific as possible, i.e. "Click the sign 
 AVOID actions that are more than one step, i.e. "Order me pizza" or "Send an email to Paul asking him to call me".
 
 ## Extract
+
 ### Simple String Extraction
+
 ```typescript
 const signInButtonText = await page.extract("extract the sign in button text");
 ```
+
 ### Structured Extraction with Schema (Recommended)
+
 Always use Zod schemas for structured data extraction:
+
 ```typescript
 import { z } from "zod";
 
@@ -224,8 +234,11 @@ const data = await page.extract({
   }),
 });
 ```
+
 ### Array Extraction
+
 To extract multiple items, wrap the array in a single object:
+
 ```typescript
 const data = await page.extract({
   instruction: "extract the text inside all buttons",
@@ -234,8 +247,11 @@ const data = await page.extract({
   })
 });
 ```
+
 ### Complex Object Extraction
+
 For more complex data structures:
+
 ```typescript
 const productData = await page.extract({
   instruction: "extract product information from this page",
@@ -248,16 +264,23 @@ const productData = await page.extract({
   }),
 });
 ```
+
 ### Schema Validation
+
 ```typescript
 import { validateZodSchema } from "./utils.js";
 import { z } from "zod";
+
 const schema = z.object({ name: z.string() });
 const isValid = validateZodSchema(schema, { name: "John" }); // true
 ```
+
 ## Agent System
+
 Stagehand provides an Agent System for autonomous web browsing using Computer Use Agents (CUA). Agents execute multi-step workflows using natural language instructions.
+
 ### Creating Agents
+
 ```typescript
 // Basic agent (default)
 const agent = stagehand.agent();
@@ -267,7 +290,9 @@ const agent = stagehand.agent({
   provider: "openai",
   model: "computer-use-preview",
   instructions: "You are a helpful assistant that can use a web browser.",
-  options: { apiKey: process.env.OPENAI_API_KEY }
+  options: { 
+    apiKey: process.env.OPENAI_API_KEY 
+  }
 });
 
 // Anthropic agent
@@ -275,7 +300,9 @@ const agent = stagehand.agent({
   provider: "anthropic", 
   model: "claude-sonnet-4-20250514",
   instructions: "You are a helpful assistant that can use a web browser.",
-  options: { apiKey: process.env.ANTHROPIC_API_KEY }
+  options: { 
+    apiKey: process.env.ANTHROPIC_API_KEY 
+  }
 });
 ```
 ### Agent Execution
@@ -290,17 +317,21 @@ const result = await agent.execute({
   autoScreenshot: true
 });
 ```
+
 ### Best Practices
 - Be specific with instructions: `"Fill out the contact form with name 'John Doe' and submit it"`
 - Break down complex tasks into smaller steps
 - Use error handling with try/catch blocks
 - Combine agents for navigation with traditional methods for precise data extraction
+
 ```typescript
 // Good: Specific instructions
 await agent.execute("Navigate to products page and filter by 'Electronics'");
+
 // Avoid: Vague instructions  
 await agent.execute("Do some stuff on this page");
 ```
+
 ## Project Structure Best Practices
 
 - Store configurations in `stagehand.config.ts`
