@@ -6,7 +6,7 @@ description: 'Find suggested actions for your workflows'
 
 ## What is `observe()`?
 
-`observe()` is Stagehand's intelligence layer that discovers actionable elements on web pages and suggests optimal actions. Instead of blindly attempting actions, observe first to understand what's possible, plan multi-step workflows, and build resilient automation.
+`observe` is Stagehand's intelligence layer that discovers actionable elements on web pages and suggests optimal actions. Instead of blindly attempting actions, observe first to understand what's possible, plan multi-step workflows, and build resilient automation.
 
 ``` typescript
 await page.observe("Find the login button")
@@ -31,43 +31,11 @@ await page.observe("Find the login button")
 
 ## Core Concepts
 
-### ObserveResult Structure
-
-Each observation returns detailed information about actionable elements:
-
-```json
-{
-  "selector": "xpath=/html/body/div[1]/form/button[1]",
-  "description": "Submit button for contact form",
-  "method": "click",
-  "arguments": []
-}
-```
-
-<AccordionGroup>
-<Accordion title="selector (string)">
-**XPath selector** to precisely locate the element on the page. This ensures reliable element targeting even when page layouts change.
-</Accordion>
-
-<Accordion title="description (string)">
-**Human-readable description** of what the element is and its purpose. Helps with debugging and workflow understanding.
-</Accordion>
-
-<Accordion title="method (string)">
-**Suggested action method** such as `click`, `type`, `hover`, or `select`. Based on element type and common interaction patterns.
-</Accordion>
-
-<Accordion title="arguments (array)">
-**Additional parameters** required for the action. Usually empty for simple actions like clicks, but may contain values for complex interactions.
-</Accordion>
-</AccordionGroup>
-
 ### Integration with Stagehand Methods
 
-`observe()` works seamlessly with other Stagehand methods:
+`observe` augments what you can do with other Stagehand methods:
 
-<Tabs>
-<Tab title="With act()">
+#### Observe → Act
 <CodeGroup>
 ```typescript TypeScript
 // Observe → Act workflow 
@@ -89,9 +57,9 @@ await page.act("Click the submit button")
 <Note>
 **Performance Tip**: Pass `ObserveResult` objects directly to `act()` to skip LLM inference and execute actions immediately. This can reduce automation time by 2-3x for known actions. To avoid script maintenance, check out [self healing](/basics/act/self-healing) for more details.
 </Note>
-</Tab>
 
-<Tab title="With extract()">
+#### Observe → Extract
+
 <CodeGroup>
 ```typescript TypeScript
 // Use observe to validate elements before extraction
@@ -117,8 +85,76 @@ if len(table_elements) > 0:
   })
 ```
 </CodeGroup>
-</Tab>
-</Tabs>
+<Tip>
+**Savings Tip**: Pass the selector to `extract()` to have the LLM focus on a specific section of the page (like a table, a form, a list...) to minimize the context needed for an extraction. This can reduce LLM token usage by 10x for verbose websites!
+</Tip>
+
+### Suggested Actions - Previews
+
+Each observation returns detailed information about actionable elements:
+
+```json
+{
+  "selector": "xpath=/html/body/div[1]/form/button[1]",
+  "description": "Submit button for contact form",
+  "method": "click",
+  "arguments": []
+}
+```
+
+<AccordionGroup>
+<Accordion title="selector">
+**XPath selector** to precisely locate the element on the page. This ensures reliable element targeting even when page layouts change.
+</Accordion>
+
+<Accordion title="description">
+**Human-readable description** of what the element is and its purpose. Helps with debugging and workflow understanding.
+</Accordion>
+
+<Accordion title="method">
+**Suggested action method** such as `click`, `type`, `hover`, or `select`. Based on element type and common interaction patterns.
+</Accordion>
+
+<Accordion title="arguments">
+**Additional parameters** required for the action. Usually empty for simple actions like clicks, but may contain values for complex interactions.
+</Accordion>
+</AccordionGroup>
+
+
+## Best Practices
+
+### When to Use Observe
+
+<CardGroup cols={2}>
+  <Card title="✅ Use Observe When">
+    <ul>
+      <li><strong>Exploring unknown pages</strong> – Understanding available actions</li>
+      <li><strong>Building complex workflows</strong> – Planning multi-step automation</li>
+      <li><strong>Error recovery</strong> – Finding alternatives when actions fail</li>
+      <li><strong>Performance optimization</strong> – Caching actions to reduce LLM calls</li>
+      <li><strong>Conditional logic</strong> – Making decisions based on page state</li>
+      <li><strong>Quality assurance</strong> – Validating elements exist before acting</li>
+    </ul>
+  </Card>
+  <Card title="❌ Avoid Observe When">
+    <ul>
+      <li><strong>Simple, known actions</strong> – Direct <code>act()</code> is faster for obvious elements</li>
+      <li><strong>Real-time interactions</strong> – Chat systems, live updates where speed matters</li>
+      <li><strong>Static workflows</strong> – Same actions on identical pages every time</li>
+      <li><strong>Cost-sensitive operations</strong> – When minimizing LLM calls is critical</li>
+      <li><strong>Simple boolean checks</strong> – Use targeted <code>extract()</code> for true/false queries</li>
+    </ul>
+  </Card>
+</CardGroup>
+
+### Optimization Guidelines
+
+1. **Cache Intelligently**: Store observations for reuse on similar page types
+2. **Batch Requests**: Combine multiple requirements into single observations  
+3. **Choose Models Wisely**: Use faster models for simple observations
+4. **Scope Instructions**: Be specific to reduce analysis time and cost
+5. **Handle Errors Gracefully**: Always check observation results before acting
+6. **Monitor Performance**: Track observation speed and accuracy over time
 
 ## Troubleshooting
 
@@ -207,37 +243,6 @@ actionCache.set(pageType, observations);
 </Accordion>
 </AccordionGroup>
 
-## Best Practices
-
-### When to Use Observe
-
-<Tabs>
-<Tab title="✅ Use Observe When">
-- **Exploring unknown pages** - Understanding available actions
-- **Building complex workflows** - Planning multi-step automation  
-- **Error recovery** - Finding alternatives when actions fail
-- **Performance optimization** - Caching actions to reduce LLM calls
-- **Conditional logic** - Making decisions based on page state
-- **Quality assurance** - Validating elements exist before acting
-</Tab>
-
-<Tab title="❌ Avoid Observe When">
-- **Simple, known actions** - Direct `act()` is faster for obvious elements
-- **Real-time interactions** - Chat systems, live updates where speed matters
-- **Static workflows** - Same actions on identical pages every time
-- **Cost-sensitive operations** - When minimizing LLM calls is critical
-- **Simple boolean checks** - Use targeted extract() for true/false queries
-</Tab>
-</Tabs>
-
-### Optimization Guidelines
-
-1. **Cache Intelligently**: Store observations for reuse on similar page types
-2. **Batch Requests**: Combine multiple requirements into single observations  
-3. **Choose Models Wisely**: Use faster models for simple observations
-4. **Scope Instructions**: Be specific to reduce analysis time and cost
-5. **Handle Errors Gracefully**: Always check observation results before acting
-6. **Monitor Performance**: Track observation speed and accuracy over time
 
 ## Next Steps
 
@@ -248,14 +253,6 @@ Execute actions efficiently using observe results
 
 <Card title="Extract Data" icon="download" href="/basics/extract/overview">  
 Extract structured data from observed elements
-</Card>
-
-<Card title="Agent Workflows" icon="robot" href="/basics/agent/overview">
-Build intelligent agents using observations for context
-</Card>
-
-<Card title="Configuration" icon="gear" href="/configuration/environment">
-Configure models and options for optimal performance
 </Card>
 
 <Card title="Observability" icon="chart-line" href="/configuration/observability">
