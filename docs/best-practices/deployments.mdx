@@ -65,11 +65,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     const stagehand = new Stagehand({
       env: "BROWSERBASE",
-      apiKey: process.env.BROWSERBASE_API_KEY,
-      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      apiKey: process.env.BROWSERBASE_API_KEY!,
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      modelName: "google/gemini-2.5-flash",
+      modelClientOptions: {
+        apiKey: process.env.GOOGLE_API_KEY!,
+      },
       // optional session params
       browserbaseSessionCreateParams: {
-        proxies: true,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
         region: "us-west-2",
         browserSettings: {
           blockAds: true,
@@ -81,17 +85,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     await stagehand.init();
     const page = stagehand.page;
 
-    await page.goto("https://example.com");
-    await page.act("Click the sign in button");
+    await page.goto("https://www.stagehand.dev/");
+    await page.act("click the evals button");
 
-    const data = await page.extract({
-      instruction: "extract the page title",
-      schema: z.object({ title: z.string() }),
-    });
+    const { extraction } = await page.extract("extract the fastest model");
+    const data = { model: extraction ?? "" };
 
     await stagehand.close();
 
-    res.status(200).json({ ok: true, data });
+    res.status(200).json({ ok: true, data: data.model });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ ok: false, error: msg });
@@ -108,12 +110,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   "type": "module",
   "engines": { "node": ">=18" },
   "dependencies": {
-    "@browserbasehq/stagehand": "^0.0.0",
+    "@browserbasehq/stagehand": "^2.4.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
-    "@types/node": "^20.12.12"
+    "@types/node": "^20.12.12",
+    "@vercel/node": "^3.2.20"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json"
@@ -143,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
 ```json
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/run.ts": {
       "runtime": "nodejs22.x",
@@ -152,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 }
 ```
 
-Increase `maxDuration` as your plan allows. See Vercel’s docs for up-to-date limits. Edge runtime may allow longer limits on Pro/Enterprise with Fluid compute.
+Increase `maxDuration` as your plan allows. See Vercel's docs for up-to-date limits. Edge runtime may allow longer limits on Pro/Enterprise with Fluid compute.
 
 ### 7. Link your project
 
@@ -177,7 +181,7 @@ Do not commit `.env` in production. Add variables via Vercel CLI:
 vercel env add BROWSERBASE_API_KEY
 vercel env add BROWSERBASE_PROJECT_ID
 # (and your model key if needed)
-vercel env add OPENAI_API_KEY
+vercel env add GOOGLE_API_KEY
 ```
 
 See also: [Browser Environment](/configuration/environment) for details on required variables.
@@ -204,7 +208,7 @@ vercel dev --listen 5005
 vercel dev --yes
 ```
 
-If your framework’s dev server already supports Functions (e.g., `next dev` for Next.js), prefer that. For this non-framework “Other” project, `vercel dev` is recommended.
+If your framework's dev server already supports Functions (e.g., `next dev` for Next.js), prefer that. For this non-framework "Other" project, `vercel dev` is recommended.
 
 ### 9. Deploy
 
@@ -225,6 +229,7 @@ Hit the same endpoint on a schedule by extending `vercel.json`:
 
 ```json
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/run.ts": { "runtime": "nodejs22.x", "maxDuration": 60 }
   },
@@ -239,4 +244,3 @@ Hit the same endpoint on a schedule by extending `vercel.json`:
 - **Keep the function fast**: Offload browser work to Browserbase and return JSON promptly.
 - **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
 - **Vercel recognizes** `/api/*.ts` functions for non-framework projects—see Vercel Functions docs for behavior and limits.
-
