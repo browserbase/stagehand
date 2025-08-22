@@ -1,26 +1,63 @@
+---
+title: 'Debugging Workflows'
+---
 
-### Debugging Workflows
-
-**Step 1: Enable Debug Logging**
+### Increase Logging Verbosity
+Stagehand comes with three verbosity levels (`0`, `1`, `2`). The lowest verbosity level (`verbose: 0`) will only log errors, and the highest level (`verbose: 2`) will log debugging info.
 ```typescript
 const stagehand = new Stagehand({
   env: "LOCAL",
   verbose: 2,
-  localBrowserLaunchOptions: { headless: false, devtools: true }
 });
 ```
 
-**Step 2: Analyze Action Failures**
-- Check if elements exist with `observe()` before acting
-- Verify selectors are correct and unique
-- Ensure page has fully loaded before actions
+### Logging Inference to a File
+<Note>
+logging inference to a file **will not work** when `useAPI: true`. If you are running your script on Browserbase, ensure you have `useAPI: false` in your Stagehand constructor.
+</Note>
+Stagehand allows you to log inference calls for `act`, `extract`, and `observe` to a file on your machine.
+You can think of it as a conversation history between Stagehand and the LLM. Here is how you can configure it in your Stagehand constructor:
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 2,
+  logInferenceToFile: true,
+});
+```
 
-**Step 3: Monitor Performance**
-- Track execution times for optimization
-- Identify slow operations and bottlenecks
-- Compare local vs Browserbase performance
+Once your script has finished, you will see a directory called `inference_summary` which will contain subdirectories for each Stagehand primitive that was called.
 
-**Step 4: Review LLM Interactions**
-- Check token usage and costs
-- Analyze model selection effectiveness
-- Monitor cache hit rates
+```
+inference_summary
+├── act_summary
+│   ├── 20250821_234942405_act_call.txt
+│   ├── 20250821_234943818_act_response.txt
+│   └── act_summary.json
+├── extract_summary
+│   ├── 20250821_235005068_extract_call.txt
+│   ├── 20250821_235005734_extract_response.txt
+│   ├── 20250821_235005735_metadata_call.txt
+│   ├── 20250821_235007040_metadata_response.txt
+│   └── extract_summary.json
+└── observe_summary
+   ├── 20250821_234949455_observe_call.txt
+   ├── 20250821_235004517_observe_response.txt
+   └── observe_summary.json
+```
+You can look at each of these files to see the exact inputs & outputs for all of the LLM calls.
+
+### Using the Chrome Devtool UI
+The [Chrome Devtools UI](https://developer.chrome.com/docs/devtools/overview) is an extremely useful debugging tool.
+If Stagehand is unable to take an action or extract some information from a page, you can open up the Chrome Devtools UI
+to see whether that element was in an iframe, shadow dom, etc.
+<br />
+You can also [copy the XPath](https://devtoolstips.org/tips/en/copy-element-xpath/) of an element from the Chrome Devtools UI, paste it into the `selector` field in an `ObserveResult` object, and pass that object into `act`. For example:
+```typescript
+const observeResult = {
+  description: "the submit button",
+  method: "click",
+  selector: "xpath=/html/body/div/div/button",
+  arguments: [""]
+}
+await page.act(observeResult);
+```
