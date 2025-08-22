@@ -5,37 +5,42 @@ description: 'Find suggested actions for your workflows'
 ---
 
 ## What is `observe()`?
-
-`observe` is Stagehand's intelligence layer that discovers actionable elements on web pages and suggests optimal actions. Instead of blindly attempting actions, observe first to understand what's possible, plan multi-step workflows, and build resilient automation.
-
 ``` typescript
 await page.observe("Find the login button")
 ```
 
-## Why Use Observe?
+Calling `observe` turns any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act()` or use to precisely target `extract()`—so workflows are faster, cheaper, and more resilient.
+
+
+
 
 <CardGroup cols={2}>
-  <Card title="Explore" icon="compass">
+  <Card title="Explore" icon="compass" href="/basics/observe#observe-with-act">
     When you're unsure what's on a page or need to discover available actions
   </Card>
-  <Card title="Plan" icon="map">
+  <Card title="Plan" icon="map" href="/basics/observe#observe-with-act">
     When building complex workflows, plan ahead all the actions you'll need to take
   </Card>
-  <Card title="Cache" icon="database">
+  <Card title="Cache" icon="database" href="/basics/observe#observe-with-act">
     When you want to remember actions for the future and avoid LLM calls
   </Card>
-    <Card title="Validate" icon="check">
+    <Card title="Validate" icon="check" href="/basics/observe#observe-with-extract">
     Before performing critical actions to ensure elements exist
   </Card>
 </CardGroup>
 
-## Core Concepts
+## Using `observe()`
 
-### Integration with Stagehand Methods
+Calling `observe` supercharges other Stagehand methods. Use it to plan workflows, speed up `act`, and precisely target `extract`.
 
-`observe` augments what you can do with other Stagehand methods:
+### Observe with Act
 
-#### Observe → Act
+Using `observe` to plan workflows is a great way to speed up `act`. For example, you can ask `observe` to find all the fields in a form and then use `act` to fill them in one by one without added LLM inference.
+
+<Note>
+**Performance Tip**: Acting on multiple `observe` suggestions will minimize the number of LLM calls for multi-step actions and speed up your workflow 2-3x.
+</Note>
+
 <CodeGroup>
 ```typescript TypeScript
 // Observe → Act workflow 
@@ -54,11 +59,13 @@ await page.act(buttons[0]) # Fast execution, no LLM inference with self healing
 await page.act("Click the submit button")
 ```
 </CodeGroup>
-<Note>
-**Performance Tip**: Pass `ObserveResult` objects directly to `act()` to skip LLM inference and execute actions immediately. This can reduce automation time by 2-3x for known actions. To avoid script maintenance, check out [self healing](/basics/act/self-healing) for more details.
-</Note>
 
-#### Observe → Extract
+### Observe & Extract
+
+Using `observe` to focus `extract` on a specific section of the page (like a table, a form, a list...) minimizes the context needed for an extraction. 
+<Tip>
+**Savings Tip**: Pass the selector to `extract` to reduce LLM token usage by 10x for verbose websites!
+</Tip>
 
 <CodeGroup>
 ```typescript TypeScript
@@ -85,11 +92,9 @@ if len(table_elements) > 0:
   })
 ```
 </CodeGroup>
-<Tip>
-**Savings Tip**: Pass the selector to `extract()` to have the LLM focus on a specific section of the page (like a table, a form, a list...) to minimize the context needed for an extraction. This can reduce LLM token usage by 10x for verbose websites!
-</Tip>
 
-### Suggested Actions - Previews
+
+### Determine your automation
 
 Each observation returns detailed information about actionable elements:
 
@@ -101,6 +106,11 @@ Each observation returns detailed information about actionable elements:
   "arguments": []
 }
 ```
+
+- **selector**: XPath to precisely locate the element for reliable targeting
+- **description**: Summary of the element and its purpose
+- **method**: Suggested action such as `click`, `type`, `hover`, or `select` (check out [supported actions](/basics/act/overview))
+- **arguments**: Extra parameters when needed; usually empty for simple clicks
 
 <AccordionGroup>
 <Accordion title="selector">
@@ -163,10 +173,12 @@ Each observation returns detailed information about actionable elements:
 **Problem**: `observe()` returns empty array
 
 **Solutions**:
+- Make sure the element exists on the page
+- Use explicit instructions to find the element
 - Ensure page has fully loaded: `await page.waitForLoadState('networkidle')`
 - Increase DOM settle timeout: `domSettleTimeoutMs: 60000`
 - Check if content is in iframes: `iframes: true`
-- Make instructions more general: "Find any interactive elements"
+- Look at the [debugging](/basics/debugging) logs, if the element is there then the LLM might be hallucinating/not catching it. 
 
 ```typescript
 // Debug empty results
