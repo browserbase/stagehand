@@ -36,7 +36,6 @@ interface ActOptions {
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
   iframes?: boolean;
-  frameId?: string;
 }
 ```
 
@@ -68,7 +67,7 @@ await page.act(observe_result: ObserveResult) -> None
 
 ### Parameters
 
-<ParamField path="action | instruction" type="string" required>
+<ParamField path="action" type="string" required>
   Natural language description of the action to perform.
 </ParamField>
 
@@ -102,20 +101,25 @@ await page.act(observe_result: ObserveResult) -> None
   **Default:** `false`
 </ParamField>
 
-<ParamField path="frameId" type="string" optional>
-  Specific frame ID when working with iframes.
-</ParamField>
-
 <ParamField path="observeResult" type="ObserveResult" optional>
   Previously observed action to execute directly (enables self-healing).
 </ParamField>
 
-### Response
+### Returns `Promise<ActResult>`
 
-**Returns:** `Promise<void>`
-Resolves when action completes successfully. Throws error on failure.
+<ParamField path="success" type="boolean" required>
+  Whether the action was completed successfully.
+</ParamField>
 
-```Example Response
+<ParamField path="message" type="string" required>
+  Details about the action's execution.
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  The action that was performed.
+</ParamField>
+
+```JSON Response
 {
   success: true,
   message: 'Action [scrollTo] performed successfully on selector: /html[1]',
