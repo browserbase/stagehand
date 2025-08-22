@@ -144,9 +144,7 @@ extraction = await page.extract(
 
 ### Conserve LLM tokens
 
-- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference.
-- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit.
-- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing if layouts shift.
+Optimize performance by directly passing `ObserveResult` to `act` (e.g., `await page.act(results[0])`) to save LLM tokens. Batch operations by using `observe` once to find elements, then act on each. Cache and reuse stable `observe` results for familiar pages, using self-healing if layouts change.
 
 <Card title="Build your own cache" icon="database" href="/best-practices/caching">
   Check out the guide on how to build your own action cache
@@ -154,9 +152,7 @@ extraction = await page.extract(
 
 ### Improve Accuracy
 
-- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") for faster, cheaper, more accurate suggestions.
-- **Mind iframes and load**: If elements live in an iframe, set `iframes: true` and wait for `networkidle` before observing.
-- **Use selectors to focus extraction**: Feed `selector` from `observe` into `extract` to constrain the model’s context.
+Be precise with instructions, e.g., "Find the primary CTA in the hero" for better results. For iframes, set `iframes: true` and wait for `networkidle`. Use `observe` selectors in `extract` to limit context.
 
 <Card title="Prompting Best Practices" icon="robot" href="/best-practices/prompting-best-practices">
   Check out the guide on how to improve the accuracy of your results
@@ -164,8 +160,7 @@ extraction = await page.extract(
 
 ### Action Validation
 
-- **Validate before critical actions**: Check the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks.
-- **Fallback**: If a direct `act` fails, `observe` the same prompt, verify the method, then `act` on the suggested action.
+Before performing critical actions, validate the suggestion's `method`, `selector`, and `arguments` to prevent misclicks. If a direct `act` fails, use `observe` with the same prompt to verify the method, then proceed with the suggested action.
 
 <CodeGroup>
 ```typescript TypeScript
