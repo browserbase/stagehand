@@ -122,10 +122,28 @@ extraction = await page.extract(
 
 ## Best Practices
 
+### Choose the right commands
+
+Extract vs Observe
+
+(Do this not that)
+
 ### Conserve LLM tokens
+
+Most websites don't change often, they keep the same layout/structure. You can store your `observe` results in a cache and reuse them for future runs. 
+As long as the page doesn't change the action will be the same, if the page changes [self-healing](/basics/act) will loop the LLM back in so you don't have to maintain your script. 
+
+<Card title="Build your own cache" icon="database" href="/best-practices/caching">
+  Check out the guide on how to build your own action cache
+</Card>
 
 ### Improve Accuracy
 
+How to prompt for multi-step observe results.
+
+<Card title="Prompting Best Practices" icon="robot" href="/best-practices/prompting-best-practices">
+  Check out the guide on how to improve the accuracy of your results
+</Card>
 
 ### Action Validation
 
@@ -180,17 +198,6 @@ except Exception as error:
 
 
 
-
-
-
-#### Remember actions
-
-Most websites don't change often, they keep the same layout/structure. You can store your `observe` results in a cache and reuse them for future runs. 
-As long as the page doesn't change the action will be the same, if the page changes [self-healing](/basics/act) will loop the LLM back in so you don't have to maintain your script. 
-
-<Card title="Build your own cache" icon="database" href="/best-practices/caching">
-  Check out the guide on how to build your own action cache
-</Card>
 
 - **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps before you act.
 - **Act on suggestions to skip LLM calls**: Pass `ObserveResult` objects directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference and speed up multi-step flows.
