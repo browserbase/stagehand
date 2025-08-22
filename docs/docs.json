@@ -13,7 +13,7 @@
       {
         "group": "First Steps",
         "pages": [
-          "first_steps/introduction",
+          "first_steps/quickstart",
           "first_steps/installation",
           "first_steps/ai_rules"
         ]
