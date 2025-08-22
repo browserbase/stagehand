@@ -154,7 +154,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
 Increase `maxDuration` as your plan allows. See Vercel’s docs for up-to-date limits. Edge runtime may allow longer limits on Pro/Enterprise with Fluid compute.
 
-### 7. Environment variables
+### 7. Link your project
+
+Link your local folder to a Vercel project before configuring environment variables:
+
+```bash
+# authenticate if needed
+vercel login
+
+# link the current directory to a Vercel project (interactive)
+vercel link
+
+# or non-interactive if you know the project
+# vercel link --project <PROJECT_NAME_OR_ID> --yes
+```
+
+### 8. Environment variables
 
 Do not commit `.env` in production. Add variables via Vercel CLI:
 
@@ -191,14 +206,14 @@ vercel dev --yes
 
 If your framework’s dev server already supports Functions (e.g., `next dev` for Next.js), prefer that. For this non-framework “Other” project, `vercel dev` is recommended.
 
-### 8. Deploy
+### 9. Deploy
 
 ```bash
 vercel
 vercel --prod
 ```
 
-### 9. Call it
+### 10. Call it
 
 ```bash
 curl -X POST https://<your-deployment>/api/run
