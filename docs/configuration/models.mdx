@@ -1,7 +1,7 @@
 ---
-title: LLM Customization
-sidebarTitle: LLM Customization
-description: Configure Stagehand to use different LLM providers and models for optimal performance, cost, and reliability
+title: Models
+sidebarTitle: Models
+description: Enhance Stagehand with LLMs for optimal performance, cost, and reliability
 ---
 
 Stagehand uses Large Language Models (LLMs) to understand web pages, plan actions, and interact with complex interfaces. The choice of LLM significantly impacts your automation's accuracy, speed, and cost.
@@ -18,7 +18,7 @@ Find more details about how to choose the right model on our Model Evaluation pa
 - **Reliability**: Structured output support ensures consistent automation behavior
 
 <Tip>
-**Recommended**: Start with **Google Gemini 2.5 Pro** for best results, then optimize for speed/cost based on your needs. Find more details about how to choose the right model on our [Model Evaluation](https://www.stagehand.dev/evals) page.
+Find more details about how to choose the right model on our [Model Evaluation](https://www.stagehand.dev/evals) page.
 </Tip>
 
 <Warning>
@@ -63,7 +63,8 @@ Stagehand supports major LLM providers with structured output capabilities:
 - **DeepSeek** - Cost-effective alternative
 - **Perplexity** - Real-time web data
 - **Ollama** - Local deployment (limited accuracy)
-- **Run any model included in AI SDK** - Find supported models in the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) (Follow the guide [here](/configuration/llm_customization#vercel-ai-sdk) to get started.)
+- **Run any model included in AI SDK** - Find supported models in the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) (Follow the guide 
+     [here](/configuration/models#vercel-ai-sdk) to get started.)
 </Expandable>
 
 ## Basic Configuration
@@ -159,29 +160,6 @@ Custom LLMs are currently only supported in TypeScript.
 </Note>
 
 Integrate any LLM with Stagehand using custom clients. The only requirement is **structured output support** for consistent automation behavior.
-
-### OpenAI-compatible APIs
-Most LLMs are OpenAI-compatible, and thus can be used with Stagehand as long as they support structured outputs. This includes models like Google Gemini, Ollama, and most Llama models including Groq, Cerebras, and more.
-
-To get started, you can use the [OpenAI external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/customOpenAI.ts) as a template to create a client for your model.
-```ts {7-13}
-import { Stagehand } from "@browserbasehq/stagehand";
-import { CustomOpenAIClient } from "./external_clients/customOpenAI";
-import OpenAI from "openai";
-
-const stagehand = new Stagehand({
-	...StagehandConfig,
-	llmClient: new CustomOpenAIClient({
-		modelName: "llama3.3",
-		client: new OpenAI({
-			apiKey: "ollama",
-			baseURL: "http://localhost:11434/v1",
-		}),
-	}),
-});
-
-await stagehand.init();
-```
 
 ### Vercel AI SDK
 The [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) is a popular library for interacting with LLMs. You can use any of the providers supported by the Vercel AI SDK to create a client for your model, **as long as they support structured outputs**.
@@ -307,13 +285,21 @@ For each provider, use their latest models that meet these requirements. Some ex
 </Accordion>
 </AccordionGroup>
 
-### Best Practices
-1. **Choose models**: Start with Gemini 2.5 Pro - see our [Model Evaluation](/configuration/evals) page
-2. **Test models**: Evaluate performance on your specific use cases in our [Model Evaluation](/configuration/evals) guide
-3. **Track costs**: Monitor token usage and set alerts using our [Observability](/configuration/observability) tools
-4. **Set temperature**: 0 for automation, 0.1-0.3 for creative tasks as covered in [AI Rules](/first_steps/ai_rules)
-5. **Use fallbacks**: Configure backup models following our [Best Practices](/best_practices/caching)
-6. **Cache results**: Store successful patterns using our [Caching Guide](/best_practices/caching)
-7. **Version models**: Track effective model versions as described in our [Contributing](/best_practices/contributing) guide
-8. **Compare models**: Run A/B tests using [Custom Evals](/best_practices/creating_custom_evals)
+### Next Steps
+<CardGroup cols={2}>
+<Card title="Choose Models" href="https://www.stagehand.dev/evals" icon="robot">
+  See our Model Evaluation page
+</Card>
 
+<Card title="Test Models" href="/configuration/evals" icon="flask-vial">
+  Evaluate performance on your specific use cases in our Model Evaluation guide
+</Card>
+
+<Card title="Track Costs" href="/configuration/observability" icon="chart-line">
+  Monitor token usage and set alerts using our Observability tools
+</Card>
+
+<Card title="Cache Results" href="/best-practices/caching" icon="database">
+  Store successful patterns using our Caching Guide
+</Card>
+</CardGroup>

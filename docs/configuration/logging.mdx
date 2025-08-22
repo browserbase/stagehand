@@ -1,18 +1,16 @@
 ---
 title: Logging & Debugging
 sidebarTitle: Logging
-description: Configure detailed logging, debugging, and error tracking for your Stagehand automation workflows
+description: Set up logging, debugging, and error tracking for Stagehand workflows
 ---
 
 Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
 
 ## Logging Configuration
 
-### Basic Logging Setup
-
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE", // or "LOCAL"
@@ -276,16 +274,26 @@ inference_summary/
   </Tab>
 </Tabs>
 
-## Best Practice
+## Best Practices
 
-### Development
+<AccordionGroup>
+<Accordion title="Development Environment">
 - Use `verbose: 2` with visual debugging
 - Enable browser DevTools for element inspection
+- Use `logInferenceToFile: true` to capture LLM decisions
 - Implement structured logging early
-- Set up performance monitoring
+</Accordion>
 
-### Production
+<Accordion title="Production Environment">
 - Use `verbose: 1` to balance visibility with performance
 - Implement error tracking and alerting
 - Use structured JSON logging
-- Monitor session success rates
+- Monitor session success rates and execution times
+</Accordion>
+
+<Accordion title="Security & Compliance">
+- Never log credentials or sensitive data
+- Implement log retention policies
+- Secure log files and dashboards
+</Accordion>
+</AccordionGroup>

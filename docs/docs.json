@@ -8,14 +8,22 @@
     "dark": "#FFC83C"
   },
   "favicon": "/images/favicon.svg",
+  "seo": {
+    "indexing": "all",
+    "metatags": {
+      "og:type": "website",
+      "og:site_name": "Stagehand Docs"
+    }
+  },
   "navigation": {
     "groups": [
       {
         "group": "First Steps",
         "pages": [
-          "first_steps/introduction",
-          "first_steps/installation",
-          "first_steps/ai_rules"
+          "first-steps/introduction",
+          "first-steps/quickstart",
+          "first-steps/installation",
+          "first-steps/ai-rules"
         ]
       },
       {
@@ -30,28 +38,27 @@
       {
         "group": "Configuration",
         "pages": [
-          "configuration/environment",
+          "configuration/browser",
           "configuration/observability",
           "configuration/logging",
-          "configuration/llm_customization",
+          "configuration/models",
           "configuration/evals"
         ]
       },
       {
         "group": "Best Practices",
         "pages": [
-          "best_practices/caching",
-          "best_practices/running_evals",
-          "best_practices/multitab_handling",
-          "best_practices/working_with_iframes",
-          "best_practices/deployments",
-          "best_practices/customize_browser",
-          "best_practices/computer_use",
-          "best_practices/contributing",
-          "best_practices/playwright_interop",
-          "best_practices/interact_with_page",
-          "best_practices/build_agent",
-          "best_practices/creating_custom_evals"
+          "best-practices/caching",
+          "best-practices/cost-optimization",
+          "best-practices/using-multiple-tabs",
+          "best-practices/working-with-iframes",
+          "best-practices/deployments",
+          "best-practices/computer-use",
+          "best-practices/contributing",
+          "best-practices/playwright-interop",
+          "best-practices/build-agent",
+          "best-practices/agent-fallbacks",
+          "best-practices/prompting-best-practices"
         ]
       },
       {
@@ -66,8 +73,36 @@
               "integrations/mcp/configuration"
             ]
           },
-          "integrations/langchain",
-          "integrations/crew-ai"
+          {
+            "group": "CrewAI",
+            "pages": [
+              "integrations/crew-ai/introduction",
+              "integrations/crew-ai/configuration"
+            ]
+          },
+          {
+            "group": "Langchain",
+            "pages": [
+              "integrations/langchain/introduction",
+              "integrations/langchain/configuration"
+            ]
+          },
+          {
+            "group": "Next.js + Vercel",
+            "pages": [
+              "integrations/vercel/introduction",
+              "integrations/vercel/configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "references/act",
+          "references/extract",
+          "references/observe",
+          "references/agent"
         ]
       }
     ],
@@ -80,7 +115,7 @@
         },
         {
           "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/getting_started/introduction",
+          "href": "https://docs.stagehand.dev/first-steps/introduction",
           "icon": "code"
         }
       ]

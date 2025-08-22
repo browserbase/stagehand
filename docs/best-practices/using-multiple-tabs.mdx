@@ -1,12 +1,13 @@
 ---
-title: 'Multitab Handling'
+title: 'Using Multiple Tabs'
+description: 'Act on multiple tabs with Stagehand'
 ---
 
 Many modern web applications open new tabs when users click certain buttons or links. Without proper multitab support, automation scripts break when expected content appears in a new tab rather than the current one. Stagehand's multitab capabilities ensure your automations work seamlessly across multitab workflows.
 
 ## The Stagehand Page
 
-Stagehand automatically adapts to multitab scenarios. The `stagehand.page` object always points to the most recently opened or active page, ensuring your automations continue working even when new tabs are created.
+Stagehand automatically adapts to multitab workflows. The `stagehand.page` object always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created.
 
 This means you can continue using familiar patterns:
 
@@ -29,12 +30,12 @@ await page.extract("get data from new tab")
 </CodeGroup>
 
 <Warning>
-**Important**: [Stagehand Agent](/basics/agent/overview) always operate on `stagehand.page`. If you need an agent to work across specific tabs, you'll need to manage page switching manually.
+**Important**: [Stagehand Agent](/basics/agent) will always operate on the `stagehand.page`. If you need an agent to work across specific tabs, you'll need to manage page switching manually.
 </Warning>
 
 ## Manual Page Management
 
-For more control or mutlitab workflows, you can manage multiple pages explicitly:
+For more control or multitab workflows, you can manage multiple tabs explicitly:
 
 <CodeGroup>
 ```typescript TypeScript
@@ -122,19 +123,19 @@ print(f"You're on page {page_number}")
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Orchestrate complex workflows with Agent" icon="robot" iconType="sharp-solid" href="/fundamentals/agent/overview">
+  <Card title="Orchestrate complex workflows with Agent" icon="robot" iconType="sharp-solid" href="/basics/agent">
     Use `Agent` to autonomously execute multi-step tasks and complex workflows.
   </Card>
 
-  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/guides/working-with-iframes">
+  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/best-practices/working-with-iframes">
     Learn best practices for interacting with elements inside iframes.
   </Card>
 
-  <Card title="Browser contexts and sessions" icon="browser" iconType="sharp-solid" href="/guides/browser-contexts">
+  <Card title="Browser Configuration" icon="browser" iconType="sharp-solid" href="/configuration/browser">
     Manage browser contexts and sessions for complex automation scenarios.
   </Card>
 
-  <Card title="Error handling and debugging" icon="bug" iconType="sharp-solid" href="/guides/error-handling">
+  <Card title="Logging & Debugging" icon="bug" iconType="sharp-solid" href="/configuration/logging">
     Handle errors gracefully and debug automation issues effectively.
   </Card>
 </CardGroup>
