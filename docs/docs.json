@@ -20,6 +20,7 @@
       {
         "group": "First Steps",
         "pages": [
+          "first-steps/introduction",
           "first-steps/quickstart",
           "first-steps/installation",
           "first-steps/ai-rules"
@@ -56,7 +57,8 @@
           "best-practices/contributing",
           "best-practices/playwright-interop",
           "best-practices/build-agent",
-          "best-practices/agent-fallbacks"
+          "best-practices/agent-fallbacks",
+          "best-practices/prompting-best-practices"
         ]
       },
       {
@@ -72,7 +74,7 @@
             ]
           },
           {
-            "group": "crewAI",
+            "group": "CrewAI",
             "pages": [
               "integrations/crew-ai/introduction",
               "integrations/crew-ai/configuration"
@@ -86,9 +88,10 @@
             ]
           },
           {
-            "group": "Next.js",
+            "group": "Next.js + Vercel",
             "pages": [
-                  "integrations/nextjs/configuration"
+              "integrations/vercel/introduction",
+              "integrations/vercel/configuration"
             ]
           }
         ]
@@ -112,7 +115,7 @@
         },
         {
           "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/introduction",
+          "href": "https://docs.stagehand.dev/first-steps/introduction",
           "icon": "code"
         }
       ]
