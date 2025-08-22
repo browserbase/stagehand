@@ -9,10 +9,9 @@ description: 'Find suggested actions for your workflows'
 await page.observe("Find the login button")
 ```
 
-Calling `observe` turns any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act()` or use to precisely target `extract()`—so workflows are faster, cheaper, and more resilient.
+Calling `observe` turns any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act` or use to precisely target `extract`—so workflows are faster, cheaper, and more resilient.
 
-
-
+## Why use `observe`?
 
 <CardGroup cols={2}>
   <Card title="Explore" icon="compass" href="/basics/observe#observe-with-act">
@@ -21,10 +20,10 @@ Calling `observe` turns any page into a checklist of reliable, executable action
   <Card title="Plan" icon="map" href="/basics/observe#observe-with-act">
     When building complex workflows, plan ahead all the actions you'll need to take
   </Card>
-  <Card title="Cache" icon="database" href="/basics/observe#observe-with-act">
+  <Card title="Cache" icon="database" href="/basics/observe#determine-your-automation">
     When you want to remember actions for the future and avoid LLM calls
   </Card>
-    <Card title="Validate" icon="check" href="/basics/observe#observe-with-extract">
+    <Card title="Validate" icon="check" href="/basics/observe#observe-with-act">
     Before performing critical actions to ensure elements exist
   </Card>
 </CardGroup>
@@ -43,24 +42,36 @@ Using `observe` to plan workflows is a great way to speed up `act`. For example,
 
 <CodeGroup>
 ```typescript TypeScript
-// Observe → Act workflow 
-const buttons = await page.observe("Find submit buttons");
-await page.act(buttons[0]); // Fast execution, no LLM inference with self healing
-
-// Direct act (slower, requires LLM inference)  
-await page.act("Click the submit button");
+// Plan & validate
+const buttons = await page.observe("Find the log in / sign up buttons");
 ```
 ```python Python
-# Observe → Act workflow 
-buttons = await page.observe("Find submit buttons")
-await page.act(buttons[0]) # Fast execution, no LLM inference with self healing
-
-# Direct act (slower, requires LLM inference)  
-await page.act("Click the submit button")
+# Plan & validate
+buttons = await page.observe("Find the log in / sign up buttons")
 ```
 </CodeGroup>
 
-### Observe & Extract
+This will return a list of suggestions with the following structure
+```json
+{
+  "selector": "xpath=/html/body/header/div/button[1]",
+  "description": "Log in button in the top right corner",
+  "method": "click",
+  "arguments": []
+}
+```
+You can validate the action (method, selector, arguments...) and then pass it to `act` to avoid extra LLM inference
+
+<CodeGroup>
+```typescript TypeScript
+await page.act(buttons[0]); // No LLM!
+```
+```python Python
+await page.act(buttons[0]) # No LLM!
+```
+</CodeGroup>
+
+### Observe and Extract
 
 Using `observe` to focus `extract` on a specific section of the page (like a table, a form, a list...) minimizes the context needed for an extraction. 
 <Tip>
