@@ -67,8 +67,20 @@
               "integrations/mcp/configuration"
             ]
           },
-          "integrations/langchain",
-          "integrations/crew-ai"
+          {
+            "group": "crewAI",
+            "pages": [
+              "integrations/crew-ai/introduction",
+              "integrations/crew-ai/configuration"
+            ]
+          },
+          {
+            "group": "Langchain",
+            "pages": [
+              "integrations/langchain/introduction",
+              "integrations/langchain/configuration"
+            ]
+          }
         ]
       },
       {
