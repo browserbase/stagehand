@@ -332,7 +332,18 @@ export class StagehandOperatorHandler {
       response.choices?.[0]?.message?.tool_calls?.map((tc) => ({
         toolCallId: tc.id,
         toolName: tc.function.name,
-        args: JSON.parse(tc.function.arguments),
+        args: (() => {
+          try {
+            return JSON.parse(tc.function.arguments);
+          } catch (error) {
+            this.logger({
+              category: "agent",
+              message: `Failed to parse tool call arguments: ${tc.function.arguments}. Error: ${error}`,
+              level: 0,
+            });
+            return {};
+          }
+        })(),
       })) || [];
 
     const responseText = response.choices?.[0]?.message?.content || "";
