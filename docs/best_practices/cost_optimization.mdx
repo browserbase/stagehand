@@ -4,7 +4,7 @@ sidebarTitle: Cost Optimization
 description: Minimize costs while maintaining automation performance
 ---
 
-Cost optimization in Stagehand involves balancing LLM inference costs with browser infrastructure costs. This guide provides practical strategies to reduce your automation expenses.
+Cost optimization in Stagehand involves balancing LLM inference costs and browser infrastructure costs. This guide provides practical strategies to reduce your automation expenses.
 
 ## Quick Wins
 
@@ -12,7 +12,7 @@ Start with these simple optimizations that can reduce costs:
 
 ### 1. Use the Right Model for the Job
 
-Don't use premium models for simple tasks. See our [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
+We don't recommend using larger, more premium models for simple tasks. See our [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
 
 <CardGroup cols={2}>
 <Card title="Model Selection Guide" icon="brain" href="/configuration/models">
@@ -101,9 +101,9 @@ Automatically fall back to cheaper models for simple tasks:
 
 <CodeGroup>
 ```typescript TypeScript
+// Use models from least to most expensive based on task complexity
+// See stagehand.dev/evals for performance comparisons
 async function smartAct(page: Page, prompt: string) {
-  // Use models from least to most expensive based on task complexity
-  // See stagehand.dev/evals for performance comparisons
   const models = ["cheaper-model", "premium-model"];
   
   for (const model of models) {
@@ -120,9 +120,9 @@ async function smartAct(page: Page, prompt: string) {
 }
 ```
 ```python Python
+# Use models from least to most expensive based on task complexity
+# See stagehand.dev/evals for performance comparisons
 async def smart_act(page, prompt: str):
-    # Use models from least to most expensive based on task complexity
-    # See stagehand.dev/evals for performance comparisons
     models = ["cheaper-model", "premium-model"]
     
     for model in models:
