@@ -55,6 +55,7 @@ except Exception as err:
     print("Agent fallback triggered")
 
     agent = stagehand.agent({
+        "provider": "anthropic",
         "model": "claude-sonnet-4-20250514",
         "instructions": "Complete the action, handling any new steps required.",
     })
