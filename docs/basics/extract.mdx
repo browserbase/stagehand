@@ -8,10 +8,10 @@ The `extract` method grabs structured data from a webpage. You can define your s
 ## Why use Extract?
 
 <CardGroup cols={2}>
-  <Card title="Structured" icon="brackets-curly">
+  <Card title="Structured" icon="brackets-curly" href="#extract-a-list-of-objects">
     Turn messy webpage data into clean objects that follow a schema.
   </Card>
-  <Card title="Resilient" icon="dumbbell">
+  <Card title="Resilient" icon="dumbbell" href="#extract-with-additional-context">
     Build resilient extractions that don't break when the website changes
   </Card>
 </CardGroup>
@@ -48,7 +48,7 @@ item = await page.extract(
 </CodeGroup>
 
 Your output schema will look like:
-```JSON JSON
+```Example
 { price: number }
 ```
 
@@ -131,7 +131,7 @@ print("the apartment list is: ", apartments)
 </CodeGroup>
 
 Your output schema will look like:
-```JSON JSON
+```Example
 list_of_apartments: [
     {
       address: "street address here",
@@ -200,7 +200,7 @@ result = await page.extract("extract the name of the repository")
 </CodeGroup>
 
 When you call `extract` with just a prompt, your output schema will look like:
-```JSON JSON
+```Example
 { extraction: string }
 ```
 
@@ -234,6 +234,19 @@ page_text = await page.extract()
 </CodeGroup>
 
 Your output schema will look like:
-```JSON JSON
+```Example
 { page_text: string }
 ```
+
+## Next steps
+
+<CardGroup cols={2}>
+
+  <Card title="Act" icon="play" href="/basics/act">
+    Execute actions efficiently using observe results
+  </Card>
+
+  <Card title="Observe" icon="magnifying-glass" href="/basics/observe">
+    Analyze pages with observe()
+  </Card>
+</CardGroup>

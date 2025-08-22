@@ -154,7 +154,7 @@ extraction = await page.extract(
 - Make sure the element exists on the page
 - Use explicit instructions to find the element
 - Ensure page has fully loaded
-- Look at the [debugging](/basics/debugging) logs, if the element is there then the LLM might be hallucinating/not catching it. 
+- Look at the [debugging workflows](/best-practices/debugging-workflows) logs, if the element is there then the LLM might be hallucinating/not catching it. 
 </Accordion>
 
 <Accordion title="Inaccurate element descriptions">
@@ -163,14 +163,14 @@ extraction = await page.extract(
 **Solutions**:
 - Use more capable models: check [evals](https://stagehand.dev/evals) for the best models for your use case
 - Provide more specific instructions
-- Log inference to file (see [debugging](/basics/debugging)) to get an LLM trace
+- Log inference to file (see [debugging workflows](/best-practices/debugging-workflows)) to get an LLM trace
 
 </Accordion>
 <Accordion title="Wrong method identified">
 **Problem**: The method identified is not valid
 
 **Solutions**:
-- Check the [supported actions](/basics/act/overview)
+- Check the [supported actions](/basics/act)
 - Provide more specific instructions
 - Validate the method, if invalid override with one of the supported ones
 
@@ -181,11 +181,11 @@ extraction = await page.extract(
 ## Next Steps
 
 <CardGroup cols={2}>
-<Card title="Act Overview" icon="play" href="/basics/act/overview">
+<Card title="Act Overview" icon="play" href="/basics/act">
 Execute actions efficiently using observe results
 </Card>
 
-<Card title="Extract Data" icon="download" href="/basics/extract/overview">  
+<Card title="Extract Data" icon="download" href="/basics/extract">  
 Extract structured data from observed elements
 </Card>
 
@@ -193,7 +193,7 @@ Extract structured data from observed elements
 Monitor and debug observation performance  
 </Card>
 
-<Card title="Best Practices" icon="star" href="/best_practices/best_practices">
+<Card title="Best Practices" icon="star" href="/best-practices/best-practices">
 Advanced patterns and optimization techniques
 </Card>
 </CardGroup>

@@ -219,7 +219,7 @@ if login_action:
 ```
 </CodeGroup>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/best_practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -269,10 +269,10 @@ await page.act(
 </CodeGroup>
 
 <Warning>
-When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/browser) and [secure browser agent guide](/best_practices/secure-browser-agent) for more details.
+When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/browser) for more details.
 </Warning>
 
-<Card title="Secure browser automation guide" icon="shield-check" iconType="sharp-solid" href="/best_practices/secure-browser-agent">
+<Card title="User Data Best Practices" icon="shield-check" iconType="sharp-solid" href="/best-practices/user-data">
   Complete guide to securing your browser automations with best practices and configurations.
 </Card>
 
@@ -390,7 +390,7 @@ for attempt in range(max_retries + 1):
 
 **Solutions**:
 - Ensure page has fully loaded
-- Check if content is in iframes: [Learn more about working with iframes](/best_practices/working_with_iframes)
+- Check if content is in iframes: [Learn more about working with iframes](/best-practices/working-with-iframes)
 - Increase action timeout
 - Use `observe()` first to verify element exists
 
@@ -490,7 +490,7 @@ if results and "checkout" in results[0].description:
     Use `Agent` to autonomously execute multi-step tasks and complex workflows.
   </Card>
 
-   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/best_practices/caching">
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/best-practices/caching">
     Speed up repeated automations by caching actions.
   </Card>
 
@@ -498,7 +498,7 @@ if results and "checkout" in results[0].description:
     Use `extract()` with a data schema to pull clean, typed data from any page.
   </Card>
 
-  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/best_practices/working_with_iframes">
+  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/best-practices/working-with-iframes">
     Learn best practices for interacting with elements inside iframes.
   </Card>
 </CardGroup>
