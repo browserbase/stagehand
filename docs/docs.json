@@ -13,6 +13,7 @@
       {
         "group": "First Steps",
         "pages": [
+          "introduction",
           "first_steps/quickstart",
           "first_steps/installation",
           "first_steps/ai_rules"
@@ -99,11 +100,6 @@
           "anchor": "Changelog",
           "href": "https://github.com/browserbase/stagehand/releases",
           "icon": "scroll"
-        },
-        {
-          "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/getting_started/introduction",
-          "icon": "code"
         }
       ]
     }
