@@ -276,16 +276,26 @@ inference_summary/
   </Tab>
 </Tabs>
 
-## Best Practice
+## Best Practices
 
-### Development
+<AccordionGroup>
+<Accordion title="Development Environment">
 - Use `verbose: 2` with visual debugging
 - Enable browser DevTools for element inspection
+- Use `logInferenceToFile: true` to capture LLM decisions
 - Implement structured logging early
-- Set up performance monitoring
+</Accordion>
 
-### Production
+<Accordion title="Production Environment">
 - Use `verbose: 1` to balance visibility with performance
 - Implement error tracking and alerting
 - Use structured JSON logging
-- Monitor session success rates
+- Monitor session success rates and execution times
+</Accordion>
+
+<Accordion title="Security & Compliance">
+- Never log credentials or sensitive data
+- Implement log retention policies
+- Secure log files and dashboards
+</Accordion>
+</AccordionGroup>
