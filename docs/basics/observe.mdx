@@ -9,7 +9,7 @@ description: 'Find suggested actions for your workflows'
 page.observe("Find the login button")
 ```
 
-`observe` turns any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act` or use to precisely target `extract` so workflows are faster, cheaper, and more resilient.
+`observe` allows you to turn any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act` or use to precisely target `extract` so workflows are faster, cheaper, and more resilient.
 
 ## Why use `observe()`?
 
@@ -121,6 +121,67 @@ extraction = await page.extract(
 </CodeGroup>
 
 ## Best Practices
+
+### Conserve LLM tokens
+
+### Improve Accuracy
+
+
+### Action Validation
+
+
+<CodeGroup>
+```typescript TypeScript
+const prompt = "click the submit button";
+const expectedMethod = "click";
+
+try {
+  await page.act(prompt);
+} catch (error) {
+  if (error.message.includes("method not supported")) {
+    // Observe the same prompt to get the planned action
+    const [action] = await page.observe(prompt);
+    
+    if (action && action.method === expectedMethod) {
+      await page.act(action);
+    } else {
+      throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
+    }
+  } else {
+    throw error;
+  }
+}
+```
+
+```python Python
+prompt = "click the submit button"
+expected_method = "click"
+
+try:
+    await page.act(prompt)
+except Exception as error:
+    if "method not supported" in str(error):
+        # Observe the same prompt to get the planned action
+        results = await page.observe(prompt)
+        
+        if results and results[0].method == expected_method:
+            await page.act(results[0])
+        else:
+            method = results[0].method if results else "unknown"
+            raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
+    else:
+        raise error
+```
+</CodeGroup>
+
+
+
+
+
+
+
+
+
 
 #### Remember actions
 
