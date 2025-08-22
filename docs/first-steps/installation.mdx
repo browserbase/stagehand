@@ -131,8 +131,8 @@ from stagehand import Stagehand
 
 async def main():
     stagehand = Stagehand(
-        env="BROWSERBASE"
-        model
+        env="BROWSERBASE",
+        model_api_key=os.getenv("MODEL_API_KEY")
     )
     await stagehand.init()
     page = stagehand.page
