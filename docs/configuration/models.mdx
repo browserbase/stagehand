@@ -1,7 +1,7 @@
 ---
-title: LLM Customization
-sidebarTitle: LLM Customization
-description: Configure Stagehand to use different LLM providers and models for optimal performance, cost, and reliability
+title: Models
+sidebarTitle: Models
+description: Enhance Stagehand with LLMs for optimal performance, cost, and reliability
 ---
 
 Stagehand uses Large Language Models (LLMs) to understand web pages, plan actions, and interact with complex interfaces. The choice of LLM significantly impacts your automation's accuracy, speed, and cost.
@@ -18,7 +18,7 @@ Find more details about how to choose the right model on our Model Evaluation pa
 - **Reliability**: Structured output support ensures consistent automation behavior
 
 <Tip>
-**Recommended**: Start with **Google Gemini 2.5 Pro** for best results, then optimize for speed/cost based on your needs. Find more details about how to choose the right model on our [Model Evaluation](https://www.stagehand.dev/evals) page.
+Find more details about how to choose the right model on our [Model Evaluation](https://www.stagehand.dev/evals) page.
 </Tip>
 
 <Warning>
@@ -159,29 +159,6 @@ Custom LLMs are currently only supported in TypeScript.
 </Note>
 
 Integrate any LLM with Stagehand using custom clients. The only requirement is **structured output support** for consistent automation behavior.
-
-### OpenAI-compatible APIs
-Most LLMs are OpenAI-compatible, and thus can be used with Stagehand as long as they support structured outputs. This includes models like Google Gemini, Ollama, and most Llama models including Groq, Cerebras, and more.
-
-To get started, you can use the [OpenAI external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/customOpenAI.ts) as a template to create a client for your model.
-```ts {7-13}
-import { Stagehand } from "@browserbasehq/stagehand";
-import { CustomOpenAIClient } from "./external_clients/customOpenAI";
-import OpenAI from "openai";
-
-const stagehand = new Stagehand({
-	...StagehandConfig,
-	llmClient: new CustomOpenAIClient({
-		modelName: "llama3.3",
-		client: new OpenAI({
-			apiKey: "ollama",
-			baseURL: "http://localhost:11434/v1",
-		}),
-	}),
-});
-
-await stagehand.init();
-```
 
 ### Vercel AI SDK
 The [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) is a popular library for interacting with LLMs. You can use any of the providers supported by the Vercel AI SDK to create a client for your model, **as long as they support structured outputs**.
