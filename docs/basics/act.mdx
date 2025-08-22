@@ -28,9 +28,7 @@ page.act("click on add to cart")
 
 ## Using `act()`
 
-### Basic Example
-
-Use `act()` to perform single actions in your automation. Here's how to click a button:
+Use `act` to perform single actions in your automation. Here's how to click a button:
 
 <CodeGroup>
 ```typescript TypeScript
@@ -44,9 +42,23 @@ await page.act("click the add to cart button")
 ```
 </CodeGroup>
 
-With `act()`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use mutliple `act()` commands or [`agent()`](/basics/agent).
+With `act`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use mutliple `act` commands or [`agent`](/basics/agent).
 
-**Do this**
+<Accordion title="Suggested actions">
+
+| Action | Example instruction |
+|--------|---------------------|
+| Click | `click the button` |
+| Fill | `fill the field with <value>` |
+| Type | `type <text> into the search box` |
+| Press | `press <key> in the search field` |
+| Scroll | `scroll to <position>` |
+| Select from dropdown | `select <value> from the dropdown` |
+</Accordion>
+
+<Tabs>
+<Tab title="Do this">
+Break your task into single-step actions.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -63,8 +75,10 @@ await page.act("choose 4-star rating")
 await page.act("click the apply button")
 ```
 </CodeGroup>
+</Tab>
 
-**Don't do this - use [`agent()`](/basics/agent)**
+<Tab title="Don't do this">
+For multi-step tasks, use [`agent()`](/basics/agent) instead.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -77,8 +91,10 @@ await page.act("open the filters panel, choose 4-star rating, and click apply");
 await page.act("open the filters panel, choose 4-star rating, and click apply")
 ```
 </CodeGroup>
+</Tab>
+</Tabs>
 
-### Complex Example
+### Advanced Configuration
 
 For advanced scenarios, you can configure additional options:
 
@@ -121,21 +137,6 @@ await page.act({
 })
 ```
 </CodeGroup>
-
-<Accordion title="Suggested Actions">
-
-Here are common actions that `act()` can perform.
-
-| Action | Example instruction |
-|--------|---------------------|
-| Click | `click the button` |
-| Fill | `fill the field with <value>` |
-| Type | `type <text> into the search box` |
-| Press | `press <key> in the search field` |
-| Scroll | `scroll to <position>` |
-| Select from dropdown | `select <value> from the dropdown` |
-
-</Accordion>
   
 <Note>
 Shadow DOM support is now available! Set `experimental: true` in your Stagehand configuration to enable it. See the [configuration guide](/configuration/browser) for more details.
@@ -149,7 +150,7 @@ Shadow DOM support is now available! Set `experimental: true` in your Stagehand 
 
 ### Ensure reliable actions
 
-Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act()` to execute it.
+Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act` to execute it.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -169,7 +170,7 @@ if results:
 </CodeGroup>
 
 <Card title="Analyze pages with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/basics/observe">
-  Plan actions with `observe()` before executing with `act()`.
+  Plan actions with `observe()` before executing with `act`.
 </Card>
 
 ### Reduce model costs
@@ -282,7 +283,7 @@ When handling sensitive data, set `verbose: 0` in your Stagehand configuration t
 
 
 <Accordion title="Method not supported">
-**Problem**: `act()` fails with "method not supported" error
+**Problem**: `act` fails with "method not supported" error
 
 **Solutions**:
 - Use clear and detailed instructions for what you want to accomplish
@@ -386,7 +387,7 @@ for attempt in range(max_retries + 1):
 </Accordion>
 
 <Accordion title="Action failed or timed out">
-**Problem**: `act()` times out or fails to complete action (often due to element not found)
+**Problem**: `act` times out or fails to complete action (often due to element not found)
 
 **Solutions**:
 - Ensure page has fully loaded
@@ -438,7 +439,7 @@ except Exception as error:
 </Accordion>
 
 <Accordion title="Incorrect element selected">
-**Problem**: `act()` performs action on wrong element
+**Problem**: `act` performs action on wrong element
 
 **Solutions**:
 - Be more specific in instructions: include visual cues, position, or context
@@ -495,7 +496,7 @@ if results and "checkout" in results[0].description:
   </Card>
 
   <Card title="Extract data with extract()" icon="table" iconType="sharp-solid" href="/basics/extract">
-    Use `extract()` with a data schema to pull clean, typed data from any page.
+    Use `extract` with a data schema to pull clean, typed data from any page.
   </Card>
 
   <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/best-practices/working-with-iframes">

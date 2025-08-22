@@ -1,18 +1,16 @@
 ---
 title: Logging & Debugging
 sidebarTitle: Logging
-description: Configure detailed logging, debugging, and error tracking for your Stagehand automation workflows
+description: Set up logging, debugging, and error tracking for Stagehand workflows
 ---
 
 Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
 
 ## Logging Configuration
 
-### Basic Logging Setup
-
 <CodeGroup>
 ```typescript TypeScript
-import { Stagehand } from "@browserbase/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   env: "BROWSERBASE", // or "LOCAL"

@@ -1,6 +1,6 @@
 ---
 title: Extract
-description: Extract structured data from a webpage.
+description: Extract structured data from a webpage
 ---
 
 ## What is `extract()`?
@@ -30,7 +30,7 @@ For Python, the extract schemas are defined using pydantic models.
 
 ## Using `extract()`
 
-### Extract a single object
+### Single object Extraction
 
 Here is how an `extract` call might look for a single object:
 
@@ -60,7 +60,7 @@ Your output schema will look like:
 { price: number }
 ```
 
-### Extract a list of objects
+### List of objects Extraction
 
 Here is how an `extract` call might look for a list of objects.
 
@@ -118,7 +118,7 @@ list_of_apartments: [
 ]
 ```
 
-### Extract with just a prompt
+### Prompt-only Extraction
 
 You can call `extract` with just a natural language prompt:
 
@@ -138,7 +138,7 @@ When you call `extract` with just a prompt, your output schema will look like:
 ```
 
 
-### Extract a link
+### Link Extraction
 <Note>
 To extract links or URLs, in the TypeScript version of Stagehand, you'll need to define the relevant field as `z.string().url()`.
 In Python, you'll need to define it as `HttpUrl`.
@@ -176,7 +176,7 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 </Tip>
 
 
-### Extract with additional context
+### Extract with Context
 
 You can provide additional context to your schema to help the model extract the data more accurately.
 

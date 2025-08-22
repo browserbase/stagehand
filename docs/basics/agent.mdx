@@ -45,6 +45,7 @@ const agent = stagehand.agent({
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
 });
+await agent.execute("apply for a job at Browserbase")
 ```
 
 ```python Python
@@ -56,6 +57,7 @@ agent = stagehand.agent({
       "apiKey": os.getenv("ANTHROPIC_API_KEY"),
     },
 })
+await agent.execute("apply for a job at Browserbase")
 ```
 </CodeGroup>
 
@@ -68,15 +70,20 @@ Stagehand uses a 1024x768 viewport by default (the optimal size for Computer Use
 
 Use specialized computer use models (e.g., `computer-use-preview` from OpenAI or `claude-sonnet-4-20250514` from Anthropic)
 
-## Examples
+<Card title="Available Models" icon="robot" href="/configuration/models">
+  Check out the guide on how to use different models with Stagehand.
+</Card>
 
-Control the maximum number of steps the agent can take to complete the task using the `maxSteps` parameter:
+## Agent Execution Configuration
+
+Control the maximum number of steps the agent can take to complete the task using the `maxSteps` parameter.
 
 <CodeGroup>
 ```typescript TypeScript
 // Set maxSteps to control how many actions the agent can take
 await agent.execute({
   instruction: "Sign me up for a library card",
+  maxSteps: 15 // Agent will stop after 15 steps if task isn't complete
 });
 ```
 
@@ -89,7 +96,7 @@ result = await agent.execute({
 ```
 </CodeGroup>
 
-For complex tasks, increase the `maxSteps` limit and check task success:
+For complex tasks, increase the `maxSteps` limit and check task success.
 
 <CodeGroup>
 ```typescript TypeScript
