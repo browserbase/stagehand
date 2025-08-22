@@ -273,7 +273,9 @@ export class AISdkClient extends LLMClient {
         Object.keys(tools).length > 0
           ? options.tool_choice === "required"
             ? "required"
-            : "auto"
+            : options.tool_choice === "none"
+              ? "none"
+              : "auto"
           : undefined,
     });
 
