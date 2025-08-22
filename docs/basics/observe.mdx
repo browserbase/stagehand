@@ -124,14 +124,29 @@ extraction = await page.extract(
 
 ### Choose the right commands
 
-Extract vs Observe
+<Tabs>
+<Tab title="Do this">
 
-(Do this not that)
+- Use `observe` when a yes/no answer will gate an action (e.g., "Find the Submit button"), then conditionally `act`.
+- Use `extract` for information-only questions (e.g., "What’s the page title?", "How many results are listed?").
+
+</Tab>
+
+<Tab title="Don't do this">
+
+- Don’t call `extract` to locate elements you plan to click next.
+- Don’t call `observe` to answer info-only questions that won’t lead to an action.
+
+</Tab>
+</Tabs>
+- **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps.
+- **Scope `extract` with selectors from `observe`**: First `observe("Find the data table")`, then pass `selector` to `extract` to reduce tokens and boost accuracy.
 
 ### Conserve LLM tokens
 
-Most websites don't change often, they keep the same layout/structure. You can store your `observe` results in a cache and reuse them for future runs. 
-As long as the page doesn't change the action will be the same, if the page changes [self-healing](/basics/act) will loop the LLM back in so you don't have to maintain your script. 
+- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference.
+- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit.
+- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing if layouts shift.
 
 <Card title="Build your own cache" icon="database" href="/best-practices/caching">
   Check out the guide on how to build your own action cache
@@ -139,7 +154,9 @@ As long as the page doesn't change the action will be the same, if the page chan
 
 ### Improve Accuracy
 
-How to prompt for multi-step observe results.
+- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") for faster, cheaper, more accurate suggestions.
+- **Mind iframes and load**: If elements live in an iframe, set `iframes: true` and wait for `networkidle` before observing.
+- **Use selectors to focus extraction**: Feed `selector` from `observe` into `extract` to constrain the model’s context.
 
 <Card title="Prompting Best Practices" icon="robot" href="/best-practices/prompting-best-practices">
   Check out the guide on how to improve the accuracy of your results
@@ -147,6 +164,8 @@ How to prompt for multi-step observe results.
 
 ### Action Validation
 
+- **Validate before critical actions**: Check the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks.
+- **Fallback**: If a direct `act` fails, `observe` the same prompt, verify the method, then `act` on the suggested action.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -191,25 +210,6 @@ except Exception as error:
         raise error
 ```
 </CodeGroup>
-
-
-
-
-
-
-
-
-- **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps before you act.
-- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` objects directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference and speed up multi-step flows.
-- **Draw the line: action vs. info**
-  - If a yes/no answer will gate an action, use `observe` (e.g., "Find the Submit button"); then conditionally `act`.
-  - If you just need information (not to act), use `extract` (e.g., "What’s the page title?", "How many results are listed?").
-- **Scope `extract` with selectors from `observe`**: First `observe("Find the data table")`, then pass `selector` to `extract` to reduce tokens and boost accuracy.
-- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit without repeated LLM calls.
-- **Validate before critical actions**: Review the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks and flaky runs.
-- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing to recover if layouts shift.
-- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") yield faster, cheaper, more accurate suggestions.
-- **Mind iframes and load**: If elements live in an iframe, set `iframes: true`, and wait for `networkidle` before observing.
 
 ## Troubleshooting
 
@@ -264,3 +264,8 @@ Monitor and debug observation performance
 Advanced patterns and optimization techniques
 </Card>
 </CardGroup>
+
+
+
+
+
