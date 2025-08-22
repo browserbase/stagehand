@@ -43,7 +43,6 @@ interface AgentInstance {
 ```python
 # Create agent instance
 agent = stagehand.agent({
-    "provider": AgentProviderType,  # "openai" | "anthropic" 
     "model": str,
     "instructions": str = None,
     "options": Dict[str, Any] = None
@@ -171,6 +170,9 @@ interface AgentResult {
 }
 ```
 
+<Tabs>
+<Tab title="TypeScript">
+
 <ParamField path="success" type="boolean">
   Whether the task was completed successfully.
 </ParamField>
@@ -194,6 +196,28 @@ interface AgentResult {
 <ParamField path="usage" type="object" optional>
   Token usage and performance metrics.
 </ParamField>
+
+</Tab>
+<Tab title="Python">
+
+<ParamField path="success" type="boolean">
+  Whether the task was completed successfully.
+</ParamField>
+
+<ParamField path="message" type="string">
+  Description of the execution result and status.
+</ParamField>
+
+<ParamField path="actions" type="AgentAction[]">
+  Array of individual actions taken during execution.
+</ParamField>
+
+<ParamField path="completed" type="boolean">
+  Whether the agent believes the task is fully complete.
+</ParamField>
+
+</Tab>
+</Tabs>
 
 ### Example Response
 ```json
