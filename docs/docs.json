@@ -43,6 +43,7 @@
           "best_practices/caching",
           "best_practices/cost_optimization",
           "best_practices/running_evals",
+          "best_practices/debugging_workflows",
           "best_practices/multitab_handling",
           "best_practices/working_with_iframes",
           "best_practices/customize_browser",
