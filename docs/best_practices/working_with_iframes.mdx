@@ -9,7 +9,7 @@ Elements inside iframes exist in a separate context than the main page.
 
 ### Enable iframe support
 
-Set `iframes: true` in your `act()` and `observe()` commands.
+Set `iframes: true` in your `act()`, `observe()`, and `extract()` commands.
 
 <CodeGroup>
 ```typescript TypeScript
@@ -19,6 +19,15 @@ await page.act({ action: "click the accept cookies button", iframes: true });
 // Observe within iframes
 const results = await page.observe({
   instruction: "Find the primary action button",
+  iframes: true,
+});
+
+// Extract from iframes
+const data = await page.extract({
+  instruction: "Extract the product price from the payment widget",
+  schema: z.object({
+    price: z.string(),
+  }),
   iframes: true,
 });
 ```
@@ -33,6 +42,18 @@ await page.act(
 # Observe within iframes
 results = await page.observe({
     "instruction": "Find the primary action button",
+    "iframes": True,
+})
+
+# Extract from iframes
+data = await page.extract({
+    "instruction": "Extract the product price from the payment widget",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "price": {"type": "string"}
+        }
+    },
     "iframes": True,
 })
 ```
