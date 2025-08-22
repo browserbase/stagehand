@@ -68,7 +68,7 @@ Here is how an `extract` call might look for a list of objects.
 ```typescript TypeScript
 const apartments = await page.extract({
   instruction:
-    "Extract ALL the apartment listings and their details, including address, price, and square feet."
+    "Extract ALL the apartment listings and their details, including address, price, and square feet.",
   schema: z.object({
     list_of_apartments: z.array(
       z.object({
