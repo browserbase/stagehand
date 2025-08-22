@@ -5,6 +5,17 @@ title: Extract
 ## What is `extract()`?
 The `extract` method grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
 
+## Why use Extract?
+
+<CardGroup cols={2}>
+  <Card title="Structured" icon="brackets-curly">
+    Turn messy webpage data into clean objects that follow a schema.
+  </Card>
+  <Card title="Resilient" icon="dumbbell">
+    Build resilient extractions that don't break when the website changes
+  </Card>
+</CardGroup>
+
 <Note>
 For TypeScript, the extract schemas are defined using zod schemas.
 
