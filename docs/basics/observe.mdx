@@ -9,7 +9,7 @@ description: 'Find suggested actions for your workflows'
 page.observe("Find the login button")
 ```
 
-`observe` turns any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act` or use to precisely target `extract` so workflows are faster, cheaper, and more resilient.
+`observe` allows you to turn any page into a checklist of reliable, executable actions. It discovers key elements, ranks likely next steps, and returns structured actions (selector, method, args) you can run instantly with `act` or use to precisely target `extract` so workflows are faster, cheaper, and more resilient.
 
 ## Why use `observe()`?
 
@@ -20,7 +20,7 @@ page.observe("Find the login button")
   <Card title="Plan" icon="map" href="/basics/observe#plan-ahead">
     When building complex workflows, plan ahead all the actions you'll need to take
   </Card>
-  <Card title="Cache" icon="database" href="/basics/observe#remember-actions">
+  <Card title="Cache" icon="database" href="/best-practices/caching">
     When you want to remember actions for the future and avoid LLM calls
   </Card>
     <Card title="Validate" icon="check" href="/basics/observe#observe-with-act">
@@ -122,26 +122,94 @@ extraction = await page.extract(
 
 ## Best Practices
 
-#### Remember actions
+### Choose the right commands
 
-Most websites don't change often, they keep the same layout/structure. You can store your `observe` results in a cache and reuse them for future runs. 
-As long as the page doesn't change the action will be the same, if the page changes [self-healing](/basics/act) will loop the LLM back in so you don't have to maintain your script. 
+<Tabs>
+<Tab title="Do this">
+
+- Use `observe` when a yes/no answer will gate an action (e.g., "Find the Submit button"), then conditionally `act`.
+- Use `extract` for information-only questions (e.g., "What’s the page title?", "How many results are listed?").
+
+</Tab>
+
+<Tab title="Don't do this">
+
+- Don’t call `extract` to locate elements you plan to click next.
+- Don’t call `observe` to answer info-only questions that won’t lead to an action.
+
+</Tab>
+</Tabs>
+- **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps.
+- **Scope `extract` with selectors from `observe`**: First `observe("Find the data table")`, then pass `selector` to `extract` to reduce tokens and boost accuracy.
+
+### Conserve LLM tokens
+
+- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference.
+- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit.
+- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing if layouts shift.
 
 <Card title="Build your own cache" icon="database" href="/best-practices/caching">
   Check out the guide on how to build your own action cache
 </Card>
 
-- **Discover and plan with `observe`**: Use `observe("Find…")` to map actionable elements and preview next steps before you act.
-- **Act on suggestions to skip LLM calls**: Pass `ObserveResult` objects directly to `act` (e.g., `await page.act(results[0])`) to avoid extra inference and speed up multi-step flows.
-- **Draw the line: action vs. info**
-  - If a yes/no answer will gate an action, use `observe` (e.g., "Find the Submit button"); then conditionally `act`.
-  - If you just need information (not to act), use `extract` (e.g., "What’s the page title?", "How many results are listed?").
-- **Scope `extract` with selectors from `observe`**: First `observe("Find the data table")`, then pass `selector` to `extract` to reduce tokens and boost accuracy.
-- **Batch for performance**: Call `observe` once (e.g., find all form fields), then `act` on each suggestion to fill/submit without repeated LLM calls.
-- **Validate before critical actions**: Review the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks and flaky runs.
-- **Cache and reuse**: Store stable `observe` results for known pages; rely on self-healing to recover if layouts shift.
-- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") yield faster, cheaper, more accurate suggestions.
-- **Mind iframes and load**: If elements live in an iframe, set `iframes: true`, and wait for `networkidle` before observing.
+### Improve Accuracy
+
+- **Be specific**: Narrow instructions ("Find the primary CTA in the hero") for faster, cheaper, more accurate suggestions.
+- **Mind iframes and load**: If elements live in an iframe, set `iframes: true` and wait for `networkidle` before observing.
+- **Use selectors to focus extraction**: Feed `selector` from `observe` into `extract` to constrain the model’s context.
+
+<Card title="Prompting Best Practices" icon="robot" href="/best-practices/prompting-best-practices">
+  Check out the guide on how to improve the accuracy of your results
+</Card>
+
+### Action Validation
+
+- **Validate before critical actions**: Check the suggestion’s `method`, `selector`, and `arguments` to avoid misclicks.
+- **Fallback**: If a direct `act` fails, `observe` the same prompt, verify the method, then `act` on the suggested action.
+
+<CodeGroup>
+```typescript TypeScript
+const prompt = "click the submit button";
+const expectedMethod = "click";
+
+try {
+  await page.act(prompt);
+} catch (error) {
+  if (error.message.includes("method not supported")) {
+    // Observe the same prompt to get the planned action
+    const [action] = await page.observe(prompt);
+    
+    if (action && action.method === expectedMethod) {
+      await page.act(action);
+    } else {
+      throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
+    }
+  } else {
+    throw error;
+  }
+}
+```
+
+```python Python
+prompt = "click the submit button"
+expected_method = "click"
+
+try:
+    await page.act(prompt)
+except Exception as error:
+    if "method not supported" in str(error):
+        # Observe the same prompt to get the planned action
+        results = await page.observe(prompt)
+        
+        if results and results[0].method == expected_method:
+            await page.act(results[0])
+        else:
+            method = results[0].method if results else "unknown"
+            raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
+    else:
+        raise error
+```
+</CodeGroup>
 
 ## Troubleshooting
 
@@ -196,3 +264,8 @@ Monitor and debug observation performance
 Advanced patterns and optimization techniques
 </Card>
 </CardGroup>
+
+
+
+
+

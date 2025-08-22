@@ -20,6 +20,7 @@
       {
         "group": "First Steps",
         "pages": [
+          "first-steps/introduction",
           "first-steps/quickstart",
           "first-steps/installation",
           "first-steps/ai-rules"
@@ -73,7 +74,7 @@
             ]
           },
           {
-            "group": "crewAI",
+            "group": "CrewAI",
             "pages": [
               "integrations/crew-ai/introduction",
               "integrations/crew-ai/configuration"
@@ -87,9 +88,10 @@
             ]
           },
           {
-            "group": "Next.js",
+            "group": "Next.js + Vercel",
             "pages": [
-                  "integrations/nextjs/configuration"
+              "integrations/vercel/introduction",
+              "integrations/vercel/configuration"
             ]
           }
         ]
@@ -113,7 +115,7 @@
         },
         {
           "anchor": "Stagehand by Browserbase",
-          "href": "https://docs.stagehand.dev/introduction",
+          "href": "https://docs.stagehand.dev/first-steps/introduction",
           "icon": "code"
         }
       ]
