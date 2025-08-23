@@ -161,10 +161,22 @@ You have access to various browser automation tools. Use them step by step to co
 
 IMPORTANT GUIDELINES:
 1. Always start by understanding the current page state
-2. Take screenshots to verify page content when needed
+2. Use the screenshot tool to verify page state when needed
 3. Use appropriate tools for each action
 4. When the task is complete, use the "close" tool with taskComplete: true
 5. If the task cannot be completed, use "close" with taskComplete: false
+
+TOOLS OVERVIEW:
+- screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
+- ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
+- act: Perform a specific atomic action (click, type, etc.)
+- extract: Extract structured data
+- goto: Navigate to a URL
+- wait/navback/refresh: Control timing and navigation
+
+STRATEGY:
+- Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
+- Keep actions atomic and verify outcomes before proceeding.
 
 For each action, provide clear reasoning about why you're taking that step.`;
   }

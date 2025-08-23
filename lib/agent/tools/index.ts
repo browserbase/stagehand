@@ -7,6 +7,7 @@ import { createWaitTool } from "./wait";
 import { createNavBackTool } from "./navback";
 import { createRefreshTool } from "./refresh";
 import { createCloseTool } from "./close";
+import { createAriaTreeTool } from "./ariaTree";
 
 export function createAgentTools(page: Page) {
   return {
@@ -14,6 +15,7 @@ export function createAgentTools(page: Page) {
     act: createActTool(page),
     extract: createExtractTool(page),
     screenshot: createScreenshotTool(page),
+    ariaTree: createAriaTreeTool(page),
     wait: createWaitTool(),
     navback: createNavBackTool(page),
     refresh: createRefreshTool(page),
