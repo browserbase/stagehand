@@ -6,6 +6,7 @@ export interface CompressionStats {
   savedChars: number;
   compressionRatio: number;
   screenshotCount: number;
+  ariaTreeCount: number;
 }
 
 function isToolMessage(
@@ -27,47 +28,54 @@ function isScreenshotPart(part: unknown): boolean {
   );
 }
 
+function isAriaTreePart(part: unknown): boolean {
+  return (
+    !!part &&
+    typeof part === "object" &&
+    (part as { toolName?: unknown }).toolName === "ariaTree"
+  );
+}
+
 export function processMessages(params: LanguageModelV1CallOptions): {
   processedPrompt: LanguageModelV1CallOptions["prompt"];
   stats: CompressionStats;
 } {
   // Calculate original content size
   const originalContentSize = JSON.stringify(params.prompt).length;
-
-  // Find all screenshot tool messages
-  const screenshotIndices = findScreenshotIndices(params.prompt);
-
-  //console.log(`🔍 Found ${screenshotIndices.length} screenshot messages`);
+  const screenshotIndices = findToolIndices(params.prompt, "screenshot");
+  const ariaTreeIndices = findToolIndices(params.prompt, "ariaTree");
 
   // Process messages and compress old screenshots
   const processedPrompt = params.prompt.map((message, index) => {
     if (isToolMessage(message)) {
-      const hasScreenshot = (message.content as unknown[]).some((part) =>
-        isScreenshotPart(part),
-      );
-
-      if (hasScreenshot) {
+      if (
+        (message.content as unknown[]).some((part) => isScreenshotPart(part))
+      ) {
         const shouldCompress = shouldCompressScreenshot(
           index,
           screenshotIndices,
         );
-
         if (shouldCompress) {
           return compressScreenshotMessage(message);
         }
       }
+      if ((message.content as unknown[]).some((part) => isAriaTreePart(part))) {
+        const shouldCompress = shouldCompressScreenshot(index, ariaTreeIndices);
+        if (shouldCompress) {
+          return compressAriaTreeMessage(message);
+        }
+      }
     }
 
-    // console.log(message);
     return { ...message };
   });
 
-  // Calculate compression stats
   const compressedContentSize = JSON.stringify(processedPrompt).length;
   const stats = calculateCompressionStats(
     originalContentSize,
     compressedContentSize,
     screenshotIndices.length,
+    ariaTreeIndices.length,
   );
 
   return {
@@ -77,15 +85,20 @@ export function processMessages(params: LanguageModelV1CallOptions): {
   };
 }
 
-function findScreenshotIndices(prompt: unknown[]): number[] {
+function findToolIndices(
+  prompt: unknown[],
+  toolName: "screenshot" | "ariaTree",
+): number[] {
   const screenshotIndices: number[] = [];
 
   prompt.forEach((message, index) => {
     if (isToolMessage(message)) {
-      const hasScreenshot = (message.content as unknown[]).some((part) =>
-        isScreenshotPart(part),
+      const hasMatch = (message.content as unknown[]).some((part) =>
+        toolName === "screenshot"
+          ? isScreenshotPart(part)
+          : isAriaTreePart(part),
       );
-      if (hasScreenshot) {
+      if (hasMatch) {
         screenshotIndices.push(index);
       }
     }
@@ -131,10 +144,36 @@ function compressScreenshotMessage(message: {
   } as { role: "tool"; content: unknown[] };
 }
 
+function compressAriaTreeMessage(message: {
+  role: "tool";
+  content: unknown[];
+}): { role: "tool"; content: unknown[] } {
+  const updatedContent = (message.content as unknown[]).map((part) => {
+    if (isAriaTreePart(part)) {
+      return {
+        ...(part as object),
+        result: [
+          {
+            type: "text",
+            text: "ARIA tree extracted for context of page elements",
+          },
+        ],
+      } as unknown;
+    }
+    return part;
+  });
+
+  return {
+    ...message,
+    content: updatedContent,
+  } as { role: "tool"; content: unknown[] };
+}
+
 function calculateCompressionStats(
   originalSize: number,
   compressedSize: number,
   screenshotCount: number,
+  ariaTreeCount: number,
 ): CompressionStats {
   const savedChars = originalSize - compressedSize;
   const compressionRatio =
@@ -148,5 +187,6 @@ function calculateCompressionStats(
     savedChars,
     compressionRatio,
     screenshotCount,
+    ariaTreeCount,
   };
 }
