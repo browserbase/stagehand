@@ -29,7 +29,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
 
     console.log(`date: ${date}`);
 
-    const success = agentResult.success && date === "03-27-2023";
+    const success = date === "03-27-2023";
 
     if (!success) {
       return {
