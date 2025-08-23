@@ -36,7 +36,6 @@ interface ExtractOptions<T extends z.AnyZodObject> {
   domSettleTimeoutMs?: number;
   selector?: string;
   iframes?: boolean;
-  frameId?: string;
 }
 
 type ExtractResult<T> = z.infer<T>;
@@ -99,10 +98,6 @@ await page.extract() -> Dict[str, str]
   Maximum time to wait for DOM to stabilize.
   
   **Default:** `30000`
-</ParamField>
-
-<ParamField path="frameId" type="string" optional>
-  Specific frame ID when working with iframes.
 </ParamField>
 
 ### Response Types
@@ -308,7 +303,7 @@ const ProductSchema = z.object({
 // Extract from specific page section
 const data = await page.extract({
   instruction: "extract product info from this section",
-  selector: "//div[@class='product-details']",
+  selector: "xpath=/html/body/div/div",
   schema: ProductSchema
 });
 ```
@@ -324,7 +319,7 @@ class Product(BaseModel):
 # Extract from specific page section
 data = await page.extract(
     instruction="extract product info from this section",
-    selector="//div[@class='product-details']",
+    selector="xpath=/html/body/div/div",
     schema=Product
 )
 ```

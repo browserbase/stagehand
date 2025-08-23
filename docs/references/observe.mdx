@@ -54,7 +54,7 @@ await page.observe(
 
 ### Parameters
 
-<ParamField path="instruction" type="string" required>
+<ParamField path="instruction" type="string" optional>
   Natural language description of elements or actions to discover.
 </ParamField>
 
@@ -95,7 +95,6 @@ Array of discovered actionable elements, ordered by relevance.
 interface ObserveResult {
   selector: string;        // XPath selector to locate element
   description: string;     // Human-readable description
-  backendNodeId?: number;  // Internal browser node ID
   method?: string;         // Suggested action method
   arguments?: string[];    // Additional action parameters
 }
@@ -110,7 +109,7 @@ interface ObserveResult {
 </ParamField>
 
 <ParamField path="method" type="string" optional>
-  Suggested interaction method: `"click"`, `"type"`, `"hover"`, `"select"`.
+  Suggested interaction method: `"click"`, `"fill"`, `"selectOptionFromDropdown"`, `"nextChunk"`, `"scrollTo"`, `"prevChunk"`.
 </ParamField>
 
 <ParamField path="arguments" type="string[]" optional>
@@ -129,13 +128,13 @@ const formFields = await page.observe("locate form input fields");
 // Advanced configuration
 const elements = await page.observe({
   instruction: "find important call-to-action buttons",
-  modelName: "gpt-4o",
+  modelName: "gpt-4.1-mini",
   domSettleTimeoutMs: 45000,
   drawOverlay: true
 });
 
 // Working with results
-const [loginButton] = await page.observe("find login button");
+const [loginButton] = await page.observe("find the login button");
 if (loginButton) {
   console.log("Found:", loginButton.description);
   console.log("Selector:", loginButton.selector);
@@ -150,7 +149,7 @@ const primarySubmit = submitButtons.find(btn =>
 
 // Iframe search
 const iframeElements = await page.observe({
-  instruction: "find form fields in embedded content",
+  instruction: "find form fields inside the iframe",
   iframes: true
 });
 ```
@@ -158,17 +157,17 @@ const iframeElements = await page.observe({
 ```python Python
 # Basic element discovery
 buttons = await page.observe("find all clickable buttons")
-form_fields = await page.observe("locate form input fields")
+form_fields = await page.observe("locate the form fields")
 
 # Advanced configuration  
 elements = await page.observe(
     instruction="find important call-to-action buttons",
-    model_name="gpt-4o",
+    model_name="gpt-4.1-mini",
     dom_settle_timeout_ms=45000
 )
 
 # Working with results
-login_buttons = await page.observe("find login button")
+login_buttons = await page.observe("find the login button")
 if login_buttons:
     button = login_buttons[0]
     print("Found:", button.description)
@@ -184,7 +183,7 @@ primary_submit = next((
 
 # Iframe search
 iframe_elements = await page.observe(
-    instruction="find form fields in embedded content",
+    instruction="find the form fields inside the iframe",
     iframes=True
 )
 ```
@@ -205,14 +204,14 @@ for (const action of actions) {
 const tables = await page.observe("find data tables");
 if (tables.length > 0) {
   const data = await page.extract({
-    instruction: "extract table data",
+    instruction: "extract the table data",
     selector: tables[0].selector,
     schema: DataSchema
   });
 }
 
 // Element validation
-const requiredElements = await page.observe("find login form");
+const requiredElements = await page.observe("find the login form");
 if (requiredElements.length === 0) {
   throw new Error("Login form not found");
 }
@@ -229,7 +228,7 @@ for action in actions:
 tables = await page.observe("find data tables")
 if tables:
     data = await page.extract(
-        instruction="extract table data",
+        instruction="extract the table data",
         selector=tables[0].selector,
         schema=DataSchema
     )
