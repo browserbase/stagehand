@@ -2,10 +2,11 @@ import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
-import { tool, CoreMessage } from "ai";
-import { z } from "zod";
+import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { AISdkClient } from "../llm/aisdk";
+import { processMessages } from "../agent/utils/messageProcessing";
+import { createAgentTools } from "../agent/tools";
 
 export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
@@ -62,11 +63,20 @@ export class StagehandAgentHandler {
           "StagehandAgentHandler requires an AISdk-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' or another AISDK provider.",
         );
       }
-      const model: LanguageModel = this.llmClient.getLanguageModel();
+      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const wrappedModel = wrapLanguageModel({
+        model: baseModel,
+        middleware: {
+          transformParams: async ({ params }) => {
+            const { processedPrompt } = processMessages(params);
+            return { ...params, prompt: processedPrompt };
+          },
+        },
+      });
 
-      // Execute with generateText
+      // Execute with generateText using the wrapped model
       const result = await this.llmClient.generateText({
-        model,
+        model: wrappedModel,
         system: systemPrompt,
         messages,
         tools,
@@ -161,125 +171,6 @@ For each action, provide clear reasoning about why you're taking that step.`;
 
   private createTools() {
     const page = this.stagehandPage.page;
-
-    return {
-      goto: tool({
-        description: "Navigate to a specific URL",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you're navigating to this URL"),
-          parameters: z.string().describe("The URL to navigate to"),
-        }),
-        execute: async ({ parameters }) => {
-          await page.goto(parameters, { waitUntil: "load" });
-          return { success: true, url: parameters };
-        },
-      }),
-
-      act: tool({
-        description: "Perform an action on the page (click, type, etc)",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you're performing this action"),
-          parameters: z
-            .string()
-            .describe("Description of the action to perform"),
-        }),
-        execute: async ({ parameters }) => {
-          const [observeResult] = await page.observe(parameters);
-          if (observeResult) {
-            await page.act(observeResult);
-            return { success: true, action: parameters };
-          }
-          return { success: false, error: "Could not find element" };
-        },
-      }),
-
-      extract: tool({
-        description: "Extract data from the page",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you're extracting this data"),
-          parameters: z
-            .string()
-            .nullable()
-            .describe("What to extract, or null for all text"),
-        }),
-        execute: async ({ parameters }) => {
-          if (!parameters) {
-            const result = await page.extract();
-            return { success: true, data: result.page_text };
-          } else {
-            const result = await page.extract(parameters);
-            return { success: true, data: result };
-          }
-        },
-      }),
-
-      screenshot: tool({
-        description: "Take a screenshot of the current page",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you need a screenshot"),
-        }),
-        execute: async () => {
-          const screenshot = await page.screenshot({
-            type: "png",
-            fullPage: false,
-          });
-          const base64 = screenshot.toString("base64");
-          const url = page.url();
-          return {
-            success: true,
-            screenshot: `data:image/png;base64,${base64}`,
-            url,
-          };
-        },
-      }),
-
-      wait: tool({
-        description: "Wait for a specified time",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you need to wait"),
-          parameters: z.string().describe("Time to wait in milliseconds"),
-        }),
-        execute: async ({ parameters }) => {
-          const ms = parseInt(parameters);
-          await page.waitForTimeout(ms);
-          return { success: true, waited: ms };
-        },
-      }),
-
-      navback: tool({
-        description: "Navigate back to the previous page",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you're going back"),
-        }),
-        execute: async () => {
-          await page.goBack();
-          return { success: true };
-        },
-      }),
-
-      refresh: tool({
-        description: "Refresh the current page",
-        parameters: z.object({
-          reasoning: z.string().describe("Why you're refreshing"),
-        }),
-        execute: async () => {
-          await page.reload();
-          return { success: true };
-        },
-      }),
-
-      close: tool({
-        description: "Complete the task and close",
-        parameters: z.object({
-          reasoning: z.string().describe("Summary of what was accomplished"),
-          taskComplete: z
-            .boolean()
-            .describe("Whether the task was completed successfully"),
-        }),
-        execute: async ({ reasoning, taskComplete }) => {
-          return { success: true, reasoning, taskComplete };
-        },
-      }),
-    };
+    return createAgentTools(page);
   }
 }
