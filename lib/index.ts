@@ -32,7 +32,7 @@ import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+import { StagehandAgentHandler as StagehandAISDKAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 
 import {
@@ -913,10 +913,10 @@ export class Stagehand {
     ) => Promise<AgentResult>;
   } {
     if (!options || !options.provider) {
-      // use open operator agent
+      // use AI SDK-based agent handler
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          return new StagehandOperatorHandler(
+          return new StagehandAISDKAgentHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
