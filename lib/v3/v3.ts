@@ -65,7 +65,7 @@ export class V3 {
       : undefined;
 
     const page = frameId
-      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      ? this.ctx.resolvePageByMainFrameId(frameId)
       : undefined;
     const handlerParams: ActHandlerParams = {
       instruction: params.instruction,
@@ -83,7 +83,7 @@ export class V3 {
       : undefined;
 
     const page = frameId
-      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      ? this.ctx.resolvePageByMainFrameId(frameId)
       : undefined;
     const handlerParams: ExtractHandlerParams = {
       instruction: params.instruction,
@@ -101,7 +101,7 @@ export class V3 {
       : undefined;
 
     const page = frameId
-      ? await this.ctx.waitForPageByMainFrameId(frameId, 3000)
+      ? this.ctx.resolvePageByMainFrameId(frameId)
       : undefined;
 
     const handlerParams: ObserveHandlerParams = {
@@ -118,6 +118,10 @@ export class V3 {
       throw new Error("V3 not initialized. Call await v3.init() first.");
     }
     return this.state.ws;
+  }
+
+  context(): V3Context {
+    return this.ctx;
   }
 
   /** Best-effort cleanup. */
@@ -139,6 +143,7 @@ export class V3 {
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-dev-shm-usage",
+      "--site-per-process",
       this.opts.userDataDir
         ? `--user-data-dir=${this.opts.userDataDir}`
         : undefined,

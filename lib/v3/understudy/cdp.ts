@@ -1,4 +1,4 @@
-// cdp.ts
+// lib/v3/understudy/cdp.ts
 import WebSocket from "ws";
 import type { Protocol } from "devtools-protocol";
 
@@ -13,6 +13,8 @@ export interface CDPSessionLike {
 type Inflight = {
   resolve: (v: unknown) => void;
   reject: (e: Error) => void;
+  sessionId?: string | null;
+  method: string;
 };
 
 type EventHandler = (params: unknown) => void;
@@ -53,7 +55,14 @@ export class CdpConnection implements CDPSessionLike {
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
-      waitForDebuggerOnStart: false,
+      // 💡 Pause newly-created targets until we wire listeners, then resume with Runtime.runIfWaitingForDebugger
+      waitForDebuggerOnStart: true,
+      // keep workers excluded to reduce noise; everything else (page/iframe/etc.) is paused+attached
+      filter: [
+        { type: "worker", exclude: true },
+        { type: "shared_worker", exclude: true },
+        { type: "service_worker", exclude: true },
+      ],
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
@@ -66,6 +75,8 @@ export class CdpConnection implements CDPSessionLike {
       this.inflight.set(id, {
         resolve: (v) => resolve(v as R),
         reject,
+        sessionId: null,
+        method,
       });
     });
     this.ws.send(JSON.stringify(payload));
@@ -99,10 +110,7 @@ export class CdpConnection implements CDPSessionLike {
   async attachToTarget(targetId: string): Promise<CdpSession> {
     const { sessionId } = (await this.send<{ sessionId: string }>(
       "Target.attachToTarget",
-      {
-        targetId,
-        flatten: true,
-      },
+      { targetId, flatten: true },
     )) as { sessionId: string };
 
     let session = this.sessions.get(sessionId);
@@ -145,29 +153,32 @@ export class CdpConnection implements CDPSessionLike {
 
     // Event path
     if ("method" in msg) {
-      // Adopt/dismiss sessions for auto-attach lifecycle
       if (msg.method === "Target.attachedToTarget") {
         const p = (msg as { params: Protocol.Target.AttachedToTargetEvent })
           .params;
-        // p.sessionId is the new child session id (flattened)
+        // create session object now; we'll wire listeners in the context before resuming
         if (!this.sessions.has(p.sessionId)) {
           this.sessions.set(p.sessionId, new CdpSession(this, p.sessionId));
         }
       } else if (msg.method === "Target.detachedFromTarget") {
         const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent })
           .params;
-        // Remove child session
+        // reject all inflights bound to this session to avoid hangs
+        for (const [id, entry] of this.inflight.entries()) {
+          if (entry.sessionId === p.sessionId) {
+            entry.reject(new Error("CDP session detached"));
+            this.inflight.delete(id);
+          }
+        }
         this.sessions.delete(p.sessionId);
       }
 
       const { method, params, sessionId } = msg;
 
       if (sessionId) {
-        // Deliver to session listeners
         const session = this.sessions.get(sessionId);
         session?.dispatch(method, params);
       } else {
-        // Deliver to root listeners
         const handlers = this.eventHandlers.get(method);
         if (handlers) for (const h of handlers) h(params);
       }
@@ -186,6 +197,8 @@ export class CdpConnection implements CDPSessionLike {
       this.inflight.set(id, {
         resolve: (v) => resolve(v as R),
         reject,
+        sessionId,
+        method,
       });
     });
     this.ws.send(JSON.stringify(payload));
@@ -244,7 +257,6 @@ export class CdpSession implements CDPSessionLike {
     });
   }
 
-  // internal from root
   dispatch(event: string, params: unknown): void {
     this.root._dispatchToSession(this.id, event, params);
   }
