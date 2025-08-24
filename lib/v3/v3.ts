@@ -19,6 +19,21 @@ import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3Context } from "@/lib/v3/understudy/context";
 
+/**
+ * V3
+ *
+ * Purpose:
+ * A high-level orchestrator for Stagehand V3. Abstracts away whether the browser
+ * runs **locally via Chrome** or remotely on **Browserbase**, and exposes simple
+ * entrypoints (`act`, `extract`, `observe`) that delegate to the corresponding
+ * handler classes.
+ *
+ * Responsibilities:
+ * - Bootstraps Chrome or Browserbase, ensures a working CDP WebSocket, and builds a `V3Context`.
+ * - Manages lifecycle: init, context access, cleanup.
+ * - Bridges external page objects (Playwright/Puppeteer) into internal frameIds for handlers.
+ * - Provides a stable API surface for downstream code regardless of runtime environment.
+ */
 export class V3 {
   private readonly opts: V3Options;
   private state: InitState = { kind: "UNINITIALIZED" };
@@ -31,7 +46,10 @@ export class V3 {
     this.opts = opts;
   }
 
-  /** Launches the chosen environment and prepares a CDP WebSocket to connect to. */
+  /**
+   * Entrypoint: initializes handlers, launches Chrome or Browserbase,
+   * and sets up a CDP context.
+   */
   async init(): Promise<void> {
     this.actHandler = new ActHandler();
     this.extractHandler = new ExtractHandler();
@@ -56,6 +74,10 @@ export class V3 {
     throw new Error(`Unsupported env: ${neverEnv}`);
   }
 
+  /**
+   * Run an "act" instruction through the ActHandler.
+   * Optional: narrow to a specific page (Playwright/Puppeteer).
+   */
   async act(params: ActParams): Promise<void> {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
@@ -74,6 +96,9 @@ export class V3 {
     return this.actHandler.act(handlerParams);
   }
 
+  /**
+   * Run an "extract" instruction through the ExtractHandler.
+   */
   async extract(params: ExtractParams): Promise<void> {
     if (!this.extractHandler) {
       throw new Error("V3 not initialized. Call init() before extract().");
@@ -92,6 +117,9 @@ export class V3 {
     return this.extractHandler.extract(handlerParams);
   }
 
+  /**
+   * Run an "observe" instruction through the ObserveHandler.
+   */
   async observe(params: ObserveParams): Promise<void> {
     if (!this.observeHandler) {
       throw new Error("V3 not initialized. Call init() before observe().");
@@ -112,7 +140,7 @@ export class V3 {
     return this.observeHandler.observe(handlerParams);
   }
 
-  /** Returns the browser-level CDP WebSocket endpoint. */
+  /** Return the browser-level CDP WebSocket endpoint. */
   connectURL(): string {
     if (this.state.kind === "UNINITIALIZED") {
       throw new Error("V3 not initialized. Call await v3.init() first.");
@@ -120,11 +148,12 @@ export class V3 {
     return this.state.ws;
   }
 
+  /** Expose the current CDP-backed context. */
   context(): V3Context {
     return this.ctx;
   }
 
-  /** Best-effort cleanup. */
+  /** Best-effort cleanup of context and launched resources. */
   async close(): Promise<void> {
     await this.ctx?.close();
     if (this.state.kind === "LOCAL") {
@@ -134,6 +163,9 @@ export class V3 {
     this.ctx = null;
   }
 
+  /**
+   * Launch local Chrome with appropriate flags and return a CDP WebSocket.
+   */
   private async initLocal(): Promise<{ ws: string; chrome: LaunchedChrome }> {
     const headless = this.opts.headless ?? true;
     const chromeFlags = [
@@ -161,6 +193,7 @@ export class V3 {
     return { ws, chrome };
   }
 
+  /** Guard: ensure Browserbase credentials exist in options. */
   private requireBrowserbaseCreds(): { apiKey: string; projectId: string } {
     const { apiKey, projectId } = this.opts;
     if (!apiKey || !projectId) {
@@ -171,6 +204,9 @@ export class V3 {
     return { apiKey, projectId };
   }
 
+  /**
+   * Create a Browserbase session, return its WebSocket and session id.
+   */
   private async initBrowserbase(
     apiKey: string,
     projectId: string,
@@ -189,6 +225,10 @@ export class V3 {
     return { ws: session.connectUrl, sessionId: session.id, bb };
   }
 
+  /**
+   * Poll /json/version until Chrome returns a valid WebSocket endpoint.
+   * Used only in local launch mode.
+   */
   private async waitForWebSocketDebuggerUrl(
     port: number,
     timeoutMs: number,
@@ -220,6 +260,7 @@ export class V3 {
     );
   }
 
+  /** Type guard for Chrome's /json/version response. */
   private isJsonVersionResponse(v: unknown): v is JsonVersionResponse {
     return (
       typeof v === "object" &&
@@ -229,6 +270,10 @@ export class V3 {
     );
   }
 
+  /**
+   * Normalize a Playwright/Puppeteer page object into its top frame id,
+   * so handlers can resolve it to a `Page` within our V3Context.
+   */
   private async resolveTopFrameId(
     page: PlaywrightPage | PuppeteerPage,
   ): Promise<string> {

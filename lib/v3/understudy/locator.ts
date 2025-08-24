@@ -3,6 +3,20 @@ import { Frame } from "./frame";
 
 type MouseButton = "left" | "right" | "middle";
 
+/**
+ * Locator
+ *
+ * Purpose:
+ * A small, CDP-based element interaction helper scoped to a specific `Frame`.
+ * It resolves a CSS selector inside the frame’s **isolated world**, and then
+ * performs low-level actions (click, type, select) using DOM / Runtime / Input
+ * protocol domains with minimal abstraction.
+ *
+ * Notes:
+ * - Resolution is lazy: each action resolves the selector to a node/object.
+ * - Uses `Page.createIsolatedWorld` so evaluation is isolated from page scripts.
+ * - Avoids retaining remote objects (releases objectIds where appropriate).
+ */
 export class Locator {
   constructor(
     private readonly frame: Frame,
@@ -11,11 +25,12 @@ export class Locator {
   ) {}
 
   /**
-   * Click the element:
-   *  1) resolve nodeId via Runtime.evaluate + DOM.requestNode
-   *  2) DOM.scrollIntoViewIfNeeded
-   *  3) DOM.getContentQuads → compute center
-   *  4) Input.dispatchMouseEvent (press + release)
+   * Click the element at its visual center.
+   * Steps:
+   *  1) Resolve selector to { nodeId }.
+   *  2) Ensure it’s visible via `DOM.scrollIntoViewIfNeeded`.
+   *  3) Read content quads → compute center point.
+   *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
   async click(options?: {
     button?: MouseButton;
@@ -56,8 +71,10 @@ export class Locator {
   }
 
   /**
-   * Fill an input/textarea’s value and dispatch input/change.
-   * Uses Runtime.callFunctionOn bound to the element.
+   * Fill an input/textarea/contenteditable element.
+   * - Sets the value/text directly in DOM.
+   * - Dispatches `input` and `change` events to mimic user input.
+   * - Releases the underlying `objectId` afterwards to avoid leaks.
    */
   async fill(value: string): Promise<void> {
     const { objectId } = await this.resolveNode();
@@ -70,7 +87,6 @@ export class Locator {
           objectId,
           functionDeclaration: `
           function(v) {
-            // Prefer setting value; covers input/textarea/contenteditable basics
             if ('value' in this) this.value = v;
             else if (this.isContentEditable) this.textContent = v;
             this.dispatchEvent(new Event('input', { bubbles: true }));
@@ -82,14 +98,14 @@ export class Locator {
         },
       );
     } finally {
-      // avoid remote object leaks
       await session.send<never>("Runtime.releaseObject", { objectId });
     }
   }
 
   /**
-   * Type text by focusing and dispatching key events (respects optional delay).
-   * If no delay is given, uses Input.insertText for efficiency.
+   * Type text into the element (focuses first).
+   * - If no delay, uses `Input.insertText` for efficiency.
+   * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }): Promise<void> {
     const { nodeId } = await this.resolveNode();
@@ -120,8 +136,8 @@ export class Locator {
   }
 
   /**
-   * Select option(s) on a <select>. Returns the values that ended up selected.
-   * Implemented via callFunctionOn to avoid manual DOM walking.
+   * Select one or more options on a `<select>` element.
+   * Returns the values actually selected after the operation.
    */
   async selectOption(values: string | string[]): Promise<string[]> {
     const desired = Array.isArray(values) ? values : [values];
@@ -160,7 +176,13 @@ export class Locator {
 
   // ---------- helpers ----------
 
-  /** Resolve selector inside the frame’s isolated world to { nodeId, objectId }. */
+  /**
+   * Resolve `this.selector` within the frame to `{ nodeId, objectId }`:
+   * - Ensures Runtime/DOM domains are enabled.
+   * - Creates (or reuses) an isolated world for this frame.
+   * - Evaluates `document.querySelector(selector)` in that world.
+   * - Converts the resulting `objectId` to a `nodeId` for DOM methods.
+   */
   private async resolveNode(): Promise<{
     nodeId: Protocol.DOM.NodeId;
     objectId: Protocol.Runtime.RemoteObjectId;
@@ -208,7 +230,10 @@ export class Locator {
     return { nodeId, objectId: objId };
   }
 
-  /** Compute the center of a quad [x1,y1,x2,y2,x3,y3,x4,y4]. */
+  /**
+   * Compute the center of a quad `[x1,y1,x2,y2,x3,y3,x4,y4]`.
+   * Used to derive a reasonable click point from `DOM.getContentQuads`.
+   */
   private centerOfQuad(quad: number[]): [number, number] {
     const xs = [quad[0], quad[2], quad[4], quad[6]];
     const ys = [quad[1], quad[3], quad[5], quad[7]];
