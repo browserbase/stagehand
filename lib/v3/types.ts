@@ -70,3 +70,5 @@ export interface ObserveHandlerParams {
   instruction: string;
   page: Page;
 }
+
+export type LoadState = "load" | "domcontentloaded" | "networkidle";

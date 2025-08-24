@@ -1,4 +1,3 @@
-// lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import { CdpConnection } from "./cdp";
 import { Page } from "./page";
@@ -13,6 +12,23 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   return info.type === "page" && ti.subtype !== "iframe";
 }
 
+/**
+ * V3Context
+ *
+ * Purpose:
+ * Single place that owns the **root CDP connection** and wires CDP Target/Page
+ * events into Page/FrameGraph domain logic. It maintains one `Page` per
+ * top-level target, and **adopts OOPIF child sessions** into the owning Page.
+ *
+ * Responsibilities:
+ * - Bootstrap: discover/attach existing targets, enable auto-attach, and explicitly
+ *   attach on `Target.targetCreated` so OOPIFs never slip through.
+ * - Pause → wire → resume: targets start paused (`waitForDebuggerOnStart`); we
+ *   enable Page domain, probe/attach listeners, then resume with `runIfWaitingForDebugger`.
+ * - Staged adoption: cache child sessions by their **child root frame id** and adopt
+ *   when the parent emits `frameAttached` for that id.
+ * - Keep mappings for lookups and debug stats (top-level mapping only in `mainFrameToTarget`).
+ */
 export class V3Context {
   private constructor(private readonly conn: CdpConnection) {}
 
@@ -24,6 +40,9 @@ export class V3Context {
   private createdAtByTarget = new Map<TargetId, number>();
   private typeByTarget = new Map<TargetId, TargetType>();
 
+  /**
+   * Create a Context for a given CDP websocket URL and bootstrap target wiring.
+   */
   static async create(wsUrl: string): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
@@ -32,6 +51,9 @@ export class V3Context {
     return ctx;
   }
 
+  /**
+   * Return top-level `Page`s (oldest → newest). OOPIF targets are not included.
+   */
   pages(): Page[] {
     const rows: Array<{ tid: TargetId; page: Page; created: number }> = [];
     for (const [tid, page] of this.pagesByTarget) {
@@ -43,11 +65,18 @@ export class V3Context {
     return rows.map((r) => r.page);
   }
 
+  /**
+   * Resolve an owning `Page` by the **top-level main frame id**.
+   * Note: child (OOPIF) roots are intentionally not present in this mapping.
+   */
   resolvePageByMainFrameId(frameId: string): Page | undefined {
     const targetId = this.mainFrameToTarget.get(frameId);
     return targetId ? this.pagesByTarget.get(targetId) : undefined;
   }
 
+  /**
+   * Serialize the full frame tree for a given top-level main frame id.
+   */
   async getFullFrameTreeByMainFrameId(
     rootMainFrameId: string,
   ): Promise<Protocol.Page.FrameTree> {
@@ -57,6 +86,9 @@ export class V3Context {
     return owner.asProtocolFrameTree(rootMainFrameId);
   }
 
+  /**
+   * Close CDP and clear all mappings. Best-effort cleanup.
+   */
   async close(): Promise<void> {
     await this.conn.close();
     this.pagesByTarget.clear();
@@ -68,6 +100,13 @@ export class V3Context {
     this.typeByTarget.clear();
   }
 
+  /**
+   * Bootstrap target lifecycle:
+   * - Attach to existing targets.
+   * - Attach on `Target.targetCreated` (fallback for OOPIFs).
+   * - Handle auto-attach events.
+   * - Clean up on detach/destroy.
+   */
   private async bootstrap(): Promise<void> {
     // Index existing targets (main + any pre-existing child targets)
     const targets = await this.conn.getTargets();
@@ -130,6 +169,14 @@ export class V3Context {
     );
   }
 
+  /**
+   * Handle a newly attached target (top-level or potential OOPIF):
+   * - Enable Page domain and lifecycle events.
+   * - If top-level → create Page, wire listeners, resume.
+   * - Else → probe child root frame id via `Page.getFrameTree` and adopt immediately
+   *   if the parent is known; otherwise stage until parent `frameAttached`.
+   * - Resume the target only after listeners are wired.
+   */
   private async onAttachedToTarget(
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
@@ -211,6 +258,12 @@ export class V3Context {
     await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
   }
 
+  /**
+   * Detach handler:
+   * - Remove child session ownership and prune its subtree.
+   * - If a top-level target, cleanup its `Page` and mappings.
+   * - Drop any staged child for this session.
+   */
   private onDetachedFromTarget(
     sessionId: SessionId,
     targetId: string | null,
@@ -232,6 +285,9 @@ export class V3Context {
     }
   }
 
+  /**
+   * Cleanup a top-level Page by target id, removing its root and staged children.
+   */
   private cleanupByTarget(targetId: TargetId): void {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
@@ -254,6 +310,12 @@ export class V3Context {
     this.typeByTarget.delete(targetId);
   }
 
+  /**
+   * Wire Page-domain frame events for a session into the owning Page & mappings.
+   * - `frameAttached`: update topology, adopt any staged child, handle root swap mapping.
+   * - `frameDetached`: prune on hard remove; keep node/mapping on `"swap"` handoff.
+   * - `frameNavigated`: store last-seen frame metadata.
+   */
   private installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -270,8 +332,11 @@ export class V3Context {
 
         const oldRoot = owner.mainFrameId();
         owner.onFrameAttached(frameId, parentFrameId ?? null);
+
+        // record the owner for this frame id first
         this.frameOwnerPage.set(frameId, owner);
 
+        // If a child session was staged for THIS frame id, adopt now
         const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
         if (pendingChildSessionId) {
           const child = this.conn.getSession(pendingChildSessionId);
@@ -295,6 +360,7 @@ export class V3Context {
           this.pendingOopifByMainFrame.delete(frameId);
         }
 
+        // Root swap: move top-level mapping to new main id
         if (!parentFrameId) {
           const newRoot = owner.mainFrameId();
           if (newRoot !== oldRoot) {
@@ -327,10 +393,16 @@ export class V3Context {
     );
   }
 
+  /**
+   * Register that a session belongs to a Page (used by event routing).
+   */
   private wireSessionToOwnerPage(sessionId: SessionId, owner: Page): void {
     this.sessionOwnerPage.set(sessionId, owner);
   }
 
+  /**
+   * Utility: reverse-lookup the top-level target id that owns a given Page.
+   */
   private findTargetIdByPage(page: Page): TargetId | undefined {
     for (const [tid, p] of this.pagesByTarget) {
       if (p === page) return tid;

@@ -69,43 +69,6 @@ export class Frame implements FrameManager {
     return { x, y, width, height };
   }
 
-  /** Wait for DOM to settle via MutationObserver inside an isolated world */
-  async waitForSettledDom(timeout = 30_000): Promise<boolean> {
-    const contextId = await this.getExecutionContextId();
-
-    const evalRes = await this.session.send<Protocol.Runtime.EvaluateResponse>(
-      "Runtime.evaluate",
-      {
-        expression: `
-          new Promise((resolve) => {
-            let timer = setTimeout(() => resolve(true), ${timeout});
-            const observer = new MutationObserver(() => {
-              clearTimeout(timer);
-              timer = setTimeout(() => {
-                observer.disconnect();
-                resolve(true);
-              }, 500);
-            });
-            observer.observe(document, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              characterData: true
-            });
-          })
-        `,
-        contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      },
-    );
-
-    if (evalRes.exceptionDetails) {
-      throw new Error(evalRes.exceptionDetails.text ?? "Evaluation failed");
-    }
-    return Boolean(evalRes.result.value);
-  }
-
   /** Accessibility.getFullAXTree (+ recurse into child frames if requested) */
   async getAccessibilityTree(
     withFrames = false,
