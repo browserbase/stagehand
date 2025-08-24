@@ -234,7 +234,7 @@ export class Page {
         };
         seedFramesOnly(frameTree);
 
-        const stored = this.frameGraph["frames"].get(childMainFrameId);
+        const stored = this.frameGraph.getFrame(childMainFrameId);
         console.log("[seed] child root now:", {
           id: childMainFrameId,
           url: stored?.url,
