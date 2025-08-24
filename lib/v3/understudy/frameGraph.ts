@@ -138,6 +138,10 @@ export class FrameGraph {
     return build(rootId);
   }
 
+  public getFrame(frameId: string): Protocol.Page.Frame {
+    return this.frames.get(frameId);
+  }
+
   /**
    * Ensure bookkeeping maps contain entries for a frame id (no-op if present).
    */
