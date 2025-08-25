@@ -2,23 +2,91 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Page } from "@/types/page";
 
-export const createExtractTool = (page: Page) =>
+/**
+ * Evaluates a Zod schema string and returns the actual Zod schema
+ * Uses Function constructor to evaluate the schema string in a controlled way
+ */
+function evaluateZodSchema(schemaStr: string): z.ZodTypeAny {
+  try {
+    // Create a function that returns the evaluated schema
+    // We pass z as a parameter to make it available in the evaluated context
+    const schemaFunction = new Function("z", `return ${schemaStr}`);
+    return schemaFunction(z);
+  } catch (error) {
+    console.warn("Failed to evaluate schema string, using z.any():", error);
+    return z.any();
+  }
+}
+
+export const createExtractTool = (page: Page, executionModel?: string) =>
   tool({
-    description: "Extract data from the page",
+    description: `Extract structured data from the current page based on a provided schema.
+    
+    USAGE GUIDELINES:
+    - Keep schemas MINIMAL - only include fields essential for the task
+    - All fields in the schema should be optional (.optional())
+    - Use when you need specific structured data, not just text
+    
+    EXAMPLES:
+    1. Extract a single value:
+       instruction: "extract the product price"
+       schema: "z.object({ price: z.number().optional() })"
+    
+    2. Extract multiple fields:
+       instruction: "extract product name and price"
+       schema: "z.object({ name: z.string().optional(), price: z.number().optional() })"
+    
+    3. Extract arrays:
+       instruction: "extract all product names and prices"
+       schema: "z.object({ products: z.array(z.object({ name: z.string().optional(), price: z.number().optional() })) })"`,
     parameters: z.object({
-      reasoning: z.string().describe("Why you're extracting this data"),
-      parameters: z
+      instruction: z
         .string()
-        .nullable()
-        .describe("What to extract, or null for all text"),
+        .describe(
+          "Clear instruction describing what data to extract from the page",
+        ),
+      schema: z
+        .string()
+        .describe(
+          'Zod schema as a string (e.g., "z.object({ price: z.number().optional() })")',
+        ),
     }),
-    execute: async ({ parameters }) => {
-      if (!parameters) {
-        const result = await page.extract();
-        return { success: true, data: result.page_text };
-      } else {
-        const result = await page.extract(parameters);
-        return { success: true, data: result };
+    execute: async ({ instruction, schema }) => {
+      try {
+        // Evaluate the schema string to get the actual Zod schema
+        const zodSchema = evaluateZodSchema(schema);
+
+        // Ensure we have a ZodObject
+        const schemaObject =
+          zodSchema instanceof z.ZodObject
+            ? zodSchema
+            : z.object({ result: zodSchema });
+
+        // Extract with the schema - only pass modelName if executionModel is explicitly provided
+        const result = executionModel
+          ? await page.extract({
+              instruction,
+              schema: schemaObject,
+              modelName: executionModel,
+            })
+          : await page.extract({
+              instruction,
+              schema: schemaObject,
+            });
+
+        return {
+          success: true,
+          data: result,
+          timestamp: Date.now(),
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return {
+          success: false,
+          error: `Failed to extract data: ${errorMessage}`,
+          timestamp: Date.now(),
+        };
       }
     },
   });

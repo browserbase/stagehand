@@ -913,12 +913,15 @@ export class Stagehand {
     ) => Promise<AgentResult>;
   } {
     if (!options || !options.provider) {
+      const executionModel = options?.executionModel;
+
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
+            executionModel,
           ).execute(instructionOrOptions);
         },
       };

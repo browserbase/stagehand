@@ -18,15 +18,18 @@ export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
+  private executionModel?: string;
 
   constructor(
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
+    executionModel?: string,
   ) {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
+    this.executionModel = executionModel;
   }
 
   public async execute(
@@ -192,6 +195,6 @@ For each action, provide clear reasoning about why you're taking that step.`;
 
   private createTools() {
     const page = this.stagehandPage.page;
-    return createAgentTools(page);
+    return createAgentTools(page, { executionModel: this.executionModel });
   }
 }

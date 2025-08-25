@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Page } from "@/types/page";
 
-export const createFillFormTool = (page: Page) =>
+export const createFillFormTool = (page: Page, executionModel?: string) =>
   tool({
     description: `📝 FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
@@ -46,12 +46,16 @@ export const createFillFormTool = (page: Page) =>
     }),
 
     execute: async ({ fields }) => {
-      const observeResults = await page.observe({
-        modelName: "google/gemini-2.5-flash",
-        instruction: `Return observation results for the following actions: ${fields
-          .map((field) => field.action)
-          .join(", ")}`,
-      });
+      const instruction = `Return observation results for the following actions: ${fields
+        .map((field) => field.action)
+        .join(", ")}`;
+
+      const observeResults = executionModel
+        ? await page.observe({
+            instruction,
+            modelName: executionModel,
+          })
+        : await page.observe(instruction);
 
       const completedActions = [];
       for (const result of observeResults) {

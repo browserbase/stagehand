@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Page } from "@/types/page";
 
-export const createActTool = (page: Page) =>
+export const createActTool = (page: Page, executionModel?: string) =>
   tool({
     description: "Perform an action on the page (click, type, etc)",
     parameters: z.object({
@@ -15,10 +15,12 @@ export const createActTool = (page: Page) =>
           - type "Doe" into the last name input`),
     }),
     execute: async ({ parameters }) => {
-      const [observeResult] = await page.observe({
-        modelName: "google/gemini-2.5-flash",
-        instruction: parameters,
-      });
+      const [observeResult] = executionModel
+        ? await page.observe({
+            instruction: parameters,
+            modelName: executionModel,
+          })
+        : await page.observe(parameters);
       if (observeResult) {
         const isIframe = observeResult.description === "an iframe";
         if (isIframe) {

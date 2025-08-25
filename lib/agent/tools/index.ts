@@ -10,13 +10,19 @@ import { createAriaTreeTool } from "./ariaTree";
 import { createFillFormTool } from "./fillform";
 import { createScrollTool } from "./scroll";
 
-export function createAgentTools(page: Page) {
+export interface AgentToolOptions {
+  executionModel?: string;
+}
+
+export function createAgentTools(page: Page, options?: AgentToolOptions) {
+  const executionModel = options?.executionModel;
+
   return {
-    act: createActTool(page),
+    act: createActTool(page, executionModel),
     ariaTree: createAriaTreeTool(page),
     close: createCloseTool(),
-    extract: createExtractTool(page),
-    fillForm: createFillFormTool(page),
+    extract: createExtractTool(page, executionModel),
+    fillForm: createFillFormTool(page, executionModel),
     goto: createGotoTool(page),
     navback: createNavBackTool(page),
     screenshot: createScreenshotTool(page),
