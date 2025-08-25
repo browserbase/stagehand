@@ -60,7 +60,7 @@ export function processMessages(params: LanguageModelV1CallOptions): {
         }
       }
       if ((message.content as unknown[]).some((part) => isAriaTreePart(part))) {
-        const shouldCompress = shouldCompressScreenshot(index, ariaTreeIndices);
+        const shouldCompress = shouldCompressAriaTree(index, ariaTreeIndices);
         if (shouldCompress) {
           return compressAriaTreeMessage(message);
         }
@@ -117,6 +117,15 @@ function shouldCompressScreenshot(
     index === screenshotIndices.sort((a, b) => b - a)[1];
 
   return !isNewestScreenshot && !isSecondNewestScreenshot;
+}
+
+function shouldCompressAriaTree(
+  index: number,
+  ariaTreeIndices: number[],
+): boolean {
+  const isNewestAriaTree = index === Math.max(...ariaTreeIndices);
+  // Only keep the most recent ARIA tree
+  return !isNewestAriaTree;
 }
 
 function compressScreenshotMessage(message: {
