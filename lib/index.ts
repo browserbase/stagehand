@@ -31,7 +31,7 @@ import { ClientOptions } from "../types/model";
 import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
-import { cuaAgentHandler } from "./handlers/cuaAgentHandler";
+import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
 import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 
@@ -924,7 +924,7 @@ export class Stagehand {
       };
     }
 
-    const agentHandler = new cuaAgentHandler(
+    const agentHandler = new CuaAgentHandler(
       this,
       this.stagehandPage,
       this.logger,
