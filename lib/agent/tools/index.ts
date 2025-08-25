@@ -9,19 +9,21 @@ import { createRefreshTool } from "./refresh";
 import { createCloseTool } from "./close";
 import { createAriaTreeTool } from "./ariaTree";
 import { createFillFormTool } from "./fillform";
+import { createScrollTool } from "./scroll";
 
 export function createAgentTools(page: Page) {
   return {
-    goto: createGotoTool(page),
     act: createActTool(page),
-    extract: createExtractTool(page),
-    screenshot: createScreenshotTool(page),
     ariaTree: createAriaTreeTool(page),
-    wait: createWaitTool(),
+    close: createCloseTool(),
+    extract: createExtractTool(page),
+    fillForm: createFillFormTool(page),
+    goto: createGotoTool(page),
     navback: createNavBackTool(page),
     refresh: createRefreshTool(page),
-    close: createCloseTool(),
-    fillForm: createFillFormTool(page),
+    screenshot: createScreenshotTool(page),
+    scroll: createScrollTool(page),
+    wait: createWaitTool(),
   } as const;
 }
 
