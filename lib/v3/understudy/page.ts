@@ -40,6 +40,9 @@ export class Page {
   /** Convenience wrapper bound to the current main frame id. */
   private mainFrameWrapper: Frame;
 
+  private frameOrdinals = new Map<string, number>(); // raw frameId -> ordinal
+  private nextOrdinal = 0;
+
   /**
    * Construct a Page bound to a top-level target’s main session.
    * @param mainSession CDP session for the top-level target.
@@ -287,6 +290,7 @@ export class Page {
    * Updates topology; does not fabricate frame metadata.
    */
   onFrameAttached(frameId: string, parentId: string | null): void {
+    this.ensureOrdinal(frameId);
     this.frameGraph.onAttached(frameId, parentId);
   }
 
@@ -307,17 +311,28 @@ export class Page {
    * Stores the real CDP frame and rebinds the main-frame wrapper on root change.
    */
   onFrameNavigated(frame: Protocol.Page.Frame): void {
+    const oldRoot = this.mainFrameId();
     this.frameGraph.onNavigated(frame);
     if (!("parentId" in frame) || !frame.parentId) {
-      const newMainId = frame.id;
-      if (newMainId !== this.mainFrameWrapper.frameId) {
-        this.mainFrameWrapper = new Frame(
-          this.mainSession,
-          newMainId,
-          this._targetId,
-        );
+      const newRoot = frame.id;
+      if (newRoot !== oldRoot) {
+        const oldOrd = this.frameOrdinals.get(oldRoot) ?? 0;
+        this.frameOrdinals.set(newRoot, oldOrd);
       }
     }
+  }
+
+  private ensureOrdinal(frameId: string): number {
+    const hit = this.frameOrdinals.get(frameId);
+    if (hit !== undefined) return hit;
+    const ord = this.nextOrdinal++;
+    this.frameOrdinals.set(frameId, ord);
+    return ord;
+  }
+
+  /** Public getter for snapshot code / handlers. */
+  public getOrdinal(frameId: string): number {
+    return this.ensureOrdinal(frameId);
   }
 
   /**
@@ -325,6 +340,31 @@ export class Page {
    */
   private frameGraphParentOf(fid: string): string | null {
     return this.frameGraph.getParent(fid);
+  }
+
+  public getSessionForFrame(frameId: string): CDPSessionLike | undefined {
+    if (frameId === this.mainFrameId()) return this.mainSession;
+    // OOPIF: child session whose tracked main frame matches.
+    for (const [sid, fid] of this.childSessionMainFrame.entries()) {
+      if (fid === frameId) {
+        const s = this.sessions.get(sid);
+        if (s) return s;
+      }
+    }
+    // same-process iframe (no dedicated session)
+    return this.mainSession;
+  }
+
+  public listAllFrameIds(): string[] {
+    const root = this.mainFrameId();
+    const order: string[] = [];
+    const tree = this.asProtocolFrameTree(root);
+    const dfs = (n: Protocol.Page.FrameTree) => {
+      order.push(n.frame.id);
+      for (const c of n.childFrames ?? []) dfs(c);
+    };
+    dfs(tree);
+    return order;
   }
 
   // -------- Convenience APIs delegated to the current main frame --------

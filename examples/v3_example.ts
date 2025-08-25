@@ -6,7 +6,7 @@
  */
 import { V3 } from "../lib/v3/v3";
 // import { chromium } from "playwright";
-import fs from "fs";
+// import fs from "fs";
 // import dotenv from "dotenv";
 // dotenv.config();
 
@@ -18,35 +18,48 @@ async function example(v3: V3) {
   const context = v3.context();
   // const page = context.pages()[0];
   const page = context.pages()[0];
-  await page.goto("https://www.apartments.com/san-francisco-ca/", {
-    waitUntil: "domcontentloaded",
-  });
-  console.log("content loaded");
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-  const fullFrameTree = page.getFullFrameTree();
-  fs.writeFileSync(
-    "fullFrameTree.json",
-    JSON.stringify(fullFrameTree, null, 2),
+  await page.goto(
+    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+    {
+      waitUntil: "domcontentloaded",
+    },
   );
-  console.log("attempting to load fullFrameTree");
-  console.log(`full frame tree: ${fullFrameTree}`);
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+  console.log("calling act");
+  await v3.act({ instruction: "do nothing", page });
 
-  const ctx = v3.context() as unknown as {
-    // narrow types for debugging without 'any'
-    pagesByTarget?: Map<string, unknown>;
-    mainFrameToTarget?: Map<string, string>;
-    typeByTarget?: Map<string, string>;
-  };
-  if (ctx.mainFrameToTarget && ctx.typeByTarget) {
-    const counts = { pages: 0, iframes: 0, other: 0 };
-    for (const [, tid] of ctx.mainFrameToTarget.entries()) {
-      const typ = ctx.typeByTarget.get(tid) ?? "other";
-      if (typ === "page") counts.pages++;
-      else if (typ === "iframe") counts.iframes++;
-      else counts.other++;
-    }
-    console.log("[V3] targets seen:", counts);
-  }
+  // const context = v3.context();
+  // // const page = context.pages()[0];
+  // const page = context.pages()[0];
+  // await page.goto("https://www.apartments.com/san-francisco-ca/", {
+  //   waitUntil: "domcontentloaded",
+  // });
+  // console.log("content loaded");
+  // await new Promise((resolve) => setTimeout(resolve, 10000));
+  // const fullFrameTree = page.getFullFrameTree();
+  // fs.writeFileSync(
+  //   "fullFrameTree.json",
+  //   JSON.stringify(fullFrameTree, null, 2),
+  // );
+  // console.log("attempting to load fullFrameTree");
+  // console.log(`full frame tree: ${fullFrameTree}`);
+  //
+  // const ctx = v3.context() as unknown as {
+  //   // narrow types for debugging without 'any'
+  //   pagesByTarget?: Map<string, unknown>;
+  //   mainFrameToTarget?: Map<string, string>;
+  //   typeByTarget?: Map<string, string>;
+  // };
+  // if (ctx.mainFrameToTarget && ctx.typeByTarget) {
+  //   const counts = { pages: 0, iframes: 0, other: 0 };
+  //   for (const [, tid] of ctx.mainFrameToTarget.entries()) {
+  //     const typ = ctx.typeByTarget.get(tid) ?? "other";
+  //     if (typ === "page") counts.pages++;
+  //     else if (typ === "iframe") counts.iframes++;
+  //     else counts.other++;
+  //   }
+  //   console.log("[V3] targets seen:", counts);
+  // }
 
   // const wsEndpoint = v3.connectURL();
   // const pwBrowser = await chromium.connectOverCDP(wsEndpoint);

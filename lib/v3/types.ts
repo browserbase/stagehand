@@ -43,7 +43,7 @@ export type PuppeteerPage = import("puppeteer-core").Page;
 
 export type ActParams = {
   instruction: string;
-  page?: PlaywrightPage | PuppeteerPage;
+  page?: PlaywrightPage | PuppeteerPage | Page;
 };
 
 export interface ActHandlerParams {
