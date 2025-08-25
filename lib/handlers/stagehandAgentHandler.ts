@@ -43,10 +43,7 @@ export class StagehandAgentHandler {
     let completed = false;
 
     try {
-      // Build system prompt
       const systemPrompt = this.buildSystemPrompt(options.instruction);
-
-      // Create tools
       const tools = this.createTools();
 
       const messages: CoreMessage[] = [
