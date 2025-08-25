@@ -14,11 +14,11 @@ export const kayak: EvalFunction = async ({
 
     await agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: 15,
+      maxSteps: 25,
     });
     await agent.execute({
       instruction: "Sort the flights by price",
-      maxSteps: 5,
+      maxSteps: 8,
     });
 
     if (stagehand.context.pages().length !== 2) {
