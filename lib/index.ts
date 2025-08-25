@@ -913,7 +913,6 @@ export class Stagehand {
     ) => Promise<AgentResult>;
   } {
     if (!options || !options.provider) {
-      // use AI SDK-based agent handler
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
           return new StagehandAgentHandler(
@@ -999,7 +998,6 @@ export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
-export * from "../types/operator";
 export * from "../types/agent";
 export * from "./llm/LLMClient";
 export * from "../types/stagehandErrors";
