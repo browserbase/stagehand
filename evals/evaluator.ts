@@ -12,9 +12,11 @@ import {
 } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 import {
-  EvaluateOptions,
+  EvaluateScreenshotOptions,
+  EvaluateTextOptions,
   EvaluationResult,
-  BatchEvaluateOptions,
+  BatchEvaluateScreenshotOptions,
+  BatchEvaluateTextOptions,
 } from "@/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
@@ -51,14 +53,16 @@ export class Evaluator {
   }
 
   /**
-   * Evaluates the current state of the page against a specific question.
+   * Evaluates the current state of the page against a specific question using a screenshot.
    * Uses structured response generation to ensure proper format.
    * Returns the evaluation result with normalized response and success status.
    *
-   * @param options - The options for evaluation
+   * @param options - The options for screenshot evaluation
    * @returns A promise that resolves to an EvaluationResult
    */
-  async evaluate(options: EvaluateOptions): Promise<EvaluationResult> {
+  async evaluateScreenshot(
+    options: EvaluateScreenshotOptions,
+  ): Promise<EvaluationResult> {
     const {
       question,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given the state of a task (most times in the form of a screenshot) and a question. Provide a detailed reasoning for your answer.
@@ -127,11 +131,11 @@ export class Evaluator {
    * Uses structured response generation to ensure proper format.
    * Returns an array of evaluation results.
    *
-   * @param options - The options for batch evaluation
+   * @param options - The options for batch screenshot evaluation
    * @returns A promise that resolves to an array of EvaluationResults
    */
-  async batchEvaluate(
-    options: BatchEvaluateOptions,
+  async batchEvaluateScreenshot(
+    options: BatchEvaluateScreenshotOptions,
   ): Promise<EvaluationResult[]> {
     const {
       questions,
@@ -218,6 +222,142 @@ export class Evaluator {
 
       // Fallback: return INVALID for all questions
       return questions.map(() => ({
+        evaluation: "INVALID" as const,
+        reasoning: `Failed to get structured response: ${errorMessage}`,
+      }));
+    }
+  }
+
+  /**
+   * Evaluates a text/message against an expected result.
+   * Uses structured response generation to ensure proper format.
+   * Returns the evaluation result with normalized response and success status.
+   *
+   * @param options - The options for text evaluation
+   * @returns A promise that resolves to an EvaluationResult
+   */
+  async evaluateText(options: EvaluateTextOptions): Promise<EvaluationResult> {
+    const {
+      actualText,
+      expectedText,
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO based on whether the actual text contains or matches the expected text.
+          Return your response as a JSON object with the following format:
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          look for the key information, concepts, and meaning rather than exact wording.`,
+    } = options;
+
+    const llmClient = this.stagehand.llmProvider.getClient(
+      this.modelName,
+      this.modelClientOptions,
+    );
+
+    const userPrompt = `Does the actual text contain roughly the same information or meaning as the expected text?\n\nExpected: ${expectedText}\n\nActual: ${actualText}`;
+
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
+      logger: this.silentLogger,
+      options: {
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        response_model: {
+          name: "TextEvaluationResult",
+          schema: EvaluationSchema,
+        },
+      },
+    });
+
+    try {
+      const result = response.data as unknown as z.infer<
+        typeof EvaluationSchema
+      >;
+
+      return {
+        evaluation: result.evaluation,
+        reasoning: result.reasoning,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      return {
+        evaluation: "INVALID" as const,
+        reasoning: `Failed to get structured response: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * Evaluates a text/message against multiple expected results.
+   * Uses structured response generation to ensure proper format.
+   * Returns an array of evaluation results.
+   *
+   * @param options - The options for batch text evaluation
+   * @returns A promise that resolves to an array of EvaluationResults
+   */
+  async batchEvaluateText(
+    options: BatchEvaluateTextOptions,
+  ): Promise<EvaluationResult[]> {
+    const {
+      actualText,
+      expectedTexts,
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each expected text based on whether the actual text contains or matches it.
+          Return your response as a JSON array, where each object corresponds to an expected text and has the following format:
+          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
+          Be critical about matching - look for the key information, concepts, and meaning rather than exact wording.`,
+    } = options;
+
+    const formattedExpectations = expectedTexts
+      .map((text, i) => `${i + 1}. ${text}`)
+      .join("\n");
+
+    const llmClient = this.stagehand.llmProvider.getClient(
+      this.modelName,
+      this.modelClientOptions,
+    );
+
+    const userPrompt = `For each expected text below, determine if the actual text contains roughly the same information or meaning.\n\nExpected texts:\n${formattedExpectations}\n\nActual text:\n${actualText}`;
+
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
+      logger: this.silentLogger,
+      options: {
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}\n\nYou will be given multiple expected texts. For each one, determine if the actual text contains or matches it. Return a single JSON array containing one object for each expected text in the order they were given.`,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        response_model: {
+          name: "BatchTextEvaluationResult",
+          schema: BatchEvaluationSchema,
+        },
+      },
+    });
+
+    try {
+      const results = response.data as unknown as z.infer<
+        typeof BatchEvaluationSchema
+      >;
+
+      return results.map((result) => ({
+        evaluation: result.evaluation,
+        reasoning: result.reasoning,
+      }));
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return expectedTexts.map(() => ({
         evaluation: "INVALID" as const,
         reasoning: `Failed to get structured response: ${errorMessage}`,
       }));

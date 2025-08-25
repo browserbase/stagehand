@@ -1,4 +1,4 @@
-export interface EvaluateOptions {
+export interface EvaluateScreenshotOptions {
   /**
    * The question to ask about the task state
    */
@@ -14,7 +14,7 @@ export interface EvaluateOptions {
   screenshotDelayMs?: number;
 }
 
-export interface BatchEvaluateOptions {
+export interface BatchEvaluateScreenshotOptions {
   /**
    * Array of questions to evaluate
    */
@@ -32,6 +32,36 @@ export interface BatchEvaluateOptions {
    * The reasoning behind the evaluation
    */
   reasoning?: string;
+}
+
+export interface EvaluateTextOptions {
+  /**
+   * The actual text/message to evaluate
+   */
+  actualText: string;
+  /**
+   * The expected text or pattern to check against
+   */
+  expectedText: string;
+  /**
+   * Custom system prompt for the evaluator
+   */
+  systemPrompt?: string;
+}
+
+export interface BatchEvaluateTextOptions {
+  /**
+   * The actual text/message to evaluate
+   */
+  actualText: string;
+  /**
+   * Array of expected texts or patterns to check against
+   */
+  expectedTexts: string[];
+  /**
+   * Custom system prompt for the evaluator
+   */
+  systemPrompt?: string;
 }
 
 /**
