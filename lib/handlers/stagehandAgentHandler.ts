@@ -98,7 +98,12 @@ export class StagehandAgentHandler {
                 parameters?: string;
                 taskComplete?: boolean;
               };
-
+              //logs llms "reasoning" eg non tool call llm text
+              this.logger({
+                category: "agent",
+                message: `reasoning: ${event.text}`,
+                level: 2,
+              });
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
