@@ -15,7 +15,7 @@ export const google_maps_2: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for the fastest walking route from La Puerta de Alcalá to La Puerta del Sol",
-      maxSteps: 15,
+      maxSteps: 20,
     });
     logger.log(agentResult);
 
