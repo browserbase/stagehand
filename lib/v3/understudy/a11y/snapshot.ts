@@ -129,6 +129,7 @@ export async function captureHybridSnapshot(
 
   // 2) Compute absolute iframe prefixes top-down (frameId -> absolute XPath of its iframe element)
   const absPrefix = new Map<string, string>();
+  const iframeHostEncByChild = new Map<string, string>();
   absPrefix.set(rootId, ""); // root has no prefix
 
   // top-down queue
@@ -172,6 +173,7 @@ export async function captureHybridSnapshot(
         : parentAbs;
 
       absPrefix.set(child, childAbs);
+      iframeHostEncByChild.set(child, iframeEnc);
     }
   }
 
@@ -197,13 +199,19 @@ export async function captureHybridSnapshot(
 
   // Combined outline — simple concatenation with an ordinal-based header for each iframe.
   // (We can inject child subtrees under parent iframe nodes as a follow-up enhancement.)
-  const combinedTree = perFrameOutlines
-    .map((o, i) =>
-      i === 0
-        ? o.outline
-        : `\n\n--- iframe ${page.getOrdinal(o.frameId)} ---\n${o.outline}`,
-    )
-    .join("");
+  const idToTree = new Map<string, string>();
+  for (const { frameId, outline } of perFrameOutlines) {
+    const parentEnc = iframeHostEncByChild.get(frameId);
+    if (parentEnc) idToTree.set(parentEnc, outline);
+  }
+
+  // Root outline is the first/root frame
+  const rootOutline =
+    perFrameOutlines.find((o) => o.frameId === rootId)?.outline ??
+    perFrameOutlines[0]?.outline ??
+    "";
+  // Recursively inject all descendants under their iframe lines
+  const combinedTree = injectSubtrees(rootOutline, idToTree);
 
   return {
     combinedTree,
@@ -616,4 +624,61 @@ function findNodeByBackendId(
     if (n.contentDocument) stack.push(n.contentDocument);
   }
   return undefined;
+}
+
+/**
+ * Inject each child frame outline under the parent's iframe node line.
+ * Keys in `idToTree` are the parent's **iframe EncodedIds** (e.g., "3-22").
+ * The function is **recursive**: it injects grandchildren into children before
+ * indenting and inserting them under the parent line.
+ */
+function injectSubtrees(
+  rootOutline: string,
+  idToTree: Map<string, string>,
+): string {
+  type Frame = { lines: string[]; i: number };
+  const out: string[] = [];
+  const visited = new Set<string>(); // prevent infinite loops for any reason
+  const stack: Frame[] = [{ lines: rootOutline.split("\n"), i: 0 }];
+
+  while (stack.length) {
+    const top = stack[stack.length - 1];
+    if (top.i >= top.lines.length) {
+      stack.pop();
+      continue;
+    }
+
+    const raw = top.lines[top.i++];
+    out.push(raw);
+
+    // current line's indentation (used to compute child indentation)
+    const indent = raw.match(/^(\s*)/)?.[1] ?? "";
+    const content = raw.slice(indent.length);
+
+    // match leading [encodedId]
+    const m = content.match(/^\[([^\]]+)]/);
+    if (!m) continue;
+
+    const encId = m[1]!;
+    const childOutline = idToTree.get(encId);
+    if (!childOutline || visited.has(encId)) continue;
+
+    visited.add(encId);
+
+    // 🔁 Recursively inject grandchildren into this child first,
+    // then indent and insert the fully-stitched child block.
+    const fullyInjectedChild = injectSubtrees(childOutline, idToTree);
+    out.push(indentBlock(fullyInjectedChild.trimEnd(), indent + "  "));
+  }
+
+  return out.join("\n");
+}
+
+/** Indent a multi-line block by a given indent prefix. */
+function indentBlock(block: string, indent: string): string {
+  if (!block) return "";
+  return block
+    .split("\n")
+    .map((line) => (line.length ? indent + line : indent + line))
+    .join("\n");
 }
