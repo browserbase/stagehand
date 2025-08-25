@@ -6,7 +6,13 @@ export const createActTool = (page: Page) =>
   tool({
     description: "Perform an action on the page (click, type, etc)",
     parameters: z.object({
-      parameters: z.string().describe("Description of the action to perform"),
+      parameters: z.string()
+        .describe(`Describe what to click in a short, specific phrase that mentions the element type. 
+          Examples:
+          - "click the Login button"
+          - "click the language dropdown"
+          - type "John" into the first name input
+          - type "Doe" into the last name input`),
     }),
     execute: async ({ parameters }) => {
       const [observeResult] = await page.observe({
