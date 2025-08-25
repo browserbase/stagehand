@@ -173,8 +173,7 @@ IMPORTANT GUIDELINES:
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
 - ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
-- click: Click on an element on the page based on visual description
-- type: Type text into an input field on the page based on visual description
+- act: Perform a specific atomic action (click, type, etc.)
 - extract: Extract structured data
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
