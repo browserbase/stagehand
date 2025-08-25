@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import type { AvailableModel } from "../types/model";
 import type { LogLine } from "../types/log";
+import type { AgentInstance } from "../types/agent";
 import type { EvalCase } from "braintrust";
 import { Stagehand } from "@/dist";
 import { ConstructorParams } from "@/dist";
@@ -13,6 +14,7 @@ export type StagehandInitResult = {
   sessionUrl: string;
   stagehandConfig: ConstructorParams;
   modelName: AvailableModel;
+  agent: AgentInstance;
 };
 
 export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{

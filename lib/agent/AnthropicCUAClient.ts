@@ -14,6 +14,7 @@ import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";
+import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -849,55 +850,7 @@ export class AnthropicCUAClient extends AgentClient {
           };
         } else if (action === "key") {
           const text = input.text as string;
-          // Convert common key names to a format our handler can understand
-          let mappedKey = text;
-
-          if (
-            text === "Return" ||
-            text === "return" ||
-            text === "Enter" ||
-            text === "enter"
-          ) {
-            mappedKey = "Enter";
-          } else if (text === "Tab" || text === "tab") {
-            mappedKey = "Tab";
-          } else if (
-            text === "Escape" ||
-            text === "escape" ||
-            text === "Esc" ||
-            text === "esc"
-          ) {
-            mappedKey = "Escape";
-          } else if (text === "Backspace" || text === "backspace") {
-            mappedKey = "Backspace";
-          } else if (
-            text === "Delete" ||
-            text === "delete" ||
-            text === "Del" ||
-            text === "del"
-          ) {
-            mappedKey = "Delete";
-          } else if (text === "ArrowUp" || text === "Up" || text === "up") {
-            mappedKey = "ArrowUp";
-          } else if (
-            text === "ArrowDown" ||
-            text === "Down" ||
-            text === "down"
-          ) {
-            mappedKey = "ArrowDown";
-          } else if (
-            text === "ArrowLeft" ||
-            text === "Left" ||
-            text === "left"
-          ) {
-            mappedKey = "ArrowLeft";
-          } else if (
-            text === "ArrowRight" ||
-            text === "Right" ||
-            text === "right"
-          ) {
-            mappedKey = "ArrowRight";
-          }
+          const mappedKey = mapKeyToPlaywright(text);
 
           return {
             type: "key",

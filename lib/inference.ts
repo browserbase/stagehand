@@ -69,6 +69,7 @@ export async function extract({
   type MetadataResponse = z.infer<typeof metadataSchema>;
 
   const isUsingAnthropic = llmClient.type === "anthropic";
+  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
   const extractCallMessages: ChatMessage[] = [
     buildExtractSystemPrompt(isUsingAnthropic, userProvidedInstructions),
@@ -100,7 +101,7 @@ export async function extract({
           schema,
           name: "Extraction",
         },
-        temperature: 0.1,
+        temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -167,7 +168,7 @@ export async function extract({
           name: "Metadata",
           schema: metadataSchema,
         },
-        temperature: 0.1,
+        temperature: isGPT5 ? 1 : 0.1,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
@@ -254,6 +255,8 @@ export async function observe({
   logInferenceToFile?: boolean;
   fromAct?: boolean;
 }) {
+  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
+
   const observeSchema = z.object({
     elements: z
       .array(
@@ -321,7 +324,7 @@ export async function observe({
         schema: observeSchema,
         name: "Observation",
       },
-      temperature: 0.1,
+      temperature: isGPT5 ? 1 : 0.1,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,

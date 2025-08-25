@@ -12,6 +12,7 @@ import { StagehandPage } from "../StagehandPage";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
 import { StagehandAgent } from "../agent/StagehandAgent";
+import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
@@ -265,32 +266,8 @@ export class StagehandAgentHandler {
           const { keys } = action;
           if (Array.isArray(keys)) {
             for (const key of keys) {
-              // Handle special keys
-              if (key.includes("ENTER")) {
-                await this.page.keyboard.press("Enter");
-              } else if (key.includes("SPACE")) {
-                await this.page.keyboard.press(" ");
-              } else if (key.includes("TAB")) {
-                await this.page.keyboard.press("Tab");
-              } else if (key.includes("ESCAPE") || key.includes("ESC")) {
-                await this.page.keyboard.press("Escape");
-              } else if (key.includes("BACKSPACE")) {
-                await this.page.keyboard.press("Backspace");
-              } else if (key.includes("DELETE")) {
-                await this.page.keyboard.press("Delete");
-              } else if (key.includes("ARROW_UP")) {
-                await this.page.keyboard.press("ArrowUp");
-              } else if (key.includes("ARROW_DOWN")) {
-                await this.page.keyboard.press("ArrowDown");
-              } else if (key.includes("ARROW_LEFT")) {
-                await this.page.keyboard.press("ArrowLeft");
-              } else if (key.includes("ARROW_RIGHT")) {
-                await this.page.keyboard.press("ArrowRight");
-              } else {
-                // For other keys, use the existing conversion
-                const playwrightKey = this.convertKeyName(key);
-                await this.page.keyboard.press(playwrightKey);
-              }
+              const mappedKey = mapKeyToPlaywright(key);
+              await this.page.keyboard.press(mappedKey);
             }
           }
           return { success: true };
@@ -383,18 +360,8 @@ export class StagehandAgentHandler {
         case "key": {
           // Handle the 'key' action type from Anthropic
           const { text } = action;
-          if (text === "Return" || text === "Enter") {
-            await this.page.keyboard.press("Enter");
-          } else if (text === "Tab") {
-            await this.page.keyboard.press("Tab");
-          } else if (text === "Escape" || text === "Esc") {
-            await this.page.keyboard.press("Escape");
-          } else if (text === "Backspace") {
-            await this.page.keyboard.press("Backspace");
-          } else {
-            // For other keys, try to press directly
-            await this.page.keyboard.press(text as string);
-          }
+          const playwrightKey = mapKeyToPlaywright(text as string);
+          await this.page.keyboard.press(playwrightKey);
           return { success: true };
         }
 
@@ -614,43 +581,6 @@ export class StagehandAgentHandler {
       // Silently fail if animation fails
       // This is not critical functionality
     }
-  }
-
-  private convertKeyName(key: string): string {
-    // Map of CUA key names to Playwright key names
-    const keyMap: Record<string, string> = {
-      ENTER: "Enter",
-      ESCAPE: "Escape",
-      BACKSPACE: "Backspace",
-      TAB: "Tab",
-      SPACE: " ",
-      ARROWUP: "ArrowUp",
-      ARROWDOWN: "ArrowDown",
-      ARROWLEFT: "ArrowLeft",
-      ARROWRIGHT: "ArrowRight",
-      UP: "ArrowUp",
-      DOWN: "ArrowDown",
-      LEFT: "ArrowLeft",
-      RIGHT: "ArrowRight",
-      SHIFT: "Shift",
-      CONTROL: "Control",
-      ALT: "Alt",
-      META: "Meta",
-      COMMAND: "Meta",
-      CMD: "Meta",
-      CTRL: "Control",
-      DELETE: "Delete",
-      HOME: "Home",
-      END: "End",
-      PAGEUP: "PageUp",
-      PAGEDOWN: "PageDown",
-    };
-
-    // Convert to uppercase for case-insensitive matching
-    const upperKey = key.toUpperCase();
-
-    // Return the mapped key or the original key if not found
-    return keyMap[upperKey] || key;
   }
 
   private get page() {

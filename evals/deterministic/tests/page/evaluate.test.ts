@@ -9,7 +9,9 @@ test.describe("StagehandPage - JavaScript Evaluation", () => {
 
     const page = stagehand.page;
 
-    await page.goto("https://example.com");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/example",
+    );
 
     const sum = await page.evaluate(() => 2 + 2);
     expect(sum).toBe(4);
