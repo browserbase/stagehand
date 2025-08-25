@@ -17,7 +17,8 @@ export const all_recipes: EvalFunction = async ({
       maxSteps: 30,
     });
 
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question: "Did the agent find a recipe for Beef Wellington",
     });
 

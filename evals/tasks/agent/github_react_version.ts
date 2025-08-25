@@ -15,7 +15,8 @@ export const github_react_version: EvalFunction = async ({
         "Check the latest release version of React and the date it was published. ",
       maxSteps: 20,
     });
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Does the page show the latest version of react and the date it was published",
     });

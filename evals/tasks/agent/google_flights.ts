@@ -19,7 +19,8 @@ export const google_flights: EvalFunction = async ({
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluateScreenshot({
+    const result = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Does the page show flights (options, available flights, not a search form) from San Francisco to New York?",
     });

@@ -20,7 +20,8 @@ export const iframe_form_multiple: EvalFunction = async ({
 
     await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
-    const results = await evaluator.batchEvaluateScreenshot({
+    const results = await evaluator.batchEvaluate({
+      type: "screenshot",
       questions: [
         "Is the form name input filled with 'John Smith'?",
         "Is the form email input filled with 'john.smith@example.com'?",

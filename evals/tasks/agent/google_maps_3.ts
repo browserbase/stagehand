@@ -16,7 +16,8 @@ export const google_maps_3: EvalFunction = async ({
       maxSteps: 35,
     });
 
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Does the page show a locksmiths open now but not open 24 hours in Texas City?",
     });

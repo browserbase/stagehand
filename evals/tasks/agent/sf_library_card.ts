@@ -20,7 +20,8 @@ export const sf_library_card: EvalFunction = async ({
 
     await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluateScreenshot({
+    const result = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Does the page show the 'Residential Address' field filled with '166 Geary St'?",
     });

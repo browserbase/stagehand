@@ -17,7 +17,8 @@ export const github: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
     });

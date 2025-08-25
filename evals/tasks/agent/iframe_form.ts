@@ -19,7 +19,8 @@ export const iframe_form: EvalFunction = async ({
 
     await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluateScreenshot({
+    const result = await evaluator.evaluate({
+      type: "screenshot",
       question: "Is the form name input filled with 'John Smith'?",
     });
 
@@ -40,7 +41,8 @@ export const iframe_form: EvalFunction = async ({
     logger.log(agentResult2);
 
     await stagehand.page.mouse.wheel(0, -1000);
-    const result2 = await evaluator.evaluateScreenshot({
+    const result2 = await evaluator.evaluate({
+      type: "screenshot",
       question: "Is the form email input filled with 'john.smith@example.com'?",
     });
 

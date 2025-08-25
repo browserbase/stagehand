@@ -19,7 +19,8 @@ export const hotel_booking: EvalFunction = async ({
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Does the page show a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025?",
     });

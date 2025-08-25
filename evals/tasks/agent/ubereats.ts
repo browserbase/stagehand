@@ -18,7 +18,8 @@ export const ubereats: EvalFunction = async ({
       maxSteps: 35,
     });
 
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question: "Did the agent make it to the login page?",
     });
 

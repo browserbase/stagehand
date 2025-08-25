@@ -19,7 +19,8 @@ export const sf_library_card_multiple: EvalFunction = async ({
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluateScreenshot({
+    const result = await evaluator.evaluate({
+      type: "screenshot",
       question: "Does the page show all the required fields filled?",
     });
 

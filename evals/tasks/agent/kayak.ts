@@ -30,7 +30,8 @@ export const kayak: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-    const { evaluation, reasoning } = await evaluator.evaluateScreenshot({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "screenshot",
       question:
         "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
     });

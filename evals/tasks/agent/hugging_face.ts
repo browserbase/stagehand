@@ -17,7 +17,8 @@ export const hugging_face: EvalFunction = async ({
       maxSteps: 20,
     });
     console.log(`agentResult: ${agentResult.message}`);
-    const { evaluation, reasoning } = await evaluator.evaluateText({
+    const { evaluation, reasoning } = await evaluator.evaluate({
+      type: "text",
       actualText: agentResult.message || "",
       expectedText: "kokoro-82m or hexgrad/Kokoro-82M",
     });
