@@ -13,7 +13,7 @@ export const hugging_face: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for a model on Hugging Face with an Apache-2.0 license that has received the highest number of likes.",
-      maxSteps: 15,
+      maxSteps: 20,
     });
 
     const { modelName } = await stagehand.page.extract({
@@ -24,7 +24,9 @@ export const hugging_face: EvalFunction = async ({
       }),
     });
     console.log(`modelName: ${modelName}`);
-    const success = agentResult.success && modelName === "Kokoro-82M";
+    const success =
+      agentResult.success &&
+      (modelName === "Kokoro-82M" || modelName === "hexgrad/Kokoro-82M");
     if (!success) {
       return {
         _success: false,

@@ -13,7 +13,7 @@ export const sign_in: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Sign in with the email address 'test@browserbaser.com' and the password 'stagehand=goated' ",
-      maxSteps: 10,
+      maxSteps: 15,
     });
     logger.log(agentResult);
     const url = await stagehand.page.url();

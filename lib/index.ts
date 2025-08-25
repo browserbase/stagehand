@@ -580,6 +580,7 @@ export class Stagehand {
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.usingAPI = useAPI;
 
     let modelApiKey: string | undefined;
 
@@ -643,7 +644,7 @@ export class Stagehand {
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
-    this.usingAPI = useAPI;
+
     if (this.usingAPI && env === "LOCAL") {
       // Make env supersede useAPI
       this.usingAPI = false;
