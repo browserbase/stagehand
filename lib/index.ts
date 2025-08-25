@@ -31,8 +31,8 @@ import { ClientOptions } from "../types/model";
 import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 import { ApiResponse, ErrorResponse } from "@/types/api";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
-import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandAgentHandler as StagehandAISDKAgentHandler } from "./handlers/stagehandAgentHandler";
+import { cuaAgentHandler } from "./handlers/cuaAgentHandler";
+import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 
 import {
@@ -916,7 +916,7 @@ export class Stagehand {
       // use AI SDK-based agent handler
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          return new StagehandAISDKAgentHandler(
+          return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
@@ -925,7 +925,7 @@ export class Stagehand {
       };
     }
 
-    const agentHandler = new StagehandAgentHandler(
+    const agentHandler = new cuaAgentHandler(
       this,
       this.stagehandPage,
       this.logger,
