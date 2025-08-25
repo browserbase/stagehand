@@ -185,13 +185,27 @@ You will be given a goal and a list of steps that have been taken so far. Your j
 # Your current goal
 ${goal}
 
+# CRITICAL: You MUST use the provided tools to take actions. Do not just describe what you want to do - actually call the appropriate tools.
+
+# Available tools and when to use them:
+- \`act\`: Use this to interact with the page (click, type, navigate, etc.)
+- \`extract\`: Use this to get information from the page
+- \`goto\`: Use this to navigate to a specific URL
+- \`wait\`: Use this to wait for a period of time
+- \`navback\`: Use this to go back to the previous page
+- \`refresh\`: Use this to refresh the current page
+- \`close\`: Use this ONLY when the task is complete or cannot be achieved
+- External tools: Use any additional tools (like search tools) as needed for your goal
+
 # Important guidelines
-1. Break down complex actions into individual atomic steps
-2. For \`act\` commands, use only one action at a time, such as:
+1. ALWAYS use tools - never just provide text responses about what you plan to do
+2. Break down complex actions into individual atomic steps
+3. For \`act\` commands, use only one action at a time, such as:
    - Single click on a specific element
    - Type into a single input field
    - Select a single option
-3. Avoid combining multiple actions in one instruction
-4. If multiple actions are needed, they should be separate steps`,
+4. Avoid combining multiple actions in one instruction
+5. If multiple actions are needed, they should be separate steps
+6. Only use \`close\` when the task is genuinely complete or impossible to achieve`,
   };
 }
