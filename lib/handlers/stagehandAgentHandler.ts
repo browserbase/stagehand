@@ -4,7 +4,6 @@ import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
-import { AISdkClient } from "../llm/aisdk";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 
@@ -56,14 +55,21 @@ export class StagehandAgentHandler {
           "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
         );
       }
-
-      // Get a real AI SDK LanguageModel from the AISdkClient
-      if (!(this.llmClient instanceof AISdkClient)) {
+      //sus evals fix
+      // Accept any AISDK-backed client by type and presence of getLanguageModel (avoid cross-module instanceof issues)
+      if (
+        this.llmClient?.type !== "aisdk" ||
+        typeof (
+          this.llmClient as unknown as { getLanguageModel: () => unknown }
+        ).getLanguageModel !== "function"
+      ) {
         throw new Error(
-          "StagehandAgentHandler requires an AISdk-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' or another AISDK provider.",
+          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' or another AISDK provider.",
         );
       }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const baseModel: LanguageModel = (
+        this.llmClient as unknown as { getLanguageModel: () => LanguageModel }
+      ).getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
@@ -74,14 +80,13 @@ export class StagehandAgentHandler {
         },
       });
 
-      // Execute with generateText using the wrapped model
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         system: systemPrompt,
         messages,
         tools,
         maxSteps,
-        temperature: 0.7,
+        temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
           this.logger({
@@ -90,12 +95,13 @@ export class StagehandAgentHandler {
             level: 2,
           });
 
-          // Track tool calls as actions
           if (event.toolCalls && event.toolCalls.length > 0) {
             for (const toolCall of event.toolCalls) {
-              // Get the actual args based on the tool name
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const args = toolCall.args as any;
+              const args = toolCall.args as {
+                reasoning?: string;
+                parameters?: string;
+                taskComplete?: boolean;
+              };
 
               if (toolCall.toolName === "close") {
                 completed = true;
@@ -116,7 +122,6 @@ export class StagehandAgentHandler {
         },
       });
 
-      // Use the text from the result if no final message was set
       if (!finalMessage && result.text) {
         finalMessage = result.text;
       }
@@ -164,12 +169,13 @@ IMPORTANT GUIDELINES:
 2. Use the screenshot tool to verify page state when needed
 3. Use appropriate tools for each action
 4. When the task is complete, use the "close" tool with taskComplete: true
-5. If the task cannot be completed, use "close" with taskComplete: false
+5. If the task cannot be completed, use "close" with taskComplete: fals
 
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
 - ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
-- act: Perform a specific atomic action (click, type, etc.)
+- click: Click on an element on the page based on visual description
+- type: Type text into an input field on the page based on visual description
 - extract: Extract structured data
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
