@@ -13,7 +13,6 @@ export const createAriaTreeTool = (page: Page) =>
 
       return {
         content: page_text,
-        timestamp: Date.now(),
         pageUrl,
       };
     },
