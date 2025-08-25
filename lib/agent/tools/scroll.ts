@@ -6,10 +6,11 @@ export const createScrollTool = (page: Page) =>
   tool({
     description: "Scroll the page",
     parameters: z.object({
-      pixels: z.number().describe("Number of pixels to scroll"),
+      pixels: z.number().describe("Number of pixels to scroll up or down"),
+      direction: z.enum(["up", "down"]).describe("Direction to scroll"),
     }),
-    execute: async ({ pixels }) => {
-      await page.mouse.wheel(0, pixels);
+    execute: async ({ pixels, direction }) => {
+      await page.mouse.wheel(0, direction === "up" ? -pixels : pixels);
       return { success: true, pixels };
     },
   });

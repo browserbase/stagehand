@@ -172,7 +172,7 @@ IMPORTANT GUIDELINES:
 2. Use the screenshot tool to verify page state when needed
 3. Use appropriate tools for each action
 4. When the task is complete, use the "close" tool with taskComplete: true
-5. If the task cannot be completed, use "close" with taskComplete: fals
+5. If the task cannot be completed, use "close" with taskComplete: false
 
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
@@ -181,6 +181,7 @@ TOOLS OVERVIEW:
 - extract: Extract structured data
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
+- scroll: Scroll the page x pixels up or down
 
 STRATEGY:
 - Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
