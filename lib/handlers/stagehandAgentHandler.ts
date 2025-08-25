@@ -7,6 +7,13 @@ import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 
+function isAISDKBacked(client: LLMClient): client is LLMClient & {
+  type: "aisdk";
+  getLanguageModel: () => LanguageModel;
+} {
+  return client?.type === "aisdk" && "getLanguageModel" in client;
+}
+
 export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
   private logger: (message: LogLine) => void;
@@ -55,21 +62,13 @@ export class StagehandAgentHandler {
           "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
         );
       }
-      //sus evals fix
-      // Accept any AISDK-backed client by type and presence of getLanguageModel (avoid cross-module instanceof issues)
-      if (
-        this.llmClient?.type !== "aisdk" ||
-        typeof (
-          this.llmClient as unknown as { getLanguageModel: () => unknown }
-        ).getLanguageModel !== "function"
-      ) {
+
+      if (!isAISDKBacked(this.llmClient)) {
         throw new Error(
           "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' or another AISDK provider.",
         );
       }
-      const baseModel: LanguageModel = (
-        this.llmClient as unknown as { getLanguageModel: () => LanguageModel }
-      ).getLanguageModel();
+      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {

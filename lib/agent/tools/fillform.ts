@@ -2,13 +2,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import { ObserveResult } from "@/dist";
 import { Page } from "@/types/page";
-/**
- * New high-throughput form-filling tool.
- * It accepts multiple (action, value) pairs, observes the page for each in parallel,
- * then performs the corresponding fill actions sequentially.
- * This collapses many actWithType calls into a single tool invocation and
- * avoids sequential observe latency.
- */
 
 export const createFillFormTool = (page: Page) => {
   return tool({
