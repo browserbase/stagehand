@@ -8,6 +8,7 @@ import { createNavBackTool } from "./navback";
 import { createRefreshTool } from "./refresh";
 import { createCloseTool } from "./close";
 import { createAriaTreeTool } from "./ariaTree";
+import { createFillFormTool } from "./fillform";
 
 export function createAgentTools(page: Page) {
   return {
@@ -20,6 +21,7 @@ export function createAgentTools(page: Page) {
     navback: createNavBackTool(page),
     refresh: createRefreshTool(page),
     close: createCloseTool(),
+    fillForm: createFillFormTool(page),
   } as const;
 }
 
