@@ -7,7 +7,7 @@ export const createFillFormTool = (page: Page) => {
   return tool({
     description: `📝 FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
-    ⚠️ CRITICAL: Use this for ANY form with 2+ input fields (text inputs, textareas, etc.)
+     CRITICAL: Use this for ANY form with 2+ input fields (text inputs, textareas, etc.)
 
     WHY THIS TOOL EXISTS:
     • Forms are the #1 use case for multi-field input
@@ -16,15 +16,15 @@ export const createFillFormTool = (page: Page) => {
     • 4-6x faster than individual typing actions
 
     WHEN TO USE fillForm vs actionChain:
-    ✅ Use fillForm: Pure form filling (inputs, textareas only)
-    ✅ Use actionChain: Forms + buttons/clicks (fill fields + click submit)
+    Use fillForm: Pure form filling (inputs, textareas only)
+    Use actionChain: Forms + buttons/clicks (fill fields + click submit)
 
     MANDATORY USE CASES (always use fillForm for these):
-    ✅ Registration forms: name, email, password fields
-    ✅ Contact forms: name, email, message fields  
-    ✅ Checkout forms: address, payment info fields
-    ✅ Profile updates: multiple user data fields
-    ✅ Search filters: multiple criteria inputs
+    Registration forms: name, email, password fields
+    Contact forms: name, email, message fields  
+    Checkout forms: address, payment info fields
+    Profile updates: multiple user data fields
+    Search filters: multiple criteria inputs
 
     DECISION RULE: If you see 2+ input fields to fill, use fillForm first, then actionChain for any buttons.
 
