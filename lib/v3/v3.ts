@@ -18,6 +18,7 @@ import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3Context } from "@/lib/v3/understudy/context";
+import { Page } from "./understudy/page";
 
 /**
  * V3
@@ -82,16 +83,22 @@ export class V3 {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
 
-    const frameId = params.page
-      ? await this.resolveTopFrameId(params.page)
-      : undefined;
+    let page: Page | undefined;
 
-    const page = frameId
-      ? this.ctx.resolvePageByMainFrameId(frameId)
-      : undefined;
+    if (params.page) {
+      if (params.page instanceof (await import("./understudy/page")).Page) {
+        // Already a V3 Page
+        page = params.page;
+      } else {
+        // Playwright / Puppeteer path: resolve → frameId → V3 Page
+        const frameId = await this.resolveTopFrameId(params.page);
+        page = this.ctx.resolvePageByMainFrameId(frameId);
+      }
+    }
+
     const handlerParams: ActHandlerParams = {
       instruction: params.instruction,
-      page,
+      page: page!,
     };
     return this.actHandler.act(handlerParams);
   }
