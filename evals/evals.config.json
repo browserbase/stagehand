@@ -501,6 +501,14 @@
     }
     ,
     {
+      "name": "agent/webarena_gaia",
+      "categories": ["agent"]
+    },
+    {
+      "name": "agent/webvoyager",
+      "categories": ["agent"]
+    },
+    {
       "name": "agent/nba_trades",
       "categories": ["agent"]
     },
