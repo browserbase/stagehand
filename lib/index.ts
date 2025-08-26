@@ -458,8 +458,21 @@ export class Stagehand {
     totalInferenceTimeMs: 0,
   };
 
-  public get metrics(): StagehandMetrics {
-    return this.stagehandMetrics;
+  public get metrics(): Promise<StagehandMetrics> {
+    if (this.usingAPI && this.apiClient) {
+      // Fetch metrics from the API
+      return this.apiClient.getReplayMetrics().catch((error) => {
+        this.logger({
+          category: "metrics",
+          message: `Failed to fetch metrics from API: ${error}`,
+          level: 0,
+        });
+        // Fall back to local metrics on error
+        return this.stagehandMetrics;
+      });
+    }
+    // Return local metrics wrapped in a Promise for consistency
+    return Promise.resolve(this.stagehandMetrics);
   }
 
   public get isClosed(): boolean {
