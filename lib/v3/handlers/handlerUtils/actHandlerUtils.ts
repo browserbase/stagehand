@@ -2,6 +2,8 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
+import { deepLocatorThroughIframes } from "../../understudy/deepLocator";
+import type { Page } from "../../understudy/page";
 import { LogLine } from "@/types/log";
 import { StagehandClickError } from "@/types/stagehandErrors";
 
@@ -26,6 +28,7 @@ export interface UnderstudyMethodHandlerContext {
 }
 
 export async function performUnderstudyMethod(
+  page: Page,
   frame: Frame,
   method: string,
   rawXPath: string,
@@ -33,8 +36,14 @@ export async function performUnderstudyMethod(
   logger: LoggerFn,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
-  const xpath = rawXPath.replace(/^xpath=/i, "").trim();
-  const locator = frame.locator(`xpath=${xpath}`);
+  const selectorRaw = rawXPath.trim();
+  const isXPath =
+    selectorRaw.startsWith("xpath=") || selectorRaw.startsWith("/");
+
+  // Use iframe-aware resolver for XPath; plain Locator for other engines
+  const locator = isXPath
+    ? await deepLocatorThroughIframes(page, frame, selectorRaw)
+    : frame.locator(selectorRaw);
 
   const initialUrl = await getFrameUrl(frame);
 
@@ -43,7 +52,7 @@ export async function performUnderstudyMethod(
     message: "performing understudy method",
     level: 2,
     auxiliary: {
-      xpath: { value: xpath, type: "string" },
+      xpath: { value: selectorRaw, type: "string" },
       method: { value: method, type: "string" },
       url: { value: initialUrl, type: "string" },
     },
@@ -52,7 +61,7 @@ export async function performUnderstudyMethod(
   const ctx: UnderstudyMethodHandlerContext = {
     method,
     locator,
-    xpath,
+    xpath: selectorRaw,
     args: args.map((a) => (a == null ? "" : String(a))),
     logger,
     frame,
@@ -91,7 +100,13 @@ export async function performUnderstudyMethod(
     }
 
     await waitForSettledDom(frame, domSettleTimeoutMs);
-    await handlePossibleNavigation("action", xpath, initialUrl, frame, logger);
+    await handlePossibleNavigation(
+      "action",
+      selectorRaw,
+      initialUrl,
+      frame,
+      logger,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -103,7 +118,7 @@ export async function performUnderstudyMethod(
         error: { value: msg, type: "string" },
         trace: { value: stack ?? "", type: "string" },
         method: { value: method, type: "string" },
-        xpath: { value: xpath, type: "string" },
+        xpath: { value: selectorRaw, type: "string" },
         args: { value: JSON.stringify(args), type: "object" },
       },
     });
@@ -139,8 +154,11 @@ async function scrollIntoView(
     level: 2,
     auxiliary: { xpath: { value: xpath, type: "string" } },
   });
-  const { nodeId } = await locator.resolveNode(); // private; expose via a safe helper if you prefer
-  await frame.session.send("DOM.scrollIntoViewIfNeeded", { nodeId });
+  const { objectId } = await locator.resolveNode();
+  await frame.session.send("DOM.scrollIntoViewIfNeeded", { objectId });
+  await frame.session
+    .send("Runtime.releaseObject", { objectId })
+    .catch(() => {});
 }
 
 async function scrollElementToPercentage(
@@ -191,7 +209,9 @@ async function scrollElementToPercentage(
       },
     );
   } finally {
-    await frame.session.send("Runtime.releaseObject", { objectId });
+    await frame.session
+      .send("Runtime.releaseObject", { objectId })
+      .catch(() => {});
   }
 }
 
@@ -285,7 +305,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function clickElement(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, logger } = ctx;
+  const { locator, logger, xpath } = ctx;
   try {
     await locator.click();
   } catch (e) {
@@ -294,7 +314,10 @@ async function clickElement(
       category: "action",
       message: "error performing click",
       level: 0,
-      auxiliary: { error: { value: msg, type: "string" } },
+      auxiliary: {
+        error: { value: msg, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
     });
     throw new StagehandClickError(ctx.xpath, msg);
   }
@@ -362,7 +385,9 @@ async function scrollByElementHeight(
       },
     );
   } finally {
-    await frame.session.send("Runtime.releaseObject", { objectId });
+    await frame.session
+      .send("Runtime.releaseObject", { objectId })
+      .catch(() => {});
   }
 }
 

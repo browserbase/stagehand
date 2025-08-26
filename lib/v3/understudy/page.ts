@@ -43,6 +43,9 @@ export class Page {
   private frameOrdinals = new Map<string, number>(); // raw frameId -> ordinal
   private nextOrdinal = 0;
 
+  private sessionByFrame = new Map<string, CDPSessionLike>(); // filled by adoptOopifSession & root setup
+  private pageId: string;
+
   /**
    * Construct a Page bound to a top-level target’s main session.
    * @param mainSession CDP session for the top-level target.
@@ -138,6 +141,7 @@ export class Page {
     childMainFrameId: string,
   ): void {
     console.log("attempting to adoptOopifSession");
+    this.sessionByFrame.set(childMainFrameId, childSession);
     this.sessions.set(childSession.id!, childSession);
     this.childSessionMainFrame.set(childSession.id!, childMainFrameId);
 
@@ -320,6 +324,15 @@ export class Page {
         this.frameOrdinals.set(newRoot, oldOrd);
       }
     }
+  }
+
+  sessionForFrameId(frameId: string): CDPSessionLike {
+    return this.sessionByFrame.get(frameId) ?? this.mainSession;
+  }
+
+  frameForId(frameId: string): Frame {
+    const sess = this.sessionForFrameId(frameId);
+    return new Frame(sess, frameId, this.pageId);
   }
 
   private ensureOrdinal(frameId: string): number {
