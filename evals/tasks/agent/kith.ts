@@ -20,8 +20,7 @@ export const kith: EvalFunction = async ({
       maxSteps: 25,
     });
 
-    const { evaluation, reasoning } = await evaluator.evaluate({
-      type: "screenshot",
+    const { evaluation, reasoning } = await evaluator.ask({
       question: "Did the agent fill the delivery information",
     });
 
@@ -34,8 +33,7 @@ export const kith: EvalFunction = async ({
       });
 
       const { evaluation: evaluation2, reasoning: reasoning2 } =
-        await evaluator.evaluate({
-          type: "screenshot",
+        await evaluator.ask({
           question: "Did the agent fill the payment information",
         });
 

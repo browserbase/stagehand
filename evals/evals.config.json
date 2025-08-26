@@ -515,10 +515,6 @@
     {
       "name": "agent/all_recipes",
       "categories": ["agent"]
-    },
-    {
-      "name": "agent/google_shopping",
-      "categories": ["agent"]
     }
   ]
 }

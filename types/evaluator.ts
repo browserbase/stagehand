@@ -11,25 +11,19 @@ export type EvaluateOptions = {
   screenshotDelayMs?: number;
 };
 
-export type BatchEvaluateOptions =
-  | {
-      type: "screenshot";
-      /** Array of questions to evaluate */
-      questions: string[];
-      /** Custom system prompt for the evaluator */
-      systemPrompt?: string;
-      /** Delay in milliseconds before taking the screenshot @default 1000 */
-      screenshotDelayMs?: number;
-    }
-  | {
-      type: "text";
-      /** The actual text/message to evaluate */
-      actualText: string;
-      /** Array of expected texts or patterns to check against */
-      expectedTexts: string[];
-      /** Custom system prompt for the evaluator */
-      systemPrompt?: string;
-    };
+export type BatchAskOptions = {
+  /** Array of questions with optional answers */
+  questions: Array<{
+    question: string;
+    answer?: string;
+  }>;
+  /** Whether to take a screenshot of the task state */
+  screenshot?: boolean;
+  /** Custom system prompt for the evaluator */
+  systemPrompt?: string;
+  /** Delay in milliseconds before taking the screenshot @default 1000 */
+  screenshotDelayMs?: number;
+};
 
 /**
  * Result of an evaluation

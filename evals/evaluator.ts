@@ -13,7 +13,7 @@ import {
 import dotenv from "dotenv";
 import {
   EvaluateOptions,
-  BatchEvaluateOptions,
+  BatchAskOptions,
   EvaluationResult,
 } from "@/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
@@ -54,7 +54,7 @@ export class Evaluator {
       answer,
       screenshot = true,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
-          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
           Today's date is ${new Date().toLocaleDateString()}`,
       screenshotDelayMs = 250,
     } = options;
@@ -130,115 +130,65 @@ export class Evaluator {
   }
 
   /**
-   * Evaluates the current state of the page against multiple questions in a single screenshot.
-   * Uses structured response generation to ensure proper format.
+   * Evaluates multiple questions with optional answers and/or screenshot.
+   * Similar to ask() but processes multiple questions in a single call.
    * Returns an array of evaluation results.
    *
-   * @param options - The options for batch screenshot evaluation
+   * @param options - The options for batch evaluation
    * @returns A promise that resolves to an array of EvaluationResults
    */
-  async batchEvaluate(
-    options: BatchEvaluateOptions,
-  ): Promise<EvaluationResult[]> {
-    if (options.type === "screenshot") {
-      const {
-        questions,
-        systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task in the screenshot. Provide a detailed reasoning for your answer.
-          Return your response as a JSON array, where each object corresponds to a question and has the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
-          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.
-          todays date is ${new Date().toLocaleDateString()}`,
-        screenshotDelayMs = 1000,
-      } = options;
+  async batchAsk(options: BatchAskOptions): Promise<EvaluationResult[]> {
+    const {
+      questions,
+      screenshot = true,
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
+           Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
+          Today's date is ${new Date().toLocaleDateString()}`,
+      screenshotDelayMs = 1000,
+    } = options;
 
-      // Wait for the specified delay before taking screenshot
-      await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
+    // Validate inputs
+    if (!questions || questions.length === 0) {
+      throw new Error("Questions array cannot be empty");
+    }
 
-      // Take a screenshot of the current page state
-      const imageBuffer = await this.stagehand.page.screenshot();
-
-      // Create a numbered list of questions for the VLM
-      const formattedQuestions = questions
-        .map((q, i) => `${i + 1}. ${q}`)
-        .join("\n");
-
-      // Get the LLM client with our preferred model
-      const llmClient = this.stagehand.llmProvider.getClient(
-        this.modelName,
-        this.modelClientOptions,
-      );
-
-      // Use the model-specific LLM client to evaluate the screenshot with all questions
-      const response = await llmClient.createChatCompletion<
-        LLMParsedResponse<LLMResponse>
-      >({
-        logger: this.silentLogger,
-        options: {
-          messages: [
-            {
-              role: "system",
-              content: `${systemPrompt}\n\nYou will be given multiple questions. Answer each question by returning an object in the specified JSON format. Return a single JSON array containing one object for each question in the order they were asked.`,
-            },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: formattedQuestions },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
-                  },
-                },
-              ],
-            },
-          ],
-          response_model: {
-            name: "BatchEvaluationResult",
-            schema: BatchEvaluationSchema,
-          },
-        },
-      });
-
-      try {
-        const results = response.data as unknown as z.infer<
-          typeof BatchEvaluationSchema
-        >;
-        return results.map((r) => ({
-          evaluation: r.evaluation,
-          reasoning: r.reasoning,
-        }));
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        return questions.map(() => ({
-          evaluation: "INVALID" as const,
-          reasoning: `Failed to get structured response: ${errorMessage}`,
-        }));
+    for (const item of questions) {
+      if (!item.question) {
+        throw new Error("Question cannot be an empty string");
+      }
+      if (!item.answer && !screenshot) {
+        throw new Error(
+          "Either answer (text) or screenshot must be provided for each question",
+        );
       }
     }
 
-    // Text batch branch
-    const {
-      actualText,
-      expectedTexts,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each expected text based on whether the actual text contains or matches it.
-          Return your response as a JSON array, where each object corresponds to an expected text and has the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
-          Be critical about matching - look for the key information, concepts, and meaning rather than exact wording.
-          todays date is ${new Date().toLocaleDateString()}`,
-    } = options;
+    // Wait for the specified delay before taking screenshot
+    await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
 
-    const formattedExpectations = expectedTexts
-      .map((text, i) => `${i + 1}. ${text}`)
-      .join("\n");
+    let imageBuffer: Buffer;
+    if (screenshot) {
+      imageBuffer = await this.stagehand.page.screenshot();
+    }
 
+    // Get the LLM client with our preferred model
     const llmClient = this.stagehand.llmProvider.getClient(
       this.modelName,
       this.modelClientOptions,
     );
 
-    const userPrompt = `For each expected text below, determine if the actual text contains roughly the same information or meaning.\n\nExpected texts:\n${formattedExpectations}\n\nActual text:\n${actualText}`;
+    // Format all questions with their optional answers
+    const formattedQuestions = questions
+      .map((item, i) => {
+        let text = `${i + 1}. ${item.question}`;
+        if (item.answer) {
+          text += `\n   Answer: ${item.answer}`;
+        }
+        return text;
+      })
+      .join("\n\n");
 
+    // Use the model-specific LLM client to evaluate
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
@@ -247,12 +197,27 @@ export class Evaluator {
         messages: [
           {
             role: "system",
-            content: `${systemPrompt}\n\nYou will be given multiple expected texts. For each one, determine if the actual text contains or matches it. Return a single JSON array containing one object for each expected text in the order they were given.`,
+            content: `${systemPrompt}\n\nYou will be given multiple questions${screenshot ? " with a screenshot" : ""}. ${questions.some((q) => q.answer) ? "Some questions include answers to evaluate." : ""} Answer each question by returning an object in the specified JSON format. Return a single JSON array containing one object for each question in the order they were asked.`,
           },
-          { role: "user", content: userPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: formattedQuestions },
+              ...(screenshot
+                ? [
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
         ],
         response_model: {
-          name: "BatchTextEvaluationResult",
+          name: "BatchEvaluationResult",
           schema: BatchEvaluationSchema,
         },
       },
@@ -269,7 +234,7 @@ export class Evaluator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      return expectedTexts.map(() => ({
+      return questions.map(() => ({
         evaluation: "INVALID" as const,
         reasoning: `Failed to get structured response: ${errorMessage}`,
       }));

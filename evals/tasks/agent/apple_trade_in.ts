@@ -1,6 +1,6 @@
 //this eval is expected to fail due to issues scrolling within the trade in dialog
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
+import { Evaluator } from "../../evaluator";
 
 export const apple_trade_in: EvalFunction = async ({
   debugUrl,
@@ -11,27 +11,26 @@ export const apple_trade_in: EvalFunction = async ({
 }) => {
   try {
     await stagehand.page.goto("https://www.apple.com/shop/trade-in");
+    const evaluator = new Evaluator(stagehand);
     const agentResult = await agent.execute({
       instruction:
         "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
       maxSteps: 30,
     });
 
-    const { tradeInValue } = await stagehand.page.extract({
-      modelName: "google/gemini-2.5-flash",
-      instruction:
-        "Extract the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website. it will be inside this text : Get x trade-in credit toward a new iPhone', provide just the number",
-      schema: z.object({
-        tradeInValue: z.number(),
-      }),
+    const { evaluation, reasoning } = await evaluator.ask({
+      question:
+        "Did the agent find the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website?",
+      screenshot: false,
+      answer: "360",
     });
 
-    const success = agentResult.success && tradeInValue === 360;
+    const success = agentResult.success && evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

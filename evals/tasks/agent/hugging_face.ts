@@ -17,10 +17,11 @@ export const hugging_face: EvalFunction = async ({
       maxSteps: 20,
     });
     console.log(`agentResult: ${agentResult.message}`);
-    const { evaluation, reasoning } = await evaluator.evaluate({
-      type: "text",
-      actualText: agentResult.message || "",
-      expectedText: "kokoro-82m or hexgrad/Kokoro-82M",
+    const { evaluation, reasoning } = await evaluator.ask({
+      question:
+        "Does the message mention 'kokoro-82m' or 'hexgrad/Kokoro-82M'?",
+      answer: agentResult.message || "",
+      screenshot: false,
     });
 
     const success = agentResult.success && evaluation === "YES";

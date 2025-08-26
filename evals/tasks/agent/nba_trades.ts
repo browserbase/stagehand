@@ -18,8 +18,7 @@ export const nba_trades: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.evaluate({
-      type: "screenshot",
+    const { evaluation, reasoning } = await evaluator.ask({
       question: "Did the agent make it to the nba transactions page?",
     });
 
