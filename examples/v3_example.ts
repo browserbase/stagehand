@@ -9,15 +9,17 @@ async function example(v3: V3) {
   const puppeteerPage = puppeteerPages[0];
 
   await puppeteerPage.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
   );
 
   // await v3.act({ instruction: "click the button", page: puppeteerPage });
 
+  await new Promise((resolve) => setTimeout(resolve, 5000));
   const observeResult = {
     method: "click",
     description: "nunya",
-    selector: "/html[1]/body[1]/button[1]",
+    selector:
+      "/html/body/div/iframe/html/body/main/section[1]/form/fieldset/label[2]/input",
     arguments: [""],
   };
 

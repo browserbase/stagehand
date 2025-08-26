@@ -133,6 +133,7 @@ export class ActHandler {
 
     // Execute via CDP
     await performUnderstudyMethod(
+      page as Page,
       (page as Page).mainFrame(),
       chosen.method,
       chosen.selector,
@@ -163,6 +164,7 @@ export class ActHandler {
     const args = Array.isArray(observe.arguments) ? observe.arguments : [];
 
     await performUnderstudyMethod(
+      page,
       page.mainFrame(),
       method,
       observe.selector,
