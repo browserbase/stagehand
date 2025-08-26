@@ -85,7 +85,8 @@ await page.act("Click the submit button");
 ```
 ```python Python
 # Remove heavy elements that slow down processing
-await page.evaluate("""() => {
+await page.evaluate("""
+() => {
   // Remove video elements
   document.querySelectorAll('video, iframe').forEach(el => el.remove());
   
@@ -93,7 +94,8 @@ await page.evaluate("""() => {
   document.querySelectorAll('[style*="animation"]').forEach(el => {
     el.style.animation = 'none';
   });
-}""")
+}
+""")
 
 # Then perform Stagehand operations
 await page.act("Click the submit button")
