@@ -12,13 +12,11 @@ import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
 import type { ObserveResult } from "@/types/stagehand";
 
-type LoggerFn = (line: LogLine) => void;
-
 export class ActHandler {
+  private readonly logger: (logLine: LogLine) => void;
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
-  private readonly logger: LoggerFn;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
 
@@ -26,14 +24,14 @@ export class ActHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
-    logger?: LoggerFn,
+    logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
-    this.logger = logger ?? (() => {});
+    this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
   }

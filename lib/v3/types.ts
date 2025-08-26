@@ -31,6 +31,7 @@ export interface V3Options {
   connectTimeoutMs?: number;
   logInferenceToFile?: boolean;
   experimental?: boolean;
+  verbose?: 0 | 1 | 2;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */

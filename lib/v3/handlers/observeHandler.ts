@@ -2,20 +2,18 @@
 import { ObserveHandlerParams } from "@/lib/v3/types";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { LLMClient } from "@/lib/llm/LLMClient";
-import { LogLine } from "@/types/log";
 import { observe as runObserve } from "@/lib/inference";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
 import { ObserveResult } from "@/types/stagehand";
-
-type LoggerFn = (line: LogLine) => void;
+import { LogLine } from "@/types/log";
 
 export class ObserveHandler {
+  private readonly logger: (logLine: LogLine) => void;
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
-  private readonly logger: LoggerFn;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
@@ -24,7 +22,7 @@ export class ObserveHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
-    logger?: LoggerFn,
+    logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -32,7 +30,7 @@ export class ObserveHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
-    this.logger = logger ?? (() => {});
+    this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;

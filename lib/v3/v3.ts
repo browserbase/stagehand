@@ -28,9 +28,28 @@ import dotenv from "dotenv";
 import { z } from "zod/v3";
 import { defaultExtractSchema } from "@/types/page";
 import { ObserveResult } from "@/types/stagehand";
+import { StagehandLogger } from "@/lib/logger";
+import { LogLine } from "@/types/log";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
+
+let globalLogger: StagehandLogger | null = null;
+
+function defaultLogger(
+  line: LogLine,
+  disablePino?: boolean,
+  verbose?: 0 | 1 | 2,
+): void {
+  if (!globalLogger) {
+    globalLogger = new StagehandLogger(
+      { pretty: true, usePino: !disablePino },
+      undefined,
+    );
+    if (verbose !== undefined) globalLogger.setVerbosity(verbose); // << sync
+  }
+  globalLogger.log(line);
+}
 
 /**
  * V3
@@ -61,12 +80,36 @@ export class V3 {
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
 
+  private stagehandLogger: StagehandLogger;
+  private externalLogger?: (logLine: LogLine) => void;
+  public verbose: 0 | 1 | 2 = 1;
+
   constructor(opts: V3Options) {
+    this.externalLogger =
+      (opts as { logger?: (l: LogLine) => void }).logger ??
+      ((l: LogLine) =>
+        defaultLogger(
+          l,
+          (opts as { disablePino?: boolean }).disablePino,
+          (opts as { verbose?: 0 | 1 | 2 }).verbose ?? 1,
+        ));
+
+    this.stagehandLogger = new StagehandLogger(
+      {
+        pretty: true,
+        usePino:
+          !(opts as { disablePino?: boolean }).disablePino &&
+          !(opts as { logger?: (l: LogLine) => void }).logger,
+      },
+      this.externalLogger,
+    );
+    this.verbose = (opts as { verbose?: 0 | 1 | 2 }).verbose ?? 1;
+    this.stagehandLogger.setVerbosity(this.verbose);
     this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(
-      console.log,
+      this.logger,
       opts.enableCaching ?? false,
     );
     if (opts.llmClient) {
@@ -78,7 +121,7 @@ export class V3 {
       if (!apiKey) {
         apiKey = loadApiKeyFromEnv(
           this.modelName.split("/")[0], // "openai", "anthropic", etc
-          console.log,
+          this.logger,
         );
       }
       this.modelClientOptions = { ...opts.modelClientOptions, apiKey };
@@ -101,12 +144,15 @@ export class V3 {
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
+      this.logger,
+      this.opts.systemPrompt ?? "",
+      this.logInferenceToFile,
     );
     this.extractHandler = new ExtractHandler(
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
-      (line) => console.log(line),
+      this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
@@ -115,7 +161,7 @@ export class V3 {
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
-      (line) => console.log(line),
+      this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
@@ -308,6 +354,13 @@ export class V3 {
       );
     }
     return { apiKey, projectId };
+  }
+
+  public get logger(): (logLine: LogLine) => void {
+    return (logLine: LogLine) => {
+      logLine.level = logLine.level ?? 1;
+      this.stagehandLogger.log(logLine);
+    };
   }
 
   /**
