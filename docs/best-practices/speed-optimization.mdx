@@ -116,8 +116,6 @@ await page.goto("https://heavy-spa.com", {
 # Simple actions - reduce action timeout
 await page.act("Click button", act_timeout=5000)
 
-# For observe results (cached actions) - even shorter timeout
-await page.act(cached_action, act_timeout=2000)
 
 # Complex page loads - optimize navigation
 await page.goto("https://heavy-spa.com", 
