@@ -133,7 +133,7 @@ jobs:
               repo: 'stagehand-python',
               title: issueTitle,
               body: issueBody,
-              labels: ['feature-parity']
+              labels: ['parity']
             });
 
             console.log(`Created issue: ${issue.html_url}`);
