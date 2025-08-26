@@ -294,11 +294,14 @@ ${scriptContent} \
         },
       };
     };
-  
+
     try {
       await selectors.register("stagehand", registerFn);
     } catch (err) {
-      if (err instanceof Error && err.message.match(/selector engine has been already registered/)) {
+      if (
+        err instanceof Error &&
+        err.message.match(/selector engine has been already registered/)
+      ) {
         // ignore
       } else {
         throw err;
