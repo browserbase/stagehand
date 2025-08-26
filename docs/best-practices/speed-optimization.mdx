@@ -48,10 +48,6 @@ form_fields = await page.observe("Find all form fields to fill")
 for field in form_fields:
     await page.act(field) # No LLM calls!
 
-# Or execute in parallel for independent fields
-await asyncio.gather(*[
-    page.act(field) for field in form_fields
-])
 ```
 </CodeGroup>
 
