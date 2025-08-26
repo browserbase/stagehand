@@ -28,10 +28,6 @@ for (const field of formFields) {
   await page.act(field); // No LLM calls!
 }
 
-// Or execute in parallel for independent fields
-await Promise.all(
-  formFields.map(field => page.act(field))
-);
 ```
 ```python Python
 import asyncio
