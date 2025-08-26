@@ -107,7 +107,7 @@ export class StagehandAgentHandler {
                 this.logger({
                   category: "agent",
                   message: `reasoning: ${event.text}`,
-                  level: 2,
+                  level: 1,
                 });
               }
 
