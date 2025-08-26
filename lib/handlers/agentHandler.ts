@@ -119,6 +119,18 @@ export class StagehandAgentHandler {
     // Update viewport and URL for any client type
     this.updateClientViewport();
     this.updateClientUrl();
+
+    // For CUA models, ensure the browser viewport is set to the expected size
+    if (this.isCUAModel(this.agentClient.modelName)) {
+      // Set browser viewport to match what CUA models expect
+      this.page.setViewportSize({ width: 1024, height: 768 }).catch((error) => {
+        this.logger({
+          category: "agent",
+          message: `Warning: Could not set viewport to 1024x768 for CUA model: ${error instanceof Error ? error.message : String(error)}`,
+          level: 1,
+        });
+      });
+    }
   }
 
   /**
@@ -387,10 +399,30 @@ export class StagehandAgentHandler {
   }
 
   private updateClientViewport(): void {
-    const viewportSize = this.page.viewportSize();
-    if (viewportSize) {
-      this.agentClient.setViewport(viewportSize.width, viewportSize.height);
+    const isCUAModel = this.isCUAModel(this.agentClient.modelName);
+
+    if (isCUAModel) {
+      // For CUA models, preserve the default viewport (1024x768) regardless of page viewport. CUA models are trained on this specific viewport size
+      this.agentClient.setViewport(1024, 768);
+    } else {
+      // For other models, use the actual page viewport
+      const viewportSize = this.page.viewportSize();
+      if (viewportSize) {
+        this.agentClient.setViewport(viewportSize.width, viewportSize.height);
+      }
     }
+  }
+
+  private isCUAModel(modelName: string): boolean {
+    // List of CUA models that require fixed viewport
+    const cuaModels = [
+      "computer-use-preview",
+      "computer-use-preview-2025-03-11",
+      "claude-3-7-sonnet-latest",
+      "claude-sonnet-4-20250514",
+    ];
+
+    return cuaModels.includes(modelName);
   }
 
   private updateClientUrl(): void {
