@@ -1,19 +1,11 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp"; // <- use our session interface
+import { Locator } from "./locator";
 
 interface FrameManager {
   session: CDPSessionLike;
   frameId: string;
   pageId: string;
-}
-
-// Optional stub to satisfy locator() return type
-class Locator {
-  constructor(
-    private frame: Frame,
-    private selector: string,
-    private options?: { deep?: boolean; depth?: number },
-  ) {}
 }
 
 export class Frame implements FrameManager {

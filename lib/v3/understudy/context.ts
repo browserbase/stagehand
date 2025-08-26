@@ -30,7 +30,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
  * - Keep mappings for lookups and debug stats (top-level mapping only in `mainFrameToTarget`).
  */
 export class V3Context {
-  private constructor(private readonly conn: CdpConnection) {}
+  private constructor(readonly conn: CdpConnection) {}
 
   private pagesByTarget = new Map<TargetId, Page>();
   private mainFrameToTarget = new Map<string, TargetId>();
@@ -44,10 +44,13 @@ export class V3Context {
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
    */
   static async create(wsUrl: string): Promise<V3Context> {
+    console.log("[ctx] create: connecting", wsUrl);
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
+    console.log("[ctx] create: enableAutoAttach done");
     const ctx = new V3Context(conn);
     await ctx.bootstrap();
+    console.log("[ctx] create: bootstrap done");
     return ctx;
   }
 
@@ -108,8 +111,13 @@ export class V3Context {
    * - Clean up on detach/destroy.
    */
   private async bootstrap(): Promise<void> {
+    console.log("[ctx] bootstrap: start");
     // Index existing targets (main + any pre-existing child targets)
     const targets = await this.conn.getTargets();
+    console.log(
+      "[ctx] bootstrap: existing targets =",
+      Array.isArray(targets) ? targets.length : "ERR",
+    );
     for (const t of targets) {
       try {
         const session = await this.conn.attachToTarget(t.targetId);
@@ -181,6 +189,11 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    console.log("[ctx] onAttachedToTarget:", {
+      type: info.type,
+      url: info.url,
+      sessionId,
+    });
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 

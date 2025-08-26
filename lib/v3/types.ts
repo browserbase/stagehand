@@ -1,6 +1,9 @@
 import { LaunchedChrome } from "chrome-launcher";
 import Browserbase from "@browserbasehq/sdk";
 import { Page } from "./understudy/page";
+import { AvailableModel, ClientOptions } from "@/types/model";
+import { LLMClient } from "@/lib/llm/LLMClient";
+import { z } from "zod/v3";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -18,8 +21,16 @@ export interface V3Options {
   headless?: boolean;
   userDataDir?: string;
 
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  llmClient?: LLMClient; // allow user to pass their own
+  enableCaching?: boolean;
+  systemPrompt?: string;
+
   /** How long to wait for a CDP endpoint, in ms (default 15000) */
   connectTimeoutMs?: number;
+  logInferenceToFile?: boolean;
+  experimental?: boolean;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */
@@ -43,31 +54,60 @@ export type PuppeteerPage = import("puppeteer-core").Page;
 
 export type ActParams = {
   instruction: string;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  variables?: Record<string, string>;
+  domSettleTimeoutMs?: number;
+  timeoutMs?: number;
   page?: PlaywrightPage | PuppeteerPage | Page;
 };
 
 export interface ActHandlerParams {
   instruction: string;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  variables?: Record<string, string>;
+  domSettleTimeoutMs?: number;
+  timeoutMs?: number;
   page: Page;
 }
 
-export type ExtractParams = {
-  instruction: string;
-  page?: PlaywrightPage | PuppeteerPage;
-};
+export interface ExtractParams<T extends z.AnyZodObject> {
+  instruction?: string;
+  schema?: T;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  domSettleTimeoutMs?: number;
+  page?: PlaywrightPage | PuppeteerPage | Page;
+}
 
-export interface ExtractHandlerParams {
-  instruction: string;
+export interface ExtractHandlerParams<T extends z.AnyZodObject> {
+  instruction?: string;
+  schema?: T;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  domSettleTimeoutMs?: number;
   page: Page;
 }
 
 export type ObserveParams = {
-  instruction: string;
-  page?: PlaywrightPage | PuppeteerPage;
+  instruction?: string;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  domSettleTimeoutMs?: number;
+  returnAction?: boolean;
+  drawOverlay?: boolean;
+  page?: PlaywrightPage | PuppeteerPage | Page;
 };
 
 export interface ObserveHandlerParams {
-  instruction: string;
+  instruction?: string;
+  modelName?: AvailableModel;
+  modelClientOptions?: ClientOptions;
+  domSettleTimeoutMs?: number;
+  returnAction?: boolean;
+  drawOverlay?: boolean;
+  fromAct?: boolean;
   page: Page;
 }
 

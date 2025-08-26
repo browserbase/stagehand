@@ -19,6 +19,18 @@ import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3Context } from "@/lib/v3/understudy/context";
 import { Page } from "./understudy/page";
+import { LLMClient } from "@/lib/llm/LLMClient";
+import { AvailableModel } from "@/types/model";
+import { ClientOptions } from "../../types/model";
+import { LLMProvider } from "@/lib/llm/LLMProvider";
+import { loadApiKeyFromEnv } from "@/lib/utils";
+import dotenv from "dotenv";
+import { z } from "zod/v3";
+import { defaultExtractSchema } from "@/types/page";
+import { ObserveResult } from "@/types/stagehand";
+
+const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
+dotenv.config({ path: ".env" });
 
 /**
  * V3
@@ -42,8 +54,41 @@ export class V3 {
   private extractHandler: ExtractHandler | null = null;
   private observeHandler: ObserveHandler | null = null;
   private ctx: V3Context | null = null;
+  public llmClient!: LLMClient;
+  private modelName: AvailableModel;
+  private modelClientOptions: ClientOptions;
+  private llmProvider: LLMProvider;
+  public readonly experimental: boolean = false;
+  public readonly logInferenceToFile: boolean = false;
 
   constructor(opts: V3Options) {
+    this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
+    this.experimental = opts.experimental ?? false;
+    this.logInferenceToFile = opts.logInferenceToFile ?? false;
+    this.llmProvider = new LLMProvider(
+      console.log,
+      opts.enableCaching ?? false,
+    );
+    if (opts.llmClient) {
+      this.llmClient = opts.llmClient;
+      this.modelClientOptions = opts.modelClientOptions ?? {};
+    } else {
+      // Ensure API key is set
+      let apiKey = opts.modelClientOptions?.apiKey;
+      if (!apiKey) {
+        apiKey = loadApiKeyFromEnv(
+          this.modelName.split("/")[0], // "openai", "anthropic", etc
+          console.log,
+        );
+      }
+      this.modelClientOptions = { ...opts.modelClientOptions, apiKey };
+
+      // Get the default client for this model
+      this.llmClient = this.llmProvider.getClient(
+        this.modelName,
+        this.modelClientOptions,
+      );
+    }
     this.opts = opts;
   }
 
@@ -52,9 +97,29 @@ export class V3 {
    * and sets up a CDP context.
    */
   async init(): Promise<void> {
-    this.actHandler = new ActHandler();
-    this.extractHandler = new ExtractHandler();
-    this.observeHandler = new ObserveHandler();
+    this.actHandler = new ActHandler(
+      this.llmClient,
+      this.modelName,
+      this.modelClientOptions,
+    );
+    this.extractHandler = new ExtractHandler(
+      this.llmClient,
+      this.modelName,
+      this.modelClientOptions,
+      (line) => console.log(line),
+      this.opts.systemPrompt ?? "",
+      this.logInferenceToFile,
+      this.experimental,
+    );
+    this.observeHandler = new ObserveHandler(
+      this.llmClient,
+      this.modelName,
+      this.modelClientOptions,
+      (line) => console.log(line),
+      this.opts.systemPrompt ?? "",
+      this.logInferenceToFile,
+      this.experimental,
+    );
     if (this.opts.env === "LOCAL") {
       const { ws, chrome } = await this.initLocal();
       this.state = { kind: "LOCAL", chrome, ws };
@@ -106,42 +171,74 @@ export class V3 {
   /**
    * Run an "extract" instruction through the ExtractHandler.
    */
-  async extract(params: ExtractParams): Promise<void> {
+
+  async extract<T extends z.AnyZodObject>(
+    params: ExtractParams<T>,
+  ): Promise<z.infer<T> | { page_text: string }> {
     if (!this.extractHandler) {
       throw new Error("V3 not initialized. Call init() before extract().");
     }
-    const frameId = params.page
-      ? await this.resolveTopFrameId(params.page)
-      : undefined;
 
-    const page = frameId
-      ? this.ctx.resolvePageByMainFrameId(frameId)
-      : undefined;
-    const handlerParams: ExtractHandlerParams = {
+    let page: Page | undefined;
+
+    if (params.page) {
+      if (params.page instanceof (await import("./understudy/page")).Page) {
+        // Already a V3 Page
+        page = params.page;
+      } else {
+        // Playwright / Puppeteer path: resolve → frameId → V3 Page
+        const frameId = await this.resolveTopFrameId(params.page);
+        page = this.ctx.resolvePageByMainFrameId(frameId);
+      }
+    }
+
+    const noArgs = !params.instruction && !params.schema;
+    const onlyInstruction = !!params.instruction && !params.schema;
+
+    const effectiveSchema: T | undefined = noArgs
+      ? undefined
+      : onlyInstruction
+        ? (defaultExtractSchema as unknown as T)
+        : params.schema;
+
+    const handlerParams: ExtractHandlerParams<T> = {
       instruction: params.instruction,
-      page,
+      schema: effectiveSchema,
+      modelName: params.modelName,
+      modelClientOptions: params.modelClientOptions,
+      domSettleTimeoutMs: params.domSettleTimeoutMs,
+      page: page!,
     };
-    return this.extractHandler.extract(handlerParams);
+
+    return this.extractHandler.extract<T>(handlerParams);
   }
 
   /**
    * Run an "observe" instruction through the ObserveHandler.
    */
-  async observe(params: ObserveParams): Promise<void> {
+  async observe(params: ObserveParams): Promise<ObserveResult[]> {
     if (!this.observeHandler) {
       throw new Error("V3 not initialized. Call init() before observe().");
     }
-    const frameId = params.page
-      ? await this.resolveTopFrameId(params.page)
-      : undefined;
 
-    const page = frameId
-      ? this.ctx.resolvePageByMainFrameId(frameId)
-      : undefined;
+    // Resolve to our internal Page type
+    let page: Page | undefined;
+    if (params.page) {
+      if (params.page instanceof (await import("./understudy/page")).Page) {
+        page = params.page;
+      } else {
+        const frameId = await this.resolveTopFrameId(params.page);
+        page = this.ctx.resolvePageByMainFrameId(frameId);
+      }
+    }
 
     const handlerParams: ObserveHandlerParams = {
       instruction: params.instruction,
-      page,
+      domSettleTimeoutMs: params.domSettleTimeoutMs,
+      returnAction: params.returnAction,
+      drawOverlay: params.drawOverlay,
+      fromAct: false,
+      page: page!,
     };
 
     return this.observeHandler.observe(handlerParams);
@@ -194,8 +291,10 @@ export class V3 {
       chromeFlags,
     });
 
-    const timeoutMs = this.opts.connectTimeoutMs ?? 15_000;
-    const ws = await this.waitForWebSocketDebuggerUrl(chrome.port, timeoutMs);
+    const ws = await this.waitForWebSocketDebuggerUrl(
+      chrome.port,
+      this.opts.connectTimeoutMs ?? 15_000,
+    );
     this.ctx = await V3Context.create(ws);
     return { ws, chrome };
   }

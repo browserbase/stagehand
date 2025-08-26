@@ -112,6 +112,7 @@ export class CdpConnection implements CDPSessionLike {
    * Callers typically follow with Runtime.runIfWaitingForDebugger per target.
    */
   async enableAutoAttach(): Promise<void> {
+    console.log("[cdp] Target.setAutoAttach -> default payload");
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
@@ -124,6 +125,7 @@ export class CdpConnection implements CDPSessionLike {
         { type: "service_worker", exclude: true },
       ],
     });
+    console.log("[cdp] Target.setAutoAttach OK <-");
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
 
@@ -187,10 +189,13 @@ export class CdpConnection implements CDPSessionLike {
    * @param targetId A target id from Target.getTargets / Target.targetCreated
    */
   async attachToTarget(targetId: string): Promise<CdpSession> {
+    console.log("[cdp] Target.attachToTarget ->", { targetId, flatten: true });
     const { sessionId } = (await this.send<{ sessionId: string }>(
       "Target.attachToTarget",
       { targetId, flatten: true },
     )) as { sessionId: string };
+
+    console.log("[cdp] Target.attachToTarget OK <-", { targetId, sessionId });
 
     let session = this.sessions.get(sessionId);
     if (!session) {

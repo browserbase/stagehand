@@ -1,5 +1,5 @@
 import { Protocol } from "devtools-protocol";
-import { Frame } from "./frame";
+import type { Frame } from "./frame";
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -183,31 +183,39 @@ export class Locator {
    * - Evaluates `document.querySelector(selector)` in that world.
    * - Converts the resulting `objectId` to a `nodeId` for DOM methods.
    */
-  private async resolveNode(): Promise<{
+  public async resolveNode(): Promise<{
     nodeId: Protocol.DOM.NodeId;
     objectId: Protocol.Runtime.RemoteObjectId;
   }> {
     const session = this.frame.session;
-
-    // Ensure domains
     await session.send("Runtime.enable");
     await session.send("DOM.enable");
 
-    // Create/obtain isolated world for the frame
     const { executionContextId } = await session.send<{
-      executionContextId: number;
+      executionContextId: Protocol.Runtime.ExecutionContextId;
     }>("Page.createIsolatedWorld", {
       frameId: this.frame.frameId,
       worldName: "v3-world",
     });
 
-    // Evaluate querySelector in that context
+    const sel = this.selector.trim();
+    const isXPath = /^xpath=/i.test(sel);
+    // const isCss   = /^css=/i.test(sel);
+
+    const expr = isXPath
+      ? `(function () {
+         const xp = ${JSON.stringify(sel.replace(/^xpath=/i, ""))};
+         const n = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+         return n;
+       })()`
+      : `document.querySelector(${JSON.stringify(sel.replace(/^css=/i, ""))})`;
+
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
       {
-        expression: `document.querySelector(${JSON.stringify(this.selector)})`,
+        expression: expr,
         contextId: executionContextId,
-        returnByValue: false, // we want an objectId, not a value copy
+        returnByValue: false,
         awaitPromise: true,
       },
     );
@@ -215,19 +223,15 @@ export class Locator {
     if (evalRes.exceptionDetails) {
       throw new Error(evalRes.exceptionDetails.text ?? "Evaluation failed");
     }
-    const objId = evalRes.result.objectId;
-    if (!objId)
+    const objectId = evalRes.result.objectId;
+    if (!objectId)
       throw new Error(`Element not found for selector: ${this.selector}`);
 
-    // Convert objectId → nodeId for DOM.* methods
     const { nodeId } = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
       "DOM.requestNode",
-      {
-        objectId: objId,
-      },
+      { objectId },
     );
-
-    return { nodeId, objectId: objId };
+    return { nodeId, objectId };
   }
 
   /**
