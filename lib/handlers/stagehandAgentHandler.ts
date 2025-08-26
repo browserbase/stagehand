@@ -120,7 +120,7 @@ export class StagehandAgentHandler {
                 taskCompleted:
                   toolCall.toolName === "close"
                     ? (args?.taskComplete as boolean)
-                    : undefined,
+                    : false,
                 ...args,
               };
 
