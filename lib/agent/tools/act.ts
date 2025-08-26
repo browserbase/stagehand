@@ -6,7 +6,7 @@ export const createActTool = (page: Page, executionModel?: string) =>
   tool({
     description: "Perform an action on the page (click, type, etc)",
     parameters: z.object({
-      parameters: z.string()
+      action: z.string()
         .describe(`Describe what to click in a short, specific phrase that mentions the element type. 
           Examples:
           - "click the Login button"
@@ -14,13 +14,13 @@ export const createActTool = (page: Page, executionModel?: string) =>
           - type "John" into the first name input
           - type "Doe" into the last name input`),
     }),
-    execute: async ({ parameters }) => {
+    execute: async ({ action }) => {
       const [observeResult] = executionModel
         ? await page.observe({
-            instruction: parameters,
+            instruction: action,
             modelName: executionModel,
           })
-        : await page.observe(parameters);
+        : await page.observe(action);
       if (observeResult) {
         const isIframe = observeResult.description === "an iframe";
         if (isIframe) {
@@ -31,7 +31,7 @@ export const createActTool = (page: Page, executionModel?: string) =>
         }
 
         await page.act(observeResult);
-        return { success: true, action: parameters, observeResult } as const;
+        return { success: true, action: action, observeResult } as const;
       }
       return { success: false, error: "Could not find element" };
     },

@@ -96,12 +96,8 @@ export class StagehandAgentHandler {
 
           if (event.toolCalls && event.toolCalls.length > 0) {
             for (const toolCall of event.toolCalls) {
-              const args = toolCall.args as {
-                reasoning?: string;
-                parameters?: string;
-                taskComplete?: boolean;
-              };
-              //logs llms "reasoning" eg non tool call llm text
+              const args = toolCall.args as Record<string, unknown>;
+
               if (event.text.length > 0) {
                 this.logger({
                   category: "agent",
@@ -109,20 +105,26 @@ export class StagehandAgentHandler {
                   level: 2,
                 });
               }
+
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
                   finalMessage =
-                    args.reasoning || "Task completed successfully";
+                    (args.reasoning as string) || "Task completed successfully";
                 }
               }
 
-              actions.push({
+              const action: AgentAction = {
                 type: toolCall.toolName,
-                reasoning: args?.reasoning,
-                taskCompleted: args?.taskComplete,
-                parameters: args?.parameters,
-              });
+                reasoning: event.text || undefined,
+                taskCompleted:
+                  toolCall.toolName === "close"
+                    ? (args?.taskComplete as boolean)
+                    : undefined,
+                ...args,
+              };
+
+              actions.push(action);
             }
           }
         },
