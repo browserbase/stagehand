@@ -225,24 +225,24 @@ Track performance metrics and measure optimization impact:
 <CodeGroup>
 ```typescript TypeScript
 class PerformanceTracker {
-  private metrics: Map<string, number[]> = new Map();
+  private speedMetrics: Map<string, number[]> = new Map();
 
   async timedAct(page: Page, prompt: string): Promise<ActResult> {
     const start = Date.now();
     const result = await page.act(prompt);
     const duration = Date.now() - start;
     
-    if (!this.metrics.has(prompt)) {
-      this.metrics.set(prompt, []);
+    if (!this.speedMetrics.has(prompt)) {
+      this.speedMetrics.set(prompt, []);
     }
-    this.metrics.get(prompt)!.push(duration);
+    this.speedMetrics.get(prompt)!.push(duration);
     
     console.log(`Action "${prompt}" took ${duration}ms`);
     return result;
   }
 
   getAverageTime(prompt: string): number {
-    const times = this.metrics.get(prompt) || [];
+    const times = this.speedMetrics.get(prompt) || [];
     return times.reduce((a, b) => a + b, 0) / times.length;
   }
 }
