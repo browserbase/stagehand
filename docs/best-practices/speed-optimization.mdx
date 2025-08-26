@@ -253,19 +253,19 @@ from collections import defaultdict
 
 class PerformanceTracker:
     def __init__(self):
-        self.metrics = defaultdict(list)
+        self.speed_metrics = defaultdict(list)
     
     async def timed_act(self, page, prompt: str):
         start = time.time()
         result = await page.act(prompt)
         duration = (time.time() - start) * 1000  # Convert to ms
         
-        self.metrics[prompt].append(duration)
+        self.speed_metrics[prompt].append(duration)
         print(f'Action "{prompt}" took {duration:.0f}ms')
         return result
     
     def get_average_time(self, prompt: str) -> float:
-        times = self.metrics[prompt]
+        times = self.speed_metrics[prompt]
         return sum(times) / len(times) if times else 0
 ```
 </CodeGroup>
