@@ -19,17 +19,20 @@ export class StagehandAgentHandler {
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private executionModel?: string;
+  private systemInstructions?: string;
 
   constructor(
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     executionModel?: string,
+    systemInstructions?: string,
   ) {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
+    this.systemInstructions = systemInstructions;
   }
 
   public async execute(
@@ -46,14 +49,16 @@ export class StagehandAgentHandler {
     let completed = false;
 
     try {
-      const systemPrompt = this.buildSystemPrompt(options.instruction);
+      const systemPrompt = this.buildSystemPrompt(
+        options.instruction,
+        this.systemInstructions,
+      );
       const tools = this.createTools();
 
       const messages: CoreMessage[] = [
         {
           role: "user",
-          content:
-            "Please complete the task according to the system instructions.",
+          content: options.instruction,
         },
       ];
 
@@ -165,10 +170,18 @@ export class StagehandAgentHandler {
     }
   }
 
-  private buildSystemPrompt(instruction: string): string {
+  private buildSystemPrompt(
+    executionInstruction: string,
+    systemInstructions?: string,
+  ): string {
+    if (systemInstructions) {
+      return `${systemInstructions}
+Your current goal: ${executionInstruction}`;
+    }
+
     return `You are a web automation assistant using browser automation tools to accomplish the user's goal.
 
-Your task: ${instruction}
+Your task: ${executionInstruction}
 
 You have access to various browser automation tools. Use them step by step to complete the task.
 

@@ -914,6 +914,7 @@ export class Stagehand {
   } {
     if (!options || !options.provider) {
       const executionModel = options?.executionModel;
+      const systemInstructions = options?.instructions;
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
@@ -922,6 +923,7 @@ export class Stagehand {
             this.logger,
             this.llmClient,
             executionModel,
+            systemInstructions,
           ).execute(instructionOrOptions);
         },
       };
