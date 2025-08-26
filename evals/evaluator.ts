@@ -46,87 +46,34 @@ export class Evaluator {
     this.modelClientOptions = modelClientOptions || {
       apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
     };
-    // Create a silent logger function that doesn't output anything
-    this.silentLogger = () => {};
   }
 
-  async evaluate(options: EvaluateOptions): Promise<EvaluationResult> {
-    if (options.type === "screenshot") {
-      const {
-        question,
-        systemPrompt = `You are an expert evaluator that confidently returns YES or NO given the state of a task (most times in the form of a screenshot) and a question. Provide a detailed reasoning for your answer.
-          Return your response as a JSON object with the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
-          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.
-          todays date is ${new Date().toLocaleDateString()}`,
-        screenshotDelayMs = 1000,
-      } = options;
-
-      await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
-      const imageBuffer = await this.stagehand.page.screenshot();
-      const llmClient = this.stagehand.llmProvider.getClient(
-        this.modelName,
-        this.modelClientOptions,
-      );
-
-      const response = await llmClient.createChatCompletion<
-        LLMParsedResponse<LLMResponse>
-      >({
-        logger: this.silentLogger,
-        options: {
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: question },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
-                  },
-                },
-              ],
-            },
-          ],
-          response_model: {
-            name: "EvaluationResult",
-            schema: EvaluationSchema,
-          },
-        },
-      });
-
-      try {
-        const result = response.data as unknown as z.infer<
-          typeof EvaluationSchema
-        >;
-        return { evaluation: result.evaluation, reasoning: result.reasoning };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        return {
-          evaluation: "INVALID" as const,
-          reasoning: `Failed to get structured response: ${errorMessage}`,
-        };
-      }
-    }
+  async ask(options: EvaluateOptions): Promise<EvaluationResult> {
     const {
-      actualText,
-      expectedText,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO based on whether the actual text contains or matches the expected text.
-          Return your response as a JSON object with the following format:
-          { "evaluation": "YES" | "NO", "reasoning": "detailed reasoning for your answer" }
-          look for the key information, concepts, and meaning rather than exact wording.
-          todays date is ${new Date().toLocaleDateString()}
-          `,
+      question,
+      answer,
+      screenshot = true,
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no.
+          Today's date is ${new Date().toLocaleDateString()}`,
+      screenshotDelayMs = 250,
     } = options;
+    if (!question) {
+      throw new Error("Question cannot be an empty string");
+    }
+    if (!answer && !screenshot) {
+      throw new Error("Either answer (text) or screenshot must be provided");
+    }
 
+    await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
+    let imageBuffer: Buffer;
+    if (screenshot) {
+      imageBuffer = await this.stagehand.page.screenshot();
+    }
     const llmClient = this.stagehand.llmProvider.getClient(
       this.modelName,
       this.modelClientOptions,
     );
-
-    const userPrompt = `Does the actual text contain roughly the same information or meaning as the expected text?\n\nExpected: ${expectedText}\n\nActual: ${actualText}`;
 
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
@@ -135,10 +82,33 @@ export class Evaluator {
       options: {
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: question },
+              ...(screenshot
+                ? [
+                    {
+                      type: "image_url",
+                      image_url: {
+                        url: `data:image/jpeg;base64,${imageBuffer.toString("base64")}`,
+                      },
+                    },
+                  ]
+                : []),
+              ...(answer
+                ? [
+                    {
+                      type: "text",
+                      text: `the answer is ${answer}`,
+                    },
+                  ]
+                : []),
+            ],
+          },
         ],
         response_model: {
-          name: "TextEvaluationResult",
+          name: "EvaluationResult",
           schema: EvaluationSchema,
         },
       },

@@ -51,7 +51,20 @@ export class AISdkClient extends LLMClient {
       level: 2,
       auxiliary: {
         options: {
-          value: JSON.stringify({ ...options, image: undefined }),
+          value: JSON.stringify({
+            ...options,
+            image: undefined,
+            messages: options.messages.map((msg) => ({
+              ...msg,
+              content: Array.isArray(msg.content)
+                ? msg.content.map((c) =>
+                    "image_url" in c
+                      ? { ...c, image_url: { url: "[IMAGE_REDACTED]" } }
+                      : c,
+                  )
+                : msg.content,
+            })),
+          }),
           type: "object",
         },
         modelName: {
@@ -234,7 +247,19 @@ export class AISdkClient extends LLMClient {
               type: "string",
             },
             cacheOptions: {
-              value: JSON.stringify(cacheOptions),
+              value: JSON.stringify({
+                ...cacheOptions,
+                messages: cacheOptions.messages.map((msg) => ({
+                  ...msg,
+                  content: Array.isArray(msg.content)
+                    ? msg.content.map((c) =>
+                        "image_url" in c
+                          ? { ...c, image_url: { url: "[IMAGE_REDACTED]" } }
+                          : c,
+                      )
+                    : msg.content,
+                })),
+              }),
               type: "object",
             },
             response: {
@@ -249,10 +274,15 @@ export class AISdkClient extends LLMClient {
       this.logger?.({
         category: "aisdk",
         message: "response",
-        level: 2,
+        level: 1,
         auxiliary: {
           response: {
-            value: JSON.stringify(objectResponse),
+            value: JSON.stringify({
+              object: objectResponse.object,
+              usage: objectResponse.usage,
+              finishReason: objectResponse.finishReason,
+              // Omit request and response properties that might contain images
+            }),
             type: "object",
           },
           requestId: {
@@ -301,7 +331,19 @@ export class AISdkClient extends LLMClient {
             type: "string",
           },
           cacheOptions: {
-            value: JSON.stringify(cacheOptions),
+            value: JSON.stringify({
+              ...cacheOptions,
+              messages: cacheOptions.messages.map((msg) => ({
+                ...msg,
+                content: Array.isArray(msg.content)
+                  ? msg.content.map((c) =>
+                      "image_url" in c
+                        ? { ...c, image_url: { url: "[IMAGE_REDACTED]" } }
+                        : c,
+                    )
+                  : msg.content,
+              })),
+            }),
             type: "object",
           },
           response: {
@@ -319,7 +361,12 @@ export class AISdkClient extends LLMClient {
       level: 2,
       auxiliary: {
         response: {
-          value: JSON.stringify(textResponse),
+          value: JSON.stringify({
+            text: textResponse.text,
+            usage: textResponse.usage,
+            finishReason: textResponse.finishReason,
+            // Omit request and response properties that might contain images
+          }),
           type: "object",
         },
         requestId: {

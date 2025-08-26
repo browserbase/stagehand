@@ -1,22 +1,15 @@
-export type EvaluateOptions =
-  | {
-      type: "screenshot";
-      /** The question to ask about the task state */
-      question: string;
-      /** Custom system prompt for the evaluator */
-      systemPrompt?: string;
-      /** Delay in milliseconds before taking the screenshot @default 1000 */
-      screenshotDelayMs?: number;
-    }
-  | {
-      type: "text";
-      /** The actual text/message to evaluate */
-      actualText: string;
-      /** The expected text or pattern to check against */
-      expectedText: string;
-      /** Custom system prompt for the evaluator */
-      systemPrompt?: string;
-    };
+export type EvaluateOptions = {
+  /** The question to ask about the task state */
+  question: string;
+  /** The answer to the question */
+  answer?: string;
+  /** Whether to take a screenshot of the task state */
+  screenshot?: boolean;
+  /** Custom system prompt for the evaluator */
+  systemPrompt?: string;
+  /** Delay in milliseconds before taking the screenshot @default 250 */
+  screenshotDelayMs?: number;
+};
 
 export type BatchEvaluateOptions =
   | {
