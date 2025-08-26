@@ -13,6 +13,7 @@ import {
   ExtractParams,
   ObserveParams,
   ObserveHandlerParams,
+  AnyPage,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -190,9 +191,35 @@ export class V3 {
    * Run an "act" instruction through the ActHandler.
    * Optional: narrow to a specific page (Playwright/Puppeteer).
    */
-  async act(params: ActParams): Promise<void> {
+  async act(params: ActParams): Promise<void>;
+  async act(
+    observe: ObserveResult,
+    page: AnyPage,
+    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+  ): Promise<void>;
+
+  async act(
+    a: ActParams | ObserveResult,
+    b?: AnyPage,
+    c?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+  ): Promise<void> {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
+
+    if (isObserveResult(a) && b) {
+      const v3Page = await this.normalizeToV3Page(b);
+      // normalize selector to the engine your executor expects
+      const selector = a.selector.startsWith("xpath=")
+        ? a.selector
+        : `xpath=${a.selector}`;
+      await this.actHandler.actFromObserveResult(
+        { ...a, selector }, // ObserveResult
+        v3Page, // V3 Page
+        c?.domSettleTimeoutMs,
+      );
+      return;
+    }
+    const params = a as ActParams;
 
     let page: Page | undefined;
 
@@ -203,7 +230,7 @@ export class V3 {
       } else {
         // Playwright / Puppeteer path: resolve → frameId → V3 Page
         const frameId = await this.resolveTopFrameId(params.page);
-        page = this.ctx.resolvePageByMainFrameId(frameId);
+        page = this.ctx!.resolvePageByMainFrameId(frameId);
       }
     }
 
@@ -467,4 +494,31 @@ export class V3 {
       typeof (p as PuppeteerPage).target === "function"
     );
   }
+
+  private async normalizeToV3Page(input: AnyPage): Promise<Page> {
+    if (input instanceof (await import("./understudy/page")).Page) {
+      return input as Page;
+    }
+    if (this.isPlaywrightPage(input)) {
+      const frameId = await this.resolveTopFrameId(input);
+      const page = this.ctx!.resolvePageByMainFrameId(frameId);
+      if (!page)
+        throw new Error("Failed to resolve V3 Page from Playwright page.");
+      return page;
+    }
+    if (this.isPuppeteerPage(input)) {
+      const frameId = await this.resolveTopFrameId(input);
+      const page = this.ctx!.resolvePageByMainFrameId(frameId);
+      if (!page)
+        throw new Error("Failed to resolve V3 Page from Puppeteer page.");
+      return page;
+    }
+    throw new Error("Unsupported page object.");
+  }
+}
+
+function isObserveResult(v: unknown): v is ObserveResult {
+  return (
+    !!v && typeof v === "object" && "selector" in (v as Record<string, unknown>)
+  );
 }

@@ -53,6 +53,8 @@ export type InitState =
 export type PlaywrightPage = import("playwright-core").Page;
 export type PuppeteerPage = import("puppeteer-core").Page;
 
+export type AnyPage = PlaywrightPage | PuppeteerPage | Page;
+
 export type ActParams = {
   instruction: string;
   modelName?: AvailableModel;

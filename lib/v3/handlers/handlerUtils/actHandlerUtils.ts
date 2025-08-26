@@ -45,6 +45,7 @@ export async function performUnderstudyMethod(
     auxiliary: {
       xpath: { value: xpath, type: "string" },
       method: { value: method, type: "string" },
+      url: { value: initialUrl, type: "string" },
     },
   });
 

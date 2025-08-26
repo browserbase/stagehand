@@ -12,7 +12,16 @@ async function example(v3: V3) {
     "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
   );
 
-  await v3.act({ instruction: "click the button", page: puppeteerPage });
+  // await v3.act({ instruction: "click the button", page: puppeteerPage });
+
+  const observeResult = {
+    method: "click",
+    description: "nunya",
+    selector: "/html[1]/body[1]/button[1]",
+    arguments: [""],
+  };
+
+  await v3.act(observeResult, puppeteerPage);
 }
 
 (async () => {
