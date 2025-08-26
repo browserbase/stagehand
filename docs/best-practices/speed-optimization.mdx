@@ -254,10 +254,17 @@ class SessionPool:
                         "keep_alive": True
                     }
                 )
+                session_tasks = []
+            for _ in range(3):
+                stagehand = Stagehand(
+                    env="BROWSERBASE",
+                    browserbase_session_create_params={
+                        "keep_alive": True
+                    }
+                )
                 session_tasks.append(stagehand.init())
             
-            await asyncio.gather(*session_tasks)
-            self.sessions = [task.result() for task in session_tasks]
+            self.sessions = await asyncio.gather(*session_tasks)
         
         # Round-robin session usage
         session = self.sessions[self.session_index]
