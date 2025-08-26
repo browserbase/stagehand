@@ -141,4 +141,34 @@ export class ActHandler {
       domSettleTimeoutMs,
     );
   }
+
+  async actFromObserveResult(
+    observe: ObserveResult,
+    page: Page,
+    domSettleTimeoutMs?: number,
+  ): Promise<void> {
+    const method = observe.method?.trim();
+    if (!method || method === "not-supported") {
+      this.logger({
+        category: "action",
+        message: "ObserveResult has no supported method",
+        level: 0,
+        auxiliary: {
+          observe: { value: JSON.stringify(observe), type: "object" },
+        },
+      });
+      throw new Error("ObserveResult must include a supported 'method'.");
+    }
+
+    const args = Array.isArray(observe.arguments) ? observe.arguments : [];
+
+    await performUnderstudyMethod(
+      page.mainFrame(),
+      method,
+      observe.selector,
+      args,
+      this.logger,
+      domSettleTimeoutMs,
+    );
+  }
 }

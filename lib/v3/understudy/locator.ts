@@ -1,3 +1,4 @@
+// lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame";
 
@@ -8,14 +9,19 @@ type MouseButton = "left" | "right" | "middle";
  *
  * Purpose:
  * A small, CDP-based element interaction helper scoped to a specific `Frame`.
- * It resolves a CSS selector inside the frame’s **isolated world**, and then
- * performs low-level actions (click, type, select) using DOM / Runtime / Input
+ * It resolves a CSS/XPath selector inside the frame’s **isolated world**, and then
+ * performs low-level actions (click, type, select) using DOM/Runtime/Input
  * protocol domains with minimal abstraction.
  *
+ * Key change:
+ * - Prefer **objectId**-based CDP calls (scroll, geometry) to avoid brittle
+ *   frontend nodeId mappings. nodeId is resolved on a best-effort basis and
+ *   returned for compatibility, but actions do not depend on it.
+ *
  * Notes:
- * - Resolution is lazy: each action resolves the selector to a node/object.
+ * - Resolution is lazy: every action resolves the selector again.
  * - Uses `Page.createIsolatedWorld` so evaluation is isolated from page scripts.
- * - Avoids retaining remote objects (releases objectIds where appropriate).
+ * - Releases remote objects (`Runtime.releaseObject`) where appropriate.
  */
 export class Locator {
   constructor(
@@ -27,47 +33,60 @@ export class Locator {
   /**
    * Click the element at its visual center.
    * Steps:
-   *  1) Resolve selector to { nodeId }.
-   *  2) Ensure it’s visible via `DOM.scrollIntoViewIfNeeded`.
-   *  3) Read content quads → compute center point.
+   *  1) Resolve selector to { objectId } in the frame world.
+   *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
+   *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
   async click(options?: {
     button?: MouseButton;
     clickCount?: number;
   }): Promise<void> {
-    const { nodeId } = await this.resolveNode();
     const session = this.frame.session;
-
-    await session.send("DOM.scrollIntoViewIfNeeded", { nodeId });
-
-    const { quads } = await session.send<Protocol.DOM.GetContentQuadsResponse>(
-      "DOM.getContentQuads",
-      { nodeId },
-    );
-    if (!quads || quads.length === 0)
-      throw new Error("Element not visible (no content quads)");
-
-    const [cx, cy] = this.centerOfQuad(quads[0]);
+    const { objectId } = await this.resolveNode();
 
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
-    await session.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: cx,
-      y: cy,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    try {
+      // Scroll into view using objectId (avoids frontend nodeId dependence)
+      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
 
-    await session.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: cx,
-      y: cy,
-      button,
-      clickCount,
-    } as Protocol.Input.DispatchMouseEventRequest);
+      // Get geometry using objectId
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
+      );
+      if (!box.model) throw new Error("Element not visible (no box model)");
+      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+
+      // Dispatch input (from the same session)
+      await session.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: cx,
+        y: cy,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest);
+
+      await session.send<never>("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: cx,
+        y: cy,
+        button,
+        clickCount,
+      } as Protocol.Input.DispatchMouseEventRequest);
+
+      await session.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: cx,
+        y: cy,
+        button,
+        clickCount,
+      } as Protocol.Input.DispatchMouseEventRequest);
+    } finally {
+      // release the element handle
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
   }
 
   /**
@@ -77,8 +96,8 @@ export class Locator {
    * - Releases the underlying `objectId` afterwards to avoid leaks.
    */
   async fill(value: string): Promise<void> {
-    const { objectId } = await this.resolveNode();
     const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
 
     try {
       await session.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -86,13 +105,13 @@ export class Locator {
         {
           objectId,
           functionDeclaration: `
-          function(v) {
-            if ('value' in this) this.value = v;
-            else if (this.isContentEditable) this.textContent = v;
-            this.dispatchEvent(new Event('input', { bubbles: true }));
-            this.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        `,
+            function(v) {
+              if ('value' in this) this.value = v;
+              else if (this.isContentEditable) this.textContent = v;
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              this.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          `,
           arguments: [{ value }],
           returnByValue: true,
         },
@@ -104,34 +123,47 @@ export class Locator {
 
   /**
    * Type text into the element (focuses first).
+   * - Focus via element.focus() in page JS (no DOM.focus(nodeId)).
    * - If no delay, uses `Input.insertText` for efficiency.
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }): Promise<void> {
-    const { nodeId } = await this.resolveNode();
     const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
 
-    await session.send("DOM.focus", { nodeId });
+    try {
+      // Focus using JS (avoids DOM.focus(nodeId))
+      await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function(){ try { this.focus(); } catch {} }`,
+          returnByValue: true,
+        },
+      );
 
-    if (!options?.delay) {
-      await session.send<never>("Input.insertText", { text });
-      return;
-    }
+      if (!options?.delay) {
+        await session.send<never>("Input.insertText", { text });
+        return;
+      }
 
-    for (const ch of text) {
-      await session.send<never>("Input.dispatchKeyEvent", {
-        type: "keyDown",
-        text: ch,
-        key: ch,
-      } as Protocol.Input.DispatchKeyEventRequest);
+      for (const ch of text) {
+        await session.send<never>("Input.dispatchKeyEvent", {
+          type: "keyDown",
+          text: ch,
+          key: ch,
+        } as Protocol.Input.DispatchKeyEventRequest);
 
-      await session.send<never>("Input.dispatchKeyEvent", {
-        type: "keyUp",
-        text: ch,
-        key: ch,
-      } as Protocol.Input.DispatchKeyEventRequest);
+        await session.send<never>("Input.dispatchKeyEvent", {
+          type: "keyUp",
+          text: ch,
+          key: ch,
+        } as Protocol.Input.DispatchKeyEventRequest);
 
-      await new Promise((r) => setTimeout(r, options.delay));
+        await new Promise((r) => setTimeout(r, options.delay));
+      }
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
     }
   }
 
@@ -140,9 +172,9 @@ export class Locator {
    * Returns the values actually selected after the operation.
    */
   async selectOption(values: string | string[]): Promise<string[]> {
+    const session = this.frame.session;
     const desired = Array.isArray(values) ? values : [values];
     const { objectId } = await this.resolveNode();
-    const session = this.frame.session;
 
     try {
       const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -150,19 +182,19 @@ export class Locator {
         {
           objectId,
           functionDeclaration: `
-          function(vals) {
-            if (this && this.tagName === 'SELECT') {
-              const set = new Set(vals);
-              for (const opt of this.options) {
-                opt.selected = set.has(opt.value);
+            function(vals) {
+              if (this && this.tagName === 'SELECT') {
+                const set = new Set(vals);
+                for (const opt of this.options) {
+                  opt.selected = set.has(opt.value);
+                }
+                this.dispatchEvent(new Event('input', { bubbles: true }));
+                this.dispatchEvent(new Event('change', { bubbles: true }));
+                return Array.from(this.selectedOptions).map(o => o.value);
               }
-              this.dispatchEvent(new Event('input', { bubbles: true }));
-              this.dispatchEvent(new Event('change', { bubbles: true }));
-              return Array.from(this.selectedOptions).map(o => o.value);
+              return [];
             }
-            return [];
-          }
-        `,
+          `,
           arguments: [{ value: desired }],
           returnByValue: true,
         },
@@ -177,17 +209,18 @@ export class Locator {
   // ---------- helpers ----------
 
   /**
-   * Resolve `this.selector` within the frame to `{ nodeId, objectId }`:
-   * - Ensures Runtime/DOM domains are enabled.
+   * Resolve `this.selector` within the frame to `{ objectId, nodeId? }`:
+   * - Ensures Runtime/DOM are enabled.
    * - Creates (or reuses) an isolated world for this frame.
-   * - Evaluates `document.querySelector(selector)` in that world.
-   * - Converts the resulting `objectId` to a `nodeId` for DOM methods.
+   * - Evaluates a CSS or XPath query in that isolated world.
+   * - Best-effort: attempts to convert `objectId` to `nodeId`; failure is non-fatal.
    */
   public async resolveNode(): Promise<{
-    nodeId: Protocol.DOM.NodeId;
+    nodeId: Protocol.DOM.NodeId | null;
     objectId: Protocol.Runtime.RemoteObjectId;
   }> {
     const session = this.frame.session;
+
     await session.send("Runtime.enable");
     await session.send("DOM.enable");
 
@@ -198,17 +231,18 @@ export class Locator {
       worldName: "v3-world",
     });
 
-    const sel = this.selector.trim();
-    const isXPath = /^xpath=/i.test(sel);
-    // const isCss   = /^css=/i.test(sel);
+    const raw = this.selector.trim();
+    const looksLikeXPath =
+      /^xpath=/i.test(raw) || raw.startsWith("/") || raw.startsWith("(");
+    const isCssPrefixed = /^css=/i.test(raw);
 
-    const expr = isXPath
+    const expr = looksLikeXPath
       ? `(function () {
-         const xp = ${JSON.stringify(sel.replace(/^xpath=/i, ""))};
-         const n = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-         return n;
-       })()`
-      : `document.querySelector(${JSON.stringify(sel.replace(/^css=/i, ""))})`;
+           const xp = ${JSON.stringify(raw.replace(/^xpath=/i, ""))};
+           const n = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+           return n;
+         })()`
+      : `document.querySelector(${JSON.stringify(isCssPrefixed ? raw.replace(/^css=/i, "") : raw)})`;
 
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
@@ -223,26 +257,37 @@ export class Locator {
     if (evalRes.exceptionDetails) {
       throw new Error(evalRes.exceptionDetails.text ?? "Evaluation failed");
     }
-    const objectId = evalRes.result.objectId;
-    if (!objectId)
-      throw new Error(`Element not found for selector: ${this.selector}`);
 
-    const { nodeId } = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
-      "DOM.requestNode",
-      { objectId },
-    );
+    const objectId = evalRes.result.objectId;
+    if (!objectId) {
+      throw new Error(`Element not found for selector: ${this.selector}`);
+    }
+
+    // Best-effort: request a nodeId (we won't rely on it for actions)
+    let nodeId: Protocol.DOM.NodeId | null = null;
+    try {
+      const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
+        "DOM.requestNode",
+        { objectId },
+      );
+      nodeId = rn.nodeId ?? null;
+    } catch {
+      nodeId = null;
+    }
+
     return { nodeId, objectId };
   }
 
-  /**
-   * Compute the center of a quad `[x1,y1,x2,y2,x3,y3,x4,y4]`.
-   * Used to derive a reasonable click point from `DOM.getContentQuads`.
-   */
-  private centerOfQuad(quad: number[]): [number, number] {
-    const xs = [quad[0], quad[2], quad[4], quad[6]];
-    const ys = [quad[1], quad[3], quad[5], quad[7]];
+  /** Compute a center point from a BoxModel content quad */
+  private centerFromBoxContent(content: number[]): { cx: number; cy: number } {
+    // content is [x1,y1, x2,y2, x3,y3, x4,y4]
+    if (!content || content.length < 8) {
+      throw new Error("Invalid box model content quad");
+    }
+    const xs = [content[0], content[2], content[4], content[6]];
+    const ys = [content[1], content[3], content[5], content[7]];
     const cx = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
     const cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
-    return [cx, cy];
+    return { cx, cy };
   }
 }
