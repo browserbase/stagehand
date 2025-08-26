@@ -11,8 +11,20 @@ export const createAriaTreeTool = (page: Page) =>
       const { page_text } = await page.extract();
       const pageUrl = page.url();
 
+      let content = page_text;
+      const MAX_TOKENS = 70000;
+
+      const estimatedTokens = Math.ceil(content.length / 4);
+
+      if (estimatedTokens > MAX_TOKENS) {
+        const maxCharacters = MAX_TOKENS * 4;
+        content =
+          content.substring(0, maxCharacters) +
+          "\n\n[CONTENT TRUNCATED: Exceeded 70,000 token limit]";
+      }
+
       return {
-        content: page_text,
+        content,
         pageUrl,
       };
     },
