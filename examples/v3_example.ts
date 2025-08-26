@@ -19,6 +19,7 @@ async function example(v3: V3) {
   const v3 = new V3({
     env: "LOCAL",
     headless: false,
+    verbose: 2,
   });
   await v3.init();
   await example(v3);
