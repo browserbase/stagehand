@@ -105,13 +105,9 @@ Use shorter timeouts for simple operations and longer ones for complex page load
 <CodeGroup>
 ```typescript TypeScript
 // Simple actions - reduce action timeout
-await page.act("Click button", { 
+await page.act({ 
+  instruction: "Click the login button",
   actTimeout: 5000  // Default is 30000ms, reduce for simple clicks
-});
-
-// For observe results (cached actions) - even shorter timeout
-await page.act(cachedAction, {
-  actTimeout: 2000  // Faster since no LLM inference needed
 });
 
 // Complex page loads - optimize navigation
