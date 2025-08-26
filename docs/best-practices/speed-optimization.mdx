@@ -192,6 +192,15 @@ await stagehand.smart_act(page, "Find the cheapest flight option", 'complex')
 ```
 </CodeGroup>
 
+<CardGroup cols={2}>
+<Card title="Model Configuration" icon="brain" href="/configuration/models">
+  Compare model performance and costs
+</Card>
+<Card title="Cost Optimization" icon="dollar-sign" href="/best-practices/cost-optimization">
+  Balance speed with cost considerations
+</Card>
+</CardGroup>
+
 ### Preload and Reuse Sessions
 
 Minimize session setup overhead:
@@ -255,6 +264,12 @@ class SessionPool:
 ```
 </CodeGroup>
 
+<CardGroup cols={1}>
+<Card title="Deployments Guide" icon="rocket" href="/best-practices/deployments">
+  Production patterns for session management
+</Card>
+</CardGroup>
+
 ## Performance Monitoring
 
 Track performance metrics to identify bottlenecks:
@@ -307,6 +322,12 @@ class PerformanceTracker:
 ```
 </CodeGroup>
 
+<CardGroup cols={1}>
+<Card title="Observability & Metrics" icon="chart-line" href="/configuration/observability">
+  Set up comprehensive performance monitoring
+</Card>
+</CardGroup>
+
 ## Infrastructure Optimizations
 
 ### Browserbase Configuration
@@ -357,6 +378,10 @@ stagehand = Stagehand(
 )
 ```
 </CodeGroup>
+
+<Info>
+For cloud browser infrastructure optimization, see the [Browserbase Cost Optimization Guide](https://docs.browserbase.com/guides/cost-optimization) for additional infrastructure tuning options.
+</Info>
 
 ### Page Load Optimization
 
@@ -434,6 +459,12 @@ await page.act("Click the blue button in the third row of the table");
 // Fast: Clear, simple target
 await page.act("Click the Submit button");
 ```
+
+<CardGroup cols={1}>
+<Card title="Prompting Best Practices" icon="message" href="/best-practices/prompting-best-practices">
+  Write clear, actionable prompts for better performance
+</Card>
+</CardGroup>
 
 ## Performance Benchmarking
 
