@@ -17,7 +17,7 @@ export const github: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.evaluate({
+    const { evaluation, reasoning } = await evaluator.ask({
       question:
         "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
     });

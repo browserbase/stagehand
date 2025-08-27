@@ -1,5 +1,5 @@
+import { Evaluator } from "@/evals/evaluator";
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
 
 export const hugging_face: EvalFunction = async ({
   debugUrl,
@@ -9,28 +9,28 @@ export const hugging_face: EvalFunction = async ({
   agent,
 }) => {
   try {
+    const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://huggingface.co/");
     const agentResult = await agent.execute({
       instruction:
         "Search for a model on Hugging Face with an Apache-2.0 license that has received the highest number of likes.",
       maxSteps: 20,
     });
-
-    const { modelName } = await stagehand.page.extract({
-      modelName: "google/gemini-2.5-flash",
-      instruction: "Extract the name of the model",
-      schema: z.object({
-        modelName: z.string(),
-      }),
+    console.log(`agentResult: ${agentResult.message}`);
+    const { evaluation, reasoning } = await evaluator.ask({
+      question:
+        "Does the message mention 'kokoro-82m' or 'hexgrad/Kokoro-82M'?",
+      answer: agentResult.message || "",
+      screenshot: false,
     });
-    console.log(`modelName: ${modelName}`);
-    const success =
-      agentResult.success &&
-      (modelName === "Kokoro-82M" || modelName === "hexgrad/Kokoro-82M");
+
+    const success = agentResult.success && evaluation === "YES";
+
+    console.log(`reasoning: ${reasoning}`);
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
