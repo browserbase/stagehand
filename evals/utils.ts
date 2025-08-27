@@ -7,7 +7,7 @@
  * - Generation of unique experiment names based on the current timestamp, environment,
  *   and eval name or category.
  */
-
+import fs from "fs";
 import { LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
 const { jaroWinkler } = stringComparison;
@@ -141,7 +141,6 @@ export function dedent(
 }
 
 // Dataset helpers shared by suites
-import fs from "fs";
 
 export function sampleUniform<T>(arr: T[], k: number): T[] {
   const n = arr.length;

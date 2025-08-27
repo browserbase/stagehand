@@ -16,9 +16,9 @@ env:
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 5
   # Agent eval sampling configuration
-  EVAL_WEBVOYAGER_SAMPLE: 3  # Random sample of 3 cases from WebVoyager dataset
-  EVAL_GAIA_SAMPLE: 3        # Random sample of 3 cases from GAIA dataset  
-  EVAL_GAIA_LEVEL: 1          # GAIA difficulty level (1=easiest)
+  EVAL_WEBVOYAGER_SAMPLE: 3 # Random sample of 3 cases from WebVoyager dataset
+  EVAL_GAIA_SAMPLE: 3 # Random sample of 3 cases from GAIA dataset
+  EVAL_GAIA_LEVEL: 1 # GAIA difficulty level (1=easiest)
 
 concurrency:
   group: ${{ github.ref }}
@@ -573,7 +573,7 @@ jobs:
   run-agent-evals:
     needs: [run-targeted-extract-evals, determine-evals]
     runs-on: ubuntu-latest
-    timeout-minutes: 90  # Agent evals can be long-running
+    timeout-minutes: 90 # Agent evals can be long-running
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -585,8 +585,8 @@ jobs:
       EVAL_ENV: browserbase
       # Use agent models for agent evals in CI
       EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
-      EVAL_TRIAL_COUNT: 2  # Reduce trials for agent evals
-      EVAL_MAX_CONCURRENCY: 10  # Lower concurrency for agent evals
+      EVAL_TRIAL_COUNT: 2 # Reduce trials for agent evals
+      EVAL_MAX_CONCURRENCY: 10 # Lower concurrency for agent evals
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
