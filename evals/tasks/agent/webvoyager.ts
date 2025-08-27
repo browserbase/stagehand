@@ -6,10 +6,10 @@ export const webvoyager: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   modelName,
-  taskParams,
+  input,
 }) => {
   try {
-    const params = (taskParams || {}) as {
+    const params = ((input && input.params) || {}) as {
       id?: string;
       web?: string;
       ques?: string;

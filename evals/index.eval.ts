@@ -77,13 +77,17 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (filterByEvalName) {
     // If a specific task name is given, that's the only one we run
     taskNamesToRun = [filterByEvalName];
-    // Check if this single task belongs *only* to the agent category to override models
+    // Check if this single task belongs to agent-related categories to override models
     const taskCategories = tasksByName[filterByEvalName]?.categories || [];
-    if (taskCategories.length === 1 && taskCategories[0] === "agent") {
-      // Treat this run as an 'agent' category run for model selection
-      effectiveCategory = "agent";
+    if (
+      taskCategories.length === 1 &&
+      (taskCategories[0] === "agent" ||
+        taskCategories[0] === "external_agent_benchmarks")
+    ) {
+      // Treat this run as an agent category run for model selection
+      effectiveCategory = taskCategories[0];
       console.log(
-        `Task ${filterByEvalName} is agent-specific, using agent models.`,
+        `Task ${filterByEvalName} is in ${taskCategories[0]} category, using agent models.`,
       );
     }
   } else if (filterByCategory) {
@@ -318,11 +322,10 @@ const generateFilteredTestcases = (): Testcase[] => {
               modelName: input.modelName,
             });
           }
-          // Attach per-test parameters (for data-driven tasks)
-          taskInput.taskParams = input.params;
+          // Pass full EvalInput to the task (data-driven params available via input.params)
           let result;
           try {
-            result = await taskFunction(taskInput);
+            result = await taskFunction({ ...taskInput, input });
             // Log result to console
             if (result && result._success) {
               console.log(`✅ ${input.name}: Passed`);

@@ -13,10 +13,10 @@ export const webarena_gaia: EvalFunction = async ({
   debugUrl,
   sessionUrl,
   modelName,
-  taskParams,
+  input,
 }) => {
   try {
-    const params = (taskParams || {}) as {
+    const params = ((input && input.params) || {}) as {
       id?: string;
       level?: number;
       web?: string;

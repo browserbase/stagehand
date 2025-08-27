@@ -502,11 +502,11 @@
     ,
     {
       "name": "agent/webarena_gaia",
-      "categories": ["external_benchmarks"]
+      "categories": ["external_agent_benchmarks"]
     },
     {
       "name": "agent/webvoyager",
-      "categories": ["external_benchmarks"]
+      "categories": ["external_agent_benchmarks"]
     },
     {
       "name": "agent/nba_trades",

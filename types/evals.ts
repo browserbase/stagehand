@@ -14,12 +14,12 @@ export type StagehandInitResult = {
   sessionUrl: string;
   stagehandConfig: ConstructorParams;
   modelName: AvailableModel;
-  // Optional per-test parameters to pass into a task
-  taskParams?: Record<string, unknown>;
   agent: AgentInstance;
 };
 
-export type EvalFunction = (taskInput: StagehandInitResult) => Promise<{
+export type EvalFunction = (
+  taskInput: StagehandInitResult & { input: EvalInput },
+) => Promise<{
   _success: boolean;
   logs: LogLine[];
   debugUrl: string;
