@@ -47,6 +47,7 @@ export class StagehandAgentHandler {
     const actions: AgentAction[] = [];
     let finalMessage = "";
     let completed = false;
+    const collectedReasoning: string[] = [];
 
     try {
       const systemPrompt = this.buildSystemPrompt(
@@ -104,6 +105,7 @@ export class StagehandAgentHandler {
               const args = toolCall.args as Record<string, unknown>;
 
               if (event.text.length > 0) {
+                collectedReasoning.push(event.text);
                 this.logger({
                   category: "agent",
                   message: `reasoning: ${event.text}`,
@@ -114,8 +116,11 @@ export class StagehandAgentHandler {
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
-                  finalMessage =
-                    (args.reasoning as string) || "Task completed successfully";
+                  const closeReasoning = args.reasoning as string;
+                  const allReasoning = collectedReasoning.join(" ");
+                  finalMessage = closeReasoning
+                    ? `${allReasoning} ${closeReasoning}`.trim()
+                    : allReasoning || "Task completed successfully";
                 }
               }
 
@@ -135,8 +140,9 @@ export class StagehandAgentHandler {
         },
       });
 
-      if (!finalMessage && result.text) {
-        finalMessage = result.text;
+      if (!finalMessage) {
+        const allReasoning = collectedReasoning.join(" ").trim();
+        finalMessage = allReasoning || result.text;
       }
 
       return {
