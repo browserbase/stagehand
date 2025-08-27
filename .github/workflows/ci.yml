@@ -620,7 +620,7 @@ jobs:
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run evals category agent api=true
+        run: pnpm run evals category agent
 
       - name: Log Agent Evals Performance
         if: needs.determine-evals.outputs.run-agent == 'true'
