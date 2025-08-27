@@ -117,7 +117,7 @@ const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
 const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
-  if (category === "agent") {
+  if (category === "agent" || category === "external_agent_benchmarks") {
     return DEFAULT_AGENT_MODELS;
   }
 

@@ -12,7 +12,6 @@
  * - Runs each selected task against each selected model in parallel, collecting results.
  * - Saves a summary of the evaluation results to `eval-summary.json`.
  */
-import fs from "fs";
 import path from "path";
 import process from "process";
 import {
@@ -24,7 +23,7 @@ import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
-import { SummaryResult, Testcase } from "@/types/evals";
+import { SummaryResult, Testcase, EvalInput } from "@/types/evals";
 import { EvalLogger } from "./logger";
 import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
 import { env } from "./env";
@@ -33,10 +32,14 @@ import { StagehandEvalError } from "@/types/stagehandErrors";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
+import { AgentProvider } from "@/lib/agent/AgentProvider";
 import { AISdkClient } from "@/examples/external_clients/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import { LogLine } from "@/types/log";
+import { generateSummary } from "./core/summary";
+import { buildGAIATestcases } from "./suites/gaia";
+import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 
 dotenv.config();
 
@@ -53,88 +56,6 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
-
-/**
- * generateSummary:
- * After all evaluations have finished, aggregate the results into a summary.
- * This summary includes:
- * - Which tasks passed or failed (with model and categories).
- * - Category-wise success percentages.
- * - Model-wise success percentages.
- *
- * The summary is written to `eval-summary.json` for further analysis.
- */
-const generateSummary = async (
-  results: SummaryResult[],
-  experimentName: string,
-) => {
-  // Determine passed testcases (those with _success: true)
-  const passed = results
-    .filter((r) => r.output._success)
-    .map((r) => ({
-      eval: r.input.name,
-      model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
-    }));
-
-  // Determine failed testcases (those with _success: false)
-  const failed = results
-    .filter((r) => !r.output._success)
-    .map((r) => ({
-      eval: r.input.name,
-      model: r.input.modelName,
-      categories: tasksByName[r.input.name].categories,
-    }));
-
-  // Calculate success counts for each category
-  const categorySuccessCounts: Record<
-    string,
-    { total: number; success: number }
-  > = {};
-  for (const taskName of Object.keys(tasksByName)) {
-    const taskCategories = tasksByName[taskName].categories;
-    const taskResults = results.filter((r) => r.input.name === taskName);
-    const successCount = taskResults.filter((r) => r.output._success).length;
-
-    for (const cat of taskCategories) {
-      if (!categorySuccessCounts[cat]) {
-        categorySuccessCounts[cat] = { total: 0, success: 0 };
-      }
-      categorySuccessCounts[cat].total += taskResults.length;
-      categorySuccessCounts[cat].success += successCount;
-    }
-  }
-
-  // Compute percentage success per category
-  const categories: Record<string, number> = {};
-  for (const [cat, counts] of Object.entries(categorySuccessCounts)) {
-    categories[cat] = Math.round((counts.success / counts.total) * 100);
-  }
-
-  // Compute percentage success per model
-  const models: Record<string, number> = {};
-  const allModels = [...new Set(results.map((r) => r.input.modelName))];
-  for (const model of allModels) {
-    const modelResults = results.filter((r) => r.input.modelName === model);
-    const successCount = modelResults.filter((r) => r.output._success).length;
-    models[model] = Math.round((successCount / modelResults.length) * 100);
-  }
-
-  // Format and write the summary to a JSON file
-  const formattedSummary = {
-    experimentName,
-    passed,
-    failed,
-    categories,
-    models,
-  };
-
-  fs.writeFileSync(
-    "eval-summary.json",
-    JSON.stringify(formattedSummary, null, 2),
-  );
-  console.log("Evaluation summary written to eval-summary.json");
-};
 
 /**
  * generateFilteredTestcases:
@@ -156,13 +77,17 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (filterByEvalName) {
     // If a specific task name is given, that's the only one we run
     taskNamesToRun = [filterByEvalName];
-    // Check if this single task belongs *only* to the agent category to override models
+    // Check if this single task belongs to agent-related categories to override models
     const taskCategories = tasksByName[filterByEvalName]?.categories || [];
-    if (taskCategories.length === 1 && taskCategories[0] === "agent") {
-      // Treat this run as an 'agent' category run for model selection
-      effectiveCategory = "agent";
+    if (
+      taskCategories.length === 1 &&
+      (taskCategories[0] === "agent" ||
+        taskCategories[0] === "external_agent_benchmarks")
+    ) {
+      // Treat this run as an agent category run for model selection
+      effectiveCategory = taskCategories[0];
       console.log(
-        `Task ${filterByEvalName} is agent-specific, using agent models.`,
+        `Task ${filterByEvalName} is in ${taskCategories[0]} category, using agent models.`,
       );
     }
   } else if (filterByCategory) {
@@ -187,8 +112,43 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
-  // Create a list of all testcases using the determined task names and models
-  let allTestcases = currentModels.flatMap((model) =>
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
+  // Special handling: fan out GAIA dataset for agent/gaia
+  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
+  // Special handling: fan out WebVoyager dataset for agent/webvoyager
+  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
+
+  let allTestcases: Testcase[] = [];
+
+  // Only include GAIA if no dataset filter or if gaia is selected
+  if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
+    allTestcases.push(...buildGAIATestcases(currentModels));
+  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
+    // Remove GAIA from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
+  }
+
+  // Only include WebVoyager if no dataset filter or if webvoyager is selected
+  if (
+    isWebVoyagerTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webvoyager")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
+    allTestcases.push(...buildWebVoyagerTestcases(currentModels));
+  } else if (
+    isWebVoyagerTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webvoyager"
+  ) {
+    // Remove WebVoyager from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
+  }
+
+  // Create a list of all remaining testcases using the determined task names and models
+  const regularTestcases = currentModels.flatMap((model) =>
     taskNamesToRun.map((testName) => ({
       input: { name: testName, modelName: model as AvailableModel },
       name: testName,
@@ -202,11 +162,12 @@ const generateFilteredTestcases = (): Testcase[] => {
       metadata: {
         model: model as AvailableModel,
         test: testName,
-        categories: tasksConfig.find((t) => t.name === testName)?.categories,
       },
       expected: true,
     })),
   );
+
+  allTestcases = [...allTestcases, ...regularTestcases];
 
   // This filtering step might now be redundant if taskNamesToRun is already filtered
   if (filterByCategory) {
@@ -227,7 +188,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     allTestcases
       .map(
         (t, i) =>
-          `${i}: ${t.name} (${t.input.modelName}): ${t.metadata.categories}`,
+          `${i}: ${t.name} (${t.input.modelName}): ${tasksByName[t.name].categories}`,
       )
       .join("\n"),
   );
@@ -266,7 +227,7 @@ const generateFilteredTestcases = (): Testcase[] => {
       experimentName,
       data: generateFilteredTestcases,
       // Each test is a function that runs the corresponding task module
-      task: async (input: { name: string; modelName: AvailableModel }) => {
+      task: async (input: EvalInput) => {
         const logger = new EvalLogger();
         try {
           // Dynamically import the task based on its name
@@ -323,7 +284,19 @@ const generateFilteredTestcases = (): Testcase[] => {
           let taskInput: Awaited<ReturnType<typeof initStagehand>>;
 
           if (USE_API) {
-            const [provider] = input.modelName.split("/") as [string, string];
+            // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
+            let provider: string;
+            if (input.modelName.includes("/")) {
+              provider = input.modelName.split("/")[0];
+            } else {
+              // Fall back to agent provider inference for bare agent model names (e.g., "computer-use-preview")
+              try {
+                provider = AgentProvider.getAgentProvider(input.modelName);
+              } catch {
+                // If not an agent model, leave provider undefined to trigger helpful error below
+                provider = undefined as unknown as string;
+              }
+            }
 
             const logFn = (line: LogLine): void => logger.log(line);
             const apiKey = loadApiKeyFromEnv(provider, logFn);
@@ -367,9 +340,10 @@ const generateFilteredTestcases = (): Testcase[] => {
               modelName: input.modelName,
             });
           }
+          // Pass full EvalInput to the task (data-driven params available via input.params)
           let result;
           try {
-            result = await taskFunction(taskInput);
+            result = await taskFunction({ ...taskInput, input });
             // Log result to console
             if (result && result._success) {
               console.log(`✅ ${input.name}: Passed`);
