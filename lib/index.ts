@@ -740,6 +740,10 @@ export class Stagehand {
     return this.stagehandContext.context;
   }
 
+  public get clientOptions(): ClientOptions {
+    return this.modelClientOptions;
+  }
+
   async init(): Promise<InitResult> {
     if (isRunningInBun()) {
       throw new StagehandError(
