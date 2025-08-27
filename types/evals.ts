@@ -38,6 +38,7 @@ export const EvalCategorySchema = z.enum([
   "regression_llm_providers",
   "llm_clients",
   "agent",
+  "external_agent_benchmarks",
 ]);
 
 export type EvalCategory = z.infer<typeof EvalCategorySchema>;

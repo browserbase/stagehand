@@ -14,9 +14,12 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
   const levelFilter = process.env.EVAL_GAIA_LEVEL
     ? Number(process.env.EVAL_GAIA_LEVEL)
     : undefined;
-  const maxCases = process.env.EVAL_GAIA_LIMIT
-    ? Number(process.env.EVAL_GAIA_LIMIT)
-    : 25;
+  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_GAIA_LIMIT or default to 25
+  const maxCases = process.env.EVAL_MAX_K
+    ? Number(process.env.EVAL_MAX_K)
+    : process.env.EVAL_GAIA_LIMIT
+      ? Number(process.env.EVAL_GAIA_LIMIT)
+      : 25;
   const sampleCount = process.env.EVAL_GAIA_SAMPLE
     ? Number(process.env.EVAL_GAIA_SAMPLE)
     : undefined;
@@ -55,7 +58,7 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
         "Final answer"
       ] as unknown;
       const input: EvalInput = {
-        name: "agent/webarena_gaia",
+        name: "agent/gaia",
         modelName: model as AvailableModel,
         params: {
           id: row.id,

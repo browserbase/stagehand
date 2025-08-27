@@ -501,7 +501,7 @@
     }
     ,
     {
-      "name": "agent/webarena_gaia",
+      "name": "agent/gaia",
       "categories": ["external_agent_benchmarks"]
     },
     {

@@ -112,21 +112,39 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
-  // Special handling: fan out GAIA (WebVoyager) dataset for agent/webarena_gaia
-  const isGAIATaskIncluded = taskNamesToRun.includes("agent/webarena_gaia");
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
+  // Special handling: fan out GAIA dataset for agent/gaia
+  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
   const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
 
   let allTestcases: Testcase[] = [];
 
-  if (isGAIATaskIncluded) {
-    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webarena_gaia");
+  // Only include GAIA if no dataset filter or if gaia is selected
+  if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
+  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
+    // Remove GAIA from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
 
-  if (isWebVoyagerTaskIncluded) {
+  // Only include WebVoyager if no dataset filter or if webvoyager is selected
+  if (
+    isWebVoyagerTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webvoyager")
+  ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
+  } else if (
+    isWebVoyagerTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webvoyager"
+  ) {
+    // Remove WebVoyager from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
   }
 
   // Create a list of all remaining testcases using the determined task names and models

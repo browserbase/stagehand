@@ -15,9 +15,12 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
 
   const lines = readJsonlFile(voyagerFilePath);
 
-  const maxCases = process.env.EVAL_WEBVOYAGER_LIMIT
-    ? Number(process.env.EVAL_WEBVOYAGER_LIMIT)
-    : 25;
+  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_WEBVOYAGER_LIMIT or default to 25
+  const maxCases = process.env.EVAL_MAX_K
+    ? Number(process.env.EVAL_MAX_K)
+    : process.env.EVAL_WEBVOYAGER_LIMIT
+      ? Number(process.env.EVAL_WEBVOYAGER_LIMIT)
+      : 25;
   const sampleCount = process.env.EVAL_WEBVOYAGER_SAMPLE
     ? Number(process.env.EVAL_WEBVOYAGER_SAMPLE)
     : undefined;
