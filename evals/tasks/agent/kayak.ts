@@ -14,11 +14,11 @@ export const kayak: EvalFunction = async ({
 
     await agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: 15,
+      maxSteps: 25,
     });
     await agent.execute({
       instruction: "Sort the flights by price",
-      maxSteps: 5,
+      maxSteps: 8,
     });
 
     if (stagehand.context.pages().length !== 2) {
@@ -30,7 +30,7 @@ export const kayak: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-    const { evaluation, reasoning } = await evaluator.evaluate({
+    const { evaluation, reasoning } = await evaluator.ask({
       question:
         "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
     });

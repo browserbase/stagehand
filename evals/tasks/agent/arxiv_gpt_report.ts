@@ -1,6 +1,6 @@
 //agent often fails on this one,
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
+import { Evaluator } from "../../evaluator";
 export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -9,32 +9,32 @@ export const arxiv_gpt_report: EvalFunction = async ({
   agent,
 }) => {
   try {
+    const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://arxiv.org/");
 
     const agentResult = await agent.execute({
       instruction:
         "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
-      maxSteps: 20,
+      maxSteps: 25,
     });
 
     // Mon, 27 Mar 2023 17:46:54 UTC
-    const { date } = await stagehand.page.extract({
-      modelName: "google/gemini-2.5-flash",
-      instruction:
-        "Extract the date of the v3 submission history, it should be in the format 'MM-DD-YYYY'",
-      schema: z.object({
-        date: z.string().describe("The date of the v3 submission history"),
-      }),
+
+    const { evaluation, reasoning } = await evaluator.ask({
+      question:
+        "Did the agent find the published paper 'GPT-4 Technical Report' and the date it was submitted?",
+      screenshot: false,
+      answer: "03-27-2023",
     });
 
-    console.log(`date: ${date}`);
+    console.log(`reasoning: ${reasoning}`);
 
-    const success = agentResult.success && date === "03-27-2023";
+    const success = agentResult.success && evaluation === "YES";
 
     if (!success) {
       return {
         _success: false,
-        message: agentResult.message,
+        message: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

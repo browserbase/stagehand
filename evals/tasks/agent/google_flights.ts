@@ -14,12 +14,12 @@ export const google_flights: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for flights from San Francisco to New York for next weekend",
-      maxSteps: 15,
+      maxSteps: 30,
     });
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluate({
+    const result = await evaluator.ask({
       question:
         "Does the page show flights (options, available flights, not a search form) from San Francisco to New York?",
     });

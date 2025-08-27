@@ -19,7 +19,7 @@ export const google_maps: EvalFunction = async ({
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluate({
+    const result = await evaluator.ask({
       question:
         "Does the page show the time it takes to drive from San Francisco to New York at all?",
     });

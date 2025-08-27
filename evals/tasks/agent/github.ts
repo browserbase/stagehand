@@ -13,11 +13,11 @@ export const github: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
-      maxSteps: 14,
+      maxSteps: 20,
     });
     logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.evaluate({
+    const { evaluation, reasoning } = await evaluator.ask({
       question:
         "Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
     });

@@ -19,7 +19,7 @@ export const google_shopping: EvalFunction = async ({
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const { evaluation, reasoning } = await evaluator.evaluate({
+    const { evaluation, reasoning } = await evaluator.ask({
       question:
         "Does the page show a drip coffee maker that is on sale and within $25-60 and has a black finish?",
     });

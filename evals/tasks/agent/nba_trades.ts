@@ -14,11 +14,11 @@ export const nba_trades: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find the latest Team transaction in the NBA within the past week.",
-      maxSteps: 20,
+      maxSteps: 25,
     });
     logger.log(agentResult);
 
-    const { evaluation, reasoning } = await evaluator.evaluate({
+    const { evaluation, reasoning } = await evaluator.ask({
       question: "Did the agent make it to the nba transactions page?",
     });
 
