@@ -38,3 +38,15 @@ export interface EvaluationResult {
    */
   reasoning: string;
 }
+
+/**
+ * Options for evaluating with multiple screenshots
+ */
+export type EvaluateWithScreenshotsOptions = {
+  /** The question to ask about the task state */
+  question: string;
+  /** Array of screenshots captured during task execution */
+  screenshots: Buffer[];
+  /** Custom system prompt for the evaluator */
+  systemPrompt?: string;
+};

@@ -15,6 +15,7 @@ import {
   EvaluateOptions,
   BatchAskOptions,
   EvaluationResult,
+  EvaluateWithScreenshotsOptions,
 } from "@/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
@@ -238,6 +239,86 @@ export class Evaluator {
         evaluation: "INVALID" as const,
         reasoning: `Failed to get structured response: ${errorMessage}`,
       }));
+    }
+  }
+
+  /**
+   * Evaluates a question using multiple screenshots captured during execution.
+   * This method processes all screenshots to understand the full journey and context.
+   *
+   * @param options - The options for screenshot-based evaluation
+   * @returns A promise that resolves to an EvaluationResult
+   */
+  async evaluateWithScreenshots(
+    options: EvaluateWithScreenshotsOptions,
+  ): Promise<EvaluationResult> {
+    const {
+      question,
+      screenshots,
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and multiple screenshots showing the progression of a task.
+        Analyze ALL screenshots to understand the complete journey. Look for evidence of task completion across all screenshots, not just the last one.
+        Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc).
+        Be critical about the question but consider the ENTIRE sequence when making your determination.
+        Today's date is ${new Date().toLocaleDateString()}`,
+    } = options;
+
+    if (!question) {
+      throw new Error("Question cannot be an empty string");
+    }
+
+    if (!screenshots || screenshots.length === 0) {
+      throw new Error("At least one screenshot must be provided");
+    }
+
+    const llmClient = this.stagehand.llmProvider.getClient(
+      this.modelName,
+      this.modelClientOptions,
+    );
+
+    const imageContents = screenshots.map((screenshot) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:image/jpeg;base64,${screenshot.toString("base64")}`,
+      },
+    }));
+
+    const response = await llmClient.createChatCompletion<
+      LLMParsedResponse<LLMResponse>
+    >({
+      logger: this.silentLogger,
+      options: {
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `${question}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze all of them to determine if the task was completed successfully.`,
+              },
+              ...imageContents,
+            ],
+          },
+        ],
+        response_model: {
+          name: "EvaluationResult",
+          schema: EvaluationSchema,
+        },
+      },
+    });
+
+    try {
+      const result = response.data as unknown as z.infer<
+        typeof EvaluationSchema
+      >;
+      return { evaluation: result.evaluation, reasoning: result.reasoning };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return {
+        evaluation: "INVALID" as const,
+        reasoning: `Failed to get structured response: ${errorMessage}`,
+      };
     }
   }
 }
