@@ -1,5 +1,6 @@
+// lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp"; // <- use our session interface
+import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
 
 interface FrameManager {
@@ -8,12 +9,25 @@ interface FrameManager {
   pageId: string;
 }
 
+/**
+ * Frame
+ *
+ * A thin, session-bound handle to a specific DOM frame (by frameId).
+ * All CDP calls in this class go through `this.session`, which MUST be the
+ * owning session for `this.frameId`. Page is responsible for constructing
+ * Frames with the correct session.
+ */
 export class Frame implements FrameManager {
+  /** Owning CDP session id (useful for logs); null for root connection (should not happen for targets) */
+  public readonly sessionId: string | null;
+
   constructor(
     public session: CDPSessionLike,
     public frameId: string,
     public pageId: string,
-  ) {}
+  ) {
+    this.sessionId = this.session.id ?? null;
+  }
 
   /** DOM.getNodeForLocation → DOM.describeNode */
   async getNodeAtLocation(x: number, y: number): Promise<Protocol.DOM.Node> {

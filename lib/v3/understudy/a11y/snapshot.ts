@@ -13,30 +13,29 @@ import { Page } from "../page";
  *  - EncodedId → XPath map (DOM)
  *  - EncodedId → URL map (from AX properties)
  *
- * Key design:
- *  - **EncodedId is frame-aware and compact**: we use `${frameOrdinal}-${backendNodeId}`
- *    where `frameOrdinal` is provided by `Page.getOrdinal(frameId)`. This makes IDs short and
- *    stable (e.g., `[2-62]` instead of a long CDP frame id).
- *  - Each **frame** (main, same-process iframe, OOPIF) is processed in its *own* call so DOM/XPath
- *    ownership is correct for that document. We do **not** descend into `contentDocument` when
- *    walking the DOM, otherwise nodes get attributed to the wrong frame.
- *  - For nested iframes, we compute an **absolute iframe XPath prefix** for each frame top-down
- *    and prefix all child frame XPaths with that multi-hop prefix before merging.
+ * Design highlights:
+ *  - EncodedId is frame-aware and compact: `${frameOrdinal}-${backendNodeId}` where
+ *    the frame ordinal is provided by `Page.getOrdinal(frameId)`.
+ *  - Each frame (main, same-process iframe, OOPIF) is processed against **its owning session**,
+ *    so DOM and A11y ownership are correct for that document.
+ *  - We compute an **absolute iframe XPath prefix** for each child frame by asking
+ *    the **parent session** for the `<iframe>` owner node (via `DOM.getFrameOwner`).
+ *  - No global inventory imports; we rely solely on Page’s registry-backed APIs.
  */
 
 export type SnapshotOptions = {
-  /** If provided, filter the A11y tree to this XPath (applied in the root frame). */
+  /** Filter the A11y tree to this XPath (applied in the root frame). */
   focusXPath?: string;
-  /** Use piercing mode for DOM tree (default: true). */
+  /** Pierce shadow DOM in DOM.getDocument (default: true). */
   pierceShadow?: boolean;
-  /** Decorate scrollable nodes (placeholder in this version; default: false). */
+  /** Decorate scrollable nodes (placeholder; default: false). */
   detectScrollable?: boolean;
   /** Experimental behaviours flag. */
   experimental?: boolean;
 };
 
 export type HybridSnapshot = {
-  /** Merged/stitched outline across frames (simple concat; injection can be added). */
+  /** Merged/stitched outline across frames. */
   combinedTree: string;
   /** EncodedId (ordinal-backendId) → absolute XPath (across iframes). */
   combinedXpathMap: Record<string, string>;
@@ -51,20 +50,13 @@ export type HybridSnapshot = {
   }>;
 };
 
-/**
- * Build a hybrid DOM + A11y snapshot for all frames (main + iframes).
- * - same-process iframes: scoped to the iframe's `contentDocument` in the parent session
- * - OOPIF roots: scoped to the child session's root document
- * - XPaths are prefixed with a multi-hop iframe path so they are absolute across frames
- * - A11y outline shows **ordinal EncodedIds** like `[2-62]`
- */
 export async function captureHybridSnapshot(
   page: Page,
   options?: SnapshotOptions,
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
 
-  // Frame topology from Page (root-first)
+  // Topology (root-first) from Page/FrameRegistry
   const rootId = page.mainFrameId();
   const frameTree = page.asProtocolFrameTree(rootId);
 
@@ -75,15 +67,15 @@ export async function captureHybridSnapshot(
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(frameTree, null);
 
-  // DFS order (root-first)
+  // DFS order (root-first) so parent prefixes are known before children
   const frames = page.listAllFrameIds();
 
-  // Global merged maps
+  // Output maps
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
 
-  // Per-frame stash (DOM + URL)
+  // Per-frame (DOM + URL) stash before prefixing
   const perFrameMaps = new Map<
     string,
     {
@@ -93,79 +85,69 @@ export async function captureHybridSnapshot(
     }
   >();
 
-  // 1) Build per-frame DOM + A11y maps (no prefixing yet)
+  // ============== 1) Build per-frame DOM + A11y maps (no prefixing yet) ==============
   for (const frameId of frames) {
-    const session = page.getSessionForFrame(frameId);
-    if (!session) continue;
+    const owningSess = ownerSession(page, frameId);
 
-    // Ordinal-aware encoder: `${ordinal}-${backendId}`
-    const enc = (fid: string, be: number) => `${page.getOrdinal(fid)}-${be}`;
-
-    // DOM maps for this frame (scoped to its document root)
+    // DOM maps (scoped to this frame’s document in its owning session)
     const { tagNameMap, xpathMap } = await domMapsForSession(
-      session,
+      owningSess,
       frameId,
       pierce,
-      enc,
+      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
     );
 
-    // A11y + URL map (main frame uses {frameId}; OOPIF child uses session root)
-    const isOopif = session !== page.mainFrame().session && frameId !== rootId;
-    const { outline, urlMap } = await a11yForFrame(
-      session,
-      isOopif ? undefined : frameId,
-      {
-        focusXPath: frames[0] === frameId ? options?.focusXPath : undefined,
-        tagNameMap,
-        experimental: options?.experimental ?? false,
-        detectScrollable: options?.detectScrollable ?? false,
-        encode: (backendNodeId) => enc(frameId, backendNodeId),
-      },
-    );
+    // A11y (must run on the owning session for this frame)
+    const { outline, urlMap } = await a11yForFrame(owningSess, frameId, {
+      focusXPath: frames[0] === frameId ? options?.focusXPath : undefined,
+      tagNameMap,
+      experimental: options?.experimental ?? false,
+      detectScrollable: options?.detectScrollable ?? false,
+      encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+    });
 
     perFrameOutlines.push({ frameId, outline });
     perFrameMaps.set(frameId, { tagNameMap, xpathMap, urlMap });
   }
 
-  // 2) Compute absolute iframe prefixes top-down (frameId -> absolute XPath of its iframe element)
+  // ============== 2) Compute absolute iframe prefixes top-down ==============
+  // frameId -> absolute XPath of the iframe element hosting this frame
   const absPrefix = new Map<string, string>();
   const iframeHostEncByChild = new Map<string, string>();
   absPrefix.set(rootId, ""); // root has no prefix
 
-  // top-down queue
   const queue: string[] = [rootId];
   while (queue.length) {
     const parent = queue.shift()!;
     const parentAbs = absPrefix.get(parent)!;
 
-    // enqueue children & compute each child's absolute prefix
     for (const child of frames) {
       if (parentByFrame.get(child) !== parent) continue;
       queue.push(child);
 
-      const parentSession =
-        page.getSessionForFrame(parent) ?? page.mainFrame().session;
+      // The **only correct session** for DOM.getFrameOwner(child) is the parent's session
+      const parentSess = parentSession(page, parentByFrame, child);
 
-      let ownerBackendId: number | undefined;
-      try {
-        const owner = await parentSession.send<{ backendNodeId?: number }>(
-          "DOM.getFrameOwner",
-          { frameId: child },
-        );
-        ownerBackendId = owner.backendNodeId;
-      } catch {
-        ownerBackendId = undefined;
-      }
+      const ownerBackendNodeId = await (async () => {
+        try {
+          const { backendNodeId } = await parentSess.send<{
+            backendNodeId?: number;
+          }>("DOM.getFrameOwner", { frameId: child });
+          return backendNodeId;
+        } catch {
+          return undefined; // OOPIF child or race → inherit parentAbs below
+        }
+      })();
 
-      // default: if owner not resolved, inherit parent's prefix (best-effort)
-      if (!ownerBackendId) {
+      if (!ownerBackendNodeId) {
+        // Couldn’t resolve owner in parent → default to inheriting the parent’s prefix
         absPrefix.set(child, parentAbs);
         continue;
       }
 
+      // Look up the absolute XPath for the iframe element in the parent’s per-frame map
       const parentDom = perFrameMaps.get(parent);
-      // Use the SAME encoding as domMapsForSession for the parent doc:
-      const iframeEnc = `${page.getOrdinal(parent)}-${ownerBackendId}`;
+      const iframeEnc = `${page.getOrdinal(parent)}-${ownerBackendNodeId}`;
       const iframeXPath = parentDom?.xpathMap[iframeEnc];
 
       const childAbs = iframeXPath
@@ -177,7 +159,7 @@ export async function captureHybridSnapshot(
     }
   }
 
-  // 3) Merge frames into global maps using absolute prefixes
+  // ============== 3) Merge frames into global maps using absolute prefixes ==============
   for (const frameId of frames) {
     const maps = perFrameMaps.get(frameId);
     if (!maps) continue;
@@ -197,20 +179,17 @@ export async function captureHybridSnapshot(
     Object.assign(combinedUrlMap, maps.urlMap);
   }
 
-  // Combined outline — simple concatenation with an ordinal-based header for each iframe.
-  // (We can inject child subtrees under parent iframe nodes as a follow-up enhancement.)
+  // Stitch child outlines under their parent iframe lines (optional)
   const idToTree = new Map<string, string>();
   for (const { frameId, outline } of perFrameOutlines) {
     const parentEnc = iframeHostEncByChild.get(frameId);
     if (parentEnc) idToTree.set(parentEnc, outline);
   }
 
-  // Root outline is the first/root frame
   const rootOutline =
     perFrameOutlines.find((o) => o.frameId === rootId)?.outline ??
     perFrameOutlines[0]?.outline ??
     "";
-  // Recursively inject all descendants under their iframe lines
   const combinedTree = injectSubtrees(rootOutline, idToTree);
 
   return {
@@ -241,14 +220,14 @@ function prefixXPath(parentAbs: string, child: string): string {
 }
 
 /* ------------------------------------------------------------------------------------------------
- * Internal helpers (DOM)
+ * DOM helpers
  * ----------------------------------------------------------------------------------------------*/
 
 /**
  * Build tag name and XPath maps for a single frame session.
- * - EncodedId is produced by a **frame-aware encoder**: `${ordinal}-${backendId}` by default.
- * - For same-process iframes, we scope the walk to the iframe’s `contentDocument` so nodes
- *   belong to the correct frame. For OOPIFs, we start at the session’s root.
+ * EncodedId is produced by a frame-aware encoder: `${ordinal}-${backendId}` by default.
+ * For same-process iframes, we scope to the iframe’s `contentDocument` in the **owning session**.
+ * For OOPIFs, we start at the **session’s** root document (owner element lives in the parent).
  */
 async function domMapsForSession(
   session: CDPSessionLike,
@@ -279,10 +258,8 @@ async function domMapsForSession(
     if (typeof ownerBackendId === "number") {
       const ownerEl = findNodeByBackendId(root, ownerBackendId);
       if (ownerEl?.contentDocument) {
-        // Scope the walk to this iframe’s document for same-process iframes
         startNode = ownerEl.contentDocument;
       }
-      // else: fallback to root (rare)
     }
   } catch {
     // OOPIF or no owner in this session → keep startNode = root
@@ -327,19 +304,12 @@ async function domMapsForSession(
 
     // IMPORTANT:
     // Do NOT auto-descend into nested iframe contentDocuments here.
-    // Each frame (same-process or OOPIF) is processed by its own call,
-    // so nested frames will be handled when their frameId is processed.
-    // if (node.contentDocument) {
-    //   stack.push({ node: node.contentDocument, xpath: "" });
-    // }
+    // Each frame is processed in its **own** session scope.
   }
 
   return { tagNameMap, xpathMap };
 }
 
-/**
- * Build XPath steps for a batch of siblings (left→right order).
- */
 function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
   const segs: string[] = [];
   const ctr: Record<string, number> = {};
@@ -360,9 +330,6 @@ function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
   return segs;
 }
 
-/**
- * Join two XPath parts; treats `//` marker specially (shadow hop).
- */
 function joinXPath(base: string, step: string): string {
   if (!base || base === "/") return step ? `/${step}` : "/";
   if (base.endsWith("//")) return `${base}${step}`;
@@ -371,13 +338,9 @@ function joinXPath(base: string, step: string): string {
 }
 
 /* ------------------------------------------------------------------------------------------------
- * Internal helpers (Accessibility)
+ * Accessibility helpers
  * ----------------------------------------------------------------------------------------------*/
 
-/**
- * Minimal shape we operate on after decoration/pruning.
- * - `encodedId` is the **frame-aware, compact** id (`<ordinal>-<backendId>`) used by outlines/maps.
- */
 type A11yNode = {
   role: string;
   name?: string;
@@ -388,7 +351,7 @@ type A11yNode = {
   parentId?: string;
   childIds?: string[];
   children?: A11yNode[];
-  encodedId?: string; // <<— important: shows up in the combined tree as [ordinal-backendId]
+  encodedId?: string;
 };
 
 type A11yOptions = {
@@ -396,15 +359,9 @@ type A11yOptions = {
   detectScrollable: boolean;
   experimental: boolean;
   tagNameMap: Record<string, string>;
-  /** Encoder for A11y nodes: transforms backendNodeId into an EncodedId (`<ordinal>-<backendId>`) */
   encode: (backendNodeId: number) => string;
 };
 
-/**
- * Fetch and process the Accessibility tree for a single frame.
- * - If `frameId` is provided, the call is scoped to that frame (same-process iframes).
- * - If not, the child session will return its own tree (OOPIF).
- */
 async function a11yForFrame(
   session: CDPSessionLike,
   frameId: string | undefined,
@@ -419,7 +376,6 @@ async function a11yForFrame(
     nodes: Protocol.Accessibility.AXNode[];
   }>("Accessibility.getFullAXTree", params);
 
-  // Build URL map directly from AX properties. Each node with a backend id and a 'url' contributes.
   const urlMap: Record<string, string> = {};
   for (const n of nodes) {
     const be = n.backendDOMNodeId;
@@ -427,7 +383,7 @@ async function a11yForFrame(
     const url = extractUrlFromAXNode(n);
     if (!url) continue;
     const enc = opts.encode(be);
-    urlMap[enc] = url; // last write wins is fine
+    urlMap[enc] = url;
   }
 
   const decorated = decorateRoles(nodes, opts);
@@ -437,12 +393,6 @@ async function a11yForFrame(
   return { outline: simplified.trimEnd(), urlMap };
 }
 
-/**
- * Decorate AX nodes and project to our A11yNode shape.
- * - Stamps **encodedId** using the provided `opts.encode(backendNodeId)` so the outline
- *   and maps use `[ordinal-backendId]` instead of opaque AX node ids.
- * - Placeholder for scrollable detection (kept false for now).
- */
 function decorateRoles(
   nodes: Protocol.Accessibility.AXNode[],
   opts: A11yOptions,
@@ -450,7 +400,7 @@ function decorateRoles(
   const asRole = (n: Protocol.Accessibility.AXNode) =>
     String(n.role?.value ?? "");
 
-  // Placeholder: wire proper scrollable detection later
+  // Placeholder for scrollable decoration (disabled)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isScrollable = (_n: Protocol.Accessibility.AXNode) =>
     opts.detectScrollable ? false : false;
@@ -469,7 +419,7 @@ function decorateRoles(
       try {
         encodedId = opts.encode(n.backendDOMNodeId);
       } catch {
-        // ignore encode failures; fall back to nodeId in outline
+        // ignore encode failures
       }
     }
 
@@ -487,10 +437,6 @@ function decorateRoles(
   });
 }
 
-/**
- * Build a hierarchical A11y tree and prune structural wrappers.
- * (We do not build URL map here; URL extraction is done directly in `a11yForFrame`.)
- */
 async function buildHierarchicalTree(
   nodes: A11yNode[],
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -498,7 +444,7 @@ async function buildHierarchicalTree(
 ): Promise<{ tree: A11yNode[] }> {
   const nodeMap = new Map<string, A11yNode>();
 
-  // Pass 1: keep nodes that are named / have children / are non-structural
+  // Keep named or container nodes and any non-structural role
   for (const n of nodes) {
     const keep =
       !!(n.name && n.name.trim()) ||
@@ -508,7 +454,7 @@ async function buildHierarchicalTree(
     nodeMap.set(n.nodeId, { ...n });
   }
 
-  // Pass 2: parent-child wiring
+  // Wire parent/child edges
   for (const n of nodes) {
     if (!n.parentId) continue;
     const parent = nodeMap.get(n.parentId);
@@ -521,7 +467,7 @@ async function buildHierarchicalTree(
     .filter((n) => !n.parentId && nodeMap.has(n.nodeId))
     .map((n) => nodeMap.get(n.nodeId)!) as A11yNode[];
 
-  // Pass 3: prune/collapse structural wrappers
+  // Prune structural wrappers
   const cleaned = (await Promise.all(roots.map(pruneStructuralSafe))).filter(
     Boolean,
   ) as A11yNode[];
@@ -549,11 +495,6 @@ async function buildHierarchicalTree(
   }
 }
 
-/**
- * Outline formatter:
- * - Prefer **encodedId** (`[ordinal-backendId]`) when present
- * - Fallback to AX `nodeId` if no backend id was available
- */
 function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
@@ -563,16 +504,11 @@ function formatTreeLine(node: A11yNode, level = 0): string {
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
 }
 
-/* ------------------------------------------------------------------------------------------------
- * Small utilities
- * ----------------------------------------------------------------------------------------------*/
-
 function isStructural(role: string): boolean {
   const r = role?.toLowerCase();
   return r === "generic" || r === "none" || r === "inlinetextbox";
 }
 
-/** Clean text: remove private-use unicode + normalize NBSP-like spaces. */
 function cleanText(input: string): string {
   const PUA_START = 0xe000;
   const PUA_END = 0xf8ff;
@@ -596,7 +532,6 @@ function cleanText(input: string): string {
   return out.trim();
 }
 
-/** Extract URL (if any) from an AX node's properties. */
 function extractUrlFromAXNode(
   ax: Protocol.Accessibility.AXNode,
 ): string | undefined {
@@ -606,7 +541,7 @@ function extractUrlFromAXNode(
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-/** Locate a node by backendNodeId inside a DOM.getDocument tree (used for scoping same-proc iframes). */
+/** Find a node by backendNodeId inside a DOM.getDocument tree. */
 function findNodeByBackendId(
   root: Protocol.DOM.Node,
   backendNodeId: number,
@@ -615,13 +550,8 @@ function findNodeByBackendId(
   while (stack.length) {
     const n = stack.pop()!;
     if (n.backendNodeId === backendNodeId) return n;
-
-    // traverse children
     if (n.children) for (const c of n.children) stack.push(c);
-    // traverse shadow roots
     if (n.shadowRoots) for (const s of n.shadowRoots) stack.push(s);
-    // traverse contentDocument (iframe)
-    if (n.contentDocument) stack.push(n.contentDocument);
   }
   return undefined;
 }
@@ -629,8 +559,6 @@ function findNodeByBackendId(
 /**
  * Inject each child frame outline under the parent's iframe node line.
  * Keys in `idToTree` are the parent's **iframe EncodedIds** (e.g., "3-22").
- * The function is **recursive**: it injects grandchildren into children before
- * indenting and inserting them under the parent line.
  */
 function injectSubtrees(
   rootOutline: string,
@@ -638,7 +566,7 @@ function injectSubtrees(
 ): string {
   type Frame = { lines: string[]; i: number };
   const out: string[] = [];
-  const visited = new Set<string>(); // prevent infinite loops for any reason
+  const visited = new Set<string>();
   const stack: Frame[] = [{ lines: rootOutline.split("\n"), i: 0 }];
 
   while (stack.length) {
@@ -651,11 +579,9 @@ function injectSubtrees(
     const raw = top.lines[top.i++];
     out.push(raw);
 
-    // current line's indentation (used to compute child indentation)
     const indent = raw.match(/^(\s*)/)?.[1] ?? "";
     const content = raw.slice(indent.length);
 
-    // match leading [encodedId]
     const m = content.match(/^\[([^\]]+)]/);
     if (!m) continue;
 
@@ -665,8 +591,6 @@ function injectSubtrees(
 
     visited.add(encId);
 
-    // 🔁 Recursively inject grandchildren into this child first,
-    // then indent and insert the fully-stitched child block.
     const fullyInjectedChild = injectSubtrees(childOutline, idToTree);
     out.push(indentBlock(fullyInjectedChild.trimEnd(), indent + "  "));
   }
@@ -674,11 +598,33 @@ function injectSubtrees(
   return out.join("\n");
 }
 
-/** Indent a multi-line block by a given indent prefix. */
 function indentBlock(block: string, indent: string): string {
   if (!block) return "";
   return block
     .split("\n")
     .map((line) => (line.length ? indent + line : indent + line))
     .join("\n");
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Session helpers (registry-backed via Page)
+ * ----------------------------------------------------------------------------------------------*/
+
+/** Owning session for a frame (registry-backed via Page). */
+function ownerSession(page: Page, frameId: string): CDPSessionLike {
+  return page.getSessionForFrame(frameId);
+}
+
+/** The only correct session for `DOM.getFrameOwner(child)` is the **parent’s** session. */
+function parentSession(
+  page: Page,
+  parentByFrame: Map<string, string | null>,
+  frameId: string,
+): CDPSessionLike {
+  const parentId = parentByFrame.get(frameId) ?? null;
+  if (!parentId) {
+    // main frame: asking "owner" for itself; callers only use this in a guarded way
+    return page.getSessionForFrame(frameId);
+  }
+  return page.getSessionForFrame(parentId);
 }

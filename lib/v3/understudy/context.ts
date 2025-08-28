@@ -1,3 +1,4 @@
+// lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import { CdpConnection } from "./cdp";
 import { Page } from "./page";
@@ -15,19 +16,13 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 /**
  * V3Context
  *
- * Purpose:
- * Single place that owns the **root CDP connection** and wires CDP Target/Page
- * events into Page/FrameGraph domain logic. It maintains one `Page` per
- * top-level target, and **adopts OOPIF child sessions** into the owning Page.
+ * Owns the root CDP connection and wires Target/Page events into Page.
+ * Maintains one Page per top-level target, adopts OOPIF child sessions into the owner Page,
+ * and tracks target→page and (root) frame→target mappings for lookups.
  *
- * Responsibilities:
- * - Bootstrap: discover/attach existing targets, enable auto-attach, and explicitly
- *   attach on `Target.targetCreated` so OOPIFs never slip through.
- * - Pause → wire → resume: targets start paused (`waitForDebuggerOnStart`); we
- *   enable Page domain, probe/attach listeners, then resume with `runIfWaitingForDebugger`.
- * - Staged adoption: cache child sessions by their **child root frame id** and adopt
- *   when the parent emits `frameAttached` for that id.
- * - Keep mappings for lookups and debug stats (top-level mapping only in `mainFrameToTarget`).
+ * IMPORTANT: FrameId → session ownership is managed inside Page (via its FrameRegistry).
+ * Context never “guesses” owners; it simply forwards events (with the emitting session)
+ * so Page can record the correct owner at event time.
  */
 export class V3Context {
   private constructor(readonly conn: CdpConnection) {}
@@ -112,7 +107,6 @@ export class V3Context {
    */
   private async bootstrap(): Promise<void> {
     console.log("[ctx] bootstrap: start");
-    // Index existing targets (main + any pre-existing child targets)
     const targets = await this.conn.getTargets();
     console.log(
       "[ctx] bootstrap: existing targets =",
@@ -209,7 +203,7 @@ export class V3Context {
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
 
-    // Top-level detection stays the same
+    // Top-level page target
     if (isTopLevelPage(info)) {
       const page = await Page.create(session, info.targetId);
       this.wireSessionToOwnerPage(sessionId, page);
@@ -226,7 +220,7 @@ export class V3Context {
       return;
     }
 
-    // 🔍 PROBE: treat any attach with Page domain as a potential OOPIF by checking its root frame id.
+    // Potential OOPIF (iframe) target:
     try {
       const { frameTree } =
         await session.send<Protocol.Page.GetFrameTreeResponse>(
@@ -234,29 +228,31 @@ export class V3Context {
         );
       const childMainId = frameTree.frame.id;
 
-      console.log("[ATTACH] child target attached", {
-        sessionId,
-        targetType: info.type,
-        url: info.url,
-        childMainId,
-      });
+      // Try to find owner Page now (it may already have the node in its tree)
+      let owner = this.frameOwnerPage.get(childMainId);
+      if (!owner) {
+        for (const p of this.pagesByTarget.values()) {
+          const tree = p.asProtocolFrameTree(p.mainFrameId());
+          const has = (function find(n: Protocol.Page.FrameTree): boolean {
+            if (n.frame.id === childMainId) return true;
+            for (const c of n.childFrames ?? []) if (find(c)) return true;
+            return false;
+          })(tree);
+          if (has) {
+            owner = p;
+            break;
+          }
+        }
+      }
 
-      const owner = this.frameOwnerPage.get(childMainId);
       if (owner) {
-        console.log(
-          "[ADOPT-IMMEDIATE] child",
-          childMainId,
-          "-> owner",
-          this.findTargetIdByPage(owner),
-        );
         owner.adoptOopifSession(session, childMainId);
         this.sessionOwnerPage.set(sessionId, owner);
         this.installFrameEventBridges(sessionId, owner);
       } else {
         console.log(
-          "[STAGE] child",
+          "[ctx] OOPIF child staged until parent frameAttached →",
           childMainId,
-          "pending until parent frameAttached",
         );
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
@@ -309,8 +305,8 @@ export class V3Context {
     this.mainFrameToTarget.delete(mainId);
     this.frameOwnerPage.delete(mainId);
 
-    for (const [sessionId, p] of Array.from(this.sessionOwnerPage.entries())) {
-      if (p === page) this.sessionOwnerPage.delete(sessionId);
+    for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
+      if (p === page) this.sessionOwnerPage.delete(sid);
     }
 
     for (const [fid] of Array.from(this.pendingOopifByMainFrame.entries())) {
@@ -325,9 +321,7 @@ export class V3Context {
 
   /**
    * Wire Page-domain frame events for a session into the owning Page & mappings.
-   * - `frameAttached`: update topology, adopt any staged child, handle root swap mapping.
-   * - `frameDetached`: prune on hard remove; keep node/mapping on `"swap"` handoff.
-   * - `frameNavigated`: store last-seen frame metadata.
+   * We forward the *emitting session* with every event so Page can stamp ownership precisely.
    */
   private installFrameEventBridges(sessionId: SessionId, owner: Page): void {
     const session = this.conn.getSession(sessionId);
@@ -337,53 +331,33 @@ export class V3Context {
       "Page.frameAttached",
       (evt) => {
         const { frameId, parentFrameId } = evt;
-        console.log("[PARENT frameAttached]", {
-          sessionId,
-          frameId,
-          parentFrameId,
-        });
 
-        const oldRoot = owner.mainFrameId();
-        owner.onFrameAttached(frameId, parentFrameId ?? null);
+        owner.onFrameAttached(frameId, parentFrameId ?? null, session);
 
-        // record the owner for this frame id first
-        this.frameOwnerPage.set(frameId, owner);
-
-        // If a child session was staged for THIS frame id, adopt now
+        // If we were waiting for this id (OOPIF child), adopt now.
         const pendingChildSessionId = this.pendingOopifByMainFrame.get(frameId);
         if (pendingChildSessionId) {
           const child = this.conn.getSession(pendingChildSessionId);
           if (child) {
-            console.log(
-              "[ADOPT-STAGED] child",
-              frameId,
-              "from session",
-              pendingChildSessionId,
-            );
             owner.adoptOopifSession(child, frameId);
             this.sessionOwnerPage.set(child.id, owner);
-            // ✅ very important: wire child bridges now
+            // Wire bridges for the child so its Page events keep flowing.
             this.installFrameEventBridges(pendingChildSessionId, owner);
-          } else {
-            console.log(
-              "[ADOPT-STAGED] child session is gone",
-              pendingChildSessionId,
-            );
           }
           this.pendingOopifByMainFrame.delete(frameId);
         }
 
-        // Root swap: move top-level mapping to new main id
+        // Track Page ownership for quick reverse lookups (debug helpers).
+        this.frameOwnerPage.set(frameId, owner);
+
+        // Root handoff: keep mainFrameToTarget aligned for the page
         if (!parentFrameId) {
           const newRoot = owner.mainFrameId();
-          if (newRoot !== oldRoot) {
-            const topTargetId = this.findTargetIdByPage(owner);
-            if (topTargetId) {
-              this.mainFrameToTarget.delete(oldRoot);
-              this.mainFrameToTarget.set(newRoot, topTargetId);
-            }
-            this.frameOwnerPage.set(newRoot, owner);
+          const topTargetId = this.findTargetIdByPage(owner);
+          if (topTargetId) {
+            this.mainFrameToTarget.set(newRoot, topTargetId);
           }
+          this.frameOwnerPage.set(newRoot, owner);
         }
       },
     );
@@ -401,7 +375,7 @@ export class V3Context {
     session.on<Protocol.Page.FrameNavigatedEvent>(
       "Page.frameNavigated",
       (evt) => {
-        owner.onFrameNavigated(evt.frame);
+        owner.onFrameNavigated(evt.frame, session);
       },
     );
   }
