@@ -15,6 +15,8 @@ const parsedArgs: {
   trials?: number;
   concurrency?: number;
   provider?: string;
+  dataset?: string;
+  max_k?: number;
   leftover: string[];
 } = {
   leftover: [],
@@ -39,6 +41,13 @@ for (const arg of rawArgs) {
     }
   } else if (arg.startsWith("provider=")) {
     parsedArgs.provider = arg.split("=")[1]?.toLowerCase();
+  } else if (arg.startsWith("--dataset=")) {
+    parsedArgs.dataset = arg.split("=")[1]?.toLowerCase();
+  } else if (arg.startsWith("max_k=")) {
+    const val = parseInt(arg.split("=")[1], 10);
+    if (!isNaN(val)) {
+      parsedArgs.max_k = val;
+    }
   } else {
     parsedArgs.leftover.push(arg);
   }
@@ -63,6 +72,12 @@ if (parsedArgs.trials !== undefined) {
 if (parsedArgs.concurrency !== undefined) {
   process.env.EVAL_MAX_CONCURRENCY = String(parsedArgs.concurrency);
 }
+if (parsedArgs.max_k !== undefined) {
+  process.env.EVAL_MAX_K = String(parsedArgs.max_k);
+}
+if (parsedArgs.dataset !== undefined) {
+  process.env.EVAL_DATASET = parsedArgs.dataset;
+}
 
 const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
   ? process.env.EVAL_CATEGORIES.split(",")
@@ -77,6 +92,7 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
       "regression",
       "llm_clients",
       "agent",
+      "external_agent_benchmarks",
     ];
 
 const providerDefault = process.env.EVAL_PROVIDER ?? undefined;
@@ -103,6 +119,12 @@ function buildUsage(detailed = false): string {
 
   ${chalk.cyan("provider".padEnd(12))} ${"override LLM provider".padEnd(24)}
     (default ${chalk.dim(providerDefault)})        [${chalk.yellow("OPENAI")}, ${chalk.yellow("ANTHROPIC")}, ${chalk.yellow("GOOGLE")}, ${chalk.yellow("TOGETHER")}, ${chalk.yellow("GROQ")}, ${chalk.yellow("CEREBRAS")}]
+
+  ${chalk.cyan("max_k".padEnd(12))} ${"max test cases per dataset".padEnd(24)}
+    (default ${chalk.dim("25")})
+
+  ${chalk.cyan("--dataset".padEnd(12))} ${"filter dataset for benchmarks".padEnd(24)}
+    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}]
 
 
     ${chalk.magenta.underline("Positional filters\n")}

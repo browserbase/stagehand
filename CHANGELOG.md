@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.4.4
+
+### Patch Changes
+
+- [#1012](https://github.com/browserbase/stagehand/pull/1012) [`9e8c173`](https://github.com/browserbase/stagehand/commit/9e8c17374fdc8fbe7f26e6cf802c36bd14f11039) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix disabling api validation whenever a customLLM client is provided
+
 ## 2.4.3
 
 ### Patch Changes
