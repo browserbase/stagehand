@@ -34,6 +34,7 @@ export class V3Context {
   private pendingOopifByMainFrame = new Map<string, SessionId>();
   private createdAtByTarget = new Map<TargetId, number>();
   private typeByTarget = new Map<TargetId, TargetType>();
+  private _pageOrder: TargetId[] = [];
 
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
@@ -47,6 +48,43 @@ export class V3Context {
     await ctx.bootstrap();
     console.log("[ctx] create: bootstrap done");
     return ctx;
+  }
+
+  /** Mark a page target as the most-recent one (active). */
+  private _pushActive(tid: TargetId): void {
+    // remove prior entry if any
+    const i = this._pageOrder.indexOf(tid);
+    if (i !== -1) this._pageOrder.splice(i, 1);
+    this._pageOrder.push(tid);
+  }
+
+  /** Remove a page target from the recency list (used on close). */
+  private _removeFromOrder(tid: TargetId): void {
+    const i = this._pageOrder.indexOf(tid);
+    if (i !== -1) this._pageOrder.splice(i, 1);
+  }
+
+  /** Return the current active Page (most-recent page that still exists). */
+  public activePage(): Page | undefined {
+    // prune any stale ids from the tail
+    for (let i = this._pageOrder.length - 1; i >= 0; i--) {
+      const tid = this._pageOrder[i]!;
+      const p = this.pagesByTarget.get(tid);
+      if (p) return p;
+      // stale — remove and continue
+      this._pageOrder.splice(i, 1);
+    }
+    // fallback: pick the newest by createdAt if order is empty
+    let newestTid: TargetId | undefined;
+    let newestTs = -1;
+    for (const [tid] of this.pagesByTarget) {
+      const ts = this.createdAtByTarget.get(tid) ?? 0;
+      if (ts > newestTs) {
+        newestTs = ts;
+        newestTid = tid;
+      }
+    }
+    return newestTid ? this.pagesByTarget.get(newestTid) : undefined;
   }
 
   /**
@@ -215,6 +253,7 @@ export class V3Context {
       if (!this.createdAtByTarget.has(info.targetId)) {
         this.createdAtByTarget.set(info.targetId, Date.now());
       }
+      this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
       await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
       return;
@@ -314,6 +353,7 @@ export class V3Context {
       if (!owner || owner === page) this.pendingOopifByMainFrame.delete(fid);
     }
 
+    this._removeFromOrder(targetId);
     this.pagesByTarget.delete(targetId);
     this.createdAtByTarget.delete(targetId);
     this.typeByTarget.delete(targetId);
