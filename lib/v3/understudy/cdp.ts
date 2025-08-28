@@ -46,9 +46,37 @@ export class CdpConnection implements CDPSessionLike {
   private eventHandlers = new Map<string, Set<EventHandler>>();
   private sessions = new Map<string, CdpSession>();
   public readonly id: string | null = null; // root
+  private transportCloseHandlers = new Set<(why: string) => void>();
+
+  public onTransportClosed(handler: (why: string) => void): void {
+    this.transportCloseHandlers.add(handler);
+  }
+  public offTransportClosed(handler: (why: string) => void): void {
+    this.transportCloseHandlers.delete(handler);
+  }
+
+  private emitTransportClosed(why: string) {
+    for (const h of this.transportCloseHandlers) {
+      try {
+        h(why);
+      } catch {
+        //
+      }
+    }
+  }
 
   private constructor(ws: WebSocket) {
     this.ws = ws;
+    this.ws.on("close", (code, reason) => {
+      // Reason is a Buffer in ws; stringify defensively
+      const why = `socket-close code=${code} reason=${String(reason || "")}`;
+      this.emitTransportClosed(why);
+    });
+
+    this.ws.on("error", (err) => {
+      const why = `socket-error ${err?.message ?? String(err)}`;
+      this.emitTransportClosed(why);
+    });
     this.ws.on("message", (data) => this.onMessage(data.toString()));
   }
 
