@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/types/evals";
-import { FrameLocator } from "playwright";
+import { FrameLocator } from "patchright";
 
 export const iframes_nested: EvalFunction = async ({
   debugUrl,

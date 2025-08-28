@@ -1,5 +1,5 @@
-import type { CDPSession, Page as PlaywrightPage, Frame } from "playwright";
-import { selectors } from "playwright";
+import type { CDPSession, Page as PlaywrightPage, Frame } from "patchright";
+import { selectors } from "patchright";
 import { z } from "zod/v3";
 import { Page, defaultExtractSchema } from "../types/page";
 import {

@@ -2,7 +2,7 @@ import type {
   Browser as PlaywrightBrowser,
   BrowserContext as PlaywrightContext,
   Page as PlaywrightPage,
-} from "playwright";
+} from "patchright";
 import { z } from "zod/v3";
 import type {
   ActOptions,

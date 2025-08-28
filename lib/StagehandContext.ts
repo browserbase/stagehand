@@ -2,7 +2,7 @@ import type {
   BrowserContext as PlaywrightContext,
   CDPSession,
   Page as PlaywrightPage,
-} from "playwright";
+} from "patchright";
 import { Stagehand } from "./index";
 import { StagehandPage } from "./StagehandPage";
 import { Page } from "../types/page";

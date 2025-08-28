@@ -1,4 +1,4 @@
-import type { BrowserContext as PlaywrightContext, Frame } from "playwright";
+import type { BrowserContext as PlaywrightContext, Frame } from "patchright";
 import { Page } from "../types/page";
 
 export interface AXNode {

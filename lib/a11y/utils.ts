@@ -22,7 +22,7 @@ import {
   StagehandIframeError,
   XPathResolutionError,
 } from "@/types/stagehandErrors";
-import { CDPSession, Frame } from "playwright";
+import { CDPSession, Frame } from "patchright";
 
 const IFRAME_STEP_RE = /iframe\[\d+]$/i;
 const PUA_START = 0xe000;

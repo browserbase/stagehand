@@ -1,4 +1,4 @@
-import { Page, Locator, FrameLocator } from "playwright";
+import { Page, Locator, FrameLocator } from "patchright";
 import { PlaywrightCommandException } from "../../../types/playwright";
 import { StagehandPage } from "../../StagehandPage";
 import { Logger } from "../../../types/log";

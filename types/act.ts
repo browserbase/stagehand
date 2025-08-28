@@ -1,5 +1,5 @@
 import { LLMClient } from "../lib/llm/LLMClient";
-import { Locator } from "playwright";
+import { Locator } from "patchright";
 import { Logger } from "@/types/log";
 import { StagehandPage } from "@/lib/StagehandPage";
 
