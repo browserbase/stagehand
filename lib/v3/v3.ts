@@ -78,6 +78,12 @@ export class V3 {
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
+  private _isClosing = false;
+  private _processGuardsInstalled = false;
+  private _onCdpClosed = (why: string) => {
+    // Single place to react to the transport closing
+    this._panicClose(`CDP transport closed: ${why}`).catch(() => {});
+  };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
 
@@ -86,6 +92,7 @@ export class V3 {
   public verbose: 0 | 1 | 2 = 1;
 
   constructor(opts: V3Options) {
+    this._installProcessGuards();
     this.externalLogger =
       (opts as { logger?: (l: LogLine) => void }).logger ??
       ((l: LogLine) =>
@@ -134,6 +141,64 @@ export class V3 {
       );
     }
     this.opts = opts;
+  }
+
+  private async _panicClose(reason: string): Promise<void> {
+    try {
+      // Optional: log to your logger if you prefer
+      console.error(`[v3] panicClose → ${reason}`);
+    } catch {
+      //
+    }
+
+    try {
+      console.error(`[v3] calling this.close() → ${reason}`);
+      console.error(`[v3] calling this.close() → ${reason}`);
+      console.error(`[v3] calling this.close() → ${reason}`);
+      console.error(`[v3] calling this.close() → ${reason}`);
+      await this.close({ force: true });
+    } catch {
+      // swallow — we’re already panicking
+    }
+  }
+
+  private _installProcessGuards(): void {
+    if (this._processGuardsInstalled) return;
+    this._processGuardsInstalled = true;
+
+    const onSig = (sig: string) => {
+      this._panicClose(`signal ${sig}`).finally(() => {
+        // Let Node default exit continue; do NOT force process.exit here
+      });
+    };
+
+    const exitAfter = async (label: string) => {
+      try {
+        // Give close() up to 3s; even if it times out, we still exit.
+        await Promise.race([
+          this.close({ force: true }),
+          new Promise((r) => setTimeout(r, 3000)),
+        ]);
+      } finally {
+        console.error(`[v3] ${label}: exiting`);
+        process.exit(1);
+      }
+    };
+
+    const onUncaught = (err: unknown) => {
+      console.error("[v3] uncaughtException:", err);
+      void exitAfter("uncaughtException");
+    };
+
+    const onUnhandled = (reason: unknown) => {
+      console.error("[v3] unhandledRejection:", reason);
+      void exitAfter("unhandledRejection");
+    };
+
+    process.once("SIGINT", () => onSig("SIGINT"));
+    process.once("SIGTERM", () => onSig("SIGTERM"));
+    process.once("uncaughtException", onUncaught);
+    process.once("unhandledRejection", onUnhandled);
   }
 
   /**
@@ -331,13 +396,42 @@ export class V3 {
   }
 
   /** Best-effort cleanup of context and launched resources. */
-  async close(): Promise<void> {
-    await this.ctx?.close();
-    if (this.state.kind === "LOCAL") {
-      await this.state.chrome.kill();
+  async close(opts?: { force?: boolean }): Promise<void> {
+    // If we're already closing and this isn't a forced close, no-op.
+    if (this._isClosing && !opts?.force) return;
+    this._isClosing = true;
+
+    try {
+      // Unhook CDP transport close handler if context exists
+      try {
+        if (this.ctx?.conn && this._onCdpClosed) {
+          this.ctx.conn.offTransportClosed?.(this._onCdpClosed);
+        }
+      } catch {
+        //
+      }
+
+      // Best-effort CDP/Context close
+      try {
+        await this.ctx?.close();
+      } catch {
+        //
+      }
+
+      // Kill local Chrome if present
+      if (this.state.kind === "LOCAL") {
+        try {
+          await this.state.chrome.kill();
+        } catch {
+          //
+        }
+      }
+    } finally {
+      // Reset internal state
+      this.state = { kind: "UNINITIALIZED" };
+      this.ctx = null;
+      this._isClosing = false;
     }
-    this.state = { kind: "UNINITIALIZED" };
-    this.ctx = null;
   }
 
   /**
@@ -369,6 +463,7 @@ export class V3 {
       this.opts.connectTimeoutMs ?? 15_000,
     );
     this.ctx = await V3Context.create(ws);
+    this.ctx.conn.onTransportClosed(this._onCdpClosed);
     return { ws, chrome };
   }
 
@@ -408,6 +503,7 @@ export class V3 {
       );
     }
     this.ctx = await V3Context.create(session.connectUrl);
+    this.ctx.conn.onTransportClosed(this._onCdpClosed);
     return { ws: session.connectUrl, sessionId: session.id, bb };
   }
 
