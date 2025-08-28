@@ -98,6 +98,7 @@ export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
   apiKey?: string,
+  baseURL?: string,
 ) {
   if (apiKey) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
@@ -107,8 +108,12 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    // Create the provider instance with the API key
-    const provider = creator({ apiKey });
+    // Create the provider instance with the API key and baseURL if provided
+    const providerConfig: { apiKey: string; baseURL?: string } = { apiKey };
+    if (baseURL) {
+      providerConfig.baseURL = baseURL;
+    }
+    const provider = creator(providerConfig);
     // Get the specific model from the provider
     return provider(subModelName);
   } else {
@@ -166,6 +171,7 @@ export class LLMProvider {
         subProvider,
         subModelName,
         clientOptions?.apiKey,
+        clientOptions?.baseURL,
       );
 
       return new AISdkClient({

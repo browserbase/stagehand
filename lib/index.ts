@@ -393,7 +393,7 @@ export class Stagehand {
   public readonly logInferenceToFile?: boolean;
   private stagehandLogger: StagehandLogger;
   private disablePino: boolean;
-  private modelClientOptions: ClientOptions;
+  protected modelClientOptions: ClientOptions;
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
