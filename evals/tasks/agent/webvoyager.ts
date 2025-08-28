@@ -1,4 +1,5 @@
 import { EvalFunction } from "@/types/evals";
+import { Evaluator } from "../../evaluator";
 
 export const webvoyager: EvalFunction = async ({
   stagehand,
@@ -34,17 +35,20 @@ export const webvoyager: EvalFunction = async ({
       instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}`,
     });
 
-    const result = await agent.execute({
+    await agent.execute({
       instruction: params.ques,
-      maxSteps: 20,
+      maxSteps: 50,
     });
 
-    const message = result?.message || "";
-    const success =
-      typeof message === "string" && /Final Answer\s*:/i.test(message);
+    const evaluator = new Evaluator(stagehand);
+    const evalResult = await evaluator.ask({
+      question: `Did the agent successfully complete this task: "${params.ques}"? Look at the current state of the page to verify if the task was completed successfully.`,
+      screenshot: true,
+    });
 
     return {
-      _success: !!success,
+      _success: evalResult.evaluation === "YES",
+      reasoning: evalResult.reasoning,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
