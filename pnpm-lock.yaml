@@ -6,7 +6,7 @@ settings:
 
 overrides:
   whatwg-url: ^14.0.0
-  form-data: ^4.0.4
+  form-data: '>=4.0.4'
 
 importers:
 
