@@ -1,4 +1,5 @@
 import { EvalFunction } from "@/types/evals";
+import { Evaluator } from "../../evaluator";
 
 /**
  * Data-driven GAIA agent eval
@@ -40,7 +41,6 @@ export const gaia: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-
     await stagehand.page.goto(params.web);
 
     const agent = stagehand.agent({
@@ -51,25 +51,23 @@ export const gaia: EvalFunction = async ({
 
     const result = await agent.execute({
       instruction: params.ques,
-      maxSteps: 20,
+      maxSteps: 50,
     });
-
-    const message = result?.message || "";
-    const hasFinal =
-      typeof message === "string" && /Final Answer\s*:\s*(.+)/i.test(message);
-    const providedAnswer = hasFinal
-      ? (message.match(/Final Answer\s*:\s*(.+)/i)?.[1] || "").trim()
-      : "";
 
     const expected = (params as Record<string, unknown>).expected as
       | string
       | undefined;
-    const success = expected
-      ? hasFinal && providedAnswer.trim() === expected.trim()
-      : hasFinal;
+    const evaluator = new Evaluator(stagehand);
+    const evalResult = await evaluator.ask({
+      question: `Did the agent provide the expected answer: "${expected}"?`,
+      answer: result?.message || "",
+      screenshot: false,
+    });
 
     return {
-      _success: !!success,
+      _success: evalResult.evaluation === "YES",
+      reasoning: evalResult.reasoning,
+      expectedAnswer: expected,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
