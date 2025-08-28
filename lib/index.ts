@@ -393,7 +393,7 @@ export class Stagehand {
   public readonly logInferenceToFile?: boolean;
   private stagehandLogger: StagehandLogger;
   private disablePino: boolean;
-  private modelClientOptions: ClientOptions;
+  protected modelClientOptions: ClientOptions;
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
@@ -738,10 +738,6 @@ export class Stagehand {
       throw new StagehandNotInitializedError("context");
     }
     return this.stagehandContext.context;
-  }
-
-  public get clientOptions(): ClientOptions {
-    return this.modelClientOptions;
   }
 
   async init(): Promise<InitResult> {
