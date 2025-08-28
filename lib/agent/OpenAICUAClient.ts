@@ -41,6 +41,7 @@ export class OpenAICUAClient extends AgentClient {
     // Process client options
     this.apiKey =
       (clientOptions?.apiKey as string) || process.env.OPENAI_API_KEY || "";
+    this.baseURL = (clientOptions?.baseURL as string) || undefined;
     this.organization =
       (clientOptions?.organization as string) || process.env.OPENAI_ORG;
 
@@ -56,6 +57,10 @@ export class OpenAICUAClient extends AgentClient {
     this.clientOptions = {
       apiKey: this.apiKey,
     };
+
+    if (this.baseURL) {
+      this.clientOptions.baseURL = this.baseURL;
+    }
 
     // Initialize the OpenAI client
     this.client = new OpenAI(this.clientOptions);
