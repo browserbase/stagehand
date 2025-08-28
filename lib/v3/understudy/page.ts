@@ -1,70 +1,72 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Frame } from "./frame";
-import { FrameGraph } from "./frameGraph";
+import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types";
 
+/**
+ * Page
+ *
+ * One instance per **top-level target**. It owns:
+ *  - the top-level CDP session (for the page target)
+ *  - all adopted OOPIF child sessions (Target.attachToTarget with flatten: true)
+ *  - a **FrameRegistry** that is the single source of truth for BOTH:
+ *      • frame topology (parent/children, root swaps, last-seen CDP Frame)
+ *      • frame → session ownership (which session owns which frameId)
+ *
+ * Page exposes convenient APIs (goto/reload/url/screenshot/locator),
+ * and simple bridges that Context uses to feed Page/Target events in.
+ */
 const LIFECYCLE_NAME: Record<LoadState, string> = {
   load: "load",
   domcontentloaded: "DOMContentLoaded",
   networkidle: "networkIdle",
 };
 
-/**
- * Page
- *
- * Purpose:
- * A single, top-level browser page abstraction (one per top-level target).
- * It owns the page’s **main CDP session** and **adopted OOPIF child sessions**,
- * and maintains a live, unified frame tree through a `FrameGraph`.
- *
- * What it does:
- * - Exposes convenience APIs (goto/reload/url/screenshot/locator).
- * - Tracks the **current** main frame id across cross-process swaps.
- * - Adopts/ detaches OOPIF sessions; seeds their current state; wires their events.
- * - Serializes the full, merged frame tree for inspection/debugging.
- *
- * What it does NOT do:
- * - Manage CDP target lifecycle (attach/detach/resume) — that is the Context’s job.
- * - Talk directly to Target domain (the Context feeds us Page domain events).
- */
 export class Page {
-  /** All CDP sessions owned by this Page (main + adopted OOPIF child sessions). */
+  /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   private readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
-  /** Pure frame topology + last-seen CDP frames for this Page. */
-  private readonly frameGraph: FrameGraph;
 
-  /** Child session id -> its main frame id (for clean detaches). */
-  private childSessionMainFrame = new Map<string, string>();
+  /** Unified truth for frame topology + ownership. */
+  private readonly registry: FrameRegistry;
 
-  /** Convenience wrapper bound to the current main frame id. */
+  /** A convenience wrapper bound to the current main frame id (top-level session). */
   private mainFrameWrapper: Frame;
 
-  private frameOrdinals = new Map<string, number>(); // raw frameId -> ordinal
+  /** Compact ordinal per frameId (used by snapshot encoding). */
+  private frameOrdinals = new Map<string, number>();
   private nextOrdinal = 0;
 
-  private sessionByFrame = new Map<string, CDPSessionLike>(); // filled by adoptOopifSession & root setup
-  private pageId: string;
+  /** cache Frames per frameId so everyone uses the same one */
+  private readonly frameCache = new Map<string, Frame>();
 
-  /**
-   * Construct a Page bound to a top-level target’s main session.
-   * @param mainSession CDP session for the top-level target.
-   * @param _targetId   Top-level target id (informational & for mapping).
-   * @param mainFrameId Current main frame id (will change on root swaps).
-   */
+  /** Stable id for Frames created by this Page (use top-level TargetId). */
+  private readonly pageId: string;
+
   private constructor(
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
   ) {
-    this.sessions.set(mainSession.id!, mainSession);
-    this.frameGraph = new FrameGraph(_targetId, mainFrameId);
-    this.mainFrameWrapper = new Frame(mainSession, mainFrameId, _targetId);
+    this.pageId = _targetId;
+
+    // own the main session
+    if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
+
+    // initialize registry with root/main frame id
+    this.registry = new FrameRegistry(_targetId, mainFrameId);
+
+    // main-frame wrapper is always bound to the **top-level** session
+    this.mainFrameWrapper = new Frame(
+      this.mainSession,
+      mainFrameId,
+      this.pageId,
+    );
   }
 
   /**
-   * Factory: create a Page and seed the FrameGraph with the top-level target’s shallow tree.
-   * Assumes Page domain is already enabled on the session.
+   * Factory: create Page and seed registry with the shallow tree from Page.getFrameTree.
+   * Assumes Page domain is already enabled on the session passed in.
    */
   static async create(
     session: CDPSessionLike,
@@ -78,261 +80,186 @@ export class Page {
       frameTree: Protocol.Page.FrameTree;
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
+
     const page = new Page(session, targetId, mainFrameId);
 
-    // Seed topology + last-seen frames for nodes known at creation time.
-    const seed = (tree: Protocol.Page.FrameTree, parent: string | null) => {
-      page.frameGraph.onAttached(tree.frame.id, parent);
-      page.frameGraph.onNavigated(tree.frame);
-      if (tree.childFrames)
-        for (const c of tree.childFrames) seed(c, tree.frame.id);
-    };
-    seed(frameTree, null);
+    // Seed topology + ownership for nodes known at creation time.
+    page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
 
     return page;
   }
 
-  // -------- MAIN APIs --------
+  // ---------------- Event-driven updates from Context ----------------
 
   /**
-   * Top-level target id for this Page (stable identifier for Context maps).
+   * Parent/child session emitted a `frameAttached`.
+   * Topology update + ownership stamped to **emitting session**.
    */
-  targetId(): string {
-    return this._targetId;
+  public onFrameAttached(
+    frameId: string,
+    parentId: string | null,
+    session: CDPSessionLike,
+  ): void {
+    this.ensureOrdinal(frameId);
+    this.registry.onFrameAttached(frameId, parentId, session.id ?? "root");
+    // Cache is keyed by frameId → invalidate to ensure future frameForId resolves with latest owner
+    this.frameCache.delete(frameId);
   }
 
   /**
-   * Return the **current** main frame id (changes on cross-process navigations).
+   * Parent/child session emitted a `frameDetached`.
    */
-  mainFrameId(): string {
-    return this.frameGraph.mainFrameId();
+  public onFrameDetached(
+    frameId: string,
+    reason: "remove" | "swap" | string = "remove",
+  ): void {
+    this.registry.onFrameDetached(frameId, reason);
+    this.frameCache.delete(frameId);
   }
 
   /**
-   * Return a convenience `Frame` wrapper bound to the current main frame id.
+   * Parent/child session emitted a `frameNavigated`.
+   * Topology + ownership update. Handles root swaps.
    */
-  mainFrame(): Frame {
-    return this.mainFrameWrapper;
+  public onFrameNavigated(
+    frame: Protocol.Page.Frame,
+    session: CDPSessionLike,
+  ): void {
+    const prevRoot = this.mainFrameId();
+    this.registry.onFrameNavigated(frame, session.id ?? "root");
+
+    // If the root changed, keep the convenience wrapper in sync
+    const newRoot = this.mainFrameId();
+    if (newRoot !== prevRoot) {
+      const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
+      this.frameOrdinals.set(newRoot, oldOrd);
+      this.mainFrameWrapper = new Frame(this.mainSession, newRoot, this.pageId);
+    }
+
+    // Invalidate the cached Frame for this id (session may have changed)
+    this.frameCache.delete(frame.id);
   }
 
   /**
-   * Serialize the **full merged frame tree** (including OOPIF subtrees).
+   * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
+   * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
-  getFullFrameTree(): Protocol.Page.FrameTree {
-    return this.asProtocolFrameTree(this.mainFrameId());
-  }
-
-  /**
-   * Serialize the merged frame tree using an explicit root id.
-   * @param rootMainFrameId Root frame id to serialize from (typically `mainFrameId()`).
-   */
-  asProtocolFrameTree(rootMainFrameId: string): Protocol.Page.FrameTree {
-    return this.frameGraph.asProtocolFrameTree(rootMainFrameId);
-  }
-
-  /**
-   * Adopt an OOPIF child session whose **main frame id** equals the parent iframe’s frame id.
-   * - Wires child Page domain events into the FrameGraph.
-   * - Performs a one-shot snapshot (`Page.getFrameTree`) to seed real frame data.
-   * - Does **not** create the parent→child edge; the parent’s `frameAttached` is canonical.
-   */
-  adoptOopifSession(
+  public adoptOopifSession(
     childSession: CDPSessionLike,
     childMainFrameId: string,
   ): void {
-    console.log("attempting to adoptOopifSession");
-    this.sessionByFrame.set(childMainFrameId, childSession);
-    this.sessions.set(childSession.id!, childSession);
-    this.childSessionMainFrame.set(childSession.id!, childMainFrameId);
+    if (childSession.id) this.sessions.set(childSession.id, childSession);
 
-    // Live updates from child session.
+    // session will start emitting its own page events; mark ownership seed now
+    this.registry.adoptChildSession(
+      childSession.id ?? "child",
+      childMainFrameId,
+    );
+    this.frameCache.delete(childMainFrameId);
+
+    // Bridge events from the child session to keep registry in sync
     childSession.on<Protocol.Page.FrameNavigatedEvent>(
       "Page.frameNavigated",
       (evt) => {
-        this.frameGraph.onNavigated(evt.frame);
-        // If top-level main changed, rebind wrapper.
-        if (
-          !evt.frame.parentId &&
-          evt.frame.id !== this.mainFrameWrapper.frameId
-        ) {
-          this.mainFrameWrapper = new Frame(
-            this.mainSession,
-            evt.frame.id,
-            this._targetId,
-          );
-        }
+        this.onFrameNavigated(evt.frame, childSession);
       },
     );
     childSession.on<Protocol.Page.FrameAttachedEvent>(
       "Page.frameAttached",
       (evt) => {
-        this.frameGraph.onAttached(evt.frameId, evt.parentFrameId ?? null);
+        this.onFrameAttached(
+          evt.frameId,
+          evt.parentFrameId ?? null,
+          childSession,
+        );
       },
     );
     childSession.on<Protocol.Page.FrameDetachedEvent>(
       "Page.frameDetached",
       (evt) => {
-        // Parent side treats 'swap' specially; here we hard-prune child-side subtree edges.
-        this.frameGraph.onDetached(evt.frameId);
+        this.onFrameDetached(evt.frameId, evt.reason ?? "remove");
       },
     );
 
-    // One-shot seed: snapshot the child subtree and store real frames/topology.
+    // One-shot seed the child's subtree ownership from its current tree
     void (async () => {
       try {
         await childSession.send("Page.enable").catch(() => {});
-
-        // Wait once for a potential commit if the snapshot looks pre-commit.
-        const waitOnceForChildCommit = (ms: number) =>
-          new Promise<Protocol.Page.Frame | null>((resolve) => {
-            let timer: NodeJS.Timeout | null = setTimeout(() => {
-              timer = null;
-              off();
-              resolve(null);
-            }, ms);
-            const handler = (evt: Protocol.Page.FrameNavigatedEvent) => {
-              if (evt.frame.id === childMainFrameId) {
-                if (timer) clearTimeout(timer);
-                off();
-                resolve(evt.frame);
-              }
-            };
-            const off = () => childSession.off("Page.frameNavigated", handler);
-            childSession.on("Page.frameNavigated", handler);
-          });
-
-        // Snapshot current truth.
         let { frameTree } =
           await childSession.send<Protocol.Page.GetFrameTreeResponse>(
             "Page.getFrameTree",
           );
 
-        // Reconcile root id if the child session reports a different one (rare).
+        // Normalize: ensure the child’s reported root id matches our known main id
         if (frameTree.frame.id !== childMainFrameId) {
-          this.frameGraph.onNavigated({
-            ...frameTree.frame,
-            id: childMainFrameId,
-          });
           frameTree = {
             ...frameTree,
             frame: { ...frameTree.frame, id: childMainFrameId },
           };
         }
 
-        // If snapshot looks blank, wait briefly for a commit.
-        const looksBlank =
-          !frameTree.frame.url ||
-          frameTree.frame.url === "about:blank" ||
-          (typeof frameTree.frame.loaderId === "string" &&
-            frameTree.frame.loaderId.length === 0);
-
-        if (looksBlank) {
-          const committed = await waitOnceForChildCommit(1200);
-          if (committed) {
-            frameTree = { ...frameTree, frame: { ...committed } };
-          }
-        }
-
-        // Store real frames for the whole subtree.
-        const seedFramesOnly = (tree: Protocol.Page.FrameTree) => {
-          this.frameGraph.onNavigated(tree.frame);
-          if (tree.childFrames)
-            for (const c of tree.childFrames) seedFramesOnly(c);
-        };
-        seedFramesOnly(frameTree);
-
-        const stored = this.frameGraph.getFrame(childMainFrameId);
-        console.log("[seed] child root now:", {
-          id: childMainFrameId,
-          url: stored?.url,
-          loaderId: stored?.loaderId,
-        });
-
-        // Attach topology for the subtree:
-        //  - For the root, attach only if we know the external parent (the iframe element).
-        //  - For internal children, attach under their parent within the child tree.
-        const parentOfRoot = this.frameGraphParentOf(childMainFrameId);
-        const attachSubtree = (
-          tree: Protocol.Page.FrameTree,
-          parentId: string | null,
-        ) => {
-          if (parentId !== null) {
-            this.frameGraph.onAttached(tree.frame.id, parentId);
-          }
-          if (tree.childFrames) {
-            for (const c of tree.childFrames) attachSubtree(c, tree.frame.id);
-          }
-        };
-
-        if (parentOfRoot) {
-          attachSubtree(frameTree, parentOfRoot);
-        } else if (frameTree.childFrames) {
-          // Parent not known yet: avoid root attach (would trigger root-swap).
-          for (const c of frameTree.childFrames)
-            attachSubtree(c, frameTree.frame.id);
-        }
+        this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
       } catch {
-        // If snapshot/commit wait races, live events will still keep the graph in sync.
+        // If snapshot races, live events will still converge the registry.
       }
     })();
   }
 
-  /**
-   * Remove an adopted OOPIF session and prune its subtree from the FrameGraph.
-   */
-  detachOopifSession(sessionId: string): void {
-    const mainFid = this.childSessionMainFrame.get(sessionId);
-    if (mainFid) {
-      this.frameGraph.onDetached(mainFid);
-      this.childSessionMainFrame.delete(sessionId);
+  /** Detach an adopted child session and prune its subtree */
+  public detachOopifSession(sessionId: string): void {
+    // Find which frames were owned by this session and prune by tree starting from each root.
+    for (const fid of this.registry.framesForSession(sessionId)) {
+      this.registry.onFrameDetached(fid, "remove");
+      this.frameCache.delete(fid);
     }
     this.sessions.delete(sessionId);
   }
 
-  /**
-   * Bridge: parent/child session emitted a `frameAttached`.
-   * Updates topology; does not fabricate frame metadata.
-   */
-  onFrameAttached(frameId: string, parentId: string | null): void {
-    this.ensureOrdinal(frameId);
-    this.frameGraph.onAttached(frameId, parentId);
+  // ---------------- Ownership helpers / lookups ----------------
+
+  /** Return the owning CDP session for a frameId (falls back to main session) */
+  public getSessionForFrame(frameId: string): CDPSessionLike {
+    const sid = this.registry.getOwnerSessionId(frameId);
+    if (!sid) return this.mainSession;
+    return this.sessions.get(sid) ?? this.mainSession;
   }
 
-  /**
-   * Bridge: parent/child session emitted a `frameDetached`.
-   * Treat `"swap"` as a handoff (no removal); otherwise prune subtree.
-   */
-  onFrameDetached(
-    frameId: string,
-    reason: "remove" | "swap" | string = "remove",
-  ): void {
-    if (reason === "swap") return;
-    this.frameGraph.onDetached(frameId);
+  /** Always returns a Frame bound to the owning session */
+  public frameForId(frameId: string): Frame {
+    const hit = this.frameCache.get(frameId);
+    if (hit) return hit;
+
+    const sess = this.getSessionForFrame(frameId);
+    const f = new Frame(sess, frameId, this.pageId);
+    this.frameCache.set(frameId, f);
+    return f;
   }
 
-  /**
-   * Bridge: parent/child session emitted a `frameNavigated`.
-   * Stores the real CDP frame and rebinds the main-frame wrapper on root change.
-   */
-  onFrameNavigated(frame: Protocol.Page.Frame): void {
-    const oldRoot = this.mainFrameId();
-    this.frameGraph.onNavigated(frame);
-    if (!("parentId" in frame) || !frame.parentId) {
-      const newRoot = frame.id;
-      if (newRoot !== oldRoot) {
-        const oldOrd = this.frameOrdinals.get(oldRoot) ?? 0;
-        this.frameOrdinals.set(newRoot, oldOrd);
-      }
-    }
+  /** Expose a session by id (used by snapshot to resolve session id -> session) */
+  public getSessionById(id: string): CDPSessionLike | undefined {
+    return this.sessions.get(id);
   }
 
-  sessionForFrameId(frameId: string): CDPSessionLike {
-    return this.sessionByFrame.get(frameId) ?? this.mainSession;
+  // ---------------- MAIN APIs ----------------
+
+  public targetId(): string {
+    return this._targetId;
   }
 
-  frameForId(frameId: string): Frame {
-    const sess = this.sessionForFrameId(frameId);
-    return new Frame(sess, frameId, this.pageId);
+  public mainFrameId(): string {
+    return this.registry.mainFrameId();
+  }
+
+  public mainFrame(): Frame {
+    return this.mainFrameWrapper;
+  }
+
+  public getFullFrameTree(): Protocol.Page.FrameTree {
+    return this.asProtocolFrameTree(this.mainFrameId());
+  }
+
+  public asProtocolFrameTree(rootMainFrameId: string): Protocol.Page.FrameTree {
+    return this.registry.asProtocolFrameTree(rootMainFrameId);
   }
 
   private ensureOrdinal(frameId: string): number {
@@ -348,36 +275,8 @@ export class Page {
     return this.ensureOrdinal(frameId);
   }
 
-  /**
-   * Helper: get current parent id for a frame (or null if unknown).
-   */
-  private frameGraphParentOf(fid: string): string | null {
-    return this.frameGraph.getParent(fid);
-  }
-
-  public getSessionForFrame(frameId: string): CDPSessionLike | undefined {
-    if (frameId === this.mainFrameId()) return this.mainSession;
-    // OOPIF: child session whose tracked main frame matches.
-    for (const [sid, fid] of this.childSessionMainFrame.entries()) {
-      if (fid === frameId) {
-        const s = this.sessions.get(sid);
-        if (s) return s;
-      }
-    }
-    // same-process iframe (no dedicated session)
-    return this.mainSession;
-  }
-
   public listAllFrameIds(): string[] {
-    const root = this.mainFrameId();
-    const order: string[] = [];
-    const tree = this.asProtocolFrameTree(root);
-    const dfs = (n: Protocol.Page.FrameTree) => {
-      order.push(n.frame.id);
-      for (const c of n.childFrames ?? []) dfs(c);
-    };
-    dfs(tree);
-    return order;
+    return this.registry.listAllFrames();
   }
 
   // -------- Convenience APIs delegated to the current main frame --------

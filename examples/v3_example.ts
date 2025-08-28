@@ -8,22 +8,32 @@ async function example(v3: V3) {
   const puppeteerPages = await puppeteerBrowser.pages();
   const puppeteerPage = puppeteerPages[0];
 
-  await puppeteerPage.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
-  );
+  await puppeteerPage.goto("https://www.quicken.com/support/search-opt/", {
+    waitUntil: "load",
+  });
 
   // await v3.act({ instruction: "click the button", page: puppeteerPage });
 
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-  const observeResult = {
-    method: "click",
-    description: "nunya",
-    selector:
-      "/html/body/div/iframe/html/body/main/section[1]/form/fieldset/label[2]/input",
-    arguments: [""],
-  };
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+  // const observeResult = {
+  //   method: "click",
+  //   description: "nunya",
+  //   selector:
+  //     "/html/body/div/iframe/html/body/main/section[1]/form/fieldset/label[2]/input",
+  //   arguments: [""],
+  // };
 
-  await v3.act(observeResult, puppeteerPage);
+  // await v3.act(observeResult, puppeteerPage);
+
+  await v3.act({ instruction: "close the cookie", page: puppeteerPage });
+  await v3.act({
+    instruction: "Click on 'chat now'",
+    page: puppeteerPage,
+  });
+  await v3.act({
+    instruction: "Click the div that says 'Send us a message'",
+    page: puppeteerPage,
+  });
 }
 
 (async () => {
