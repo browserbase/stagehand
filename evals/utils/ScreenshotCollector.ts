@@ -18,7 +18,7 @@ export class ScreenshotCollector {
 
   constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
     this.page = page;
-    this.interval = options.interval || 2000;
+    this.interval = options.interval || 5000;
     this.maxScreenshots = options.maxScreenshots || 10;
     this.captureOnNavigation = options.captureOnNavigation ?? true;
   }
