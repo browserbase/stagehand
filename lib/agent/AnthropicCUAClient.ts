@@ -15,6 +15,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
+import { compressConversationImages } from "./utils/imageCompression";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 
@@ -323,6 +324,8 @@ export class AnthropicCUAClient extends AgentClient {
       const nextInputItems: ResponseInputItem[] = [...inputItems];
 
       // Add the assistant message with tool_use blocks to the history
+      compressConversationImages(nextInputItems);
+
       nextInputItems.push(assistantMessage);
 
       // Generate tool results and add them as a user message
