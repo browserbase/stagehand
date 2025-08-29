@@ -11,7 +11,6 @@ export const createScreenshotTool = (page: Page) =>
       const screenshotBuffer = await page.screenshot({
         fullPage: false,
         type: "jpeg",
-        quality: 60,
       });
       const pageUrl = page.url();
 
