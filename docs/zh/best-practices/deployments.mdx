@@ -1,0 +1,254 @@
+---
+title: "部署 Stagehand"
+description: "将你的 AI 代理与自动化部署到云端"
+---
+
+<Tip>
+  **🌟 预览：Browser Functions** - 通过 Browser Functions 将你的网页自动化代码直接部署到 Browserbase。无需自建基础设施，即可在云端横向扩展你的 `act()` 自动化。发送邮件至 hello@browserbase.com 申请测试资格。
+</Tip>
+
+<div id="deploy-on-vercel">
+  ## 部署到 Vercel
+</div>
+
+在 Vercel Function 中通过 Browserbase 安全运行 Stagehand。本指南演示一个最小且适用于生产环境的 HTTP 端点，你可以直接调用或按计划调用。
+
+<div id="1-install-vercel-cli">
+  ### 1. 安装 Vercel CLI
+</div>
+
+要下载并安装 Vercel CLI，运行以下任一命令：
+
+<CodeGroup>
+  ```bash pnpm
+  pnpm i -g vercel
+  ```
+
+  ```bash yarn
+  yarn global add vercel
+  ```
+
+  ```bash npm
+  npm i -g vercel
+  ```
+
+  ```bash bun
+  bun add -g vercel
+  ```
+</CodeGroup>
+
+<div id="2-project-layout">
+  ### 2. 项目结构
+</div>
+
+```text
+your-project/
+  api/
+    run.ts
+  package.json
+  tsconfig.json
+  vercel.json
+```
+
+通过以下命令创建该结构：
+
+```bash
+mkdir -p api
+touch api/run.ts package.json vercel.json tsconfig.json
+```
+
+<div id="3-apirunts-nodejs-runtime">
+  ### 3. `api/run.ts`（Node.js 运行时）
+</div>
+
+```typescript
+// api/run.ts
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  try {
+    const stagehand = new Stagehand({
+      env: "BROWSERBASE",
+      apiKey: process.env.BROWSERBASE_API_KEY!,
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      modelName: "google/gemini-2.5-flash",
+      modelClientOptions: {
+        apiKey: process.env.GOOGLE_API_KEY!,
+      },
+      // optional session params
+      browserbaseSessionCreateParams: {
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        region: "us-west-2",
+        browserSettings: {
+          blockAds: true,
+        },
+      },
+    });
+
+    await stagehand.init();
+    const page = stagehand.page;
+
+    await page.goto("https://www.stagehand.dev/");
+    await page.act("click the evals button");
+
+    const { extraction } = await page.extract("extract the fastest model");
+    const data = { model: extraction ?? "" };
+
+    await stagehand.close();
+
+    res.status(200).json({ ok: true, data: data.model });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+}
+```
+
+<div id="4-packagejson">
+  ### 4. `package.json`
+</div>
+
+```json
+{
+    "name": "bb-stagehand-on-vercel",
+    "private": true,
+    "type": "module",
+    "engines": { "node": ">=18" },
+    "dependencies": {
+      "@browserbasehq/stagehand": "^2.4.3",
+      "zod": "^3.25.0"
+    },
+    "devDependencies": {
+      "typescript": "^5.6.0",
+      "@types/node": "^20.12.12",
+      "@vercel/node": "^3.2.20"
+    }
+}
+```
+
+<div id="5-tsconfigjson">
+  ### 5. `tsconfig.json`
+</div>
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "outDir": ".vercel/output/functions",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.ts"]
+}
+```
+
+<div id="6-verceljson">
+  ### 6. `vercel.json`
+</div>
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.ts": {
+      "maxDuration": 60
+    }
+  }
+}
+```
+
+更多详情请参阅 Vercel 的[函数配置](https://vercel.com/docs/functions/configuring-functions)文档。
+
+<div id="7-link-your-project">
+  ### 7. 关联你的项目
+</div>
+
+在配置环境变量之前，将本地文件夹关联到一个 Vercel 项目：
+
+```bash
+# 如有需要先进行身份验证
+vercel login
+
+# 将当前目录关联到一个 Vercel 项目（交互式）
+vercel link
+```
+
+<div id="8-environment-variables">
+  ### 8. 环境变量
+</div>
+
+生产环境下不要提交 `.env`。通过 Vercel CLI 添加变量：
+
+```bash
+vercel env add BROWSERBASE_API_KEY
+vercel env add BROWSERBASE_PROJECT_ID
+# （若需要，添加你的模型密钥）
+vercel env add GOOGLE_API_KEY
+```
+
+另见：[浏览器环境](/zh/configuration/environment)，了解所需变量的详细信息。
+
+<div id="9-test-locally">
+  ### 9. 本地测试
+</div>
+
+在本地复刻 Vercel 运行环境，在部署前对你的 Function 进行调试与验证。从项目根目录运行。
+
+```bash
+# 确保已安装依赖
+npm install
+
+# 启动本地 Vercel 开发服务器
+vercel dev --listen 5005
+```
+
+<div id="10-deploy">
+  ### 10. 部署
+</div>
+
+```bash
+vercel
+vercel --prod
+```
+
+<div id="execute-the-function">
+  ### 执行函数
+</div>
+
+```bash
+curl -X POST https://<your-deployment>/api/run
+```
+
+<div id="optional-cron-on-vercel">
+  ### 可选：在 Vercel 上使用 Cron
+</div>
+
+通过扩展 `vercel.json`，按计划调用相同的端点：
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.ts": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+
+<div id="features">
+  ### 功能
+</div>
+
+- 使用 `env: "BROWSERBASE"`，无需本地浏览器。[Browserbase](https://www.browserbase.com/) 提供浏览器。
+- 运行快速：将浏览器相关工作卸载到 Browserbase，并快速返回 JSON。
+- 长时任务：提高 `maxDuration`，并/或根据方案考虑 Edge 运行时限制。

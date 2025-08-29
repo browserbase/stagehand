@@ -1,0 +1,53 @@
+
+<div id="user-data-directory">
+  ### 用户数据目录
+</div>
+
+使用自定义用户数据目录在不同会话之间持久化浏览器数据：
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// 适用于 Browserbase 会话
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionCreateParams: {
+    userDataDir: "/path/to/user/data/directory",
+  },
+});
+
+// 适用于本地会话
+const localStagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    userDataDir: "./browser-data",
+  },
+});
+
+await stagehand.init();
+console.log("Session ID:", stagehand.sessionId);
+```
+```python Python
+from stagehand import Stagehand
+
+# 适用于 Browserbase 会话
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    browserbase_session_create_params={
+        "user_data_dir": "/path/to/user/data/directory",
+    },
+)
+
+# 适用于本地会话
+local_stagehand = Stagehand(
+    env="LOCAL",
+    local_browser_launch_options={
+        "user_data_dir": "./browser-data",
+    },
+)
+
+await stagehand.init()
+print(f"Session ID: {stagehand.session_id}")
+```
+</CodeGroup>

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://assets.gtx.dev/config-schema.json",
+  "files": {
+    "json": {
+      "include": [
+        "./docs.json"
+      ]
+    },
+    "mdx": {
+      "include": [
+        "./**/*.mdx"
+      ],
+      "transform": {
+        "match": "^(snippets/)?(.*)$",
+        "replace": "$1{locale}/$2"
+      },
+      "exclude": [
+        "./[locales]/**/*.mdx",
+        "./snippets/[locales]/**/*.mdx"
+      ]
+    }
+  },
+  "defaultLocale": "en",
+  "locales": [
+    "en",
+    "zh"
+  ],
+  "options": {
+    "jsonSchema": {
+      "./docs.json": {
+        "composite": {
+          "$.navigation.languages": {
+            "type": "array",
+            "key": "$.language",
+            "include": [
+              "$..group",
+              "$..tab",
+              "$..item",
+              "$..anchor",
+              "$..dropdown"
+            ],
+            "transform": {
+              "$..pages[*]": {
+                "match": "^(.*)$",
+                "replace": "{locale}/$1"
+              },
+              "$..root": {
+                "match": "^(.*)$",
+                "replace": "{locale}/$1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "docsUrlPattern": "/[locale]",
+    "docsImportPattern": "/snippets/[locale]",
+    "generateRedirects": "./docs.json",
+    "experimentalLocalizeStaticImports": true,
+    "experimentalLocalizeStaticUrls": true,
+    "docsHideDefaultLocaleImport": true,
+    "experimentalHideDefaultLocale": true,
+    "experimentalAddHeaderAnchorIds": "mintlify"
+  }
+}

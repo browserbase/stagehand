@@ -1,0 +1,219 @@
+---
+title: "构建网页浏览代理"
+description: "使用 Stagehand 构建可自主控制浏览器的 AI 代理"
+---
+
+import { Excalidraw } from '/snippets/excalidraw.mdx';
+
+Stagehand 为 AI 代理提供了强大的工具，使其能够完全自主地控制浏览器。请观看下方演示，了解 Stagehand 代理如何自主访问指定 URL、在页面上执行操作，并提取结构化数据来回答问题。
+使用 Stagehand 构建代理的方式有很多。我们来看看其中的几种。
+
+![Agent](/media/stagehand-agent.gif)
+
+<div id="stagehand-mcp">
+  ## Stagehand MCP
+</div>
+
+上面的示例展示了一个使用 Stagehand 来控制浏览器的 Claude 代理。在撰写本文时，[多模态工具调用](https://sdk.vercel.ai/docs/ai-sdk-core/tools-and-tool-calling#multi-modal-tool-results) 仅在 Claude 3.5/3.7 Sonnet 中受支持。
+这意味着 Claude 足够智能，知道何时需要请求浏览器截图，并可以据此截图决定下一步要执行的操作。
+
+<CardGroup>
+  <Card title="Browserbase MCP" href="https://github.com/browserbase/mcp-server-browserbase/" icon="hand-horns">
+    使用由 Stagehand 驱动的 Browserbase MCP 控制浏览器
+  </Card>
+</CardGroup>
+
+更有意思的是，代理能够将对浏览器状态的推理与具体操作解耦开来！Claude 负责对浏览器状态进行推理，而 Stagehand 则可借助 GPT-4o-mini 或计算机使用模型在页面上执行操作。
+Stagehand 甚至聪明到能判断何时该用 GPT-4o-mini、何时该用计算机使用模型，例如在检测到 iframe 时。
+
+<Excalidraw className="w-full aspect-video" url="https://link.excalidraw.com/readonly/GWQWmWUBqMBEAamlWsIM?darkMode=true" />
+
+我们发现，将 Claude 作为“Trajectory”代理，在合适的时候调用 Stagehand 工具，效果非常出色！
+虽然 MCP 仍处于非常早期的阶段，但我们对它的未来走向充满期待。
+
+<div id="stagehand-computer-use-models">
+  ## Stagehand + Computer Use 模型
+</div>
+
+Stagehand 让你只需一行代码就能调用来自 OpenAI 和 Anthropic 的强大全机使用 API。
+
+<CodeGroup>
+  ```typescript TypeScript
+  await page.goto("https://github.com/browserbase/stagehand");
+
+  // Create a Computer Use agent with just one line of code!
+  const agent = stagehand.agent({
+  	provider: "openai",
+  	model: "computer-use-preview"
+  });
+
+  // Use the agent to execute a task
+  const result = await agent.execute("Extract the top contributor's username");
+  console.log(result);
+  ```
+
+  ```python Python
+  await page.goto("https://github.com/browserbase/stagehand-python")
+
+  # Create a Computer Use agent with just one line of code!
+  agent = stagehand.agent(
+      model="computer-use-preview"
+  )
+
+  # Use the agent to execute a task
+  result = await agent.execute("Extract the top contributor's username")
+  print(result)
+  ```
+</CodeGroup>
+
+<CardGroup>
+  <Card title="Stagehand + Computer Use 文档" href="/zh/best-practices/computer-use" icon="scroll">
+    查看我们的文档页面，了解如何在 Stagehand 中使用 Computer Use 模型。
+  </Card>
+
+  <Card title="CUA 浏览器演示" href="https://cua.browserbase.com/" icon="brain-circuit">
+    查看由 OpenAI 的 Computer Using Agent（CUA）模型驱动的 Browserbase 浏览器在线演示。
+  </Card>
+</CardGroup>
+
+<div id="sequential-tool-calling-open-operator">
+  ## 顺序工具调用（Open Operator）
+</div>
+
+2025 年 1 月，Browserbase 发布了 [Open Operator](https://operator.browserbase.com)。
+Open Operator 能够理解浏览器的当前状态，并据此采取行动来完成更复杂的任务，比如“帮我点一份披萨”。
+它通过按顺序调用 Stagehand 的工具来运行：
+
+1. 如果没有 URL，则访问默认 URL。
+2. 检查浏览器状态，并让 LLM 推理下一步该做什么。
+3. 使用 `page.act()` 执行 LLM 建议的操作。
+4. 重复上述过程
+
+<Excalidraw className="w-full" url="https://link.excalidraw.com/readonly/dKh5sB1gEM1EjVqRCGKn" />
+
+将 `stagehand.agent` 集成到浏览器自动化中，就像添加一行代码一样简单：
+
+<Note>
+  Python 目前通过 Computer Use Agent（CUA）模型支持 `stagehand.agent`。默认实现即将推出。
+</Note>
+
+<CodeGroup>
+  ```typescript TypeScript
+  await stagehand.page.goto("https://github.com/browserbase/stagehand");
+
+  // Open Operator 将使用 Stagehand 配置中的默认 LLM
+  const operator = stagehand.agent();
+  const { message, actions } = await operator.execute(
+  	"Extract the top contributor's username"
+  );
+
+  console.log(message);
+  ```
+</CodeGroup>
+
+<div id="replay-the-agents-actions">
+  ### 回放代理的操作
+</div>
+
+你可以像使用常规的 Stagehand 代理一样，以相同方式回放代理的操作。你甚至可以自动缓存这些操作，以避免在重复运行时产生不必要的 LLM 调用。
+
+让我们使用下面的 `replay` 函数把这些操作保存到一个 Stagehand 脚本文件中，该文件会复现代理执行过的相同操作，并内置了操作缓存。
+
+<Accordion title="utils.ts">
+  ```typescript
+  import { AgentAction, AgentResult } from "@browserbasehq/stagehand";
+  import { exec } from "child_process";
+  import fs from "fs/promises";
+
+  export async function replay(result: AgentResult) {
+    const history = result.actions;
+    const replay = history
+      .map((action: AgentAction) => {
+        switch (action.type) {
+          case "act":
+            if (!action.playwrightArguments) {
+              throw new Error("No playwright arguments provided");
+            }
+            return `await page.act(${JSON.stringify(
+              action.playwrightArguments
+            )})`;
+          case "extract":
+            return `await page.extract("${action.parameters}")`;
+          case "goto":
+            return `await page.goto("${action.parameters}")`;
+          case "wait":
+            return `await page.waitForTimeout(${parseInt(
+              action.parameters as string
+            )})`;
+          case "navback":
+            return `await page.goBack()`;
+          case "refresh":
+            return `await page.reload()`;
+          case "close":
+            return `await stagehand.close()`;
+          default:
+            return `await stagehand.oops()`;
+        }
+      })
+      .join("\n");
+
+    console.log("Replay:");
+    const boilerplate = `
+  import { Page, BrowserContext, Stagehand } from "@browserbasehq/stagehand";
+
+  export async function main(stagehand: Stagehand) {
+      const page = stagehand.page
+  	${replay}
+  }
+    `;
+    await fs.writeFile("replay.ts", boilerplate);
+
+    // 使用 prettier 格式化回放文件
+    await new Promise((resolve, reject) => {
+      exec(
+        "npx prettier --write replay.ts",
+        (error: any, stdout: any, stderr: any) => {
+          if (error) {
+            console.error(`Error formatting replay.ts: ${error}`);
+            reject(error);
+            return;
+          }
+          resolve(stdout);
+        }
+      );
+    });
+  }
+  ```
+</Accordion>
+
+下面是针对类似“Get me the stock price of NVDA”这条指令的回放输出：
+
+```typescript {14-22} replay.ts
+import { Page, BrowserContext, Stagehand } from "@browserbasehq/stagehand";
+
+export async function main({
+  page,
+  context,
+  stagehand,
+}: {
+  page: Page; // 具有 act、extract 和 observe 方法的 Playwright Page
+  context: BrowserContext; // Playwright BrowserContext
+  stagehand: Stagehand; // Stagehand 实例
+}) {
+  await page.goto("https://www.google.com");
+
+  // Replay 将优先使用 Playwright，以避免不必要的 LLM 调用！
+  // 如果 Playwright 动作失败，Stagehand AI 将接管并自动修复
+  await page.act({
+    description: "供用户输入查询的搜索框。",
+    method: "fill",
+    arguments: ["NVDA stock price"],
+    selector:
+      "xpath=/html/body[1]/div[1]/div[3]/form[1]/div[1]/div[1]/div[1]/div[1]/div[2]/textarea[1]",
+  });
+  await page.extract(
+    "搜索建议中显示的 NVDA 股价",
+  );
+  await stagehand.close();
+}
+```

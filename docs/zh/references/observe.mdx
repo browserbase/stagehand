@@ -1,0 +1,239 @@
+---
+title: observe()
+description: 'observe() 方法的完整 API 参考'
+icon: 'magnifying-glass'
+---
+
+<CardGroup cols={1}>
+  <Card title="Observe" icon="magnifying-glass" href="/zh/basics/observe">
+    了解如何使用 observe() 发现可操作元素并分析网页结构
+  </Card>
+</CardGroup>
+
+### 方法签名
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    // 使用 ObserveOptions
+    await page.observe(options: ObserveOptions): Promise<ObserveResult[]>
+
+    // 字符串指令简写
+    await page.observe(instruction: string): Promise<ObserveResult[]>
+    ```
+
+    **ObserveOptions 接口：**
+
+    ```typescript
+    interface ObserveOptions {
+      instruction?: string;
+      modelName?: AvailableModel;
+      modelClientOptions?: ClientOptions;
+      domSettleTimeoutMs?: number;
+      drawOverlay?: boolean;
+      iframes?: boolean;
+    }
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # 传入参数方式
+    await page.observe(
+        instruction: str,
+        dom_settle_timeout_ms: int = None,
+        iframes: bool = None,
+        model_name: AvailableModel = None,
+        model_client_options: Dict = None
+    ) -> List[ObserveResult]
+    ```
+  </Tab>
+</Tabs>
+
+### 参数
+
+<ParamField path="instruction" type="string" optional>
+  用自然语言描述需要发现的元素或操作。
+</ParamField>
+
+<ParamField path="modelName" type="AvailableModel" optional>
+  为本次观察覆盖默认的 LLM 模型。
+</ParamField>
+
+<ParamField path="modelClientOptions" type="ClientOptions" optional>
+  模型特定的配置项。
+</ParamField>
+
+<ParamField path="domSettleTimeoutMs" type="number" optional>
+  在分析前等待 DOM 稳定的最长时间（毫秒）。
+
+  **默认：** `30000`
+</ParamField>
+
+<ParamField path="drawOverlay" type="boolean" optional>
+  是否在发现的元素上绘制可视化覆盖层（用于调试）。
+
+  **默认：** `false`
+</ParamField>
+
+<ParamField path="iframes" type="boolean" optional>
+  设为 `true` 以在 iframe 中进行搜索。
+
+  **默认：** `false`
+</ParamField>
+
+### 响应
+
+**返回：** `Promise<ObserveResult[]>`
+
+按相关性排序的已发现可操作元素数组。
+
+**ObserveResult 接口：**
+
+```typescript
+interface ObserveResult {
+  selector: string;        // XPath 选择器，用于定位元素
+  description: string;     // 可读性良好的描述
+  method?: string;         // 建议的操作方法
+  arguments?: string[];    // 额外的操作参数
+}
+```
+
+<ParamField path="selector" type="string">
+  能精确定位元素的 XPath 选择器。
+</ParamField>
+
+<ParamField path="description" type="string">
+  对元素及其用途的可读性描述。
+</ParamField>
+
+<ParamField path="method" type="string" optional>
+  建议的交互方法："click"、"fill"、"selectOptionFromDropdown"、"nextChunk"、"scrollTo"、"prevChunk"。
+</ParamField>
+
+<ParamField path="arguments" type="string[]" optional>
+  建议操作的附加参数。
+</ParamField>
+
+### 代码示例
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 基础元素检测
+  const buttons = await page.observe("find all clickable buttons");
+  const formFields = await page.observe("locate form input fields");
+
+  // 高级配置
+  const elements = await page.observe({
+    instruction: "find important call-to-action buttons",
+    modelName: "gpt-4.1-mini",
+    domSettleTimeoutMs: 45000,
+    drawOverlay: true
+  });
+
+  // 处理结果
+  const [loginButton] = await page.observe("find the login button");
+  if (loginButton) {
+    console.log("Found:", loginButton.description);
+    console.log("Selector:", loginButton.selector);
+    await page.act(loginButton); // 执行动作
+  }
+
+  // 结果筛选
+  const submitButtons = await page.observe("find all submit buttons");
+  const primarySubmit = submitButtons.find(btn => 
+    btn.description.toLowerCase().includes('primary')
+  );
+
+  // Iframe 搜索
+  const iframeElements = await page.observe({
+    instruction: "find form fields inside the iframe",
+    iframes: true
+  });
+  ```
+
+  ```python Python
+  # 基础元素检测
+  buttons = await page.observe("find all clickable buttons")
+  form_fields = await page.observe("locate the form fields")
+
+  # 高级配置
+  elements = await page.observe(
+      instruction="find important call-to-action buttons",
+      model_name="gpt-4.1-mini",
+      dom_settle_timeout_ms=45000
+  )
+
+  # 处理结果
+  login_buttons = await page.observe("find the login button")
+  if login_buttons:
+      button = login_buttons[0]
+      print("Found:", button.description)
+      print("Selector:", button.selector)
+      await page.act(button)  # 执行动作
+
+  # 结果筛选
+  submit_buttons = await page.observe("find all submit buttons")
+  primary_submit = next((
+      btn for btn in submit_buttons 
+      if 'primary' in btn.description.lower()
+  ), None)
+
+  # Iframe 搜索
+  iframe_elements = await page.observe(
+      instruction="find the form fields inside the iframe",
+      iframes=True
+  )
+  ```
+</CodeGroup>
+
+### 集成模式
+
+<CodeGroup>
+  ```typescript TypeScript
+  // Observe → Act 工作流
+  const actions = await page.observe("find checkout elements");
+  for (const action of actions) {
+    await page.act(action);
+    await page.waitForTimeout(1000);
+  }
+
+  // Observe → Extract 工作流
+  const tables = await page.observe("find data tables");
+  if (tables.length > 0) {
+    const data = await page.extract({
+      instruction: "extract the table data",
+      selector: tables[0].selector,
+      schema: DataSchema
+    });
+  }
+
+  // 元素验证
+  const requiredElements = await page.observe("find the login form");
+  if (requiredElements.length === 0) {
+    throw new Error("Login form not found");
+  }
+  ```
+
+  ```python Python
+  # Observe → Act 工作流
+  actions = await page.observe("find checkout elements")
+  for action in actions:
+      await page.act(action)
+      await page.wait_for_timeout(1000)
+
+  # Observe → Extract 工作流
+  tables = await page.observe("find data tables")
+  if tables:
+      data = await page.extract(
+          instruction="extract the table data",
+          selector=tables[0].selector,
+          schema=DataSchema
+      )
+
+  # 元素验证
+  required_elements = await page.observe("find login form")
+  if not required_elements:
+      raise Exception("Login form not found")
+  ```
+</CodeGroup>

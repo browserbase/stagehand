@@ -1,0 +1,165 @@
+---
+title: 在 Next.js 中使用 Stagehand
+sidebarTitle: 配置
+description: Next.js 是一款在生产环境中广泛用于构建 Web 应用的流行框架。它为诸如 [Director](https://director.ai)、[Brainrot](https://brainrot.run) 和 [Open Operator](https://operator.browserbase.com) 等 Stagehand 应用提供支持。
+---
+
+<Card
+  title="查看 Stagehand 的 Next.js 快速入门"
+  icon="github"
+  href="https://github.com/browserbase/stagehand-nextjs-quickstart"
+>
+  克隆我们的 [GitHub 仓库](https://github.com/browserbase/stagehand-nextjs-quickstart) 以在 Next.js 中开始使用 Stagehand。
+</Card>
+
+## 将 Stagehand 添加到现有的 Next.js 项目
+如果你想在现有的 Next.js 项目中集成 Stagehand，可以先安装以下依赖：
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npm install @browserbasehq/stagehand @browserbasehq/sdk playwright zod
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm add @browserbasehq/stagehand @browserbasehq/sdk playwright zod
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn add @browserbasehq/stagehand @browserbasehq/sdk playwright zod
+	```
+	</Tab>
+</Tabs>
+
+### 编写一个服务器端 action
+接下来，在 `app/stagehand/main.ts` 中将 `main` 函数定义为服务器端 action。该文件将包含以下三个函数：
+
+1. **`main`：运行 Stagehand 主脚本**
+2. **`runStagehand`：初始化并运行 `main` 函数**
+3. **`startBBSSession`：启动 Browserbase 会话**
+
+```ts app/stagehand/main.ts
+// 🤘 Welcome to Stagehand!
+// This file is from the [Stagehand docs](https://docs.stagehand.dev/sections/examples/nextjs).
+
+"use server";
+
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v3";
+import { Browserbase } from "@browserbasehq/sdk";
+
+/**
+ * Run the main Stagehand script
+ */
+async function main(stagehand: Stagehand) {
+  // 你可以使用 `page` 实例编写任意 Playwright 代码
+  // 更多信息：https://playwright.dev/docs/pom
+  const page = stagehand.page;
+
+  // 在这个示例中，我们将获取 Stagehand 快速上手页面的标题
+  await page.goto("https://docs.stagehand.dev/");
+  await page.act("click the quickstart link");
+  const { title } = await page.extract({
+    instruction: "extract the main heading of the page",
+    schema: z.object({
+      title: z.string(),
+    }),
+  });
+
+  return title;
+}
+
+/**
+ * Initialize and run the main() function
+ */
+export async function runStagehand(sessionId?: string) {
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    projectId: process.env.BROWSERBASE_PROJECT_ID,
+    verbose: 1,
+    logger: console.log,
+    browserbaseSessionID: sessionId,
+    disablePino: true,
+  });
+  await stagehand.init();
+  await main(stagehand);
+  await stagehand.close();
+}
+
+/**
+ * Start a Browserbase session
+ */
+export async function startBBSSession() {
+  const browserbase = new Browserbase();
+  const session = await browserbase.sessions.create({
+    projectId: process.env.BROWSERBASE_PROJECT_ID!,
+  });
+  const debugUrl = await browserbase.sessions.debug(session.id);
+  return {
+    sessionId: session.id,
+    debugUrl: debugUrl.debuggerFullscreenUrl,
+  };
+}
+```
+
+### 创建一个客户端组件
+接下来，创建一个客户端组件，用于启动 Browserbase 会话，并使用刚定义的服务器端 actions 来运行 `main` 函数。我们会先创建一个 Browserbase 会话，将其通过 iframe 嵌入页面，然后再运行 `main` 函数。
+
+```tsx app/components/stagehandEmbed.tsx
+"use client";
+
+import { useCallback, useState } from "react";
+import { runStagehand, startBBSSession } from "@/app/stagehand/main";
+
+export function StagehandEmbed() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [debugUrl, setDebugUrl] = useState<string | null>(null);
+
+  const startSession = useCallback(async () => {
+    const { sessionId, debugUrl } = await startBBSSession();
+    setSessionId(sessionId);
+    setDebugUrl(debugUrl);
+    await runStagehand(sessionId);
+  }, []);
+
+  return (
+    <div>
+      {!sessionId && <button onClick={startSession}>Start Session</button>}
+      {sessionId && debugUrl && (
+        <iframe src={debugUrl} className="w-full h-full" />
+      )}
+    </div>
+  );
+}
+```
+
+### 使用 `StagehandEmbed` 组件
+现在，我们就可以在应用中使用 `StagehandEmbed` 组件了。
+
+```tsx app/page.tsx
+import { StagehandEmbed } from "@/app/components/stagehandEmbed";
+
+export default function Home() {
+	return (
+		<main>
+			<StagehandEmbed />
+		</main>
+	)
+}
+```
+
+## 参考
+
+<CardGroup cols={2}>
+  <Card title="Deploy Template" icon="rocket" href="https://vercel.com/templates/ai/stagehand-next-js-quickstart">
+    一键在 Vercel 部署 Stagehand 的 Next.js 模板
+  </Card>
+  
+  <Card title="Source Code" icon="github" href="https://github.com/browserbase/stagehand-nextjs-quickstart">
+    在 GitHub 上浏览完整模板代码仓库
+  </Card>
+</CardGroup>

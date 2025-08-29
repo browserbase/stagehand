@@ -1,0 +1,520 @@
+---
+title: 操作
+description: "与网页交互"
+---
+
+<div id="what-is-act">
+  ## 什么是 `act()`？
+</div>
+
+```typescript
+page.act("click on add to cart")
+```
+
+`act` 让 Stagehand 能在网页上执行**单个**操作。使用它来构建具备自愈能力且具确定性的自动化流程，从而适应网站的变化。
+
+<div id="why-use-act">
+  ## 为什么使用 `act()`？
+</div>
+
+<CardGroup cols={2}>
+  <Card title="自然语言指令" icon="wand-magic-sparkles" href="#using-act">
+    用纯英文编写自动化，无需选择器或复杂语法。
+  </Card>
+
+  <Card title="精确控制" icon="crosshairs" href="#best-practices">
+    按步骤构建自动化，精确定义每个时刻的行为。
+  </Card>
+
+  <Card title="自我修复" icon="bandage" href="#ensure-reliable-actions">
+    当网站变化时，动作会自动适配。
+  </Card>
+
+  <Card title="缓存" icon="repeat" href="#reduce-model-costs">
+    缓存动作以避免调用 LLM，并在多次运行中保持执行一致。
+  </Card>
+</CardGroup>
+
+<div id="using-act">
+  ## 使用 `act()`
+</div>
+
+使用 `act` 在自动化中执行单个操作。例如点击按钮：
+
+<CodeGroup>
+  ```typescript TypeScript
+  await page.goto("https://example-store.com");
+  await page.act("click the add to cart button");
+  ```
+
+  ```python Python
+  await page.goto("https://example-store.com")
+  await page.act("click the add to cart button")
+  ```
+</CodeGroup>
+
+使用 `act` 时，将复杂操作拆解为更小的单步动作效果最佳。若需要编排多步流程，请使用多个 `act` 命令或 `agent`。
+
+<Accordion title="建议的操作">
+  | 操作 | 示例指令 |
+  |--------|---------------------|
+  | 点击 | `click the button` |
+  | 填写 | `fill the field with <value>` |
+  | 输入 | `type <text> into the search box` |
+  | 按下 | `press <key> in the search field` |
+  | 滚动 | `scroll to <position>` |
+  | 从下拉菜单选择 | `select <value> from the dropdown` |
+</Accordion>
+
+<Tabs>
+  <Tab title="推荐做法">
+    将任务拆分为单步操作。
+
+    <CodeGroup>
+      ```typescript TypeScript
+      // 将其拆分为单步操作
+      await page.act("open the filters panel");
+      await page.act("choose 4-star rating");
+      await page.act("click the apply button");
+      ```
+
+      ```python Python
+      # 将其拆分为单步操作
+      await page.act("open the filters panel")
+      await page.act("choose 4-star rating")
+      await page.act("click the apply button")
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="不建议这样做">
+    对于多步骤任务，请改用 [`agent()`](/zh/basics/agent)。
+
+    <CodeGroup>
+      ```typescript TypeScript
+      // 过于复杂——试图一次完成多个操作
+      await page.act("open the filters panel, choose 4-star rating, and click apply");
+      ```
+
+      ```python Python
+      # 过于复杂——试图一次完成多个操作
+      await page.act("open the filters panel, choose 4-star rating, and click apply")
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+<div id="advanced-configuration">
+  ### 高级配置
+</div>
+
+在更高级的场景中，你可以配置其他选项：
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 使用高级选项进行动态食品搜索
+  const foodItem = "organic quinoa";
+
+  await page.act({
+    action: "Type %foodItem% in the search box and press enter",
+    variables: {
+      foodItem: foodItem
+    },
+    modelName: "google/gemini-2.5-pro",
+    modelClientOptions: {
+      modelApiKey: process.env.GOOGLE_API_KEY,
+    },
+    iframes: true, // 如有需要，在 iframe 中搜索
+    domSettleTimeoutMs: 45000, // 为动态内容延长等待时间
+    timeoutMs: 60000 // 为加载缓慢的表单设置更长超时
+  });
+  ```
+
+  ```python Python
+  # 使用高级选项进行动态食品搜索
+  food_item = "organic quinoa"
+
+  await page.act({
+    "action": "Type %foodItem% in the search box and press enter",
+    "variables": {
+      "foodItem": food_item
+    },
+    "modelName": "google/gemini-2.5-pro",
+    "modelClientOptions": {
+      "modelApiKey": os.environ.get("GOOGLE_API_KEY")
+    },
+    "iframes": True, # 如有需要，在 iframe 中搜索
+    "domSettleTimeoutMs": 45000, # 为动态内容延长等待时间
+    "timeoutMs": 60000 # 为加载缓慢的表单设置更长超时
+  })
+  ```
+</CodeGroup>
+
+<Note>
+  现在已支持 Shadow DOM！在你的 Stagehand 配置中将 `experimental: true` 设为启用。参见[配置指南](/zh/configuration/browser)了解更多详情。
+</Note>
+
+<div id="best-practices">
+  ## 最佳实践
+</div>
+
+<div id="ensure-reliable-actions">
+  ### 确保操作可靠
+</div>
+
+使用 `observe()` 来发现当前页面上的候选操作，并据此进行可靠的规划。它会返回一个建议操作列表（包含选择器、描述、方法和参数）。你可以将观察到的操作直接传递给 `act` 执行。
+
+<CodeGroup>
+  ```typescript TypeScript
+  const [action] = await page.observe("click the login button");
+
+  if (action) {
+    await page.act(action);
+  }
+  ```
+
+  ```python Python
+  results = await page.observe("click the login button")
+
+  if results:
+      await page.act(results[0])
+  ```
+</CodeGroup>
+
+<Card title="使用 observe() 分析页面" icon="magnifying-glass" iconType="sharp-solid" href="/zh/basics/observe">
+  先用 `observe()` 规划操作，再用 `act` 执行。
+</Card>
+
+<div id="reduce-model-costs">
+  ### 降低模型成本
+</div>
+
+缓存观察到的操作，避免重复调用 LLM，并确保执行一致性。
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 通过缓存优化成本的操作
+  const actionCache = new Map();
+
+  const getCachedAction = async (instruction: string) => {
+    if (actionCache.has(instruction)) {
+      return actionCache.get(instruction);
+    }
+    
+    const [action] = await page.observe(instruction);
+    actionCache.set(instruction, action);
+    return action;
+  };
+
+  // 复用已缓存的操作
+  const loginAction = await getCachedAction("click the login button");
+  await page.act(loginAction);
+  ```
+
+  ```python Python
+  # 通过缓存优化成本的操作
+  action_cache = {}
+
+  async def get_cached_action(instruction: str):
+      if instruction in action_cache:
+          return action_cache[instruction]
+      
+      results = await page.observe(instruction)
+      if results:
+          action = results[0]
+          action_cache[instruction] = action
+          return action
+      
+      return None
+
+  # 复用已缓存的操作
+  login_action = await get_cached_action("click the login button")
+  if login_action:
+      await page.act(login_action)
+  ```
+</CodeGroup>
+
+<Card title="完整的缓存指南" icon="database" iconType="sharp-solid" href="/zh/best-practices/caching">
+  学习高级缓存技术与模式，获得最佳性能。
+</Card>
+
+<div id="secure-your-automations">
+  ### 保护你的自动化流程
+</div>
+
+变量不会与 LLM 提供商共享。将它们用于密码、API 密钥及其他敏感数据。
+
+<Note>
+  使用 `.env` 文件从环境变量加载敏感数据。切勿在代码中直接硬编码 API 密钥、密码或其他机密信息。
+</Note>
+
+<CodeGroup>
+  ```typescript TypeScript
+  await page.act({
+    action: "enter %username% in the email field",
+    variables: {
+      username: "user@example.com"
+    }
+  });
+
+  await page.act({
+    action: "enter %password% in the password field",
+    variables: {
+      password: process.env.USER_PASSWORD
+    }
+  });
+  ```
+
+  ```python Python
+  # 如果使用 Python，请在 Stagehand 配置中设置 `use_api: true`
+
+  await page.act(
+    "enter %username% in the email field",
+    variables={
+        "username": "user@example.com"
+    }
+  )
+
+  await page.act(
+    "enter %password% in the password field",
+    variables={
+        "password": os.environ.get("USER_PASSWORD")
+    }
+  )
+  ```
+</CodeGroup>
+
+<Warning>
+  处理敏感数据时，请在 Stagehand 配置中设置 `verbose: 0`，以防止密钥出现在日志中。更多详情请参见[配置指南](/zh/configuration/browser)。
+</Warning>
+
+<Card title="用户数据最佳实践" icon="shield-check" iconType="sharp-solid" href="/zh/best-practices/user-data">
+  通过最佳实践与配置，全面保障你的浏览器自动化安全。
+</Card>
+
+<div id="troubleshooting">
+  ## 疑难解答
+</div>
+
+<AccordionGroup>
+  <Accordion title="不支持的方法">
+    **问题**：`act` 调用失败，出现“method not supported”错误
+
+    **解决方案**：
+
+    - 为目标任务提供清晰、具体的指令
+    - 查看我们的 [evals](https://stagehand.dev/evals)，为你的用例选择最合适的模型
+    - 使用 [`observe()`](/zh/basics/observe)，并验证生成的动作是否在预期动作列表中
+
+    **解决方案 1：使用 observe 进行校验**
+
+    <CodeGroup>
+      ```typescript TypeScript
+      const prompt = "click the submit button";
+      const expectedMethod = "click";
+
+      try {
+        await page.act(prompt);
+      } catch (error) {
+        if (error.message.includes("method not supported")) {
+          // 观察相同的提示以获取计划的动作
+          const [action] = await page.observe(prompt);
+          
+          if (action && action.method === expectedMethod) {
+            await page.act(action);
+          } else {
+            throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
+          }
+        } else {
+          throw error;
+        }
+      }
+      ```
+
+      ```python Python
+      prompt = "click the submit button"
+      expected_method = "click"
+
+      try:
+          await page.act(prompt)
+      except Exception as error:
+          if "method not supported" in str(error):
+              # 观察相同的提示以获取计划的动作
+              results = await page.observe(prompt)
+              
+              if results and results[0].method == expected_method:
+                  await page.act(results[0])
+              else:
+                  method = results[0].method if results else "unknown"
+                  raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
+          else:
+              raise error
+      ```
+    </CodeGroup>
+
+    **解决方案 2：使用指数退避进行重试**
+
+    <CodeGroup>
+      ```typescript TypeScript
+      // 对间歇性问题使用指数退避重试
+      const prompt = "click the submit button";
+      const maxRetries = 3;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          await page.act(prompt, { timeoutMs: 10000 + (attempt * 5000) });
+          break; // 成功，退出重试循环
+        } catch (error) {
+          if (error.message.includes("method not supported") && attempt < maxRetries) {
+            // 指数退避：等待 2^attempt 秒
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            throw error;
+          }
+        }
+      }
+      ```
+
+      ```python Python
+      # 对间歇性问题使用指数退避重试
+      import asyncio
+
+      prompt = "click the submit button"
+      max_retries = 3
+
+      for attempt in range(max_retries + 1):
+          try:
+              timeout = 10000 + (attempt * 5000)
+              await page.act(prompt, {"timeoutMs": timeout})
+              break  # 成功，退出重试循环
+          except Exception as error:
+              if "method not supported" in str(error) and attempt < max_retries:
+                  # 指数退避：等待 2^attempt 秒
+                  delay = 2 ** attempt
+                  print(f"Retry {attempt + 1}/{max_retries} after {delay}s")
+                  await asyncio.sleep(delay)
+              else:
+                  raise error
+      ```
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="操作失败或超时">
+    **问题**：`act` 超时或未能完成操作（通常是因为找不到元素）
+
+    **解决方案**：
+
+    - 确保页面已完全加载
+    - 检查内容是否位于 iframe 中：[了解如何处理 iframe](/zh/best-practices/working-with-iframes)
+    - 增加操作超时时间
+    - 先使用 `observe()` 验证元素是否存在
+
+    <CodeGroup>
+      ```typescript TypeScript
+      // 处理超时和元素未找到的问题
+      try {
+        await page.act("click the submit button", { timeout: 30000 });
+      } catch (error) {
+        // 检查页面是否已完全加载
+        await page.waitForLoadState('domcontentloaded');
+        
+        // 使用 observe 检查元素状态
+        const [element] = await page.observe("find the submit button");
+        
+        if (element) {
+          console.log("Element found, trying more specific instruction");
+          await page.act("click the submit button at the bottom of the form");
+        } else {
+          console.log("Element not found, trying alternative selector");
+          await page.act("click the button with text 'Submit'");
+        }
+      }
+      ```
+
+      ```python Python
+      # 处理超时和元素未找到的问题
+      try:
+          await page.act("click the submit button", {"timeout": 30000})
+      except Exception as error:
+          # 检查页面是否已完全加载
+          await page.wait_for_load_state('domcontentloaded')
+          
+          # 使用 observe 检查元素状态
+          results = await page.observe("find the submit button")
+          
+          if results:
+              print("Element found, trying more specific instruction")
+              await page.act("click the submit button at the bottom of the form")
+          else:
+              print("Element not found, trying alternative selector")
+              await page.act("click the button with text 'Submit'")
+      ```
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="选中了错误的元素">
+    **问题**：`act` 在错误的元素上执行操作
+
+    **解决方案**：
+
+    - 在指令中更具体：加入视觉线索、位置或上下文
+    - 使用 `observe()` 预览将选择哪个元素
+    - 补充上下文信息：“页头中的搜索按钮”
+    - 在可用时使用唯一标识符
+
+    <CodeGroup>
+      ```typescript TypeScript
+      // 更精确地定位元素
+      // 不要这样：
+      await page.act("click the button");
+
+      // 使用更具体的上下文：
+      await page.act("click the red 'Delete' button next to the user John Smith");
+
+      // 或先用 observe 进行预览：
+      const [action] = await page.observe("click the submit button in the checkout form");
+      if (action.description.includes("checkout")) {
+        await page.act(action);
+      }
+      ```
+
+      ```python Python
+      # 更精确地定位元素
+      # 不要这样：
+      await page.act("click the button")
+
+      # 使用更具体的上下文：
+      await page.act("click the red 'Delete' button next to the user John Smith")
+
+      # 或先用 observe 进行预览：
+      results = await page.observe("click the submit button in the checkout form")
+      if results and "checkout" in results[0].description:
+          await page.act(results[0])
+      ```
+    </CodeGroup>
+  </Accordion>
+</AccordionGroup>
+
+<div id="next-steps">
+  ## 后续步骤
+</div>
+
+<CardGroup cols={2}>
+  <Card title="使用 Agent 协调复杂工作流" icon="robot" iconType="sharp-solid" href="/zh/basics/agent">
+    使用 `Agent` 自主执行多步任务与复杂工作流。
+  </Card>
+
+  <Card title="缓存动作" icon="bolt" iconType="sharp-solid" href="/zh/best-practices/caching">
+    通过缓存动作来加速重复的自动化流程。
+  </Card>
+
+  <Card title="使用 extract() 提取数据" icon="table" iconType="sharp-solid" href="/zh/basics/extract">
+    将 `extract` 与数据架构配合使用，从任意页面提取干净且带类型的数据。
+  </Card>
+
+  <Card title="处理 iframe" icon="frame" iconType="sharp-solid" href="/zh/best-practices/working-with-iframes">
+    学习在 iframe 内与元素交互的最佳实践。
+  </Card>
+</CardGroup>

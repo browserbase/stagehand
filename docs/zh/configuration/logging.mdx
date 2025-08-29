@@ -1,0 +1,320 @@
+---
+title: 日志与调试
+sidebarTitle: 日志
+description: 为 Stagehand 工作流设置日志、调试与错误监控
+---
+
+Stagehand 提供完善的日志功能，帮助你调试自动化工作流、跟踪执行并诊断问题。可为开发与生产环境配置日志级别、结构化输出和调试工具。
+
+<div id="logging-configuration">
+  ## 日志配置
+</div>
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE", // or "LOCAL"
+  verbose: 1, // 0 = errors only, 1 = info, 2 = debug
+});
+```
+
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="BROWSERBASE",  # or "LOCAL"
+    verbose=1,  # 0 = errors only, 1 = info, 2 = debug
+)
+```
+</CodeGroup>
+
+<div id="verbose-levels">
+  ### 日志详尽级别
+</div>
+
+- **级别 0**：仅错误——适合生产环境的最小输出
+- **级别 1**：信息——包含成功操作和重要事件
+- **级别 2**：调试——涵盖内部操作在内的全面日志
+
+<div id="structured-logging">
+  ## 结构化日志
+</div>
+
+<div id="log-line-format">
+  ### 日志行格式
+</div>
+
+每条日志条目包含结构化信息：
+
+<CodeGroup>
+```typescript TypeScript
+interface LogLine {
+  category: 'browser' | 'action' | 'llm' | 'error' | 'stagehand' | 'cache';
+  message: string;
+  level: 0 | 1 | 2; // error | info | debug
+  timestamp: string;
+  auxiliary?: {
+    executionTime?: { value: string; unit: string };
+    sessionId?: string;
+    url?: string;
+    [key: string]: any;
+  };
+}
+```
+
+```python Python
+# Python 中的日志行结构
+{
+  "category": "browser" | "action" | "llm" | "error" | "stagehand" | "cache",
+  "message": str,
+  "level": 0 | 1 | 2,  # error | info | debug
+  "timestamp": str,
+  "auxiliary": {
+    "execution_time": {"value": str, "unit": str},
+    "session_id": str,
+    "url": str,
+    # ... 其他上下文数据
+  }
+}
+```
+</CodeGroup>
+
+<div id="custom-logger">
+  ### 自定义日志记录器
+</div>
+
+<CodeGroup>
+```typescript TypeScript
+class AdvancedLogger {
+  private logFile?: string;
+  
+  constructor(logFile?: string) {
+    this.logFile = logFile;
+  }
+  
+  log = (logLine: any) => {
+    const timestamp = new Date().toISOString();
+    const colors = {
+      browser: '\x1b[34m', // 蓝色
+      action: '\x1b[32m',  // 绿色
+      llm: '\x1b[35m',     // 洋红
+      error: '\x1b[31m',   // 红色
+      stagehand: '\x1b[36m', // 青色
+      cache: '\x1b[33m',   // 黄色
+    };
+    
+    const color = colors[logLine.category] || '\x1b[0m';
+    const reset = '\x1b[0m';
+    
+    // 控制台彩色输出
+    console.log(`${color}[${logLine.category}]${reset} ${logLine.message}`);
+    
+    // 若可用则记录执行时间
+    if (logLine.auxiliary?.executionTime) {
+      console.log(` ${logLine.auxiliary.executionTime.value}${logLine.auxiliary.executionTime.unit}`);
+    }
+    
+    // 记录额外上下文
+    if (logLine.auxiliary && Object.keys(logLine.auxiliary).length > 0) {
+      console.log('  Context:', JSON.stringify(logLine.auxiliary, null, 2));
+    }
+    
+    // 写入文件日志（可选）
+    if (this.logFile) {
+      const logEntry = {
+        timestamp,
+        ...logLine
+      };
+      require('fs').appendFileSync(this.logFile, JSON.stringify(logEntry) + '\n');
+    }
+  }
+}
+
+// 用法
+const logger = new AdvancedLogger('./automation.log');
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 2,
+  logger: logger.log
+});
+```
+
+```python Python
+import json
+import os
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+class AdvancedLogger:
+    def __init__(self, log_file: Optional[str] = None):
+        self.log_file = log_file
+    
+    def log(self, log_line: Dict[str, Any]):
+        timestamp = datetime.now().isoformat()
+        colors = {
+            'browser': '\033[34m',   # 蓝色
+            'action': '\033[32m',    # 绿色
+            'llm': '\033[35m',       # 洋红
+            'error': '\033[31m',     # 红色
+            'stagehand': '\033[36m', # 青色
+            'cache': '\033[33m',     # 黄色
+        }
+        
+        color = colors.get(log_line.get('category', ''), '\033[0m')
+        reset = '\033[0m'
+        
+        # 控制台彩色输出
+        print(f"{color}[{log_line.get('category')}]{reset} {log_line.get('message')}")
+        
+        // 若可用则记录执行时间
+        if log_line.get('auxiliary', {}).get('execution_time'):
+            exec_time = log_line['auxiliary']['execution_time']
+            print(f"{exec_time['value']}{exec_time['unit']}")
+        
+        # 记录额外上下文
+        auxiliary = log_line.get('auxiliary', {})
+        if auxiliary and len(auxiliary) > 0:
+            print('  Context:', json.dumps(auxiliary, indent=2))
+        
+        # 写入文件日志（可选）
+        if self.log_file:
+            log_entry = {
+                'timestamp': timestamp,
+                **log_line
+            }
+            with open(self.log_file, 'a') as f:
+                f.write(json.dumps(log_entry) + '\n')
+
+# 用法
+logger = AdvancedLogger('./automation.log')
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    verbose=2,
+    logger=logger.log
+)
+```
+</CodeGroup>
+
+<div id="detailed-logging-features">
+  ## 详细日志功能
+</div>
+
+<div id="llm-inference-logging">
+  ### LLM 推理日志
+</div>
+
+启用对所有 LLM 交互的详细日志记录：
+
+<CodeGroup>
+```typescript TypeScript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  logInferenceToFile: true,  // 创建 inference_summary/ 目录
+  verbose: 2
+});
+```
+
+```python Python
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    log_inference_to_file=True,  # 创建 inference_summary/ 目录
+    verbose=2
+)
+```
+</CodeGroup>
+
+`inference_summary/` 目录结构：
+```
+inference_summary/                   
+├── act_summary/            
+│   ├── 20240329_080446068.json    
+│   ├── 20240329_080447019.json   
+│   └── act_summary.json          
+├── extract_summary/               
+│   ├── 20240329_081205123.json    
+│   └── extract_summary.json       
+└── observe_summary/                
+    ├── 20240329_081634891.json    
+    └── observe_summary.json       
+```
+
+<div id="log-analysis-debugging">
+  ## 日志分析与调试
+</div>
+
+<div id="common-log-patterns">
+  ### 常见日志模式
+</div>
+
+<Tabs>
+  <Tab title="操作成功">
+    ```json
+    {
+      "category": "action", 
+      "message": "操作成功完成",
+      "level": 1,
+      "auxiliary": {
+        "executionTime": {"value": "1250", "unit": "ms"},
+        "url": "https://example.com",
+        "sessionId": "session-123"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="LLM 推理">
+    ```json
+    {
+      "category": "llm",
+      "message": "推理完成", 
+      "level": 1,
+      "auxiliary": {
+        "model": "gpt-4o",
+        "tokens": {"prompt": 3451, "completion": 45},
+        "executionTime": {"value": "951", "unit": "ms"}
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="错误示例">
+    ```json
+    {
+      "category": "action",
+      "message": "操作失败：未找到元素",
+      "level": 0, 
+      "auxiliary": {
+        "selector": "button[data-testid='submit']",
+        "url": "https://example.com/form",
+        "sessionId": "session-123"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<div id="best-practices">
+  ## 最佳实践
+</div>
+
+<AccordionGroup>
+<Accordion title="开发环境">
+- 将 `verbose: 2` 与可视化调试配合使用
+- 启用浏览器 DevTools 进行元素检查
+- 使用 `logInferenceToFile: true` 记录 LLM 决策
+- 尽早落地结构化日志
+</Accordion>
+
+<Accordion title="生产环境">
+- 使用 `verbose: 1` 在可见性与性能间取得平衡
+- 部署错误追踪与告警
+- 使用结构化 JSON 日志
+- 监控会话成功率与执行时间
+</Accordion>
+
+<Accordion title="安全与合规">
+- 切勿记录凭据或敏感数据
+- 制定并执行日志保留策略
+- 保护日志文件和仪表盘
+</Accordion>
+</AccordionGroup>

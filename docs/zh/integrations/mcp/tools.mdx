@@ -1,0 +1,241 @@
+---
+title: "Browserbase MCP 服务器工具"
+sidebarTitle: "工具"
+description: "本指南介绍 Browserbase MCP 服务器中用于浏览器自动化与交互的专项工具。"
+---
+
+## 概览
+
+Browserbase MCP 服务器提供了一套完善的浏览器自动化与会话管理工具。借助这些工具，你可以执行页面导航、截图采集、Cookie 操作，以及同时管理多个浏览器会话等任务。
+
+## 核心浏览器自动化工具
+
+这些是使用自然语言指令进行现代网页自动化的主要工具。
+
+<Accordion title="browserbase_stagehand_navigate">
+在浏览器中访问任意 URL
+
+<ParamField path="url" type="string" required>
+  要访问的 URL
+</ParamField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_act">
+使用自然语言在网页上执行操作
+
+<ParamField path="action" type="string" required>
+  要执行的操作（例如，“点击登录按钮”、“填写表单字段”）
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_stagehand_extract">
+提取当前页面的所有文本内容（过滤掉 CSS 和 JavaScript）
+
+<Info>无需输入参数</Info>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_observe">
+观察并查找网页上的可操作元素
+
+<ParamField path="instruction" type="string" required>
+  具体的观察指令（例如，“找到登录按钮”、“定位搜索表单”）
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_screenshot">
+捕获当前页面的 PNG 截图
+
+<Info>无需输入参数</Info>
+
+<ResponseField name="image" type="string">
+  Base-64 编码的 PNG 数据
+</ResponseField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_get_url">
+获取当前浏览器页面的 URL
+
+<Info>无需输入参数</Info>
+
+<ResponseField name="url" type="string">
+  完整 URL，包括协议、域名、路径以及任何查询参数或片段
+</ResponseField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_get_all_urls">
+获取所有活跃浏览器会话的当前 URL
+
+<Info>无需输入参数</Info>
+
+<ResponseField name="sessionUrls" type="object">
+  以 JSON 格式表示的会话 ID 与其当前 URL 的映射
+</ResponseField>
+</Accordion>
+
+## 单会话管理
+
+传统方式是仅保持一个活动的浏览器会话。更适合基础自动化任务，并可自动管理当前会话。
+
+<Accordion title="browserbase_session_create">
+使用 Browserbase 创建或复用云端浏览器会话，并搭配已完整初始化的 Stagehand
+
+<ParamField path="sessionId" type="string">
+  可选的会话 ID，用于复用或指定会话。如果未提供，则创建新会话
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_session_close">
+关闭当前 Browserbase 会话、断开浏览器连接，并清理 Stagehand 实例
+
+<Info>无需输入参数</Info>
+
+</Accordion>
+
+## 多会话管理
+
+通过多个并行浏览器会话的高级方案，适用于复杂的自动化工作流。每个会话各自维护独立的状态、Cookie 和浏览器上下文。
+
+### 会话生命周期管理
+
+<Accordion title="multi_browserbase_stagehand_session_create">
+创建一个新的独立 Stagehand 浏览器会话，具备完整的网页自动化能力
+
+<ParamField path="name" type="string">
+  便于跟踪的人类可读名称（如“login-flow”“data-scraping”）
+</ParamField>
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_session_list">
+列出所有当前活动的 Stagehand 浏览器会话及其详细元数据
+
+<Info>无需输入参数</Info>
+
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_session_close">
+关闭并清理指定的 Stagehand 浏览器会话
+
+<ParamField path="sessionId" type="string" required>
+  要关闭的准确会话 ID（操作不可撤销）
+</ParamField>
+</Accordion>
+
+### 会话级自动化工具
+
+所有核心浏览器自动化工具均提供会话级变体：
+
+<Accordion title="multi_browserbase_stagehand_navigate_session">
+在指定浏览器会话中导航到某个 URL
+
+<ParamField path="sessionId" type="string" required>
+  要使用的会话 ID
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  目标 URL
+</ParamField>
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_act_session">
+在指定浏览器会话中使用自然语言执行操作
+
+<ParamField path="sessionId" type="string" required>
+  要使用的会话 ID
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  要执行的操作
+</ParamField>
+
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_extract_session">
+从指定浏览器会话中提取结构化信息
+
+<ParamField path="sessionId" type="string" required>
+  要使用的会话 ID
+</ParamField>
+
+<ParamField path="instruction" type="string" required>
+  需要从页面中提取的内容
+</ParamField>
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_observe_session">
+在指定浏览器会话中观察并定位可执行元素
+
+<ParamField path="sessionId" type="string" required>
+  要使用的会话 ID
+</ParamField>
+
+<ParamField path="instruction" type="string" required>
+  观察目标（例如：“find the login button”）
+</ParamField>
+
+<ParamField path="returnAction" type="boolean">
+  是否返回可执行的动作
+</ParamField>
+</Accordion>
+
+<Accordion title="multi_browserbase_stagehand_get_url_session">
+获取指定浏览器会话的当前 URL
+
+<ParamField path="sessionId" type="string" required>
+  要使用的会话 ID
+</ParamField>
+
+<ResponseField name="url" type="string">
+  完整 URL，包括协议、域名、路径及任何查询参数或片段
+</ResponseField>
+</Accordion>
+
+### 多会话用例
+
+<CardGroup cols={2}>
+  <Card title="Parallel Data Collection" icon="globe">
+    在不同网站上同时运行多个抓取会话
+  </Card>
+  
+  <Card title="A/B Testing" icon="flask">
+    在配置不同的浏览器会话中对比用户路径
+  </Card>
+  
+  <Card title="Cross-Site Operations" icon="link">
+    在多个网站或应用间执行协同操作
+  </Card>
+  
+  <Card title="Backup Sessions" icon="shield">
+    预留备用会话，以防主会话出现问题
+  </Card>
+</CardGroup>
+
+## 资源
+
+<Card title="Screenshot Resources" icon="camera">
+  服务器提供基于 URI 的截图资源访问。
+
+  示例：
+  ```
+  screenshot://screenshot-name-of-the-screenshot
+  ```
+
+</Card>
+
+## 延伸阅读
+
+<CardGroup cols={3}>
+<Card title="Model Context Protocol (MCP) 文档" icon="book" href="https://modelcontextprotocol.io/introduction">
+进一步了解 MCP 协议
+</Card>
+
+<Card title="Stagehand 文档" icon="robot" href="https://docs.stagehand.dev/">
+探索 Stagehand 的 AI 驱动浏览器自动化
+</Card>
+
+<Card title="支持" icon="headset" href="mailto:support@browserbase.com">
+获取我们的支持团队帮助
+</Card>
+</CardGroup>

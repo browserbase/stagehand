@@ -1,0 +1,464 @@
+---
+title: 浏览器
+sidebarTitle: 浏览器
+description: 在 Browserbase 或本地配置 Stagehand
+---
+
+Stagehand 支持两种主要环境：
+
+- **Browserbase** - 为大规模生产级网页自动化优化的云托管浏览器基础设施
+- **本地** - 在你的机器上直接运行浏览器，便于开发与调试
+
+<div id="browserbase-environment">
+  ## Browserbase 环境
+</div>
+
+Browserbase 提供面向大规模网页自动化的托管云端浏览器基础设施，并针对该场景进行了优化。它支持隐身模式、代理、持久化上下文等高级功能。
+
+<Card icon="cloud" title="Browserbase" href="https://docs.browserbase.com" description="了解在可扩展网页自动化中使用 Browserbase 的功能与优势。">
+  借助 Browserbase，体验云托管浏览器基础设施的强大能力。
+</Card>
+
+<div id="environment-variables">
+  ### 环境变量
+</div>
+
+开始之前，请先配置必需的环境变量：
+
+<CodeGroup>
+```bash .env
+BROWSERBASE_API_KEY=your_api_key_here
+BROWSERBASE_PROJECT_ID=your_project_id_here
+```
+</CodeGroup>
+
+<Tip>
+在 [Browserbase 仪表盘](https://browserbase.com/overview) 获取你的 API Key 和 Project ID
+</Tip>
+
+<div id="using-stagehand-with-browserbase">
+  ### 将 Stagehand 与 Browserbase 搭配使用
+</div>
+
+<div id="basic-setup">
+  #### 基础设置
+</div>
+
+最简单的入门方式是使用默认配置：
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+});
+
+await stagehand.init();
+```
+```python Python
+import os
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="BROWSERBASE",
+)
+
+await stagehand.init()
+```
+</CodeGroup>
+
+<div id="advanced-configuration">
+  #### 高级配置
+</div>
+
+配置浏览器设置、代理支持及其他会话参数：
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  // 可选：API Key 和 Project ID 将直接从环境变量中读取
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  browserbaseSessionCreateParams: {
+    proxies: true,
+    region: "us-west-2",
+    browserSettings: {
+      viewport: { width: 1920, height: 1080 },
+      blockAds: true,
+    },
+  },
+});
+
+await stagehand.init();
+console.log("Session ID:", stagehand.sessionId);
+```
+```python Python
+import os
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    # 可选：API Key 和 Project ID 将直接从环境变量中读取
+    api_key=os.getenv("BROWSERBASE_API_KEY"),
+    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+    browserbase_session_create_params={
+        "proxies": True,
+        "region": "us-west-2",
+        "browser_settings": {
+            "viewport": {"width": 1920, "height": 1080},
+            "block_ads": True,
+        },
+    },
+)
+```
+</CodeGroup>
+
+<Accordion title="高级 Browserbase 配置示例">
+    <CodeGroup>
+    ```typescript TypeScript
+    const stagehand = new Stagehand({
+      env: "BROWSERBASE",
+      apiKey: process.env.BROWSERBASE_API_KEY,
+      projectId: process.env.BROWSERBASE_PROJECT_ID,
+      browserbaseSessionCreateParams: {
+        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        proxies: true,
+        region: "us-west-2",
+        timeout: 3600, // 1 hour session timeout
+        keepAlive: true, // Available on Startup plan
+        browserSettings: {
+          advancedStealth: false, // this is a Scale Plan feature - reach out to support@browserbase.com to enable
+          blockAds: true,
+          solveCaptchas: true,
+          recordSession: false,
+          viewport: {
+            width: 1920,
+            height: 1080,
+          },
+          fingerprint: {
+            browsers: ["chrome", "edge"],
+            devices: ["desktop"],
+            operatingSystems: ["windows", "macos"],
+            locales: ["en-US", "en-GB"],
+            httpVersion: 2,
+          },
+        },
+        userMetadata: {
+          userId: "automation-user-123",
+          environment: "production",
+        },
+      },
+    });
+    ```
+    ```python Python
+    stagehand = Stagehand(
+        env="BROWSERBASE",
+        api_key=os.getenv("BROWSERBASE_API_KEY"),
+        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
+        browserbase_session_create_params={
+            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"),
+            "proxies": True,
+            "region": "us-west-2",
+            "timeout": 3600,  # 1 hour session timeout
+            "keep_alive": True,  # Available on Startup plan
+            "browser_settings": {
+                "advanced_stealth": False,  # this is a Scale Plan feature - reach out to support@browserbase.com to enable
+                "block_ads": True,
+                "solve_captchas": True,
+                "record_session": False,
+                "viewport": {
+                    "width": 1920,
+                    "height": 1080,
+                },
+                "fingerprint": {
+                    "browsers": ["chrome", "edge"],
+                    "devices": ["desktop"],
+                    "operating_systems": ["windows", "macos"],
+                    "locales": ["en-US", "en-GB"],
+                    "http_version": 2,
+                },
+            },
+            "user_metadata": {
+                "user_id": "automation-user-123",
+                "environment": "production",
+            },
+        },
+    )
+    ```
+</CodeGroup>
+</Accordion>
+
+<div id="initialization-result">
+  #### 初始化结果
+</div>
+
+调用 `stagehand.init()` 后，该方法会返回已初始化会话的配置信息：
+
+<CodeGroup>
+```typescript TypeScript
+const result = await stagehand.init();
+console.log(result);
+```
+```python Python
+result = await stagehand.init()
+print(result)
+```
+</CodeGroup>
+
+返回的对象包括：
+```Example
+{
+  debugUrl: 'https://www.browserbase.com/devtools/inspector.html?wss=connect.browserbase.com/debug/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0/devtools/page/5474B0E0510C5B6E629BEB06E799CD70?debug=true',
+  sessionUrl: 'https://www.browserbase.com/sessions/f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0',
+  sessionId: 'f8a21b4a-6fa1-4ab9-9007-fbfe61dc14f0'
+}
+```
+
+<AccordionGroup>
+<Accordion title="debugUrl">
+**打开 Browserbase 的[会话实时视图](https://docs.browserbase.com/features/session-live-view)**，以便引入人工参与（human-in-the-loop）。
+</Accordion>
+
+<Accordion title="sessionUrl">
+**打开[会话回放](https://docs.browserbase.com/features/session-replay)**，查看完整的会话录制。
+</Accordion>
+
+<Accordion title="sessionId">
+[Browserbase 会话](https://docs.browserbase.com/introduction/what-is-browserbase)的**唯一标识符**。用于在 Browserbase 仪表盘中标识并连接该会话。
+</Accordion>
+</AccordionGroup>
+
+<div id="alternative-browserbase-sdk">
+  ### 备选方案：Browserbase SDK
+</div>
+
+如果你希望直接管理会话，可以使用 Browserbase SDK：
+
+<CodeGroup>
+```typescript TypeScript
+import { Browserbase } from "@browserbasehq/sdk";
+
+const bb = new Browserbase({ 
+  apiKey: process.env.BROWSERBASE_API_KEY! 
+});
+
+const session = await bb.sessions.create({
+  projectId: process.env.BROWSERBASE_PROJECT_ID!,
+  // 在这里添加配置选项
+});
+```
+```python Python
+from browserbase import Browserbase
+
+bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+session = bb.sessions.create(
+    project_id=os.environ["BROWSERBASE_PROJECT_ID"],
+    # 在这里添加配置选项
+)
+```
+</CodeGroup>
+
+<div id="connecting-to-an-existing-session">
+  #### 连接到现有会话
+</div>
+
+使用会话 ID 连接到先前创建的 Browserbase 会话：
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionID: "existing-session-uuid-here",
+});
+
+await stagehand.init();
+console.log("Resumed Session ID:", stagehand.sessionId);
+```
+```python Python
+import os
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="BROWSERBASE",
+    browserbase_session_id="existing-session-uuid-here",
+)
+
+await stagehand.init()
+print(f"Resumed Session ID: {stagehand.session_id}")
+```
+</CodeGroup>
+
+<div id="local-environment">
+  ## 本地环境
+</div>
+
+本地环境在你的机器上直接运行浏览器，可对浏览器实例与配置实现完全控制。非常适合用于开发、调试，以及需要自定义浏览器设置的场景。
+
+<div id="environment-comparison">
+  ### 环境对比
+</div>
+
+| 功能 | Browserbase | 本地 |
+| --- | --- | --- |
+| **可扩展性** | 高（云端托管） | 有限（本地资源） |
+| **隐匿能力** | 高级指纹防护 | 基础隐匿 |
+| **代理支持** | 内置住宅代理 | 手动配置 |
+| **会话持久化** | 云端上下文存储 | 基于文件的用户数据 |
+| **地理分布** | 多区域部署 | 单机 |
+| **调试** | 会话录制与日志 | 直接使用 DevTools |
+| **设置复杂度** | 仅需环境变量 | 需要安装浏览器 |
+| **成本** | 按使用量计费 | 基础设施与维护 |
+| **最佳适用** | 生产、扩展、合规 | 开发、调试 |
+
+<div id="basic-local-setup">
+  ### 基础本地设置
+</div>
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL"
+});
+  
+await stagehand.init();
+console.log("Session ID:", stagehand.sessionId);
+```
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="LOCAL"
+)
+
+await stagehand.init()
+print(f"Session ID: {stagehand.session_id}")
+```
+</CodeGroup>
+
+<div id="advanced-local-configuration">
+  ### 高级本地配置
+</div>
+
+为本地开发自定义浏览器启动参数：
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    headless: false, // 显示浏览器窗口
+    devtools: true, // 打开开发者工具
+    viewport: { width: 1280, height: 720 },
+    executablePath: '/opt/google/chrome/chrome', // 自定义 Chrome 路径
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-web-security',
+      '--allow-running-insecure-content',
+    ],
+    env: {
+      NODE_ENV: "development",
+      DEBUG: "true",
+    },
+  },
+});
+
+await stagehand.init();
+```
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="LOCAL",
+    headless=False,  # 显示浏览器窗口
+    local_browser_launch_options={
+        "devtools": True,  # 打开开发者工具
+        "viewport": {"width": 1280, "height": 720},
+        "executable_path": "/opt/google/chrome/chrome",  # 自定义 Chrome 路径
+        "args": [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-web-security",
+            "--allow-running-insecure-content",
+        ],
+        "env": {
+            "NODE_ENV": "development",
+            "DEBUG": "true",
+        },
+    },
+)
+
+await stagehand.init()
+```
+</CodeGroup>
+
+<div id="connecting-to-your-local-browser">
+  ### 连接到本地浏览器
+</div>
+
+连接到你现有的本地 Chrome/Chromium 浏览器，而不是启动新的实例。这样你可以自动化日常使用的浏览器，同时保留所有已有标签页、扩展和设置。
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+	env: "LOCAL",
+	localBrowserLaunchOptions: {
+		cdpUrl: 'http://localhost:9222'
+	}
+});
+
+await stagehand.init();
+```
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env="LOCAL",
+    local_browser_launch_options={
+      cdp_url="http://localhost:9222"
+    }
+)
+
+await stagehand.init()
+```
+</CodeGroup>
+
+<div id="troubleshooting">
+  ## 疑难解答
+</div>
+
+<div id="common-issues">
+  ### 常见问题
+</div>
+
+<AccordionGroup>
+<Accordion title="Browserbase 身份验证错误">
+- 确认已正确设置 `BROWSERBASE_API_KEY` 和 `BROWSERBASE_PROJECT_ID`
+- 检查你的 API 密钥是否具备必要权限
+- 确保你的 Browserbase 账户有足够的点数/额度
+</Accordion>
+
+<Accordion title="本地浏览器启动失败">
+- 在系统中安装 Chrome 或 Chromium
+- 为你的 Chrome 安装配置正确的 `executablePath`
+- 检查是否已安装所需依赖（Linux：`libnss3-dev libatk-bridge2.0-dev libgtk-3-dev libxss1 libasound2`）
+</Accordion>
+
+<Accordion title="会话超时问题">
+- 在 `browserbaseSessionCreateParams.timeout` 中增加会话超时时长
+- 对于长时间运行的会话，使用 `keepAlive: true`
+- 监控会话使用情况，避免意外终止
+</Accordion>
+</AccordionGroup>

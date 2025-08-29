@@ -1,0 +1,295 @@
+---
+title: 观察
+sidebarTitle: 观察
+description: "为你的工作流程查找建议操作"
+---
+
+<div id="what-is-observe">
+  ## 什么是 `observe()`？
+</div>
+
+```typescript
+page.observe("Find the login button")
+```
+
+`observe` 可将任意页面转化为由可靠、可执行的操作组成的检查清单。它会发现关键元素、为可能的后续步骤排序，并返回结构化的操作（selector、method、args），可立即用 `act` 执行，或用于精准定位 `extract`，从而让工作流更快、更省、更稳。
+
+<div id="why-use-observe">
+  ## 为什么使用 `observe()`？
+</div>
+
+<CardGroup cols={2}>
+  <Card title="Explore" icon="compass" href="/zh/basics/observe#observe-with-act">
+    当你不确定页面内容或需要发现可用的操作时
+  </Card>
+
+  <Card title="Plan" icon="map" href="/zh/basics/observe#plan-ahead">
+    在构建复杂工作流时，提前规划所有需要执行的操作
+  </Card>
+
+  <Card title="Cache" icon="database" href="/zh/best-practices/caching">
+    当你希望记录后续要执行的操作并避免调用 LLM 时
+  </Card>
+
+  <Card title="Validate" icon="check" href="/zh/basics/observe#observe-with-act">
+    在执行关键操作前，用于确认所需元素确实存在
+  </Card>
+</CardGroup>
+
+<div id="using-observe">
+  ## 使用 `observe()`
+</div>
+
+调用 `observe` 可为其他 Stagehand 方法赋能。用它来规划工作流、加速 `act`，并精准聚焦 `extract`。`observe` 会提供一组建议操作，帮助你快速摸清页面上可执行的动作。
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 规划与校验
+  const buttons = await page.observe("Find the log in / sign up buttons");
+  ```
+
+  ```python Python
+  # 规划与校验
+  buttons = await page.observe("Find the log in / sign up buttons")
+  ```
+</CodeGroup>
+
+这将返回一个具有如下结构的建议列表
+
+```json
+{
+  "selector": "xpath=/html/body/header/div/button[1]",
+  "description": "右上角的登录按钮",
+  "method": "click",
+  "arguments": []
+}
+```
+
+<div id="observe-with-act">
+  ### 将 Observe 与 Act 配合使用
+</div>
+
+你可以先“校验”该动作（方法、选择器、参数等），然后将其传递给 `act`，以“避免额外的 LLM 推理”。
+
+<Note>
+  **性能提示**：对多个 `observe` 建议直接执行，可减少多步操作的 LLM 调用次数，使你的工作流提速 2-3 倍。
+</Note>
+
+<CodeGroup>
+  ```typescript TypeScript
+  await page.act(buttons[0]); // No LLM!
+  ```
+
+  ```python Python
+  await page.act(buttons[0]) # No LLM!
+  ```
+</CodeGroup>
+
+<div id="plan-ahead">
+  #### 提前规划
+</div>
+
+你可以组合使用多个 `observe` 建议来预览一批动作。例如，填写表单时，可以让 `observe` 找到所有字段，然后将它们传给 `act`。**LLM 调用一次，动作执行多次**。
+
+<CodeGroup>
+  ```typescript TypeScript
+  const fields = await page.observe("Find all the fields in the form");
+  for (const field of fields) {
+    await page.act(field); // No LLM!
+  }
+  ```
+
+  ```python Python
+  fields = await page.observe("Find all the fields in the form")
+  for field in fields:
+    await page.act(field) # No LLM!
+  ```
+</CodeGroup>
+
+<div id="observe-and-extract">
+  ### Observe 与 Extract
+</div>
+
+使用 `observe` 将 `extract` 聚焦在页面的特定区域（如表格、表单、列表等），可将提取所需的上下文最小化。
+
+<Tip>
+  **省费提示**：将选择器传给 `extract`，在内容冗长的网站上可将 LLM Token 用量降低 10 倍！
+</Tip>
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 在提取前用 observe 校验元素
+  const [ table ] = await page.observe("Find the data table");
+
+  const { data } = await page.extract({
+    instruction: "Extract data from the table",
+    schema: z.object({
+      data: z.string()
+    }),
+    selector: table.selector // 限缩提取所需的上下文范围
+  });
+  ```
+
+  ```python Python
+  # 在提取前用 observe 校验元素
+  [ table ] = await page.observe("Find the data table")
+
+  extraction = await page.extract(
+    "Extract data from the table",
+    schema=Data, # Pydantic schema
+    selector=table.selector # 限缩提取所需的上下文范围
+  )
+  ```
+</CodeGroup>
+
+<div id="best-practices">
+  ## 最佳实践
+</div>
+
+<div id="choose-the-right-commands">
+  ### 选择合适的命令
+</div>
+
+<Tabs>
+  <Tab title="Do this">
+    - 当是/否答案会决定后续动作时使用 `observe`（例如，“Find the Submit button”），然后按条件执行 `act`。
+    - 对纯信息查询使用 `extract`（例如，“What’s the page title?”、“How many results are listed?”）。
+  </Tab>
+
+  <Tab title="Don't do this">
+    - 不要为接下来要点击的元素调用 `extract` 来定位。
+    - 不要为不会引发任何操作的纯信息类问题调用 `observe`。
+  </Tab>
+</Tabs>
+
+- 使用 **`observe` 进行发现与规划**：用 `observe("Find…")` 映射可操作元素并预判下一步。
+- 用来自 `observe` 的选择器来 **限定 `extract` 的范围**：先执行 `observe("Find the data table")`，再把 `selector` 传给 `extract`，以减少 token 并提升准确率。
+
+<div id="conserve-llm-tokens">
+  ### 节省 LLM token
+</div>
+
+通过将 `ObserveResult` 直接传给 `act`（例如，`await page.act(results[0])`）来优化性能并节省 LLM token。使用一次 `observe` 找到元素后批量执行操作。对于熟悉的页面，缓存并复用稳定的 `observe` 结果；布局变化时使用自愈机制。
+
+<Card title="Build your own cache" icon="database" href="/zh/best-practices/caching">
+  查看如何构建你自己的动作缓存的指南
+</Card>
+
+<div id="improve-accuracy">
+  ### 提升准确性
+</div>
+
+指令要精确，例如使用 “Find the primary CTA in the hero” 以获得更佳效果。处理 iframe 时，设置 `iframes: true` 并等待 `networkidle`。在 `extract` 中配合使用 `observe` 的选择器以缩小上下文。
+
+<Card title="Prompting Best Practices" icon="robot" href="/zh/best-practices/prompting-best-practices">
+  查看如何提升结果准确性的指南
+</Card>
+
+<div id="action-validation">
+  ### 动作校验
+</div>
+
+在执行关键操作前，校验建议的 `method`、`selector` 和 `arguments`，以避免误点。如果直接调用 `act` 失败，使用同样的提示词先 `observe` 以确认方法，然后再执行建议的动作。
+
+<CodeGroup>
+  ```typescript TypeScript
+  const prompt = "click the submit button";
+  const expectedMethod = "click";
+
+  try {
+    await page.act(prompt);
+  } catch (error) {
+    if (error.message.includes("method not supported")) {
+      // 先用相同的提示词进行 observe 获取计划动作
+      const [action] = await page.observe(prompt);
+      
+      if (action && action.method === expectedMethod) {
+        await page.act(action);
+      } else {
+        throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
+      }
+    } else {
+      throw error;
+    }
+  }
+  ```
+
+  ```python Python
+  prompt = "click the submit button"
+  expected_method = "click"
+
+  try:
+      await page.act(prompt)
+  except Exception as error:
+      if "method not supported" in str(error):
+          # 先用相同的提示词进行 observe 获取计划动作
+          results = await page.observe(prompt)
+          
+          if results and results[0].method == expected_method:
+              await page.act(results[0])
+          else:
+              method = results[0].method if results else "unknown"
+              raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
+      else:
+          raise error
+  ```
+</CodeGroup>
+
+<div id="troubleshooting">
+  ## 故障排除
+</div>
+
+<AccordionGroup>
+  <Accordion title="未找到元素">
+    **问题**：`observe` 返回空数组
+
+    **解决方案**：
+
+    - 确认页面上确实存在该元素
+    - 使用更明确的指令定位该元素
+    - 确保页面已完全加载
+    - 查看[调试工作流](/zh/best-practices/debugging-workflows)日志；如果日志中能看到该元素，LLM 可能是在幻觉/未正确识别。
+  </Accordion>
+
+  <Accordion title="元素描述不准确">
+    **问题**：描述与实际元素不一致
+
+    **解决方案**：
+
+    - 试用更强大的模型：在 [evals](https://stagehand.dev/evals) 中查看最适合你用例的模型
+    - 提供更具体的指令
+    - 将推理过程记录到文件（参见[调试工作流](/zh/best-practices/debugging-workflows)）以获取 LLM 追踪
+  </Accordion>
+
+  <Accordion title="识别的方法不正确">
+    **问题**：识别出的方法无效
+
+    **解决方案**：
+
+    - 查看[支持的操作](/zh/basics/act)
+    - 提供更具体的指令
+    - 校验该方法；如无效，改用受支持的方法之一
+  </Accordion>
+</AccordionGroup>
+
+<div id="next-steps">
+  ## 后续步骤
+</div>
+
+<CardGroup cols={2}>
+  <Card title="操作概览" icon="play" href="/zh/basics/act">
+    基于 `observe` 的结果高效执行操作
+  </Card>
+
+  <Card title="数据提取" icon="download" href="/zh/basics/extract">
+    从观测到的元素中提取结构化数据
+  </Card>
+
+  <Card title="可观测性" icon="chart-line" href="/zh/configuration/observability">
+    监控与调试观测性能
+  </Card>
+
+  <Card title="最佳实践" icon="star" href="/zh/best-practices/best-practices">
+    高级模式与优化技巧
+  </Card>
+</CardGroup>

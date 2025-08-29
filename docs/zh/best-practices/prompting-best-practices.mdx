@@ -1,0 +1,531 @@
+---
+title: 编写提示的最佳实践
+description: "为可靠的 Stagehand 自动化撰写高效提示"
+---
+
+好的提示让 Stagehand 更可靠，差的提示会导致失败。以下是如何编写能稳定奏效的提示。
+
+<div id="act-method">
+  ## Act 方法
+</div>
+
+在网页上使用 `act()` 执行单一操作。每个操作都应专注且明确。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 单一且具体的操作
+await page.act("click the 'Add to Cart' button");
+await page.act("type 'user@example.com' into the email field");
+
+// Bad - 将多个操作合并
+await page.act("fill out the form and submit it");
+await page.act("login with credentials and navigate to dashboard");
+```
+
+```python Python
+# Good - 单一且具体的操作
+await page.act("click the 'Add to Cart' button")
+await page.act("type 'user@example.com' into the email field")
+
+# Bad - 将多个操作合并
+await page.act("fill out the form and submit it")
+await page.act("login with credentials and navigate to dashboard")
+```
+</CodeGroup>
+
+<div id="use-element-types-not-colors">
+  ### 使用元素类型，而非颜色
+</div>
+
+请根据元素的类型和功能来描述，而不是使用颜色等视觉属性。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 元素类型与描述性文本
+await page.act("click the 'Sign In' button");
+await page.act("type into the email input field");
+
+// Bad - 基于颜色的描述
+await page.act("click the blue button");
+await page.act("type into the white input");
+```
+
+```python Python
+# Good - 元素类型与描述性文本
+await page.act("click the 'Sign In' button")
+await page.act("type into the email input field")
+
+# Bad - 基于颜色的描述
+await page.act("click the blue button")
+await page.act("type into the white input")
+```
+</CodeGroup>
+
+<div id="use-descriptive-language">
+  ### 使用描述性语言
+</div>
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 清晰的元素识别
+await page.act("click the 'Next' button at the bottom of the form");
+await page.act("type into the search bar at the top of the page");
+
+// Bad - 含糊的描述
+await page.act("click next");
+await page.act("type into search");
+```
+
+```python Python
+# Good - 清晰的元素识别
+await page.act("click the 'Next' button at the bottom of the form")
+await page.act("type into the search bar at the top of the page")
+
+# Bad - 含糊的描述
+await page.act("click next")
+await page.act("type into search")
+```
+</CodeGroup>
+
+<div id="choose-the-right-action-verbs">
+  ### 选择合适的动作动词
+</div>
+
+- Click：用于按钮、链接、复选框
+- Type：用于文本输入
+- Select：用于下拉菜单
+- Check/uncheck：用于复选框
+- Upload：用于文件上传输入
+
+<CodeGroup>
+```typescript TypeScript
+// Good
+await page.act("click the submit button");
+await page.act("select 'Option 1' from dropdown");
+
+// Bad
+await page.act("click submit");
+await page.act("choose option 1");
+```
+
+```python Python
+# Good
+await page.act("click the submit button")
+await page.act("select 'Option 1' from dropdown")
+
+# Bad
+await page.act("click submit")
+await page.act("choose option 1")
+```
+</CodeGroup>
+
+<div id="protect-sensitive-data">
+  ### 保护敏感数据
+</div>
+
+使用变量将敏感信息排除在提示与日志之外。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 安全做法
+await page.act({
+  action: "enter %username% in the email field",
+  variables: {
+    username: "user@example.com"
+  }
+});
+
+await page.act({
+  action: "enter %password% in the password field", 
+  variables: {
+    password: process.env.USER_PASSWORD
+  }
+});
+
+// Bad - 不安全做法
+await page.act("type 'mySecretPassword123' into the password field");
+```
+
+```python Python
+import os
+
+# Good - 安全做法
+await page.act(
+  "enter %username% in the email field",
+  variables={
+    "username": "user@example.com"
+  }
+)
+
+await page.act(
+  "enter %password% in the password field",
+  variables={
+    "password": os.environ.get("USER_PASSWORD")
+  }
+)
+
+# Bad - 不安全做法
+await page.act("type 'mySecretPassword123' into the password field")
+```
+</CodeGroup>
+
+<Warning>
+在 Stagehand 配置中将 `verbose: 0` 设为开启，以防止密钥出现在日志中。
+</Warning>
+
+<div id="extract-method">
+  ## 提取方法
+</div>
+
+使用 `extract()` 从页面中提取结构化数据。请定义清晰的 schema 并提供必要的上下文。
+
+<div id="schema-best-practices">
+  ### Schema 最佳实践
+</div>
+
+使用具描述性的字段名、正确的类型和详细的说明。字段说明能提供上下文，帮助代理准确理解需要提取的内容。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 名称具描述性、类型正确、说明有帮助
+const productData = await page.extract({
+  instruction: "Extract product information",
+  schema: z.object({
+    productTitle: z.string().describe("The main product name displayed on the page"),
+    priceInDollars: z.number().describe("Current selling price as a number, without currency symbol"),
+    isInStock: z.boolean().describe("Whether the product is available for purchase")
+  })
+});
+
+// Bad - 名称泛泛、类型错误、没有说明
+const data = await page.extract({
+  instruction: "Get product details", 
+  schema: z.object({
+    name: z.string(), // 过于笼统，缺少上下文
+    price: z.string(), // 应为 number
+    stock: z.string() // 应为 boolean，缺少上下文
+  })
+});
+```
+
+```python Python
+from pydantic import BaseModel, Field
+
+# Good - 名称具描述性、类型正确、说明有帮助
+class ProductData(BaseModel):
+    productTitle: str = Field(description="The main product name displayed on the page")
+    priceInDollars: float = Field(description="Current selling price as a number, without currency symbol")
+    isInStock: bool = Field(description="Whether the product is available for purchase")
+
+productData = await page.extract(
+  "Extract product information",
+  schema=ProductData
+)
+
+# Bad - 名称泛泛、类型错误、没有说明
+class Data(BaseModel):
+    name: str      # 过于笼统，缺少上下文
+    price: str     # 应为 float，缺少上下文
+    stock: str     # 应为 bool，缺少上下文
+
+data = await page.extract(
+  "Get product details",
+  schema=Data
+)
+```
+</CodeGroup>
+
+<div id="handle-arrays-correctly">
+  ### 正确处理数组
+</div>
+
+始终将数组的 schema 包装在对象中，以确保稳定可靠的提取。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 将数组包装在对象中
+const listings = await page.extract({
+  instruction: "Extract all apartment listings",
+  schema: z.object({
+    apartments: z.array(z.object({
+      address: z.string(),
+      rent: z.number()
+    }))
+  })
+});
+
+// Bad - 直接使用裸数组
+const listings = await page.extract({
+  instruction: "Extract apartment listings",
+  schema: z.array(z.string()) // 不要这样做
+});
+```
+
+```python Python
+from pydantic import BaseModel
+from typing import List
+
+# Good - 将数组包装在对象中
+class Apartment(BaseModel):
+    address: str
+    rent: float
+
+class Listings(BaseModel):
+    apartments: List[Apartment]
+
+listings = await page.extract(
+  "Extract all apartment listings",
+  schema=Listings
+)
+
+# Bad - 裸数组（不支持）
+# 不要这样做——数组必须包装在对象中
+```
+</CodeGroup>
+
+<div id="use-proper-url-types">
+  ### 使用正确的 URL 类型
+</div>
+
+指定 URL 类型以指示 Stagehand 提取 URL。没有正确的 URL 类型，Stagehand 将无法提取 URL。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 明确指示 Stagehand 提取 URL
+const links = await page.extract({
+  instruction: "Extract navigation links",
+  schema: z.object({
+    links: z.array(z.object({
+      text: z.string(),
+      url: z.string().url() // 进行 URL 提取所必需
+    }))
+  })
+});
+```
+
+```python Python
+from pydantic import BaseModel, HttpUrl
+from typing import List
+
+# Good - 明确指示 Stagehand 提取 URL
+class Link(BaseModel):
+    text: str
+    url: HttpUrl  # 进行 URL 提取所必需
+
+class Links(BaseModel):
+    links: List[Link]
+
+links = await page.extract(
+  "Extract navigation links",
+  schema=Links
+)
+```
+</CodeGroup>
+
+<div id="observe-method">
+  ## Observe 方法
+</div>
+
+在执行操作前，使用 `observe()` 先发现可操作元素。
+
+<div id="check-elements-first">
+  ### 先检查元素
+</div>
+
+在采取操作前先确认元素是否存在，避免报错。
+
+<CodeGroup>
+```typescript TypeScript
+// 先检查元素是否存在
+const loginButtons = await page.observe("Find the login button");
+
+if (loginButtons.length > 0) {
+  await page.act(loginButtons[0]);
+} else {
+  console.log("No login button found");
+}
+```
+
+```python Python
+# 先检查元素是否存在
+login_buttons = await page.observe("Find the login button")
+
+if len(login_buttons) > 0:
+    await page.act(login_buttons[0])
+else:
+    print("No login button found")
+```
+</CodeGroup>
+
+<div id="be-specific-about-element-types">
+  ### 明确元素类型
+</div>
+
+<CodeGroup>
+```typescript TypeScript
+// 正确示例 - 明确的元素类型
+const submitButtons = await page.observe("Find submit button in the form");
+const dropdowns = await page.observe("Find the state dropdown menu");
+
+// 反例 - 过于含糊
+const elements = await page.observe("Find submit stuff");
+const things = await page.observe("Find state selection");
+```
+
+```python Python
+# 正确示例 - 明确的元素类型
+submit_buttons = await page.observe("Find submit button in the form")
+dropdowns = await page.observe("Find the state dropdown menu")
+
+# 反例 - 过于含糊
+elements = await page.observe("Find submit")
+things = await page.observe("Find state selection")
+```
+</CodeGroup>
+
+<div id="agent-method">
+  ## 代理方法
+</div>
+
+对于复杂的多步骤工作流，请使用 `agent()`。提供详尽的指令并设置合适的限制。
+
+<div id="navigate-first">
+  ### 先进行导航
+</div>
+
+不要在代理任务中包含导航。将导航单独处理。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 先进行导航
+await page.goto('https://amazon.com');
+await agent.execute('Search for wireless headphones under $100 and add the best rated one to cart');
+
+// Bad - 在任务中包含导航
+await agent.execute('Go to Amazon, search for headphones, and add one to cart');
+```
+
+```python Python
+# Good - 先进行导航
+await page.goto('https://amazon.com')
+await agent.execute('Search for wireless headphones under $100 and add the best rated one to cart')
+
+# Bad - 在任务中包含导航
+await agent.execute('Go to Amazon, search for headphones, and add one to cart')
+```
+</CodeGroup>
+
+<div id="be-highly-specific">
+  ### 尽量具体
+</div>
+
+更具体的指令会带来更好的结果。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 详细指令
+await agent.execute({
+  instruction: "Find Italian restaurants in Brooklyn that are open after 10pm, have outdoor seating, and are rated 4+ stars. Save the top 3 results.",
+  maxSteps: 25
+});
+
+// Bad - 含糊指令
+await agent.execute("Find some good restaurants");
+```
+
+```python Python
+# Good - 详细指令
+await agent.execute(
+  instruction="Find Italian restaurants in Brooklyn that are open after 10pm, have outdoor seating, and are rated 4+ stars. Save the top 3 results.",
+  max_steps=25
+)
+
+# Bad - 含糊指令
+await agent.execute("Find some good restaurants")
+```
+</CodeGroup>
+
+<div id="set-appropriate-step-limits">
+  ### 设定合适的步骤上限
+</div>
+
+将步骤上限与任务复杂度相匹配。
+
+<CodeGroup>
+```typescript TypeScript
+// 简单任务 - 步骤更少
+await agent.execute({
+  instruction: "Subscribe to the newsletter with email 'user@example.com'",
+  maxSteps: 10
+});
+
+// 复杂任务 - 步骤更多
+await agent.execute({
+  instruction: "Research and compare 5 project management tools with pricing and features",
+  maxSteps: 50
+});
+```
+
+```python Python
+# 简单任务 - 步骤更少
+await agent.execute(
+  instruction="Subscribe to the newsletter with email 'user@example.com'",
+  max_steps=10
+)
+
+# 复杂任务 - 步骤更多
+await agent.execute(
+  instruction="Research and compare 5 project management tools with pricing and features",
+  max_steps=50
+)
+```
+</CodeGroup>
+
+<div id="include-success-criteria">
+  ### 包含成功标准
+</div>
+
+告诉代理如何判断任务已完成。
+
+<CodeGroup>
+```typescript TypeScript
+// Good - 明确的成功标准
+await agent.execute({
+  instruction: "Add 3 smartphone cases to cart and confirm the cart shows exactly 3 items with total price",
+  maxSteps: 20
+});
+
+// Bad - 无验证
+await agent.execute("Add some items to cart");
+```
+
+```python Python
+# Good - 明确的成功标准
+await agent.execute(
+  instruction="Add 3 smartphone cases to cart and confirm the cart shows exactly 3 items with total price",
+  max_steps=20
+)
+
+# Bad - 无验证
+await agent.execute("Add some items to cart")
+```
+</CodeGroup>
+
+<div id="common-mistakes-to-avoid">
+  ## 需要避免的常见错误
+</div>
+
+- **合并多个操作** - 每次 `act()` 调用仅执行一个操作
+- **使用含糊的描述** - 明确指出要与哪些元素进行交互  
+- **暴露敏感数据** - 始终使用变量存放凭据
+- **跳过验证** - 继续之前先核对结果
+
+<div id="testing-your-prompts">
+  ## 测试你的提示词
+</div>
+
+1. **从简单开始** - 先测试基础功能
+2. **逐步增加复杂度** - 逐步扩展到复杂的工作流
+3. **监控结果** - 通过日志了解具体发生了什么
+4. **基于失败迭代** - 当提示词不起作用时及时优化
+记住：优质的提示是通过迭代打磨出来的。拿不准时，宁可更具体，也不要含糊。

@@ -1,0 +1,98 @@
+---
+title: 使用 iframe
+---
+
+<div id="what-is-an-iframe">
+  ### 什么是 iframe？
+</div>
+
+iframe 会在当前页面中嵌入其他页面。网站会将它们用于同意横幅、支付小部件、聊天气泡以及第三方内容。
+iframe 内的元素存在于与主页面不同的上下文中。
+
+<div id="enable-iframe-support">
+  ### 启用 iframe 支持
+</div>
+
+在你的 `act()`, `observe()`, 和 `extract()` 命令中设置 `iframes: true`。
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 在 iframe 中执行操作
+  await page.act({ action: "click the accept cookies button", iframes: true });
+
+  // 在 iframe 中观察
+  const results = await page.observe({
+    instruction: "Find the primary action button",
+    iframes: true,
+  });
+
+  // 从 iframe 中提取
+  const data = await page.extract({
+    instruction: "Extract the product price from the payment widget",
+    schema: z.object({
+      price: z.string(),
+    }),
+    iframes: true,
+  });
+  ```
+
+  ```python Python
+  # 在 iframe 中执行操作
+  await page.act(
+      "click the accept cookies button",
+      iframes=True
+  )
+
+  # 在 iframe 中观察
+  results = await page.observe({
+      "instruction": "Find the primary action button",
+      "iframes": True,
+  })
+
+  # 从 iframe 中提取
+  data = await page.extract({
+      "instruction": "Extract the product price from the payment widget",
+      "schema": {
+          "type": "object",
+          "properties": {
+              "price": {"type": "string"}
+          }
+      },
+      "iframes": True,
+  })
+  ```
+</CodeGroup>
+
+<div id="tips">
+  ### 提示
+</div>
+
+- iframe 可能会增加处理时间。为获得最佳性能，仅在必要时启用 iframe 选项。
+- 当你不确定某个元素是否位于 iframe 中时，可以在 Stagehand 日志中确认是否存在 iframe。
+- 如果某个元素偶尔无法找到，可能是位于延迟加载的 iframe 中。在步骤之间添加短暂等待，或重新运行你的操作。
+
+<Note>
+  你可以通过 Stagehand 配置启用实验性功能（例如 Shadow DOM 支持）。请参阅[配置指南](/zh/configuration/browser)。
+</Note>
+
+<div id="next-steps">
+  ## 下一步
+</div>
+
+<CardGroup cols={2}>
+  <Card title="使用 observe() 分析页面" icon="magnifying-glass" iconType="sharp-solid" href="/zh/basics/observe">
+    使用 `observe()` 在执行之前规划精确的单步操作。
+  </Card>
+
+  <Card title="使用 extract() 提取数据" icon="table" iconType="sharp-solid" href="/zh/basics/extract">
+    将 `extract()` 与数据模式配合使用，从任意页面提取干净、类型明确的数据。
+  </Card>
+
+  <Card title="缓存操作" icon="bolt" iconType="sharp-solid" href="/zh/best-practices/caching">
+    通过缓存操作加速重复的自动化任务。
+  </Card>
+
+  <Card title="Act 基础" icon="arrow-pointer" iconType="sharp-solid" href="/zh/basics/act">
+    学习如何使用 `act()` 可靠地执行单步操作。
+  </Card>
+</CardGroup>

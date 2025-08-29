@@ -1,0 +1,268 @@
+---
+title: 代理
+description: "使用 AI 驱动的浏览器智能体自动化复杂工作流"
+---
+
+<div id="what-is-agent">
+  ## 什么是 `agent()?`
+</div>
+
+```typescript
+agent.execute("apply for a job at browserbase")
+```
+
+`agent` 可将高层任务转化为**完全自主**的浏览器工作流。你可以通过指定 LLM 提供商与模型、设置自定义行为指令，并配置最大步数来自定义该 agent。
+
+<img src="/images/agent.gif" alt="Agent" />
+
+<div id="why-use-agent">
+  ## 为什么使用 `agent()`？
+</div>
+
+<CardGroup cols={2}>
+  <Card title="多步工作流" icon="route" href="#agent-execution-configuration">
+    自动执行复杂的多步骤流程。
+  </Card>
+
+  <Card title="视觉理解" icon="eye" href="/zh/best-practices/computer-use">
+    借助计算机视觉，像人类一样感知并理解网页界面。
+  </Card>
+</CardGroup>
+
+<div id="using-agent">
+  ## 使用 `agent()`
+</div>
+
+以下展示如何使用 `agent()` 创建一个代理。
+
+<CodeGroup>
+  ```typescript TypeScript
+  const agent = stagehand.agent({
+    provider: "anthropic",
+    model: "claude-sonnet-4-20250514",
+    instructions: "You are a helpful assistant that can use a web browser.",
+    options: {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    },
+  });
+  await agent.execute("apply for a job at Browserbase")
+  ```
+
+  ```python Python
+  agent = stagehand.agent({
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "instructions": "You are a helpful assistant that can use a web browser.",
+      "options": {
+        "apiKey": os.getenv("ANTHROPIC_API_KEY"),
+      },
+  })
+  await agent.execute("apply for a job at Browserbase")
+  ```
+</CodeGroup>
+
+<Warning>
+  Stagehand 默认使用 1024x768 视口（这是计算机使用（模型）的最佳尺寸）。其他视口大小可能会降低性能。如需修改视口，请在 [Browser Configuration](/zh/configuration/browser) 中进行更改。
+</Warning>
+
+<div id="available-models">
+  ## 可用模型
+</div>
+
+使用专门的计算机使用（Computer Use）模型（例如 OpenAI 的 `computer-use-preview` 或 Anthropic 的 `claude-sonnet-4-20250514`）。
+
+<Card title="可用模型" icon="robot" href="/zh/configuration/models">
+  查看在 Stagehand 中使用不同模型的指南。
+</Card>
+
+<div id="agent-execution-configuration">
+  ## Agent 执行配置
+</div>
+
+使用 `maxSteps` 参数控制 agent 为完成任务可执行的最大步骤数。
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 设置 maxSteps 以控制 agent 可执行的操作次数
+  await agent.execute({
+    instruction: "帮我办理一张图书馆借书证",
+    maxSteps: 15 // 如果任务未完成，agent 将在 15 步后停止
+  });
+  ```
+
+  ```python Python
+  # 设置 max_steps 以控制 agent 可执行的操作次数
+  result = await agent.execute({
+      "instruction": "帮我办理一张图书馆借书证",
+      "max_steps": 15  # 如果任务未完成，agent 将在 15 步后停止
+  })
+  ```
+</CodeGroup>
+
+对于复杂任务，可提高 `maxSteps` 上限并检查任务是否成功。
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 复杂的多步骤任务需要更多操作
+  const result = await agent.execute({
+    instruction: "查找并申请软件工程师职位，按远程工作筛选并保存 3 条申请",
+    maxSteps: 30, // 为复杂流程设置更高上限
+  });
+
+  // 检查任务是否成功完成
+  if (result.success === true) {
+    console.log("任务已成功完成！");
+  } else {
+    console.log("任务失败或未完成");
+  }
+  ```
+
+  ```python Python
+  # 复杂的多步骤任务需要更多操作
+  result = await agent.execute({
+      "instruction": "查找并申请软件工程师职位，按远程工作筛选并保存 3 条申请",
+      "max_steps": 30  # 为复杂流程设置更高上限
+  })
+
+  # 检查任务是否成功完成
+  if result.success == True:
+      print("任务已成功完成！")
+  else:
+      print("任务失败或未完成")
+  ```
+</CodeGroup>
+
+<div id="best-practices">
+  ## 最佳实践
+</div>
+
+遵循以下最佳实践可提升 agent 的成功率、缩短执行时间，并在完成任务时尽量减少意外错误。
+
+<div id="start-on-the-right-page">
+  ### 从正确的页面开始
+</div>
+
+在执行任务前先跳转到目标页面：
+
+<Tabs>
+  <Tab title="这样做">
+    <CodeGroup>
+      ```typescript TypeScript
+      await page.goto('https://github.com/browserbase/stagehand');
+      await agent.execute('Get me the latest PR on the stagehand repo');
+      ```
+
+      ```python Python
+      await page.goto("https://github.com/browserbase/stagehand")
+      result = await agent.execute("Get me the latest PR on the stagehand repo")
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="不要这样做">
+    <CodeGroup>
+      ```typescript TypeScript
+      await agent.execute('Go to GitHub and find the latest PR on browserbase/stagehand');
+      ```
+
+      ```python Python
+      result = await agent.execute("Go to GitHub and find the latest PR on browserbase/stagehand")
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+<div id="be-specific">
+  ### 明确具体
+</div>
+
+提供更详尽的指令以获得更好的结果：
+
+<Tabs>
+  <Tab title="这样做">
+    <CodeGroup>
+      ```typescript TypeScript
+      await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating");
+      ```
+
+      ```python Python
+      result = await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating")
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="不要这样做">
+    <CodeGroup>
+      ```typescript TypeScript
+      await agent.execute("Find a restaurant");
+      ```
+
+      ```python Python
+      result = await agent.execute("Find a restaurant")
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+<div id="troubleshooting">
+  ## 故障排查
+</div>
+
+<AccordionGroup>
+  <Accordion title="Agent 在完成任务前就停止了。">
+    **问题**：Agent 在完成所请求的任务之前停止
+
+    **解决方案**：
+
+    - 检查是否触达 maxSteps 限制（默认 20）
+    - 对于复杂任务提高 maxSteps：例如 `maxSteps: 30` 或更高
+    - 将超复杂任务拆分为更小的顺序执行
+
+    ```typescript
+    // 为复杂任务提高 maxSteps
+    await agent.execute({
+      instruction: "Complete the multi-page registration form with all required information",
+      maxSteps: 40 // 为复杂任务提高上限
+    });
+
+    // 或拆分为更小的任务并进行成功校验
+    const firstResult = await agent.execute({
+      instruction: "Fill out page 1 of the registration form", 
+      maxSteps: 15
+    });
+
+    // 仅在首个任务成功时继续
+    if (firstResult.success === true) {
+      await agent.execute({
+        instruction: "Navigate to page 2 and complete remaining fields",
+        maxSteps: 15
+      });
+    } else {
+      console.log("First task failed, stopping execution");
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Agent 未能点击正确的元素。">
+    **问题**：Agent 点击了错误的元素或未能与正确的 UI 组件交互
+
+    **解决方案**：
+
+    - 确保视口尺寸合适：Stagehand 默认使用 `1024x768`（对 计算机使用（模型） 最佳）
+    - 避免更改视口尺寸，其他尺寸可能降低性能
+  </Accordion>
+</AccordionGroup>
+
+<div id="next-steps">
+  ## 下一步
+</div>
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="play" href="/zh/basics/act">
+    基于观察结果高效执行操作
+  </Card>
+
+  <Card title="Extract" icon="download" href="/zh/basics/extract">
+    从已观察的元素中提取结构化数据
+  </Card>
+</CardGroup>

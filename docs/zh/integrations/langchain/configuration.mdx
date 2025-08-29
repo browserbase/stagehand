@@ -1,0 +1,228 @@
+---
+title: "LangChain JS 配置"
+sidebarTitle: 配置
+description: "将 Stagehand 与 LangChain JS 配置在一起，创建智能网页自动化代理"
+---
+
+本指南将带你逐步完成将 Stagehand 与 LangChain JS 集成的流程，并使用自然语言指令构建强大的网页自动化工作流程。
+
+## 步骤 1：安装依赖
+
+为 LangChain JS 与 Stagehand 的集成安装所需包：
+
+```bash
+npm install @langchain/langgraph @langchain/community @langchain/core @browserbasehq/stagehand
+```
+
+## 步骤 2：配置环境变量
+
+要进行远程浏览器自动化，请设置你的 Browserbase 凭证：
+
+```bash
+BROWSERBASE_API_KEY="your-browserbase-api-key"
+BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
+```
+
+## 步骤 3：创建 Stagehand 实例
+
+使用你偏好的配置初始化 Stagehand：
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// 本地开发
+const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 2,
+    enableCaching: false,
+});
+
+// 在 Browserbase 上的生产环境
+const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    verbose: 1,
+    enableCaching: true,
+});
+```
+
+## 步骤 4：生成 StagehandToolkit
+
+创建一个提供与 LangChain 兼容工具的工具包：
+
+```typescript
+import { StagehandToolkit } from '@langchain/community/tools/stagehand';
+
+const stagehandToolkit = await StagehandToolkit.fromStagehand(stagehand);
+```
+
+## 步骤 5：使用单个工具
+
+该工具包提供四个用于网页自动化的专用工具：
+
+### 可用工具
+
+- **stagehand_navigate**：跳转到指定 URL
+- **stagehand_act**：执行浏览器操作（点击、输入等）
+- **stagehand_extract**：基于模式提取结构化数据
+- **stagehand_observe**：分析页面元素及可执行操作
+
+### 基本工具用法
+
+```typescript
+// 访问网站
+const navigateTool = stagehandToolkit.tools.find(
+    (t) => t.name === "stagehand_navigate"
+);
+await navigateTool.invoke("https://www.google.com");
+
+// 执行操作
+const actionTool = stagehandToolkit.tools.find(
+    (t) => t.name === "stagehand_act"
+);
+await actionTool.invoke('Search for "OpenAI"');
+
+// 观察页面
+const observeTool = stagehandToolkit.tools.find(
+    (t) => t.name === "stagehand_observe"
+);
+const result = await observeTool.invoke(
+    "What actions can be performed on the current page?"
+);
+console.log(JSON.parse(result));
+```
+
+## 第 6 步：构建 LangGraph 代理
+
+集成 LangGraph，以实现复杂的自动化流程：
+
+```typescript
+npm install @langchain/langgraph @langchain/community @langchain/core @langchain/openai @browserbasehq/stagehand
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+
+// 创建一个 LLM
+const llm = new ChatOpenAI({
+    model: "gpt-4",
+    temperature: 0,
+});
+
+// 使用 Stagehand 工具创建代理
+const agent = createReactAgent({
+    llm,
+    tools: stagehandToolkit.tools,
+});
+
+// 执行复杂流程
+const result = await agent.invoke({
+    messages: [
+        {
+            role: "user", 
+            content: "访问 example.com，找到联系表单，并提取所有表单字段"
+        }
+    ]
+});
+```
+
+## 高级配置
+
+### 自定义 Stagehand 配置
+
+```typescript
+const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    verbose: 2,
+    enableCaching: true,
+    headless: true,
+    domSettleTimeoutMs: 5000,
+});
+```
+
+### 错误处理
+
+```typescript
+try {
+    const result = await agent.invoke({
+        messages: [{ role: "user", content: "Navigate to invalid-url.com" }]
+    });
+} catch (error) {
+    console.error("自动化失败：", error);
+} finally {
+    // 释放资源
+    await stagehand.close();
+}
+```
+
+## 示例工作流程
+
+<Tabs>
+  <Tab title="数据提取" value="data-extraction" label="TypeScript">
+    ```typescript
+    const extractionAgent = createReactAgent({
+        llm,
+        tools: stagehandToolkit.tools,
+    });
+
+    const result = await extractionAgent.invoke({
+        messages: [{
+            role: "user",
+            content: `
+                访问 news-website.com 并提取：
+                1. 所有文章标题
+                2. 发表日期
+                3. 作者姓名
+                请按结构化 JSON 格式输出
+            `
+        }]
+    });
+    ```
+  </Tab>
+  <Tab title="表单自动化" value="form-automation" label="TypeScript">
+    ```typescript
+    const formAgent = createReactAgent({
+        llm,
+        tools: stagehandToolkit.tools,
+    });
+
+    const result = await formAgent.invoke({
+        messages: [{
+            role: "user", 
+            content: `
+                前往 contact-form.com，并执行：
+                1. 填写联系表单：
+                   - 姓名：John Doe
+                   - 邮箱：john@example.com
+                   - 留言：咨询相关服务
+                2. 提交表单
+                3. 确认提交成功
+            `
+        }]
+    });
+    ```
+  </Tab>
+  <Tab title="多站点调研" value="multi-site-research" label="TypeScript">
+    ```typescript
+    const researchAgent = createReactAgent({
+        llm,
+        tools: stagehandToolkit.tools,
+    });
+
+    const result = await researchAgent.invoke({
+        messages: [{
+            role: "user",
+            content: `
+                通过以下方式调研产品定价：
+                1. 访问 competitor1.com，提取定价信息
+                2. 访问 competitor2.com，提取定价信息
+                3. 对比功能与价格
+                4. 提供总结性分析
+            `
+        }]
+    });
+    ```
+  </Tab>
+</Tabs>
+
+<CardGroup cols={1}>
+  <Card title="LangChain JS 文档" icon="book" href="https://js.langchain.com/docs/integrations/tools/stagehand/">
+    Stagehand 集成的官方 LangChain JS 文档
+  </Card>
+</CardGroup>

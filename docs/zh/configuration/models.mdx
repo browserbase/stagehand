@@ -1,0 +1,342 @@
+---
+title: 模型
+sidebarTitle: 模型
+description: 使用 LLM 增强 Stagehand，兼顾性能、成本与可靠性
+---
+
+Stagehand 使用大型语言模型（LLM）来理解网页、规划操作，并与复杂界面交互。所选 LLM 会显著影响你的自动化在准确性、速度和成本方面的表现。
+
+<Card title="模型评估" href="https://www.stagehand.dev/evals" icon="paper-plane">
+  前往我们的“模型评估”页面，了解如何选择合适模型的更多信息。
+</Card>
+
+<div id="why-llm-choice-matters">
+  ## 为什么选择 LLM 很重要
+</div>
+
+- **准确性**：更强的模型能更可靠地进行元素检测和动作规划
+- **速度**：更快的模型能降低自动化延迟
+- **成本**：不同提供商的定价结构各不相同
+- **可靠性**：对结构化输出的支持可确保自动化行为一致
+
+<Tip>
+  在我们的[模型评估](https://www.stagehand.dev/evals)页面了解更多关于如何选择合适模型的内容。
+</Tip>
+
+<Warning>
+  **Ollama** 上的小型模型在稳定生成结构化输出方面表现不佳。尽管技术上可用，但我们不建议在生产级 Stagehand 工作流中使用它们。
+</Warning>
+
+<div id="environment-variables-setup">
+  ## 环境变量设置
+</div>
+
+在配置 Stagehand 之前，先设置你的 API 密钥：
+
+<CodeGroup>
+  ```bash .env
+  # 选择一个或多个提供商
+  OPENAI_API_KEY=your_openai_key_here
+  ANTHROPIC_API_KEY=your_anthropic_key_here
+  GOOGLE_API_KEY=your_google_key_here
+  GROQ_API_KEY=your_groq_key_here
+  ```
+</CodeGroup>
+
+<div id="supported-providers">
+  ## 支持的提供商
+</div>
+
+Stagehand 支持具备结构化输出能力的主流 LLM 提供商：
+
+<div id="production-ready-providers">
+  ### 生产就绪的提供商
+</div>
+
+| 提供商 | 最佳模型 | 优势 | 适用场景 |
+|----------|-------------|-----------|----------|
+| **OpenAI** | `gpt-4.1`, `gpt-4.1-mini` | 高准确率、可靠性强 | 生产环境、复杂站点 |
+| **Anthropic** | `claude-3-7-sonnet-latest` | 出色的推理能力 | 复杂自动化任务 |
+| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | 速度快、成本友好 | 海量自动化场景 |
+
+<div id="additional-providers">
+  ### 其他提供商
+</div>
+
+<Expandable title="更多提供商">
+  - **Groq** - `llama-3.3-70b-versatile`（适用于对速度极其敏感的应用）
+  - **xAI** - `grok-beta`（擅长复杂推理）
+  - **Azure** - 企业级 OpenAI 部署
+  - **Cerebras** - 高速推理
+  - **TogetherAI** - 开源模型
+  - **Mistral** - `mixtral-8x7b-32768`（欧洲选项）
+  - **DeepSeek** - 高性价比替代方案
+  - **Perplexity** - 实时网页数据
+  - **Ollama** - 本地部署（准确率有限）
+  - **运行 AI SDK 中包含的任意模型** - 在 [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) 中查找支持的模型（按照
+    [此处](#vercel-ai-sdk) 的指南开始使用。）
+</Expandable>
+
+<div id="basic-configuration">
+  ## 基本配置
+</div>
+
+<div id="model-name-format">
+  ### 模型名称格式
+</div>
+
+Stagehand 使用 `provider/model-name` 格式来指定模型。
+
+**示例：**
+
+- OpenAI：`openai/gpt-4.1`
+- Anthropic：`anthropic/claude-3-7-sonnet-latest`
+- Google：`google/gemini-2.5-flash`（推荐）
+
+<div id="quick-start-examples">
+  ### 快速上手示例
+</div>
+
+<Tabs>
+  <Tab title="Google（推荐）">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { Stagehand } from "@browserbasehq/stagehand";
+
+      const stagehand = new Stagehand({
+        modelName: "google/gemini-2.5-flash",
+        modelClientOptions: {
+          apiKey: process.env.GOOGLE_API_KEY,
+        },
+      });
+      ```
+
+      ```python Python
+      import os
+      from stagehand import Stagehand
+
+      stagehand = Stagehand(
+          model_name="google/gemini-2.5-flash",
+          model_api_key=os.getenv("GOOGLE_API_KEY")
+      )
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="OpenAI">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { Stagehand } from "@browserbasehq/stagehand";
+
+      const stagehand = new Stagehand({
+        modelName: "openai/gpt-4.1",
+        modelClientOptions: {
+          apiKey: process.env.OPENAI_API_KEY,
+        },
+      });
+      ```
+
+      ```python Python
+      import os
+      from stagehand import Stagehand
+
+      stagehand = Stagehand(
+          model_name="openai/gpt-4.1",
+          model_api_key=os.getenv("OPENAI_API_KEY")
+      )
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Anthropic">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { Stagehand } from "@browserbasehq/stagehand";
+
+      const stagehand = new Stagehand({
+        modelName: "anthropic/claude-3-7-sonnet-latest",
+        modelClientOptions: {
+          apiKey: process.env.ANTHROPIC_API_KEY,
+        },
+      });
+      ```
+
+      ```python Python
+      import os
+      from stagehand import Stagehand
+
+      stagehand = Stagehand(
+          model_name="anthropic/claude-3-7-sonnet-latest",
+          model_api_key=os.getenv("ANTHROPIC_API_KEY")
+      )
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+<div id="custom-llm-integration">
+  ## 自定义 LLM 集成
+</div>
+
+<Note>
+  自定义 LLM 目前仅支持 TypeScript。
+</Note>
+
+使用自定义客户端即可将任意 LLM 集成到 Stagehand。唯一要求是支持**结构化输出**，以确保自动化行为一致。
+
+<div id="vercel-ai-sdk">
+  ### Vercel AI SDK
+</div>
+
+[Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) 是一个与 LLM 交互的常用库。你可以使用其支持的任意提供商为你的模型创建客户端，**前提是该提供商支持结构化输出**。
+
+Vercel AI SDK 提供对 OpenAI、Anthropic、Google 的支持，并兼容 **Amazon Bedrock** 与 **Azure OpenAI**。
+
+开始之前，你需要安装 `ai` 包以及对应的提供商包。例如，如果要使用 Amazon Bedrock，你需要安装 `@ai-sdk/amazon-bedrock` 包。
+
+你还需要参考 [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/aisdk.ts) 作为模板，为你的模型创建客户端。
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install ai @ai-sdk/amazon-bedrock
+    ```
+  </Tab>
+
+  <Tab title="pnpm">
+    ```bash
+    pnpm install ai @ai-sdk/amazon-bedrock
+    ```
+  </Tab>
+
+  <Tab title="yarn">
+    ```bash
+    yarn add ai @ai-sdk/amazon-bedrock
+    ```
+  </Tab>
+</Tabs>
+
+入门时，你可以使用这个 [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/aisdk.ts) 作为模板来为你的模型创建客户端。
+
+```ts
+// 安装/导入你要使用的提供商。
+// 例如，若使用 OpenAI，请从 @ai-sdk/openai 导入 `openai`
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { AISdkClient } from "./external_clients/aisdk";
+
+const stagehand = new Stagehand({
+  llmClient: new AISdkClient({
+    model: bedrock("anthropic.claude-3-7-sonnet-20250219-v1:0"),
+  }),
+});
+```
+
+<div id="troubleshooting">
+  ## 故障排查
+</div>
+
+<div id="common-issues">
+  ### 常见问题
+</div>
+
+<AccordionGroup>
+  <Accordion title="模型不支持结构化输出">
+    **错误**: `Model does not support structured outputs`
+
+    **解决方案**:
+    使用支持函数调用/结构化输出的模型。最低要求如下：
+
+    - 模型必须支持 JSON/结构化输出
+    - 模型必须具备强大的推理能力
+    - 模型必须能够处理复杂指令
+
+    针对各提供商，使用满足这些要求的最新模型。例如：
+
+    - **OpenAI**: GPT-4 系列或更新
+    - **Anthropic**: Claude 3 系列或更新
+    - **Google**: Gemini 2 系列或更新
+    - **其他提供商**: 具备结构化输出支持的最新模型
+
+    **注意**: 避免使用不具备结构化输出能力或未针对指令跟随进行微调的基础语言模型。如有疑问，请查看我们的 [Model Evaluation](https://www.stagehand.dev/evals) 页面以获取最新推荐。
+  </Accordion>
+
+  <Accordion title="身份验证错误">
+    **错误**: `Invalid API key` 或 `Unauthorized`
+
+    **解决方案**:
+
+    - 核实环境变量是否正确设置
+    - 检查 API key 的权限与配额
+    - 确保使用了该提供商对应的正确 API key
+    - 对于 Anthropic，确保你具备 Claude API 的访问权限
+  </Accordion>
+
+  <Accordion title="自动化结果不一致">
+    **症状**: 操作有时成功、有时失败
+
+    **原因与解决方案**:
+
+    - **模型能力不足**: 使用更强的模型——查看我们的 [Model Evaluation](https://www.stagehand.dev/evals) 页面以获取当前推荐
+    - **温度过高**: 将 temperature 设为 0 以获得确定性输出
+    - **页面复杂**: 切换到在我们 [Model Evaluation](https://www.stagehand.dev/evals) 页面中准确率更高的模型
+    - **速率限制**: 实现带指数退避的重试逻辑
+    - **上下文限制**: 降低页面复杂度或使用具备更大上下文窗口的模型
+    - **提示不够清晰**: 确保你的自动化指令清晰且具体
+  </Accordion>
+
+  <Accordion title="性能缓慢">
+    **问题**: 自动化响应时间过长
+
+    **解决方案**:
+
+    - **使用快速模型**: 选择为速度优化的模型
+      - 响应时间 \< 1s 的任意模型
+      - 带有“fast”或“flash”变体的模型
+    - **优化设置**:
+      - 使用 `verbose: 0` 以最小化 token 使用
+      - 将 temperature 设为 0 以获得最快处理
+      - 将最大 tokens 设置得尽可能低
+    - **考虑本地部署**: 本地模型可提供最低延迟
+    - **批量操作**: 在可能时将多个操作合并处理
+  </Accordion>
+
+  <Accordion title="成本过高">
+    **问题**: LLM 使用成本过高
+
+    **成本优化策略**:
+
+    1. **切换到高性价比模型**:
+       - 查看我们的 [Model Evaluation](https://www.stagehand.dev/evals) 页面，获取当前成本-性能基准
+       - 选择每 token 成本更低且仍满足准确性要求的模型
+       - 考虑为速度优化的模型以降低总运行成本
+    2. **优化 token 使用**:
+       - 设置 `verbose: 0` 以减少日志开销
+       - 使用精炼的提示并限制响应长度
+    3. **智能模型选择**: 先用更便宜的模型，仅在需要时回退到高端模型
+    4. **缓存响应**: 对重复的自动化模式实现 LLM 响应缓存
+    5. **监控用量**: 设置计费提醒并跟踪每次自动化运行的成本
+    6. **批处理**: 将多个相似任务一起处理
+  </Accordion>
+</AccordionGroup>
+
+<div id="next-steps">
+  ### 后续步骤
+</div>
+
+<CardGroup cols={2}>
+  <Card title="选择模型" href="https://www.stagehand.dev/evals" icon="robot">
+    查看我们的 Model Evaluation 页面
+  </Card>
+
+  <Card title="测试模型" href="/zh/configuration/evals" icon="flask-vial">
+    在我们的 Model Evaluation 指南中评估你特定用例的表现
+  </Card>
+
+  <Card title="跟踪成本" href="/zh/configuration/observability" icon="chart-line">
+    使用我们的 Observability 工具监控 token 用量并设置告警
+  </Card>
+
+  <Card title="缓存结果" href="/zh/best-practices/caching" icon="database">
+    使用我们的 Caching Guide 存储成功的模式
+  </Card>
+</CardGroup>

@@ -1,0 +1,114 @@
+---
+sidebarTitle: 使用案例
+---
+
+<div id="real-world-use-cases">
+  ## 真实世界用例
+</div>
+
+<div id="e-commerce-product-discovery">
+  ### 电商商品发现
+</div>
+
+```typescript
+// 发现商品交互元素
+const productActions = await page.observe({
+  instruction: "Find add to cart buttons, size selectors, and product images"
+});
+
+// 按类型对操作进行分类
+const cartButtons = productActions.filter(a => 
+  a.description.toLowerCase().includes('cart')
+);
+const sizeOptions = productActions.filter(a => 
+  a.description.toLowerCase().includes('size')
+);
+
+// 执行购买流程
+if (sizeOptions.length > 0) {
+  await page.act(sizeOptions[0]); // 先选择尺码
+}
+if (cartButtons.length > 0) {
+  await page.act(cartButtons[0]); // 再加入购物车
+}
+```
+
+<div id="form-handling-validation">
+  ### 表单处理与验证
+</div>
+
+```typescript
+// 填写前分析表单结构
+const formElements = await page.observe({
+  instruction: "Find form fields, validation messages, and submit buttons"
+});
+
+// 检查必填字段
+const requiredFields = formElements.filter(e => 
+  e.description.includes('required') || e.description.includes('*')
+);
+
+console.log(`Found ${requiredFields.length} required fields to complete`);
+
+// 系统化填写表单
+for (const field of requiredFields) {
+  await page.act(field);
+  // 根据字段类型填入合适的内容
+}
+```
+
+<div id="dynamic-content-spa-navigation">
+  ### 动态内容与 SPA 导航
+</div>
+
+```typescript
+// 等待并发现动态加载的内容
+await page.waitForLoadState('networkidle');
+
+const dynamicElements = await page.observe({
+  instruction: "Find newly loaded content, infinite scroll triggers, or loading indicators",
+  domSettleTimeoutMs: 15000 // 动态内容延长等待时间
+});
+
+// 处理无限滚动
+const scrollTriggers = dynamicElements.filter(e => 
+  e.description.toLowerCase().includes('load more') ||
+  e.description.toLowerCase().includes('scroll')
+);
+
+if (scrollTriggers.length > 0) {
+  await page.act(scrollTriggers[0]);
+  // 递归观察新内容
+  const newContent = await page.observe("Find additional items");
+}
+```
+
+<div id="multi-step-workflow-planning">
+  ### 多步骤工作流规划
+</div>
+
+```typescript
+// 预先规划整个结账流程
+async function planCheckoutWorkflow() {
+  // 步骤 1：购物车页面分析
+  await page.goto('/cart');
+  const cartActions = await page.observe("Find checkout and cart modification options");
+  
+  // 步骤 2：结账页面分析
+  const checkoutButton = cartActions.find(a => a.description.includes('checkout'));
+  if (checkoutButton) await page.act(checkoutButton);
+  
+  const checkoutActions = await page.observe("Find payment forms and shipping options");
+  
+  // 步骤 3：规划执行顺序
+  const shippingFields = checkoutActions.filter(a => a.description.includes('shipping'));
+  const paymentFields = checkoutActions.filter(a => a.description.includes('payment'));
+  const submitButton = checkoutActions.find(a => a.description.includes('complete order'));
+  
+  return { shippingFields, paymentFields, submitButton };
+}
+
+// 执行计划的工作流
+const workflow = await planCheckoutWorkflow();
+// 按顺序填写：配送 → 支付 → 提交
+```

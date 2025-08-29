@@ -1,0 +1,149 @@
+---
+title: "使用多个标签页"
+description: "借助 Stagehand 操作多个标签页"
+---
+
+许多现代 Web 应用会在用户点击某些按钮或链接时打开新的标签页。若缺乏对多标签页的完善支持，当预期内容出现在新标签页而非当前标签页时，自动化脚本可能会失败。Stagehand 的多标签页能力可确保你的自动化在多标签页流程中无缝运行。
+
+<div id="the-stagehand-page">
+  ## Stagehand 页面
+</div>
+
+Stagehand 会自动适配多标签页工作流。`stagehand.page` 对象始终指向最近打开或当前激活的标签页，确保即使新标签页被创建，你的自动化也能持续运行。
+
+这意味着你可以继续使用熟悉的模式：
+
+<CodeGroup>
+  ```typescript TypeScript
+  const page = stagehand.page;
+  await page.goto("https://example.com");
+  await page.act("click the button that opens a new tab");
+  // page now automatically points to the new tab
+  await page.extract("get data from new tab");
+  ```
+
+  ```python Python
+  page = stagehand.page
+  await page.goto("https://example.com")
+  await page.act("click the button that opens a new tab")
+  # page now automatically points to the new tab
+  await page.extract("get data from new tab")
+  ```
+</CodeGroup>
+
+<Warning>
+  **重要**：[Stagehand Agent](/zh/basics/agent) 始终在 `stagehand.page` 上运行。如果你需要让 agent 跨特定标签页工作，需要手动管理页面切换。
+</Warning>
+
+<div id="manual-page-management">
+  ## 手动管理页面
+</div>
+
+若需更细粒度的控制或适配多标签页工作流，你可以显式管理多个标签页：
+
+<CodeGroup>
+  ```typescript TypeScript
+  // 创建第二个页面
+  await stagehand.context.newPage();
+  const pages = stagehand.context.pages();
+
+  const githubPage = pages[0];
+  const pythonPage = pages[1];
+
+  // 将每个页面分别导航到不同的仓库
+  await githubPage.goto("https://github.com/browserbase/stagehand");
+  await pythonPage.goto("https://github.com/browserbase/stagehand-python");
+
+  // 同时从两个页面提取数据
+  const [stagehandStars, stagehandPythonStars] = await Promise.all([
+    githubPage.extract("extract the repository stars"),
+    pythonPage.extract("extract the repository stars")
+  ]);
+
+  console.log(`Stagehand stars: ${stagehandStars}`);
+  console.log(`Stagehand-Python stars: ${stagehandPythonStars}`);
+  ```
+
+  ```python Python
+  # 创建第二个页面
+  await stagehand.context.new_page()
+  pages = stagehand.context.pages()
+
+  github_page = pages[0]
+  python_page = pages[1]
+
+  # 将每个页面分别导航到不同的仓库  
+  await github_page.goto("https://github.com/browserbase/stagehand")
+  await python_page.goto("https://github.com/browserbase/stagehand-python")
+
+  # 从两个页面提取数据
+  stagehand_stars = await github_page.extract("extract the repository stars")
+  stagehand_python_stars = await python_page.extract("extract the repository stars")
+
+  print(f"Stagehand stars: {stagehand_stars}")
+  print(f"Stagehand-Python stars: {stagehand_python_stars}")
+  ```
+</CodeGroup>
+
+<div id="handling-tab-events">
+  ## 处理标签页事件
+</div>
+
+你也可以监听标签页事件，以控制新标签页打开后的行为：
+
+<CodeGroup>
+  ```typescript TypeScript
+  const page = stagehand.page;
+  await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
+
+  // 打开新标签页后将其关闭
+  page.on("popup", async () => {
+    const newPage = stagehand.context.pages()[1];
+    await newPage.close();
+  });
+
+  await page.act("click the button to open the other page");
+
+  const page_number = await page.extract("extract the page number");
+  console.log(`You're on page ${page_number}`);
+  ```
+
+  ```python Python
+  page = stagehand.page
+  await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/")
+
+  # 打开新标签页后将其关闭
+  async def handle_popup():
+      new_page = stagehand.context.pages()[1]
+      await new_page.close()
+
+  page.on("popup", handle_popup)
+
+  await page.act("click the button to open the other page")
+
+  page_number = await page.extract("extract the page number")
+  print(f"You're on page {page_number}")
+  ```
+</CodeGroup>
+
+<div id="next-steps">
+  ## 下一步
+</div>
+
+<CardGroup cols={2}>
+  <Card title="使用 Agent 编排复杂流程" icon="robot" iconType="sharp-solid" href="/zh/basics/agent">
+    使用 `Agent` 自主执行多步骤任务与复杂流程。
+  </Card>
+
+  <Card title="与 iframe 协作" icon="frame" iconType="sharp-solid" href="/zh/best-practices/working-with-iframes">
+    学习在 iframe 内与元素交互的最佳实践。
+  </Card>
+
+  <Card title="浏览器配置" icon="browser" iconType="sharp-solid" href="/zh/configuration/browser">
+    管理浏览器上下文与会话，适配复杂的自动化场景。
+  </Card>
+
+  <Card title="日志与调试" icon="bug" iconType="sharp-solid" href="/zh/configuration/logging">
+    从容处理错误，高效调试自动化问题。
+  </Card>
+</CardGroup>

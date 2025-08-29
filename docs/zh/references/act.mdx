@@ -1,0 +1,132 @@
+---
+title: act()
+description: "act() 方法的完整 API 参考"
+icon: "arrow-pointer"
+---
+
+<CardGroup cols={1}>
+  <Card title="Act" icon="arrow-pointer" href="/zh/basics/act">
+    了解如何使用 act() 执行浏览器操作
+  </Card>
+</CardGroup>
+
+### 方法签名
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    // 字符串指令
+    await page.act(instruction: string): Promise<ActResult>
+
+    // 使用 ActOptions
+    await page.act(options: ActOptions): Promise<ActResult>
+
+    // 执行已观测到的操作
+    await page.act(observeResult: ObserveResult): Promise<ActResult>
+    ```
+
+    **ActOptions 接口：**
+
+    ```typescript
+    interface ActOptions {
+      action: string;
+      modelName?: AvailableModel;
+      modelClientOptions?: ClientOptions;
+      variables?: Record<string, string>;
+      domSettleTimeoutMs?: number;
+      timeoutMs?: number;
+      iframes?: boolean;
+    }
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # 字符串指令
+    await page.act(instruction: str) -> ActResult
+
+    # 传入参数
+    await page.act(
+        instruction: str,
+        variables: Dict[str, str] = None,
+        dom_settle_timeout_ms: int = None,
+        timeout_ms: int = None,
+        model_name: AvailableModel = None,
+        model_client_options: Dict = None,
+        iframes: bool = None,
+    ) -> ActResult
+
+    # 执行已观测到的操作
+    await page.act(observe_result: ObserveResult) -> ActResult
+    ```
+  </Tab>
+</Tabs>
+
+### 参数
+
+<ParamField path="action" type="string" required>
+  要执行的操作的自然语言描述。
+</ParamField>
+
+<ParamField path="variables" type="Record<string, string>" optional>
+  使用 `%variable%` 语法进行变量替换的键值对。可防止敏感数据出现在日志中。
+</ParamField>
+
+<ParamField path="modelName" type="AvailableModel" optional>
+  覆盖此操作的默认 LLM 模型。
+</ParamField>
+
+<ParamField path="modelClientOptions" type="ClientOptions" optional>
+  模型特定的配置选项。
+
+  选项：`temperature`、`maxTokens`、`apiKey`
+</ParamField>
+
+<ParamField path="domSettleTimeoutMs" type="number" optional>
+  在尝试执行操作前等待 DOM 稳定的最长时间。
+
+  默认值：`30000`
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  等待操作完成的最长时间。
+</ParamField>
+
+<ParamField path="iframes" type="boolean" optional>
+  如果目标元素位于 iframe 内，请设置为 `true`。
+
+  默认值：`false`
+</ParamField>
+
+<ParamField path="observeResult" type="ObserveResult" optional>
+  直接执行先前观测到的操作（启用自愈）。
+</ParamField>
+
+### 返回值 `Promise<ActResult>`
+
+<ParamField path="success" type="boolean" required>
+  操作是否成功完成。
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  操作执行的详细信息。
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  实际执行的操作。
+</ParamField>
+
+```Example Response
+{
+  success: true,
+  message: 'Action [scrollTo] performed successfully on selector: /html[1]',
+  action: '页面中可滚动的区域，用户可在此跳转到定价部分或页面的其他区域'
+}
+```
+
+### 错误类型
+
+- **TimeoutError** - 操作超出超时限制
+- **ElementNotFoundError** - 无法定位目标元素
+- **ActionFailedError** - 操作未能完成
+- **StagehandError** - Stagehand 的通用错误

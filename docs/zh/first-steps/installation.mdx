@@ -1,0 +1,178 @@
+---
+title: 安装
+description: 将 Stagehand 集成到现有项目中。
+---
+
+使用 TypeScript 或 Python SDK 将 Stagehand 安装到你当前的应用中。
+
+<Tip>
+  对于 TypeScript/Node.js：我们强烈建议使用 Node.js 运行时来运行 Stagehand 脚本，而非 Deno 或 Bun 等较新的替代方案。
+
+  由于不支持 [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright\&type=issues)，**Bun 不支持 Stagehand**。
+
+  对于 Python：需要 Python 3.9 及以上版本，建议使用 [uv](https://docs.astral.sh/uv/) 管理虚拟环境。
+</Tip>
+
+<Tabs>
+  <Tab title="TypeScript">
+    ### 安装依赖
+
+    <CodeGroup>
+      ```bash npm
+      npm install @browserbasehq/stagehand playwright zod
+      ```
+
+      ```bash pnpm
+      pnpm add @browserbasehq/stagehand playwright zod
+      ```
+
+      ```bash yarn
+      yarn add @browserbasehq/stagehand playwright zod
+      ```
+    </CodeGroup>
+
+    <Tip>
+      如果计划在本地运行，请先安装浏览器（一次即可）：`npx playwright install`。
+      如使用云端浏览器会话，可跳过此步骤。
+    </Tip>
+
+    ### 配置环境
+
+    设置环境变量（或通过你的框架使用 `.env` 文件）：
+
+    <CodeGroup>
+      ```bash Bash
+      OPENAI_API_KEY=your_api_key
+      BROWSERBASE_API_KEY=your_api_key
+      BROWSERBASE_PROJECT_ID=your_project_id
+      ```
+    </CodeGroup>
+
+    ### 在代码库中使用
+
+    在需要浏览器自动化的地方引入 Stagehand。
+
+    <CodeGroup>
+      ```typescript TypeScript
+      import "dotenv/config";
+      import { Stagehand } from "@browserbasehq/stagehand";
+      import { z } from "zod";
+
+      async function main() {
+        const stagehand = new Stagehand({
+          env: "BROWSERBASE"
+        });
+
+        await stagehand.init();
+        const page = stagehand.page;
+
+        await page.goto("https://example.com");
+        
+        // 在页面上执行操作
+        await page.act("Click the sign in button");
+        
+        // 提取结构化数据
+        const { title } = await page.extract({
+          instruction: "extract the page title",
+          schema: z.object({
+            title: z.string(),
+          }),
+        });
+
+        console.log(title);
+        await stagehand.close();
+      }
+
+      main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+      });
+      ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Python">
+    ### 添加依赖
+
+    <CodeGroup>
+      ```bash uv
+      uv add stagehand
+      ```
+
+      ```bash pip
+      pip install stagehand
+      ```
+    </CodeGroup>
+
+    ### 配置环境
+
+    设置环境变量（或通过你的框架使用 `.env` 文件）：
+
+    <CodeGroup>
+      ```bash Bash
+      MODEL_API_KEY=your_api_key
+      BROWSERBASE_API_KEY=your_api_key
+      BROWSERBASE_PROJECT_ID=your_project_id
+      ```
+    </CodeGroup>
+
+    ### 在代码库中使用
+
+    <CodeGroup>
+      ```python Python
+      import os
+      import asyncio
+      from stagehand import Stagehand
+
+      async def main():
+          stagehand = Stagehand(
+              env="BROWSERBASE",
+              model_api_key=os.getenv("MODEL_API_KEY")
+          )
+          await stagehand.init()
+          page = stagehand.page
+          
+          await page.goto("https://example.com")
+          
+          # 在页面上执行操作
+          await page.act("Click the sign in button")
+          
+          # 提取结构化数据
+          result = await page.extract({
+              "instruction": "extract the page title",
+              "schema": {
+                  "title": {
+                      "type": "string"
+                  }
+              }
+          })
+          
+          print(result["title"])
+          await stagehand.close()
+
+      if __name__ == "__main__":
+          asyncio.run(main())
+      ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/zh/configuration/browser">
+    环境、Browserbase 与本地、日志、超时、LLM 定制
+  </Card>
+
+  <Card title="Act" icon="arrow-pointer" href="/zh/basics/act">
+    用自然语言执行精准操作
+  </Card>
+
+  <Card title="Extract" icon="download" href="/zh/basics/extract">
+    基于 Zod 模式的类型化数据提取
+  </Card>
+
+  <Card title="Observe" icon="eye" href="/zh/basics/observe">
+    发现元素与建议操作
+  </Card>
+</CardGroup>

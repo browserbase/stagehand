@@ -1,0 +1,65 @@
+---
+title: "Next.js + Vercel"
+sidebarTitle: "简介"
+description: "将 Stagehand 驱动的 Next.js 应用构建并部署到 Vercel"
+---
+
+## 概览
+
+Stagehand + Next.js 快速入门是一个可用于生产的模板，将 Stagehand 的 AI 浏览器自动化与现代 Next.js 应用相结合，可在 Vercel 上一键部署。
+
+<CardGroup cols={3}>
+  <Card title="Deploy Template" icon="rocket" href="https://vercel.com/templates/ai/stagehand-next-js-quickstart">
+    一键部署到 Vercel，并完成环境配置
+  </Card>
+
+  <Card title="Live Demo" icon="globe" href="https://stagehand-nextjs-quickstart.vercel.app">
+    查看已部署模板的实际演示
+  </Card>
+
+  <Card title="Source Code" icon="github" href="https://github.com/browserbase/stagehand-nextjs-quickstart">
+    在 GitHub 上浏览仓库
+  </Card>
+</CardGroup>
+
+## 你将获得
+
+<CardGroup cols={2}>
+  <Card title="App Router project" icon="browser">
+    基于 Next.js App Router 的脚手架，内置 Tailwind 样式
+  </Card>
+
+  <Card title="Server‑safe automation" icon="shield-check">
+    采用 Browserbase 云端浏览器（兼容 Vercel 函数）
+  </Card>
+
+  <Card title="Prewired config" icon="gear">
+    预置的 `stagehand.config.ts`，支持模型与供应商切换
+  </Card>
+
+  <Card title="Automation ready" icon="robot">
+    Stagehand 原语的示例用法
+  </Card>
+</CardGroup>
+
+## 系统要求
+
+- 本地安装 **Node 18+**
+- **模型密钥**：OpenAI 或 Anthropic（或接入自定义客户端）
+- **Browserbase 密钥**：云端浏览器需提供 `BROWSERBASE_API_KEY` 和 `BROWSERBASE_PROJECT_ID`
+
+<Tip>
+  Vercel 上无法使用本地 Playwright 浏览器。部署时请将 Stagehand 设置为 Browserbase。
+</Tip>
+
+## 链接
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/zh/integrations/vercel/quickstart">
+    本地运行，并在几分钟内部署到 Vercel
+  </Card>
+
+  <Card title="TypeScript Quickstart" icon="code" href="/zh/first-steps/quickstart">
+    更多模板，含 Vercel 部署示例
+  </Card>
+</CardGroup>

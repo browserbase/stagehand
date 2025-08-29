@@ -1,0 +1,21 @@
+export const Excalidraw = ({ url, className = "w-full" }) => {
+	return (
+		<>
+			<div className="dark:hidden" >
+				<iframe
+					src={url + `?darkMode=false`}
+					className={className}
+					allowFullScreen
+				></iframe>
+			</div>
+
+			<div className="hidden dark:block">
+				<iframe
+					src={url + `?darkMode=true`}
+					className={className}
+					allowFullScreen
+				></iframe>
+			</div>
+		</>
+	)
+}

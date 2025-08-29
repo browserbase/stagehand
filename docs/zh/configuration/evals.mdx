@@ -1,0 +1,240 @@
+---
+title: 评估与指标
+sidebarTitle: 评估
+description: 监控性能、优化成本，评估 LLM 的有效性
+---
+
+评估可帮助你了解自动化的实际表现、找出最契合你用例的模型，并优化成本与可靠性。本指南同时涵盖对自身工作流的监控与开展全面评估的方法。
+
+<div id="why-evaluations-matter">
+  ## 评估为何重要
+</div>
+
+- **性能优化**：确定哪些模型与配置最适合你的特定自动化任务
+- **成本控制**：跟踪 Token 使用量与推理时间，以优化支出
+- **可靠性**：衡量成功率并识别失败模式
+- **模型选择**：在真实场景任务中比较不同 LLM，做出明智决策
+
+<Card
+  title="实时模型对比"
+  icon="scale-balanced"
+  href="https://www.stagehand.dev/evals"
+>
+  在 [Stagehand Evals 仪表板](https://www.stagehand.dev/evals) 上查看各类 LLM 的实时性能对比
+</Card>
+
+<div id="comprehensive-evaluations">
+  ## 全面评估
+</div>
+
+评估可帮助你系统化地测试并改进自动化工作流。Stagehand 提供内置评估以及用于创建自定义评估的工具。
+
+<Tip>
+要运行评估，你需要克隆 [Stagehand 仓库](https://github.com/browserbase/stagehand) 并执行 `npm install` 安装依赖。
+</Tip>
+
+我们提供三种类型的评估：
+1. **确定性评估** - 这些评估具备确定性，无需任何 LLM 推理即可运行。
+2. **基于 LLM 的评估** - 这些评估用于测试 Stagehand 的 AI 原语的底层功能。
+
+
+<div id="llm-based-evals">
+  ### 基于 LLM 的评估
+</div>
+
+<Tip>
+要运行 LLM 评估，你需要一个 [Braintrust 账户](https://www.braintrust.dev/docs/)。
+</Tip>
+
+要运行基于 LLM 的评估，你可以在 Stagehand 仓库中执行 `npm run evals`。这将测试 Stagehand 中 LLM 原语的功能，确保其按预期工作。
+
+评估分为以下几类：
+1. **Act 评估** - 测试 `act` 方法的功能。
+2. **Extract 评估** - 测试 `extract` 方法的功能。
+3. **Observe 评估** - 测试 `observe` 方法的功能。
+4. **组合评估** - 联合测试 `act`、`extract` 和 `observe` 方法的功能。
+
+<div id="configuring-and-running-evals">
+  #### 配置与运行评估
+</div>
+
+你可以在 [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks) 中查看具体评估。每个评估会根据 [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json) 被归类到相应类别。你可以在 [`evals/taskConfig.ts`](https://github.com/browserbase/stagehand/blob/main/evals/taskConfig.ts) 中指定要运行的模型及其他通用任务配置。
+
+要运行特定评估，你可以执行 `npm run evals <eval>`，或通过 `npm run evals category <category>` 运行某一类别下的所有评估。
+
+
+<div id="viewing-eval-results">
+  #### 查看评估结果
+</div>
+
+![评估结果](/images/evals.png)
+
+评估结果可在 Braintrust 上查看。运行 `npm run evals` 时，终端会输出一个 Braintrust URL，你可以通过该链接查看某个特定评估的结果。
+
+默认情况下，每个评估会在每个模型上运行五次。“Exact Match” 列表示评估结果完全匹配的比例，“Error Rate” 列表示评估出错的比例。
+
+你可以使用 Braintrust 的 UI 按模型或评估进行筛选，并汇总所有评估的结果。
+
+<div id="deterministic-evals">
+  ### 确定性评估
+</div>
+
+要运行确定性评估，只需在 Stagehand 仓库中执行 `npm run e2e`。这将测试 Stagehand 中 Playwright 的功能，确保其按预期工作。
+
+这些测试位于 [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic)，并会在 Browserbase 浏览器与本地无头 Chromium 浏览器上运行。
+
+<div id="creating-custom-evaluations">
+  ## 创建自定义评测
+</div>
+
+<div id="step-by-step-guide">
+  ### 分步指南
+</div>
+
+<Steps>
+<Step title="创建评测文件">
+在 `evals/tasks/your-eval.ts` 中新建一个文件：
+
+```typescript
+import { EvalTask } from '../types';
+
+export const customEvalTask: EvalTask = {
+  name: 'custom_task_name',
+  description: '测试特定的自动化工作流',
+  
+  // 测试设置
+  setup: async ({ page }) => {
+    await page.goto('https://example.com');
+  },
+  
+  // 实际测试
+  task: async ({ stagehand, page }) => {
+    // 你的自动化逻辑
+    await stagehand.act({ action: 'click the login button' });
+    const result = await stagehand.extract({ 
+      instruction: 'Get the user name',
+      schema: { username: 'string' }
+    });
+    return result;
+  },
+  
+  // 校验
+  validate: (result, expected) => {
+    return result.username === expected.username;
+  },
+  
+  // 测试用例
+  testCases: [
+    {
+      input: { /* 测试输入 */ },
+      expected: { username: 'john_doe' }
+    }
+  ],
+  
+  // 评估指标
+  scoring: {
+    exactMatch: true,
+    timeout: 30000,
+    retries: 2
+  }
+};
+```
+</Step>
+
+<Step title="添加到配置">
+更新 `evals/evals.config.json`：
+
+```json
+{
+  "categories": {
+    "custom": ["custom_task_name"],
+    "existing_category": ["custom_task_name"]
+  }
+}
+```
+</Step>
+
+<Step title="运行你的评测">
+```bash
+# 测试你的自定义评测
+npm run evals custom_task_name
+
+# 运行整个 custom 分类
+npm run evals category custom
+```
+</Step>
+</Steps>
+
+
+<div id="best-practices-for-custom-evals">
+  ## 自定义评测最佳实践
+</div>
+
+<AccordionGroup>
+<Accordion title="测试设计原则">
+- **原子性**：每个测试应只验证一个特定能力
+- **确定性**：测试应产生一致的结果
+- **现实性**：使用贴近实际的场景与网站
+- **可衡量**：定义清晰的成功/失败判定标准
+</Accordion>
+
+<Accordion title="性能优化">
+- **并行执行**：将测试设计为可独立运行
+- **资源管理**：每个测试结束后进行清理
+- **超时处理**：为操作设置合适的超时时间
+- **错误恢复**：优雅地处理失败场景
+</Accordion>
+
+<Accordion title="数据质量">
+- **真实基准**：建立可靠的期望结果
+- **边界情况**：测试边界条件与错误场景
+- **统计显著性**：进行多次迭代以提升可靠性
+- **版本控制**：随时间跟踪测试用例的变更
+</Accordion>
+</AccordionGroup>
+
+<div id="troubleshooting-evaluations">
+  ### 评测故障排除
+</div>
+
+<AccordionGroup>
+<Accordion title="评测超时">
+**症状**：测试因超时错误而失败
+
+**解决方案**：
+- 在 `taskConfig.ts` 中增加超时时间
+- 使用更快的模型（Gemini 2.5 Flash、GPT-4o Mini）
+- 优化测试场景以降低复杂度
+- 检查与 LLM 供应商的网络连接
+</Accordion>
+
+<Accordion title="结果不一致">
+**症状**：同一测试随机通过/失败
+
+**解决方案**：
+- 将 temperature 设为 0 以获得确定性输出
+- 提高重复次数以获得统计显著性
+- 对复杂任务使用更强的模型
+- 检查动态网站内容对测试的影响
+</Accordion>
+
+<Accordion title="评测成本高">
+**症状**：Token 使用量超出预算
+
+**解决方案**：
+- 使用更具性价比的模型（Gemini 2.0 Flash、GPT-4o Mini）
+- 在初始测试阶段减少重复次数
+- 聚焦特定评测类别
+- 使用本地浏览器环境以降低 Browserbase 成本
+</Accordion>
+
+<Accordion title="Braintrust 集成问题">
+**症状**：结果未上传到仪表板
+
+**解决方案**：
+- 检查 Braintrust API 密钥配置
+- 验证网络连接
+- 将 Braintrust SDK 更新至最新版本
+- 在 Braintrust 仪表板中检查项目权限
+</Accordion>
+</AccordionGroup>

@@ -1,0 +1,240 @@
+---
+title: agent()
+description: "agent() 方法的完整 API 参考"
+icon: "robot"
+---
+
+<CardGroup cols={1}>
+  <Card title="Agent" icon="robot" href="/zh/basics/agent">
+    了解如何使用 agent() 为多步骤浏览器工作流创建自主 AI 智能体
+  </Card>
+</CardGroup>
+
+### 创建 Agent
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    // Create agent instance
+    const agent = stagehand.agent(config: AgentConfig): AgentInstance
+    ```
+
+    **AgentConfig 接口：**
+
+    ```typescript
+    interface AgentConfig {
+      provider?: AgentProviderType;  // "openai" | "anthropic"
+      model?: string;
+      instructions?: string;
+      options?: Record<string, unknown>;
+    }
+    ```
+
+    **AgentInstance 接口：**
+
+    ```typescript
+    interface AgentInstance {
+      execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult>;
+    }
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # Create agent instance
+    agent = stagehand.agent({
+        "model": str,
+        "instructions": str = None,
+        "options": Dict[str, Any] = None
+    })
+    ```
+  </Tab>
+</Tabs>
+
+### 配置 Agent
+
+<ParamField path="provider" type="AgentProviderType" optional>
+  为智能体功能选择的 AI 提供商。
+
+  **选项：** `"anthropic"`，`"openai"`
+</ParamField>
+
+<ParamField path="model" type="string" optional>
+  用于智能体执行的具体模型。
+
+  **Anthropic：** `"claude-sonnet-4-20250514"`，`"claude-3-5-sonnet-20241022"`
+
+  **OpenAI：** `"computer-use-preview"`，`"gpt-4o"`
+</ParamField>
+
+<ParamField path="instructions" type="string" optional>
+  定义智能体行为的系统指令。
+</ParamField>
+
+<ParamField path="options" type="Record<string, unknown>" optional>
+  提供商特定的配置。
+
+  **通用：** `apiKey`，`baseURL`，`organization`
+</ParamField>
+
+### Execute 方法
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    // String instruction
+    await agent.execute(instruction: string): Promise<AgentResult>
+
+    // With options
+    await agent.execute(options: AgentExecuteOptions): Promise<AgentResult>
+    ```
+
+    **AgentExecuteOptions 接口：**
+
+    ```typescript
+    interface AgentExecuteOptions {
+      instruction: string;
+      maxSteps?: number;
+      autoScreenshot?: boolean;
+      waitBetweenActions?: number;
+      context?: string;
+    }
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # String instruction
+    await agent.execute(instruction: str) -> AgentResult
+
+    # With options dictionary
+    await agent.execute({
+        "instruction": str,
+        "max_steps": int = 20,
+        "auto_screenshot": bool = True,
+        "wait_between_actions": int = 0,
+        "context": str = None
+    }) -> AgentResult
+    ```
+  </Tab>
+</Tabs>
+
+### Execute 参数
+
+<ParamField path="instruction" type="string" required>
+  使用自然语言给出的高层任务描述。
+</ParamField>
+
+<ParamField path="maxSteps" type="number" optional>
+  智能体可执行的最大动作数。
+
+  **默认：** `20`
+</ParamField>
+
+<ParamField path="autoScreenshot" type="boolean" optional>
+  是否在每次动作前进行截屏。
+
+  **默认：** `true`
+</ParamField>
+
+<ParamField path="waitBetweenActions" type="number" optional>
+  各动作之间的延迟（毫秒）。
+
+  **默认：** `0`
+</ParamField>
+
+<ParamField path="context" type="string" optional>
+  提供给智能体的额外上下文或约束。
+</ParamField>
+
+### 响应
+
+**返回：** `Promise<AgentResult>`
+
+**AgentResult 接口：**
+
+```typescript
+interface AgentResult {
+  success: boolean;
+  message: string;
+  actions: AgentAction[];
+  completed: boolean;
+  metadata?: Record<string, unknown>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    inference_time_ms: number;
+  };
+}
+```
+
+<Tabs>
+  <Tab title="TypeScript">
+    <ParamField path="success" type="boolean">
+      任务是否成功完成。
+    </ParamField>
+
+    <ParamField path="message" type="string">
+      对执行结果与状态的说明。
+    </ParamField>
+
+    <ParamField path="actions" type="AgentAction[]">
+      执行期间所采取的各项操作的数组。
+    </ParamField>
+
+    <ParamField path="completed" type="boolean">
+      代理是否认为任务已完全完成。
+    </ParamField>
+
+    <ParamField path="metadata" type="Record<string, unknown>" optional>
+      额外的执行元数据与调试信息。
+    </ParamField>
+
+    <ParamField path="usage" type="object" optional>
+      Token 使用情况与性能指标。
+    </ParamField>
+  </Tab>
+
+  <Tab title="Python">
+    <ParamField path="success" type="boolean">
+      任务是否成功完成。
+    </ParamField>
+
+    <ParamField path="message" type="string">
+      对执行结果与状态的说明。
+    </ParamField>
+
+    <ParamField path="actions" type="AgentAction[]">
+      执行期间所采取的各项操作的数组。
+    </ParamField>
+
+    <ParamField path="completed" type="boolean">
+      代理是否认为任务已完全完成。
+    </ParamField>
+  </Tab>
+</Tabs>
+
+### 示例响应
+
+```json
+{
+  "success": true,
+  "message": "Task completed successfully",
+  "actions": [
+    {
+      "action": "click",
+      "selector": "button.primary",
+      "text": "Submit"
+    }
+  ],
+  "completed": true,
+  "metadata": {
+    "execution_time": 1000
+  },
+  "usage": {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "inference_time_ms": 100
+  }
+}
+```

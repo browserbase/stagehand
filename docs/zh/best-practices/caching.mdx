@@ -1,0 +1,216 @@
+---
+title: 操作缓存
+description: 你可以在 Stagehand 中缓存操作，以避免重复的 LLM 调用。
+---
+
+当某些操作开销较大，或底层 DOM 结构预期不会变化时，在 Stagehand 中对其进行缓存会很有用。
+
+<div id="using-observe-to-preview-an-action">
+  ## 使用 `observe` 预览操作
+</div>
+
+`observe` 让你在执行之前先预览某个操作。如果对预览结果满意，你可以在 `page.act` 中直接执行它，而无需再发起任何 LLM 调用。
+
+<CodeGroup>
+```typescript TypeScript
+const [actionPreview] = await page.observe("Click the quickstart link");
+
+/** actionPreview 是 Playwright 操作的 JSON 化版本：
+{
+	description: "The quickstart link",
+	method: "click",
+	selector: "/html/body/div[1]/div[1]/a",
+	arguments: [],
+}
+**/
+
+// 调用预览执行时不进行 LLM 推理
+await page.act(actionPreview)
+```
+
+```python Python
+actions = await page.observe("Click the quickstart link")
+action_preview = actions[0]
+
+# action_preview 是 Playwright 操作的字典版本：
+# {
+#	"description": "The quickstart link",
+#	"method": "click",
+#	"selector": "/html/body/div[1]/div[1]/a",
+#	"arguments": [],
+# }
+
+# 调用预览执行时不进行 LLM 推理
+await page.act(action_preview)
+```
+</CodeGroup>
+
+<div id="simple-caching">
+  ## 简单缓存
+</div>
+
+在这个示例中，我们使用一个基于文件的简单缓存。我们将编写用于读取和写入 JSON 文件的获取函数和设置函数：
+
+<CodeGroup>
+```typescript TypeScript
+// 获取缓存的值（不存在则为 undefined）
+async function getCache(key: string): Promise<ObserveResult | undefined> {
+  try {
+    const cache = await readFile("cache.json");
+    const parsed = JSON.parse(cache);
+    return parsed[key];
+  } catch {
+    return undefined;
+  }
+}
+
+// 设置缓存的值
+async function setCache(key: string, value: ObserveResult): Promise<void> {
+  const cache = await readFile("cache.json");
+  const parsed = JSON.parse(cache);
+  parsed[key] = value;
+  await writeFile("cache.json", JSON.stringify(parsed));
+}
+```
+
+```python Python
+# 获取缓存的值（不存在则为 None）
+async def get_cache(key: str) -> Optional[Dict[str, Any]]:
+    try:
+        async with aiofiles.open("cache.json", 'r') as f:
+            cache_content = await f.read()
+            parsed = json.loads(cache_content)
+            return parsed.get(key)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+# 设置缓存的值
+async def set_cache(key: str, value: Dict[str, Any]) -> None:
+    try:
+        async with aiofiles.open("cache.json", 'r') as f:
+            cache_content = await f.read()
+            parsed = json.loads(cache_content)
+    except (FileNotFoundError, json.JSONDecodeError):
+        parsed = {}
+    
+    parsed[key] = value
+    
+    async with aiofiles.open("cache.json", 'w') as f:
+        await f.write(json.dumps(parsed))
+```
+</CodeGroup>
+
+<div id="act-with-cache">
+  ### 使用缓存执行
+</div>
+
+我们来编写一个函数，用于检查缓存、获取动作并运行它。如果动作失败，我们将尝试“自我修复”，即直接使用 `page.act` 重试。
+
+<CodeGroup>
+```typescript TypeScript
+// 检查缓存、获取动作并运行它
+// 如果 selfHeal 为 true，动作失败时将尝试自我修复
+async function actWithCache(page: Page, key: string, prompt: string, selfHeal = false) {
+	try {
+		const cacheExists = await getCache(key);
+
+		let action: ObserveResult;
+		if (cacheExists) {
+		// 获取缓存中的动作
+		action = await getCache(prompt);
+		} else {
+		// 获取观察结果（动作）
+		[action] = await page.observe(prompt);
+
+		// 缓存该动作
+		await setCache(prompt, action);
+		}
+
+		// 运行动作（不进行 LLM 推理）
+		await page.act(action);
+	} catch (e) {
+		console.error(e);
+		// 在 selfHeal 模式下将重试该动作
+		if (selfHeal) {
+			console.log("Attempting to self-heal...");
+			await page.act(prompt);
+		}
+		else {
+			throw e;
+		}
+	}
+}
+```
+
+```python Python
+# 检查缓存、获取动作并运行它
+# 如果 self_heal 为 true，动作失败时将尝试自我修复
+async def act_with_cache(page, key: str, prompt: str, self_heal: bool = False):
+    try:
+        cache_exists = await get_cache(key)
+
+        if cache_exists:
+            # 获取缓存中的动作
+            action = await get_cache(prompt)
+        else:
+            # 获取观察结果（动作）
+            actions = await page.observe(prompt)
+            action = actions[0]
+
+            # 缓存该动作
+            await set_cache(prompt, action)
+
+        # 运行动作（不进行 LLM 推理）
+        await page.act(action)
+    except Exception as e:
+        print(f"Error: {e}")
+        # 在 self_heal 模式下将重试该动作
+        if self_heal:
+            print("Attempting to self-heal...")
+            await page.act(prompt)
+        else:
+            raise e
+```
+</CodeGroup>
+
+现在你可以使用 `actWithCache` 来执行带缓存的动作：
+
+<CodeGroup>
+```typescript TypeScript
+const prompt = "Click the quickstart link";
+const key = prompt; // Simple cache key
+// Attempt cached action or self-heal
+await actWithCache(page, key, prompt);
+```
+
+```python Python
+prompt = "Click the quickstart link"
+key = prompt  # Simple cache key
+# Attempt cached action or self-heal
+await act_with_cache(page, key, prompt)
+```
+</CodeGroup>
+
+<div id="advanced-caching">
+  ## 高级缓存
+</div>
+
+上面的示例很简单，但你可能希望基于页面内容来缓存操作。另外，如果存在重复的提示词，应使用更具唯一性的键。
+
+我们希望将缓存逻辑交由你自行决定，同时提供实现自定义缓存策略所需的全部工具。
+
+你可以直接通过 Playwright 的 page 对象访问 DOM 和可访问性树。下面是一个访问页面内容的示例：
+
+<CodeGroup>
+```typescript TypeScript
+// 获取页面内容
+const pageContent = await page.content();
+```
+
+```python Python
+# 获取页面内容
+page_content = await page.content()
+```
+</CodeGroup>
+
+你也可以利用可访问性树、DOM 或其他信息来生成更唯一的键。实现方式由你决定，逻辑与上述示例非常相似。

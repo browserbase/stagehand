@@ -1,0 +1,79 @@
+---
+title: 代理降级方案
+description: "当页面意外变更导致流程多出步骤时的应急保障"
+---
+
+<div id="when-to-use">
+  ## 何时使用
+</div>
+
+当原本的一步操作意外演变为多步流程时，使用代理回退作为保险机制。
+
+<div id="how-it-works">
+  ## 工作原理
+</div>
+
+1. 尝试使用 [`act()`](/zh/basics/act) 执行直接操作
+2. 如果失败，则由 [`agent()`](/zh/basics/agent) 规划新的路径
+3. Agent 完成所有必要步骤（打开菜单 → 点击按钮）
+
+<div id="example-scenario">
+  ### 示例场景
+</div>
+
+**之前**：Sign In 按钮在页眉\
+**之后**：现在登录需要：点击账户菜单 → 点击 “Sign In” 选项
+
+单次 `act("click sign in")` 无法应对这一变化。Agent 回退可以发现并执行这两个步骤。
+
+<CodeGroup>
+  ```typescript TypeScript
+  import { Stagehand } from "@browserbasehq/stagehand";
+
+  try {
+    await page.act("click the 'Sign In' button");
+  } catch (err) {
+    console.log("Agent fallback triggered");
+
+    const agent = stagehand.agent({
+      provider: "anthropic",
+      model: "claude-sonnet-4-20250514",
+      instructions: "You are a helpful assistant that can use a web browser.",
+    });
+
+    const result = await agent.execute({
+      instruction: "Find and click Sign In button",
+      maxSteps: 10,
+    });
+
+    console.log(result.success ? "Agent fallback success" : "Agent fallback failed");
+
+    if (!result.success) throw err;
+  }
+  ```
+
+  ```python Python
+  from stagehand import Stagehand
+
+  try:
+      await page.act("click the 'Sign In' button")
+  except Exception as err:
+      print("Agent fallback triggered")
+
+      agent = stagehand.agent({
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-20250514",
+          "instructions": "Complete the action, handling any new steps required.",
+      })
+
+      result = await agent.execute({
+          "instruction": "Find and click Sign In button",
+          "max_steps": 10,
+      })
+
+      print("Agent fallback success" if result.success else "Agent fallback failed")
+
+      if not result.success:
+          raise err
+  ```
+</CodeGroup>

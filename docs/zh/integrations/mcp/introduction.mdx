@@ -1,0 +1,228 @@
+---
+title: "Browserbase MCP 服务器"
+sidebarTitle: "简介"
+description: "通过 Model Context Protocol 与 Stagehand 集成，实现 AI 驱动的浏览器自动化"
+---
+
+## 概览
+
+Browserbase MCP Server 通过模型上下文协议（MCP）为 Claude 提供强大的浏览器自动化能力。基于 [Stagehand](https://docs.stagehand.dev/) 构建，此集成通过自然语言指令实现 AI 驱动的网页自动化。
+
+<Info>
+  该服务器使 Claude 能够控制浏览器、导航网站、与网页元素交互并提取数据——且这一切都可通过简单的对话式指令完成。
+</Info>
+
+## 关键功能
+
+<CardGroup cols={2}>
+  <Card title="Natural Language Automation" icon="wand-magic-sparkles">
+    用自然语言控制浏览器，例如输入“点击登录按钮”或“填写联系表单”
+  </Card>
+
+  <Card title="Web Interaction" icon="browser">
+    轻松实现页面导航、点击与表单填写
+  </Card>
+
+  <Card title="Data Extraction" icon="download">
+    自动从任意网站提取结构化数据
+  </Card>
+
+  <Card title="Multi-Session Management" icon="window-restore">
+    并行运行多个浏览器会话，适配复杂工作流
+  </Card>
+
+  <Card title="Screenshot Capture" icon="camera">
+    以编程方式捕获并分析网页截图
+  </Card>
+
+  <Card title="Cookie Management" icon="cookie-bite">
+    在交互过程中处理身份验证与会话状态持久化
+  </Card>
+</CardGroup>
+
+## 核心优势
+
+<Tabs>
+  <Tab title="易用">
+    <CardGroup cols={2}>
+      <Card title="直观指令" icon="wand-magic-sparkles">
+        无需学习复杂的选择器或自动化语法，只需用自然语言描述你的操作意图。
+      </Card>
+
+      <Card title="快速上手" icon="rocket">
+        通过我们的 NPM 包或远程托管的 URL，几分钟即可开始使用。
+      </Card>
+
+      <Card title="智能自动化" icon="brain">
+        Stagehand 的 AI 能理解网页上下文，并适配不同的布局与设计。
+      </Card>
+    </CardGroup>
+  </Tab>
+
+  <Tab title="强大能力">
+    <CardGroup cols={2}>
+      <Card title="全面的浏览器控制" icon="browser">
+        导航、点击、输入、滚动，并与任意网页元素交互。
+      </Card>
+
+      <Card title="数据智能" icon="chart-line">
+        自动从复杂网页中提取结构化信息。
+      </Card>
+
+      <Card title="会话持久化" icon="cookie-bite">
+        在多次交互中保持认证状态和 Cookies。
+      </Card>
+
+      <Card title="多会话支持" icon="window-restore">
+        为复杂工作流并行运行多个浏览器实例。
+      </Card>
+    </CardGroup>
+  </Tab>
+
+  <Tab title="企业级就绪">
+    <CardGroup cols={2}>
+      <Card title="可靠的基础设施" icon="server">
+        基于 Browserbase 的云浏览器平台构建，性能稳定一致。
+      </Card>
+
+      <Card title="可扩展架构" icon="arrows-up-to-line">
+        可处理多并发会话及高吞吐量的自动化任务。
+      </Card>
+
+      <Card title="安全功能" icon="shield-check">
+        隐身模式、代理支持与高级反检测能力。
+      </Card>
+
+      <Card title="全面日志" icon="file-lines">
+        详细的会话录制与调试信息。
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## 使用场景
+
+<Tabs>
+  <Tab title="Web Scraping & Data Collection">
+    <CardGroup cols={2}>
+      <Card title="E-commerce Monitoring" icon="store">
+        跟踪产品价格、库存情况以及竞争对手情报
+      </Card>
+
+      <Card title="Market Research" icon="chart-bar">
+        从多渠道汇总数据，用于分析与报告
+      </Card>
+
+      <Card title="Content Aggregation" icon="newspaper">
+        聚合各类网站的文章、帖子与媒体内容
+      </Card>
+
+      <Card title="Lead Generation" icon="users">
+        从目录中提取联系方式与商业信息
+      </Card>
+    </CardGroup>
+  </Tab>
+
+  <Tab title="Testing">
+    <CardGroup cols={2}>
+      <Card title="Automated Testing" icon="flask">
+        为 Web 应用创建完备的测试套件
+      </Card>
+
+      <Card title="Cross-Browser Validation" icon="browsers">
+        在不同浏览器环境中验证功能
+      </Card>
+
+      <Card title="User Journey Testing" icon="route">
+        模拟真实用户交互与使用流程
+      </Card>
+
+      <Card title="Performance Monitoring" icon="gauge">
+        跟踪页面加载时间与用户体验指标
+      </Card>
+    </CardGroup>
+  </Tab>
+
+  <Tab title="Workflow Automation">
+    <CardGroup cols={2}>
+      <Card title="Form Automation" icon="file-contract">
+        自动填写并提交复杂网页表单
+      </Card>
+
+      <Card title="Report Generation" icon="chart-line">
+        提取数据并自动生成报告
+      </Card>
+
+      <Card title="Social Media Management" icon="share-nodes">
+        跨平台定时发布并监测互动
+      </Card>
+
+      <Card title="Administrative Tasks" icon="clipboard-check">
+        将重复的网页业务流程自动化
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## 会话管理
+
+<Info>
+  Browserbase MCP Server 同时支持单会话与多会话架构，以满足不同的自动化需求。
+</Info>
+
+<Tabs>
+  <Tab title="Single Session Mode">
+    **传统方案**
+
+    - 同一时间仅有一个活动的浏览器会话
+    - 适用于基础自动化任务
+    - 自动管理会话生命周期
+    - 适合顺序式工作流程
+  </Tab>
+
+  <Tab title="Multi-Session Mode">
+    **高级并行处理**
+
+    - 多个彼此独立的浏览器会话
+    - 每个会话各自维护独立状态
+    - 支持并行执行
+    - 非常适合复杂工作流程
+  </Tab>
+</Tabs>
+
+## 入门
+
+<Steps>
+  <Step title="安装 MCP 服务器">
+    根据你的需求，选择通过 NPM 安装、使用远程托管的 URL，或在本地进行开发。
+  </Step>
+
+  <Step title="配置身份验证">
+    在 MCP 配置中设置你的 Browserbase API 凭据。
+    在 [Browserbase 仪表板](https://www.browserbase.com/overview)获取你的 API 密钥。
+  </Step>
+
+  <Step title="开始自动化">
+    开始使用自然语言指令，通过 Claude 控制浏览器。
+  </Step>
+</Steps>
+
+<Tip>
+  准备好开始了吗？查看我们的[设置指南](/zh/integrations/mcp/setup)，获取详细的安装说明。
+</Tip>
+
+## 延伸阅读
+
+<CardGroup cols={3}>
+  <Card title="设置指南" icon="rocket" href="/zh/integrations/mcp/setup">
+    从安装与配置开始上手
+  </Card>
+
+  <Card title="可用工具" icon="wrench" href="/zh/integrations/mcp/tools">
+    探索全部自动化工具
+  </Card>
+
+  <Card title="配置选项" icon="gear" href="/zh/integrations/mcp/configuration">
+    自定义你的浏览器自动化配置
+  </Card>
+</CardGroup>

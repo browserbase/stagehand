@@ -1,0 +1,447 @@
+---
+title: extract()
+description: 'extract() 方法的完整 API 参考'
+icon: 'ufo-beam'
+---
+
+<CardGroup cols={1}>
+  <Card title="Extract" icon="ufo-beam" href="/zh/basics/extract">
+    了解如何使用 extract() 从网页中提取结构化数据
+  </Card>
+</CardGroup>
+
+### 方法签名
+
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    // 带 schema 与选项
+    await page.extract<T extends z.AnyZodObject>(options: ExtractOptions<T>): Promise<ExtractResult<T>>
+
+    // 仅字符串指令
+    await page.extract(instruction: string): Promise<{ extraction: string }>
+
+    // 无参数（原始页面内容）
+    await page.extract(): Promise<{ page_text: string }>
+    ```
+
+    **ExtractOptions 接口：**
+
+    ```typescript
+    interface ExtractOptions<T extends z.AnyZodObject> {
+      instruction?: string;
+      schema?: T;
+      modelName?: AvailableModel;
+      modelClientOptions?: ClientOptions;
+      domSettleTimeoutMs?: number;
+      selector?: string;
+      iframes?: boolean;
+    }
+
+    type ExtractResult<T> = z.infer<T>;
+    ```
+  </Tab>
+
+  <Tab title="Python">
+    ```python
+    # 带 schema 与参数
+    await page.extract(
+        instruction: str = None,
+        schema: BaseModel = None,
+        selector: str = None,
+        iframes: bool = None,
+        model_name: AvailableModel = None,
+        model_client_options: Dict = None,
+        dom_settle_timeout_ms: int = None
+    ) -> ExtractResult
+
+    # 仅字符串指令
+    await page.extract(instruction: str) -> Dict[str, str]
+
+    # 无参数（原始页面内容）
+    await page.extract() -> Dict[str, str]
+    ```
+  </Tab>
+</Tabs>
+
+### 参数
+
+<ParamField path="instruction" type="string" optional>
+  用自然语言描述需要提取的数据。
+</ParamField>
+
+<ParamField path="schema" type="z.ZodSchema | BaseModel" optional>
+  定义待提取数据结构的类型模式，确保类型安全与验证。
+</ParamField>
+
+<ParamField path="selector" type="string" optional>
+  用于限定提取范围的 XPath 选择器，可减少 token 使用并提升准确性。
+</ParamField>
+
+<ParamField path="iframes" type="boolean" optional>
+  若内容位于 iframe 中，请设置为 `true`。
+
+  **默认值：** `false`
+</ParamField>
+
+<ParamField path="modelName" type="AvailableModel" optional>
+  覆盖此次提取使用的默认 LLM 模型。
+</ParamField>
+
+<ParamField path="modelClientOptions" type="ClientOptions" optional>
+  模型相关的专用配置项。
+</ParamField>
+
+<ParamField path="domSettleTimeoutMs" type="number" optional>
+  等待 DOM 稳定的最长时间（毫秒）。
+
+  **默认值：** `30000`
+</ParamField>
+
+### 响应类型
+
+<Tabs>
+  <Tab title="With Schema">
+    **返回：** `Promise<ExtractResult<T>>`，其中 T 与您的 schema 匹配
+
+    返回对象将严格按照您的 schema 定义进行类型约束。
+  </Tab>
+
+  <Tab title="String Only">
+    **返回：** `Promise<{ extraction: string }>`
+
+    不进行 schema 验证的简单字符串提取。
+  </Tab>
+
+  <Tab title="No Parameters">
+    **返回：** `Promise<{ page_text: string }>`
+
+    页面内容的原始可访问性树表示。
+  </Tab>
+</Tabs>
+
+### 代码示例
+
+<Tabs>
+  <Tab title="Single Object">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { z } from 'zod';
+
+      // 模式定义
+      const ProductSchema = z.object({
+        name: z.string(),
+        price: z.number(),
+        inStock: z.boolean()
+      });
+
+      // 提取
+      const product = await page.extract({
+        instruction: "提取产品详情",
+        schema: ProductSchema
+      });
+      ```
+
+      ```python Python
+      from pydantic import BaseModel
+
+      # 模式定义
+      class Product(BaseModel):
+          name: str
+          price: float
+          in_stock: bool
+
+      # 提取
+      product = await page.extract(
+          instruction="提取产品详情",
+          schema=Product
+      )
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "name": "Product Name",
+      "price": 100,
+      "inStock": true
+    }
+    ```
+  </Tab>
+
+  <Tab title="Arrays">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { z } from 'zod';
+
+      // 模型定义
+      const ApartmentListingsSchema = z.object({
+        apartments: z.array(z.object({
+          address: z.string(),
+          price: z.string(),
+          bedrooms: z.number()
+        }))
+      });
+
+      // 数据抽取
+      const listings = await page.extract({
+        instruction: "extract all apartment listings", 
+        schema: ApartmentListingsSchema
+      });
+      ```
+
+      ```python Python
+      from pydantic import BaseModel
+      from typing import List
+
+      # 模型定义
+      class Apartment(BaseModel):
+          address: str
+          price: str
+          bedrooms: int
+
+      class ApartmentListings(BaseModel):
+          apartments: List[Apartment]
+
+      # 数据抽取
+      listings = await page.extract(
+          instruction="extract all apartment listings",
+          schema=ApartmentListings
+      )
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "apartments": [
+        {
+          "address": "123 Main St",
+          "price": "$100,000",
+          "bedrooms": 3
+        },
+        {
+          "address": "456 Elm St",
+          "price": "$150,000",
+          "bedrooms": 2
+        }
+      ]
+    }
+    ```
+  </Tab>
+
+  <Tab title="URLs">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { z } from 'zod';
+
+      // 模式定义
+      const NavigationSchema = z.object({
+        links: z.array(z.object({
+          text: z.string(),
+          url: z.string().url()  // URL 校验
+        }))
+      });
+
+      // 提取
+      const links = await page.extract({
+        instruction: "extract navigation links",
+        schema: NavigationSchema
+      });
+      ```
+
+      ```python Python
+      from pydantic import BaseModel, HttpUrl
+      from typing import List
+
+      # 模式定义
+      class NavLink(BaseModel):
+          text: str
+          url: HttpUrl  # URL 校验
+
+      class Navigation(BaseModel):
+          links: List[NavLink]
+
+      # 提取
+      links = await page.extract(
+          instruction="extract navigation links", 
+          schema=Navigation
+      )
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "links": [
+        {
+          "text": "Home",
+          "url": "https://example.com"
+        }
+      ]
+    }
+    ```
+  </Tab>
+
+  <Tab title="Scoped">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { z } from 'zod';
+
+      const ProductSchema = z.object({
+        name: z.string(),
+        price: z.number(),
+        description: z.string()
+      });
+
+      // 从指定页面区域提取
+      const data = await page.extract({
+        instruction: "从该区域提取产品信息",
+        selector: "xpath=/html/body/div/div",
+        schema: ProductSchema
+      });
+      ```
+
+      ```python Python
+      from pydantic import BaseModel
+
+      class Product(BaseModel):
+          name: str
+          price: float
+          description: str
+
+      # 从指定页面区域提取
+      data = await page.extract(
+          instruction="从该区域提取产品信息",
+          selector="xpath=/html/body/div/div",
+          schema=Product
+      )
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "name": "Product Name",
+      "price": 100,
+      "description": "Product description"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Schema-less">
+    <CodeGroup>
+      ```typescript TypeScript
+      // 仅提取字符串
+      const title = await page.extract("get the page title");
+      // 返回：{ extraction: "Page Title" }
+
+      // 原始页面内容
+      const content = await page.extract();
+      // 返回：{ page_text: "Accessibility Tree: ..." }
+      ```
+
+      ```python Python
+      # 仅提取字符串
+      title = await page.extract("get the page title")
+      # 返回：{"extraction": "Page Title"}
+
+      # 原始页面内容
+      content = await page.extract()
+      # 返回：{"page_text": "Accessibility Tree: ..."}
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "extraction": "Page Title"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Advanced">
+    <CodeGroup>
+      ```typescript TypeScript
+      import { z } from 'zod';
+
+      // 带有描述与校验的架构
+      const ProductSchema = z.object({
+        price: z.number().describe("产品价格（美元）"),
+        rating: z.number().min(0).max(5).describe("客户评分（满分 5 分）"),
+        available: z.boolean().describe("是否有现货"),
+        tags: z.array(z.string()).optional()
+      });
+
+      // 嵌套架构
+      const EcommerceSchema = z.object({
+        product: z.object({
+          name: z.string(),
+          price: z.object({
+            current: z.number(),
+            original: z.number().optional()
+          })
+        }),
+        reviews: z.array(z.object({
+          rating: z.number(),
+          comment: z.string()
+        }))
+      });
+      ```
+
+      ```python Python
+      from pydantic import BaseModel, Field
+      from typing import Optional, List
+
+      # 带有描述与校验的模型
+      class Product(BaseModel):
+          price: float = Field(description="产品价格（美元）")
+          rating: float = Field(ge=0, le=5, description="客户评分（满分 5 分）")
+          available: bool = Field(description="是否有现货")
+          tags: Optional[List[str]] = None
+
+      # 嵌套模型
+      class Price(BaseModel):
+          current: float
+          original: Optional[float] = None
+
+      class Review(BaseModel):
+          rating: int
+          comment: str
+
+      class ProductDetails(BaseModel):
+          name: str
+          price: Price
+
+      class EcommerceData(BaseModel):
+          product: ProductDetails
+          reviews: List[Review]
+      ```
+    </CodeGroup>
+
+    #### 示例响应
+
+    ```json
+    {
+      "product": {
+        "name": "Product Name",
+        "price": {
+          "current": 100,
+          "original": 120
+        }
+      },
+      "reviews": [
+        {
+          "rating": 4,
+          "comment": "Great product!"
+        }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>

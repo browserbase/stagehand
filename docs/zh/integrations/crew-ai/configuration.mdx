@@ -1,0 +1,170 @@
+---
+title: "使用 CrewAI 自动化浏览器任务"
+sidebarTitle: Configuration
+description: "通过自然语言指令创建可与网站交互并自动化浏览器任务的智能代理"
+---
+
+本指南将带你完成在 Browserbase 上配置 CrewAI 的步骤，以创建能够依据自然语言指令执行网页自动化任务的代理。
+
+## 步骤 1：安装依赖项
+
+安装用于集成 CrewAI 和 Stagehand 的必需包：
+
+```bash
+pip install stagehand-py crewai crewai-tools
+```
+
+## 步骤 2：配置环境变量
+
+你需要从以下两个服务获取 API 密钥：
+
+1. **Browserbase API Key 和 Project ID**：在 [Browserbase 仪表板](https://www.browserbase.com/) 获取
+2. **LLM API Key**：从 [OpenAI](https://platform.openai.com/api-keys) 或 [Anthropic](https://console.anthropic.com/) 获取
+
+请将这些 API 密钥安全地保存为环境变量：
+
+```bash
+BROWSERBASE_API_KEY="your-browserbase-api-key"
+BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
+OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
+## 步骤 3：创建你的第一个 Agent
+
+编写一个包含基础 CrewAI Agent 的 Python 脚本：
+
+```python
+import os
+from crewai import Agent, Task, Crew
+from crewai_tools import StagehandTool
+from stagehand.schemas import AvailableModel
+
+# 从环境变量获取 API 密钥
+browserbase_api_key = os.environ.get("BROWSERBASE_API_KEY")
+browserbase_project_id = os.environ.get("BROWSERBASE_PROJECT_ID")
+model_api_key = os.environ.get("OPENAI_API_KEY")  # 或 ANTHROPIC_API_KEY
+
+# 初始化 StagehandTool
+stagehand_tool = StagehandTool(
+    api_key=browserbase_api_key,
+    project_id=browserbase_project_id,
+    model_api_key=model_api_key,
+    model_name=AvailableModel.GPT_4O,  # 或 AvailableModel.CLAUDE_3_7_SONNET_LATEST
+)
+
+# 使用该工具创建一个 Agent
+researcher = Agent(
+    role="Web Researcher",
+    goal="Find and summarize information from websites",
+    backstory="I'm an expert at finding information online.",
+    verbose=True,
+    tools=[stagehand_tool],
+)
+```
+
+## 步骤 4：创建并运行任务
+
+为你的代理定义一个任务并执行：
+
+```python
+# 创建一个使用该工具的任务
+research_task = Task(
+    description="访问 https://www.example.com，并告诉我你在首页看到的内容。",
+    agent=researcher,
+)
+
+# 运行工作组
+crew = Crew(
+    agents=[researcher],
+    tasks=[research_task],
+    verbose=True,
+)
+
+try:
+    result = crew.kickoff()
+    print(result)
+finally:
+    # 清理资源
+    stagehand_tool.close()
+```
+
+## 步骤 5：运行你的脚本
+
+执行你的 Python 脚本：
+
+```bash
+python your_crew_script.py
+```
+
+## 高级配置
+
+通过附加参数自定义 StagehandTool 的行为：
+
+```python
+stagehand_tool = StagehandTool(
+    api_key=browserbase_api_key,
+    project_id=browserbase_project_id, 
+    model_api_key=model_api_key,
+    model_name=AvailableModel.CLAUDE_3_7_SONNET_LATEST,
+    dom_settle_timeout_ms=5000,  # 将等待时间延长，直至 DOM 稳定
+    headless=True,  # 以无头模式运行浏览器
+    self_heal=True,  # 尝试从错误中自愈恢复
+    wait_for_captcha_solves=True,  # 等待完成验证码求解
+    verbose=1,  # 控制日志详细级别（0-3）
+)
+```
+
+## 示例任务
+
+<Tabs>
+  <Tab title="表单提交" value="form-submission" label="Python">
+    ```python
+    form_task = Task(
+        description="""
+        提交联系表单：
+        1. 访问 https://example.com/contact
+        2. 使用姓名“John Doe”、邮箱“john@example.com”填写表单
+        3. 提交并确认已成功
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+  <Tab title="数据提取" value="data-extraction" label="Python">
+    ```python
+    extraction_task = Task(
+        description="""
+        提取产品信息：
+        1. 前往产品页面
+        2. 提取所有产品名称、价格和描述
+        3. 格式化为结构化数据
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+  <Tab title="多步导航" value="multi-step-navigation" label="Python">
+    ```python
+    navigation_task = Task(
+        description="""
+        导航与分析：
+        1. 从首页开始
+        2. 前往产品栏目
+        3. 按“Electronics”类别筛选
+        4. 查找并提取评分最高产品的详细信息
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+</Tabs>
+
+<CardGroup cols={2}>
+  <Card title="CrewAI 文档" icon="book" href="https://docs.crewai.com/">
+    深入了解 CrewAI 文档，探索其功能与集成方式。
+  </Card>
+  <Card title="Browserbase 文档" icon="book" href="https://docs.browserbase.com/">
+    查阅 Browserbase 文档，获取完整指南与资源。
+  </Card>
+</CardGroup>
