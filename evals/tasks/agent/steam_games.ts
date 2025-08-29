@@ -12,7 +12,7 @@ export const steam_games: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Show most played games in Steam. And tell me the number of players in In game at this time",
+        "Show most played games in Steam. And tell me the number of players in game at this time",
       maxSteps: 30,
     });
 
