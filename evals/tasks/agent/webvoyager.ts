@@ -38,7 +38,6 @@ export const webvoyager: EvalFunction = async ({
 
     // Start collecting screenshots in parallel
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      interval: 2000, // Capture every 2 seconds
       maxScreenshots: 10, // Keep last 10 screenshots
       captureOnNavigation: true, // Also capture on page navigation
     });
