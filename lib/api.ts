@@ -156,6 +156,13 @@ export class StagehandAPI {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions,
   ): Promise<AgentResult> {
+    // Check if integrations are being used in API mode
+    if (agentConfig.integrations && agentConfig.integrations.length > 0) {
+      throw new StagehandAPIError(
+        "MCP integrations are not supported in API mode. Please use local mode with experimental: true to use MCP integrations.",
+      );
+    }
+
     return this.execute<AgentResult>({
       method: "agentExecute",
       args: {

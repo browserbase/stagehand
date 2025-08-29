@@ -917,6 +917,13 @@ export class Stagehand {
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          // Check if integrations are being used without experimental flag
+          if (options?.integrations && !this.experimental) {
+            throw new StagehandError(
+              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+            );
+          }
+
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
@@ -941,6 +948,13 @@ export class Stagehand {
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        // Check if integrations are being used without experimental flag
+        if (options?.integrations && !this.experimental) {
+          throw new StagehandError(
+            "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+          );
+        }
+
         const tools = options?.integrations
           ? await resolveTools(options?.integrations, options?.tools)
           : (options?.tools ?? {});
