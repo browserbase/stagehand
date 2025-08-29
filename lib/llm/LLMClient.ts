@@ -1,18 +1,18 @@
+import {
+  embed,
+  embedMany,
+  experimental_generateImage,
+  experimental_generateSpeech,
+  experimental_transcribe,
+  generateObject,
+  generateText,
+  streamObject,
+  streamText,
+} from "ai";
 import { ZodType } from "zod/v3";
 import { LLMTool } from "../../types/llm";
 import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
-import {
-  generateObject,
-  generateText,
-  streamText,
-  streamObject,
-  experimental_generateImage,
-  embed,
-  embedMany,
-  experimental_transcribe,
-  experimental_generateSpeech,
-} from "ai";
+import { AvailableModel } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -100,7 +100,6 @@ export abstract class LLMClient {
   public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
   public modelName: AvailableModel | (string & {});
   public hasVision: boolean;
-  public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
 
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {

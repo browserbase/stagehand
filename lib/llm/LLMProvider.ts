@@ -97,9 +97,9 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
 export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
-  apiKey?: string,
+  modelClientOptions?: ClientOptions,
 ) {
-  if (apiKey) {
+  if (modelClientOptions && Object.keys(modelClientOptions).length > 0) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(
@@ -107,8 +107,8 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
-    // Create the provider instance with the API key
-    const provider = creator({ apiKey });
+    // Create the provider instance with the custom configuration options
+    const provider = creator(modelClientOptions);
     // Get the specific model from the provider
     return provider(subModelName);
   } else {
@@ -165,7 +165,7 @@ export class LLMProvider {
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
-        clientOptions?.apiKey,
+        clientOptions,
       );
 
       return new AISdkClient({

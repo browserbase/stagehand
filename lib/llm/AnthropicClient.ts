@@ -1,3 +1,4 @@
+import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 import Anthropic, { ClientOptions } from "@anthropic-ai/sdk";
 import {
   ImageBlockParam,
@@ -14,14 +15,13 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;
   private client: Anthropic;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
-  public clientOptions: ClientOptions;
+  public clientOptions?: ClientOptions;
 
   constructor({
     enableCaching = false,
