@@ -1,5 +1,19 @@
 # @browserbasehq/stagehand
 
+## 2.5.0
+
+### Minor Changes
+
+- [#981](https://github.com/browserbase/stagehand/pull/981) [`8244ab2`](https://github.com/browserbase/stagehand/commit/8244ab247cd679962685ae2f7c54e874ce1fa614) Thanks [@sameelarif](https://github.com/sameelarif)! - Added support for `stagehand.agent` to interact with MCP servers as well as custom tools to be passed in. For more information, reference the [MCP integrations documentation](https://docs.stagehand.dev/best-practices/mcp-integrations)
+
+### Patch Changes
+
+- [#959](https://github.com/browserbase/stagehand/pull/959) [`09b5e1e`](https://github.com/browserbase/stagehand/commit/09b5e1e9c23c845903686db6665cc968ac34efbb) Thanks [@filip-michalsky](https://github.com/filip-michalsky)! - add webvoyager evals
+
+- [#1025](https://github.com/browserbase/stagehand/pull/1025) [`be85b19`](https://github.com/browserbase/stagehand/commit/be85b19679a826f19702e00f0aae72fce1118ec8) Thanks [@tkattkat](https://github.com/tkattkat)! - add support for custom baseUrl within openai provider
+
+- [#1040](https://github.com/browserbase/stagehand/pull/1040) [`88d1565`](https://github.com/browserbase/stagehand/commit/88d1565c65bb65a104fea2d5f5e862bbbda69677) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow OpenAI CUA to take in an optional baseURL
+
 ## 2.4.4
 
 ### Patch Changes
