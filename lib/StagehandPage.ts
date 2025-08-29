@@ -38,6 +38,8 @@ async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   return frameTree.frame.id;
 }
 
+let stagehandSelectorRegistered = false;
+
 export class StagehandPage {
   private stagehand: Stagehand;
   private rawPage: PlaywrightPage;
@@ -296,7 +298,9 @@ ${scriptContent} \
     };
 
     try {
+      if (stagehandSelectorRegistered) return;
       await selectors.register("stagehand", registerFn);
+      stagehandSelectorRegistered = true;
     } catch (err) {
       if (
         err instanceof Error &&
