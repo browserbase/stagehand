@@ -27,6 +27,8 @@ interface AgentConfig {
   model?: string;
   instructions?: string;
   options?: Record<string, unknown>;
+  integrations?: (Client | string)[];
+  tools?: ToolSet;
 }
 ```
 
@@ -76,6 +78,18 @@ agent = stagehand.agent({
   Provider-specific configuration.
   
   **Common:** `apiKey`, `baseURL`, `organization`
+</ParamField>
+
+<ParamField path="integrations" type="(Client | string)[]" optional>
+  MCP (Model Context Protocol) integrations for external tools and services.
+  
+  **Array of:** MCP server URLs (strings) or connected Client objects
+</ParamField>
+
+<ParamField path="tools" type="ToolSet" optional>
+  Custom tool definitions to extend agent capabilities.
+  
+  **Format:** Object with tool name keys and tool definition values
 </ParamField>
 
 ### Execute Method

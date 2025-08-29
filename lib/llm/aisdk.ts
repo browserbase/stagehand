@@ -2,7 +2,6 @@ import {
   CoreAssistantMessage,
   CoreMessage,
   CoreSystemMessage,
-  CoreTool,
   CoreUserMessage,
   generateObject,
   generateText,
@@ -10,12 +9,13 @@ import {
   LanguageModel,
   NoObjectGeneratedError,
   TextPart,
+  ToolSet,
 } from "ai";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
-import { ChatCompletion } from "openai/resources";
 import { LLMCache } from "../cache/LLMCache";
+import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -295,24 +295,61 @@ export class AISdkClient extends LLMClient {
       return result;
     }
 
-    const tools: Record<string, CoreTool> = {};
-
-    for (const rawTool of options.tools ?? []) {
-      tools[rawTool.name] = {
-        description: rawTool.description,
-        parameters: rawTool.parameters,
-      };
+    const tools: ToolSet = {};
+    if (options.tools && options.tools.length > 0) {
+      for (const tool of options.tools) {
+        tools[tool.name] = {
+          description: tool.description,
+          parameters: tool.parameters,
+        };
+      }
     }
 
     const textResponse = await generateText({
       model: this.model,
       messages: formattedMessages,
+      tools: Object.keys(tools).length > 0 ? tools : undefined,
+      toolChoice:
+        Object.keys(tools).length > 0
+          ? options.tool_choice === "required"
+            ? "required"
+            : options.tool_choice === "none"
+              ? "none"
+              : "auto"
+          : undefined,
       temperature: options.temperature,
-      tools,
     });
 
+    // Transform AI SDK response to match LLMResponse format expected by operator handler
+    const transformedToolCalls = (textResponse.toolCalls || []).map(
+      (toolCall) => ({
+        id:
+          toolCall.toolCallId ||
+          `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: "function",
+        function: {
+          name: toolCall.toolName,
+          arguments: JSON.stringify(toolCall.args),
+        },
+      }),
+    );
+
     const result = {
-      data: textResponse.text,
+      id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: this.model.modelId,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: textResponse.text || null,
+            tool_calls: transformedToolCalls,
+          },
+          finish_reason: textResponse.finishReason || "stop",
+        },
+      ],
       usage: {
         prompt_tokens: textResponse.usage.promptTokens ?? 0,
         completion_tokens: textResponse.usage.completionTokens ?? 0,

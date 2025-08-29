@@ -89,7 +89,12 @@ export class StagehandAPI {
         "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
       );
     } else if (sessionResponse.status !== 200) {
-      console.log(await sessionResponse.text());
+      const errorText = await sessionResponse.text();
+      this.logger({
+        category: "api",
+        message: `API error (${sessionResponse.status}): ${errorText}`,
+        level: 0,
+      });
       throw new StagehandHttpError(`Unknown error: ${sessionResponse.status}`);
     }
 
@@ -151,6 +156,13 @@ export class StagehandAPI {
     agentConfig: AgentConfig,
     executeOptions: AgentExecuteOptions,
   ): Promise<AgentResult> {
+    // Check if integrations are being used in API mode
+    if (agentConfig.integrations && agentConfig.integrations.length > 0) {
+      throw new StagehandAPIError(
+        "MCP integrations are not supported in API mode. Please use local mode with experimental: true to use MCP integrations.",
+      );
+    }
+
     return this.execute<AgentResult>({
       method: "agentExecute",
       args: { agentConfig, executeOptions },

@@ -54,6 +54,52 @@ await agent.execute("apply for a job at Browserbase")
 ```
 </CodeGroup>
 
+## MCP Integrations
+
+Agents can be enhanced with external tools and services through MCP (Model Context Protocol) integrations. This allows your agent to access external APIs and data sources beyond just browser interactions.
+
+<CodeGroup>
+```typescript TypeScript (Pass URL)
+const agent = stagehand.agent({
+  provider: "openai",
+  model: "computer-use-preview",
+  integrations: [
+    `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
+  ],
+  instructions: `You have access to web search through Exa. Use it to find current information before browsing.`,
+  options: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+await agent.execute("Search for the best headphones of 2025 and go through checkout for the top recommendation");
+```
+
+```typescript TypeScript (Create Connection)
+import { connectToMCPServer } from "@browserbasehq/stagehand";
+
+const supabaseClient = await connectToMCPServer(
+  `https://server.smithery.ai/@supabase-community/supabase-mcp/mcp?api_key=${process.env.SMITHERY_API_KEY}`
+);
+
+const agent = stagehand.agent({
+  provider: "openai",
+  model: "computer-use-preview",
+  integrations: [supabaseClient],
+  instructions: `You can interact with Supabase databases. Use these tools to store and retrieve data.`,
+  options: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+await agent.execute("Search for restaurants and save the first result to the database");
+```
+</CodeGroup>
+
+<Tip>
+MCP integrations enable agents to be more powerful by combining browser automation with external APIs, databases, and services. The agent can intelligently decide when to use browser actions versus external tools.
+</Tip>
+
 <Warning>
 Stagehand uses a 1024x768 viewport by default (the optimal size for Computer Use Agents). Other viewport sizes may reduce performance. If you need to modify the viewport, you can edit in the [Browser Configuration](/configuration/browser).
 </Warning>
