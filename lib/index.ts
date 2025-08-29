@@ -918,12 +918,16 @@ export class Stagehand {
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          const tools = options?.integrations
+            ? await resolveTools(options?.integrations, options?.tools)
+            : (options?.tools ?? {});
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
             executionModel,
             systemInstructions,
+            tools,
           ).execute(instructionOrOptions);
         },
       };

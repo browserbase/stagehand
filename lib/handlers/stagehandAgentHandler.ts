@@ -6,7 +6,7 @@ import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
-
+import { ToolSet } from "ai";
 function isAISDKBacked(client: LLMClient): client is LLMClient & {
   type: "aisdk";
   getLanguageModel: () => LanguageModel;
@@ -20,6 +20,7 @@ export class StagehandAgentHandler {
   private llmClient: LLMClient;
   private executionModel?: string;
   private systemInstructions?: string;
+  private mcpTools?: ToolSet;
 
   constructor(
     stagehandPage: StagehandPage,
@@ -27,12 +28,14 @@ export class StagehandAgentHandler {
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
+    mcpTools?: ToolSet,
   ) {
     this.stagehandPage = stagehandPage;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
+    this.mcpTools = mcpTools;
   }
 
   public async execute(
@@ -55,7 +58,7 @@ export class StagehandAgentHandler {
         this.systemInstructions,
       );
       const tools = this.createTools();
-
+      const allTools = { ...tools, ...this.mcpTools };
       const messages: CoreMessage[] = [
         {
           role: "user",
@@ -89,7 +92,7 @@ export class StagehandAgentHandler {
         model: wrappedModel,
         system: systemPrompt,
         messages,
-        tools,
+        tools: allTools,
         maxSteps,
         temperature: 1,
         toolChoice: "auto",
