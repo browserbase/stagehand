@@ -59,6 +59,7 @@
           "best-practices/build-agent",
           "best-practices/agent-fallbacks",
           "best-practices/prompting-best-practices",
+          "best-practices/mcp-integrations",
           "best-practices/speed-optimization"
         ]
       },
