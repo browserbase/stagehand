@@ -15,7 +15,6 @@ import {
   EvaluateOptions,
   BatchAskOptions,
   EvaluationResult,
-  EvaluateWithScreenshotsOptions,
 } from "@/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
@@ -54,9 +53,7 @@ export class Evaluator {
       question,
       answer,
       screenshot = true,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
-          Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
-          Today's date is ${new Date().toLocaleDateString()}`,
+      systemPrompt,
       screenshotDelayMs = 250,
     } = options;
     if (!question) {
@@ -65,6 +62,20 @@ export class Evaluator {
     if (!answer && !screenshot) {
       throw new Error("Either answer (text) or screenshot must be provided");
     }
+
+    // Handle multiple screenshots case
+    if (Array.isArray(screenshot)) {
+      return this._evaluateWithMultipleScreenshots({
+        question,
+        screenshots: screenshot,
+        systemPrompt,
+      });
+    }
+
+    // Single screenshot case (existing logic)
+    const defaultSystemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
+          Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
+          Today's date is ${new Date().toLocaleDateString()}`;
 
     await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
     let imageBuffer: Buffer;
@@ -82,7 +93,7 @@ export class Evaluator {
       logger: this.silentLogger,
       options: {
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: systemPrompt || defaultSystemPrompt },
           {
             role: "user",
             content: [
@@ -243,15 +254,13 @@ export class Evaluator {
   }
 
   /**
-   * Evaluates a question using multiple screenshots captured during execution.
-   * This method processes all screenshots to understand the full journey and context.
-   *
-   * @param options - The options for screenshot-based evaluation
-   * @returns A promise that resolves to an EvaluationResult
+   * Private method to evaluate with multiple screenshots
    */
-  async evaluateWithScreenshots(
-    options: EvaluateWithScreenshotsOptions,
-  ): Promise<EvaluationResult> {
+  private async _evaluateWithMultipleScreenshots(options: {
+    question: string;
+    screenshots: Buffer[];
+    systemPrompt?: string;
+  }): Promise<EvaluationResult> {
     const {
       question,
       screenshots,

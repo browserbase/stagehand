@@ -60,9 +60,9 @@ export const webvoyager: EvalFunction = async ({
     });
 
     const evaluator = new Evaluator(stagehand);
-    const evalResult = await evaluator.evaluateWithScreenshots({
+    const evalResult = await evaluator.ask({
       question: `Did the agent successfully complete this task: "${params.ques}"? Look at all the screenshots showing the progression of the task to verify if it was completed successfully.`,
-      screenshots: screenshots,
+      screenshot: screenshots,
     });
 
     return {

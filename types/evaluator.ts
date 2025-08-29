@@ -3,8 +3,8 @@ export type EvaluateOptions = {
   question: string;
   /** The answer to the question */
   answer?: string;
-  /** Whether to take a screenshot of the task state */
-  screenshot?: boolean;
+  /** Whether to take a screenshot of the task state, or array of screenshots to evaluate */
+  screenshot?: boolean | Buffer[];
   /** Custom system prompt for the evaluator */
   systemPrompt?: string;
   /** Delay in milliseconds before taking the screenshot @default 250 */
@@ -38,15 +38,3 @@ export interface EvaluationResult {
    */
   reasoning: string;
 }
-
-/**
- * Options for evaluating with multiple screenshots
- */
-export type EvaluateWithScreenshotsOptions = {
-  /** The question to ask about the task state */
-  question: string;
-  /** Array of screenshots captured during task execution */
-  screenshots: Buffer[];
-  /** Custom system prompt for the evaluator */
-  systemPrompt?: string;
-};
