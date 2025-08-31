@@ -2,7 +2,8 @@ import {
   Client,
   ClientOptions,
 } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+// import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MCPConnectionError } from "../../types/stagehandErrors";
 
 export interface ConnectToMCPServerOptions {
@@ -22,9 +23,13 @@ export const connectToMCPServer = async (
   const serverUrl = options.serverUrl.toString();
 
   try {
-    const transport = new StreamableHTTPClientTransport(
-      new URL(options.serverUrl),
-    );
+    const transport = new StdioClientTransport({
+      command: "npx",
+      args: ["-y", "@stripe/mcp", "--tools=all"],
+      env: {
+        STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+      },
+    });
     const client = new Client({
       name: "Stagehand",
       version: "1.0.0",
