@@ -1,7 +1,12 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { CdpConnection } from "./cdp";
+import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
+import {
+  installV3PiercerIntoSession,
+  tapPiercerConsole,
+} from "../understudy/piercer";
+import { executionContexts } from "./executionContextRegistry";
 
 type TargetId = string;
 type SessionId = string;
@@ -27,6 +32,12 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 export class V3Context {
   private constructor(readonly conn: CdpConnection) {}
 
+  private readonly _piercerInstalled = new Set<string>();
+
+  private sessionKey(session: CDPSessionLike): string {
+    return session.id ?? "root";
+  }
+  private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
   private mainFrameToTarget = new Map<string, TargetId>();
   private sessionOwnerPage = new Map<SessionId, Page>();
@@ -48,6 +59,19 @@ export class V3Context {
     await ctx.bootstrap();
     console.log("[ctx] create: bootstrap done");
     return ctx;
+  }
+
+  private async ensurePiercer(
+    session: CDPSessionLike,
+    label: string,
+  ): Promise<void> {
+    const key = this.sessionKey(session);
+    if (this._piercerInstalled.has(key)) return;
+
+    tapPiercerConsole(session, label);
+
+    await installV3PiercerIntoSession(session);
+    this._piercerInstalled.add(key);
   }
 
   /** Mark a page target as the most-recent one (active). */
@@ -145,50 +169,16 @@ export class V3Context {
    */
   private async bootstrap(): Promise<void> {
     console.log("[ctx] bootstrap: start");
-    const targets = await this.conn.getTargets();
-    console.log(
-      "[ctx] bootstrap: existing targets =",
-      Array.isArray(targets) ? targets.length : "ERR",
-    );
-    for (const t of targets) {
-      try {
-        const session = await this.conn.attachToTarget(t.targetId);
-        await this.onAttachedToTarget(
-          t as unknown as Protocol.Target.TargetInfo,
-          session.id,
-        );
-      } catch {
-        // ignore attach race
-      }
-    }
-
-    // Fallback: explicitly attach when a target is created (covers OOPIFs that don't auto-attach reliably)
-    this.conn.on<Protocol.Target.TargetCreatedEvent>(
-      "Target.targetCreated",
-      async (evt) => {
-        const info = evt.targetInfo;
-        // Skip noisy workers; everything else (page/iframe/fenced_frame/etc.) we attach to.
-        if (
-          info.type === "worker" ||
-          info.type === "service_worker" ||
-          info.type === "shared_worker"
-        ) {
-          return;
-        }
-        try {
-          const session = await this.conn.attachToTarget(info.targetId);
-          await this.onAttachedToTarget(info, session.id);
-        } catch {
-          // harmless if already attached or if target vanished
-        }
-      },
-    );
 
     // Live attach via auto-attach (normal path)
     this.conn.on<Protocol.Target.AttachedToTargetEvent>(
       "Target.attachedToTarget",
       async (evt) => {
-        await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
+        await this.onAttachedToTarget(
+          evt.targetInfo,
+          evt.sessionId,
+          evt.waitingForDebugger === true,
+        );
       },
     );
 
@@ -207,6 +197,40 @@ export class V3Context {
         this.cleanupByTarget(evt.targetId);
       },
     );
+
+    // Fallback: explicitly attach when a target is created (covers OOPIFs that don't auto-attach reliably)
+    this.conn.on<Protocol.Target.TargetCreatedEvent>(
+      "Target.targetCreated",
+      async (evt) => {
+        const info = evt.targetInfo;
+        // Skip noisy workers; everything else (page/iframe/fenced_frame/etc.) we attach to.
+        if (
+          info.type === "worker" ||
+          info.type === "service_worker" ||
+          info.type === "shared_worker"
+        ) {
+          return;
+        }
+        try {
+          await this.conn.attachToTarget(info.targetId);
+        } catch {
+          // harmless if already attached or if target vanished
+        }
+      },
+    );
+
+    const targets = await this.conn.getTargets();
+    console.log(
+      "[ctx] bootstrap: existing targets =",
+      Array.isArray(targets) ? targets.length : "ERR",
+    );
+    for (const t of targets) {
+      try {
+        await this.conn.attachToTarget(t.targetId);
+      } catch {
+        // ignore attach race
+      }
+    }
   }
 
   /**
@@ -220,6 +244,7 @@ export class V3Context {
   private async onAttachedToTarget(
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
+    waitingForDebugger?: boolean,
   ): Promise<void> {
     console.log("[ctx] onAttachedToTarget:", {
       type: info.type,
@@ -229,17 +254,27 @@ export class V3Context {
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
+    if (this._sessionInit.has(sessionId)) return;
+    this._sessionInit.add(sessionId);
+
     const pageEnabled = await session
       .send("Page.enable")
       .then(() => true)
       .catch(() => false);
     if (!pageEnabled) {
-      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      if (waitingForDebugger) {
+        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      }
       return;
     }
     await session
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
+
+    const label = isTopLevelPage(info) ? "top" : info.type || "child";
+    executionContexts.attachSession(session);
+    await session.send("Runtime.enable").catch(() => {});
+    await this.ensurePiercer(session, label);
 
     // Top-level page target
     if (isTopLevelPage(info)) {
@@ -255,7 +290,9 @@ export class V3Context {
       }
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
-      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      if (waitingForDebugger) {
+        await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+      }
       return;
     }
 
@@ -303,7 +340,9 @@ export class V3Context {
       });
     }
 
-    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+    if (waitingForDebugger) {
+      await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+    }
   }
 
   /**
