@@ -6,78 +6,114 @@ import type { Page } from "./page";
 /**
  * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.
  */
-const IFRAME_STEP_RE = /^iframe(\[\d+])?$/i;
+const IFRAME_STEP_RE = /^iframe(?:\[\d+])?$/i;
+
+type Axis = "child" | "desc";
+type Step = { axis: Axis; raw: string; name: string };
+
+/** Parse XPath into steps preserving '/' vs '//' and the raw token (with [n]) */
+function parseXPath(path: string): Step[] {
+  const s = path.trim();
+  let i = 0;
+  const steps: Step[] = [];
+  while (i < s.length) {
+    let axis: Axis = "child";
+    if (s.startsWith("//", i)) {
+      axis = "desc";
+      i += 2;
+    } else if (s[i] === "/") {
+      axis = "child";
+      i += 1;
+    }
+
+    const start = i;
+    while (i < s.length && s[i] !== "/") i++;
+    const raw = s.slice(start, i).trim();
+    if (!raw) continue;
+
+    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
+    steps.push({ axis, raw, name });
+  }
+  return steps;
+}
+
+function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
+  let out = "";
+  for (const st of steps) {
+    out += st.axis === "desc" ? "//" : "/";
+    out += st.raw; // keep predicates intact
+  }
+  return out || "/";
+}
 
 /**
  * Build a Locator that is scoped to the correct (possibly OOPIF) frame for a
- * deep XPath that crosses iframe boundaries, e.g.:
- *
- *   /html/body/div/iframe[1]/html/body/div/iframe[1]/html/body/button
- *
- * Algorithm:
- *   - Keep a rolling buffer of XPath steps inside the current frame.
- *   - When an iframe step is encountered, resolve the buffered XPath to the
- *     <iframe> element in the current frame, obtain its child frameId, and
- *     switch `ctx` (the current Frame) to that child’s frame/session.
- *   - After processing all steps, return a Locator for the remainder in `ctx`.
+ * deep XPath that crosses iframe boundaries.
  */
 export async function deepLocatorThroughIframes(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
 ): Promise<Locator> {
-  // Normalize: accept "xpath=..." or raw "/..."
-  let xpath = xpathOrSelector.trim();
-  if (xpath.startsWith("xpath=")) xpath = xpath.slice("xpath=".length).trim();
-  if (!xpath.startsWith("/")) xpath = "/" + xpath;
+  let path = xpathOrSelector.trim();
+  if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
+  if (!path.startsWith("/")) path = "/" + path;
 
-  const tokens = xpath.split("/"); // keeps "" for "//"
-  let ctx: Frame = root; // current frame context
-  let buffer: string[] = [];
+  const steps = parseXPath(path);
+  let ctx: Frame = root;
+  let buf: Step[] = [];
 
-  // --- UPDATED: robust OOPIF hop ---
-  const flushIntoChildFrame = async () => {
-    if (!buffer.length) return;
+  const flushIntoChildFrame = async (): Promise<void> => {
+    if (!buf.length) return;
 
-    const selectorForIframe = "xpath=/" + buffer.join("/");
+    const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
+    console.log("[deep-hop] resolving iframe in parent", {
+      parentFrameId: ctx.frameId,
+      selectorForIframe,
+    });
 
-    // Resolve <iframe> element in the current frame (isolated world)
     const tmp = new Locator(ctx, selectorForIframe);
+    const parentSession = ctx.session;
     const { objectId } = await tmp.resolveNode();
 
     try {
-      // Primary path: request a nodeId just for getFrameOwner()
+      await parentSession.send("DOM.enable").catch(() => {});
+      const desc = await parentSession.send<Protocol.DOM.DescribeNodeResponse>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const iframeBackendNodeId = desc.node.backendNodeId;
+      console.log("[deep-hop] iframe backendNodeId", { iframeBackendNodeId });
+
+      const childIds = await listDirectChildFrameIdsFromRegistry(
+        page,
+        ctx.frameId,
+        1000,
+      );
+      console.log("[deep-hop] direct child frameIds", childIds);
+
       let childFrameId: string | undefined;
+      for (const fid of childIds) {
+        try {
+          const owner = await parentSession.send<{
+            backendNodeId: Protocol.DOM.BackendNodeId;
+            nodeId?: Protocol.DOM.NodeId;
+          }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
+          console.log("[deep-hop] owner mapping", {
+            frameId: fid,
+            ownerBackendNodeId: owner.backendNodeId,
+          });
 
-      try {
-        const { nodeId } = await ctx.session.send<{
-          nodeId: Protocol.DOM.NodeId;
-        }>("DOM.requestNode", { objectId });
-
-        const owner = await ctx.session.send<{
-          frameId: string;
-          backendNodeId: number;
-        }>("DOM.getFrameOwner", { nodeId });
-        childFrameId = owner.frameId;
-      } catch {
-        // Fallback: ordinal mapping against the *owning page's* full frame tree,
-        // with a short poll to allow OOPIF attach to appear.
-        const idxRes =
-          await ctx.session.send<Protocol.Runtime.CallFunctionOnResponse>(
-            "Runtime.callFunctionOn",
-            {
-              objectId,
-              functionDeclaration: `
-              function() {
-                const all = Array.from(document.querySelectorAll('iframe'));
-                return all.indexOf(this);
-              }`,
-              returnByValue: true,
-            },
-          );
-        const idx = (idxRes.result.value as number) ?? 0;
-
-        childFrameId = await pollForChildFrameId(page, ctx.frameId, idx, 800);
+          if (owner.backendNodeId === iframeBackendNodeId) {
+            childFrameId = fid;
+            break;
+          }
+        } catch (e) {
+          console.log("[deep-hop] owner lookup failed", {
+            frameId: fid,
+            err: String(e),
+          });
+        }
       }
 
       if (!childFrameId) {
@@ -86,48 +122,50 @@ export async function deepLocatorThroughIframes(
         );
       }
 
+      console.log("[deep-hop] switching to child", { childFrameId });
       ctx = page.frameForId(childFrameId);
     } finally {
-      await ctx.session
+      await parentSession
         .send("Runtime.releaseObject", { objectId })
         .catch(() => {});
     }
 
-    buffer = [];
+    buf = [];
   };
 
-  // Walk the xpath tokens, pushing until we hit an iframe step.
-  for (let i = 1; i < tokens.length; i++) {
-    const step = tokens[i];
-    if (!step) continue; // ignore shadow-hop here for now
-    buffer.push(step);
-
-    if (IFRAME_STEP_RE.test(step)) {
+  for (const st of steps) {
+    buf.push(st);
+    if (IFRAME_STEP_RE.test(st.name)) {
       await flushIntoChildFrame();
     }
   }
 
-  // Whatever remains is inside the deepest ctx
-  const finalSelector = "xpath=/" + buffer.join("/");
+  const finalSelector = "xpath=" + buildXPathFromSteps(buf);
+  console.log("[deep-hop] final tail", { frameId: ctx.frameId, finalSelector });
   return new Locator(ctx, finalSelector);
 }
 
-// Poll the owning page’s full frame tree for a child at ordinal `idx`
-async function pollForChildFrameId(
+/**
+ * Read direct children of a parent frame from the Page/registry (cross-target),
+ * polling briefly to allow OOPIF adoption to complete.
+ */
+async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
-  idx: number,
   timeoutMs: number,
-): Promise<string | undefined> {
+): Promise<string[]> {
   const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const tree = page.getFullFrameTree();
-    const parent = findFrameNode(tree, parentFrameId);
-    const child = parent?.childFrames?.[idx]?.frame?.id;
-    if (child) return child;
-    await delay(80);
+  while (true) {
+    try {
+      const tree = page.getFullFrameTree();
+      const node = findFrameNode(tree, parentFrameId);
+      const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
+      if (ids.length > 0 || Date.now() >= deadline) return ids;
+    } catch {
+      //
+    }
+    await delay(50);
   }
-  return undefined;
 }
 
 function findFrameNode(

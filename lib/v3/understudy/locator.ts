@@ -1,6 +1,7 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame";
+import { executionContexts } from "./executionContextRegistry";
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -214,6 +215,10 @@ export class Locator {
    * - Creates (or reuses) an isolated world for this frame.
    * - Evaluates a CSS or XPath query in that isolated world.
    * - Best-effort: attempts to convert `objectId` to `nodeId`; failure is non-fatal.
+   *
+   * - For XPath: first try page-side resolver (__stagehandV3__.resolveSimpleXPath).
+   *   If it returns null (e.g. closed DSD not captured), fall back to CDP DOM with
+   *   `pierce: true` to traverse closed shadow roots and resolve by backendNodeId.
    */
   public async resolveNode(): Promise<{
     nodeId: Protocol.DOM.NodeId | null;
@@ -224,6 +229,108 @@ export class Locator {
     await session.send("Runtime.enable");
     await session.send("DOM.enable");
 
+    const raw = this.selector.trim();
+    const looksLikeXPath =
+      /^xpath=/i.test(raw) || raw.startsWith("/") || raw.startsWith("(");
+    const isCssPrefixed = /^css=/i.test(raw);
+
+    if (looksLikeXPath) {
+      // main world (needed for closed shadow)
+      const ctxId = await executionContexts.waitForMainWorld(
+        session,
+        this.frame.frameId,
+        1000,
+      );
+
+      const xp = raw.replace(/^xpath=/i, "");
+      console.log("[locator] xpath main-world", {
+        frameId: this.frame.frameId,
+        xp,
+        ctxId,
+      });
+
+      // Try page-side resolver first (fast path for open/closed via attachShadow)
+      const expr = `(function () {
+        const xp = ${JSON.stringify(xp)};
+        try {
+          if (window.__stagehandV3__ && typeof window.__stagehandV3__.resolveSimpleXPath === "function") {
+            return window.__stagehandV3__.resolveSimpleXPath(xp);
+          }
+          // Fallback to native XPath (will NOT cross closed shadow boundaries)
+          return document
+            .evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+            .singleNodeValue;
+        } catch { return null; }
+      })()`;
+
+      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression: expr,
+          contextId: ctxId,
+          returnByValue: false,
+          awaitPromise: true,
+        },
+      );
+
+      if (evalRes.exceptionDetails) {
+        throw new Error(evalRes.exceptionDetails.text ?? "Evaluation failed");
+      }
+
+      // If page-side resolver found it, return immediately
+      if (evalRes.result.objectId) {
+        const objectId = evalRes.result.objectId;
+        let nodeId: Protocol.DOM.NodeId | null = null;
+        try {
+          const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
+            "DOM.requestNode",
+            { objectId },
+          );
+          nodeId = rn.nodeId ?? null;
+        } catch {
+          nodeId = null;
+        }
+        return { nodeId, objectId };
+      }
+
+      // Page-side resolver failed — likely a closed DSD (never hit attachShadow).
+      // Fall back to CDP DOM traversal with pierce: true.
+      console.log("[locator] xpath pierce-fallback", {
+        frameId: this.frame.frameId,
+        xp,
+      });
+
+      const fallback = await this.resolveViaDomPierceXPath(xp);
+      if (!fallback) {
+        console.log("[locator] xpath not found", {
+          frameId: this.frame.frameId,
+          xp,
+        });
+        throw new Error(`Element not found for selector: ${this.selector}`);
+      }
+
+      const { objectId, backendNodeId } = fallback;
+
+      let nodeId: Protocol.DOM.NodeId | null = null;
+      try {
+        const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
+          "DOM.requestNode",
+          { objectId },
+        );
+        nodeId = rn.nodeId ?? null;
+      } catch {
+        nodeId = null;
+      }
+
+      console.log("[locator] xpath pierce-fallback hit", {
+        frameId: this.frame.frameId,
+        backendNodeId,
+      });
+
+      return { nodeId, objectId };
+    }
+
+    // CSS branch (isolated world is fine)
     const { executionContextId } = await session.send<{
       executionContextId: Protocol.Runtime.ExecutionContextId;
     }>("Page.createIsolatedWorld", {
@@ -231,18 +338,9 @@ export class Locator {
       worldName: "v3-world",
     });
 
-    const raw = this.selector.trim();
-    const looksLikeXPath =
-      /^xpath=/i.test(raw) || raw.startsWith("/") || raw.startsWith("(");
-    const isCssPrefixed = /^css=/i.test(raw);
-
-    const expr = looksLikeXPath
-      ? `(function () {
-           const xp = ${JSON.stringify(raw.replace(/^xpath=/i, ""))};
-           const n = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-           return n;
-         })()`
-      : `document.querySelector(${JSON.stringify(isCssPrefixed ? raw.replace(/^css=/i, "") : raw)})`;
+    const expr = `document.querySelector(${JSON.stringify(
+      isCssPrefixed ? raw.replace(/^css=/i, "") : raw,
+    )})`;
 
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
@@ -263,7 +361,6 @@ export class Locator {
       throw new Error(`Element not found for selector: ${this.selector}`);
     }
 
-    // Best-effort: request a nodeId (we won't rely on it for actions)
     let nodeId: Protocol.DOM.NodeId | null = null;
     try {
       const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
@@ -276,6 +373,172 @@ export class Locator {
     }
 
     return { nodeId, objectId };
+  }
+
+  /**
+   * CDP fallback for XPath resolution that needs to cross *closed* shadow roots
+   * created via Declarative Shadow DOM (no attachShadow call to intercept).
+   *
+   * Strategy:
+   *   - Fetch full DOM with `pierce: true` so closed shadow roots are included.
+   *   - Run a small, tolerant XPath stepper over the CDP node tree:
+   *       • supports absolute paths like `/html/body/...`
+   *       • supports `//` descendant jumps
+   *       • supports `tag[n]` numeric predicates per sibling group
+   *       • supports `*`
+   *   - Resolve the winning backendNodeId to an objectId for downstream actions.
+   */
+  private async resolveViaDomPierceXPath(xp: string): Promise<{
+    objectId: Protocol.Runtime.RemoteObjectId;
+    backendNodeId: Protocol.DOM.BackendNodeId;
+  } | null> {
+    const s = this.frame.session;
+
+    await s.send("DOM.enable").catch(() => {});
+    // depth: -1 → entire tree; pierce: true → include closed/open shadow roots
+    const doc = await s.send<Protocol.DOM.GetDocumentResponse>(
+      "DOM.getDocument",
+      {
+        depth: -1,
+        pierce: true,
+      },
+    );
+
+    const root = doc.root;
+    if (!root) return null;
+
+    // Tokenize: keep '' tokens to represent `//`
+    const raw = String(xp || "").trim();
+    const parts = raw.split("/"); // e.g. ["", "html", "body", "shadow-demo", "", "div", "button"]
+
+    type NodeT = Protocol.DOM.Node;
+
+    const isElement = (n: NodeT) => n.nodeType === 1;
+    const isShadowRoot = (n: NodeT) =>
+      n.nodeName === "#document-fragment" || n.nodeName === "#shadow-root";
+
+    const childrenOf = (n: NodeT): NodeT[] => {
+      const out: NodeT[] = [];
+      // Standard DOM children
+      if (Array.isArray(n.children)) out.push(...(n.children as NodeT[]));
+
+      // Shadow roots off an element host
+      if (Array.isArray(n.shadowRoots)) {
+        for (const sr of n.shadowRoots as NodeT[]) {
+          if (sr && Array.isArray(sr.children)) {
+            out.push(sr as NodeT); // include the shadow root node itself so we can descend
+          }
+        }
+      }
+      // For shadow root nodes, continue via their children
+      if (isShadowRoot(n) && Array.isArray(n.children)) {
+        // (already included above if we treat SR as a node that has children)
+      }
+      return out;
+    };
+
+    const allDescendants = (nodes: NodeT[]): NodeT[] => {
+      const out: NodeT[] = [];
+      const q = [...nodes];
+      while (q.length) {
+        const cur = q.shift()!;
+        const kids = childrenOf(cur);
+        for (const k of kids) {
+          out.push(k);
+          q.push(k);
+          // If the child is a shadow root node, also enqueue its children directly
+          if (isShadowRoot(k) && Array.isArray(k.children)) {
+            for (const c of k.children as NodeT[]) {
+              out.push(c);
+              q.push(c);
+            }
+          }
+        }
+      }
+      return out;
+    };
+
+    const parseStep = (step: string): { tag: string; index?: number } => {
+      const m = /^([a-zA-Z*-][a-zA-Z0-9\-_]*)?(?:\[(\d+)])?$/.exec(step.trim());
+      if (!m) return { tag: "*" };
+      const tag = (m[1] ?? "*").toLowerCase();
+      const index = m[2] ? parseInt(m[2], 10) : undefined;
+      return { tag, index };
+    };
+
+    let current: NodeT[] = [root];
+    let descendant = false;
+
+    for (let i = 1; i < parts.length; i++) {
+      const step = parts[i];
+      if (step === "") {
+        // Encountered `//` — next named step will be a descendant search
+        descendant = true;
+        continue;
+      }
+
+      const { tag, index } = parseStep(step);
+      const tagUpper = tag === "*" ? "*" : tag.toUpperCase();
+
+      const next: NodeT[] = [];
+
+      // For each current node, pick either immediate children or all descendants
+      for (const c of current) {
+        const pool = descendant ? allDescendants([c]) : childrenOf(c);
+
+        // Special: if pool contains shadow root nodes, descend through them too
+        const expanded: NodeT[] = [];
+        for (const n of pool) {
+          if (isShadowRoot(n)) {
+            expanded.push(...childrenOf(n)); // jump into SR children
+          } else {
+            expanded.push(n);
+          }
+        }
+
+        if (index !== undefined) {
+          // numeric predicate: choose the nth element of that tag among this parent's pool
+          let count = 0;
+          for (const n of expanded) {
+            if (isElement(n) && (tagUpper === "*" || n.nodeName === tagUpper)) {
+              count++;
+              if (count === index) {
+                next.push(n);
+                break; // nth per parent
+              }
+            }
+          }
+        } else {
+          for (const n of expanded) {
+            if (isElement(n) && (tagUpper === "*" || n.nodeName === tagUpper)) {
+              next.push(n);
+            }
+          }
+        }
+      }
+
+      if (!next.length) {
+        return null;
+      }
+
+      // Reset descendant flag after consuming a named step
+      descendant = false;
+      // Choose the next frontier
+      current = next;
+    }
+
+    // Final selection: first in tree order
+    const hit = current.find((n) => isElement(n));
+    if (!hit || hit.backendNodeId == null) return null;
+
+    const resolved = await s.send<Protocol.DOM.ResolveNodeResponse>(
+      "DOM.resolveNode",
+      { backendNodeId: hit.backendNodeId },
+    );
+    const objectId = resolved.object?.objectId;
+    if (!objectId) return null;
+
+    return { objectId, backendNodeId: hit.backendNodeId };
   }
 
   /** Compute a center point from a BoxModel content quad */
