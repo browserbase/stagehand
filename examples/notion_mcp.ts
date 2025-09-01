@@ -38,7 +38,7 @@ async function main() {
 
     // Define the instruction for the CUA
     const instruction =
-      "Can you add a few graphs to the Deep Research: Creatine page in Notion?";
+      "Check the Agent Tasks page in notion, read your tasks, perform them and update the notion page with the results.";
     console.log(`Instruction: ${chalk.white(instruction)}`);
 
     // Execute the instruction
