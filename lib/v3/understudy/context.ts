@@ -57,8 +57,31 @@ export class V3Context {
     console.log("[ctx] create: enableAutoAttach done");
     const ctx = new V3Context(conn);
     await ctx.bootstrap();
+    await ctx.waitForFirstTopLevelPage(5000);
     console.log("[ctx] create: bootstrap done");
     return ctx;
+  }
+
+  /**
+   * Wait until at least one top-level Page has been created and registered.
+   * We poll internal maps that bootstrap/onAttachedToTarget populate.
+   */
+  private async waitForFirstTopLevelPage(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      // A top-level Page is present if typeByTarget has an entry "page"
+      // and pagesByTarget has the corresponding Page object.
+      for (const [tid, ttype] of this.typeByTarget) {
+        if (ttype === "page") {
+          const p = this.pagesByTarget.get(tid);
+          if (p) return;
+        }
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(
+      `waitForFirstTopLevelPage timed out after ${timeoutMs}ms (no top-level Page)`,
+    );
   }
 
   private async ensurePiercer(
@@ -348,6 +371,10 @@ export class V3Context {
       });
     }
 
+    /* TODO: for child OOPIFs, we rely on reloads for our script to be applied.
+     *  This is not ideal. We should figure out a way to pause them, and inject them
+     *  from the beginning.
+     */
     // --- If Chrome did NOT pause this iframe (waitingForDebugger=false),
     //     we missed doc-start. Do a one-time, best-effort child reload
     //     so Page.addScriptToEvaluateOnNewDocument applies at creation time.
