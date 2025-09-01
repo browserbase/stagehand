@@ -58,7 +58,6 @@ export class ObserveHandler {
     // Build the hybrid snapshot (a11y-centric text tree + lookup maps)
     const snapshot = await captureHybridSnapshot(page, {
       experimental: this.experimental,
-      detectScrollable: true,
     });
 
     const combinedTree = snapshot.combinedTree;

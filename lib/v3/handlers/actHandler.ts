@@ -10,6 +10,8 @@ import type { Page } from "../understudy/page";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
 import type { ObserveResult } from "@/types/stagehand";
+import { buildActObservePrompt } from "@/lib/prompt";
+import { SupportedPlaywrightAction } from "@/types/act";
 
 export class ActHandler {
   private readonly logger: (logLine: LogLine) => void;
@@ -41,7 +43,6 @@ export class ActHandler {
     // Snapshot (gives text tree + xpath map)
     const snapshot = await captureHybridSnapshot(page as Page, {
       experimental: true,
-      detectScrollable: true,
     });
     const combinedTree = snapshot.combinedTree;
     const combinedXpathMap = (snapshot.combinedXpathMap ?? {}) as Record<
@@ -49,13 +50,19 @@ export class ActHandler {
       string
     >;
 
+    const observeActInstruction = buildActObservePrompt(
+      instruction,
+      Object.values(SupportedPlaywrightAction),
+      variables,
+    );
+
     const requestId =
       (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
       `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
 
     // Always ask for an action
     const observation = await observe({
-      instruction,
+      instruction: observeActInstruction,
       domElements: combinedTree,
       llmClient: this.llmClient,
       requestId,

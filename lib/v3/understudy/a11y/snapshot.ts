@@ -28,8 +28,6 @@ export type SnapshotOptions = {
   focusXPath?: string;
   /** Pierce shadow DOM in DOM.getDocument (default: true). */
   pierceShadow?: boolean;
-  /** Decorate scrollable nodes (placeholder; default: false). */
-  detectScrollable?: boolean;
   /** Experimental behaviours flag. */
   experimental?: boolean;
 };
@@ -81,6 +79,7 @@ export async function captureHybridSnapshot(
     {
       tagNameMap: Record<string, string>;
       xpathMap: Record<string, string>;
+      scrollableMap: Record<string, boolean>;
       urlMap: Record<string, string>;
     }
   >();
@@ -90,7 +89,7 @@ export async function captureHybridSnapshot(
     const owningSess = ownerSession(page, frameId);
 
     // DOM maps (scoped to this frame’s document in its owning session)
-    const { tagNameMap, xpathMap } = await domMapsForSession(
+    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
       owningSess,
       frameId,
       pierce,
@@ -102,12 +101,12 @@ export async function captureHybridSnapshot(
       focusXPath: frames[0] === frameId ? options?.focusXPath : undefined,
       tagNameMap,
       experimental: options?.experimental ?? false,
-      detectScrollable: options?.detectScrollable ?? false,
+      scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, urlMap });
+    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
   }
 
   // ============== 2) Compute absolute iframe prefixes top-down ==============
@@ -238,6 +237,7 @@ async function domMapsForSession(
 ): Promise<{
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
+  scrollableMap: Record<string, boolean>;
 }> {
   await session.send("DOM.enable").catch(() => {});
   const { root } = await session.send<{ root: Protocol.DOM.Node }>(
@@ -267,6 +267,7 @@ async function domMapsForSession(
 
   const tagNameMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
+  const scrollableMap: Record<string, boolean> = {};
 
   type StackEntry = { node: Protocol.DOM.Node; xpath: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
@@ -278,6 +279,10 @@ async function domMapsForSession(
       const encId = encode(frameId, node.backendNodeId);
       tagNameMap[encId] = String(node.nodeName).toLowerCase();
       xpathMap[encId] = xpath || "/"; // root of this scoped doc → "/"
+      // Mark scrollability if present on the DOM node
+      // CDP: Protocol.DOM.Node may include `isScrollable`; guard via `any` for type safety.
+      const isScrollable = node?.isScrollable === true;
+      if (isScrollable) scrollableMap[encId] = true;
     }
 
     // Children → per-sibling qualified steps
@@ -307,7 +312,7 @@ async function domMapsForSession(
     // Each frame is processed in its **own** session scope.
   }
 
-  return { tagNameMap, xpathMap };
+  return { tagNameMap, xpathMap, scrollableMap };
 }
 
 function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
@@ -356,9 +361,9 @@ type A11yNode = {
 
 type A11yOptions = {
   focusXPath?: string;
-  detectScrollable: boolean;
   experimental: boolean;
   tagNameMap: Record<string, string>;
+  scrollableMap: Record<string, boolean>;
   encode: (backendNodeId: number) => string;
 };
 
@@ -400,20 +405,8 @@ function decorateRoles(
   const asRole = (n: Protocol.Accessibility.AXNode) =>
     String(n.role?.value ?? "");
 
-  // Placeholder for scrollable decoration (disabled)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const isScrollable = (_n: Protocol.Accessibility.AXNode) =>
-    opts.detectScrollable ? false : false;
-
   return nodes.map((n) => {
-    let role = asRole(n);
-    if (isScrollable(n)) {
-      role =
-        role && role !== "generic" && role !== "none"
-          ? `scrollable, ${role}`
-          : "scrollable";
-    }
-
+    // Compute encoded id first so we can reference DOM maps
     let encodedId: string | undefined;
     if (typeof n.backendDOMNodeId === "number") {
       try {
@@ -421,6 +414,26 @@ function decorateRoles(
       } catch {
         // ignore encode failures
       }
+    }
+
+    // Establish base role label
+    let role = asRole(n);
+
+    // Always decorate scrollable; also force AX root as scrollable
+    const isRootAX = !n.parentId;
+    const domIsScrollable = encodedId
+      ? opts.scrollableMap[encodedId] === true
+      : false;
+    if (domIsScrollable || isRootAX) {
+      const tag = encodedId ? opts.tagNameMap[encodedId] : undefined;
+      const tagLabel = tag
+        ? tag.startsWith("#")
+          ? tag.slice(1)
+          : tag
+        : "document";
+      role = tagLabel
+        ? `scrollable, ${tagLabel}`
+        : `scrollable${role ? `, ${role}` : ""}`;
     }
 
     return {
