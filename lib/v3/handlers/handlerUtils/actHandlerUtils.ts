@@ -36,6 +36,9 @@ export async function performUnderstudyMethod(
   logger: LoggerFn,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
+  // Proactively wait for the DOM/network to be quiet before acting
+  await waitForDomNetworkQuiet(frame, logger, domSettleTimeoutMs);
+
   const selectorRaw = rawXPath.trim();
   const isXPath =
     selectorRaw.startsWith("xpath=") || selectorRaw.startsWith("/");
@@ -99,7 +102,6 @@ export async function performUnderstudyMethod(
       }
     }
 
-    await waitForSettledDom(frame, domSettleTimeoutMs);
     await handlePossibleNavigation(
       "action",
       selectorRaw,
@@ -399,33 +401,155 @@ async function getFrameUrl(frame: Frame): Promise<string> {
   return url;
 }
 
-async function waitForSettledDom(
+/**
+ * More robust DOM settle using Network + Page events to detect network quiet.
+ * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
+ */
+async function waitForDomNetworkQuiet(
   frame: Frame,
+  logger: LoggerFn,
   timeoutMs?: number,
 ): Promise<void> {
-  // Best-effort: wait for networkidle lifecycle event or a small quiet delay
   const timeout = typeof timeoutMs === "number" ? timeoutMs : 5_000;
+  const client = frame.session;
 
-  await frame.session.send("Page.enable");
+  // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
+  let hasDoc: boolean;
+  try {
+    const rs = await frame.evaluate<string>("document.readyState");
+    hasDoc = rs === "interactive" || rs === "complete";
+  } catch {
+    hasDoc = false;
+  }
+  if (!hasDoc) {
+    await frame.waitForLoadState("domcontentloaded").catch(() => {});
+  }
 
-  const done = new Promise<void>((resolve) => {
-    const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
-      if (
-        evt.frameId === frame.frameId &&
-        (evt.name === "networkIdle" || evt.name === "networkidle")
-      ) {
-        frame.session.off("Page.lifecycleEvent", handler);
-        resolve();
+  await client.send("Network.enable").catch(() => {});
+  await client.send("Page.enable").catch(() => {});
+  // Best-effort; some sessions may not support Target.setAutoAttach here.
+  await client
+    .send("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+      filter: [
+        { type: "worker", exclude: true },
+        { type: "shared_worker", exclude: true },
+      ],
+    })
+    .catch(() => {});
+
+  return new Promise<void>((resolve) => {
+    const inflight = new Set<string>();
+    const meta = new Map<string, { url: string; start: number }>();
+    const docByFrame = new Map<string, string>();
+
+    let quietTimer: NodeJS.Timeout | null = null;
+    let stalledRequestSweepTimer: NodeJS.Timeout | null = null;
+
+    const clearQuiet = () => {
+      if (quietTimer) {
+        clearTimeout(quietTimer);
+        quietTimer = null;
       }
     };
-    frame.session.on("Page.lifecycleEvent", handler);
-    setTimeout(() => {
-      frame.session.off("Page.lifecycleEvent", handler);
-      resolve();
-    }, timeout);
-  });
 
-  await done;
+    const maybeQuiet = () => {
+      if (inflight.size === 0 && !quietTimer)
+        quietTimer = setTimeout(() => resolveDone(), 500);
+    };
+
+    const finishReq = (id: string) => {
+      if (!inflight.delete(id)) return;
+      meta.delete(id);
+      for (const [fid, rid] of docByFrame)
+        if (rid === id) docByFrame.delete(fid);
+      clearQuiet();
+      maybeQuiet();
+    };
+
+    const onRequest = (p: Protocol.Network.RequestWillBeSentEvent) => {
+      // Ignore long-lived streams
+      // ResourceType includes: Document, XHR, Fetch, WebSocket, EventSource, etc.
+      if (p.type === "WebSocket" || p.type === "EventSource") return;
+
+      inflight.add(p.requestId);
+      meta.set(p.requestId, { url: p.request.url, start: Date.now() });
+
+      if (p.type === "Document" && p.frameId)
+        docByFrame.set(p.frameId, p.requestId);
+
+      clearQuiet();
+    };
+
+    const onFinish = (p: { requestId: string }) => finishReq(p.requestId);
+    const onCached = (p: { requestId: string }) => finishReq(p.requestId);
+    const onDataUrl = (p: Protocol.Network.ResponseReceivedEvent) => {
+      if (p.response.url?.startsWith("data:")) finishReq(p.requestId);
+    };
+
+    const onFrameStop = (f: Protocol.Page.FrameStoppedLoadingEvent) => {
+      const id = docByFrame.get(f.frameId);
+      if (id) finishReq(id);
+    };
+
+    client.on("Network.requestWillBeSent", onRequest);
+    client.on("Network.loadingFinished", onFinish);
+    client.on("Network.loadingFailed", onFinish);
+    client.on("Network.requestServedFromCache", onCached);
+    client.on("Network.responseReceived", onDataUrl);
+    client.on("Page.frameStoppedLoading", onFrameStop);
+
+    stalledRequestSweepTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [id, m] of meta) {
+        if (now - m.start > 2_000) {
+          inflight.delete(id);
+          meta.delete(id);
+          logger({
+            category: "dom",
+            message: "⏳ forcing completion of stalled iframe document",
+            level: 1,
+            auxiliary: {
+              url: { value: (m.url ?? "").slice(0, 120), type: "string" },
+            },
+          });
+        }
+      }
+      maybeQuiet();
+    }, 500);
+
+    maybeQuiet();
+
+    const guard = setTimeout(() => {
+      if (inflight.size) {
+        logger({
+          category: "dom",
+          message:
+            "⚠️ DOM-settle timeout reached – network requests still pending",
+          level: 1,
+          auxiliary: {
+            count: { value: String(inflight.size), type: "integer" },
+          },
+        });
+      }
+      resolveDone();
+    }, timeout);
+
+    const resolveDone = () => {
+      client.off("Network.requestWillBeSent", onRequest);
+      client.off("Network.loadingFinished", onFinish);
+      client.off("Network.loadingFailed", onFinish);
+      client.off("Network.requestServedFromCache", onCached);
+      client.off("Network.responseReceived", onDataUrl);
+      client.off("Page.frameStoppedLoading", onFrameStop);
+      if (quietTimer) clearTimeout(quietTimer);
+      if (stalledRequestSweepTimer) clearInterval(stalledRequestSweepTimer);
+      clearTimeout(guard);
+      resolve();
+    };
+  });
 }
 
 async function handlePossibleNavigation(
@@ -449,6 +573,13 @@ async function handlePossibleNavigation(
     logger({
       category: "action",
       message: "new page (frame) URL detected",
+      level: 1,
+      auxiliary: { url: { value: afterUrl, type: "string" } },
+    });
+  } else {
+    logger({
+      category: "action",
+      message: "no new (frame) URL detected",
       level: 1,
       auxiliary: { url: { value: afterUrl, type: "string" } },
     });
