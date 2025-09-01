@@ -93,7 +93,6 @@ export class ExtractHandler {
     if (noArgs) {
       const snap = await captureHybridSnapshot(page, {
         experimental: this.experimental,
-        detectScrollable: true,
       });
 
       const result = { page_text: snap.combinedTree };
@@ -104,7 +103,6 @@ export class ExtractHandler {
     // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
     const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
       experimental: this.experimental,
-      detectScrollable: true,
     });
 
     this.logger({
