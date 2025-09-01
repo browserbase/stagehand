@@ -1,7 +1,6 @@
 // lib/v3/handlers/actHandler.ts
 import { ActHandlerParams } from "@/lib/v3/types";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
-import fs from "fs";
 import { observe } from "@/lib/inference";
 import { LogLine } from "@/types/log";
 import { LLMClient } from "@/lib/llm/LLMClient";
@@ -49,13 +48,6 @@ export class ActHandler {
       EncodedId,
       string
     >;
-
-    try {
-      fs.writeFileSync("snapshot.json", JSON.stringify(snapshot, null, 2));
-      fs.writeFileSync("combinedtree.txt", combinedTree);
-    } catch {
-      /* ignore fs failures */
-    }
 
     const requestId =
       (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??

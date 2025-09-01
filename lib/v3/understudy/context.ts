@@ -244,19 +244,22 @@ export class V3Context {
   private async onAttachedToTarget(
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
-    waitingForDebugger?: boolean,
+    waitingForDebugger?: boolean, // Chrome paused this target at doc-start?
   ): Promise<void> {
     console.log("[ctx] onAttachedToTarget:", {
       type: info.type,
       url: info.url,
       sessionId,
+      paused: !!waitingForDebugger,
     });
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
+    // Init guard
     if (this._sessionInit.has(sessionId)) return;
     this._sessionInit.add(sessionId);
 
+    // Page domain first so frame events flow
     const pageEnabled = await session
       .send("Page.enable")
       .then(() => true)
@@ -271,12 +274,15 @@ export class V3Context {
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
 
-    const label = isTopLevelPage(info) ? "top" : info.type || "child";
+    // Capture main-world creations & inject piercer BEFORE any resume
     executionContexts.attachSession(session);
     await session.send("Runtime.enable").catch(() => {});
-    await this.ensurePiercer(session, label);
+    await this.ensurePiercer(
+      session,
+      isTopLevelPage(info) ? "top" : info.type || "child",
+    );
 
-    // Top-level page target
+    // Top-level handling
     if (isTopLevelPage(info)) {
       const page = await Page.create(session, info.targetId);
       this.wireSessionToOwnerPage(sessionId, page);
@@ -290,13 +296,15 @@ export class V3Context {
       }
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
+
+      // Resume only if Chrome actually paused
       if (waitingForDebugger) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
       }
       return;
     }
 
-    // Potential OOPIF (iframe) target:
+    // Child (iframe / OOPIF)
     try {
       const { frameTree } =
         await session.send<Protocol.Page.GetFrameTreeResponse>(
@@ -340,6 +348,60 @@ export class V3Context {
       });
     }
 
+    // --- If Chrome did NOT pause this iframe (waitingForDebugger=false),
+    //     we missed doc-start. Do a one-time, best-effort child reload
+    //     so Page.addScriptToEvaluateOnNewDocument applies at creation time.
+    if (info.type === "iframe" && !waitingForDebugger) {
+      try {
+        console.log(
+          "[ctx] child not paused → reloading via location.reload()",
+          {
+            sessionId,
+          },
+        );
+
+        // Ensure lifecycle events are enabled to observe load
+        await session
+          .send("Page.setLifecycleEventsEnabled", { enabled: true })
+          .catch(() => {});
+
+        const loadWait = new Promise<void>((resolve) => {
+          const handler = (evt: Protocol.Page.LifecycleEventEvent) => {
+            if (evt.name === "load") {
+              session.off("Page.lifecycleEvent", handler);
+              resolve();
+            }
+          };
+          session.on("Page.lifecycleEvent", handler);
+        });
+
+        // Cannot use Page.reload on child targets → use Runtime.evaluate
+        await session
+          .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression: "location.reload()",
+            returnByValue: true,
+            awaitPromise: false,
+          })
+          .catch(() => {});
+
+        // Wait up to ~3s for the child to finish loading (best effort)
+        await Promise.race([
+          loadWait,
+          new Promise<void>((r) => setTimeout(r, 3000)),
+        ]);
+
+        // After reload, our addScriptToEvaluateOnNewDocument runs at doc-start.
+        // We can optionally re-evaluate the piercer (idempotent), but not required.
+        await this.ensurePiercer(session, "iframe");
+      } catch (e) {
+        console.log("[ctx] child reload attempt failed (continuing)", {
+          sessionId,
+          err: String(e),
+        });
+      }
+    }
+
+    // Resume only if Chrome actually paused (rare for iframes in your logs)
     if (waitingForDebugger) {
       await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
     }

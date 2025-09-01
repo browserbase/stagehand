@@ -9,7 +9,7 @@ export async function installV3PiercerIntoSession(
   await session.send("Runtime.enable").catch(() => {});
   await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
     "Page.addScriptToEvaluateOnNewDocument",
-    { source: v3ScriptContent },
+    { source: v3ScriptContent, runImmediately: true },
   );
   await session
     .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {

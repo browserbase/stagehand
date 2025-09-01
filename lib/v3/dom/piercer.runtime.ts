@@ -33,8 +33,10 @@ declare global {
 }
 
 export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
-  // Reuse a single shared state attached to the patched function
-  const orig = Element.prototype.attachShadow as Element["attachShadow"] & {
+  // hardcoded debug (remove later if desired)
+  const DEBUG = true;
+
+  type PatchedFn = Element["attachShadow"] & {
     __v3Patched?: boolean;
     __v3State?: V3InternalState;
   };
@@ -128,9 +130,8 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
 
       let current: Node[] = [document];
 
-      for (let si = 0; si < steps.length; si++) {
-        const step = steps[si]!;
-        const wantIdx = step.index; // 1-based or null
+      for (const step of steps) {
+        const wantIdx = step.index;
         let chosen: Element | null = null;
 
         for (const root of current) {
@@ -153,7 +154,7 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
             });
           }
 
-          if (matches.length === 0) continue;
+          if (!matches.length) continue;
 
           if (wantIdx != null) {
             const idx0 = wantIdx - 1;
@@ -185,7 +186,7 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
     };
 
     window.__stagehandV3__ = {
-      getClosedRoot: (host: Element) => state.hostToRoot.get(host),
+      getClosedRoot: (host: Element) => hostToRoot.get(host),
       stats: () => ({
         installed: true,
         url: location.href,
@@ -194,52 +195,62 @@ export function installV3ShadowPiercer(opts: V3ShadowPatchOptions = {}): void {
         closed: state.closedCount,
       }),
       resolveSimpleXPath,
-    } as StagehandV3Backdoor;
+    } satisfies StagehandV3Backdoor;
   };
 
-  // If already patched, reuse existing state and rebind (force debug on)
-  if (orig.__v3Patched && orig.__v3State) {
-    orig.__v3State.debug = true; // HARDCODED
-    window.__stagehandV3Injected = true;
-    bindBackdoor(orig.__v3State);
+  // Look at the *current* function on the prototype. If it's already our patched
+  // function, reuse its shared state and rebind the backdoor (no new WeakMap).
+  const currentFn = Element.prototype.attachShadow as PatchedFn;
+  if (currentFn.__v3Patched && currentFn.__v3State) {
+    currentFn.__v3State.debug = DEBUG; // keep debug toggle consistent
+    bindBackdoor(currentFn.__v3State);
+    // idempotent: do not log "installed" again
     return;
   }
 
-  // First-time patch
+  // First-time install: create shared state and replace the prototype method
   const state: V3InternalState = {
     hostToRoot: new WeakMap<Element, ShadowRoot>(),
     openCount: 0,
     closedCount: 0,
-    debug: true, // HARDCODED
+    debug: DEBUG,
   };
+
+  const original = currentFn; // keep a reference to call through
+  const patched: PatchedFn = function (
+    this: Element,
+    init: ShadowRootInit,
+  ): ShadowRoot {
+    const mode = init?.mode ?? "open";
+    const root = original.call(this, init);
+    try {
+      state.hostToRoot.set(this, root);
+      if (mode === "closed") state.closedCount++;
+      else state.openCount++;
+      if (state.debug) {
+        console.info("[v3-piercer] attachShadow", {
+          tag: (this as Element).tagName?.toLowerCase() ?? "",
+          mode,
+          url: location.href,
+        });
+      }
+    } catch {
+      //
+    }
+    return root;
+  } as PatchedFn;
+
+  // Mark the *patched* function with metadata so re-entry sees it
+  patched.__v3Patched = true;
+  patched.__v3State = state;
 
   Object.defineProperty(Element.prototype, "attachShadow", {
     configurable: true,
     writable: true,
-    value: function patched(init: ShadowRootInit): ShadowRoot {
-      const mode = init?.mode ?? "open";
-      const root = orig.call(this, init);
-      try {
-        state.hostToRoot.set(this as Element, root);
-        if (mode === "closed") state.closedCount++;
-        else state.openCount++;
-        if (state.debug) {
-          console.info("[v3-piercer] attachShadow", {
-            tag: (this as Element).tagName?.toLowerCase() ?? "",
-            mode,
-            url: location.href,
-          });
-        }
-      } catch {
-        //
-      }
-      return root;
-    },
+    value: patched,
   });
 
-  orig.__v3Patched = true;
-  orig.__v3State = state;
-
+  // Optionally tag existing open roots (closed cannot be discovered post-hoc)
   if (opts.tagExisting) {
     try {
       const walker = document.createTreeWalker(
