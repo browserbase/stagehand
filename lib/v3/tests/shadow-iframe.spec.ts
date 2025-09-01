@@ -39,8 +39,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
       // If we reach here, no exception was thrown (our minimal assertion for this site).
       // TODO: harden this assertion such that we know for sure that the button was clicked
@@ -68,10 +66,8 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         description: "nunya",
         arguments: [""],
       };
-
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
+      await new Promise(resolve => setTimeout(resolve, 2000));
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
     } finally {
@@ -98,8 +94,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
@@ -127,8 +121,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
@@ -155,8 +147,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
@@ -183,8 +173,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
@@ -212,8 +200,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: ["nunya"],
       };
 
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       await v3.act(observeResult, page);
 
       const child = page.frames().find((f) => f !== page.mainFrame());
@@ -250,9 +236,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         description: "fill input inside OOPIF",
         arguments: ["nunya"],
       };
-
-      // TODO: remove this timeout when we add waitForSettleDOM
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       // Act through V3. If it throws, the test fails naturally.
       await v3.act(observeResult, page);
 
