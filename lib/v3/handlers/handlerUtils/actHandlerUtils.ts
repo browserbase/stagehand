@@ -166,7 +166,7 @@ async function scrollIntoView(
 async function scrollElementToPercentage(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath, logger, args, frame } = ctx;
+  const { locator, xpath, logger, args } = ctx;
   logger({
     category: "action",
     message: "scrolling element vertically to specified percentage",
@@ -178,43 +178,7 @@ async function scrollElementToPercentage(
   });
 
   const [yArg = "0%"] = args;
-  const { objectId } = await locator.resolveNode();
-  try {
-    await frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
-      "Runtime.callFunctionOn",
-      {
-        objectId,
-        functionDeclaration: `
-          function(yArg) {
-            function parsePercent(val) {
-              const cleaned = String(val).trim().replace("%", "");
-              const num = parseFloat(cleaned);
-              return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
-            }
-            const yPct = parsePercent(yArg);
-
-            if (this.tagName && (this.tagName.toLowerCase() === "html" || this.tagName.toLowerCase() === "body")) {
-              const scrollHeight = document.body.scrollHeight;
-              const viewportHeight = window.innerHeight;
-              const scrollTop = (scrollHeight - viewportHeight) * (yPct / 100);
-              window.scrollTo({ top: scrollTop, left: window.scrollX, behavior: "smooth" });
-            } else {
-              const scrollHeight = this.scrollHeight ?? 0;
-              const clientHeight = this.clientHeight ?? 0;
-              const scrollTop = (scrollHeight - clientHeight) * (yPct / 100);
-              this.scrollTo({ top: scrollTop, left: this.scrollLeft ?? 0, behavior: "smooth" });
-            }
-          }
-        `,
-        arguments: [{ value: yArg }],
-        returnByValue: true,
-      },
-    );
-  } finally {
-    await frame.session
-      .send("Runtime.releaseObject", { objectId })
-      .catch(() => {});
-  }
+  await locator.scrollTo(yArg);
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {

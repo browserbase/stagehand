@@ -91,6 +91,59 @@ export class Locator {
   }
 
   /**
+   * Scroll the element vertically to a given percentage (0–100).
+   * - If the element is <html> or <body>, scrolls the window/document.
+   * - Otherwise, scrolls the element itself via element.scrollTo.
+   */
+  async scrollTo(percent: number | string): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `
+            function(pct) {
+              function normalize(v) {
+                if (typeof v === 'number') return Math.max(0, Math.min(v, 100));
+                const s = String(v).trim();
+                const n = parseFloat(s.replace('%',''));
+                return Number.isNaN(n) ? 0 : Math.max(0, Math.min(n, 100));
+              }
+              const yPct = normalize(pct);
+              const tag = this.tagName?.toLowerCase();
+
+              if (tag === 'html' || tag === 'body') {
+                const root = document.scrollingElement || document.documentElement || document.body;
+                const scrollHeight = root.scrollHeight || document.body.scrollHeight;
+                const viewportHeight = window.innerHeight;
+                const maxTop = Math.max(0, (scrollHeight - viewportHeight));
+                const top = maxTop * (yPct / 100);
+                window.scrollTo({ top, left: window.scrollX, behavior: 'smooth' });
+                return true;
+              }
+
+              const scrollHeight = this.scrollHeight ?? 0;
+              const clientHeight = this.clientHeight ?? 0;
+              const maxTop = Math.max(0, (scrollHeight - clientHeight));
+              const top = maxTop * (yPct / 100);
+              this.scrollTo({ top, left: this.scrollLeft ?? 0, behavior: 'smooth' });
+              return true;
+            }
+          `,
+          arguments: [{ value: percent as unknown as number }],
+          returnByValue: true,
+        },
+      );
+    } finally {
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
    * Fill an input/textarea/contenteditable element.
    * - Sets the value/text directly in DOM.
    * - Dispatches `input` and `change` events to mimic user input.

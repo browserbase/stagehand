@@ -419,18 +419,14 @@ function decorateRoles(
     // Establish base role label
     let role = asRole(n);
 
-    // Always decorate scrollable; also force AX root as scrollable
-    const isRootAX = !n.parentId;
+    // Decorate scrollable DOM Node isScrollable: true, or when node corresponds to <html>
     const domIsScrollable = encodedId
       ? opts.scrollableMap[encodedId] === true
       : false;
-    if (domIsScrollable || isRootAX) {
-      const tag = encodedId ? opts.tagNameMap[encodedId] : undefined;
-      const tagLabel = tag
-        ? tag.startsWith("#")
-          ? tag.slice(1)
-          : tag
-        : "document";
+    const tag = encodedId ? opts.tagNameMap[encodedId] : undefined;
+    const isHtmlElement = tag === "html";
+    if (domIsScrollable || isHtmlElement) {
+      const tagLabel = tag && tag.startsWith("#") ? tag.slice(1) : tag;
       role = tagLabel
         ? `scrollable, ${tagLabel}`
         : `scrollable${role ? `, ${role}` : ""}`;
