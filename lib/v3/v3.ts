@@ -286,7 +286,7 @@ export class V3 {
     }
     const params = a as ActParams;
 
-    let page: Page | undefined;
+    let page: Page;
 
     if (params.page) {
       if (params.page instanceof (await import("./understudy/page")).Page) {
@@ -297,6 +297,8 @@ export class V3 {
         const frameId = await this.resolveTopFrameId(params.page);
         page = this.ctx!.resolvePageByMainFrameId(frameId);
       }
+    } else {
+      page = this.ctx.activePage();
     }
 
     const handlerParams: ActHandlerParams = {
@@ -317,8 +319,7 @@ export class V3 {
       throw new Error("V3 not initialized. Call init() before extract().");
     }
 
-    let page: Page | undefined;
-
+    let page: Page;
     if (params.page) {
       if (params.page instanceof (await import("./understudy/page")).Page) {
         // Already a V3 Page
@@ -328,6 +329,8 @@ export class V3 {
         const frameId = await this.resolveTopFrameId(params.page);
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
+    } else {
+      page = this.ctx.activePage();
     }
 
     const noArgs = !params.instruction && !params.schema;
@@ -360,7 +363,7 @@ export class V3 {
     }
 
     // Resolve to our internal Page type
-    let page: Page | undefined;
+    let page: Page;
     if (params.page) {
       if (params.page instanceof (await import("./understudy/page")).Page) {
         page = params.page;
@@ -368,6 +371,8 @@ export class V3 {
         const frameId = await this.resolveTopFrameId(params.page);
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
+    } else {
+      page = this.ctx.activePage();
     }
 
     const handlerParams: ObserveHandlerParams = {

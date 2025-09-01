@@ -67,7 +67,6 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
         arguments: [""],
       };
       await v3.act(observeResult, page);
-      await new Promise(resolve => setTimeout(resolve, 2000));
       // TODO: harden this assertion such that we know for sure that the button was clicked
       expect(true).toBeTruthy();
     } finally {
