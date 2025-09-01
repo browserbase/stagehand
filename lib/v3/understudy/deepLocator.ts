@@ -2,6 +2,7 @@ import { Protocol } from "devtools-protocol";
 import { Locator } from "./locator";
 import type { Frame } from "./frame";
 import type { Page } from "./page";
+import { executionContexts } from "./executionContextRegistry";
 
 /**
  * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.
@@ -123,6 +124,12 @@ export async function deepLocatorThroughIframes(
       }
 
       console.log("[deep-hop] switching to child", { childFrameId });
+      // Ensure we use the correct owning session with minimal delay:
+      // 1) If same-process iframe, the parent session owns the frame and its
+      //    main world will appear quickly — no extra waiting.
+      // 2) If OOPIF and adoption not finished, the main world will NOT appear
+      //    on parent; in that case, wait briefly for adoption, then proceed.
+      await ensureChildFrameReady(page, ctx, childFrameId, 1200);
       ctx = page.frameForId(childFrameId);
     } finally {
       await parentSession
@@ -143,6 +150,117 @@ export async function deepLocatorThroughIframes(
   const finalSelector = "xpath=" + buildXPathFromSteps(buf);
   console.log("[deep-hop] final tail", { frameId: ctx.frameId, finalSelector });
   return new Locator(ctx, finalSelector);
+}
+
+/**
+ * Ensure we can evaluate in the child frame with minimal delay.
+ * - If the child is same-process: the parent session owns it and the main
+ *   world appears quickly. We try a short wait for main world on the parent.
+ * - If that fails: likely an OOPIF not yet adopted — wait for ownership to
+ *   change to a different session, then (briefly) wait for main world there.
+ */
+async function ensureChildFrameReady(
+  page: Page,
+  parentFrame: Frame,
+  childFrameId: string,
+  budgetMs: number,
+): Promise<void> {
+  const parentSession = parentFrame.session;
+  const deadline = Date.now() + Math.max(0, budgetMs);
+
+  // If already owned by a different session (OOPIF adopted), do a quick main-world wait there.
+  const owner = page.getSessionForFrame(childFrameId);
+  if (owner && owner !== parentSession) {
+    try {
+      await executionContexts.waitForMainWorld(owner, childFrameId, 600);
+    } catch {
+      // proceed; Locator will still wait as needed
+    }
+    return;
+  }
+
+  // Same-process path: avoid arbitrary sleeps. Prefer event-driven readiness.
+  const hasMainWorldOnParent = (): boolean => {
+    try {
+      return (
+        executionContexts.getMainWorld(parentSession, childFrameId) !== null
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // Quick check again before wiring listeners
+  if (hasMainWorldOnParent()) return;
+
+  // Ensure lifecycle events are flowing; Runtime is typically enabled already.
+  await parentSession
+    .send("Page.setLifecycleEventsEnabled", { enabled: true })
+    .catch(() => {});
+  await parentSession.send("Runtime.enable").catch(() => {});
+
+  await new Promise<void>((resolve) => {
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      parentSession.off("Page.lifecycleEvent", onLifecycle);
+      resolve();
+    };
+
+    const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
+      if (
+        evt.frameId !== childFrameId ||
+        (evt.name !== "DOMContentLoaded" &&
+          evt.name !== "load" &&
+          evt.name !== "networkIdle" &&
+          evt.name !== "networkidle")
+      ) {
+        return;
+      }
+      // On any meaningful lifecycle event for the child, re-check readiness.
+      if (hasMainWorldOnParent()) {
+        finish();
+        return;
+      }
+      // If ownership flipped to OOPIF during this time, wait briefly on child.
+      try {
+        const nowOwner = page.getSessionForFrame(childFrameId);
+        if (nowOwner && nowOwner !== parentSession) {
+          const left = Math.max(150, deadline - Date.now());
+          executionContexts
+            .waitForMainWorld(nowOwner, childFrameId, left)
+            .finally(finish);
+        }
+      } catch {
+        // ignore; fall through to time budget
+      }
+    };
+
+    parentSession.on("Page.lifecycleEvent", onLifecycle);
+
+    // Poller to avoid missing events; returns when budget expires or ready.
+    const tick = () => {
+      if (done) return;
+      if (hasMainWorldOnParent()) return finish();
+      try {
+        const nowOwner = page.getSessionForFrame(childFrameId);
+        if (nowOwner && nowOwner !== parentSession) {
+          const left = Math.max(150, deadline - Date.now());
+          executionContexts
+            .waitForMainWorld(nowOwner, childFrameId, left)
+            .finally(finish);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      if (Date.now() >= deadline) return finish();
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
 }
 
 /**
