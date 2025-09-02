@@ -30,7 +30,7 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
 import { defaultExtractSchema } from "@/types/page";
-import { ObserveResult } from "@/types/stagehand";
+import { ObserveResult, ActResult } from "@/types/stagehand";
 import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
 
@@ -345,18 +345,18 @@ export class V3 {
    * Run an "act" instruction through the ActHandler.
    * Optional: narrow to a specific page (Playwright/Puppeteer).
    */
-  async act(params: ActParams): Promise<void>;
+  async act(params: ActParams): Promise<ActResult>;
   async act(
     observe: ObserveResult,
     page?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
-  ): Promise<void>;
+  ): Promise<ActResult>;
 
   async act(
     input: ActParams | ObserveResult,
     pageArg?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
-  ): Promise<void> {
+  ): Promise<ActResult> {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
 
@@ -373,12 +373,11 @@ export class V3 {
       const selector = input.selector.startsWith("xpath=")
         ? input.selector
         : `xpath=${input.selector}`;
-      await this.actHandler.actFromObserveResult(
+      return await this.actHandler.actFromObserveResult(
         { ...input, selector }, // ObserveResult
         v3Page, // V3 Page
         opts?.domSettleTimeoutMs,
       );
-      return;
     }
     const params = input as ActParams;
 

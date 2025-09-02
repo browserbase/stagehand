@@ -9,7 +9,7 @@ import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 import type { Page } from "../understudy/page";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
-import type { ObserveResult } from "@/types/stagehand";
+import type { ObserveResult, ActResult } from "@/types/stagehand";
 import { buildActObservePrompt } from "@/lib/prompt";
 import { SupportedPlaywrightAction } from "@/types/act";
 
@@ -50,7 +50,7 @@ export class ActHandler {
     this.onMetrics = onMetrics;
   }
 
-  async act(params: ActHandlerParams): Promise<void> {
+  async act(params: ActHandlerParams): Promise<ActResult> {
     const { instruction, page, variables, domSettleTimeoutMs } = params;
 
     // Snapshot (gives text tree + xpath map)
@@ -155,22 +155,36 @@ export class ActHandler {
     });
 
     // Execute via CDP
-    await performUnderstudyMethod(
-      page as Page,
-      (page as Page).mainFrame(),
-      chosen.method,
-      chosen.selector,
-      args,
-      this.logger,
-      domSettleTimeoutMs,
-    );
+    try {
+      await performUnderstudyMethod(
+        page as Page,
+        (page as Page).mainFrame(),
+        chosen.method,
+        chosen.selector,
+        args,
+        this.logger,
+        domSettleTimeoutMs,
+      );
+      return {
+        success: true,
+        message: `Action [${chosen.method}] performed successfully on selector: ${chosen.selector}`,
+        action: chosen.description || `ObserveResult action (${chosen.method})`,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        message: `Failed to perform act: ${msg}`,
+        action: chosen.description || `ObserveResult action (${chosen.method})`,
+      };
+    }
   }
 
   async actFromObserveResult(
     observe: ObserveResult,
     page: Page,
     domSettleTimeoutMs?: number,
-  ): Promise<void> {
+  ): Promise<ActResult> {
     const method = observe.method?.trim();
     if (!method || method === "not-supported") {
       this.logger({
@@ -181,19 +195,39 @@ export class ActHandler {
           observe: { value: JSON.stringify(observe), type: "object" },
         },
       });
-      throw new Error("ObserveResult must include a supported 'method'.");
+      return {
+        success: false,
+        message: `Unable to perform action: The method '${method ?? ""}' is not supported in ObserveResult. Please use a supported Playwright locator method.`,
+        action:
+          observe.description ||
+          `ObserveResult action (${method ?? "unknown"})`,
+      };
     }
 
     const args = Array.isArray(observe.arguments) ? observe.arguments : [];
 
-    await performUnderstudyMethod(
-      page,
-      page.mainFrame(),
-      method,
-      observe.selector,
-      args,
-      this.logger,
-      domSettleTimeoutMs,
-    );
+    try {
+      await performUnderstudyMethod(
+        page,
+        page.mainFrame(),
+        method,
+        observe.selector,
+        args,
+        this.logger,
+        domSettleTimeoutMs,
+      );
+      return {
+        success: true,
+        message: `Action [${method}] performed successfully on selector: ${observe.selector}`,
+        action: observe.description || `ObserveResult action (${method})`,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        message: `Failed to perform act: ${msg}`,
+        action: observe.description || `ObserveResult action (${method})`,
+      };
+    }
   }
 }
