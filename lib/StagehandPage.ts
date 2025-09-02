@@ -38,6 +38,8 @@ async function getCurrentRootFrameId(session: CDPSession): Promise<string> {
   return frameTree.frame.id;
 }
 
+let stagehandSelectorEngineRegistered = false;
+
 export class StagehandPage {
   private stagehand: Stagehand;
   private rawPage: PlaywrightPage;
@@ -194,7 +196,10 @@ ${scriptContent} \
 
   /** Register the custom selector engine that pierces open/closed shadow roots. */
   private async ensureStagehandSelectorEngine(): Promise<void> {
-    const registerFn = () => {
+    if (stagehandSelectorEngineRegistered) return;
+    stagehandSelectorEngineRegistered = true;
+
+    await selectors.register("stagehand", () => {
       type Backdoor = {
         getClosedRoot?: (host: Element) => ShadowRoot | undefined;
       };
@@ -293,20 +298,7 @@ ${scriptContent} \
           return out;
         },
       };
-    };
-
-    try {
-      await selectors.register("stagehand", registerFn);
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.match(/selector engine has been already registered/)
-      ) {
-        // ignore
-      } else {
-        throw err;
-      }
-    }
+    });
   }
 
   /**
