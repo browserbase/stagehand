@@ -8,11 +8,7 @@ import path from "path";
 import { Browser, chromium } from "playwright";
 import { z } from "zod/v3";
 import { StreamTextResult, ToolSet } from "ai";
-import {
-  AgentExecuteOptions,
-  AgentResult,
-  AgentStreamCallbacks,
-} from "../types/agent";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
@@ -919,12 +915,14 @@ export class Stagehand {
     ) => Promise<AgentResult>;
     stream: (
       instructionOrOptions: string | AgentExecuteOptions,
-      callbacks?: AgentStreamCallbacks,
     ) => Promise<StreamTextResult<AgentTools & ToolSet, never>>;
+    stop: () => void;
   } {
     if (!options || !options.provider) {
       const executionModel = options?.executionModel;
       const systemInstructions = options?.instructions;
+
+      let abortController = new AbortController();
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
@@ -936,6 +934,24 @@ export class Stagehand {
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
+
+          // Create new controller if the previous one was aborted, this can happen when the user calls stop() and uses agent.execute() again
+          if (abortController.signal.aborted) {
+            abortController = new AbortController();
+          }
+
+          const executeOptions =
+            typeof instructionOrOptions === "string"
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: abortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal:
+                    instructionOrOptions.abortSignal || abortController.signal,
+                };
+
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
@@ -943,12 +959,9 @@ export class Stagehand {
             executionModel,
             systemInstructions,
             tools,
-          ).execute(instructionOrOptions);
+          ).execute(executeOptions);
         },
-        stream: async (
-          instructionOrOptions: string | AgentExecuteOptions,
-          callbacks?: AgentStreamCallbacks,
-        ) => {
+        stream: async (instructionOrOptions: string | AgentExecuteOptions) => {
           if (options?.integrations && !this.experimental) {
             throw new StagehandError(
               "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
@@ -957,6 +970,25 @@ export class Stagehand {
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
+
+          // Create new controller if the previous one was aborted
+          if (abortController.signal.aborted) {
+            abortController = new AbortController();
+          }
+
+          // Merge user's abort signal with internal one if provided
+          const streamOptions =
+            typeof instructionOrOptions === "string"
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: abortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal:
+                    instructionOrOptions.abortSignal || abortController.signal,
+                };
+
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
@@ -964,7 +996,15 @@ export class Stagehand {
             executionModel,
             systemInstructions,
             tools,
-          ).stream(instructionOrOptions, callbacks);
+          ).stream(streamOptions);
+        },
+        stop: () => {
+          this.log({
+            category: "agent",
+            message: "Stopping agent execution",
+            level: 1,
+          });
+          abortController.abort();
         },
       };
     }
@@ -1049,6 +1089,13 @@ export class Stagehand {
           "Stream method is only available when using AI SDK models (e.g., openai/gpt-4o-mini). " +
             "Please create an agent without specifying a provider to use the stream method.",
         );
+      },
+      stop: () => {
+        this.log({
+          category: "agent",
+          message: "Stop is not supported for legacy providers",
+          level: 0,
+        });
       },
     };
   }

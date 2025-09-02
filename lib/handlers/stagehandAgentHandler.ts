@@ -1,9 +1,4 @@
-import {
-  AgentAction,
-  AgentExecuteOptions,
-  AgentResult,
-  AgentStreamCallbacks,
-} from "@/types/agent";
+import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
@@ -101,6 +96,7 @@ export class StagehandAgentHandler {
         maxSteps,
         temperature: 1,
         toolChoice: "auto",
+        abortSignal: options.abortSignal,
         onStepFinish: async (event) => {
           this.logger({
             category: "agent",
@@ -243,7 +239,6 @@ For each action, provide clear reasoning about why you're taking that step.`;
    */
   public async stream(
     instructionOrOptions: string | AgentExecuteOptions,
-    callbacks?: AgentStreamCallbacks,
   ): Promise<StreamTextResult<AgentTools & ToolSet, never>> {
     const options =
       typeof instructionOrOptions === "string"
@@ -299,6 +294,7 @@ For each action, provide clear reasoning about why you're taking that step.`;
         maxSteps,
         temperature: 1,
         toolChoice: "auto",
+        abortSignal: options.abortSignal,
         onStepFinish: async (event) => {
           this.logger({
             category: "agent",
@@ -333,13 +329,13 @@ For each action, provide clear reasoning about why you're taking that step.`;
             }
           }
 
-          if (callbacks?.onStepFinish) {
-            await callbacks.onStepFinish(event);
+          if (options.onStepFinish) {
+            await options.onStepFinish(event);
           }
         },
         onFinish: async (event) => {
-          if (callbacks?.onFinish) {
-            await callbacks.onFinish(event);
+          if (options.onFinish) {
+            await options.onFinish(event);
           }
         },
         onError: async (event) => {
@@ -348,11 +344,11 @@ For each action, provide clear reasoning about why you're taking that step.`;
             message: `Error during streaming: ${event.error}`,
             level: 0,
           });
-          if (callbacks?.onError) {
-            await callbacks.onError(event);
+          if (options.onError) {
+            await options.onError(event);
           }
         },
-        onChunk: callbacks?.onChunk,
+        onChunk: options.onChunk,
       });
 
       return result;

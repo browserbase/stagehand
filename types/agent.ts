@@ -43,6 +43,11 @@ export interface AgentOptions {
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
+  abortSignal?: AbortSignal;
+  onStepFinish?: StreamTextOnStepFinishCallback<AgentTools & ToolSet>;
+  onFinish?: StreamTextOnFinishCallback<AgentTools & ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+  onChunk?: StreamTextOnChunkCallback<AgentTools & ToolSet>;
 }
 
 export type AgentProviderType = "openai" | "anthropic";
@@ -167,10 +172,3 @@ export interface AgentInstance {
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
 }
-
-export type AgentStreamCallbacks = {
-  onStepFinish?: StreamTextOnStepFinishCallback<AgentTools & ToolSet>;
-  onFinish?: StreamTextOnFinishCallback<AgentTools & ToolSet>;
-  onError?: StreamTextOnErrorCallback;
-  onChunk?: StreamTextOnChunkCallback<AgentTools & ToolSet>;
-};
