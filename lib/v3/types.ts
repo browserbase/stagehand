@@ -32,6 +32,7 @@ export interface V3Options {
   logInferenceToFile?: boolean;
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
+  selfHeal?: boolean;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */

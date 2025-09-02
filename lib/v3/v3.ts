@@ -299,6 +299,7 @@ export class V3 {
       this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
+      this.opts.selfHeal ?? false,
       (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
         this.updateMetrics(
           functionName,
@@ -424,6 +425,9 @@ export class V3 {
     const handlerParams: ActHandlerParams = {
       instruction: params.instruction,
       page: page!,
+      variables: params.variables,
+      domSettleTimeoutMs: params.domSettleTimeoutMs,
+      timeoutMs: params.timeoutMs,
     };
     const actResult = await this.actHandler.act(handlerParams);
     // history: record instruction-based act call (omit page object)
