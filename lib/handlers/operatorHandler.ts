@@ -316,9 +316,11 @@ export class StagehandOperatorHandler {
     }
 
     const startTime = Date.now();
+    const isGPT5 = this.llmClient.modelName.includes("gpt-5");
     const response = await this.llmClient.createChatCompletion<LLMResponse>({
       options: {
         messages: this.messages as ChatMessage[],
+        temperature: isGPT5 ? 1 : 0.1,
         tools: toolsArray,
         tool_choice: "required", // Force tool usage since operator expects tool calls
         requestId,
