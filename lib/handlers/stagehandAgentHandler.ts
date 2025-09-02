@@ -1,4 +1,9 @@
-import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
+import {
+  AgentAction,
+  AgentExecuteOptions,
+  AgentResult,
+  ToolsConfig,
+} from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
@@ -57,7 +62,7 @@ export class StagehandAgentHandler {
         options.instruction,
         this.systemInstructions,
       );
-      const tools = this.createTools();
+      const tools = this.createTools(options.tools);
       const allTools = { ...tools, ...this.mcpTools };
       const messages: CoreMessage[] = [
         {
@@ -218,9 +223,31 @@ STRATEGY:
 For each action, provide clear reasoning about why you're taking that step.`;
   }
 
-  private createTools() {
+  private createTools(toolsConfig?: ToolsConfig) {
     const page = this.stagehandPage.page;
-    return createAgentTools(page, { executionModel: this.executionModel });
+    const defaultTools = createAgentTools(page, {
+      executionModel: this.executionModel,
+    });
+
+    if (!toolsConfig) {
+      return defaultTools;
+    }
+
+    let tools: ToolSet = { ...defaultTools };
+
+    if (toolsConfig.exclude && toolsConfig.exclude.length > 0) {
+      for (const toolName of toolsConfig.exclude) {
+        if (toolName in tools) {
+          delete tools[toolName];
+        }
+      }
+    }
+
+    if (toolsConfig.include) {
+      tools = { ...tools, ...toolsConfig.include };
+    }
+
+    return tools;
   }
 
   /**
@@ -254,7 +281,7 @@ For each action, provide clear reasoning about why you're taking that step.`;
         options.instruction,
         this.systemInstructions,
       );
-      const tools = this.createTools();
+      const tools = this.createTools(options.tools);
       const allTools = { ...tools, ...this.mcpTools };
       const messages: CoreMessage[] = [
         {

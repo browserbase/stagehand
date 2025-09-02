@@ -952,6 +952,16 @@ export class Stagehand {
                     instructionOrOptions.abortSignal || abortController.signal,
                 };
 
+          if (this.usingAPI && executeOptions.tools) {
+            this.logger({
+              category: "agent",
+              message:
+                "Custom tools are not supported in API mode. Tools configuration will be ignored. Set useAPI: false to use custom tools.",
+              level: 0,
+            });
+            delete executeOptions.tools;
+          }
+
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
@@ -988,6 +998,16 @@ export class Stagehand {
                   abortSignal:
                     instructionOrOptions.abortSignal || abortController.signal,
                 };
+
+          if (this.usingAPI && streamOptions.tools) {
+            this.logger({
+              category: "agent",
+              message:
+                "Custom tools are not supported in API mode. Tools configuration will be ignored. Set useAPI: false to use custom tools.",
+              level: 0,
+            });
+            delete streamOptions.tools;
+          }
 
           return new StagehandAgentHandler(
             this.stagehandPage,
@@ -1112,3 +1132,4 @@ export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
 export { connectToMCPServer };
+export { StagehandTools } from "./StagehandTools";

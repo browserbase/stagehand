@@ -41,9 +41,15 @@ export interface AgentOptions {
   context?: string;
 }
 
+export interface ToolsConfig {
+  exclude?: string[];
+  include?: ToolSet;
+}
+
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
   abortSignal?: AbortSignal;
+  tools?: ToolsConfig;
   onStepFinish?: StreamTextOnStepFinishCallback<AgentTools & ToolSet>;
   onFinish?: StreamTextOnFinishCallback<AgentTools & ToolSet>;
   onError?: StreamTextOnErrorCallback;
