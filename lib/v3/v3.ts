@@ -259,7 +259,7 @@ export class V3 {
   async act(params: ActParams): Promise<void>;
   async act(
     observe: ObserveResult,
-    page: AnyPage,
+    page?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<void>;
 
@@ -271,8 +271,15 @@ export class V3 {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
 
-    if (isObserveResult(a) && b) {
-      const v3Page = await this.normalizeToV3Page(b);
+    if (isObserveResult(a)) {
+      // Resolve page: use provided page if any, otherwise default active page
+      let v3Page: Page;
+      if (b) {
+        v3Page = await this.normalizeToV3Page(b);
+      } else {
+        v3Page = this.ctx!.activePage();
+      }
+
       // normalize selector to the engine your executor expects
       const selector = a.selector.startsWith("xpath=")
         ? a.selector
