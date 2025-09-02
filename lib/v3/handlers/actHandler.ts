@@ -1,5 +1,5 @@
 // lib/v3/handlers/actHandler.ts
-import { ActHandlerParams } from "@/lib/v3/types";
+import { ActHandlerParams, V3FunctionName } from "@/lib/v3/types";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { observe } from "@/lib/inference";
 import { LogLine } from "@/types/log";
@@ -20,6 +20,12 @@ export class ActHandler {
   private readonly defaultClientOptions: ClientOptions;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
+  private readonly onMetrics?: (
+    functionName: V3FunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ) => void;
 
   constructor(
     llmClient: LLMClient,
@@ -28,6 +34,12 @@ export class ActHandler {
     logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
+    onMetrics?: (
+      functionName: V3FunctionName,
+      promptTokens: number,
+      completionTokens: number,
+      inferenceTimeMs: number,
+    ) => void,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -35,6 +47,7 @@ export class ActHandler {
     this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
+    this.onMetrics = onMetrics;
   }
 
   async act(params: ActHandlerParams): Promise<void> {
@@ -72,6 +85,17 @@ export class ActHandler {
       logInferenceToFile: this.logInferenceToFile,
       fromAct: true,
     });
+
+    // Update ACT metrics from the LLM observation call
+    const actPromptTokens = observation.prompt_tokens ?? 0;
+    const actCompletionTokens = observation.completion_tokens ?? 0;
+    const actInferenceTimeMs = observation.inference_time_ms ?? 0;
+    this.onMetrics?.(
+      V3FunctionName.ACT,
+      actPromptTokens,
+      actCompletionTokens,
+      actInferenceTimeMs,
+    );
 
     // Normalize raw LLM elements → ObserveResult[] (reuse old type)
     const raw = (observation.elements ?? []) as Array<{
