@@ -1,4 +1,12 @@
 import { LogLine } from "./log";
+import {
+  StreamTextOnStepFinishCallback,
+  StreamTextOnFinishCallback,
+  StreamTextOnErrorCallback,
+  StreamTextOnChunkCallback,
+  ToolSet,
+} from "ai";
+import { AgentTools } from "@/lib/agent/tools";
 
 export interface AgentAction {
   type: string;
@@ -159,3 +167,10 @@ export interface AgentInstance {
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
 }
+
+export type AgentStreamCallbacks = {
+  onStepFinish?: StreamTextOnStepFinishCallback<AgentTools & ToolSet>;
+  onFinish?: StreamTextOnFinishCallback<AgentTools & ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+  onChunk?: StreamTextOnChunkCallback<AgentTools & ToolSet>;
+};

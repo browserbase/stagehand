@@ -7,7 +7,12 @@ import os from "os";
 import path from "path";
 import { Browser, chromium } from "playwright";
 import { z } from "zod/v3";
-import { AgentExecuteOptions, AgentResult } from "../types/agent";
+import { StreamTextResult, ToolSet } from "ai";
+import {
+  AgentExecuteOptions,
+  AgentResult,
+  AgentStreamCallbacks,
+} from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
@@ -42,6 +47,7 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
 import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
+import { AgentTools } from "./agent/tools";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
@@ -911,6 +917,10 @@ export class Stagehand {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    stream: (
+      instructionOrOptions: string | AgentExecuteOptions,
+      callbacks?: AgentStreamCallbacks,
+    ) => Promise<StreamTextResult<AgentTools & ToolSet, never>>;
   } {
     if (!options || !options.provider) {
       const executionModel = options?.executionModel;
@@ -934,6 +944,27 @@ export class Stagehand {
             systemInstructions,
             tools,
           ).execute(instructionOrOptions);
+        },
+        stream: async (
+          instructionOrOptions: string | AgentExecuteOptions,
+          callbacks?: AgentStreamCallbacks,
+        ) => {
+          if (options?.integrations && !this.experimental) {
+            throw new StagehandError(
+              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+            );
+          }
+          const tools = options?.integrations
+            ? await resolveTools(options?.integrations, options?.tools)
+            : (options?.tools ?? {});
+          return new StagehandAgentHandler(
+            this.stagehandPage,
+            this.logger,
+            this.llmClient,
+            executionModel,
+            systemInstructions,
+            tools,
+          ).stream(instructionOrOptions, callbacks);
         },
       };
     }
@@ -1012,6 +1043,12 @@ export class Stagehand {
         }
 
         return await agentHandler.execute(executeOptions);
+      },
+      stream: async () => {
+        throw new StagehandError(
+          "Stream method is only available when using AI SDK models (e.g., openai/gpt-4o-mini). " +
+            "Please create an agent without specifying a provider to use the stream method.",
+        );
       },
     };
   }
