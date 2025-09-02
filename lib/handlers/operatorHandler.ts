@@ -175,6 +175,10 @@ export class StagehandOperatorHandler {
     this.allTools = { ...stagehandTools, ...mcpTools };
   }
 
+  private getTemperatureForModel(): number {
+    return this.llmClient.modelName.includes("gpt-5") ? 1 : 0.1;
+  }
+
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
@@ -319,6 +323,7 @@ export class StagehandOperatorHandler {
     const response = await this.llmClient.createChatCompletion<LLMResponse>({
       options: {
         messages: this.messages as ChatMessage[],
+        temperature: this.getTemperatureForModel(),
         tools: toolsArray,
         tool_choice: "required", // Force tool usage since operator expects tool calls
         requestId,
@@ -534,6 +539,7 @@ export class StagehandOperatorHandler {
     const { data: response, usage } =
       (await this.llmClient.createChatCompletion<OperatorSummary>({
         options: {
+          temperature: this.getTemperatureForModel(),
           messages: summaryMessages as ChatMessage[],
           response_model: {
             name: "operatorSummarySchema",
