@@ -30,7 +30,7 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
 import { defaultExtractSchema } from "@/types/page";
-import { ObserveResult, ActResult } from "@/types/stagehand";
+import { ObserveResult, ActResult, HistoryEntry } from "@/types/stagehand";
 import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
 
@@ -92,6 +92,7 @@ export class V3 {
   private stagehandLogger: StagehandLogger;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
+  private _history: Array<HistoryEntry> = [];
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -113,6 +114,23 @@ export class V3 {
 
   public get metrics(): V3Metrics {
     return this.v3Metrics;
+  }
+
+  public get history(): ReadonlyArray<HistoryEntry> {
+    return Object.freeze([...this._history]);
+  }
+
+  public addToHistory(
+    method: HistoryEntry["method"],
+    parameters: unknown,
+    result?: unknown,
+  ): void {
+    this._history.push({
+      method,
+      parameters,
+      result: result ?? null,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   public updateMetrics(
@@ -373,11 +391,18 @@ export class V3 {
       const selector = input.selector.startsWith("xpath=")
         ? input.selector
         : `xpath=${input.selector}`;
-      return await this.actHandler.actFromObserveResult(
+      const actResult = await this.actHandler.actFromObserveResult(
         { ...input, selector }, // ObserveResult
         v3Page, // V3 Page
         opts?.domSettleTimeoutMs,
       );
+      // history: record ObserveResult-based act call
+      this.addToHistory(
+        "act",
+        { observeResult: input, domSettleTimeoutMs: opts?.domSettleTimeoutMs },
+        actResult,
+      );
+      return actResult;
     }
     const params = input as ActParams;
 
@@ -400,7 +425,19 @@ export class V3 {
       instruction: params.instruction,
       page: page!,
     };
-    return this.actHandler.act(handlerParams);
+    const actResult = await this.actHandler.act(handlerParams);
+    // history: record instruction-based act call (omit page object)
+    this.addToHistory(
+      "act",
+      {
+        instruction: params.instruction,
+        variables: params.variables,
+        domSettleTimeoutMs: params.domSettleTimeoutMs,
+        timeoutMs: params.timeoutMs,
+      },
+      actResult,
+    );
+    return actResult;
   }
 
   /**
@@ -446,7 +483,19 @@ export class V3 {
       page: page!,
     };
 
-    return this.extractHandler.extract<T>(handlerParams);
+    const result = await this.extractHandler.extract<T>(handlerParams);
+    // history: record extract call (omit page object and raw schema instance to avoid heavy serialization)
+    this.addToHistory(
+      "extract",
+      {
+        instruction: params.instruction,
+        // best-effort: log presence of schema without serializing the full instance
+        hasSchema: !!params.schema,
+        domSettleTimeoutMs: params.domSettleTimeoutMs,
+      },
+      result,
+    );
+    return result;
   }
 
   /**
@@ -479,7 +528,19 @@ export class V3 {
       page: page!,
     };
 
-    return this.observeHandler.observe(handlerParams);
+    const results = await this.observeHandler.observe(handlerParams);
+    // history: record observe call (omit page object)
+    this.addToHistory(
+      "observe",
+      {
+        instruction: params.instruction,
+        domSettleTimeoutMs: params.domSettleTimeoutMs,
+        returnAction: params.returnAction,
+        drawOverlay: params.drawOverlay,
+      },
+      results,
+    );
+    return results;
   }
 
   /** Return the browser-level CDP WebSocket endpoint. */
