@@ -376,10 +376,27 @@ async function a11yForFrame(
   urlMap: Record<string, string>;
 }> {
   await session.send("Accessibility.enable").catch(() => {});
-  const params = frameId ? ({ frameId } as Record<string, unknown>) : {};
-  const { nodes } = await session.send<{
-    nodes: Protocol.Accessibility.AXNode[];
-  }>("Accessibility.getFullAXTree", params);
+  // Prefer scoping by frameId, but fall back to session-root when the frame
+  // is no longer owned by this target (OOPIF adoption or rapid detach).
+  let nodes: Protocol.Accessibility.AXNode[] = [];
+  try {
+    const params = frameId ? ({ frameId } as Record<string, unknown>) : {};
+    ({ nodes } = await session.send<{
+      nodes: Protocol.Accessibility.AXNode[];
+    }>("Accessibility.getFullAXTree", params));
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e ?? "");
+    const isFrameScopeError =
+      msg.includes("Frame with the given") ||
+      msg.includes("does not belong to the target") ||
+      msg.includes("is not found");
+    if (!isFrameScopeError || !frameId) throw e;
+    // Retry without frameId against the same session; for OOPIF sessions this
+    // returns the AX tree for the child document root, which is what we need.
+    ({ nodes } = await session.send<{
+      nodes: Protocol.Accessibility.AXNode[];
+    }>("Accessibility.getFullAXTree"));
+  }
 
   const urlMap: Record<string, string> = {};
   for (const n of nodes) {

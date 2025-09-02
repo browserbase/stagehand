@@ -7,10 +7,18 @@ export async function installV3PiercerIntoSession(
 ): Promise<void> {
   await session.send("Page.enable").catch(() => {});
   await session.send("Runtime.enable").catch(() => {});
-  await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
-    "Page.addScriptToEvaluateOnNewDocument",
-    { source: v3ScriptContent, runImmediately: true },
-  );
+  try {
+    await session.send<Protocol.Page.AddScriptToEvaluateOnNewDocumentResponse>(
+      "Page.addScriptToEvaluateOnNewDocument",
+      { source: v3ScriptContent, runImmediately: true },
+    );
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e ?? "");
+    // If the session vanished during attach (common with short‑lived OOPIFs),
+    // swallow and return; re‑installs will happen on future sessions/loads.
+    if (msg.includes("Session with given id not found")) return;
+    // For other errors, keep going but don't throw — the next evaluate is idempotent.
+  }
   await session
     .send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
       expression: v3ScriptContent,

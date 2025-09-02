@@ -80,9 +80,23 @@ export class Frame implements FrameManager {
     withFrames = false,
   ): Promise<Protocol.Accessibility.AXNode[]> {
     await this.session.send("Accessibility.enable");
-    const { nodes } = await this.session.send<{
-      nodes: Protocol.Accessibility.AXNode[];
-    }>("Accessibility.getFullAXTree", { frameId: this.frameId });
+    let nodes: Protocol.Accessibility.AXNode[] = [];
+    try {
+      ({ nodes } = await this.session.send<{
+        nodes: Protocol.Accessibility.AXNode[];
+      }>("Accessibility.getFullAXTree", { frameId: this.frameId }));
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e ?? "");
+      const isFrameScopeError =
+        msg.includes("Frame with the given") ||
+        msg.includes("does not belong to the target") ||
+        msg.includes("is not found");
+      if (!isFrameScopeError) throw e;
+      // Retry unscoped: on OOPIF sessions, returns the child doc's AX tree.
+      ({ nodes } = await this.session.send<{
+        nodes: Protocol.Accessibility.AXNode[];
+      }>("Accessibility.getFullAXTree"));
+    }
 
     if (!withFrames) return nodes;
 
