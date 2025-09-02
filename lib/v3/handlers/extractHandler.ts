@@ -1,6 +1,6 @@
 // lib/v3/handlers/extractHandler.ts
 import { z, ZodTypeAny } from "zod/v3";
-import { ExtractHandlerParams } from "@/lib/v3/types";
+import { ExtractHandlerParams, V3FunctionName } from "@/lib/v3/types";
 import { LLMClient } from "@/lib/llm/LLMClient";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
@@ -64,6 +64,12 @@ export class ExtractHandler {
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
+  private readonly onMetrics?: (
+    functionName: V3FunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ) => void;
 
   constructor(
     llmClient: LLMClient,
@@ -73,6 +79,12 @@ export class ExtractHandler {
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
+    onMetrics?: (
+      functionName: V3FunctionName,
+      promptTokens: number,
+      completionTokens: number,
+      inferenceTimeMs: number,
+    ) => void,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -81,6 +93,7 @@ export class ExtractHandler {
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
+    this.onMetrics = onMetrics;
   }
 
   async extract<T extends z.AnyZodObject>(
@@ -160,6 +173,14 @@ export class ExtractHandler {
         inference_time_ms: { value: String(inference_time_ms), type: "string" },
       },
     });
+
+    // Update EXTRACT metrics from the LLM calls
+    this.onMetrics?.(
+      V3FunctionName.EXTRACT,
+      prompt_tokens,
+      completion_tokens,
+      inference_time_ms,
+    );
 
     // Re-inject URLs for any url() fields we temporarily converted to number()
     const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<

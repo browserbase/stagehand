@@ -14,6 +14,8 @@ import {
   ObserveParams,
   ObserveHandlerParams,
   AnyPage,
+  V3Metrics,
+  V3FunctionName,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -90,6 +92,72 @@ export class V3 {
   private stagehandLogger: StagehandLogger;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
+
+  public v3Metrics: V3Metrics = {
+    actPromptTokens: 0,
+    actCompletionTokens: 0,
+    actInferenceTimeMs: 0,
+    extractPromptTokens: 0,
+    extractCompletionTokens: 0,
+    extractInferenceTimeMs: 0,
+    observePromptTokens: 0,
+    observeCompletionTokens: 0,
+    observeInferenceTimeMs: 0,
+    agentPromptTokens: 0,
+    agentCompletionTokens: 0,
+    agentInferenceTimeMs: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalInferenceTimeMs: 0,
+  };
+
+  public get metrics(): V3Metrics {
+    return this.v3Metrics;
+  }
+
+  public updateMetrics(
+    functionName: V3FunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    switch (functionName) {
+      case V3FunctionName.ACT:
+        this.v3Metrics.actPromptTokens += promptTokens;
+        this.v3Metrics.actCompletionTokens += completionTokens;
+        this.v3Metrics.actInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case V3FunctionName.EXTRACT:
+        this.v3Metrics.extractPromptTokens += promptTokens;
+        this.v3Metrics.extractCompletionTokens += completionTokens;
+        this.v3Metrics.extractInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case V3FunctionName.OBSERVE:
+        this.v3Metrics.observePromptTokens += promptTokens;
+        this.v3Metrics.observeCompletionTokens += completionTokens;
+        this.v3Metrics.observeInferenceTimeMs += inferenceTimeMs;
+        break;
+
+      case V3FunctionName.AGENT:
+        this.v3Metrics.agentPromptTokens += promptTokens;
+        this.v3Metrics.agentCompletionTokens += completionTokens;
+        this.v3Metrics.agentInferenceTimeMs += inferenceTimeMs;
+        break;
+    }
+    this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
+  }
+
+  private updateTotalMetrics(
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ): void {
+    this.v3Metrics.totalPromptTokens += promptTokens;
+    this.v3Metrics.totalCompletionTokens += completionTokens;
+    this.v3Metrics.totalInferenceTimeMs += inferenceTimeMs;
+  }
 
   constructor(opts: V3Options) {
     this._installProcessGuards();
@@ -213,6 +281,13 @@ export class V3 {
       this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
+      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+        this.updateMetrics(
+          functionName,
+          promptTokens,
+          completionTokens,
+          inferenceTimeMs,
+        ),
     );
     this.extractHandler = new ExtractHandler(
       this.llmClient,
@@ -222,6 +297,13 @@ export class V3 {
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
+      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+        this.updateMetrics(
+          functionName,
+          promptTokens,
+          completionTokens,
+          inferenceTimeMs,
+        ),
     );
     this.observeHandler = new ObserveHandler(
       this.llmClient,
@@ -231,6 +313,13 @@ export class V3 {
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
+      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+        this.updateMetrics(
+          functionName,
+          promptTokens,
+          completionTokens,
+          inferenceTimeMs,
+        ),
     );
     if (this.opts.env === "LOCAL") {
       const { ws, chrome } = await this.initLocal();
@@ -264,34 +353,34 @@ export class V3 {
   ): Promise<void>;
 
   async act(
-    a: ActParams | ObserveResult,
-    b?: AnyPage,
-    c?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+    input: ActParams | ObserveResult,
+    pageArg?: AnyPage,
+    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<void> {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
 
-    if (isObserveResult(a)) {
+    if (isObserveResult(input)) {
       // Resolve page: use provided page if any, otherwise default active page
       let v3Page: Page;
-      if (b) {
-        v3Page = await this.normalizeToV3Page(b);
+      if (pageArg) {
+        v3Page = await this.normalizeToV3Page(pageArg);
       } else {
         v3Page = this.ctx!.activePage();
       }
 
       // normalize selector to the engine your executor expects
-      const selector = a.selector.startsWith("xpath=")
-        ? a.selector
-        : `xpath=${a.selector}`;
+      const selector = input.selector.startsWith("xpath=")
+        ? input.selector
+        : `xpath=${input.selector}`;
       await this.actHandler.actFromObserveResult(
-        { ...a, selector }, // ObserveResult
+        { ...input, selector }, // ObserveResult
         v3Page, // V3 Page
-        c?.domSettleTimeoutMs,
+        opts?.domSettleTimeoutMs,
       );
       return;
     }
-    const params = a as ActParams;
+    const params = input as ActParams;
 
     let page: Page;
 

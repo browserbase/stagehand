@@ -1,5 +1,5 @@
 // lib/v3/handlers/observeHandler.ts
-import { ObserveHandlerParams } from "@/lib/v3/types";
+import { ObserveHandlerParams, V3FunctionName } from "@/lib/v3/types";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { LLMClient } from "@/lib/llm/LLMClient";
 import { observe as runObserve } from "@/lib/inference";
@@ -17,6 +17,12 @@ export class ObserveHandler {
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
+  private readonly onMetrics?: (
+    functionName: V3FunctionName,
+    promptTokens: number,
+    completionTokens: number,
+    inferenceTimeMs: number,
+  ) => void;
 
   constructor(
     llmClient: LLMClient,
@@ -26,6 +32,12 @@ export class ObserveHandler {
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
+    onMetrics?: (
+      functionName: V3FunctionName,
+      promptTokens: number,
+      completionTokens: number,
+      inferenceTimeMs: number,
+    ) => void,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -34,6 +46,7 @@ export class ObserveHandler {
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
+    this.onMetrics = onMetrics;
   }
 
   async observe(params: ObserveHandlerParams): Promise<ObserveResult[]> {
@@ -81,6 +94,20 @@ export class ObserveHandler {
       logInferenceToFile: this.logInferenceToFile,
       fromAct: !!fromAct,
     });
+
+    const {
+      prompt_tokens = 0,
+      completion_tokens = 0,
+      inference_time_ms = 0,
+    } = observationResponse;
+
+    // Update OBSERVE metrics from the LLM observation call
+    this.onMetrics?.(
+      V3FunctionName.OBSERVE,
+      prompt_tokens,
+      completion_tokens,
+      inference_time_ms,
+    );
 
     // Map elementIds -> selectors via combinedXpathMap
     const elementsWithSelectors = (
