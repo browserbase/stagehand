@@ -46,7 +46,7 @@ async function main() {
     await page.goto("https://www.google.com");
     // Define the instruction for the CUA
     const instruction =
-      "Go find the cheapest tapping and non-tapping flat head screws in-stock on Home Depot. Store the results in the Supabase screws table. Create the table if it doesn't exist.";
+      "Go find the cheapest tapping and non-tapping flat head screws in-stock on Home Depot. Just scan through the product listings no need to click on any specific product. Store the results in the Supabase 'screws' table. Create the table if it doesn't exist.";
     console.log(`Instruction: ${chalk.white(instruction)}`);
 
     // Execute the instruction
