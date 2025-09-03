@@ -31,6 +31,7 @@ import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
+import process from "process";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -336,6 +337,17 @@ export class V3 {
         ),
     );
     if (this.opts.env === "LOCAL") {
+      // chrome-launcher conditionally adds --headless when the environment variable
+      // HEADLESS is set, without parsing its value.
+      // if it is not equal to true, then we delete it from the process
+      const envHeadless = process.env.HEADLESS;
+      if (envHeadless !== undefined) {
+        const normalized = envHeadless.trim().toLowerCase();
+        if (normalized !== "true") {
+          delete process.env.HEADLESS;
+        }
+      }
+
       const { ws, chrome } = await launchLocalChrome({
         chromePath: this.opts.chromePath,
         chromeFlags: this.opts.chromeFlags,
