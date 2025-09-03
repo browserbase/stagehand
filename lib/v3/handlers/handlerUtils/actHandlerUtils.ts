@@ -144,7 +144,28 @@ const METHOD_HANDLER_MAP: Record<
   click: clickElement,
   nextChunk: scrollToNextChunk,
   prevChunk: scrollToPreviousChunk,
+  selectOptionFromDropdown: selectOption,
 };
+
+export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
+  const { locator, xpath, args, logger } = ctx;
+  try {
+    const text = args[0]?.toString() || "";
+    await locator.selectOption(text);
+  } catch (e) {
+    logger({
+      category: "action",
+      message: "error selecting option",
+      level: 0,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(e.message);
+  }
+}
 
 async function scrollIntoView(
   ctx: UnderstudyMethodHandlerContext,

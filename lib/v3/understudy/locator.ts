@@ -237,16 +237,41 @@ export class Locator {
           objectId,
           functionDeclaration: `
             function(vals) {
-              if (this && this.tagName === 'SELECT') {
-                const set = new Set(vals);
-                for (const opt of this.options) {
-                  opt.selected = set.has(opt.value);
-                }
-                this.dispatchEvent(new Event('input', { bubbles: true }));
-                this.dispatchEvent(new Event('change', { bubbles: true }));
-                return Array.from(this.selectedOptions).map(o => o.value);
+              if (!this || !this.tagName || this.tagName.toLowerCase() !== 'select') {
+                return [];
               }
-              return [];
+
+              const arr = Array.isArray(vals) ? vals : [vals];
+              // Normalise desired tokens (match either label/text or value exactly)
+              const wanted = new Set(arr.map(v => String(v ?? '').trim()));
+
+              const matches = (opt) => {
+                const label = (opt.label || opt.textContent || '').trim();
+                const value = String(opt.value ?? '').trim();
+                return wanted.has(label) || wanted.has(value);
+              };
+
+              if (this.multiple) {
+                for (const opt of this.options) {
+                  opt.selected = matches(opt);
+                }
+              } else {
+                let chosen = false;
+                for (const opt of this.options) {
+                  if (!chosen && matches(opt)) {
+                    opt.selected = true;
+                    // Ensure <select>.value reflects the chosen option
+                    this.value = opt.value;
+                    chosen = true;
+                  } else {
+                    opt.selected = false;
+                  }
+                }
+              }
+
+              this.dispatchEvent(new Event('input', { bubbles: true }));
+              this.dispatchEvent(new Event('change', { bubbles: true }));
+              return Array.from(this.selectedOptions).map(o => o.value);
             }
           `,
           arguments: [{ value: desired }],
