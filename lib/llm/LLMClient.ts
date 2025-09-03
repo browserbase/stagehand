@@ -1,3 +1,4 @@
+import { LLMTool } from "@/types/llm";
 import {
   embed,
   embedMany,
@@ -10,7 +11,6 @@ import {
   streamText,
 } from "ai";
 import { ZodType } from "zod/v3";
-import { LLMTool } from "../../types/llm";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
 
