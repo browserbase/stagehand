@@ -11,7 +11,7 @@ interface LaunchLocalOptions {
 export async function launchLocalChrome(
   opts: LaunchLocalOptions,
 ): Promise<{ ws: string; chrome: LaunchedChrome }> {
-  const headless = opts.headless ?? true;
+  const headless = opts.headless ?? false;
   const chromeFlags = [
     headless ? "--headless=new" : undefined,
     "--remote-allow-origins=*",
