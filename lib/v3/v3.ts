@@ -1,10 +1,6 @@
-import { launch, LaunchedChrome } from "chrome-launcher";
-import Browserbase from "@browserbasehq/sdk";
 import {
   V3Options,
   InitState,
-  BrowserbaseSession,
-  JsonVersionResponse,
   PlaywrightPage,
   PuppeteerPage,
   ActParams,
@@ -33,6 +29,8 @@ import { defaultExtractSchema } from "@/types/page";
 import { ObserveResult, ActResult, HistoryEntry } from "@/types/stagehand";
 import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
+import { launchLocalChrome } from "./launch/local";
+import { createBrowserbaseSession } from "./launch/browserbase";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -341,17 +339,27 @@ export class V3 {
         ),
     );
     if (this.opts.env === "LOCAL") {
-      const { ws, chrome } = await this.initLocal();
+      const { ws, chrome } = await launchLocalChrome({
+        chromePath: this.opts.chromePath,
+        chromeFlags: this.opts.chromeFlags,
+        headless: this.opts.headless,
+        userDataDir: this.opts.userDataDir,
+        connectTimeoutMs: this.opts.connectTimeoutMs,
+      });
+      this.ctx = await V3Context.create(ws);
+      this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "LOCAL", chrome, ws };
       return;
     }
 
     if (this.opts.env === "BROWSERBASE") {
       const { apiKey, projectId } = this.requireBrowserbaseCreds();
-      const { ws, sessionId, bb } = await this.initBrowserbase(
+      const { ws, sessionId, bb } = await createBrowserbaseSession(
         apiKey,
         projectId,
       );
+      this.ctx = await V3Context.create(ws);
+      this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
       return;
     }
@@ -599,39 +607,6 @@ export class V3 {
     }
   }
 
-  /**
-   * Launch local Chrome with appropriate flags and return a CDP WebSocket.
-   */
-  private async initLocal(): Promise<{ ws: string; chrome: LaunchedChrome }> {
-    const headless = this.opts.headless ?? true;
-    const chromeFlags = [
-      headless ? "--headless=new" : undefined,
-      "--remote-allow-origins=*",
-      "--disable-gpu",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-dev-shm-usage",
-      "--site-per-process",
-      this.opts.userDataDir
-        ? `--user-data-dir=${this.opts.userDataDir}`
-        : undefined,
-      ...(this.opts.chromeFlags ?? []),
-    ].filter((f): f is string => typeof f === "string");
-
-    const chrome = await launch({
-      chromePath: this.opts.chromePath,
-      chromeFlags,
-    });
-
-    const ws = await this.waitForWebSocketDebuggerUrl(
-      chrome.port,
-      this.opts.connectTimeoutMs ?? 15_000,
-    );
-    this.ctx = await V3Context.create(ws);
-    this.ctx.conn.onTransportClosed(this._onCdpClosed);
-    return { ws, chrome };
-  }
-
   /** Guard: ensure Browserbase credentials exist in options. */
   private requireBrowserbaseCreds(): { apiKey: string; projectId: string } {
     const { apiKey, projectId } = this.opts;
@@ -648,73 +623,6 @@ export class V3 {
       logLine.level = logLine.level ?? 1;
       this.stagehandLogger.log(logLine);
     };
-  }
-
-  /**
-   * Create a Browserbase session, return its WebSocket and session id.
-   */
-  private async initBrowserbase(
-    apiKey: string,
-    projectId: string,
-  ): Promise<{ ws: string; sessionId: string; bb: Browserbase }> {
-    const bb = new Browserbase({ apiKey });
-    const session = (await bb.sessions.create({
-      projectId,
-    })) as BrowserbaseSession;
-
-    if (!session?.connectUrl || !session?.id) {
-      throw new Error(
-        "Browserbase session creation returned an unexpected shape.",
-      );
-    }
-    this.ctx = await V3Context.create(session.connectUrl);
-    this.ctx.conn.onTransportClosed(this._onCdpClosed);
-    return { ws: session.connectUrl, sessionId: session.id, bb };
-  }
-
-  /**
-   * Poll /json/version until Chrome returns a valid WebSocket endpoint.
-   * Used only in local launch mode.
-   */
-  private async waitForWebSocketDebuggerUrl(
-    port: number,
-    timeoutMs: number,
-  ): Promise<string> {
-    const deadline = Date.now() + timeoutMs;
-    let lastErrMsg = "";
-
-    while (Date.now() < deadline) {
-      try {
-        const resp = await fetch(`http://127.0.0.1:${port}/json/version`);
-        if (resp.ok) {
-          const json = (await resp.json()) as unknown;
-          if (this.isJsonVersionResponse(json)) {
-            return json.webSocketDebuggerUrl;
-          }
-        } else {
-          lastErrMsg = `${resp.status} ${resp.statusText}`;
-        }
-      } catch (err) {
-        lastErrMsg = err instanceof Error ? err.message : String(err);
-      }
-      await new Promise((r) => setTimeout(r, 250));
-    }
-
-    throw new Error(
-      `Timed out waiting for /json/version on port ${port}${
-        lastErrMsg ? ` (last error: ${lastErrMsg})` : ""
-      }`,
-    );
-  }
-
-  /** Type guard for Chrome's /json/version response. */
-  private isJsonVersionResponse(v: unknown): v is JsonVersionResponse {
-    return (
-      typeof v === "object" &&
-      v !== null &&
-      typeof (v as { webSocketDebuggerUrl?: unknown }).webSocketDebuggerUrl ===
-        "string"
-    );
   }
 
   /**
