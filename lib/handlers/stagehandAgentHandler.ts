@@ -41,6 +41,7 @@ export class StagehandAgentHandler {
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
+    const startTime = Date.now();
     const options =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
@@ -148,6 +149,9 @@ export class StagehandAgentHandler {
         finalMessage = allReasoning || result.text;
       }
 
+      const endTime = Date.now();
+      const inferenceTimeMs = endTime - startTime;
+
       return {
         success: completed,
         message: finalMessage || "Task execution completed",
@@ -157,7 +161,7 @@ export class StagehandAgentHandler {
           ? {
               input_tokens: result.usage.promptTokens || 0,
               output_tokens: result.usage.completionTokens || 0,
-              inference_time_ms: 0,
+              inference_time_ms: inferenceTimeMs,
             }
           : undefined,
       };
