@@ -465,8 +465,7 @@ function decorateRoles(
 
 async function buildHierarchicalTree(
   nodes: A11yNode[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _opts: A11yOptions,
+  opts: A11yOptions,
 ): Promise<{ tree: A11yNode[] }> {
   const nodeMap = new Map<string, A11yNode>();
 
@@ -520,7 +519,20 @@ async function buildHierarchicalTree(
       if (prunedStatic.length === 0) return null;
     }
 
-    return { ...node, children: prunedStatic };
+    // Replace structural role with actual tag name when known
+    let newRole = node.role;
+    if ((newRole === "generic" || newRole === "none") && node.encodedId) {
+      const tagName = opts.tagNameMap[node.encodedId];
+      if (tagName) newRole = tagName;
+    }
+
+    // Combobox special-case: treat underlying <select> as role "select"
+    if (newRole === "combobox" && node.encodedId) {
+      const tagName = opts.tagNameMap[node.encodedId];
+      if (tagName === "select") newRole = "select";
+    }
+
+    return { ...node, role: newRole, children: prunedStatic };
   }
 }
 
