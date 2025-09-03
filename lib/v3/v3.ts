@@ -456,15 +456,20 @@ export class V3 {
    * Run an "extract" instruction through the ExtractHandler.
    */
 
+  async extract(): Promise<{ page_text: string }>;
   async extract<T extends z.AnyZodObject>(
     params: ExtractParams<T>,
+  ): Promise<z.infer<T> | { page_text: string }>;
+
+  async extract<T extends z.AnyZodObject>(
+    params?: ExtractParams<T>,
   ): Promise<z.infer<T> | { page_text: string }> {
     if (!this.extractHandler) {
       throw new Error("V3 not initialized. Call init() before extract().");
     }
 
     let page: Page;
-    if (params.page) {
+    if (params?.page) {
       if (params.page instanceof (await import("./understudy/page")).Page) {
         // Already a V3 Page
         page = params.page;
@@ -477,21 +482,21 @@ export class V3 {
       page = this.ctx.activePage();
     }
 
-    const noArgs = !params.instruction && !params.schema;
-    const onlyInstruction = !!params.instruction && !params.schema;
+    const noArgs = !params?.instruction && !params?.schema;
+    const onlyInstruction = !!params?.instruction && !params?.schema;
 
     const effectiveSchema: T | undefined = noArgs
       ? undefined
       : onlyInstruction
         ? (defaultExtractSchema as unknown as T)
-        : params.schema;
+        : params?.schema;
 
     const handlerParams: ExtractHandlerParams<T> = {
-      instruction: params.instruction,
+      instruction: params?.instruction,
       schema: effectiveSchema,
-      modelName: params.modelName,
-      modelClientOptions: params.modelClientOptions,
-      domSettleTimeoutMs: params.domSettleTimeoutMs,
+      modelName: params?.modelName,
+      modelClientOptions: params?.modelClientOptions,
+      domSettleTimeoutMs: params?.domSettleTimeoutMs,
       page: page!,
     };
 
@@ -500,10 +505,10 @@ export class V3 {
     this.addToHistory(
       "extract",
       {
-        instruction: params.instruction,
+        instruction: params?.instruction,
         // best-effort: log presence of schema without serializing the full instance
-        hasSchema: !!params.schema,
-        domSettleTimeoutMs: params.domSettleTimeoutMs,
+        hasSchema: !!params?.schema,
+        domSettleTimeoutMs: params?.domSettleTimeoutMs,
       },
       result,
     );
