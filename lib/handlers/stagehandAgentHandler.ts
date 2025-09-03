@@ -183,6 +183,7 @@ export class StagehandAgentHandler {
     }
   }
 
+  // in the future if we continue to describe tools in system prompt, we need to make sure to update them in here when new tools are added or removed. still tbd on whether we want to keep them in here long term.
   private buildSystemPrompt(
     executionInstruction: string,
     systemInstructions?: string,
