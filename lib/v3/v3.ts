@@ -237,9 +237,6 @@ export class V3 {
 
     try {
       console.error(`[v3] calling this.close() → ${reason}`);
-      console.error(`[v3] calling this.close() → ${reason}`);
-      console.error(`[v3] calling this.close() → ${reason}`);
-      console.error(`[v3] calling this.close() → ${reason}`);
       await this.close({ force: true });
     } catch {
       // swallow — we’re already panicking
