@@ -82,6 +82,7 @@ export interface ExtractParams<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
+  selector?: string;
   page?: PlaywrightPage | PuppeteerPage | Page;
 }
 
@@ -91,6 +92,7 @@ export interface ExtractHandlerParams<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
+  selector?: string;
   page: Page;
 }
 

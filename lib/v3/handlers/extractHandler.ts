@@ -99,7 +99,7 @@ export class ExtractHandler {
   async extract<T extends z.AnyZodObject>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { page_text: string }> {
-    const { instruction, schema, page } = params;
+    const { instruction, schema, page, selector } = params;
 
     // No-args → page text (parity with v2)
     const noArgs = !instruction && !schema;
@@ -113,9 +113,12 @@ export class ExtractHandler {
       return pageTextSchema.parse(result);
     }
 
+    const focusXpath = selector?.replace(/^xpath=/, "") ?? "";
+
     // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
     const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
       experimental: this.experimental,
+      focusXPath: focusXpath,
     });
 
     this.logger({

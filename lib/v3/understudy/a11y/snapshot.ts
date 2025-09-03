@@ -376,6 +376,9 @@ async function a11yForFrame(
   urlMap: Record<string, string>;
 }> {
   await session.send("Accessibility.enable").catch(() => {});
+  // Runtime/DOM often already enabled; enable defensively for XPath resolution.
+  await session.send("Runtime.enable").catch(() => {});
+  await session.send("DOM.enable").catch(() => {});
   // Prefer scoping by frameId, but fall back to session-root when the frame
   // is no longer owned by this target (OOPIF adoption or rapid detach).
   let nodes: Protocol.Accessibility.AXNode[] = [];
@@ -407,12 +410,72 @@ async function a11yForFrame(
     const enc = opts.encode(be);
     urlMap[enc] = url;
   }
+  // If focusXPath provided, filter the AX nodes to the subtree rooted at that XPath
+  const nodesForOutline = await (async () => {
+    const xp = opts.focusXPath?.trim();
+    if (!xp) return nodes;
+    try {
+      const objectId = await resolveObjectIdForXPath(session, xp);
+      if (!objectId) return nodes;
+      const desc = await session.send<{ node?: { backendNodeId?: number } }>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const be = desc.node?.backendNodeId;
+      if (typeof be !== "number") return nodes;
+      const target = nodes.find((n) => n.backendDOMNodeId === be);
+      if (!target) return nodes;
+      const keep = new Set<string>([target.nodeId]);
+      const queue: Protocol.Accessibility.AXNode[] = [target];
+      while (queue.length) {
+        const cur = queue.shift()!;
+        for (const id of cur.childIds ?? []) {
+          if (keep.has(id)) continue;
+          keep.add(id);
+          const child = nodes.find((n) => n.nodeId === id);
+          if (child) queue.push(child);
+        }
+      }
+      return nodes
+        .filter((n) => keep.has(n.nodeId))
+        .map((n) =>
+          n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n,
+        );
+    } catch {
+      return nodes; // fallback to full tree if resolution fails
+    }
+  })();
 
-  const decorated = decorateRoles(nodes, opts);
+  const decorated = decorateRoles(nodesForOutline, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
   return { outline: simplified.trimEnd(), urlMap };
+}
+
+/** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
+async function resolveObjectIdForXPath(
+  session: CDPSessionLike,
+  xpath: string,
+): Promise<string | null> {
+  const { result } = await session.send<{
+    result?: { objectId?: string | undefined };
+  }>("Runtime.evaluate", {
+    expression: `
+      (() => {
+        const res = document.evaluate(
+          ${JSON.stringify(xpath)},
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
+        return res.singleNodeValue;
+      })();
+    `,
+    returnByValue: false,
+  });
+  return result?.objectId ?? null;
 }
 
 function decorateRoles(
