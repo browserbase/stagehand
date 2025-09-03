@@ -512,12 +512,15 @@ async function buildHierarchicalTree(
       await Promise.all(children.map(pruneStructuralSafe))
     ).filter(Boolean) as A11yNode[];
 
+    // Remove StaticText children whose combined text equals the parent's name
+    const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
+
     if (isStructural(node.role)) {
-      if (cleanedKids.length === 1) return cleanedKids[0]!;
-      if (cleanedKids.length === 0) return null;
+      if (prunedStatic.length === 1) return prunedStatic[0]!;
+      if (prunedStatic.length === 0) return null;
     }
 
-    return { ...node, children: cleanedKids };
+    return { ...node, children: prunedStatic };
   }
 }
 
@@ -565,6 +568,49 @@ function extractUrlFromAXNode(
   const urlProp = props.find((p) => p.name === "url");
   const value = urlProp?.value?.value;
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Collapse all whitespace runs in a string to a single space without trimming.
+ */
+function normaliseSpaces(s: string): string {
+  let out = "";
+  let inWs = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    const isWs = /\s/.test(ch);
+    if (isWs) {
+      if (!inWs) {
+        out += " ";
+        inWs = true;
+      }
+    } else {
+      out += ch;
+      inWs = false;
+    }
+  }
+  return out;
+}
+
+/**
+ * Remove StaticText children whose combined text matches the parent's accessible name.
+ */
+function removeRedundantStaticTextChildren(
+  parent: A11yNode,
+  children: A11yNode[],
+): A11yNode[] {
+  if (!parent.name) return children;
+  const parentNorm = normaliseSpaces(parent.name).trim();
+  let combined = "";
+  for (const c of children) {
+    if (c.role === "StaticText" && c.name) {
+      combined += normaliseSpaces(c.name).trim();
+    }
+  }
+  if (combined === parentNorm) {
+    return children.filter((c) => c.role !== "StaticText");
+  }
+  return children;
 }
 
 /** Find a node by backendNodeId inside a DOM.getDocument tree. */
