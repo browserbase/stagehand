@@ -506,6 +506,7 @@ export class V3 {
       modelName: params?.modelName,
       modelClientOptions: params?.modelClientOptions,
       domSettleTimeoutMs: params?.domSettleTimeoutMs,
+      selector: params?.selector,
       page: page!,
     };
 
