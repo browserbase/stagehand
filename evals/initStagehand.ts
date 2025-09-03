@@ -92,6 +92,7 @@ export const initStagehand = async ({
         ? configOverrides.experimental
         : !StagehandConfig.useAPI,
     ...configOverrides,
+    useAPI: true,
     logger: logger.log.bind(logger),
   };
 
