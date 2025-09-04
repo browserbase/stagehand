@@ -13,7 +13,7 @@ export const google_maps_3: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for locksmiths open now but not open 24 hours in Texas City.",
-      maxSteps: 35,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
     });
 
     const { evaluation, reasoning } = await evaluator.ask({

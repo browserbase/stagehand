@@ -2,3 +2,4 @@ pnpm-lock.yaml
 README.md
 **/*.json
 docs/
+.github/
