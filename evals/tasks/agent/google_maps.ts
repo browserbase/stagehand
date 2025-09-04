@@ -14,7 +14,7 @@ export const google_maps: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "How long does it take to get from San Francisco to New York driving?",
-      maxSteps: 15,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
 

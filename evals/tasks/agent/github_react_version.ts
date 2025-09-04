@@ -13,7 +13,7 @@ export const github_react_version: EvalFunction = async ({
     await agent.execute({
       instruction:
         "Check the latest release version of React and the date it was published. ",
-      maxSteps: 20,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
     const { evaluation, reasoning } = await evaluator.ask({
       question:

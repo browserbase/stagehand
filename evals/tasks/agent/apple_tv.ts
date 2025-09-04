@@ -14,7 +14,7 @@ export const apple_tv: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Identify the size and weight for the Apple TV 4K and list the Siri Remote features introduced.",
-      maxSteps: 30,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });
 
     const { height, width } = await stagehand.page.extract({

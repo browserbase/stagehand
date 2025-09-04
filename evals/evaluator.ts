@@ -55,6 +55,7 @@ export class Evaluator {
       screenshot = true,
       systemPrompt,
       screenshotDelayMs = 250,
+      agentReasoning,
     } = options;
     if (!question) {
       throw new Error("Question cannot be an empty string");
@@ -69,12 +70,12 @@ export class Evaluator {
         question,
         screenshots: screenshot,
         systemPrompt,
+        agentReasoning,
       });
     }
 
     // Single screenshot case (existing logic)
-    const defaultSystemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
-          Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
+    const defaultSystemPrompt = `You are an expert evaluator that confidently returns YES or NO based on if the original goal was achieved. You have access to  ${screenshot ? "a screenshot" : "the agents reasoning and actions throughout the task"} that you can use to evaluate the tasks completion. Provide detailed reasoning for your answer.
           Today's date is ${new Date().toLocaleDateString()}`;
 
     await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
@@ -97,7 +98,12 @@ export class Evaluator {
           {
             role: "user",
             content: [
-              { type: "text", text: question },
+              {
+                type: "text",
+                text: agentReasoning
+                  ? `Question: ${question}\n\nAgent's reasoning and actions taken:\n${agentReasoning}`
+                  : question,
+              },
               ...(screenshot
                 ? [
                     {
@@ -153,8 +159,7 @@ export class Evaluator {
     const {
       questions,
       screenshot = true,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task (in the form of a screenshot, or an answer). Provide a detailed reasoning for your answer.
-           Be critical about the question and the answer, the slightest detail might be the difference between yes and no. for text, be lenient and allow for slight variations in wording. we will be comparing the agents trajectory to see if it contains the information we were looking for in the answer.
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO for each question given the state of a task based on the original goal. You have access to  ${screenshot ? "a screenshot" : "the agents reasoning and actions throughout the task"} that you can use to evaluate the tasks completion. Provide detailed reasoning for your answer.
           Today's date is ${new Date().toLocaleDateString()}`,
       screenshotDelayMs = 1000,
     } = options;
@@ -260,14 +265,17 @@ export class Evaluator {
     question: string;
     screenshots: Buffer[];
     systemPrompt?: string;
+    agentReasoning?: string;
   }): Promise<EvaluationResult> {
     const {
       question,
       screenshots,
+      agentReasoning,
       systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and multiple screenshots showing the progression of a task.
+        ${agentReasoning ? "You also have access to the agent's detailed reasoning and thought process throughout the task." : ""}
         Analyze ALL screenshots to understand the complete journey. Look for evidence of task completion across all screenshots, not just the last one.
         Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc).
-        Be critical about the question but consider the ENTIRE sequence when making your determination.
+        ${agentReasoning ? "The agent's reasoning provides crucial context about what actions were attempted, what was observed, and the decision-making process. Use this alongside the visual evidence to make a comprehensive evaluation." : ""}
         Today's date is ${new Date().toLocaleDateString()}`,
     } = options;
 
@@ -303,7 +311,9 @@ export class Evaluator {
             content: [
               {
                 type: "text",
-                text: `${question}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze all of them to determine if the task was completed successfully.`,
+                text: agentReasoning
+                  ? `Question: ${question}\n\nAgent's reasoning and actions throughout the task:\n${agentReasoning}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze both the agent's reasoning and all screenshots to determine if the task was completed successfully.`
+                  : `${question}\n\nI'm providing ${screenshots.length} screenshots showing the progression of the task. Please analyze all of them to determine if the task was completed successfully.`,
               },
               ...imageContents,
             ],

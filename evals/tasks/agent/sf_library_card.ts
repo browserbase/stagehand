@@ -14,7 +14,7 @@ export const sf_library_card: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Fill in the 'Residential Address' field with '166 Geary St'",
-      maxSteps: 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });
     logger.log(agentResult);
 

@@ -44,9 +44,9 @@ export const webvoyager: EvalFunction = async ({
 
     screenshotCollector.start();
 
-    await agent.execute({
+    const agentResult = await agent.execute({
       instruction: params.ques,
-      maxSteps: 50,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
     // Stop collecting and get all screenshots
@@ -60,8 +60,11 @@ export const webvoyager: EvalFunction = async ({
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.ques}"? Look at all the screenshots showing the progression of the task to verify if it was completed successfully.`,
+      question: `Did the agent successfully complete this task: "${params.ques}"?`,
       screenshot: screenshots,
+      agentReasoning:
+        agentResult.message ||
+        "no reasoning available, agent potentially hit step limit",
     });
 
     return {

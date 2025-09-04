@@ -9,6 +9,8 @@ export type EvaluateOptions = {
   systemPrompt?: string;
   /** Delay in milliseconds before taking the screenshot @default 250 */
   screenshotDelayMs?: number;
+  /** The agent's reasoning/thought process for completing the task */
+  agentReasoning?: string;
 };
 
 export type BatchAskOptions = {

@@ -15,7 +15,7 @@ export const apple_trade_in: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
-      maxSteps: 30,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });
 
     const { evaluation, reasoning } = await evaluator.ask({
