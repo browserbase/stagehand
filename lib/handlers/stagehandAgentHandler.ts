@@ -223,7 +223,8 @@ For each action, provide clear reasoning about why you're taking that step.`;
   }
 
   private createTools() {
-    const page = this.stagehandPage.page;
-    return createAgentTools(page, { executionModel: this.executionModel });
+    return createAgentTools(this.stagehandPage, {
+      executionModel: this.executionModel,
+    });
   }
 }
