@@ -62,7 +62,9 @@ export const webvoyager: EvalFunction = async ({
     const evalResult = await evaluator.ask({
       question: `Did the agent successfully complete this task: "${params.ques}"?`,
       screenshot: screenshots,
-      agentReasoning: agentResult.message,
+      agentReasoning:
+        agentResult.message ||
+        "no reasoning available, agent potentially hit step limit",
     });
 
     return {
