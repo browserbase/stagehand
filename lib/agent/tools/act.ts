@@ -24,15 +24,13 @@ export const createActTool = (page: Page, executionModel?: string) =>
           : await page.observe(action);
         if (observeResult) {
           const isIframe = observeResult.description === "an iframe";
-          if (isIframe) {
-            const actOptions = {
-              action: action,
-              iframes: true,
-              ...(executionModel && { modelName: executionModel }),
-            };
-            await page.act(actOptions);
-            return { success: true, action: action };
-          }
+          const actOptions = {
+            action: action,
+            iframes: isIframe,
+            ...(executionModel && { modelName: executionModel }),
+          };
+          await page.act(actOptions);
+          return { success: true, action: action };
         }
       } catch (error) {
         return { success: false, error: error.message };
