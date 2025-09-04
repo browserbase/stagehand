@@ -15,23 +15,27 @@ export const createActTool = (page: Page, executionModel?: string) =>
           - type "Doe" into the last name input`),
     }),
     execute: async ({ action }) => {
-      const [observeResult] = executionModel
-        ? await page.observe({
-            instruction: action,
-            modelName: executionModel,
-          })
-        : await page.observe(action);
-      if (observeResult) {
-        const isIframe = observeResult.description === "an iframe";
-        if (isIframe) {
-          return {
-            success: false,
-            error: "Iframe encountered",
-          };
+      try {
+        const [observeResult] = executionModel
+          ? await page.observe({
+              instruction: action,
+              modelName: executionModel,
+            })
+          : await page.observe(action);
+        if (observeResult) {
+          const isIframe = observeResult.description === "an iframe";
+          if (isIframe) {
+            const actOptions = {
+              action: action,
+              iframes: true,
+              ...(executionModel && { modelName: executionModel }),
+            };
+            await page.act(actOptions);
+            return { success: true, action: action };
+          }
         }
-
-        await page.act(observeResult);
-        return { success: true, action: action, observeResult } as const;
+      } catch (error) {
+        return { success: false, error: error.message };
       }
       return { success: false, error: "Could not find element" };
     },
