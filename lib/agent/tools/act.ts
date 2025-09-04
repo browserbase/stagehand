@@ -7,10 +7,10 @@ export const createActTool = (
   executionModel?: string,
 ) =>
   tool({
-    description: "Perform an action on the page (click, type, etc)",
+    description: "Perform an action on the page (click, type)",
     parameters: z.object({
       action: z.string()
-        .describe(`Describe what to click in a short, specific phrase that mentions the element type. 
+        .describe(`Describe what to click, or type within in a short, specific phrase that mentions the element type. 
           Examples:
           - "click the Login button"
           - "click the language dropdown"
@@ -19,25 +19,37 @@ export const createActTool = (
     }),
     execute: async ({ action }) => {
       try {
-        const [observeResult] = executionModel
-          ? await stagehandPage.page.observe({
-              instruction: action,
-              modelName: executionModel,
-            })
-          : await stagehandPage.page.observe(action);
-        if (observeResult) {
-          const isIframe = observeResult.description === "an iframe";
-          const actOptions = {
-            action: action,
-            iframes: isIframe,
-            ...(executionModel && { modelName: executionModel }),
-          };
-          await stagehandPage.page.act(actOptions);
-          return { success: true, action: action };
+        let result;
+        if (executionModel) {
+          result = await stagehandPage.page.act({
+            action,
+            modelName: executionModel,
+          });
+        } else {
+          result = await stagehandPage.page.act(action);
         }
+        const isIframeAction = result.action === "an iframe";
+
+        if (isIframeAction) {
+          const fallback = await stagehandPage.page.act(
+            executionModel
+              ? { action, modelName: executionModel, iframes: true }
+              : { action, iframes: true },
+          );
+          return {
+            success: fallback.success,
+            action: fallback.action,
+            isIframe: true,
+          };
+        }
+
+        return {
+          success: result.success,
+          action: result.action,
+          isIframe: false,
+        };
       } catch (error) {
         return { success: false, error: error.message };
       }
-      return { success: false, error: "Could not find element" };
     },
   });
