@@ -15,7 +15,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
-      maxSteps: 25,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
 
     // Mon, 27 Mar 2023 17:46:54 UTC
