@@ -12,7 +12,7 @@ import {
 } from "ai";
 import { ZodType } from "zod/v3";
 import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
+import { AvailableModel } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -100,7 +100,6 @@ export abstract class LLMClient {
   public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
   public modelName: AvailableModel | (string & {});
   public hasVision: boolean;
-  public clientOptions: ClientOptions;
   public userProvidedInstructions?: string;
 
   constructor(modelName: AvailableModel, userProvidedInstructions?: string) {

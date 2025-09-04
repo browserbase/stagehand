@@ -1,5 +1,6 @@
-import OpenAI from "openai";
+import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 import type { ClientOptions } from "openai";
+import OpenAI from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";
@@ -10,14 +11,13 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
   private client: OpenAI;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
-  public clientOptions: ClientOptions;
+  public clientOptions?: ClientOptions;
   public hasVision = false;
 
   constructor({
@@ -31,7 +31,7 @@ export class CerebrasClient extends LLMClient {
     enableCaching?: boolean;
     cache?: LLMCache;
     modelName: AvailableModel;
-    clientOptions?: ClientOptions;
+    clientOptions?: OpenAI.ClientOptions;
     userProvidedInstructions?: string;
   }) {
     super(modelName, userProvidedInstructions);
