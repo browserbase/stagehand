@@ -7,12 +7,6 @@ import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
-function isAISDKBacked(client: LLMClient): client is LLMClient & {
-  type: "aisdk";
-  getLanguageModel: () => LanguageModel;
-} {
-  return client?.type === "aisdk" && "getLanguageModel" in client;
-}
 
 export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
@@ -73,11 +67,6 @@ export class StagehandAgentHandler {
         );
       }
 
-      if (!isAISDKBacked(this.llmClient)) {
-        throw new Error(
-          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' or another AISDK provider.",
-        );
-      }
       const baseModel: LanguageModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
