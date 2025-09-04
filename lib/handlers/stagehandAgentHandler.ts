@@ -214,6 +214,7 @@ For each action, provide clear reasoning about why you're taking that step.`;
   private createTools() {
     return createAgentTools(this.stagehandPage, {
       executionModel: this.executionModel,
+      logger: this.logger,
     });
   }
 }

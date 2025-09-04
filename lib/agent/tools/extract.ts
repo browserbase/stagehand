@@ -1,19 +1,33 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import { StagehandPage } from "../../StagehandPage";
+import { LogLine } from "@/types/log";
 
 /**
  * Evaluates a Zod schema string and returns the actual Zod schema
  * Uses Function constructor to evaluate the schema string in a controlled way
  */
-function evaluateZodSchema(schemaStr: string): z.ZodTypeAny {
+function evaluateZodSchema(
+  schemaStr: string,
+  logger?: (message: LogLine) => void,
+): z.ZodTypeAny {
   try {
     // Create a function that returns the evaluated schema
     // We pass z as a parameter to make it available in the evaluated context
     const schemaFunction = new Function("z", `return ${schemaStr}`);
     return schemaFunction(z);
   } catch (error) {
-    console.warn("Failed to evaluate schema string, using z.any():", error);
+    logger?.({
+      category: "extract",
+      message: `Failed to evaluate schema string, using z.any(): ${error}`,
+      level: 1,
+      auxiliary: {
+        error: {
+          value: error,
+          type: "string",
+        },
+      },
+    });
     return z.any();
   }
 }
@@ -21,6 +35,7 @@ function evaluateZodSchema(schemaStr: string): z.ZodTypeAny {
 export const createExtractTool = (
   stagehandPage: StagehandPage,
   executionModel?: string,
+  logger?: (message: LogLine) => void,
 ) =>
   tool({
     description: `Extract structured data from the current page based on a provided schema.
@@ -57,7 +72,7 @@ export const createExtractTool = (
     execute: async ({ instruction, schema }) => {
       try {
         // Evaluate the schema string to get the actual Zod schema
-        const zodSchema = evaluateZodSchema(schema);
+        const zodSchema = evaluateZodSchema(schema, logger);
 
         // Ensure we have a ZodObject
         const schemaObject =

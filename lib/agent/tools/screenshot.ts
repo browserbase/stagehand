@@ -14,8 +14,6 @@ export const createScreenshotTool = (stagehandPage: StagehandPage) =>
       });
       const pageUrl = stagehandPage.page.url();
 
-      console.log(`Screenshot size: ${screenshotBuffer.length} bytes`);
-
       return {
         base64: screenshotBuffer.toString("base64"),
         timestamp: Date.now(),
@@ -23,7 +21,6 @@ export const createScreenshotTool = (stagehandPage: StagehandPage) =>
       };
     },
     experimental_toToolResultContent: (result) => {
-      console.log(`Base64 length: ${result.base64.length} characters`);
       return [
         {
           type: "image",
