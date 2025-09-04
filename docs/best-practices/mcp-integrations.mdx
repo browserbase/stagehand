@@ -18,6 +18,10 @@ There are two options for connecting to MCP servers:
 1. **Pass a URL directly** - The simplest approach for quick setup
 2. **Create a connection first** - Gives you more control over the connection
 
+<Note>
+MCP client support is currently only available in TypeScript.
+</Note>
+
 ## Passing a URL
 
 The simplest way to add MCP integrations is by providing server URLs directly in the agent configuration:
@@ -50,12 +54,21 @@ const supabaseClient = await connectToMCPServer(
   `https://server.smithery.ai/@supabase-community/supabase-mcp/mcp?api_key=${process.env.SMITHERY_API_KEY}`
 );
 
+// You can also pass the config to start a local MCP server
+const notionClient = await connectToMCPServer({
+  command: "npx",
+  args: ["-y", "@notionhq/notion-mcp-server"],
+  env: {
+    NOTION_TOKEN: process.env.NOTION_TOKEN,
+  },
+});
+
 // Use the connected client
 const agent = stagehand.agent({
   provider: "openai", 
   model: "computer-use-preview",
-  integrations: [supabaseClient],
-  instructions: `You can interact with Supabase databases. Use these tools to store and retrieve data.`,
+  integrations: [supabaseClient, notionClient],
+  instructions: `You can interact with Supabase databases and Notion. Use these tools to store and retrieve data.`,
   options: {
     apiKey: process.env.OPENAI_API_KEY,
   },

@@ -3,6 +3,7 @@ import {
   ClientOptions,
 } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MCPConnectionError } from "../../types/stagehandErrors";
 
 export interface ConnectToMCPServerOptions {
@@ -10,25 +11,41 @@ export interface ConnectToMCPServerOptions {
   clientOptions?: ClientOptions;
 }
 
+export interface StdioServerConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 export const connectToMCPServer = async (
-  serverUrlOrOptions: string | ConnectToMCPServerOptions,
+  serverConfig: string | URL | StdioServerConfig | ConnectToMCPServerOptions,
 ): Promise<Client> => {
-  // Handle both string URL and options object
-  const options: ConnectToMCPServerOptions =
-    typeof serverUrlOrOptions === "string"
-      ? { serverUrl: serverUrlOrOptions }
-      : serverUrlOrOptions;
-
-  const serverUrl = options.serverUrl.toString();
-
   try {
-    const transport = new StreamableHTTPClientTransport(
-      new URL(options.serverUrl),
-    );
+    let transport;
+    let clientOptions: ClientOptions | undefined;
+
+    // Check if it's a stdio config (has 'command' property)
+    if (typeof serverConfig === "object" && "command" in serverConfig) {
+      transport = new StdioClientTransport(serverConfig);
+    } else {
+      // Handle URL-based connection
+      let serverUrl: string | URL;
+
+      if (typeof serverConfig === "string" || serverConfig instanceof URL) {
+        serverUrl = serverConfig;
+      } else {
+        serverUrl = (serverConfig as ConnectToMCPServerOptions).serverUrl;
+        clientOptions = (serverConfig as ConnectToMCPServerOptions)
+          .clientOptions;
+      }
+
+      transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+    }
+
     const client = new Client({
       name: "Stagehand",
       version: "1.0.0",
-      ...options.clientOptions,
+      ...clientOptions,
     });
 
     await client.connect(transport);
@@ -37,7 +54,7 @@ export const connectToMCPServer = async (
       await client.ping();
     } catch (pingError) {
       await client.close();
-      throw new MCPConnectionError(serverUrl, pingError);
+      throw new MCPConnectionError(serverConfig.toString(), pingError);
     }
 
     return client;
@@ -46,6 +63,6 @@ export const connectToMCPServer = async (
     if (error instanceof MCPConnectionError) {
       throw error; // Re-throw our custom error
     }
-    throw new MCPConnectionError(serverUrl, error);
+    throw new MCPConnectionError(serverConfig.toString(), error);
   }
 };
