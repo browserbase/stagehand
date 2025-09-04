@@ -12,8 +12,8 @@ export const steam_games: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Show most played games in Steam. And tell me the number of players in In game at this time",
-      maxSteps: 30,
+        "Show most played games in Steam. And tell me the number of players in game at this time",
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });
 
     //strictly used url check and no extract as the top games / players can vary

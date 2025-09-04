@@ -13,7 +13,7 @@ export const trivago: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find the cheapest room in the hotel H10 Tribeca in Madrid next weekend. Stop at the trivago page showing the results",
-      maxSteps: 13,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 13,
     });
     logger.log(agentResult);
 

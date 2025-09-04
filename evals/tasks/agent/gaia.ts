@@ -51,7 +51,7 @@ export const gaia: EvalFunction = async ({
 
     const result = await agent.execute({
       instruction: params.ques,
-      maxSteps: 50,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
     const expected = (params as Record<string, unknown>).expected as

@@ -14,7 +14,7 @@ export const google_shopping: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find a drip coffee maker that is on sale and within $25-60 and has a black finish",
-      maxSteps: 20,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
     logger.log(agentResult);
 

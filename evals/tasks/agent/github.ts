@@ -13,7 +13,7 @@ export const github: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find a Ruby repository on GitHub that has been updated in the past 3 days and has at least 1000 stars.",
-      maxSteps: 20,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
     logger.log(agentResult);
 

@@ -46,7 +46,7 @@ export const webvoyager: EvalFunction = async ({
 
     await agent.execute({
       instruction: params.ques,
-      maxSteps: 50,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
     // Stop collecting and get all screenshots
