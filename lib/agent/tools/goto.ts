@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Page } from "@/types/page";
 
 export const createGotoTool = (page: Page) =>
@@ -9,7 +9,11 @@ export const createGotoTool = (page: Page) =>
       url: z.string().describe("The URL to navigate to"),
     }),
     execute: async ({ url }) => {
-      await page.goto(url, { waitUntil: "load" });
-      return { success: true, url };
+      try {
+        await page.goto(url, { waitUntil: "load" });
+        return { success: true, url };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     },
   });

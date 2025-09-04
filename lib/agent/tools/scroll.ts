@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { Page } from "@/types/page";
 
 export const createScrollTool = (page: Page) =>

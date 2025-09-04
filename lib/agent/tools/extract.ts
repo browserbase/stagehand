@@ -63,16 +63,11 @@ export const createExtractTool = (page: Page, executionModel?: string) =>
             : z.object({ result: zodSchema });
 
         // Extract with the schema - only pass modelName if executionModel is explicitly provided
-        const result = executionModel
-          ? await page.extract({
-              instruction,
-              schema: schemaObject,
-              modelName: executionModel,
-            })
-          : await page.extract({
-              instruction,
-              schema: schemaObject,
-            });
+        const result = await page.extract({
+          instruction,
+          schema: schemaObject,
+          ...(executionModel && { modelName: executionModel }),
+        });
 
         return {
           success: true,
