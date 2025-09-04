@@ -67,6 +67,11 @@ export class StagehandAgentHandler {
         );
       }
 
+      if (!this.llmClient.getLanguageModel) {
+        throw new Error(
+          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
+        );
+      }
       const baseModel: LanguageModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
