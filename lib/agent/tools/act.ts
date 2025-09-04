@@ -1,8 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { Page } from "@/types/page";
+import { StagehandPage } from "../../StagehandPage";
 
-export const createActTool = (page: Page, executionModel?: string) =>
+export const createActTool = (
+  stagehandPage: StagehandPage,
+  executionModel?: string,
+) =>
   tool({
     description: "Perform an action on the page (click, type, etc)",
     parameters: z.object({
@@ -17,11 +20,11 @@ export const createActTool = (page: Page, executionModel?: string) =>
     execute: async ({ action }) => {
       try {
         const [observeResult] = executionModel
-          ? await page.observe({
+          ? await stagehandPage.page.observe({
               instruction: action,
               modelName: executionModel,
             })
-          : await page.observe(action);
+          : await stagehandPage.page.observe(action);
         if (observeResult) {
           const isIframe = observeResult.description === "an iframe";
           const actOptions = {
@@ -29,7 +32,7 @@ export const createActTool = (page: Page, executionModel?: string) =>
             iframes: isIframe,
             ...(executionModel && { modelName: executionModel }),
           };
-          await page.act(actOptions);
+          await stagehandPage.page.act(actOptions);
           return { success: true, action: action };
         }
       } catch (error) {

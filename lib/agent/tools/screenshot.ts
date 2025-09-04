@@ -1,18 +1,18 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { Page } from "@/types/page";
+import { StagehandPage } from "../../StagehandPage";
 
-export const createScreenshotTool = (page: Page) =>
+export const createScreenshotTool = (stagehandPage: StagehandPage) =>
   tool({
     description:
       "Takes a screenshot of the current page. Use this tool to learn where you are on the page, or to get context of elements on the page",
     parameters: z.object({}),
     execute: async () => {
-      const screenshotBuffer = await page.screenshot({
+      const screenshotBuffer = await stagehandPage.page.screenshot({
         fullPage: false,
         type: "jpeg",
       });
-      const pageUrl = page.url();
+      const pageUrl = stagehandPage.page.url();
 
       console.log(`Screenshot size: ${screenshotBuffer.length} bytes`);
 

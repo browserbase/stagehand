@@ -1,8 +1,11 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { Page } from "@/types/page";
+import { StagehandPage } from "../../StagehandPage";
 
-export const createFillFormTool = (page: Page, executionModel?: string) =>
+export const createFillFormTool = (
+  stagehandPage: StagehandPage,
+  executionModel?: string,
+) =>
   tool({
     description: `📝 FORM FILL - SPECIALIZED MULTI-FIELD INPUT TOOL
 
@@ -51,15 +54,15 @@ export const createFillFormTool = (page: Page, executionModel?: string) =>
         .join(", ")}`;
 
       const observeResults = executionModel
-        ? await page.observe({
+        ? await stagehandPage.page.observe({
             instruction,
             modelName: executionModel,
           })
-        : await page.observe(instruction);
+        : await stagehandPage.page.observe(instruction);
 
       const completedActions = [];
       for (const result of observeResults) {
-        const action = await page.act(result);
+        const action = await stagehandPage.page.act(result);
         completedActions.push(action);
       }
 

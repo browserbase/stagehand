@@ -21,15 +21,15 @@ export function createAgentTools(
   const executionModel = options?.executionModel;
 
   return {
-    act: createActTool(stagehandPage.page, executionModel),
-    ariaTree: createAriaTreeTool(stagehandPage.page),
-    close: createCloseTool(),
-    extract: createExtractTool(stagehandPage.page, executionModel),
-    fillForm: createFillFormTool(stagehandPage.page, executionModel),
-    goto: createGotoTool(stagehandPage.page),
-    navback: createNavBackTool(stagehandPage.page),
-    screenshot: createScreenshotTool(stagehandPage.page),
-    scroll: createScrollTool(stagehandPage.page),
+    act: createActTool(stagehandPage, executionModel),
+    ariaTree: createAriaTreeTool(stagehandPage),
+    close: createCloseTool(stagehandPage),
+    extract: createExtractTool(stagehandPage, executionModel),
+    fillForm: createFillFormTool(stagehandPage, executionModel),
+    goto: createGotoTool(stagehandPage),
+    navback: createNavBackTool(stagehandPage),
+    screenshot: createScreenshotTool(stagehandPage),
+    scroll: createScrollTool(stagehandPage),
     wait: createWaitTool(),
   };
 }

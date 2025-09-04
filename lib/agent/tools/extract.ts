@@ -1,6 +1,6 @@
 import { tool } from "ai";
-import { z } from "zod";
-import { Page } from "@/types/page";
+import { z } from "zod/v3";
+import { StagehandPage } from "../../StagehandPage";
 
 /**
  * Evaluates a Zod schema string and returns the actual Zod schema
@@ -18,7 +18,10 @@ function evaluateZodSchema(schemaStr: string): z.ZodTypeAny {
   }
 }
 
-export const createExtractTool = (page: Page, executionModel?: string) =>
+export const createExtractTool = (
+  stagehandPage: StagehandPage,
+  executionModel?: string,
+) =>
   tool({
     description: `Extract structured data from the current page based on a provided schema.
     
@@ -63,7 +66,7 @@ export const createExtractTool = (page: Page, executionModel?: string) =>
             : z.object({ result: zodSchema });
 
         // Extract with the schema - only pass modelName if executionModel is explicitly provided
-        const result = await page.extract({
+        const result = await stagehandPage.page.extract({
           instruction,
           schema: schemaObject,
           ...(executionModel && { modelName: executionModel }),
