@@ -33,7 +33,7 @@ import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
 import { AgentProvider } from "@/lib/agent/AgentProvider";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { AISdkClient } from "@/lib/llm/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import { LogLine } from "@/types/log";

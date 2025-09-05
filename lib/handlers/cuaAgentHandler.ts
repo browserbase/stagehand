@@ -15,7 +15,7 @@ import { StagehandAgent } from "../agent/StagehandAgent";
 import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { Stagehand } from "../index";
 
-export class StagehandAgentHandler {
+export class CuaAgentHandler {
   private stagehand: Stagehand;
   private stagehandPage: StagehandPage;
   private agent: StagehandAgent;
