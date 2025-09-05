@@ -9,7 +9,9 @@ export const iframe_form_multiple: EvalFunction = async ({
   agent,
 }) => {
   try {
-    await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
+    );
 
     const agentResult = await agent.execute({
       instruction:
@@ -26,10 +28,6 @@ export const iframe_form_multiple: EvalFunction = async ({
         {
           question:
             "Is the form email input filled with 'john.smith@example.com'?",
-        },
-        {
-          question:
-            "Is the 'Are you the domain owner?' option selected as 'No'?",
         },
       ],
     });
