@@ -1,6 +1,5 @@
 import { createGotoTool } from "./goto";
 import { createActTool } from "./act";
-import { createExtractTool } from "./extract";
 import { createScreenshotTool } from "./screenshot";
 import { createWaitTool } from "./wait";
 import { createNavBackTool } from "./navback";
@@ -10,6 +9,7 @@ import { createFillFormTool } from "./fillform";
 import { createScrollTool } from "./scroll";
 import { StagehandPage } from "../../StagehandPage";
 import { LogLine } from "@/types/log";
+import { createExtractTool } from "./extract";
 
 export interface AgentToolOptions {
   executionModel?: string;
@@ -25,7 +25,7 @@ export function createAgentTools(
   return {
     act: createActTool(stagehandPage, executionModel),
     ariaTree: createAriaTreeTool(stagehandPage),
-    close: createCloseTool(stagehandPage),
+    close: createCloseTool(),
     extract: createExtractTool(stagehandPage, executionModel, options?.logger),
     fillForm: createFillFormTool(stagehandPage, executionModel),
     goto: createGotoTool(stagehandPage),
