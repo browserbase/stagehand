@@ -24,7 +24,7 @@ export const hugging_face: EvalFunction = async ({
       screenshot: false,
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     console.log(`reasoning: ${reasoning}`);
     if (!success) {

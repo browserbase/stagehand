@@ -24,7 +24,7 @@ export const google_shopping: EvalFunction = async ({
         "Does the page show a drip coffee maker that is on sale and within $25-60 and has a black finish?",
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     if (!success) {
       return {

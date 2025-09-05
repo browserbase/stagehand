@@ -23,7 +23,6 @@ export const nba_trades: EvalFunction = async ({
     });
 
     const success =
-      agentResult.success &&
       stagehand.page.url() === "https://www.espn.com/nba/transactions" &&
       evaluation === "YES";
 

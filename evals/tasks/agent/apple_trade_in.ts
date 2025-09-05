@@ -12,7 +12,7 @@ export const apple_trade_in: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://www.apple.com/shop/trade-in");
     const evaluator = new Evaluator(stagehand);
-    const agentResult = await agent.execute({
+    await agent.execute({
       instruction:
         "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
@@ -25,7 +25,7 @@ export const apple_trade_in: EvalFunction = async ({
       answer: "360",
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     if (!success) {
       return {

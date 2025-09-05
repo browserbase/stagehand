@@ -12,7 +12,7 @@ export const youtube: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Search for Keinemusik's set under some very famous pointy landmarks",
+        "Search for Keinemusik's set under some very famous pointy landmarks. Make sure to click on the video",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);

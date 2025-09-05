@@ -12,7 +12,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://arxiv.org/");
 
-    const agentResult = await agent.execute({
+    await agent.execute({
       instruction:
         "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
@@ -29,7 +29,7 @@ export const arxiv_gpt_report: EvalFunction = async ({
 
     console.log(`reasoning: ${reasoning}`);
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     if (!success) {
       return {

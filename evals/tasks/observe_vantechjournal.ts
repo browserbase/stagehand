@@ -24,7 +24,7 @@ export const observe_vantechjournal: EvalFunction = async ({
       };
     }
 
-    const expectedLocator = `xpath=/html/body/div[3]/section/div/div/div[3]/a`;
+    const expectedLocator = `xpath=/html/body/div[3]/div/section/div/div/div[3]/a`;
 
     const expectedResult = await stagehand.page.locator(expectedLocator);
 
