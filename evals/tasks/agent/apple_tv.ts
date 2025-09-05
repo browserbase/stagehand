@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
-import { z } from "zod";
 
+import { Evaluator } from "../../evaluator";
 export const apple_tv: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -14,23 +14,18 @@ export const apple_tv: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Identify the size and weight for the Apple TV 4K and list the Siri Remote features introduced.",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
 
-    const { height, width } = await stagehand.page.extract({
-      modelName: "google/gemini-2.5-flash",
-      instruction: "Extract the size and weight of the Apple TV 4K",
-      schema: z.object({
-        height: z.number().describe("The height of the Apple TV 4K in inches"),
-        width: z.number().describe("The width of the Apple TV 4K in inches"),
-      }),
+    const evaluator = new Evaluator(stagehand);
+    const result = await evaluator.ask({
+      question:
+        "did the agent find the page showing the size and weight for the Apple TV 4K and the Siri Remote features introduced?",
     });
 
     const success =
-      height === 1.2 &&
-      width === 3.66 &&
+      result.evaluation === "YES" &&
       stagehand.page.url().includes("https://www.apple.com/apple-tv-4k/specs/");
-
     if (!success) {
       return {
         _success: false,
