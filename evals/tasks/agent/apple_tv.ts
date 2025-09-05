@@ -21,6 +21,7 @@ export const apple_tv: EvalFunction = async ({
     const result = await evaluator.ask({
       question:
         "did the agent find the page showing the size and weight for the Apple TV 4K and the Siri Remote features introduced?",
+      agentReasoning: agentResult.message,
     });
 
     const success =
