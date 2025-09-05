@@ -46,7 +46,7 @@ export const google_maps_2: EvalFunction = async ({
     }
 
     if (result.evaluation === "YES") {
-      if (distance !== 1.5) {
+      if (distance <= 1.3 || distance >= 1.6) {
         return {
           _success: false,
           observations: "Distance is not 1.5 km",

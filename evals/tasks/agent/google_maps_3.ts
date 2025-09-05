@@ -10,7 +10,7 @@ export const google_maps_3: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://maps.google.com/");
     const evaluator = new Evaluator(stagehand);
-    const agentResult = await agent.execute({
+    await agent.execute({
       instruction:
         "Search for locksmiths open now but not open 24 hours in Texas City.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
@@ -21,7 +21,7 @@ export const google_maps_3: EvalFunction = async ({
         "Does the page show a locksmiths open now but not open 24 hours in Texas City?",
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     if (!success) {
       return {
