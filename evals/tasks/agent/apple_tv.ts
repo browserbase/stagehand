@@ -20,8 +20,8 @@ export const apple_tv: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.ask({
       question:
-        "did the agent find the page showing the size and weight for the Apple TV 4K and the Siri Remote features introduced?",
-      agentReasoning: agentResult.message,
+        "did the agent find the height and width of the Apple TV 4K in its reasoning which is 1.2 and 3.66?",
+      answer: agentResult.message,
     });
 
     const success =
