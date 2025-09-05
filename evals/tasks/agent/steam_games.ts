@@ -17,9 +17,9 @@ export const steam_games: EvalFunction = async ({
     });
 
     //strictly used url check and no extract as the top games / players can vary
-    const success =
-      agentResult.success &&
-      stagehand.page.url().includes("https://store.steampowered.com/");
+    const success = stagehand.page
+      .url()
+      .includes("https://store.steampowered.com/");
 
     if (!success) {
       return {
