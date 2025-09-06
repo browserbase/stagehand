@@ -40,6 +40,7 @@ import { LogLine } from "@/types/log";
 import { generateSummary } from "./core/summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
+import { buildWebBenchTestcases } from "./suites/webbench";
 
 dotenv.config();
 
@@ -119,6 +120,8 @@ const generateFilteredTestcases = (): Testcase[] => {
   const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
   const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
+  // Special handling: fan out WebBench dataset for agent/webbench
+  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench");
 
   let allTestcases: Testcase[] = [];
 
@@ -145,6 +148,22 @@ const generateFilteredTestcases = (): Testcase[] => {
   ) {
     // Remove WebVoyager from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
+  }
+
+  // Only include WebBench if no dataset filter or if webbench is selected
+  if (
+    isWebBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
+    allTestcases.push(...buildWebBenchTestcases(currentModels));
+  } else if (
+    isWebBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webbench"
+  ) {
+    // Remove WebBench from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
   }
 
   // Create a list of all remaining testcases using the determined task names and models
