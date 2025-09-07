@@ -1,0 +1,75 @@
+{
+  "id": "2ad9387a-65d8-4e33-ad5b-7580065a27ca",
+  "snapshot": "chrome",
+  "instruction": "Can you make a new folder for me on the bookmarks bar in my internet browser? Let's call it 'Favorites.'",
+  "source": "https://www.youtube.com/watch?v=IN-Eq_UripQ",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "postconfig": [
+      {
+        "type": "launch",
+        "parameters": {
+          "command": [
+            "pkill",
+            "chrome"
+          ]
+        }
+      },
+      {
+        "type": "launch",
+        "parameters": {
+          "command": [
+            "google-chrome",
+            "--remote-debugging-port=1337"
+          ]
+        }
+      },
+      {
+        "type": "sleep",
+        "parameters": {
+          "seconds": 3
+        }
+      }
+    ],
+    "func": "is_expected_bookmarks",
+    "result": {
+      "type": "bookmarks"
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "type": "bookmark_bar_folders_names",
+        "names": [
+          "Favorites"
+        ]
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

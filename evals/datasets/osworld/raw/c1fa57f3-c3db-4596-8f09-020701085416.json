@@ -1,0 +1,63 @@
+{
+  "id": "c1fa57f3-c3db-4596-8f09-020701085416",
+  "snapshot": "chrome",
+  "instruction": "Open the baggage fee calculator in United Airlines website.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.united.com/en/us"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "is_expected_url_pattern_match",
+    "result": {
+      "type": "active_tab_info",
+      "goto_prefix": "https://www."
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": [
+          "united.com/en/us/checked-bag-fee-calculator"
+        ]
+      }
+    }
+  },
+  "proxy": true,
+  "possibility_of_env_change": "medium",
+  "fixed_ip": false
+}

@@ -41,6 +41,7 @@ import { generateSummary } from "./core/summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildWebBenchTestcases } from "./suites/webbench";
+import { buildOSWorldTestcases } from "./suites/osworld";
 
 dotenv.config();
 
@@ -111,7 +112,7 @@ const generateFilteredTestcases = (): Testcase[] => {
   // If using external benchmarks via dataset filter, override category to use agent models
   if (
     datasetFilter &&
-    ["gaia", "webvoyager", "webbench"].includes(datasetFilter)
+    ["gaia", "webvoyager", "webbench", "osworld"].includes(datasetFilter)
   ) {
     effectiveCategory = "external_agent_benchmarks";
     console.log(
@@ -137,6 +138,9 @@ const generateFilteredTestcases = (): Testcase[] => {
   // Special handling: fan out WebBench dataset for agent/webbench
   const isWebBenchTaskIncluded =
     taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
+  // Special handling: fan out OSWorld dataset for agent/osworld
+  const isOSWorldTaskIncluded =
+    taskNamesToRun.includes("agent/osworld") || datasetFilter === "osworld";
 
   let allTestcases: Testcase[] = [];
 
@@ -183,6 +187,22 @@ const generateFilteredTestcases = (): Testcase[] => {
   ) {
     // Remove WebBench from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
+  }
+
+  // Only include OSWorld if no dataset filter or if osworld is selected
+  if (
+    isOSWorldTaskIncluded &&
+    (!datasetFilter || datasetFilter === "osworld")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
+    allTestcases.push(...buildOSWorldTestcases(currentModels));
+  } else if (
+    taskNamesToRun.includes("agent/osworld") &&
+    datasetFilter &&
+    datasetFilter !== "osworld"
+  ) {
+    // Remove OSWorld from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
   }
 
   // Create a list of all remaining testcases using the determined task names and models

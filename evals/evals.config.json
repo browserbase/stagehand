@@ -527,6 +527,10 @@
     {
       "name": "agent/all_recipes",
       "categories": ["agent"]
+    },
+    {
+      "name": "agent/osworld",
+      "categories": ["external_agent_benchmarks"]
     }
   ]
 }

@@ -1,0 +1,60 @@
+{
+  "id": "3299584d-8f11-4457-bf4c-ce98f7600250",
+  "snapshot": "chrome",
+  "instruction": "On my surface pro whenever I launch Chrome it always opens \"funbrain.com.\" I don't want this. I cleared my cache but it still happens. What should I do?",
+  "source": "https://www.reddit.com/r/techsupport/comments/12zwymy/comment/jhtri65/?utm_source=share&utm_medium=web2x&context=3",
+  "config": [
+    {
+      "type": "execute",
+      "parameters": {
+        "command": "echo {CLIENT_PASSWORD} | sudo -S apt update -y && echo {CLIENT_PASSWORD} | sudo -S apt install jq -y",
+        "shell": true
+      }
+    },
+    {
+      "type": "execute",
+      "parameters": {
+        "command": "cd /home/user/.config/google-chrome/Default && jq '. + {\"session\":{\"restore_on_startup\":4, \"startup_urls\":[\"http://funbrain.com/\"]}}' Preferences > temp && mv temp Preferences",
+        "shell": true
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "exact_match",
+    "result": {
+      "type": "new_startup_page"
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": "true"
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

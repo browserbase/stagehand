@@ -1,0 +1,117 @@
+{
+  "id": "b7895e80-f4d1-4648-bee0-4eb45a6f1fa8",
+  "snapshot": "chrome",
+  "instruction": "Find a Hotel in New York City with lowest price possible for 2 adults next weekend.",
+  "source": "test_task_0",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.tripadvisor.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": [
+      "check_direct_json_object",
+      "check_direct_json_object"
+    ],
+    "conj": "or",
+    "result": [
+      {
+        "type": "active_tab_html_parse",
+        "goto_prefix": "https://www.",
+        "category": "xpath",
+        "xpathObject": {
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[1]/div/button/div[3]": "from",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[2]/button/div[3]": "to",
+          "/html/body/div[1]/main/div[3]/div[2]/div/div[1]/div/h2": "city",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[3]/button/div[3]/span/span[2]": "adult",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[3]/div/div[2]/div/div/div[2]/div/button/div/div": "rank"
+        }
+      },
+      {
+        "type": "active_tab_html_parse",
+        "goto_prefix": "https://www.",
+        "category": "xpath",
+        "xpathObject": {
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[1]/button/span/div/div": "from",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[2]/button/span/div/div": "to",
+          "/html/body/div[1]/main/div[3]/div[2]/div/div/div/h2": "city",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[1]/div/div/div/div[3]/button/span/div/div": "adult",
+          "/html/body/div[1]/main/div[3]/div[5]/div[2]/div/div[3]/div/div[2]/div/div/div[2]/div/button/div/div": "rank"
+        }
+      }
+    ],
+    "expected": [
+      {
+        "type": "rule_relativeTime",
+        "rules": {
+          "relativeTime": {
+            "from": "next week Saturday",
+            "to": "next week Sunday"
+          },
+          "timezone": "America/New_York",
+          "expected": {
+            "from": "{DoW}, {Month} {Day0D}",
+            "to": "{DoW}, {Month} {Day0D}",
+            "city": "New York City Hotels",
+            "adult": "2 guests",
+            "rank": "Price (low to high)"
+          }
+        }
+      },
+      {
+        "type": "rule_relativeTime",
+        "rules": {
+          "relativeTime": {
+            "from": "next week Friday",
+            "to": "next week Sunday"
+          },
+          "timezone": "America/New_York",
+          "expected": {
+            "from": "Check In{DoW}, {Month} {Day0D}",
+            "to": "Check Out{DoW}, {Month} {Day0D}",
+            "city": "New York City Hotels",
+            "adult": "Rooms/Guests1 Room, 2 Guests",
+            "rank": "Price (low to high)"
+          }
+        }
+      }
+    ]
+  },
+  "proxy": true,
+  "possibility_of_env_change": "high",
+  "fixed_ip": false
+}

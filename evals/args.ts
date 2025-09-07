@@ -143,7 +143,7 @@ function buildUsage(detailed = false): string {
     (default ${chalk.dim("25")})
 
   ${chalk.cyan("--dataset".padEnd(12))} ${"filter to specific benchmark".padEnd(24)}
-    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("webbench")}]
+    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("webbench")}, ${chalk.yellow("osworld")}]
 
 
     ${chalk.magenta.underline("Positional filters\n")}
@@ -222,6 +222,27 @@ function buildUsage(detailed = false): string {
       ${chalk.dim("Example:")}
       
       ${chalk.green("EVAL_WEBVOYAGER_SAMPLE=50 EVAL_WEBVOYAGER_LIMIT=10 pnpm run evals name=agent/webvoyager")}
+    
+    
+    ${chalk.cyan.bold("OSWorld")} - Chrome browser automation tasks from the OSWorld benchmark
+    
+      ${chalk.dim("Run:")} ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("agent/osworld")}
+      
+      ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=osworld pnpm run evals")}
+      
+      ${chalk.gray("Environment Variables:")}
+      
+      EVAL_OSWORLD_LIMIT           max tasks to run (default: 25)
+      EVAL_OSWORLD_SAMPLE          random sample count before limit
+      EVAL_OSWORLD_SOURCE          filter by source: [${chalk.yellow("Mind2Web")}, ${chalk.yellow("test_task_1")}, ...]
+      EVAL_OSWORLD_EVALUATION_TYPE filter by eval type: [${chalk.yellow("url_match")}, ${chalk.yellow("string_match")}, ${chalk.yellow("dom_state")}, ${chalk.yellow("custom")}]
+      EVAL_OSWORLD_TIMEOUT         timeout per task in milliseconds (default: 60000)
+      
+      ${chalk.dim("Examples:")}
+      
+      ${chalk.green("EVAL_OSWORLD_SOURCE=Mind2Web EVAL_OSWORLD_LIMIT=10 pnpm run evals name=agent/osworld")}
+      
+      ${chalk.green("EVAL_DATASET=osworld EVAL_OSWORLD_EVALUATION_TYPE=url_match pnpm run evals")}
   `;
 
   const envSection = dedent`
