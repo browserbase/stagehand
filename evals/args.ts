@@ -103,6 +103,25 @@ function buildUsage(detailed = false): string {
     `pnpm run evals [key=value]… [category <name>] | name=<evalName>`,
   );
 
+  const examplesSection = `
+      ${chalk.magenta.underline("Examples")}
+
+      ${chalk.dim("# Run every evaluation locally with default settings")}
+      ${chalk.green("pnpm run evals")}
+
+      ${chalk.dim("# Same as above but in Browserbase with three trials")}  
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("browserbase")} ${chalk.cyan("trials=")}${chalk.yellow("3")}
+
+      ${chalk.dim("# Run evals using the Stagehand API")}
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("browserbase")} ${chalk.cyan("api=")}${chalk.yellow("true")}
+
+      ${chalk.dim("# Run evals from only the 'act' category with a max of 4 running at any given time")}
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("category")} ${chalk.yellow("act")} ${chalk.cyan("concurrency=")}${chalk.yellow("4")}
+
+      ${chalk.dim("# Execute a specific eval by filename")}
+      ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("my_eval_name")}
+  `;
+
   const body = dedent`
     ${chalk.magenta.underline("Keys\n")}
   ${chalk.cyan("env".padEnd(12))} ${"target environment".padEnd(24)}
@@ -128,26 +147,19 @@ function buildUsage(detailed = false): string {
 
 
     ${chalk.magenta.underline("Positional filters\n")}
-      category <category_name>   one of: ${DEFAULT_EVAL_CATEGORIES.map((c) =>
-        chalk.yellow(c),
-      ).join(", ")}
-
-      ${chalk.magenta.underline("\nExamples")}
       
-      ${chalk.dim("# Run every evaluation locally with default settings")}
-      ${chalk.green("pnpm run evals")}
+      category <category_name>   
       
-      ${chalk.dim("# Same as above but in Browserbase with three trials")}
-      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("browserbase")} ${chalk.cyan("trials=")}${chalk.yellow("3")}
-      
-      ${chalk.dim("# Run evals using the Stagehand API")}
-      ${chalk.green("pnpm run evals")} ${chalk.cyan("env=")}${chalk.yellow("browserbase")} ${chalk.cyan("api=")}${chalk.yellow("true")}
-      
-      ${chalk.dim("# Run evals from only the 'act' category with a max of 4 running at any given time")}
-      ${chalk.green("pnpm run evals")} ${chalk.cyan("category")} ${chalk.yellow("act")} ${chalk.cyan("concurrency=")}${chalk.yellow("4")}
-      
-      ${chalk.dim("# Execute a specific eval by filename")}
-      ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("my_eval_name")}
+        ${chalk.gray("Available categories:")}
+        ${DEFAULT_EVAL_CATEGORIES.slice(0, 5)
+          .map((c) => chalk.yellow(c))
+          .join(", ")},
+        ${DEFAULT_EVAL_CATEGORIES.slice(5, 10)
+          .map((c) => chalk.yellow(c))
+          .join(", ")}${DEFAULT_EVAL_CATEGORIES.slice(10).length > 0 ? "," : ""}
+        ${DEFAULT_EVAL_CATEGORIES.slice(10)
+          .map((c) => chalk.yellow(c))
+          .join(", ")}
   `;
 
   if (!detailed)
@@ -165,6 +177,7 @@ function buildUsage(detailed = false): string {
       ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=webbench pnpm run evals")}
       
       ${chalk.gray("Environment Variables:")}
+      
       EVAL_WEBBENCH_LIMIT       max tasks to run (default: 25)
       EVAL_WEBBENCH_SAMPLE      random sample count before limit
       EVAL_WEBBENCH_DIFFICULTY  filter: [${chalk.yellow("easy")}, ${chalk.yellow("hard")}] (254 easy, 61 hard tasks)
@@ -172,7 +185,9 @@ function buildUsage(detailed = false): string {
       EVAL_WEBBENCH_USE_HITL    use only HITL dataset with difficulty ratings (true/false)
       
       ${chalk.dim("Examples:")}
+      
       ${chalk.green("EVAL_WEBBENCH_DIFFICULTY=easy EVAL_WEBBENCH_LIMIT=10 pnpm run evals name=agent/webbench")}
+      
       ${chalk.green("EVAL_DATASET=webbench EVAL_WEBBENCH_CATEGORY=READ pnpm run evals")}
     
     
@@ -183,11 +198,13 @@ function buildUsage(detailed = false): string {
       ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=gaia pnpm run evals")}
       
       ${chalk.gray("Environment Variables:")}
+      
       EVAL_GAIA_LIMIT           max tasks to run (default: 25)
       EVAL_GAIA_SAMPLE          random sample count before limit
       EVAL_GAIA_LEVEL           filter by difficulty level [${chalk.yellow("1")}, ${chalk.yellow("2")}, ${chalk.yellow("3")}]
       
       ${chalk.dim("Example:")}
+      
       ${chalk.green("EVAL_GAIA_LEVEL=1 EVAL_GAIA_LIMIT=10 pnpm run evals name=agent/gaia")}
     
     
@@ -198,27 +215,38 @@ function buildUsage(detailed = false): string {
       ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=webvoyager pnpm run evals")}
       
       ${chalk.gray("Environment Variables:")}
+      
       EVAL_WEBVOYAGER_LIMIT     max tasks to run (default: 25)
       EVAL_WEBVOYAGER_SAMPLE    random sample count before limit
       
       ${chalk.dim("Example:")}
+      
       ${chalk.green("EVAL_WEBVOYAGER_SAMPLE=50 EVAL_WEBVOYAGER_LIMIT=10 pnpm run evals name=agent/webvoyager")}
   `;
 
   const envSection = dedent`
     ${chalk.magenta.underline("\nGlobal Environment Variables\n")}
+      
       EVAL_ENV              target environment, overridable via ${chalk.cyan("env=")}
+      
       EVAL_TRIAL_COUNT      number of trials, overridable via ${chalk.cyan("trials=")}
+      
       EVAL_MAX_CONCURRENCY  parallel sessions, overridable via ${chalk.cyan("concurrency=")}
+      
       EVAL_PROVIDER         LLM provider, overridable via ${chalk.cyan("provider=")}
+      
       EVAL_MAX_K            global limit for all benchmarks (overrides individual limits)
+      
       EVAL_DATASET          filter to specific benchmark, overridable via ${chalk.cyan("--dataset=")}
+      
       USE_API               use Stagehand API, overridable via ${chalk.cyan("api=")}
+      
       EVAL_MODELS           comma-separated list of models to use
+      
       AGENT_EVAL_MAX_STEPS  max steps for agent tasks (default: 50)
   `;
 
-  return `${header}\n\n${synopsis}\n\n${body}\n${externalBenchmarksSection}\n${envSection}\n`;
+  return `${header}\n\n${synopsis}\n\n${body}\n${examplesSection}\n${externalBenchmarksSection}\n${envSection}\n`;
 }
 
 const wantsHelp = rawArgs.some((a) => HELP_REGEX.test(a));

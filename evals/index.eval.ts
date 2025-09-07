@@ -105,6 +105,20 @@ const generateFilteredTestcases = (): Testcase[] => {
     );
   }
 
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
+  // If using external benchmarks via dataset filter, override category to use agent models
+  if (
+    datasetFilter &&
+    ["gaia", "webvoyager", "webbench"].includes(datasetFilter)
+  ) {
+    effectiveCategory = "external_agent_benchmarks";
+    console.log(
+      `Using dataset filter "${datasetFilter}", switching to external_agent_benchmarks category.`,
+    );
+  }
+
   // Dynamically determine the MODELS based on the effective category
   const currentModels = getModelList(effectiveCategory);
 
@@ -113,15 +127,16 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
-  // Check for dataset filter from environment
-  const datasetFilter = process.env.EVAL_DATASET;
-
   // Special handling: fan out GAIA dataset for agent/gaia
-  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia") || datasetFilter === "gaia";
+  const isGAIATaskIncluded =
+    taskNamesToRun.includes("agent/gaia") || datasetFilter === "gaia";
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
-  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager") || datasetFilter === "webvoyager";
+  const isWebVoyagerTaskIncluded =
+    taskNamesToRun.includes("agent/webvoyager") ||
+    datasetFilter === "webvoyager";
   // Special handling: fan out WebBench dataset for agent/webbench
-  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
+  const isWebBenchTaskIncluded =
+    taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
 
   let allTestcases: Testcase[] = [];
 
@@ -129,7 +144,11 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
-  } else if (taskNamesToRun.includes("agent/gaia") && datasetFilter && datasetFilter !== "gaia") {
+  } else if (
+    taskNamesToRun.includes("agent/gaia") &&
+    datasetFilter &&
+    datasetFilter !== "gaia"
+  ) {
     // Remove GAIA from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
@@ -300,6 +319,9 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
+          console.log(
+            `🏃 Running eval: ${input.name} with model: ${input.modelName}`,
+          );
           let taskInput: Awaited<ReturnType<typeof initStagehand>>;
 
           if (USE_API) {
