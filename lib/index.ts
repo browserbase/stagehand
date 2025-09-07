@@ -1028,4 +1028,5 @@ export * from "../types/stagehand";
 export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
+export * from "./llm/aisdk";
 export { connectToMCPServer };
