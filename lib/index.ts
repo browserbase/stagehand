@@ -73,7 +73,10 @@ async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
   logger: (message: LogLine) => void,
-  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
+  browserbaseSessionCreateParams?: Omit<
+    Browserbase.Sessions.SessionCreateParams,
+    "projectId"
+  > & { projectId?: string },
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
 ): Promise<BrowserResult> {
@@ -377,7 +380,10 @@ export class Stagehand {
   protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
-  private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  private browserbaseSessionCreateParams?: Omit<
+    Browserbase.Sessions.SessionCreateParams,
+    "projectId"
+  > & { projectId?: string };
   public variables: { [key: string]: unknown };
   private contextPath?: string;
   public llmClient: LLMClient;
