@@ -46,7 +46,6 @@ export interface ConstructorParams {
   /**
    * The parameters to use for creating a Browserbase session
    * See https://docs.browserbase.com/reference/api/create-a-session
-   * Note: projectId is optional here as it will use the main projectId parameter if not provided
    */
   browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   /**
