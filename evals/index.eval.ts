@@ -117,11 +117,11 @@ const generateFilteredTestcases = (): Testcase[] => {
   const datasetFilter = process.env.EVAL_DATASET;
 
   // Special handling: fan out GAIA dataset for agent/gaia
-  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
+  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia") || datasetFilter === "gaia";
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
-  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
+  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager") || datasetFilter === "webvoyager";
   // Special handling: fan out WebBench dataset for agent/webbench
-  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench");
+  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
 
   let allTestcases: Testcase[] = [];
 
@@ -129,7 +129,7 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
-  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
+  } else if (taskNamesToRun.includes("agent/gaia") && datasetFilter && datasetFilter !== "gaia") {
     // Remove GAIA from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
@@ -142,7 +142,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
   } else if (
-    isWebVoyagerTaskIncluded &&
+    taskNamesToRun.includes("agent/webvoyager") &&
     datasetFilter &&
     datasetFilter !== "webvoyager"
   ) {
@@ -158,7 +158,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
     allTestcases.push(...buildWebBenchTestcases(currentModels));
   } else if (
-    isWebBenchTaskIncluded &&
+    taskNamesToRun.includes("agent/webbench") &&
     datasetFilter &&
     datasetFilter !== "webbench"
   ) {

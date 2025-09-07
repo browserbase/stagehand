@@ -83,7 +83,10 @@ function parseWebBenchRow(row: Record<string, string>): WebBenchRow | null {
     id,
     url,
     category,
-    difficulty: difficulty && ["easy", "hard"].includes(difficulty) ? difficulty : undefined,
+    difficulty:
+      difficulty && ["easy", "hard"].includes(difficulty)
+        ? difficulty
+        : undefined,
     task,
   };
 }
@@ -111,6 +114,34 @@ function mergeWebBenchDatasets(
 }
 
 export const buildWebBenchTestcases = (models: string[]): Testcase[] => {
+  /**
+   * Environment Variables:
+   *
+   * EVAL_WEBBENCH_DIFFICULTY - Filter tasks by difficulty level
+   *   Options: "easy" | "hard" | undefined (all)
+   *   Example: EVAL_WEBBENCH_DIFFICULTY=easy
+   *
+   * EVAL_WEBBENCH_CATEGORY - Filter tasks by category
+   *   Options: "READ" | "CREATE" | "UPDATE" | "DELETE" | "FILE_MANIPULATION"
+   *   Example: EVAL_WEBBENCH_CATEGORY=READ
+   *
+   * EVAL_WEBBENCH_USE_HITL - Use only HITL dataset (has difficulty ratings)
+   *   Options: "true" | "false" (default: false)
+   *   Example: EVAL_WEBBENCH_USE_HITL=true
+   *
+   * EVAL_WEBBENCH_LIMIT - Maximum number of tasks to run
+   *   Default: 25
+   *   Example: EVAL_WEBBENCH_LIMIT=10
+   *
+   * EVAL_WEBBENCH_SAMPLE - Random sample size before applying limit
+   *   Optional: If set, randomly samples this many tasks before applying limit
+   *   Example: EVAL_WEBBENCH_SAMPLE=100 EVAL_WEBBENCH_LIMIT=10
+   *
+   * EVAL_MAX_K - Global override for all benchmark limits
+   *   Overrides EVAL_WEBBENCH_LIMIT if set
+   *   Example: EVAL_MAX_K=5
+   */
+
   // Read environment variables
   const difficultyFilter = process.env.EVAL_WEBBENCH_DIFFICULTY as
     | "easy"

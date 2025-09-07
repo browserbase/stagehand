@@ -93,7 +93,7 @@ export const webbench: EvalFunction = async ({
 
     // Use evaluator to determine success based on task requirements
     const evaluator = new Evaluator(stagehand);
-    
+
     // For READ tasks, check if information was extracted
     // For CREATE/UPDATE/DELETE tasks, check if action was completed
     let evalPrompt = "";
