@@ -48,7 +48,7 @@ export interface ConstructorParams {
    * See https://docs.browserbase.com/reference/api/create-a-session
    * Note: projectId is optional here as it will use the main projectId parameter if not provided
    */
-  browserbaseSessionCreateParams?: Omit<Browserbase.Sessions.SessionCreateParams, 'projectId'> & { projectId?: string };
+  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
   /**
    * Enable caching of LLM responses
    * @default true
