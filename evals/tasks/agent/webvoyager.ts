@@ -1,6 +1,7 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
+import { checkGroundTruthWithLLM } from "../../datasets/webvoyager/groundTruthChecker";
 
 export const webvoyager: EvalFunction = async ({
   stagehand,
@@ -58,6 +59,56 @@ export const webvoyager: EvalFunction = async ({
       level: 1,
     });
 
+    // Extract final answer from agent output
+    const finalAnswerMatch = agentResult.message?.match(
+      /Final Answer:\s*(.+?)(?:\n|$)/i,
+    );
+    const agentAnswer = finalAnswerMatch?.[1]?.trim();
+
+    let groundTruthResult = null;
+    if (agentAnswer && params.id) {
+      logger.log({
+        category: "evaluation",
+        message: `Checking ground truth for task ${params.id} with agent answer: "${agentAnswer}"`,
+        level: 1,
+      });
+
+      groundTruthResult = await checkGroundTruthWithLLM(
+        params.id,
+        agentAnswer,
+        stagehand,
+      );
+
+      logger.log({
+        category: "evaluation",
+        message: `Ground truth result: ${JSON.stringify(groundTruthResult)}`,
+        level: 1,
+      });
+    }
+
+    // If LLM ground truth comparison is confident, use it
+    if (groundTruthResult?.confident) {
+      return {
+        _success: groundTruthResult.match,
+        reasoning: `LLM ground truth comparison: ${groundTruthResult.reasoning}`,
+        groundTruthUsed: true,
+        matchedAnswerType: groundTruthResult.matchedAnswerType,
+        agentAnswer,
+        screenshotCount: screenshots.length,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+
+    // Fall back to existing VLM screenshot evaluation
+    logger.log({
+      category: "evaluation",
+      message:
+        "Ground truth inconclusive, falling back to VLM screenshot evaluation",
+      level: 1,
+    });
+
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
       question: `Did the agent successfully complete this task: "${params.ques}"?`,
@@ -70,6 +121,8 @@ export const webvoyager: EvalFunction = async ({
     return {
       _success: evalResult.evaluation === "YES",
       reasoning: evalResult.reasoning,
+      groundTruthUsed: false,
+      agentAnswer,
       screenshotCount: screenshots.length,
       debugUrl,
       sessionUrl,

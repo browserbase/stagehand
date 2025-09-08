@@ -219,6 +219,14 @@ function buildUsage(detailed = false): string {
       EVAL_WEBVOYAGER_LIMIT     max tasks to run (default: 25)
       EVAL_WEBVOYAGER_SAMPLE    random sample count before limit
       
+      ${chalk.gray("Ground Truth Evaluation:")}
+      
+      WebVoyager uses ground truth answers for improved accuracy:
+      • Checks agent's "Final Answer:" against reference answers
+      • Supports golden (ideal) and possible (acceptable) answers
+      • Falls back to screenshot evaluation when uncertain
+      • Reference data: evals/datasets/webvoyager/reference-answers.json
+      
       ${chalk.dim("Example:")}
       
       ${chalk.green("EVAL_WEBVOYAGER_SAMPLE=50 EVAL_WEBVOYAGER_LIMIT=10 pnpm run evals name=agent/webvoyager")}

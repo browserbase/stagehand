@@ -106,7 +106,7 @@ export const buildOSWorldTestcases = (models: string[]): Testcase[] => {
       const input: EvalInput = {
         name: "agent/osworld",
         modelName: model as AvailableModel,
-        params: task,
+        params: task as unknown as Record<string, unknown>,
       };
 
       // Extract domain from start URL for tagging

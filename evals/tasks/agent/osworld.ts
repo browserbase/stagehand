@@ -1,5 +1,8 @@
 import { EvalFunction } from "@/types/evals";
 import type { OSWorldStagehandTask } from "../../datasets/osworld/types";
+import { Stagehand } from "@/dist";
+import { EvalLogger } from "../../logger";
+import { z } from "zod/v3";
 
 export const osworld: EvalFunction = async ({
   stagehand,
@@ -10,7 +13,27 @@ export const osworld: EvalFunction = async ({
   input,
 }) => {
   try {
-    const params = ((input && input.params) || {}) as OSWorldStagehandTask;
+    const params = (input && input.params) as unknown as
+      | OSWorldStagehandTask
+      | undefined;
+
+    if (!params) {
+      logger.error({
+        category: "osworld",
+        level: 0,
+        message: `No params provided in input.`,
+        auxiliary: {
+          input: { value: JSON.stringify(input), type: "object" },
+        },
+      });
+      return {
+        _success: false,
+        error: `No params provided in input.`,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
 
     if (!params.id || !params.instruction) {
       logger.error({
@@ -145,9 +168,9 @@ export const osworld: EvalFunction = async ({
  * Evaluate OSWorld task based on evaluation criteria
  */
 async function evaluateOSWorldTask(
-  stagehand: any,
+  stagehand: Stagehand,
   params: OSWorldStagehandTask,
-  logger: any,
+  logger: EvalLogger,
 ): Promise<{ passed: boolean; reasoning: string }> {
   const { evaluationType, evaluationCriteria } = params;
 
@@ -188,12 +211,14 @@ async function evaluateOSWorldTask(
 }
 
 async function evaluateUrlMatch(
-  stagehand: any,
+  stagehand: Stagehand,
   criteria: OSWorldStagehandTask["evaluationCriteria"],
-  logger: any,
+  logger: EvalLogger,
 ): Promise<{ passed: boolean; reasoning: string }> {
   const currentUrl = stagehand.page.url();
-  const expectedUrl = criteria.rules?.url || criteria.expected?.url;
+  const expectedUrl =
+    criteria.rules?.url ||
+    ((criteria.expected as Record<string, unknown>)?.url as string);
 
   if (!expectedUrl) {
     return {
@@ -226,11 +251,13 @@ async function evaluateUrlMatch(
 }
 
 async function evaluateStringMatch(
-  stagehand: any,
+  stagehand: Stagehand,
   criteria: OSWorldStagehandTask["evaluationCriteria"],
-  logger: any,
+  logger: EvalLogger,
 ): Promise<{ passed: boolean; reasoning: string }> {
-  const expectedString = criteria.expected?.expected || criteria.expected;
+  const expectedString =
+    (criteria.expected as Record<string, unknown>)?.expected ||
+    (criteria.expected as string);
 
   if (!expectedString) {
     return {
@@ -241,7 +268,7 @@ async function evaluateStringMatch(
 
   // Extract page content to check for string presence
   const pageContent = await stagehand.page.content();
-  const matches = pageContent.includes(expectedString);
+  const matches = pageContent.includes(String(expectedString));
 
   logger.log({
     category: "osworld_evaluation",
@@ -262,9 +289,9 @@ async function evaluateStringMatch(
 }
 
 async function evaluateDomState(
-  stagehand: any,
+  stagehand: Stagehand,
   criteria: OSWorldStagehandTask["evaluationCriteria"],
-  logger: any,
+  logger: EvalLogger,
 ): Promise<{ passed: boolean; reasoning: string }> {
   // For DOM state evaluation, we'll extract specific elements and check their state
   // This is a simplified implementation - can be expanded based on specific OSWorld requirements
@@ -282,19 +309,12 @@ async function evaluateDomState(
     // Use Stagehand's extract to check for specific DOM elements
     const extractResult = await stagehand.page.extract({
       instruction: `Check if the page contains the expected elements or state as specified`,
-      schema: {
-        type: "object",
-        properties: {
-          hasExpectedState: {
-            type: "boolean",
-            description: "Whether the expected state is present",
-          },
-          details: {
-            type: "string",
-            description: "Details about what was found",
-          },
-        },
-      },
+      schema: z.object({
+        hasExpectedState: z
+          .boolean()
+          .describe("Whether the expected state is present"),
+        details: z.string().describe("Details about what was found"),
+      }),
     });
 
     const passed = extractResult?.hasExpectedState || false;
@@ -325,9 +345,9 @@ async function evaluateDomState(
 }
 
 async function evaluateCustom(
-  stagehand: any,
+  stagehand: Stagehand,
   criteria: OSWorldStagehandTask["evaluationCriteria"],
-  logger: any,
+  logger: EvalLogger,
 ): Promise<{ passed: boolean; reasoning: string }> {
   // Custom evaluation - can be extended based on specific OSWorld evaluator functions
   logger.log({

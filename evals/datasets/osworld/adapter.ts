@@ -50,7 +50,7 @@ export class OSWorldAdapter {
       startUrl,
       evaluationType,
       evaluationCriteria,
-      timeout: this.extractTimeout(osWorldTask),
+      timeout: this.extractTimeout(),
       requiresProxy: osWorldTask.proxy,
     };
   }
@@ -80,7 +80,7 @@ export class OSWorldAdapter {
   }
 
   private determineEvaluationType(
-    evaluator: OSWorldTask['evaluator'],
+    evaluator: OSWorldTask["evaluator"],
   ): OSWorldStagehandTask["evaluationType"] {
     const func = Array.isArray(evaluator.func)
       ? evaluator.func[0]
@@ -99,7 +99,7 @@ export class OSWorldAdapter {
   }
 
   private convertEvaluationCriteria(
-    evaluator: OSWorldTask['evaluator'],
+    evaluator: OSWorldTask["evaluator"],
   ): OSWorldStagehandTask["evaluationCriteria"] {
     const func = Array.isArray(evaluator.func)
       ? evaluator.func[0]
@@ -115,7 +115,7 @@ export class OSWorldAdapter {
     };
   }
 
-  private extractTimeout(_task: OSWorldTask): number {
+  private extractTimeout(): number {
     // Default timeout for Chrome tasks (can be made configurable)
     return 60000; // 60 seconds
   }

@@ -1,0 +1,3292 @@
+{
+  "Allrecipes": {
+    "notice": " note that review information is real-time",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "'Vegetarian Four Cheese Lasagna', 4.6-star, 181 reviews, Servings 8"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "\"Debbie's Vegetable Lasagna\", 4.7-star, include zucchini"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "'Easy Vegetarian Red Beans Lasagna', 496 Calories, prep time 20 mins"
+      },
+      {
+        "id": 3,
+        "type": "golden",
+        "ans": "'Vegan Chocolate Chip, Oatmeal, and Nut Cookies', 4.9 star, 67 viewers (> 60)"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "'Baked Dijon Salmon', 4.6-star, prep time 15 mins"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "\"World's Best Pasta Sauce!\", 4.7-star, 818 reviews, <Ingredients>"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "'Spinach Lasagna', 4.7-star, 501 reviews"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "'Best Chocolate Chip Cookies', <Ingredients>, <Preparation Steps>"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "'Beef Wellington', <Ingredients>"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "'Spicy Vegetarian Lasagna', <Ingredients>, prep time 30 mis, cook time 1 hour 10 mins"
+      },
+      {
+        "id": 10,
+        "type": "golden",
+        "ans": "'Swedish Meatballs I', prep time 25 mins, total time 1 hour 25 mins"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "'Chocolate Cupcake', 1261 reviews, prep time 15 mins"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "'Best Chocolate Chip Cookies', 4.6-star, 14493 reviews, <Ingredients>"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "'Crispy Fried Fish', Iron: 15mg"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "'Slow Cooked Chicken Stew', prep time 20 mins"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "'Ultimate Chocolate Dessert', 4.7-star, prep time 15 mins"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "'Chocolate Chip Cookie Cups', 5.0-star, 3 reviews, total time 45 mins, <Ingredients>"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Easy to make and very delicious"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "'Eggplant Lasagna', 4.7-star, 305 reviews"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "'Vegan Lasagna II', 9 Ingredients, 4.2-star, prep time 30 mins, cook time 1 hour, <Ingredients>"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "'Cauliflower Pizza Crust', 4.2 stars, Prep Time: 15 mins, 59 Calories per serving"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "'Gluten-Free Fudge Brownies', 4.1 stars, 69 reviews, <Ingredients>, Prep Time: 15 mins, Total Time: 1 hr"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "'Avocado Salad', 4.7 stars, 253 reviews, Prep Time: 15 mins, Nutrition Facts: 126 Calories, 10g Fat, 10g Carbs, 2g Protein"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "'Baked Chicken Schnitzel', 4.5 stars, 250 reviews, Prep Time: 20 mins, <Ingredients>"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "'Eggplant Parmesan', 4.5 stars, 2711 reviews, Prep Time: 25 mins, Servings: 10"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "'Easy Quinoa Salad', 4.8 stars, 1107 reviews, Prep Time: 20 mins, Cook Time: 15 mins, <Ingredients>"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "'The Best Vegetarian Chili in the World', 4.7 stars, 1681 reviews, Cook Time: 1 hr, <Ingredients>, <Description: Cooking steps>"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "'Indian Chicken Curry (Murgh Kari)', 4.7 stars, 955 reviews, <Ingredients>, Prep Time: 20 mins, <cooking instructions>"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "'Vegan Brownies', 4.6 stars, 828 reviews, <Ingredients>, Prep Time: 15 mins, Cook Time: 30 mins, <preparation steps>"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "'Branzino Mediterranean', 36 reviews, <Ingredients> include olive oil, <cooking method>, Prep Time: 15 mins, Cook Time: 25 mins, Total Time: 40 mins"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "'Spinach and Banana Power Smoothie', 4.8 stars, 72 reviews, Ingredients: 1 cup plain soy milk, 3/4 cup packed fresh spinach leaves, 1 large banana, sliced; Prep Time: 10 mins; <steps>"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "'Easy Paella', 4.6 stars, 470 reviews, <Ingredients>, <preparation steps>, Total Time: 1 hr"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "'Slow Cooker Beef Stew', 3994 reviews, Cook Time: 4 hrs, <Ingredients>"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "'Low-Carb Bacon Spinach Egg Cups', 99 reviews, 237 Calories, 18g Fat, 4g Carbs, 17g Protein"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "'Baked Salmon', 4.7 stars, 2339 reviews, Cook Time: 35 mins, <Ingredients>"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "'Italian Turkey Meatballs', 4.7 stars, 234 reviews, Cook Time: 15 mins, meat:  1/2 pounds ground lean turkey"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "'All American Apple Pie', 4.6 stars, 490 reviews, 350 degrees F (175 degrees C)"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "'Greek Salad', 4.6 stars, 192 reviews, 1 cup crumbled feta cheese, ground black pepper to taste..."
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "'Ratatouille', 4.6 stars, 793 reviews, vegetables: 1 eggplant, cut into 1/2 inch cubes; 2 zucchini, sliced; 2 large tomatoes, chopped"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "'Smoked Salmon Sushi Roll', 78 reviews, Nutrition Facts (per serving): 291 Calories, 7g Fat, 45g Carbs, 11g Protein, <Ingredients>; You can refrigerate them in an airtight container for up to two days."
+      },
+      {
+        "id": 40,
+        "type": "golden",
+        "ans": "The Allrecipes Allstars: Social media influencers, registered dietitians, grillmasters, and more seasoned home cooks make up our enthusiastic squad of 100+ brand ambassadors. This diverse, food-loving crew spans the U.S. geographically and represents many different cultures, ethnicities, and family makeups. Since 2011, the Allstars have created tens of thousands of original recipes, photos, and reviews plus shared their cooking expertise via flat and video content on our website, social media, plus more marketing channels."
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "Ground Beef-Spinach Casserole; Mexican Ground Beef Casserole; Retro Ground Beef Casserole with Biscuits"
+      },
+      {
+        "id": 42,
+        "type": "possible",
+        "ans": "'Banana Banana Bread', 4.7 stars, 12649 reviews"
+      },
+      {
+        "id": 43,
+        "type": "possible",
+        "ans": "'Amazing Vegan Pumpkin Pie', 5.0 stars, Cook Time: 1 hr 55 mins"
+      },
+      {
+        "id": 44,
+        "type": "possible",
+        "ans": "THANKSGIVING RECIPES; CHRISTMAS RECIPES; LUNAR NEW YEAR RECIPES; HANUKKAH RECIPES; PURIM RECIPES; MARDI GRAS RECIPES ..."
+      }
+    ]
+  },
+  "Amazon": {
+    "notice": " Products results are related to time and location.",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Xbox Core Wireless Gaming Controller - Velocity Green; 4.7-star"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "PUMA Golf 2019 Men's Rotation Polo; $50.00"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "HP Victus 15L Gaming Desktop with Windows 11 Home and 1TB disk size"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "First 3 results after sort"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Nintendo Switch Lite - Blue; Used Good: $170"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "Apple iPhone 12 Pro, 128GB, Pacific Blue - Fully Unlocked (Renewed); Action: ADD_TO_CHART"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "Baby Trend Expedition Jogger, Dash Black; 22146 reviews; 4.7-star"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Filter: 4-star, waterproof, size 6"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "Samsung Galaxy Tab S 10.5in 16GB Android Tablet - Titanium Gold (Renewed); $139.94"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "Gulokoka Large Dog Bed for Crate Comfortable Washable Pet Mat for Dogs, Cats, Gray"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Sony Playstation PS4 1TB Black Console; 2-Year Protection for $30.99"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "Transolid STDE33226-2 Kitchen Sink, Stainless Steel; $120.89"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Worth every penny"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "adidas Men's Essentials Fleece Hoodie; 500+ bought in past month"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Surge Protector Power Strip $15.99, 8 Outlets, 4.7-star"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "Damyuan Men's Sport Gym Running Shoes Walking Shoes Casual Lace Up Lightweight; black, size 7, 4.0-star, $29.99"
+      },
+      {
+        "id": 16,
+        "type": "golden",
+        "ans": "FREE Returns, 1. Go to Your Orders to start the return; 2. Print the return shipping label; 3. Ship it!"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "Johnson's Baby Care Essentials Gift Set, $7.55; SWEET DOLPHIN 12 Pack Muslin Burp Cloths Large 100% Cotton Hand Washcloths for Baby, $9.98"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "Gevi Household V2.0 Countertop Nugget Ice Maker, 20% off; Osmo - Little Genius Starter Kit for iPad & iPhone, 7% off;"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "THE HISTORY OF THE DECLINE AND FALL OF THE ROMAN EMPIRE (All 6 Volumes), released on January 10, 2024."
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "Logitech Wave Keys Wireless Ergonomic Keyboard, $57.99, 4.6 stars, 26005 ratings"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "Braun BrewSense 12-Cup Drip Coffee Maker, Stainless Steel, 4.3 stars, $129.95"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "CAROTE 11pcs Nonstick Cookware Set, Non Stick, Oven Safe, $129.99 ($11.82 / Count)"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "Smartwatch for Men Android iPhone, Waterproof, Heart Rate, $54.99"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "Dash DMAF360GBAQ02 Aircrisp\u00ae Pro Digital Air Fryer, Digital Display, Auto Shut Off, 3qt, $90.10"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "2 Inch 7-Zone Memory Foam Mattress Topper Queen with 100% Bamboo Rayon Cover, Cooling Gel-Infused Swirl Egg Crate Memory Foam, $99.99"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "Portable Bluetooth Speaker, IPX7 Waterproof Wireless Speaker, 25W Super Bass 24H Playtime, $29.97"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Hiearcool USB C Hub, USB C Multi-Port Adapter for MacBook Pro, 7IN1, include 4K HDMI USB3.0 and SD/TF Card Reader, $24.99"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "Retrospec Solana Yoga Mat 1\" Thick, Non Slip, $38.51"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "KelvinLux Solar Garden Lights Outdoor, 12 Packs, 12 LEDs, $35.99 ($3.00 / Count)"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "The Women Library Binding \u2013 Large Print, March 1, 2024, 4.8 stars"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "5K Digital Camera for Photography Autofocus, 16X Digital Zoom, 5.0 stars,  $129.99"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "COMFEE' Stainless Steel Electric Kettle, 1.7 Liter, 4.6 stars"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "price compare: 1) Shinco 10,000 BTU Portable Air Conditioner, $314.99; 2) Renogy 8,000 BTU Portable Air Conditioners, $283.09; 3) SereneLife Compact Freestanding Portable Air Conditioner, $247.54"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Complete Acrylic Paint Set, 24\u0445 Rich Pigment Colors, for Painting Canvas, $16.97"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "STAY FINE Top Grain Leather Wallet for Men, RFID Blocking, Slim Billfold with 8 Card Slots, FREE delivery Friday, March 1"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "UNGLINGA 150 Experiments Science Kits for Kids Age 6-8-10-12-14, 4.6 stars, $29.99"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "NEWLAKE Cotton Bedspread Quilt Sets-Reversible Patchwork Coverlet Set, Blue Classic Royal Pattern, Queen Size"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Bird Feeder for Outdoors Hanging, Squirrel Proof, FREE delivery Friday, March 1"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Japan Travel Guide 2024: The Ultimate Route to Authentic Ramen and Beyond \u2013 Tips, Maps, and Must-Sees for Every Traveler, February 1, 2024, 38 ratings"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "ProsourceFit Extra Thick Yoga Pilates Exercise Mat, 1/2\", 4.6 stars, $21.99, 7 colors, FREE delivery Friday, March 1 on orders shipped by Amazon over $35"
+      }
+    ]
+  },
+  "Apple": {
+    "notice": "",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "MacBook Air 13-inch M1 chip: from $999; 13-inch M2 chip: from $1099; 15-inch M2 chip: from $1299"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "StandBy delivers a new full-screen experience; AirDrop makes it easier to share and connect; Enhancements to the keyboard;... compatible"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "14 Pro: Available at authorized resellers, A16 Bionic chip, 6-core CPU, 5-core GPU, 16-core Neural Engine; 15 Pro: Starting at $999, A17 Pro chip, 6-core CPU, 6-core GPU, 16-core Neural Engine"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "iPhone 15 pro starts from $999, 6.1-inch screen; iPhone 15 pro max starts from $1199, 6.7-inch screen"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "$4,199.00 or $349.91/mo.per month for 12 mo.*"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "iPhone 15 ($799) or pro ($999) or pro Max ($1199); September 22, 2023"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "4"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Available early 2024 in the U.S."
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "iPad Pro, storage options: 128GB, 256GB, 512GB, 1TB, 2TB; processor type: Apple M2 chip; display features: 11\u2011inch with Liquid Retina display, 12.9\u2011inch with Liquid Retina XDR display"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "iPhone 15; Schedule an in-store pickup"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Macbook Pro; processor type: Apple M3 chip, Apple M3 Pro chip, Apple M3 Max chip; memory size: 8GB, 16GB, 18GB, 24GB, 36GB, 48GB, 64GB, 96GB, 128GB; storage capacity: 512GB, 1TB, 2TB, 4TB, 8TB"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "sixth-generation iPad Pro 11\u2011inch, iPad Pro 12.9\u2011inch; release date: October 26, 2022; base storage capacity 128 GB, starting price $799"
+      },
+      {
+        "id": 12,
+        "type": "golden",
+        "ans": "Any 2 of 'Send your product to Apple', 'Find an Apple Authorized Service Provider', 'Visit a Genius at an Apple Store', 'Independent Repair Providers', 'Self Service Repair'"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "4, Silver, Starlight, Space Gray, and Midnight"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Base model:$1599, difference: $1020"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "16"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "2 types, price difference $10"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Apple Tower Theatre"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "There are trade-in offers."
+      },
+      {
+        "id": 19,
+        "type": "golden",
+        "ans": "If you can dream it, Mac can do it; Mind-blowing. Head-turning"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "From $899 or $37.45/mo.per month for 24 mo.months"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "128GB, 256GB, 512GB, 1TB, and 2TB"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "iPhone 13 Pro Max, Up to $500"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "Apple Watch SE From $249, Apple Watch Series 9 From $399"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "$1299.00"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "Apple TV 4K: A15 Bionic chip"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "4K video recording at 24 fps, 25 fps, 30 fps, or 60 fps"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Available in multiple colors: Space Gray, Blue, Yellow, White, and Orange."
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "Yes. Mac mini Apple M2 Pro chip, Configurable to: 19-core GPU"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Up to 15 hours wireless web"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "11-inch, 128GB from $799, 256GB from $899, 512GB from $1099, 1TB from $1499, and 2TB from $1899."
+      },
+      {
+        "id": 31,
+        "type": "golden",
+        "ans": "Smarter. Brighter. Mightier."
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "iPhone 11 Pro Max\tUp to $270"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Blue, Green, Pink, Silver, Yellow, Orange, Purple"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Height: 1.2 inches (31 mm), Width: 3.66 inches (93 mm), Depth: 3.66 inches (93 mm); Siri Remote features"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "3, Apple Pencil (2nd generation), Apple Pencil (USB-C), Apple Pencil (1st generation); Apple Pencil (2nd generation) supports Wireless pairing and charging."
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "Lauren Daigle, Megan Moroney, Olivia Rodrigo ..."
+      },
+      {
+        "id": 37,
+        "type": "golden",
+        "ans": "iPhone 13 pro: Alpine Green, Silver, Gold, Graphite, Sierra Blue; iPhone 14 pro: Deep Purple, Gold, Silver, Space Black; iPhone 15 pro: Natural Titanium, Blue Titanium, White Titanium, Black Titanium"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Apple Vision Pro Battery; Apple Vision Pro Travel Case; ZEISS Optical Inserts ..."
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "The fastest and easiest way to reset your password is with your iPhone or other trusted Apple device \u2014 one that you're already signed in to with your Apple ID, so that we know that it's yours."
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Device Weight, 21.2\u201322.9 ounces (600\u2013650 g); Built\u2011in Apps: App Store, Encounter Dinosaurs, Files, Freeform, Keynote..."
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "$649"
+      },
+      {
+        "id": 42,
+        "type": "possible",
+        "ans": "see https://www.apple.com/watch/compare/, <summary>"
+      }
+    ]
+  },
+  "ArXiv": {
+    "notice": " real-time",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Any paper related to quantum computing (latest)"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "Paper related to quantum computing (latest 2 days)"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "cs.CL paper, <abstract>"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "math.AT paper, <title>, <authors>, <abstract>"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "22 Dec 2023, 18 (real-time)"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "23081 results, searching in archive quant-ph; 39482 results, search in all archives"
+      },
+      {
+        "id": 6,
+        "type": "golden",
+        "ans": "2 Figures, 8 Tables."
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Latest cs.LG paper"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "'Accessibility update: arXiv now offers papers in HTML format' (December 21, 2023)"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "Latest paper related to neural networks"
+      },
+      {
+        "id": 10,
+        "type": "golden",
+        "ans": "If your submission has not yet become publicly available you may delete or delay it. To do either of these things go to your user page and select either the Delete or Unsubmit icon."
+      },
+      {
+        "id": 11,
+        "type": "golden",
+        "ans": "-----"
+      },
+      {
+        "id": 12,
+        "type": "golden",
+        "ans": "3"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "4"
+      },
+      {
+        "id": 14,
+        "type": "golden",
+        "ans": "3"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "2"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "Latest gravitational waves paper, <summary>"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Mon, 27 Mar 2023 17:46:54 UTC"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "2 formulas, the second one is loss function"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "Cornell University, 16071 UNDERGRADUATE STUDENTS"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "stat.ML paper, <abstract>"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "cs paper related to 'neural networks for image processing',"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "To: arch-ive@arxiv.org \\n Subject: subscribe Your Full Name"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "eess.SY paper related to autonomous vehicles"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "paper related to graph neural networks"
+      },
+      {
+        "id": 25,
+        "type": "golden",
+        "ans": "6, arXiv Logo Shirt, arXiv Logo Mug, arXiv is Open Science, Gift cards, arXiv Morning Mug, arXiv Forever"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "astro-ph.EP paper related to climate change modeling last week"
+      },
+      {
+        "id": 27,
+        "type": "golden",
+        "ans": "Econometrics (econ.EM), General Economics (econ.GN), and Theoretical Economics (econ.TH)"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "'Persona-Coded Poly-Encoder: Persona-Guided Multi-Stream Conversational Sentence Scoring', Access include: HTML (experimental)"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "240+ (search by title)"
+      },
+      {
+        "id": 30,
+        "type": "golden",
+        "ans": "Accepted figure formats: PostScript (PS, EPS) \u2014 requires LaTeX processing; JPEG, GIF, PNG or PDF figures \u2014 requires PDFLaTeX processing"
+      },
+      {
+        "id": 31,
+        "type": "golden",
+        "ans": "7 papers"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "latest nlin.CD paper, <abstract>, <date>"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "eess.SY paper"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Finite spectral triples for the fuzzy torus, Authors: John W. Barrett, James Gaunt, <abstract>"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "paper related to Quantum Physics"
+      },
+      {
+        "id": 36,
+        "type": "golden",
+        "ans": "'CVPR 2023': 48 results; 'CVPR2023': 9 results"
+      },
+      {
+        "id": 37,
+        "type": "golden",
+        "ans": "Ramin Zabih, Yoav Artzi, Stephanie Orphan, Steinn Sigurdsson, and Charles Frankston."
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "'Attention arXiv users: Re-implemented RSS', January 31, 2024, <summary>"
+      },
+      {
+        "id": 39,
+        "type": "golden",
+        "ans": "One of the main goals of developing such models is to improve their ability to understand and generate natural language text, particularly in more complex and nuanced scenarios."
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "astro-ph.SR paper, latest 3 days"
+      },
+      {
+        "id": 41,
+        "type": "golden",
+        "ans": "QR code image, Action: add to chart"
+      },
+      {
+        "id": 42,
+        "type": "golden",
+        "ans": "'Using a Support-Vector Machine for Japanese-to-English Translation of Tense, Aspect, and Modality'"
+      }
+    ]
+  },
+  "BBC News": {
+    "notice": " real time, answer based on American BBC",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "<report> (about developments in renewable energy technologies in the UK)"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "<summary> (about latest health-related article)"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "<article> (within the last 2 days)"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "Mauritius Open; 5"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "<summary> (economic implications of climate change in Europe)"
+      },
+      {
+        "id": 5,
+        "type": "golden",
+        "ans": "This recent climate change has been caused by human activity, mainly the widespread use of fossil fuels - coal, oil and gas - in homes, factories and transport."
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "Latest news in Innovation - Technology"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Analyse the first image in story."
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "CPTPP trade deal, <summary>; 16th July 2023"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "Taylor Swift"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "News about UK's plan to tackle climate change"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "12 teams, 15:00, 2 Jan 2024"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "ramen, Tokyo"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "<summary> (about Trump)"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "<title>, <author>, <summary> (impact of the recent tech industry layoffs on the global economy)"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "Name that whale! How AI aces animal spotting"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "<summary> (Brexit negotiations)"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "2"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "2 of them: Believe in Magic, The Gift, Vishal, A Very British Cult, People Who Knew Me, History's Secret Heroes"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "17th - 18th February 2024"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "Earth - Green Living, <article>, <summary>"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "News - World, <headline>, <region>"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "Business, <article>, <summary>, economic implications"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "Innovation - Science & Health, <article>, <summary>"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "Search for space exploration, eg. SpaceX blasts private firm's lunar lander into orbit"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "Sport - Football - Leagues & Cups - Premier League, <article>"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "Earth - Weather & Science, eg. Indonesia hit by some of strongest winds recorded"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Archaeological discoveries: eg, Historical 10,000BC artefacts found on road project, Significant discoveries"
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "Business - Market Data, Source: Morningstar"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Audio - Podcasts - New Releases ..."
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "Culture - Film & TV, <review>, <summary>"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "Sunday 11th February, Aston Villa 1:2 Manchester United"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Innovation - Artificial Intelligence, <headline>, <companies>"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "News - Israel-Gaza War, <article>, <summary>"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Sydney, New York, Tenerife ..."
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "News - World - Asia, <article>, <summary>"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "News - World - Africa, <article>, <summary>"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Culture - Books, eg, Sloane Crosley: What to do when you lose a friend"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Earth - Weather & Science, article about severe weather, eg, You can't hear it, but this sound can reveal that a tornado is on its way"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "eg, 2024-01-30: Chepstow Summer Sessions Handicap Chase, 13 runners"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "News - Israel-Gaza War, <article>"
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "Sport - Golf - Leaderboard - Women's Majors, most in top20: American, best in Australian: Grace Kim in 36"
+      }
+    ]
+  },
+  "Booking": {
+    "notice": " real-time, check task requirements, date and other requirements (may need sort)",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Be Local"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "OYO 3755 Sweet Home, US$14"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "Berlin Heritage Inn, US$549 for 3 adults and 2 rooms"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "Freehand Los Angeles"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Moonlight Residency, Breakfast included, US$14"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "Palasari Villa, free WiFi and air conditioning"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "La Quinta by Wyndham LAX"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Fragrance Hotel - Ocean View"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "OYO Flagship Valasaravakkam"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "The Birds Nest Hostel; Umbrella Properties London Excel; Umbrella Properties London Woolwich"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Villa Alessandra"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "Pendry Chicago"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Mode Paris Aparthotel"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "Le Bellevue"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Nolinski Paris"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "Rhinoceros; rating 9.2; cost US$5771; Amenities: air conditioning, free WiFi..."
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "Zoku Paris; 48 Avenue de la Porte de Clichy, 17th arr., Paris; US$210 per night"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "Villa-des-Pr\u00e9s"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "Cromwell Serviced Apartments; Cromwell Serviced Apartments is an apartment featuring rooms with free Wifi and air conditioning in the center of London"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "H\u00f4tel des Arts Montmartre; Bulgari Hotel Paris; Four Seasons Hotel George V Paris"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "47 Boutique Hotel, 8.6 ratings, breakfast included, free cancellation"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "Lexie Suites, 9.1 ratings, free Wi-Fi and parking"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "nhow Amsterdam Rai, 9.0 ratings, bicycle rentals"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "The Peninsula Tokyo, 9.2 ratings, Spa and Fitness center"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "Unite Hostel Barcelona, 8.2 ratings, 400m from beach, free Wi-Fi and breakfast"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "The Homeboat Company Parque das Na\u00e7\u00f5es-Lisboa, 9.5 ratings, airport shuttle, breakfast included"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "InterContinental Paris Le Grand, an IHG Hotel, US$2208, 8.6 ratings, 5-star, parking"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Nesuto Docklands, 8.9 ratings, free parking and free WiFi"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "Park Regis by Prince Dubai Islands, swimming pool"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Fairmont Royal York Hotel, 8.3 ratings, fitness center"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "After applying the Breakfast included and Fitness center: 228 hotels"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "Brands has the most hotels: Windsor, Rede Atl\u00e2ntico; Brands has the fewest hotels: Ramada"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Swimming Pool and Airport Shuttle filters are applied: 1 hotel"
+      },
+      {
+        "id": 33,
+        "type": "golden",
+        "ans": "After you cancel a booking with us, you should get an email confirming the cancellation. Make sure to check your inbox and spam/junk mail folders. If you don\u2019t receive an email within 24 hours, contact the property to confirm they got your cancellation."
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Hotel Adlon Kempinski Berlin, US$1185, CNY 8528"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "Ace Hotel, Downtown Los Angeles; The Hollywood Roosevelt; Hotel Indigo, an IHG Hotel"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "ROMA GONDOLA SRLS, US$81, no breakfast"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Kappa Senses Ubud, resort, Activity include: Tour or class about local culture"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "ARCOTEL Wimberger Wien, 8.2 ratings, Parking, breakfast included"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "One King West Hotel and Residence, pet-friendly hotel, parking"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Four Seasons Hotel Shenzhen, US$522, CNY 3760"
+      },
+      {
+        "id": 41,
+        "type": "golden",
+        "ans": "Booking Holdings Inc."
+      },
+      {
+        "id": 42,
+        "type": "possible",
+        "ans": "Heiseikan Shiosaitei Hanatsuki, 9.0 ratings, high: Staff 9.3, Facilities 9.0, Cleanliness 9.4, Comfort 9.3. low: Value for money 8.2, Location 8.7, Free WiFi 8.1"
+      },
+      {
+        "id": 43,
+        "type": "possible",
+        "ans": "Breakfast Included, Wonderful: 9+, Fitness center ..."
+      }
+    ]
+  },
+  "Cambridge Dictionary": {
+    "notice": " pronunciation (If there is no requirement to provide both US & UK pronunciations, one correct pronunciation is sufficient.) Examples should from Cambridge Dictionary if requested.",
+    "answers": [
+      {
+        "id": 0,
+        "type": "golden",
+        "ans": "UK: /s\u0259\u02ccste\u026a.n\u0259\u02c8b\u026al.\u0259.ti/, US: /s\u0259\u02ccste\u026a.n\u0259\u02c8b\u026al.\u0259.t\u032ci/; the quality of being able to continue over a period of time"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "UK: /\u02ccser.\u0259n\u02c8d\u026ap.\u0259.ti/, US: /\u02ccser.\u0259n\u02c8d\u026ap.\u0259.t\u032ci/; the fact of finding interesting or valuable things by chance; There is a real element of serendipity in archaeology."
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "UK: /ju\u02d0\u02c8b\u026ak.w\u026a.t\u0259s/, US: /ju\u02d0\u02c8b\u026ak.w\u0259.t\u032c\u0259s/; seeming to be everywhere; Leather is very much in fashion this season, as is the ubiquitous denim."
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "UK: /\u02c8tsa\u026at.\u0261a\u026ast/ or /\u02c8za\u026at.\u0261a\u026ast/, US: /\u02c8tsa\u026at.\u0261a\u026ast/ or /\u02c8za\u026at.\u0261a\u026ast/; the general set of ideas, beliefs, feelings, etc. that is typical of a particular period in history; Our methods of working, then, were facilitated and in some ways strongly encouraged by the technologies available to us, the products of a zeitgeist of convergence."
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "UK: /\u02c8\u026an.\u0259.ve\u026at/; Above all, this proposal aims to correct the allocative inefficiencies of the existing patent system, while preserving the dynamic incentives to innovate."
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "UK: /pr\u0259\u02cckr\u00e6s.t\u026a\u02c8ne\u026a.\u0283\u0259n/, US: /pro\u028a\u02cckr\u00e6s.t\u026a\u02c8ne\u026a.\u0283\u0259n/; Vacillation and procrastination, out of fears of recession or otherwise, would run grave risks."
+      },
+      {
+        "id": 6,
+        "type": "golden",
+        "ans": "\u53ef\u6301\u7eed\u6027; durabilit\u00e9 , viabilit\u00e9"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "UK: /\u0261\u0259\u02c8\u0283t\u00e6lt/, US: /\u0261\u0259\u02c8\u0283t\u0251\u02d0lt/; something such as a structure or experience that, when considered as a whole, has qualities that are more than the total of all its parts; In the comic and cartoon mythoses, however, most gestalts have one default transformation."
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "a common animal with four legs, especially kept by people as a pet or to hunt or guard things; a man who is unpleasant or not to be trusted; to follow someone closely and continuously"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "UK: /ju\u02d0\u02c8f\u0254\u02d0.ri.\u0259/; They were in a state of euphoria for days after they won the prize."
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "UK: /\u026am\u02c8pek.\u0259.b\u0259l/, US: /\u026am\u02c8pek.\u0259.b\u0259l/; perfect, with no problems or bad parts; His English is impeccable."
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "UK: /\u0259\u02c8mi\u02d0l.j\u0259.re\u026at/, US: /\u0259\u02c8mi\u02d0l.j\u0259.re\u026at/; to make a bad or unpleasant situation better; Foreign aid is badly needed to ameliorate the effects of the drought."
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "UK: /r\u026a\u02c8z\u026al.j\u0259ns/, US: /r\u026a\u02c8z\u026al.j\u0259ns/; the ability to be happy, successful, etc. again after something difficult or bad has happened; Trauma researchers emphasize the resilience of the human psyche."
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "beatitude; bed of roses; for fun"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "UK: /k\u0259n\u02c8k\u00e6t.\u0259.ne\u026at/, US: /k\u0259n\u02c8k\u00e6t\u032c.\u0259.ne\u026at/; to put things together as a connected series; The filename is a series of concatenated words with no spaces."
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "UK: /p\u00e6n\u02c8dem.\u026ak/, US: /p\u00e6n\u02c8dem.\u026ak/; In some parts of the world malaria is still pandemic."
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "UK: /\u02c8kr\u026ap.t\u0259\u028a\u02cck\u028cr.\u0259n.si/, US: /\u02c8kr\u026ap.to\u028a\u02cck\u025d\u02d0.\u0259n.si/; It is one of several prominent efforts to enable complex financial functions in a cryptocurrency; Vice versa, a cryptocurrency can be a legal tender, in which case it is not a virtual currency."
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "2"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "behaves themselves; be on their best behaviour"
+      },
+      {
+        "id": 19,
+        "type": "golden",
+        "ans": "Microsoft"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "UK: /\u02c8\u00e6l.tru.\u026a.z\u0259m/, US: /\u02c8\u00e6l.tru.\u026a.z\u0259m/; Def: willingness to do things that bring advantages to others, even if it results in disadvantage for yourself; She's not known for her altruism."
+      },
+      {
+        "id": 21,
+        "type": "golden",
+        "ans": "ef\u00edmero"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "UK: /\u02cckw\u026an.t\u026a\u02c8sen.\u0283\u0259l/, US:/\u02cckw\u026an.t\u026a\u02c8sen.\u0283\u0259l/; Def: being the most typical example or most important part of something; Sheep's milk cheese is the quintessential Corsican cheese."
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "US: /m\u0259\u02c8t\u026ak.j\u0259.l\u0259s/; Many hours of meticulous preparation have gone into writing the book."
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "UK: /\u02c8rev.\u0259r.i/, US:/\u02c8rev.\u025a.i/; He was lost in reverie until he suddenly heard someone behind him."
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "Meaning 1: a pleasant musical sound made by different notes being played or sung at the same time; Meaning 2: a situation in which people are peaceful and agree with each other, or when things seem right or suitable together"
+      },
+      {
+        "id": 26,
+        "type": "golden",
+        "ans": "\u6000\u65e7"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "UK: /\u02c8s\u0252l.\u026a.t\u0283u\u02d0d/, US: /\u02c8s\u0251\u02d0.l\u0259.tu\u02d0d/; the situation of being alone without other people; After months of solitude at sea it felt strange to be in company."
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "Synonyms: feel dizzy; whirl; spin; reel"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Action: finish an easy Image quiz about Animals"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "Present perfect simple: uses;  I\u2019ve been there a couple of times before; We haven\u2019t met before, have we?; Have you ever tried to write your name and address with your left hand?"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "She might sell her house; We could have lunch early; It may be possible for him to get home tonight."
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Article: 'Less or fewer?'; I do less work at weekends than I used to; Better cycle routes would mean fewer cars and fewer accidents."
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Cambridge University Press published this book. (active); This book was published by Cambridge University Press. (passive)"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "This car is more expensive than my last one; Joe used to be the slowest runner in the class."
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "ahead of; except for; instead of; owing to; apart from; in addition to ..."
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "Example: direct: \u2018I\u2019m tired,\u2019 I said; indirect: I told them (that) I was tired."
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "<understandings>, Countable nouns: I have a sister and a brother. That was an excellent meal. The lion roared. Uncountable nouns: I hope we have nice weather. The weather was awful last summer..."
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Action: finish a recommended Grammar quiz"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Action: finish the Word Scramble game in the Plus section"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "UK: /\u02c8m\u026at.\u026a.\u0261e\u026at/, US: /\u02c8m\u026at\u032c.\u0259.\u0261e\u026at/; to make something less harmful, unpleasant, or bad; It is unclear how to mitigate the effects of tourism on the island."
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "Shop: Cambridge Dictionary organic cotton Hoodie; On top of the world organic cotton T shirt - white writing variety; Multitasking Mug"
+      },
+      {
+        "id": 42,
+        "type": "golden",
+        "ans": "Action: Click English (UK), change language to: Deutsch"
+      }
+    ]
+  },
+  "Coursera": {
+    "notice": "",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Rapid Prototyping Using 3D Printing, Specialization"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "Python for Data Science, AI & Development"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "Learn Spanish: Basic Spanish Vocabulary, Specialization; Spanish Vocabulary: Meeting People; Spanish Vocabulary: Cultural Experience; Spanish Vocabulary: Sports, Travel, and the Home; Spanish Vocabulary: Careers and Social Events; Spanish Vocabulary Project"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "Data Science with NumPy, Sets, and Dictionaries; Duke University"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Business Foundations, Specialization"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "Coding for Everyone: C and C++, Specialization; Outcomes: Learn in-demand skills from university and industry experts; Master a subject or tool with hands-on projects; Develop a deep understanding of key concepts; Earn a career certificate from University of California, Santa Cruz"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "Fundamentals of Machine Learning for Healthcare; 14 hours (approximately); 19 quizzes"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "Reinforcement Learning, Specialization; University of Alberta; 3.3K reviews"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "Introducci\u00f3n a Data Science: Programaci\u00f3n Estad\u00edstica con R; Taught in Spanish"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "Artificial Intelligence: Ethics & Societal Challenges"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Introduction to Artificial Intelligence (AI)"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "Project Management, Specialization; Felipe M. \"To be able to take courses at my own pace and rhythm has been an amazing experience. I can learn whenever it fits my schedule and mood.\""
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Introduction to Java"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "Python 3 Programming, Specialization; Learn Python 3 basics, from the basics to more advanced concepts like lists and functions; Practice and become skilled at solving problems and fixing errors in your code; Gain the ability to write programs that fetch data from internet APIs and extract useful information."
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Agile Project Management"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "85%; 2-star"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "Xi Yang; Introduction to Finance: The Role of Financial Markets"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "23"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "Programming with JavaScript"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "Instructor: Paul Bloom; Yale University; 14 hours"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "Introduction to Supply Chain Finance & Blockchain Technology; New York Institute of Finance; Instructors: Oliver Belin, Jack Farmer; <summary of main goals>"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "Foundations of Digital Marketing and E-commerce; Google; Instructors: Google Career Certificates; <outcomes>; duration: 1 - 4 weeks or 25 hours (approximately)"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "Human Resource Management: HR for People Managers Specialization; University of Minnesota; Course 1: Preparing to Manage Human Resources; Course 2: Recruiting, Hiring, and Onboarding Employees; Course 3: Managing Employee Performance; Course 4: Managing Employee Compensation; Course 5: Human Resources Management Capstone: HR for People Managers"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "Artificial Intelligence: Ethics & Societal Challenges; Lund University; 4.6 stars; Instructors: Maria Hedlund, Lena Lindstr\u00f6m, Erik Persson"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "Introduction to Sustainability; University of Illinois at Urbana-Champaign; Instructors: Dr. Jonathan Tomkin; duration: Approx. 25 hours to complete, 3 weeks at 8 hours a week"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "Understanding Einstein: The Special Theory of Relativity; <topic>; Approx. 80 hours to complete"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "Renewable Energy Specialization; Instructors: Stephen R. Lawrence, Paul Komor; 2 months"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Data Visualization with Tableau Specialization; University of California, Davis; <skills>"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "Explore Einstein's theories of Relativity using Wolfram; Coursera Project Network; 2 hours; <main subjects>"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "$399/year, discount: 59 / month * 12 - 399 = 309; Google, IBM, and Imperial College London ..."
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "3 stars: 2.5%; 1 star has the lowest percentage"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "52.6%"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "568 results"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Introduction and Programming with IoT Boards; Instructor: James Won-Ki HONG; <summary>"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Instructor: Richard Skolnik; <summary> of bio; no other course"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "Introduction to Sustainability; <objectives>; Instructor: Dr. Jonathan Tomkin"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "Master of Advanced Study in Engineering; UC Berkeley College of Engineering; Fall 2024; March 1, 2024: Fall 2024 Priority Application Deadline; April 1, 2024: Fall 2024 Final Application Deadline"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Business Analytics with Excel: Elementary to Advanced; Cybersecurity for Everyone; Financial Markets ..."
+      },
+      {
+        "id": 38,
+        "type": "golden",
+        "ans": "Macquarie University; The University of Melbourne; The University of Sydney; University of Western Australia; UNSW Sydney (The University of New South Wales)"
+      },
+      {
+        "id": 39,
+        "type": "golden",
+        "ans": "6 videos; Introduction; Space Debris; Mitigation; Measurements; Protection; Atmospheric Re-entry"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Coursera for Business: Strengthen critical skills with content you can trust; Develop, retain, and advance critical talent; Lower training costs without sacrificing quality; Track and measure skills to demonstrate ROI; Coursera for Teams: Upskill 5 to 125 employees; Unlimited access to 10,250+ learning opportunities; Program setup and launch tools; Analytics and benchmarking dashboard"
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "BSc Computer Science, University of London; Bachelor of Science in Cybersecurity Technology, University of Maryland Global Campus; Bachelor of Information Technology, Illinois Institute of Technology"
+      }
+    ]
+  },
+  "ESPN": {
+    "notice": " real-time",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "<standings> (NBA Eastern Conference)"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "<article> (trades), maybe no article"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "<score> (Milwaukee Bucks vs xxx); <highlight>"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "<score> (most recent NBA game)"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "<score> (yesterday)"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "<player>; <PTS>; <team>; <position> (eg, James Harden; scored 35 points; LA Clippers; Shooting Guard (SG))"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "Los Angeles Lakers vs Boston Celtics, 115 - 126; Kristaps Porzingis"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "<score> (latest, Los Angeles Lakers vs xxx); <summary>"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "Joel Embiid (PHI) with 34.4 PPG, Luka Doncic (DAL) with 32.9 PPG, and Giannis Antetokounmpo (MIL) with 31.4 PPG."
+      },
+      {
+        "id": 9,
+        "type": "golden",
+        "ans": "10 teams have Los Angeles in their name; 2 teams are NBA"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "<score>; <summary> (latest college football championship game)"
+      },
+      {
+        "id": 11,
+        "type": "golden",
+        "ans": "30; New York Knicks; New Orleans Pelicans"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "<League 1>; <League 2>; <League 3>"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "<headline>; <summary>"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "News about NBA trades"
+      },
+      {
+        "id": 15,
+        "type": "golden",
+        "ans": "(US Time) Bucks vs Knicks, 122 - 129; Warriors vs Nuggets, 114 - 120; Celtics vs Lakers, 126 - 115; 76ers vs Heat, 113 - 119; Mavericks vs Suns, 128 - 114"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "teams and current standings"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Boston Celtics; San Antonio Spurs"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "31 (in ESPN America)"
+      },
+      {
+        "id": 19,
+        "type": "golden",
+        "ans": "Jrue Holiday"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "For Western, rebounds: Domantas Sabonis; assists: Luka Doncic"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "<score> within 3 days; <highlight>"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "Team transaction: eg, February 1, TRANSACTION: Dallas Mavericks, Assigned F Olivier-Maxence Proster to the Texas Legends of the G League."
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "NBA <score>, latest, Miami Heat - New York Knicks, eg, January 28, 2024, 109 - 125, Top rebounder: B. Adebayo, P. Achiuwa"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "NFL <score>, latest, eg, January 29, 2024, Chiefs - Ravens, 17 - 10"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "NBA game, latest, eg, February 2, 2024, Lakers - Celtics, 114 - 105, most assist: 14, D. Russell, position: PG, team: Los Angeles Lakers"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "NBA game, yesterday, eg, January 26, 2024, Philadelphia - Indiana, 134 - 122, winner high 26 - loser high 31; Denver - New York, 122 - 84, winner high 26 - loser high 31; Chicago - Los Angeles, 141 - 132, winner high 29 - loser high 32"
+      },
+      {
+        "id": 27,
+        "type": "golden",
+        "ans": "30 teams in search results, 1 team Vegas Golden Knights (NHL)"
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "30 teams in search results, Kansas City Royals"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "<headline> today"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "NHL Standings 2023-24, top - bottom, Eastern Conference: New York Rangers - Columbus Blue Jackets; Western Conference: Vancouver Canucks - Chicago Blackhawks; Division: ATLANTIC, Boston Bruins - Montreal Canadiens; METROPOLITAN: New York Rangers - Columbus Blue Jackets; CENTRAL: Dallas Stars - Chicago Blackhawks; PACIFIC: Vancouver Canucks - San Jose Sharks"
+      },
+      {
+        "id": 31,
+        "type": "golden",
+        "ans": "Carlos Rodon, 255 lbs"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "NHL <score> yesterday"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Article, '2023 NFL MVP: Ranking five finalists, plus stats'"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Philadelphia 76ers - Injuries, latest"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "next game of Los Angeles Lakers, <price>"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "<games>; Inter Miami CF, <results>"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "1471"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "54/58 = 93.1%, no other players, https://www.espn.com/nba/team/stats/_/name/lal/los-angeles-lakers"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "check IR on https://www.espn.com/nfl/team/depth/_/name/nyj/new-york-jets"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Bracket Predictor, Bracket Analyzer, Custom Dollar Value Generator"
+      },
+      {
+        "id": 41,
+        "type": "golden",
+        "ans": "Chicago Bears, Detroit Lions, Green Bay Packers, and Minnesota Vikings"
+      },
+      {
+        "id": 42,
+        "type": "possible",
+        "ans": "check America East Conference on https://www.espn.com/mens-college-basketball/standings"
+      },
+      {
+        "id": 43,
+        "type": "possible",
+        "ans": "espnW Rankings Class of 2023, Judea Watkins from USC, Mikaylah Williams from LSU, Jadyn Donovan from Duke"
+      }
+    ]
+  },
+  "GitHub": {
+    "notice": " repos are real-time",
+    "answers": [
+      {
+        "id": 0,
+        "type": "golden",
+        "ans": "resource-watch/resource-watch"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "google/yggdrasil-decision-forests"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "myshell-ai/OpenVoice"
+      },
+      {
+        "id": 3,
+        "type": "golden",
+        "ans": "48GB"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "<repo> (use advanced search like 'javascript created:>2023-12-10 language:JavaScript')"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "<repo> (stars:\"> 500\" language:Python), then choose recently undated"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "blocknetdx/blocknet; laanwj, sipa, theuni"
+      },
+      {
+        "id": 7,
+        "type": "golden",
+        "ans": "classifier_utils.py and squad_utils.py"
+      },
+      {
+        "id": 8,
+        "type": "golden",
+        "ans": "Latest v4.0.2 on Jun 17, 2021"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "<repo> (stars:>=50 created:>=xxxx-xx-xx)"
+      },
+      {
+        "id": 10,
+        "type": "golden",
+        "ans": "$100 per year; Code completions, Chat, and more for indie developers and freelancers."
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "TheAIDojo/AI-for-Climate-Change; Jupyter Notebook; Repository of notebooks and associated code that covers the fundamental concepts of deep learning and its application to climate science."
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "v29.0.0-alpha.5, 19 hours ago (real-time release)"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "microsoft/ML-For-Beginners"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "bpasero; jrieken; mjbvz"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "desireevl/awesome-quantum-computing"
+      },
+      {
+        "id": 16,
+        "type": "golden",
+        "ans": "3"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "microsoft/terminal; The new Windows Terminal and the original Windows console host, all in the same place!"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "OpenCV"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "scrapy/scrapy"
+      },
+      {
+        "id": 20,
+        "type": "golden",
+        "ans": "'Chat in GitHub Mobile is coming soon.' OR 'We do not have a set timeline for making Copilot Chat available on mobile. We\u2019ll continue to update this page with the latest information on new capabilities for various plans.'"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "With AI-powered application security testing tools embedded in your development workflow, GitHub Advanced Security outperforms non-native add-ons by delivering 7x faster remediation rates for identified vulnerabilities."
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "<repo> (natural language processing language:Ruby)"
+      },
+      {
+        "id": 23,
+        "type": "golden",
+        "ans": "edit the .zshrc file and set the ZSH_THEME variable to \"agnoster\""
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "recently closed issue in repo angular/angular: https://github.com/angular/angular/issues?q=is%3Aissue+is%3Aclosed"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "<repo> (virtual reality stars:>=200), <summary>"
+      },
+      {
+        "id": 26,
+        "type": "golden",
+        "ans": "Create a pull request. Resolve a merge conflict. Create a merge conflict. Merge your pull request."
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "<repo> (language:Ruby stars:>1000)"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "<repo> (language:JavaScript created:>2023-12-29), sort by Most stars"
+      },
+      {
+        "id": 29,
+        "type": "golden",
+        "ans": "Unlimited"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "eg, aptos-labs/aptos-core, contributors: davidiw, gregnazario, JoshLind, bmwill, rustielin"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "Tensorflow latest commit"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "<repo> (game development language:C# stars:>150), <features>"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Philips builds and deploys digital health technology faster with innersource on GitHub. Shopify keeps pushing eCommerce forward with help from GitHub tools."
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "kexinhuang12345/DeepPurpose"
+      },
+      {
+        "id": 35,
+        "type": "golden",
+        "ans": "18.2.0 (June 14, 2022)"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "<repo> (AI agriculture created:2022)"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "The AI coding assistant elevating developer workflows. Get AI-based suggestions in real time. Docs that feel tailored for you."
+      },
+      {
+        "id": 38,
+        "type": "golden",
+        "ans": "WerWolv/ImHex"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "find info on https://github.com/trending/developers"
+      },
+      {
+        "id": 40,
+        "type": "golden",
+        "ans": "Perform Action. email 'test123@gmail.com' already exists"
+      }
+    ]
+  },
+  "Google Flights": {
+    "notice": " real-time, round trip (only provide the departure flight is OK). Answers can from best options (or sort). Because the best options are in line with the user's needs, if you go through the sort you may get a very unreasonable flight (maybe long duration).",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Aer Lingus 11:40am - 4:45pm, $412 (real-time)"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "Air France 5:30\u202fPM \u2013 8:25\u202fAM (+1), United 6:30\u202fPM \u2013 9:55\u202fAM(+1), Delta 12:00\u202fPM \u2013 8:10\u202fAM(+1)... (real-time)"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "Tap Air Portugal 10:00\u202fPM \u2013 5:30\u202fPM(+1), $355 (real-time)"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "WestJet 9:55\u202fAM \u2013 4:34\u202fPM, emission: 225 kg CO2, $704 (real-time)"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Norse Atlantic UK 6:10\u202fPM \u2013 6:00\u202fAM(+1), $331, Nonstop (real-time)"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "Scandinavian Airlines 9:45\u202fPM \u2013 4:00\u202fPM(+1), $1456 (real-time)"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "flydubai, Emirates, and AccesRail, 12:40 PM - 8:34 PM(+1), $8991 (real-time)"
+      },
+      {
+        "id": 7,
+        "type": "possible",
+        "ans": "American Airlines, 5:44 AM \u2013 1:25 PM, $1,247 (real-time)"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "Analyse the picture of Price graph (real-time)"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "Air India, LOT, 3:55\u202fPM \u2013 8:35\u202fPM(+1), transfer time: 18 hours 20 mins (real-time, Transfer time only.)"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Air Canada, 9:15\u202fAM \u2013 4:50\u202fPM(+1), $1169 (real-time)"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "United flight, 11:15\u202fAM \u2013 3:35\u202fPM(+1), $1366, Nonstop (real-time)"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Norse Atlantic UK, 6:10\u202fPM \u2013 6:00\u202fAM(+1), $757, Nonstop (real-time)"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "Turkish Airlines, 8:00\u202fPM \u2013 8:30\u202fAM(+2), $1142, 1 stop (real-time)"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Norse Atlantic UK, 6:10\u202fPM \u2013 6:00\u202fAM(+1), $546 (real-time)"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "Only one flight, United flight, 11:15\u202fAM \u2013 3:35\u202fPM(+1), $1316 (real-time)"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "Norse Atlantic UK, Air China, 6:10\u202fPM \u2013 1:40\u202fPM(+2), $671, 2 stops (real-time)"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "Scandinavian Airlines, 5:35\u202fPM \u2013 1:25\u202fPM(+1), $608, 2 stops (real-time)"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "United, 11:15\u202fAM \u2013 3:35\u202fPM(+1), duration 14 hr 20 min, $1316 (real-time)"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "easyJet, 6:35 PM - 8:55 PM, $35, nonstop (real-time)"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "Lufthansa United, 2:40\u202fPM \u2013 12:55\u202fPM(+1), 13 hr 15 min"
+      },
+      {
+        "id": 21,
+        "type": "possible",
+        "ans": "Jetstar JAL, Qantas, 8:10\u202fPM \u2013 10:40\u202fAM(+1), 12 hr 30 min, 1 stop"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "Gol, Aeromexico, 7:00\u202fAM \u2013 10:22\u202fPM, 746 kg CO2"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "Air Canada Lufthansa, 4:25\u202fAM \u2013 4:15\u202fPM; Air India, Air Canada, 6:35\u202fAM \u2013 4:15\u202fPM; ...(1 stop)"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "Etihad ITA, 2:25\u202fAM \u2013 5:45\u202fAM, 6 hr 20 min, Nonstop"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "KLM, 4:25\u202fPM \u2013 9:40\u202fAM(+1), 13 hr 15 min, EZE\u2013AMS, Nonstop, $3912, 3251 kg CO2"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "Royal Jordanian, 2:20\u202fAM \u2013 2:05\u202fPM"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "British Airways, American, 7:45\u202fPM \u2013 6:28\u202fPM(+1), <analyze the price graph>"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "Icelandair, 2:35\u202fPM \u2013 12:00\u202fPM(+1), 1 stop, $1602"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Only one flight, Lufthansa, 9:00\u202fPM \u2013 2:40\u202fPM(+1), 10 hr 40 min"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "Ethiopian, 2:35\u202fPM \u2013 2:50\u202fPM(+1), 1 stop, $633"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "Qantas, Qatar Airways, AlaskaEmirates, Mar 25, 4:05\u202fPM \u2013 11:59\u202fPM(+1), most: 3 stops"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Icelandair, 12:50\u202fPM \u2013 6:15\u202fPM, 11 hr 25 min"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "Korean Air, 2:00\u202fPM \u2013 11:15\u202fAM, 13 hr 15 min, 816 kg CO2; EVA AirAir Canada, 8:10\u202fPM \u2013 6:35\u202fPM, 3,672 kg CO2; ..."
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Emirates, 8:45\u202fPM \u2013 9:15\u202fPM(+1), booking options: Emirates, Gotogate, Martigo, Expedia, kiss&fly, eDreams ... cheapest: Gotogate"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "EgyptAir, Lufthansa, Air Canada, 10:05\u202fAM \u2013 6:20\u202fPM, 15 hr 15 min, 1 stop, $644"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "Finnair, 6:00\u202fPM \u2013 6:05\u202fAM(+1), $744 ..."
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Lufthansa, 5:50\u202fPM \u2013 9:30\u202fAM(+2), return flight can be Lufthansa, 11:20\u202fAM \u2013 7:55\u202fAM(+1), the same as departure flight"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Emirates, 2:10\u202fPM \u2013 11:55\u202fPM, Nonstop ..."
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Prague to Tokyo, British Airways, Air China, 7:05 AM \u2013 1:40 PM(+1)"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Seattle to Las Vegas $21, Seattle to Los Angeles $42"
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "United, Operated by Skywest DBA United Express, 10:30\u202fPM \u2013 12:45\u202fPM(+1), 1 stop"
+      }
+    ]
+  },
+  "Google Map": {
+    "notice": "",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "Beehive Salon, Intermezzo Salon & Spa, Cindy's Beauty Salon, The Red Chair Salon, Ella and Oz Salon"
+      },
+      {
+        "id": 1,
+        "type": "golden",
+        "ans": "'Amherst and 7th' or 'Main Street Middle'"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "Apple The Grove, Apple Beverly Center"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "Approximately 20 min"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Drive via MA-1A S and take about 10 mins (based on real-time traffic conditions)"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "SP+ Parking in 1750 W 13th St, Chicago, IL 60608"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "UNIQLO State Street"
+      },
+      {
+        "id": 7,
+        "type": "golden",
+        "ans": "Alanson, MI (EZ-Mart) Bus Stop"
+      },
+      {
+        "id": 8,
+        "type": "golden",
+        "ans": "Hollywood Boulders"
+      },
+      {
+        "id": 9,
+        "type": "golden",
+        "ans": "'Honor Fraser Gallery' or 'Walter Maciel Gallery'."
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "located in Barstow, CA 92311; open 24 hours; phone number is (760) 252-6100"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "Village Maternity with a wheelchair accessible parking lot"
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Taki's Greek Kitchen - 4.7, Thai Chili - 4.7, Parker's Grille & Tavern - 4.5, Legacy Restaurant & Grille - 4.5, Jake's On the Lake - 4.5"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "Drive via MA-3 N and I-93 N, about 1.5 hours (based on real-time traffic conditions)."
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "Rising Wolf Garage (should be motorcycle parking)"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "Quik Park; <reviews>"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "EVgo Charging Station"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "Protech Key and Locksmith (UTC 12:30)"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "Drive via I-80 W, about 29 hours"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "Hilton Garden Inn Pittsburgh Airport, walking time around 15min - 30min"
+      },
+      {
+        "id": 20,
+        "type": "possible",
+        "ans": "Tesla Destination Charger, 1330 Maryland Ave SW, Washington, DC 20024"
+      },
+      {
+        "id": 21,
+        "type": "golden",
+        "ans": "Elm Street & Oak Street, 18 Bay St, Amesbury, MA 01913"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "Best Buy, 1131 5th St, Miami Beach, FL 33139"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "around 42 min (1.9 miles) via 7th Ave"
+      },
+      {
+        "id": 24,
+        "type": "possible",
+        "ans": "via US-101 N, around 19 min (current traffic condition), 14.6 miles"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "Park Rite Parking, Closes 11 PM"
+      },
+      {
+        "id": 26,
+        "type": "golden",
+        "ans": "<Action>, print PDF"
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "8"
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "Privacy & Safety: Activity, Content, More options; Other settings"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "Ypsilanti Transit Center; Ellsworth + Michigan; YTC - Stop 5"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "2-68 Division St Garage, <reviews>"
+      },
+      {
+        "id": 31,
+        "type": "golden",
+        "ans": "share link, https://maps.app.goo.gl/Bnp4Q67dTHoFZ4Lx8"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Drain Genie Plumbing Services"
+      },
+      {
+        "id": 33,
+        "type": "golden",
+        "ans": "star 2 has the least proportion; Accessibility: Assistive hearing loop; Wheelchair accessible entrance; Wheelchair accessible parking lot; Wheelchair accessible restroom; Wheelchair accessible seating; Amenities: Baggage storage; Wi-Fi; Free Wi-Fi"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Speer Blvd Park ..."
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "Big Bend National Park, TX; (432) 477-2251; 6PXX+WW Big Bend National Park, Texas; Tickets: $30 ..."
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "Varasano's Pizzeria - Buckhead, 4.9; DaVinci's Pizzeria, 4.4; Mellow Mushroom Atlanta - Buckhead, 4.4; Vinny's N.Y. Pizza & Grill - Piedmont, 4.2; Gino's NY Pizza Bar, 4.0"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Take Lafayette St and Pleasant St to Cross St in Marblehead, 14 min (3.9 mi); Drive to Rowland St, 1 min (0.1 mi)"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "Bike Parking, 104 W 38th St, New York, NY 10018"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Miami, Florida to New Orleans, Louisiana; Get on I-95 N from S Miami Ave, 5 min (1.4 mi); Follow Florida's Tpke, I-75 N and I-10 W to Carondelet St in New Orleans. Take exit 12B from US-90 BUS W, 12 hr 6 min (864 mi); Turn left onto Carondelet St, 3 min (0.6 mi)"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Boston Sail Loft, 4.6; one star review: Not sure about the rest of the seafood here since I left immediately after trying their AWFUL Chowder. I won't call it clam chowder since I didn't see a single piece of clam. This stuff was more like if you heated up half & Half then sprinkle dill and salt in it. It's too bad the tourist think this is how it's supposed to taste."
+      }
+    ]
+  },
+  "Google Search": {
+    "notice": "",
+    "answers": [
+      {
+        "id": 0,
+        "type": "golden",
+        "ans": "May 5, 2023"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "Born on September 29, 1988; Professional basketball player for the Phoenix Suns now."
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "News Title (real-time)"
+      },
+      {
+        "id": 3,
+        "type": "golden",
+        "ans": "Life Is Beautiful, Back to the Future, The Intouchables, City Lights, Modern Times"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "Counter-Strike 2, 602,898 players (real-time)"
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "Suns 120-107 Trail Blazers (real-time)"
+      },
+      {
+        "id": 6,
+        "type": "possible",
+        "ans": "New Year's Eve parties, Christmas markets, january, comedy shows... (real-time)"
+      },
+      {
+        "id": 7,
+        "type": "golden",
+        "ans": "IOS 17.1"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "user: @melvinsmiley5295, 329 thumbs up and 2 replies (real-time)"
+      },
+      {
+        "id": 9,
+        "type": "possible",
+        "ans": "IMDb 7.0/10, Rotten Tomatoes 73%"
+      },
+      {
+        "id": 10,
+        "type": "possible",
+        "ans": "Taylor Swift, 10 songs (different sources have different results)"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "KATL, 13555 total arrivals and departures (real-time)"
+      },
+      {
+        "id": 12,
+        "type": "golden",
+        "ans": "2007"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "Strange Planet, 2023"
+      },
+      {
+        "id": 14,
+        "type": "golden",
+        "ans": "Yeovil Town"
+      },
+      {
+        "id": 15,
+        "type": "golden",
+        "ans": "Not successful"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "880K, ChatGPT will soon have real-time news access (real-time)"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Ivanka Trump, Barron Trump, Donald Trump Jr., Tiffany Trump, Eric Trump"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "Qatar; November 20 to December 18, 2022; Argentina"
+      },
+      {
+        "id": 19,
+        "type": "golden",
+        "ans": "eedf571, Smaller BERT Models"
+      },
+      {
+        "id": 20,
+        "type": "golden",
+        "ans": "April 4, 2025"
+      },
+      {
+        "id": 21,
+        "type": "golden",
+        "ans": "The Lion King (2019); Frozen II (2019); The Super Mario Bros. Movie (2023); Frozen (2013); Incredibles 2 (2018)"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "trending topics: 1.valentines day events; 2.fashion week; 3.job fairs; 4.march; 5.february"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "<bio> LeBron James"
+      },
+      {
+        "id": 24,
+        "type": "golden",
+        "ans": "Alpha Centauri star system; Proxima Centauri b, Proxima Centauri c, and Proxima Centauri d"
+      },
+      {
+        "id": 25,
+        "type": "possible",
+        "ans": "eg, Manchester United 1-2 Fulham: Alex Iwobi scores in added time for huge away win"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "RAM 8 GB; Processor: Multicore Intel\u00ae or Apple Silicon processor (2 GHz or faster processor with SSE 4.2 or later) with 64-bit support; Operating system, macOS Big Sur (version 11.0) or later; Graphics card, GPU with Metal support, 1.5 GB of GPU memory ..."
+      },
+      {
+        "id": 27,
+        "type": "possible",
+        "ans": "Current PM2.5 AQI\t43"
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "IMDb score 8.8, Metacritic score 74%."
+      },
+      {
+        "id": 29,
+        "type": "golden",
+        "ans": "9.58s held by Usain Bolt of Jamaica"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "real-time, Benson Boone; Beautiful Things, In The Stars, GHOST TOWN, To Love Someone, Before You, NIGHTS LIKE THESE, Sugar Sweet, ROOM FOR 2, Little Runaway, What Was"
+      },
+      {
+        "id": 31,
+        "type": "golden",
+        "ans": "2014-15 season"
+      },
+      {
+        "id": 32,
+        "type": "possible",
+        "ans": "Manchester City Football Club; June 10, 2023; Atat\u00fcrk Olympic Stadium, Istanbul, Turkey"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "<SHA> of latest Tensorflow"
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "345,957,886 kilometers"
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "eg, 19 February 2024, The accretion of a solar mass per day by a 17-billion solar mass black hole"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "French-Swedish physicist Anne L'Huillier, French scientist Pierre Agostini, and Hungarian-born Frank Krausz. <summary>"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "Gliese 667Cc, Kepler-22b, Kepler-69c"
+      },
+      {
+        "id": 38,
+        "type": "possible",
+        "ans": "next: April 8, 2024. The one after that will take place on August 23, 2044."
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Tokyo, Japan; Seoul, South Korea; Halong Bay, Vietnam; Palawan Island, Philippines; Sapa, Vietnam; Bogota, Colombia; Pattaya, Thailand; Alajuela, Costa Rica; Phnom Penh, Cambodia; Kuala Lumpur, Malaysia. Asian: Tokyo, Japan; Seoul, South Korea; Halong Bay, Vietnam; Palawan Island, Philippines; Sapa, Vietnam; Kuala Lumpur, Malaysia; Phnom Penh, Cambodia"
+      },
+      {
+        "id": 40,
+        "type": "golden",
+        "ans": "19,341 feet (5,895 meters)"
+      },
+      {
+        "id": 41,
+        "type": "possible",
+        "ans": "current air pollution level in Los Angeles"
+      },
+      {
+        "id": 42,
+        "type": "possible",
+        "ans": "The main difference between British English and American English is in pronunciation. Some words are also different in each variety of English, and there are also a few differences in the way they use grammar. Here are five of the most common grammatical differences between British and American English. 1. Present perfect and past simple; 2. got and gotten; 3. Verb forms with collective nouns; 4. have and take; 5. shall"
+      }
+    ]
+  },
+  "Huggingface": {
+    "notice": " models are real-time",
+    "answers": [
+      {
+        "id": 0,
+        "type": "possible",
+        "ans": "distilroberta-finetuned-financial-news-sentiment-analysis"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "<story> (generated by Inference API)"
+      },
+      {
+        "id": 2,
+        "type": "possible",
+        "ans": "<model 1>; <model 2>; <model 3>; (last month, recently created)"
+      },
+      {
+        "id": 3,
+        "type": "possible",
+        "ans": "replit/replit-code-v1-3b"
+      },
+      {
+        "id": 4,
+        "type": "possible",
+        "ans": "TinyLlama/TinyLlama-1.1B-Chat-v1.0; TinyLlama can be plugged and played in many open-source projects built upon Llama. Besides, TinyLlama is compact with only 1.1B parameters; Applications: cater to a multitude of applications demanding a restricted computation and memory footprint."
+      },
+      {
+        "id": 5,
+        "type": "possible",
+        "ans": "flax-community/t5-recipe-generation; 223M params; F32"
+      },
+      {
+        "id": 6,
+        "type": "golden",
+        "ans": "0.550"
+      },
+      {
+        "id": 7,
+        "type": "golden",
+        "ans": "autumnjohnson/ceti_audio"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "microsoft/phi-2; Text generation"
+      },
+      {
+        "id": 9,
+        "type": "golden",
+        "ans": "Helsinki-NLP/opus-mt-ja-en; BLEU 41.7\t; chr-F 0.589"
+      },
+      {
+        "id": 10,
+        "type": "golden",
+        "ans": "Mistral AI team"
+      },
+      {
+        "id": 11,
+        "type": "possible",
+        "ans": "motexture/VSeq2VSeq; Text to video diffusion model with variable length frame conditioning for infinite length video generation."
+      },
+      {
+        "id": 12,
+        "type": "possible",
+        "ans": "Jaagup/errors_corrections_min3"
+      },
+      {
+        "id": 13,
+        "type": "golden",
+        "ans": "bool, defaults to False"
+      },
+      {
+        "id": 14,
+        "type": "golden",
+        "ans": "$9/month; Pro Account: Get a PRO badge on your profile, Early access to new features, Unlock Inference for PROs, Higher tier for AutoTrain"
+      },
+      {
+        "id": 15,
+        "type": "possible",
+        "ans": "junnyu/roformer_chinese_base"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "<model> (today, text classification)"
+      },
+      {
+        "id": 17,
+        "type": "possible",
+        "ans": "<model>; <creator>; <description> (recent, NLP)"
+      },
+      {
+        "id": 18,
+        "type": "golden",
+        "ans": "As in the Llama 2 paper, you can add a margin to the loss by adding a margin column to the dataset. The reward collator will automatically pass it through and the loss will be computed accordingly."
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "<model> (Most recent, English text summarization)"
+      },
+      {
+        "id": 20,
+        "type": "golden",
+        "ans": "ckiplab/bert-base-chinese-ner"
+      },
+      {
+        "id": 21,
+        "type": "golden",
+        "ans": "from transformers import pipeline \\n classifier = pipeline(\"sentiment-analysis\") \\n classifier(\"We are very happy to show you the \ud83e\udd17 Transformers library.\") ... distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+      },
+      {
+        "id": 22,
+        "type": "possible",
+        "ans": "<summary> of https://huggingface.co/docs/transformers/main/en/add_tensorflow_model#4-model-implementation"
+      },
+      {
+        "id": 23,
+        "type": "possible",
+        "ans": "eg, openai/whisper-large-v3"
+      },
+      {
+        "id": 24,
+        "type": "golden",
+        "ans": "mistralai/Mixtral-8x7B-Instruct-v0.1"
+      },
+      {
+        "id": 25,
+        "type": "golden",
+        "ans": "Add the load_in_8bit or load_in_4bit parameters to from_pretrained() and set device_map=\"auto\" to effectively distribute the model to your hardware. (Or use code)"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "PhilipTheGreat/DiabloGPT-small-Traveller, GPT2LMHeadModel, 510 MB"
+      },
+      {
+        "id": 27,
+        "type": "golden",
+        "ans": "nlphuji/mscoco_2014_5k_test_image_text_retrieval"
+      },
+      {
+        "id": 28,
+        "type": "possible",
+        "ans": "eg, /roberta-base-squad2, language: English"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "<summary> of Falconsai/medical_summarization (T5 Large for Medical Text Summarization)"
+      },
+      {
+        "id": 30,
+        "type": "golden",
+        "ans": "Helsinki-NLP/opus-mt-en-zh; testset, BLEU, chr-F: Tatoeba-test.eng.zho, 31.4, 0.268"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "eg, Hawat/make-believe-fakenews-detection, Updated Jan 16 2024"
+      },
+      {
+        "id": 32,
+        "type": "golden",
+        "ans": "\"temperature\": 1.0"
+      },
+      {
+        "id": 33,
+        "type": "possible",
+        "ans": "eg, Transformers - 119,672 stars, Diffusers - 20,775 stars, Datasets - 17,960 stars."
+      },
+      {
+        "id": 34,
+        "type": "possible",
+        "ans": "Empower your students with state-of-the-art resources; Give your students unlimited access to modern machine learning tools; Easily manage your classroom ..."
+      },
+      {
+        "id": 35,
+        "type": "possible",
+        "ans": "eg, Accelerating SD Turbo and SDXL Turbo Inference with ONNX Runtime and Olive, Published January 15, 2024, <summary>"
+      },
+      {
+        "id": 36,
+        "type": "possible",
+        "ans": "summary of https://huggingface.co/pricing"
+      },
+      {
+        "id": 37,
+        "type": "possible",
+        "ans": "huggingface posts, https://huggingface.co/posts"
+      },
+      {
+        "id": 38,
+        "type": "golden",
+        "ans": "use add_tokens method"
+      },
+      {
+        "id": 39,
+        "type": "possible",
+        "ans": "Trainer example, https://huggingface.co/docs/evaluate/main/en/transformers_integrations#trainer"
+      },
+      {
+        "id": 40,
+        "type": "possible",
+        "ans": "Streamlined Deployment; Efficient Resource Utilization; Dynamic Batching ..."
+      },
+      {
+        "id": 41,
+        "type": "golden",
+        "ans": "openai/shap-e; there are Spaces like hysts/Shap-E ..."
+      },
+      {
+        "id": 42,
+        "type": "golden",
+        "ans": "content: Please provide a reasonable subgoal-based plan to solve the given task.\\nTask: What was the opening date of the museum dedicated to the war that, after it occurred, Boston became one of the wealthiest international ports?; Initial Environment Description: None."
+      }
+    ]
+  },
+  "Wolfram Alpha": {
+    "notice": "",
+    "answers": [
+      {
+        "id": 0,
+        "type": "golden",
+        "ans": "11.2"
+      },
+      {
+        "id": 1,
+        "type": "possible",
+        "ans": "2 a + 3 sqrt(5) x + 5 x>=sqrt(2 (5 + sqrt(5))) y AND 2 a + sqrt(50 + 22 sqrt(5)) y>=(5 + sqrt(5)) x AND sqrt(5) a + 2 sqrt(5) x + 2 sqrt(5 + 2 sqrt(5)) y <= a ... (Search inner region of the pentagram on Wolfram)"
+      },
+      {
+        "id": 2,
+        "type": "golden",
+        "ans": "7.5095 * 10^33"
+      },
+      {
+        "id": 3,
+        "type": "golden",
+        "ans": "1/4 (2 x cos(2 x) + (-1 + 2 x^2) sin(2 x)) + Constant"
+      },
+      {
+        "id": 4,
+        "type": "golden",
+        "ans": "Densest known packing: 0.176939r; Square packing: 0.163961r"
+      },
+      {
+        "id": 5,
+        "type": "golden",
+        "ans": "y(z) = \u00b1 2 am(1/2 sqrt((c_1 + 2) (z + c_2)^2), 4/(c_1 + 2)), am(x, m) is the Jacobi amplitude function"
+      },
+      {
+        "id": 6,
+        "type": "golden",
+        "ans": "7 + 3 (-4 + x)^3 + (-4 + x)^5"
+      },
+      {
+        "id": 7,
+        "type": "golden",
+        "ans": "-73.26\u00b0 from vertical; 0.252 m"
+      },
+      {
+        "id": 8,
+        "type": "possible",
+        "ans": "approximately: 38.3 mol; 76.0% C; 4.3% H; 19.7% N"
+      },
+      {
+        "id": 9,
+        "type": "golden",
+        "ans": "9752 GW h/yr (gigawatt hours per year)"
+      },
+      {
+        "id": 10,
+        "type": "golden",
+        "ans": "geomagnetic field, total 51.5 uT;"
+      },
+      {
+        "id": 11,
+        "type": "golden",
+        "ans": "UNS A92024: 4.9\u00d710^-6 \u03a9 cm (ohm centimeters) (at 20 \u00b0C); UNS G10800: 1.8\u00d710^-5 \u03a9 cm (ohm centimeters)"
+      },
+      {
+        "id": 12,
+        "type": "golden",
+        "ans": "8902 (U+22C6)"
+      },
+      {
+        "id": 13,
+        "type": "possible",
+        "ans": "approximately: 36430; 77325"
+      },
+      {
+        "id": 14,
+        "type": "possible",
+        "ans": "approximately: Whopper, 657 Cal; Baconator, 902 Cal; Big Mac, 730 Cal"
+      },
+      {
+        "id": 15,
+        "type": "golden",
+        "ans": "3.125%"
+      },
+      {
+        "id": 16,
+        "type": "possible",
+        "ans": "intake 1500 Cal/d for 3 months 12 days to lose 17 kg with a sedentary activity level"
+      },
+      {
+        "id": 17,
+        "type": "golden",
+        "ans": "Providence $13.81; Nashville $12.65; Boise $12.65"
+      },
+      {
+        "id": 18,
+        "type": "possible",
+        "ans": "show a Albert Einstein curve with parametric equations"
+      },
+      {
+        "id": 19,
+        "type": "possible",
+        "ans": "<sunborn time> (real-time date)"
+      },
+      {
+        "id": 20,
+        "type": "golden",
+        "ans": "approximately 33038"
+      },
+      {
+        "id": 21,
+        "type": "golden",
+        "ans": "approximately 0.717183 - 0.425258 i"
+      },
+      {
+        "id": 22,
+        "type": "golden",
+        "ans": "127.306 cm^2 or 147 \\sqrt(3) / 2"
+      },
+      {
+        "id": 23,
+        "type": "golden",
+        "ans": "mean population growth rate of Canada from 2020 to 2023 is 0.9998% per year"
+      },
+      {
+        "id": 24,
+        "type": "golden",
+        "ans": "y(t) = c1 e^t sin(3t) + c2 e^t cos(3t)"
+      },
+      {
+        "id": 25,
+        "type": "golden",
+        "ans": "if g=9.81; x = 63.64m, y = 19.49m; Vx = 21.21 m/s, Vy = -8.22 m/s"
+      },
+      {
+        "id": 26,
+        "type": "possible",
+        "ans": "if no H2O, 153 moles, hydrogen (H), 32.69% for sulfur (S), and 65.25% for oxygen (O)."
+      },
+      {
+        "id": 27,
+        "type": "golden",
+        "ans": "401.2 W/(m K); 236.9 W/(m K)"
+      },
+      {
+        "id": 28,
+        "type": "golden",
+        "ans": "9649 or U+25B1"
+      },
+      {
+        "id": 29,
+        "type": "possible",
+        "ans": "any cat curve"
+      },
+      {
+        "id": 30,
+        "type": "possible",
+        "ans": "real-time, search query: sunburn 1:00 pm with SPF 1 in Brazil"
+      },
+      {
+        "id": 31,
+        "type": "possible",
+        "ans": "real-time, search query: current temperature and wind speed in Chicago, IL."
+      },
+      {
+        "id": 32,
+        "type": "golden",
+        "ans": "1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187, 1193."
+      },
+      {
+        "id": 33,
+        "type": "golden",
+        "ans": "89.5 TWh (terawatt hours)"
+      },
+      {
+        "id": 34,
+        "type": "golden",
+        "ans": "317.8 times that of Earth, and the length of one day on Jupiter is approximately 9.925 hours"
+      },
+      {
+        "id": 35,
+        "type": "golden",
+        "ans": "1/186313420339200000"
+      },
+      {
+        "id": 36,
+        "type": "golden",
+        "ans": "converges"
+      },
+      {
+        "id": 37,
+        "type": "golden",
+        "ans": "9675"
+      },
+      {
+        "id": 38,
+        "type": "golden",
+        "ans": "around 39.2"
+      },
+      {
+        "id": 39,
+        "type": "golden",
+        "ans": "x^2(\\sin(\frac{2\u03c0}{15}) - 2) + 2xy \\cos(\frac{2\u03c0}{15}) + 4 = y^2(2 + \\sin(\frac{2\u03c0}{15}))"
+      },
+      {
+        "id": 40,
+        "type": "golden",
+        "ans": "around 0.078 kg"
+      },
+      {
+        "id": 41,
+        "type": "golden",
+        "ans": "110 bpm"
+      },
+      {
+        "id": 42,
+        "type": "golden",
+        "ans": "192 MB"
+      },
+      {
+        "id": 43,
+        "type": "golden",
+        "ans": "35; 12"
+      },
+      {
+        "id": 44,
+        "type": "possible",
+        "ans": "g(x) = 2 cos^(-1)((sinh(x) (cos(1/2) - sin(1/2)) + cosh(x) (cos(1/2) - sin(1/2)) + sin(1/2) + cos(1/2))/(sqrt(2) sqrt(-(sin(1) - 1) sinh(2 x) - (sin(1) - 1) cosh(2 x) + 1 + sin(1)))) OR ..."
+      },
+      {
+        "id": 45,
+        "type": "golden",
+        "ans": "energy expenditure | 2720 kJ (kilojoules); average energy expenditure per step | 1.1 kJ/step (kilojoules per step); fat burned | 0.0842 kg (kilograms); oxygen consumption | 129.9 L (liters); metabolic equivalent | 7 metabolic equivalents"
+      }
+    ]
+  }
+}
