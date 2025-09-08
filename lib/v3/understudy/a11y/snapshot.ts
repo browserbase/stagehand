@@ -2,6 +2,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
+import { executionContexts } from "../executionContextRegistry";
 
 /**
  * a11y/snapshot
@@ -84,6 +85,70 @@ export async function captureHybridSnapshot(
     }
   >();
 
+  // If focusXPath provided, try to traverse into the correct frame first and
+  // scope the snapshot to that frame + (optional) subtree. This avoids building
+  // the full-tree and trimming after.
+  const requestedFocus = options?.focusXPath?.trim();
+  if (requestedFocus) {
+    try {
+      const focus = normalizeXPath(requestedFocus);
+      const { targetFrameId, tailXPath, absPrefix } =
+        await resolveFocusFrameAndTail(page, focus, parentByFrame, rootId);
+
+      // Build DOM + A11y just for the target frame (more efficient)
+      const owningSess = ownerSession(page, targetFrameId);
+      const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
+        owningSess,
+        targetFrameId,
+        pierce,
+        (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+      );
+
+      const { outline, urlMap } = await a11yForFrame(
+        owningSess,
+        targetFrameId,
+        {
+          focusXPath: tailXPath || undefined,
+          tagNameMap,
+          experimental: options?.experimental ?? false,
+          scrollableMap,
+          encode: (backendNodeId) =>
+            `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
+        },
+      );
+
+      // Prefix XPaths with the absolute iframe chain we traversed
+      const combinedXpathMap: Record<string, string> = {};
+      const abs = absPrefix ?? "";
+      const isRoot = !abs || abs === "/";
+      if (isRoot) {
+        Object.assign(combinedXpathMap, xpathMap);
+      } else {
+        for (const [encId, xp] of Object.entries(xpathMap)) {
+          combinedXpathMap[encId] = prefixXPath(abs, xp);
+        }
+      }
+
+      const combinedUrlMap: Record<string, string> = { ...urlMap };
+
+      return {
+        combinedTree: outline,
+        combinedXpathMap,
+        combinedUrlMap,
+        perFrame: [
+          {
+            frameId: targetFrameId,
+            outline,
+            xpathMap,
+            urlMap,
+          },
+        ],
+      };
+    } catch {
+      // If traversal fails for any reason, fall back to full snapshot below.
+    }
+  }
+
   // ============== 1) Build per-frame DOM + A11y maps (no prefixing yet) ==============
   for (const frameId of frames) {
     const owningSess = ownerSession(page, frameId);
@@ -98,7 +163,8 @@ export async function captureHybridSnapshot(
 
     // A11y (must run on the owning session for this frame)
     const { outline, urlMap } = await a11yForFrame(owningSess, frameId, {
-      focusXPath: frames[0] === frameId ? options?.focusXPath : undefined,
+      // Do not apply focusXPath per-frame in the full build; we either
+      // handled scoped traversal above, or we capture full trees here.
       tagNameMap,
       experimental: options?.experimental ?? false,
       scrollableMap,
@@ -216,6 +282,148 @@ function prefixXPath(parentAbs: string, child: string): string {
   if (!child || child === "/") return p || "/";
   const c = child.replace(/^\//, "");
   return p ? `${p}/${c}` : `/${c}`;
+}
+
+/** Normalize an XPath: strip `xpath=`, ensure leading '/', remove trailing '/'. */
+function normalizeXPath(x?: string): string {
+  if (!x) return "";
+  let s = x.trim().replace(/^xpath=/i, "");
+  if (!s.startsWith("/")) s = "/" + s;
+  if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+  return s;
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Focus traversal helpers (iframe-aware)
+ * ----------------------------------------------------------------------------------------------*/
+
+type Axis = "child" | "desc";
+type Step = { axis: Axis; raw: string; name: string };
+const IFRAME_STEP_RE = /^iframe(?:\[\d+])?$/i;
+
+function parseXPathToSteps(path: string): Step[] {
+  const s = path.trim();
+  let i = 0;
+  const steps: Step[] = [];
+  while (i < s.length) {
+    let axis: Axis = "child";
+    if (s.startsWith("//", i)) {
+      axis = "desc";
+      i += 2;
+    } else if (s[i] === "/") {
+      axis = "child";
+      i += 1;
+    }
+
+    const start = i;
+    while (i < s.length && s[i] !== "/") i++;
+    const raw = s.slice(start, i).trim();
+    if (!raw) continue;
+    const name = raw.replace(/\[\d+\]\s*$/u, "").toLowerCase();
+    steps.push({ axis, raw, name });
+  }
+  return steps;
+}
+
+function buildXPathFromSteps(steps: ReadonlyArray<Step>): string {
+  let out = "";
+  for (const st of steps) {
+    out += st.axis === "desc" ? "//" : "/";
+    out += st.raw;
+  }
+  return out || "/";
+}
+
+/**
+ * Given a cross-frame XPath, walk iframe steps to resolve:
+ * - the target frameId (last iframe hop)
+ * - the tail XPath (within the target frame)
+ * - the absolute XPath prefix up to the iframe element hosting that frame
+ */
+async function resolveFocusFrameAndTail(
+  page: Page,
+  absoluteXPath: string,
+  parentByFrame: Map<string, string | null>,
+  rootId: string,
+): Promise<{
+  targetFrameId: string;
+  tailXPath: string;
+  absPrefix: string;
+}> {
+  const steps = parseXPathToSteps(absoluteXPath);
+  let ctxFrameId = rootId;
+  let buf: Step[] = [];
+  let absPrefix = "";
+
+  const flushIntoChild = async (): Promise<void> => {
+    if (!buf.length) return;
+    const selectorForIframe = buildXPathFromSteps(buf);
+    const parentSess = page.getSessionForFrame(ctxFrameId);
+    const objectId = await resolveObjectIdForXPath(
+      parentSess,
+      selectorForIframe,
+      ctxFrameId,
+    );
+    if (!objectId) throw new Error("Failed to resolve iframe element by XPath");
+
+    try {
+      await parentSess.send("DOM.enable").catch(() => {});
+      const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const iframeBackendNodeId = desc.node.backendNodeId;
+
+      // Find matching child frame whose owner in the parent session has this backendNodeId
+      let childFrameId: string | undefined;
+      for (const fid of listChildrenOf(parentByFrame, ctxFrameId)) {
+        try {
+          const { backendNodeId } = await parentSess.send<{
+            backendNodeId: number;
+          }>("DOM.getFrameOwner", { frameId: fid });
+          if (backendNodeId === iframeBackendNodeId) {
+            childFrameId = fid;
+            break;
+          }
+        } catch {
+          // ignore and continue
+        }
+      }
+      if (!childFrameId)
+        throw new Error("Could not map iframe to child frameId");
+
+      // Update absolute prefix with the iframe element path within the parent document
+      absPrefix = prefixXPath(absPrefix || "/", selectorForIframe);
+      ctxFrameId = childFrameId;
+    } finally {
+      await parentSess
+        .send("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+
+    buf = [];
+  };
+
+  for (const st of steps) {
+    buf.push(st);
+    if (IFRAME_STEP_RE.test(st.name)) {
+      await flushIntoChild();
+    }
+  }
+
+  const tailXPath = buildXPathFromSteps(buf);
+  return { targetFrameId: ctxFrameId, tailXPath, absPrefix };
+}
+
+function listChildrenOf(
+  parentByFrame: Map<string, string | null>,
+  parentId: string,
+): string[] {
+  const out: string[] = [];
+  for (const [fid, p] of parentByFrame.entries()) {
+    if (p === parentId) out.push(fid);
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -415,7 +623,7 @@ async function a11yForFrame(
     const xp = opts.focusXPath?.trim();
     if (!xp) return nodes;
     try {
-      const objectId = await resolveObjectIdForXPath(session, xp);
+      const objectId = await resolveObjectIdForXPath(session, xp, frameId);
       if (!objectId) return nodes;
       const desc = await session.send<{ node?: { backendNodeId?: number } }>(
         "DOM.describeNode",
@@ -457,24 +665,42 @@ async function a11yForFrame(
 async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
+  frameId?: string,
 ): Promise<string | null> {
-  const { result } = await session.send<{
-    result?: { objectId?: string | undefined };
-  }>("Runtime.evaluate", {
-    expression: `
-      (() => {
-        const res = document.evaluate(
-          ${JSON.stringify(xpath)},
-          document,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null
+  let contextId: number | undefined;
+  try {
+    if (frameId) {
+      contextId = await executionContexts
+        .waitForMainWorld(session, frameId, 800)
+        .catch(
+          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
         );
-        return res.singleNodeValue;
-      })();
-    `,
+    }
+  } catch {
+    contextId = undefined;
+  }
+  const expr = `(() => {
+    const xp = ${JSON.stringify(xpath)};
+    try {
+      if (window.__stagehandV3__ && typeof window.__stagehandV3__.resolveSimpleXPath === 'function') {
+        return window.__stagehandV3__.resolveSimpleXPath(xp);
+      }
+    } catch {}
+    try {
+      const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      return res.singleNodeValue;
+    } catch { return null; }
+  })()`;
+  const { result, exceptionDetails } = await session.send<{
+    result: { objectId?: string | undefined };
+    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+  }>("Runtime.evaluate", {
+    expression: expr,
     returnByValue: false,
+    contextId,
+    awaitPromise: true,
   });
+  if (exceptionDetails) return null;
   return result?.objectId ?? null;
 }
 
