@@ -1,5 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "@/evals/evaluator";
+import { ScreenshotCollector } from "@/evals/utils/ScreenshotCollector";
 export const nba_trades: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -11,6 +12,13 @@ export const nba_trades: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://www.espn.com/");
 
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      captureOnNavigation: true, // Also capture on page navigation
+    });
+
+    screenshotCollector.start();
+
     const agentResult = await agent.execute({
       instruction:
         "Find the latest Team transaction in the NBA within the past week.",
@@ -18,8 +26,12 @@ export const nba_trades: EvalFunction = async ({
     });
     logger.log(agentResult);
 
+    const screenshots = screenshotCollector.stop();
+
     const { evaluation, reasoning } = await evaluator.ask({
       question: "Did the agent make it to the nba transactions page?",
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
     });
 
     const success =

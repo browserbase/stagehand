@@ -15,7 +15,7 @@ import chalk from "chalk";
 dotenv.config();
 
 const INSTRUCTION =
-  "Go to Google Japan and interact with it in Japanese. Tell me (in English) an authentic recipe that I can make with ingredients found in American grocery stores.";
+  "buy me a pair of the kith birkenstocks, you are currently on the product page, fill checkout with random info, and do not submit it i am just testing";
 
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);
@@ -28,13 +28,18 @@ async function main() {
   await stagehand.init();
 
   try {
-    const agent = stagehand.agent();
+    const agent = stagehand.agent({
+      executionModel: "google/gemini-2.5-flash",
+    });
 
     // Execute the agent
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);
+    await stagehand.page.goto(
+      "https://kith.com/collections/kith-footwear/products/br1030958",
+    );
     const result = await agent.execute({
       instruction: INSTRUCTION,
-      maxSteps: 20,
+      maxSteps: 100,
     });
 
     console.log(`${chalk.green("✓")} Execution complete`);

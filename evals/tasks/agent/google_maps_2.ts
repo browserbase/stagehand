@@ -22,7 +22,7 @@ export const google_maps_2: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.ask({
       question:
-        "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol? Does the distance between the two points show as 1.5 km?",
+        "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol? Does the distance between the two points show as 1.3-1.6 km?",
     });
     const { distance } = await stagehand.page.extract({
       modelName: "google/gemini-2.5-flash",

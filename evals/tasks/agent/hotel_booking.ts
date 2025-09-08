@@ -1,6 +1,7 @@
 //this eval is expected to fail.
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "@/evals/evaluator";
+import { ScreenshotCollector } from "@/evals/utils/ScreenshotCollector";
 export const hotel_booking: EvalFunction = async ({
   debugUrl,
   sessionUrl,
@@ -11,6 +12,13 @@ export const hotel_booking: EvalFunction = async ({
   try {
     await stagehand.page.goto("https://www.booking.com/");
 
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      captureOnNavigation: true, // Also capture on page navigation
+    });
+
+    screenshotCollector.start();
+
     const agentResult = await agent.execute({
       instruction:
         "Find a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025.",
@@ -18,10 +26,14 @@ export const hotel_booking: EvalFunction = async ({
     });
     logger.log(agentResult);
 
+    const screenshots = screenshotCollector.stop();
+
     const evaluator = new Evaluator(stagehand);
     const { evaluation, reasoning } = await evaluator.ask({
       question:
-        "Does the page show a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025?",
+        "Does the page show or agent mention a hotel in Sydney with a rating of 8 or higher, providing free Wi-Fi and parking, available for a four-night stay starting on December 10, 2025?",
+      agentReasoning: agentResult.message,
+      screenshot: screenshots,
     });
 
     const success = evaluation === "YES";

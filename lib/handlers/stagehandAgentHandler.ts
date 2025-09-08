@@ -34,7 +34,7 @@ export class StagehandAgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
-    this.contextManager = new ContextManager();
+    this.contextManager = new ContextManager(logger);
   }
 
   public async execute(
@@ -99,20 +99,12 @@ export class StagehandAgentHandler {
         },
       });
 
-      try {
-        await injectDropdownConverter(this.stagehandPage.page);
-        this.logger({
-          category: "agent",
-          message: "Injected dropdown converter script",
-          level: 2,
-        });
-      } catch (error) {
-        this.logger({
-          category: "agent",
-          message: `Failed to inject dropdown converter: ${error}`,
-          level: 1,
-        });
-      }
+      await injectDropdownConverter(this.stagehandPage.page);
+      this.logger({
+        category: "agent",
+        message: "Injected dropdown converter script",
+        level: 2,
+      });
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -247,7 +239,13 @@ STRATEGY:
 - Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
 - Keep actions atomic and verify outcomes before proceeding.
 
-For each action, provide clear reasoning about why you're taking that step.`;
+For each action, provide clear reasoning about why you're taking that step.
+
+COMPLETION: 
+<IMPORTANT>
+when you complete the task, explain any information that was found that was relevant to the orignal task. 
+example: if you were asked for specific flights, list the flights you found, 
+example: if you were asked for information about a product, list the product information you were asked for`;
   }
 
   private createTools() {

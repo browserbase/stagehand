@@ -1,5 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "@/evals/evaluator";
+import { ScreenshotCollector } from "@/evals/utils/ScreenshotCollector";
 
 export const kayak: EvalFunction = async ({
   debugUrl,
@@ -12,7 +13,18 @@ export const kayak: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     await stagehand.page.goto("https://www.kayak.com");
 
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      captureOnNavigation: true, // Also capture on page navigation
+    });
+
+    screenshotCollector.start();
+
     await agent.execute({
+      instruction: "Find flights from San Francisco to Tokyo next week",
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
+    });
+    const agentResult = await agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
@@ -30,9 +42,12 @@ export const kayak: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
+    const screenshots = screenshotCollector.stop();
     const { evaluation, reasoning } = await evaluator.ask({
       question:
-        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page. It should show cheapest first; use this as the success criteria since the page might promote other flights and not show the list in order.",
+        "were the flights found sorted by price? Check the sort button in the top left corner of the page. It should show cheapest first; use this as the success criteria since the page might promote other flights and not show the list in order.",
+      screenshot: screenshots,
+      agentReasoning: agentResult.message,
     });
 
     const success = evaluation === "YES";

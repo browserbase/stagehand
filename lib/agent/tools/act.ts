@@ -9,8 +9,10 @@ export const createActTool = (
   tool({
     description: "Perform an action on the page (click, type)",
     parameters: z.object({
-      action: z.string()
-        .describe(`Describe what to click, or type within in a short, specific phrase that mentions the element type. 
+      action: z.string().describe(`
+          Use this when an element is not visible in the screenshot, but shown in ariaTree
+          
+          Describe what to click, or type within in a short, specific phrase that mentions the element type. 
           Examples:
           - "click the Login button"
           - "click the language dropdown"
