@@ -7,6 +7,9 @@ import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
+import { injectDropdownConverter } from "../utils/dropdownConverter";
+import { ContextManager } from "./contextManager";
+import { randomUUID } from "crypto";
 
 export class StagehandAgentHandler {
   private stagehandPage: StagehandPage;
@@ -15,6 +18,7 @@ export class StagehandAgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private mcpTools?: ToolSet;
+  private contextManager: ContextManager;
 
   constructor(
     stagehandPage: StagehandPage,
@@ -30,12 +34,14 @@ export class StagehandAgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.mcpTools = mcpTools;
+    this.contextManager = new ContextManager();
   }
 
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
     const startTime = Date.now();
+    const sessionId = randomUUID();
     const options =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
@@ -77,11 +83,36 @@ export class StagehandAgentHandler {
         model: baseModel,
         middleware: {
           transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
+            const compressedPrompt = await this.contextManager.processMessages(
+              params.prompt,
+              sessionId,
+              this.llmClient,
+            );
+
+            const { processedPrompt } = processMessages({
+              ...params,
+              prompt: compressedPrompt,
+            });
+
             return { ...params, prompt: processedPrompt };
           },
         },
       });
+
+      try {
+        await injectDropdownConverter(this.stagehandPage.page);
+        this.logger({
+          category: "agent",
+          message: "Injected dropdown converter script",
+          level: 2,
+        });
+      } catch (error) {
+        this.logger({
+          category: "agent",
+          message: `Failed to inject dropdown converter: ${error}`,
+          level: 1,
+        });
+      }
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -146,6 +177,8 @@ export class StagehandAgentHandler {
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
 
+      this.contextManager.clearSession(sessionId);
+
       return {
         success: completed,
         message: finalMessage || "Task execution completed",
@@ -160,6 +193,7 @@ export class StagehandAgentHandler {
           : undefined,
       };
     } catch (error) {
+      this.contextManager.clearSession(sessionId);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger({
