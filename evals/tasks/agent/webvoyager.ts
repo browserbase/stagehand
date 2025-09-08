@@ -19,6 +19,10 @@ export const webvoyager: EvalFunction = async ({
       web_name?: string;
     };
 
+    // Ground truth checking is optional and disabled by default
+    // WARNING: Ground truth reference values may be outdated and should be used with caution
+    const useGroundTruth = process.env.WEBVOYAGER_USE_GROUND_TRUTH === "true";
+
     if (!params.web || !params.ques) {
       return {
         _success: false,
@@ -66,7 +70,7 @@ export const webvoyager: EvalFunction = async ({
     const agentAnswer = finalAnswerMatch?.[1]?.trim();
 
     let groundTruthResult = null;
-    if (agentAnswer && params.id) {
+    if (useGroundTruth && agentAnswer && params.id) {
       logger.log({
         category: "evaluation",
         message: `Checking ground truth for task ${params.id} with agent answer: "${agentAnswer}"`,
@@ -87,7 +91,7 @@ export const webvoyager: EvalFunction = async ({
     }
 
     // If LLM ground truth comparison is confident, use it
-    if (groundTruthResult?.confident) {
+    if (useGroundTruth && groundTruthResult?.confident) {
       return {
         _success: groundTruthResult.match,
         reasoning: `LLM ground truth comparison: ${groundTruthResult.reasoning}`,
@@ -101,13 +105,15 @@ export const webvoyager: EvalFunction = async ({
       };
     }
 
-    // Fall back to existing VLM screenshot evaluation
-    logger.log({
-      category: "evaluation",
-      message:
-        "Ground truth inconclusive, falling back to VLM screenshot evaluation",
-      level: 1,
-    });
+    // Use VLM screenshot evaluation (default or when ground truth is disabled/inconclusive)
+    if (useGroundTruth && !groundTruthResult?.confident) {
+      logger.log({
+        category: "evaluation",
+        message:
+          "Ground truth inconclusive, falling back to VLM screenshot evaluation",
+        level: 1,
+      });
+    }
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({

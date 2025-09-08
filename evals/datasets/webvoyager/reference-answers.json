@@ -1,4 +1,6 @@
 {
+  "_WARNING": "These reference answers may be outdated as websites change over time. Use with caution and set WEBVOYAGER_USE_GROUND_TRUTH=true to enable (default is false).",
+  "_NOTE": "This data is from the original WebVoyager dataset and may not reflect current website content.",
   "Allrecipes": {
     "notice": " note that review information is real-time",
     "answers": [

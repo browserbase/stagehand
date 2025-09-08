@@ -1,3 +1,14 @@
+/**
+ * WebVoyager Ground Truth Checker
+ *
+ * WARNING: The reference answers in reference-answers.json may be outdated
+ * and should be used with caution. These are default values from the original
+ * WebVoyager dataset and may not reflect current website content or behavior.
+ *
+ * To enable ground truth checking, set WEBVOYAGER_USE_GROUND_TRUTH=true
+ * Default is false (disabled) to use VLM screenshot evaluation instead.
+ */
+
 import * as path from "path";
 import * as fs from "fs";
 import type { Stagehand } from "@browserbasehq/stagehand";
