@@ -33,6 +33,9 @@ export interface V3Options {
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
   selfHeal?: boolean;
+
+  /** Show a visual cursor overlay that follows our mouse events. */
+  includeCursor?: boolean;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */

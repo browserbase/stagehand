@@ -355,7 +355,9 @@ export class V3 {
         userDataDir: this.opts.userDataDir,
         connectTimeoutMs: this.opts.connectTimeoutMs,
       });
-      this.ctx = await V3Context.create(ws);
+      this.ctx = await V3Context.create(ws, {
+        includeCursor: this.opts.includeCursor ?? false,
+      });
       this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "LOCAL", chrome, ws };
       return;
@@ -367,7 +369,9 @@ export class V3 {
         apiKey,
         projectId,
       );
-      this.ctx = await V3Context.create(ws);
+      this.ctx = await V3Context.create(ws, {
+        includeCursor: this.opts.includeCursor ?? false,
+      });
       this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
       return;
