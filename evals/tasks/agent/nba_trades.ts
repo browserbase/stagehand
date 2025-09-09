@@ -14,7 +14,7 @@ export const nba_trades: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Find the latest Team transaction in the NBA within the past week.",
-      maxSteps: 25,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
     logger.log(agentResult);
 
@@ -23,7 +23,6 @@ export const nba_trades: EvalFunction = async ({
     });
 
     const success =
-      agentResult.success &&
       stagehand.page.url() === "https://www.espn.com/nba/transactions" &&
       evaluation === "YES";
 

@@ -7,7 +7,9 @@ export const observe_iframes1: EvalFunction = async ({
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+    );
 
     const observations = await stagehand.page.observe({
       instruction: "find the main header of the page",
@@ -24,8 +26,8 @@ export const observe_iframes1: EvalFunction = async ({
     }
 
     const possibleLocators = [
-      `#primary > div.singlePage > section > div > div > article > div > iframe`,
-      `#primary > div.heroBanner > section > div > h1`,
+      `body > main > section.iframe-wrapper > iframe`,
+      `body > header > h1`,
     ];
 
     const possibleHandles = [];

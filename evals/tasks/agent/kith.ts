@@ -16,8 +16,8 @@ export const kith: EvalFunction = async ({
 
     await agent.execute({
       instruction:
-        "add the shoes to cart, go to checkout, and fill the delivery information",
-      maxSteps: 25,
+        "add the shoes to cart, go to checkout, and fill the delivery information. Don't fill the payment information",
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
 
     const { evaluation, reasoning } = await evaluator.ask({
@@ -28,8 +28,9 @@ export const kith: EvalFunction = async ({
 
     if (success) {
       await agent.execute({
-        instruction: "fill the credit card information",
-        maxSteps: 10,
+        instruction:
+          "fill the credit card information, do not submit the order just add placeholders",
+        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
       });
 
       const { evaluation: evaluation2, reasoning: reasoning2 } =

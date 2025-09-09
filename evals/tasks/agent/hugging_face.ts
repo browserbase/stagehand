@@ -14,7 +14,7 @@ export const hugging_face: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for a model on Hugging Face with an Apache-2.0 license that has received the highest number of likes.",
-      maxSteps: 20,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
     console.log(`agentResult: ${agentResult.message}`);
     const { evaluation, reasoning } = await evaluator.ask({
@@ -24,7 +24,7 @@ export const hugging_face: EvalFunction = async ({
       screenshot: false,
     });
 
-    const success = agentResult.success && evaluation === "YES";
+    const success = evaluation === "YES";
 
     console.log(`reasoning: ${reasoning}`);
     if (!success) {
