@@ -433,6 +433,104 @@ export class Page {
     } as Protocol.Input.DispatchMouseEventRequest);
   }
 
+  /**
+   * Type a string by dispatching keyDown/keyUp events per character.
+   * Focus must already be on the desired element. Uses CDP Input.dispatchKeyEvent
+   * and never falls back to Input.insertText. Optional delay applies between
+   * successive characters.
+   */
+  async type(
+    text: string,
+    options?: { delay?: number; withMistakes?: boolean },
+  ): Promise<void> {
+    const delay = Math.max(0, options?.delay ?? 0);
+    const withMistakes = !!options?.withMistakes;
+
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+
+    const keyStroke = async (
+      ch: string,
+      override?: {
+        key?: string;
+        code?: string;
+        windowsVirtualKeyCode?: number;
+      },
+    ) => {
+      if (override) {
+        const base: Protocol.Input.DispatchKeyEventRequest = {
+          type: "keyDown",
+          key: override.key,
+          code: override.code,
+          windowsVirtualKeyCode: override.windowsVirtualKeyCode,
+        } as Protocol.Input.DispatchKeyEventRequest;
+        await this.mainSession.send("Input.dispatchKeyEvent", base);
+        await this.mainSession.send("Input.dispatchKeyEvent", {
+          ...base,
+          type: "keyUp",
+        } as Protocol.Input.DispatchKeyEventRequest);
+        return;
+      }
+
+      // Printable character: use text on keyDown to generate input
+      const down: Protocol.Input.DispatchKeyEventRequest = {
+        type: "keyDown",
+        text: ch,
+        unmodifiedText: ch,
+      };
+      await this.mainSession.send("Input.dispatchKeyEvent", down);
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        type: "keyUp",
+      } as Protocol.Input.DispatchKeyEventRequest);
+    };
+
+    const pressBackspace = async () =>
+      keyStroke("\b", {
+        key: "Backspace",
+        code: "Backspace",
+        windowsVirtualKeyCode: 8,
+      });
+
+    const randomPrintable = (avoid: string): string => {
+      const pool =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:'\"!?@#$%^&*()-_=+[]{}<>/\\|`~";
+      let c = avoid;
+      while (c === avoid) {
+        c = pool[Math.floor(Math.random() * pool.length)];
+      }
+      return c;
+    };
+
+    for (const ch of text) {
+      // Control keys that we explicitly map
+      if (ch === "\n" || ch === "\r") {
+        await keyStroke(ch, {
+          key: "Enter",
+          code: "Enter",
+          windowsVirtualKeyCode: 13,
+        });
+      } else if (ch === "\t") {
+        await keyStroke(ch, {
+          key: "Tab",
+          code: "Tab",
+          windowsVirtualKeyCode: 9,
+        });
+      } else {
+        if (withMistakes && Math.random() < 0.12) {
+          // Type a wrong character, then backspace to correct
+          const wrong = randomPrintable(ch);
+          await keyStroke(wrong);
+          if (delay) await sleep(delay);
+          await pressBackspace();
+          if (delay) await sleep(delay);
+        }
+        await keyStroke(ch);
+      }
+
+      if (delay) await sleep(delay);
+    }
+  }
+
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
 
   /**
