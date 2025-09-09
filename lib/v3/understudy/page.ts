@@ -434,6 +434,85 @@ export class Page {
   }
 
   /**
+   * Drag from (fromX, fromY) to (toX, toY) using mouse events.
+   * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
+   */
+  async dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: {
+      button?: "left" | "right" | "middle";
+      steps?: number;
+      delay?: number;
+    },
+  ): Promise<void> {
+    const button = options?.button ?? "left";
+    const steps = Math.max(1, Math.floor(options?.steps ?? 1));
+    const delay = Math.max(0, options?.delay ?? 0);
+
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+
+    const buttonMask = (b: typeof button): number => {
+      switch (b) {
+        case "left":
+          return 1;
+        case "right":
+          return 2;
+        case "middle":
+          return 4;
+        default:
+          return 1;
+      }
+    };
+
+    // Move to start
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: fromX,
+      y: fromY,
+      button: "none",
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    // Press
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: fromX,
+      y: fromY,
+      button,
+      buttons: buttonMask(button),
+      clickCount: 1,
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    // Intermediate moves
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const x = fromX + (toX - fromX) * t;
+      const y = fromY + (toY - fromY) * t;
+      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button,
+        buttons: buttonMask(button),
+      } as Protocol.Input.DispatchMouseEventRequest);
+      if (delay) await sleep(delay);
+    }
+
+    // Release at end
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x: toX,
+      y: toY,
+      button,
+      buttons: buttonMask(button),
+      clickCount: 1,
+    } as Protocol.Input.DispatchMouseEventRequest);
+  }
+
+  /**
    * Type a string by dispatching keyDown/keyUp events per character.
    * Focus must already be on the desired element. Uses CDP Input.dispatchKeyEvent
    * and never falls back to Input.insertText. Optional delay applies between
@@ -529,6 +608,74 @@ export class Page {
 
       if (delay) await sleep(delay);
     }
+  }
+
+  /**
+   * Press a single key (keyDown then keyUp). For printable characters,
+   * uses the text path on keyDown; for named keys, sets key/code/VK.
+   */
+  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+    const delay = Math.max(0, options?.delay ?? 0);
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+
+    const named: Record<string, { key: string; code: string; vk: number }> = {
+      Enter: { key: "Enter", code: "Enter", vk: 13 },
+      Tab: { key: "Tab", code: "Tab", vk: 9 },
+      Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
+      Escape: { key: "Escape", code: "Escape", vk: 27 },
+      Delete: { key: "Delete", code: "Delete", vk: 46 },
+      ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 },
+      ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
+      ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
+      ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 },
+      Home: { key: "Home", code: "Home", vk: 36 },
+      End: { key: "End", code: "End", vk: 35 },
+      PageUp: { key: "PageUp", code: "PageUp", vk: 33 },
+      PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
+    };
+
+    if (key.length === 1) {
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        text: key,
+        unmodifiedText: key,
+      } as Protocol.Input.DispatchKeyEventRequest);
+      if (delay) await sleep(delay);
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        type: "keyUp",
+      } as Protocol.Input.DispatchKeyEventRequest);
+      return;
+    }
+
+    const entry = named[key] ?? null;
+    if (entry) {
+      const base: Protocol.Input.DispatchKeyEventRequest = {
+        type: "keyDown",
+        key: entry.key,
+        code: entry.code,
+        windowsVirtualKeyCode: entry.vk,
+      };
+      await this.mainSession.send("Input.dispatchKeyEvent", base);
+      if (delay) await sleep(delay);
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        ...base,
+        type: "keyUp",
+      } as Protocol.Input.DispatchKeyEventRequest);
+      return;
+    }
+
+    // Fallback: send with key property only
+    const base: Protocol.Input.DispatchKeyEventRequest = {
+      type: "keyDown",
+      key,
+    } as Protocol.Input.DispatchKeyEventRequest;
+    await this.mainSession.send("Input.dispatchKeyEvent", base);
+    if (delay) await sleep(delay);
+    await this.mainSession.send("Input.dispatchKeyEvent", {
+      ...base,
+      type: "keyUp",
+    } as Protocol.Input.DispatchKeyEventRequest);
   }
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
