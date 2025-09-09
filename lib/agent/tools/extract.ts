@@ -42,9 +42,8 @@ export const createExtractTool = (
     
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
-    - All fields in the schema should be optional (.optional())
-    - Use when you need specific structured data, not just text
-    
+    - IMPORANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this. 
+
     EXAMPLES:
     1. Extract a single value:
        instruction: "extract the product price"
