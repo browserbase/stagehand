@@ -410,7 +410,7 @@ export async function scrollElementToPercentage(ctx: MethodHandlerContext) {
     await locator.evaluate<void, { yArg: string }>(
       (element, { yArg }) => {
         function parsePercent(val: string): number {
-          const cleaned = val.trim().replace("%", "");
+          const cleaned = val.trim().replace(/%/g, "");
           const num = parseFloat(cleaned);
           return Number.isNaN(num) ? 0 : Math.max(0, Math.min(num, 100));
         }
