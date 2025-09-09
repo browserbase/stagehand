@@ -43,19 +43,19 @@ export const createExtractTool = (
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
     - IMPORANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this. 
-
+    - If you need to extract a link, make sure the type defintion follows the format of z.string().url()
     EXAMPLES:
     1. Extract a single value:
        instruction: "extract the product price"
-       schema: "z.object({ price: z.number().optional() })"
+       schema: "z.object({ price: z.number()})"
     
     2. Extract multiple fields:
        instruction: "extract product name and price"
-       schema: "z.object({ name: z.string().optional(), price: z.number().optional() })"
+       schema: "z.object({ name: z.string(), price: z.number() })"
     
     3. Extract arrays:
        instruction: "extract all product names and prices"
-       schema: "z.object({ products: z.array(z.object({ name: z.string().optional(), price: z.number().optional() })) })"`,
+       schema: "z.object({ products: z.array(z.object({ name: z.string(), price: z.number() })) })"`,
     parameters: z.object({
       instruction: z
         .string()
@@ -65,7 +65,7 @@ export const createExtractTool = (
       schema: z
         .string()
         .describe(
-          'Zod schema as a string (e.g., "z.object({ price: z.number().optional() })")',
+          'Zod schema as a string (e.g., "z.object({ price: z.number() })")',
         ),
     }),
     execute: async ({ instruction, schema }) => {
