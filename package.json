@@ -5,6 +5,9 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "evals": "./dist/evals/cli.js"
+  },
   "scripts": {
     "example": "pnpm --filter @browserbasehq/stagehand-examples run start",
     "format": "prettier --write .",
@@ -13,15 +16,15 @@
     "eslint": "eslint .",
     "cache:clear": "rm -rf .cache",
     "docs": "pnpm --filter @browserbasehq/stagehand-docs run dev",
-    "evals": "tsx scripts/run-evals.ts",
-    "evals:help": "pnpm run evals -- help",
-    "evals:man": "pnpm run evals -- man",
+    "evals": "tsx evals/cli.ts",
+    "evals:legacy": "tsx scripts/run-evals.ts",
     "e2e": "pnpm run build && cd evals/deterministic && playwright test --config=e2e.playwright.config.ts",
     "e2e:bb": "pnpm run build && cd evals/deterministic && playwright test --config=bb.playwright.config.ts",
     "e2e:local": "pnpm run build && cd evals/deterministic && playwright test --config=local.playwright.config.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
     "build-js": "tsup lib/index.ts --dts",
+    "build:cli": "tsup --config tsup.cli.config.ts && chmod +x dist/evals/cli.js",
     "build": "pnpm run lint && pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run build-types",
     "gen-version": "tsx scripts/gen-version.ts",
     "prepare": "pnpm run build",

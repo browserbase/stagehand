@@ -1,4 +1,33 @@
 {
+  "defaults": {
+    "env": "local",
+    "trials": 3,
+    "concurrency": 10,
+    "provider": null,
+    "model": null,
+    "api": false
+  },
+  "benchmarks": {
+    "webbench": {
+      "limit": 25,
+      "filters": ["difficulty", "category", "use_hitl"]
+    },
+    "gaia": {
+      "limit": 25,
+      "filters": ["level"]
+    },
+    "webvoyager": {
+      "limit": 25
+    },
+    "osworld": {
+      "limit": 25,
+      "filters": ["source", "evaluation_type"],
+      "timeout": 60000
+    },
+    "onlineMind2Web": {
+      "limit": 25
+    }
+  },
   "tasks": [
     {
       "name": "history",
