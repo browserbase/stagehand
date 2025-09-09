@@ -318,6 +318,54 @@ export class Page {
   }
 
   /**
+   * Navigate back in history if possible; optionally wait for a lifecycle state.
+   */
+  async goBack(options?: {
+    waitUntil?: LoadState;
+    timeoutMs?: number;
+  }): Promise<void> {
+    const { entries, currentIndex } =
+      await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
+        "Page.getNavigationHistory",
+      );
+    const prev = entries[currentIndex - 1];
+    if (!prev) return; // nothing to do
+    await this.mainSession.send("Page.navigateToHistoryEntry", {
+      entryId: prev.id,
+    });
+    if (options?.waitUntil) {
+      await this.waitForMainLoadState(
+        options.waitUntil,
+        options.timeoutMs ?? 15000,
+      );
+    }
+  }
+
+  /**
+   * Navigate forward in history if possible; optionally wait for a lifecycle state.
+   */
+  async goForward(options?: {
+    waitUntil?: LoadState;
+    timeoutMs?: number;
+  }): Promise<void> {
+    const { entries, currentIndex } =
+      await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
+        "Page.getNavigationHistory",
+      );
+    const next = entries[currentIndex + 1];
+    if (!next) return; // nothing to do
+    await this.mainSession.send("Page.navigateToHistoryEntry", {
+      entryId: next.id,
+    });
+    if (options?.waitUntil) {
+      await this.waitForMainLoadState(
+        options.waitUntil,
+        options.timeoutMs ?? 15000,
+      );
+    }
+  }
+
+  /**
    * Return the current page URL (from navigation history).
    */
   async url(): Promise<string> {
