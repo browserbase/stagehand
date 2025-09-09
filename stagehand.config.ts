@@ -7,16 +7,14 @@ const StagehandConfig: ConstructorParams = {
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
 
   //   LLM configuration
-  modelName: "gpt-4o" /* Name of the model to use */,
+  modelName:
+    "anthropic/claude-sonnet-4-20250514" /* Name of the model to use */,
   modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.ANTHROPIC_API_KEY,
   } /* Configuration options for the model client */,
 
   // Browser configuration
-  env:
-    process.env.BROWSERBASE_API_KEY && process.env.BROWSERBASE_PROJECT_ID
-      ? "BROWSERBASE"
-      : "LOCAL",
+  env: "LOCAL",
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
   browserbaseSessionID:
@@ -38,6 +36,5 @@ const StagehandConfig: ConstructorParams = {
       height: 768,
     },
   } /* Configuration options for the local browser */,
-  experimental: false, // Enable experimental features
 };
 export default StagehandConfig;

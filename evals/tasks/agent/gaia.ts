@@ -45,7 +45,7 @@ export const gaia: EvalFunction = async ({
 
     const agent = stagehand.agent({
       model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
+      executionModel: "google/gemini-2.5-flash",
       instructions: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await stagehand.page.title()}`,
     });
 

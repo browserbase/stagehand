@@ -41,11 +41,11 @@ export class ContextManager {
 
   // Thresholds
   private readonly CHECKPOINT_INTERVAL = 15;
-  private readonly RECENT_TOOLS_TO_KEEP = 8;
+  private readonly RECENT_TOOLS_TO_KEEP = 10;
   private readonly CRITICAL_CONTEXT_WINDOW = 5;
   private readonly TOKEN_LIMIT = 100000;
-  private readonly AGGRESSIVE_THRESHOLD = 80000;
-  private readonly SUMMARIZATION_THRESHOLD = 90000;
+  private readonly AGGRESSIVE_THRESHOLD = 100000;
+  private readonly SUMMARIZATION_THRESHOLD = 120000;
 
   constructor(logger?: (message: LogLine) => void) {
     this.logger = logger;
@@ -261,20 +261,59 @@ export class ContextManager {
     return processedPrompt as LanguageModelV1CallOptions["prompt"];
   }
 
+  private isImageContentPart(
+    item: unknown,
+  ): item is { type: "image"; data: string; mimeType: string } {
+    return (
+      typeof item === "object" &&
+      item !== null &&
+      "type" in item &&
+      (item as { type?: unknown }).type === "image"
+    );
+  }
+
+  private isTextContentPart(
+    item: unknown,
+  ): item is { type: "text"; text: string } {
+    return (
+      typeof item === "object" &&
+      item !== null &&
+      "type" in item &&
+      (item as { type?: unknown }).type === "text" &&
+      "text" in (item as object) &&
+      typeof (item as { text?: unknown }).text === "string"
+    );
+  }
+
+  private isAccessibilityTreeTextPart(
+    item: unknown,
+  ): item is { type: "text"; text: string } {
+    return (
+      this.isTextContentPart(item) &&
+      (item as { text: string }).text.startsWith("Accessibility Tree:")
+    );
+  }
+
   private compressOldToolResults(prompt: CoreMessage[]): CoreMessage[] {
     const processed = [...prompt];
     const toolPositions = new Map<string, number[]>();
     let compressedCount = 0;
+    let imageCompressedCount = 0;
+    let ariaTextCompressedCount = 0;
 
     // Track tool positions
     prompt.forEach((msg, idx) => {
       if (msg.role === "tool") {
         const toolMessage = msg as CoreToolMessage;
         toolMessage.content.forEach((item) => {
-          if (item.toolName) {
-            const positions = toolPositions.get(item.toolName) || [];
+          if (
+            "toolName" in item &&
+            typeof (item as { toolName?: unknown }).toolName === "string"
+          ) {
+            const toolName = (item as { toolName: string }).toolName;
+            const positions = toolPositions.get(toolName) || [];
             positions.push(idx);
-            toolPositions.set(item.toolName, positions);
+            toolPositions.set(toolName, positions);
           }
         });
       }
@@ -286,9 +325,13 @@ export class ContextManager {
         const toolMessage = msg as CoreToolMessage;
         const processedContent: ToolContent = toolMessage.content.map(
           (item) => {
-            if (item.toolName) {
+            if (
+              "toolName" in item &&
+              typeof (item as { toolName?: unknown }).toolName === "string"
+            ) {
               // Check if this is an old tool result
-              const positions = toolPositions.get(item.toolName) || [];
+              const toolName = (item as { toolName: string }).toolName;
+              const positions = toolPositions.get(toolName) || [];
               const currentPos = positions.indexOf(idx);
               const isOld =
                 prompt.length - idx > 7 ||
@@ -296,29 +339,52 @@ export class ContextManager {
 
               if (isOld) {
                 compressedCount++;
-                if (item.toolName === "screenshot") {
+                if (toolName === "screenshot") {
                   return {
                     type: "tool-result",
-                    toolCallId: item.toolCallId,
-                    toolName: item.toolName,
+                    toolCallId: (item as ToolResultPart).toolCallId,
+                    toolName,
                     result: "Screenshot taken",
                   } as ToolResultPart;
                 } else if (
-                  item.toolName === "ariaTree" &&
-                  item.result &&
-                  typeof item.result === "string"
+                  toolName === "ariaTree" &&
+                  (item as ToolResultPart).result &&
+                  typeof (item as ToolResultPart).result === "string"
                 ) {
-                  const wordCount = item.result.split(/\s+/).length;
-                  const preview = item.result.substring(0, 100) + "...";
+                  const text = (item as ToolResultPart).result as string;
+                  const wordCount = text.split(/\s+/).length;
+                  const preview = text.substring(0, 100) + "...";
                   return {
                     type: "tool-result",
-                    toolCallId: item.toolCallId,
-                    toolName: item.toolName,
+                    toolCallId: (item as ToolResultPart).toolCallId,
+                    toolName,
                     result: `Aria tree extracted (${wordCount} words): ${preview}`,
                   } as ToolResultPart;
                 }
               }
             }
+
+            // Also compress raw image parts emitted via experimental_toToolResultContent
+            if (this.isImageContentPart(item)) {
+              imageCompressedCount++;
+              return {
+                type: "text",
+                text: "[screenshot]",
+              } as unknown as ToolContent[number];
+            }
+
+            // Compress very large Accessibility Tree textual parts
+            if (this.isAccessibilityTreeTextPart(item)) {
+              const textVal = (item as { type: "text"; text: string }).text;
+              if (textVal.length > 4000) {
+                ariaTextCompressedCount++;
+                return {
+                  type: "text",
+                  text: textVal.substring(0, 3500) + "... [truncated]",
+                } as unknown as ToolContent[number];
+              }
+            }
+
             return item;
           },
         ) as ToolContent;
@@ -328,9 +394,13 @@ export class ContextManager {
       return msg;
     });
 
-    if (compressedCount > 0) {
+    if (
+      compressedCount > 0 ||
+      imageCompressedCount > 0 ||
+      ariaTextCompressedCount > 0
+    ) {
       this.log(
-        `Compressed ${compressedCount} old tool results (screenshot/ariaTree)`,
+        `Compressed ${compressedCount} old tool results; ${imageCompressedCount} image parts; ${ariaTextCompressedCount} accessibility text parts`,
         2,
       );
     }
@@ -341,38 +411,63 @@ export class ContextManager {
   private compressAggressively(prompt: CoreMessage[]): CoreMessage[] {
     let compressedCount = 0;
     let largeOutputCount = 0;
+    let imageCompressedCount = 0;
+    let ariaTextCompressedCount = 0;
 
     const result = prompt.map((msg) => {
       if (msg.role === "tool") {
         const toolMessage = msg as CoreToolMessage;
         const processedContent: ToolContent = toolMessage.content.map(
           (item) => {
-            if (item.toolName) {
-              if (
-                item.toolName === "screenshot" ||
-                item.toolName === "ariaTree"
-              ) {
+            if (
+              "toolName" in item &&
+              typeof (item as { toolName?: unknown }).toolName === "string"
+            ) {
+              const toolName = (item as { toolName: string }).toolName;
+              if (toolName === "screenshot" || toolName === "ariaTree") {
                 compressedCount++;
                 return {
                   type: "tool-result",
-                  toolCallId: item.toolCallId,
-                  toolName: item.toolName,
-                  result: `[${item.toolName} result compressed]`,
+                  toolCallId: (item as ToolResultPart).toolCallId,
+                  toolName,
+                  result: `[${toolName} result compressed]`,
                 } as ToolResultPart;
               } else if (
-                item.result &&
-                typeof item.result === "string" &&
-                item.result.length > 500
+                (item as ToolResultPart).result !== undefined &&
+                typeof (item as ToolResultPart).result === "string" &&
+                ((item as ToolResultPart).result as string).length > 500
               ) {
                 largeOutputCount++;
                 return {
                   type: "tool-result",
-                  toolCallId: item.toolCallId,
-                  toolName: item.toolName,
+                  toolCallId: (item as ToolResultPart).toolCallId,
+                  toolName,
                   result: "[Tool result compressed - large output]",
                 } as ToolResultPart;
               }
             }
+
+            // Aggressively compress raw image parts
+            if (this.isImageContentPart(item)) {
+              imageCompressedCount++;
+              return {
+                type: "text",
+                text: "[screenshot]",
+              } as unknown as ToolContent[number];
+            }
+
+            // Aggressively compress large Accessibility Tree textual parts
+            if (this.isAccessibilityTreeTextPart(item)) {
+              const textVal = (item as { type: "text"; text: string }).text;
+              if (textVal.length > 1000) {
+                ariaTextCompressedCount++;
+                return {
+                  type: "text",
+                  text: textVal.substring(0, 800) + "... [truncated]",
+                } as unknown as ToolContent[number];
+              }
+            }
+
             return item;
           },
         ) as ToolContent;
@@ -383,7 +478,7 @@ export class ContextManager {
     });
 
     this.log(
-      `Aggressive compression: ${compressedCount} screenshot/ariaTree + ${largeOutputCount} large outputs compressed`,
+      `Aggressive compression: ${compressedCount} screenshot/ariaTree + ${largeOutputCount} large outputs + ${imageCompressedCount} image parts + ${ariaTextCompressedCount} accessibility text parts compressed`,
       2,
     );
 

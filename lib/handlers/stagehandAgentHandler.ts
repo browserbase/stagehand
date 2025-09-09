@@ -4,7 +4,7 @@ import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
+// Removed redundant preprocessor; ContextManager now handles all compression
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
 import { injectDropdownConverter } from "../utils/dropdownConverter";
@@ -83,17 +83,11 @@ export class StagehandAgentHandler {
         model: baseModel,
         middleware: {
           transformParams: async ({ params }) => {
-            const compressedPrompt = await this.contextManager.processMessages(
+            const processedPrompt = await this.contextManager.processMessages(
               params.prompt,
               sessionId,
               this.llmClient,
             );
-
-            const { processedPrompt } = processMessages({
-              ...params,
-              prompt: compressedPrompt,
-            });
-
             return { ...params, prompt: processedPrompt };
           },
         },
@@ -217,6 +211,9 @@ Your current goal: ${executionInstruction}`;
 
 Your task: ${executionInstruction}
 
+
+
+start byu sing exa search tools to find the ideal entry point for the task and then use the browser automation tools to complete the task.
 You have access to various browser automation tools. Use them step by step to complete the task.
 
 IMPORTANT GUIDELINES:

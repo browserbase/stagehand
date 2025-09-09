@@ -36,6 +36,34 @@ function isAriaTreePart(part: unknown): boolean {
   );
 }
 
+function isImagePart(
+  part: unknown,
+): part is { type: "image"; data: string; mimeType: string } {
+  return (
+    !!part &&
+    typeof part === "object" &&
+    (part as { type?: unknown }).type === "image"
+  );
+}
+
+function isTextPart(part: unknown): part is { type: "text"; text: string } {
+  return (
+    !!part &&
+    typeof part === "object" &&
+    (part as { type?: unknown }).type === "text" &&
+    typeof (part as { text?: unknown }).text === "string"
+  );
+}
+
+function isAccessibilityTreeText(
+  part: unknown,
+): part is { type: "text"; text: string } {
+  return (
+    isTextPart(part) &&
+    (part as { text: string }).text.startsWith("Accessibility Tree:")
+  );
+}
+
 export function processMessages(params: LanguageModelV1CallOptions): {
   processedPrompt: LanguageModelV1CallOptions["prompt"];
   stats: CompressionStats;
@@ -48,6 +76,7 @@ export function processMessages(params: LanguageModelV1CallOptions): {
   // Process messages and compress old screenshots
   const processedPrompt = params.prompt.map((message, index) => {
     if (isToolMessage(message)) {
+      // Tool-name based compression for screenshot/ariaTree
       if (
         (message.content as unknown[]).some((part) => isScreenshotPart(part))
       ) {
@@ -65,6 +94,27 @@ export function processMessages(params: LanguageModelV1CallOptions): {
           return compressAriaTreeMessage(message);
         }
       }
+
+      // Additionally, compress raw parts emitted via experimental_toToolResultContent
+      const updatedContent = (message.content as unknown[]).map((part) => {
+        if (isImagePart(part)) {
+          // Replace older images with small text marker. Since this path doesn't know "older",
+          // we always compress to be safe at this pre-pass.
+          return { type: "text", text: "[screenshot]" };
+        }
+        if (isAccessibilityTreeText(part)) {
+          const text = (part as { type: "text"; text: string }).text;
+          if (text.length > 4000) {
+            return {
+              type: "text",
+              text: text.substring(0, 3500) + "... [truncated]",
+            };
+          }
+        }
+        return part;
+      });
+
+      return { ...message, content: updatedContent } as typeof message;
     }
 
     return { ...message };
