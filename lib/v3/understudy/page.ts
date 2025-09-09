@@ -1,6 +1,10 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Frame } from "./frame";
+import {
+  computeAbsoluteXPathForNode,
+  resolveNodeForLocationDeep,
+} from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types";
 
@@ -336,6 +340,97 @@ export class Page {
    */
   locator(selector: string): ReturnType<Frame["locator"]> {
     return this.mainFrameWrapper.locator(selector);
+  }
+
+  /**
+   * Click at absolute page coordinates (CSS pixels).
+   * Dispatches mouseMoved → mousePressed → mouseReleased via CDP Input domain
+   * on the top-level page target's session. Coordinates are relative to the
+   * viewport origin (top-left). Does not scroll.
+   */
+  async click(
+    x: number,
+    y: number,
+    options?: {
+      button?: "left" | "right" | "middle";
+      clickCount?: number;
+      returnXpath?: boolean;
+    },
+  ): Promise<void | string> {
+    const button = options?.button ?? "left";
+    const clickCount = options?.clickCount ?? 1;
+
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      // Resolve the deepest node at the given coordinates (handles OOPIF)
+      try {
+        const hit = await resolveNodeForLocationDeep(this, x, y);
+        if (hit) {
+          console.log(
+            `[Page.click] resolved hit frame=${hit.frameId} be=${hit.backendNodeId} at (${x}, ${y})`,
+          );
+          const xp = await computeAbsoluteXPathForNode(
+            this,
+            hit.frameId,
+            hit.backendNodeId,
+          );
+          if (xp) xpathResult = xp;
+          console.log(`[Page.click] resolved xpath: ${xpathResult}`);
+        }
+      } catch {
+        // best-effort; fall through if any step fails
+      }
+    }
+
+    // Synthesize a simple mouse move + press + release sequence
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x,
+      y,
+      button,
+      clickCount,
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x,
+      y,
+      button,
+      clickCount,
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    if (options?.returnXpath) return xpathResult ?? "";
+  }
+
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+  ): Promise<void> {
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x,
+      y,
+      button: "none",
+    } as Protocol.Input.DispatchMouseEventRequest);
+
+    // Synthesize a simple mouse move + press + release sequence
+    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x,
+      y,
+      button: "none",
+      deltaX,
+      deltaY,
+    } as Protocol.Input.DispatchMouseEventRequest);
   }
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
