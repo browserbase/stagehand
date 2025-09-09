@@ -309,11 +309,18 @@ export class Page {
    * Reload the page; optionally wait for a lifecycle state.
    */
   async reload(options?: {
-    waitUntil?: Exclude<"networkidle", "networkidle">;
+    waitUntil?: LoadState;
+    timeoutMs?: number;
+    ignoreCache?: boolean;
   }): Promise<void> {
-    await this.mainSession.send("Page.reload", { ignoreCache: false });
+    await this.mainSession.send("Page.reload", {
+      ignoreCache: options?.ignoreCache ?? false,
+    });
     if (options?.waitUntil) {
-      await this.mainFrameWrapper.waitForLoadState(options.waitUntil);
+      await this.waitForMainLoadState(
+        options.waitUntil,
+        options.timeoutMs ?? 15000,
+      );
     }
   }
 
