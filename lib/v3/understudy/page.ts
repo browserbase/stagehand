@@ -68,6 +68,102 @@ export class Page {
     );
   }
 
+  // --- Optional visual cursor overlay management ---
+  private cursorEnabled = false;
+  private async ensureCursorScript(): Promise<void> {
+    const script = `(() => {
+      const ID = '__v3_cursor_overlay__';
+      const state = { el: null, last: null };
+      // Expose API early so move() calls before install are buffered
+      try {
+        if (!window.__v3Cursor || !window.__v3Cursor.__installed) {
+          const api = {
+            __installed: false,
+            move(x, y) {
+              if (state.el) {
+                state.el.style.left = Math.max(0, x) + 'px';
+                state.el.style.top = Math.max(0, y) + 'px';
+              } else {
+                state.last = [x, y];
+              }
+            },
+            show() { if (state.el) state.el.style.display = 'block'; },
+            hide() { if (state.el) state.el.style.display = 'none'; },
+          };
+          window.__v3Cursor = api;
+        }
+      } catch {}
+
+      function install() {
+        try {
+          if (state.el) return; // already installed
+          let el = document.getElementById(ID);
+          if (!el) {
+            const root = document.documentElement || document.body || document.head;
+            if (!root) { setTimeout(install, 50); return; }
+            el = document.createElement('div');
+            el.id = ID;
+            el.style.position = 'fixed';
+            el.style.left = '0px';
+            el.style.top = '0px';
+            el.style.width = '16px';
+            el.style.height = '24px';
+            el.style.zIndex = '2147483647';
+            el.style.pointerEvents = 'none';
+            el.style.userSelect = 'none';
+            el.style.mixBlendMode = 'normal';
+            el.style.contain = 'layout style paint';
+            el.style.willChange = 'transform,left,top';
+            el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="24" viewBox="0 0 16 24"><path d="M1 0 L1 22 L6 14 L15 14 Z" fill="black" stroke="white" stroke-width="0.7"/></svg>';
+            root.appendChild(el);
+          }
+          state.el = el;
+          try { window.__v3Cursor.__installed = true; } catch {}
+          if (state.last) {
+            window.__v3Cursor.move(state.last[0], state.last[1]);
+            state.last = null;
+          }
+        } catch {}
+      }
+
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        install();
+      } else {
+        document.addEventListener('DOMContentLoaded', install, { once: true });
+        setTimeout(install, 100);
+      }
+    })();`;
+
+    // Ensure future documents get the cursor at doc-start
+    await this.mainSession
+      .send("Page.addScriptToEvaluateOnNewDocument", { source: script })
+      .catch(() => {});
+    // Inject into current document now
+    await this.mainSession
+      .send("Runtime.evaluate", {
+        expression: script,
+        includeCommandLineAPI: false,
+      })
+      .catch(() => {});
+  }
+
+  public async enableCursorOverlay(): Promise<void> {
+    if (this.cursorEnabled) return;
+    await this.ensureCursorScript();
+    this.cursorEnabled = true;
+  }
+
+  private async updateCursor(x: number, y: number): Promise<void> {
+    if (!this.cursorEnabled) return;
+    try {
+      await this.mainSession.send("Runtime.evaluate", {
+        expression: `typeof window.__v3Cursor!=="undefined"&&window.__v3Cursor.move(${Math.round(x)}, ${Math.round(y)})`,
+      });
+    } catch {
+      //
+    }
+  }
+
   /**
    * Factory: create Page and seed registry with the shallow tree from Page.getFrameTree.
    * Assumes Page domain is already enabled on the session passed in.
@@ -438,6 +534,7 @@ export class Page {
     }
 
     // Synthesize a simple mouse move + press + release sequence
+    await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x,
@@ -470,6 +567,7 @@ export class Page {
     deltaX: number,
     deltaY: number,
   ): Promise<void> {
+    await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x,
@@ -524,6 +622,7 @@ export class Page {
     };
 
     // Move to start
+    await this.updateCursor(fromX, fromY);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x: fromX,
@@ -546,6 +645,7 @@ export class Page {
       const t = i / steps;
       const x = fromX + (toX - fromX) * t;
       const y = fromY + (toY - fromY) * t;
+      await this.updateCursor(x, y);
       await this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
         x,
@@ -557,6 +657,7 @@ export class Page {
     }
 
     // Release at end
+    await this.updateCursor(toX, toY);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseReleased",
       x: toX,

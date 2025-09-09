@@ -30,7 +30,10 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
  * so Page can record the correct owner at event time.
  */
 export class V3Context {
-  private constructor(readonly conn: CdpConnection) {}
+  private constructor(
+    readonly conn: CdpConnection,
+    private readonly includeCursor = false,
+  ) {}
 
   private readonly _piercerInstalled = new Set<string>();
 
@@ -50,12 +53,15 @@ export class V3Context {
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
    */
-  static async create(wsUrl: string): Promise<V3Context> {
+  static async create(
+    wsUrl: string,
+    opts?: { includeCursor?: boolean },
+  ): Promise<V3Context> {
     console.log("[ctx] create: connecting", wsUrl);
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
     console.log("[ctx] create: enableAutoAttach done");
-    const ctx = new V3Context(conn);
+    const ctx = new V3Context(conn, !!opts?.includeCursor);
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
     console.log("[ctx] create: bootstrap done");
@@ -319,6 +325,11 @@ export class V3Context {
       }
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
+
+      // Optionally enable a visual cursor overlay for this page
+      if (this.includeCursor) {
+        page.enableCursorOverlay().catch(() => {});
+      }
 
       // Resume only if Chrome actually paused
       if (waitingForDebugger) {
