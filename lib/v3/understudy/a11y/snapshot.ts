@@ -49,6 +49,120 @@ export type HybridSnapshot = {
   }>;
 };
 
+/**
+ * Compute an absolute XPath for a given backendNodeId within a specific frame.
+ * Uses the existing hybrid snapshot machinery to ensure iframe-aware paths.
+ */
+export async function computeAbsoluteXPathForNode(
+  page: Page,
+  frameId: string,
+  backendNodeId: number,
+): Promise<string | null> {
+  const snap = await captureHybridSnapshot(page);
+  const encId = `${page.getOrdinal(frameId)}-${backendNodeId}`;
+  return snap.combinedXpathMap[encId] ?? null;
+}
+
+/**
+ * Resolve the deepest node at the given page coordinates, traversing into
+ * same-process iframes and OOPIFs by mapping the iframe host element to the
+ * child frame and translating coordinates into the child viewport space.
+ */
+export async function resolveNodeForLocationDeep(
+  page: Page,
+  x: number,
+  y: number,
+): Promise<{ frameId: string; backendNodeId: number } | null> {
+  // Build parent map from the unified frame tree maintained by Page
+  const tree = page.getFullFrameTree();
+  const parentByFrame = new Map<string, string | null>();
+  (function index(n: Protocol.Page.FrameTree, parent: string | null) {
+    parentByFrame.set(n.frame.id, parent);
+    for (const c of n.childFrames ?? []) index(c, n.frame.id);
+  })(tree, null);
+
+  let curFrameId = page.mainFrameId();
+  let curSession = page.getSessionForFrame(curFrameId);
+  let curX = x;
+  let curY = y;
+
+  for (let depth = 0; depth < 8; depth++) {
+    try {
+      await curSession.send("DOM.enable").catch(() => {});
+      const res = await curSession.send<{
+        backendNodeId?: number;
+        frameId?: string;
+      }>("DOM.getNodeForLocation", {
+        x: curX,
+        y: curY,
+        includeUserAgentShadowDOM: false,
+        ignorePointerEventsNone: true,
+      });
+      const be = res.backendNodeId;
+      if (typeof be !== "number") return null;
+
+      // See if this backend node is the host <iframe> for any child frame
+      let matchedChild: string | undefined;
+      for (const fid of listChildrenOf(parentByFrame, curFrameId)) {
+        try {
+          const { backendNodeId } = await curSession.send<{
+            backendNodeId?: number;
+          }>("DOM.getFrameOwner", { frameId: fid });
+          if (backendNodeId === be) {
+            matchedChild = fid;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!matchedChild) {
+        // Not an iframe host → final hit
+        return { frameId: curFrameId, backendNodeId: be };
+      }
+
+      // Translate coordinates into the child's viewport by subtracting the
+      // parent's iframe element bounding rect
+      let left = 0;
+      let top = 0;
+      try {
+        const { object } = await curSession.send<{
+          object: { objectId?: string };
+        }>("DOM.resolveNode", { backendNodeId: be });
+        const objectId = object?.objectId;
+        if (objectId) {
+          const { result } = await curSession.send<{
+            result: { value?: { left: number; top: number } };
+          }>("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration:
+              "function(){ const r=this.getBoundingClientRect(); return {left:r.left, top:r.top}; }",
+            returnByValue: true,
+          });
+          left = Number(result?.value?.left ?? 0);
+          top = Number(result?.value?.top ?? 0);
+          await curSession
+            .send("Runtime.releaseObject", { objectId })
+            .catch(() => {});
+        }
+      } catch {
+        // fall through with 0,0 offset
+      }
+
+      curX = Math.max(0, curX - left);
+      curY = Math.max(0, curY - top);
+      curFrameId = matchedChild;
+      curSession = page.getSessionForFrame(curFrameId);
+      continue; // descend
+    } catch {
+      return null;
+    }
+  }
+
+  return null; // depth exceeded
+}
+
 export async function captureHybridSnapshot(
   page: Page,
   options?: SnapshotOptions,
@@ -97,11 +211,16 @@ export async function captureHybridSnapshot(
 
       // Build DOM + A11y just for the target frame (more efficient)
       const owningSess = ownerSession(page, targetFrameId);
+      const parentId = parentByFrame.get(targetFrameId);
+      const sameSessionAsParent =
+        !!parentId &&
+        ownerSession(page, parentId) === ownerSession(page, targetFrameId);
       const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
         owningSess,
         targetFrameId,
         pierce,
         (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+        /*attemptOwnerLookup=*/ sameSessionAsParent,
       );
 
       const { outline, urlMap } = await a11yForFrame(
@@ -154,11 +273,16 @@ export async function captureHybridSnapshot(
     const owningSess = ownerSession(page, frameId);
 
     // DOM maps (scoped to this frame’s document in its owning session)
+    const parentId = parentByFrame.get(frameId);
+    const sameSessionAsParent =
+      !!parentId &&
+      ownerSession(page, parentId) === ownerSession(page, frameId);
     const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
       owningSess,
       frameId,
       pierce,
       (fid, be) => `${page.getOrdinal(fid)}-${be}`,
+      /*attemptOwnerLookup=*/ sameSessionAsParent,
     );
 
     // A11y (must run on the owning session for this frame)
@@ -442,6 +566,7 @@ async function domMapsForSession(
   pierce: boolean,
   encode: (fid: string, backendNodeId: number) => string = (fid, be) =>
     `${fid}-${be}`,
+  attemptOwnerLookup = true,
 ): Promise<{
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
@@ -454,23 +579,24 @@ async function domMapsForSession(
   );
 
   // Try to scope to the iframe’s own contentDocument (same-process iframe).
-  // In an OOPIF child session, this will usually fail (owner lives in parent),
-  // so we’ll just start at the root of this session’s document.
+  // In an OOPIF child session, this call is invalid; callers pass attemptOwnerLookup = false.
   let startNode: Protocol.DOM.Node = root;
-  try {
-    const owner = await session.send<{ backendNodeId?: number }>(
-      "DOM.getFrameOwner",
-      { frameId },
-    );
-    const ownerBackendId = owner.backendNodeId;
-    if (typeof ownerBackendId === "number") {
-      const ownerEl = findNodeByBackendId(root, ownerBackendId);
-      if (ownerEl?.contentDocument) {
-        startNode = ownerEl.contentDocument;
+  if (attemptOwnerLookup) {
+    try {
+      const owner = await session.send<{ backendNodeId?: number }>(
+        "DOM.getFrameOwner",
+        { frameId },
+      );
+      const ownerBackendId = owner.backendNodeId;
+      if (typeof ownerBackendId === "number") {
+        const ownerEl = findNodeByBackendId(root, ownerBackendId);
+        if (ownerEl?.contentDocument) {
+          startNode = ownerEl.contentDocument;
+        }
       }
+    } catch {
+      // OOPIF or race → keep startNode = root
     }
-  } catch {
-    // OOPIF or no owner in this session → keep startNode = root
   }
 
   const tagNameMap: Record<string, string> = {};
@@ -544,8 +670,14 @@ function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
 }
 
 function joinXPath(base: string, step: string): string {
+  // Special-case: a shadow-root hop is represented by "//"
+  if (step === "//") {
+    if (!base || base === "/") return "//";
+    // Avoid creating '///' — if base already ends with '/', just add one '/'
+    return base.endsWith("/") ? `${base}/` : `${base}//`;
+  }
   if (!base || base === "/") return step ? `/${step}` : "/";
-  if (base.endsWith("//")) return `${base}${step}`;
+  if (base.endsWith("//")) return `${base}${step}`; // keep double-slash continuity
   if (!step) return base;
   return `${base}/${step}`;
 }
