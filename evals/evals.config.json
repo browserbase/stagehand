@@ -523,6 +523,10 @@
     {
       "name": "agent/all_recipes",
       "categories": ["agent"]
+    },
+    {
+      "name": "agent/onlineMind2Web",
+      "categories": ["external_agent_benchmarks"]
     }
   ]
 }
