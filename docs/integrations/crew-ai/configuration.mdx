@@ -1,0 +1,170 @@
+---
+title: "Use CrewAI to Automate Browser Tasks"
+sidebarTitle: Configuration
+description: "Create intelligent agents that can interact with websites and automate browser tasks using natural language instructions"
+---
+
+This guide walks you through setting up CrewAI with Browserbase to create agents that can perform web automation tasks using natural language instructions.
+
+## Step 1: Install Dependencies
+
+Install the required packages for CrewAI and Stagehand integration:
+
+```bash
+pip install stagehand-py crewai crewai-tools
+```
+
+## Step 2: Configure Environment Variables
+
+You'll need API keys from three services:
+
+1. **Browserbase API Key and Project ID**: Get these from your [Browserbase dashboard](https://www.browserbase.com/)
+2. **LLM API Key**: Get an API key from [OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/)
+
+Store your API keys securely as environment variables:
+
+```bash
+BROWSERBASE_API_KEY="your-browserbase-api-key"
+BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
+OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
+## Step 3: Create Your First Agent
+
+Create a Python script with a basic CrewAI agent:
+
+```python
+import os
+from crewai import Agent, Task, Crew
+from crewai_tools import StagehandTool
+from stagehand.schemas import AvailableModel
+
+# Get API keys from environment
+browserbase_api_key = os.environ.get("BROWSERBASE_API_KEY")
+browserbase_project_id = os.environ.get("BROWSERBASE_PROJECT_ID")
+model_api_key = os.environ.get("OPENAI_API_KEY")  # or ANTHROPIC_API_KEY
+
+# Initialize the StagehandTool
+stagehand_tool = StagehandTool(
+    api_key=browserbase_api_key,
+    project_id=browserbase_project_id,
+    model_api_key=model_api_key,
+    model_name=AvailableModel.GPT_4O,  # or AvailableModel.CLAUDE_3_7_SONNET_LATEST
+)
+
+# Create an agent with the tool
+researcher = Agent(
+    role="Web Researcher",
+    goal="Find and summarize information from websites",
+    backstory="I'm an expert at finding information online.",
+    verbose=True,
+    tools=[stagehand_tool],
+)
+```
+
+## Step 4: Create and Run a Task
+
+Define a task for your agent and execute it:
+
+```python
+# Create a task that uses the tool
+research_task = Task(
+    description="Go to https://www.example.com and tell me what you see on the homepage.",
+    agent=researcher,
+)
+
+# Run the crew
+crew = Crew(
+    agents=[researcher],
+    tasks=[research_task],
+    verbose=True,
+)
+
+try:
+    result = crew.kickoff()
+    print(result)
+finally:
+    # Clean up resources
+    stagehand_tool.close()
+```
+
+## Step 5: Run Your Script
+
+Execute your Python script:
+
+```bash
+python your_crew_script.py
+```
+
+## Advanced Configuration
+
+Customize the StagehandTool behavior with additional parameters:
+
+```python
+stagehand_tool = StagehandTool(
+    api_key=browserbase_api_key,
+    project_id=browserbase_project_id, 
+    model_api_key=model_api_key,
+    model_name=AvailableModel.CLAUDE_3_7_SONNET_LATEST,
+    dom_settle_timeout_ms=5000,  # Wait longer for DOM to settle
+    headless=True,  # Run browser in headless mode
+    self_heal=True,  # Attempt to recover from errors
+    wait_for_captcha_solves=True,  # Wait for CAPTCHA solving
+    verbose=1,  # Control logging verbosity (0-3)
+)
+```
+
+## Example Tasks
+
+<Tabs>
+  <Tab title="Form Submission" value="form-submission" label="Python">
+    ```python
+    form_task = Task(
+        description="""
+        Submit a contact form:
+        1. Go to https://example.com/contact
+        2. Fill out the form with name 'John Doe', email 'john@example.com'
+        3. Submit and confirm success
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+  <Tab title="Data Extraction" value="data-extraction" label="Python">
+    ```python
+    extraction_task = Task(
+        description="""
+        Extract product information:
+        1. Go to the products page
+        2. Extract all product names, prices, and descriptions
+        3. Format as structured data
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+  <Tab title="Multi-step Navigation" value="multi-step-navigation" label="Python">
+    ```python
+    navigation_task = Task(
+        description="""
+        Navigate and analyze:
+        1. Start at homepage
+        2. Navigate to products section  
+        3. Filter by 'Electronics' category
+        4. Find and extract details of highest-rated product
+        """,
+        agent=researcher,
+    )
+    ```
+  </Tab>
+</Tabs>
+
+<CardGroup cols={2}>
+  <Card title="CrewAI Documentation" icon="book" href="https://docs.crewai.com/">
+    Dive into the CrewAI documentation to learn more about its capabilities and integrations.
+  </Card>
+  <Card title="Browserbase Documentation" icon="book" href="https://docs.browserbase.com/">
+    Access the Browserbase documentation for comprehensive guides and resources.
+  </Card>
+</CardGroup>

@@ -6,26 +6,20 @@ export const google_maps: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     await stagehand.page.goto("https://maps.google.com");
 
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. The current page is ${await stagehand.page.title()}`,
-    });
-
     const agentResult = await agent.execute({
       instruction:
         "How long does it take to get from San Francisco to New York driving?",
-      maxSteps: 15,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluate({
+    const result = await evaluator.ask({
       question:
         "Does the page show the time it takes to drive from San Francisco to New York at all?",
     });

@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand-lib
 
+## 2.4.1
+
+### Patch Changes
+
+- [#1027](https://github.com/browserbase/stagehand/pull/1027) [`455b61f`](https://github.com/browserbase/stagehand/commit/455b61fb6f7a34ae50d7e7c76c1d639241e213d6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fixed small issue with module-level state guard for the Playwright selectors.register call
+
 ## 2.4.0
 
 ### Minor Changes
