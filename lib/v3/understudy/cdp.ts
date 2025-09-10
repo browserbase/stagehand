@@ -90,7 +90,6 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async enableAutoAttach(): Promise<void> {
-    console.log("[cdp] Target.setAutoAttach -> default payload");
     await this.send("Target.setAutoAttach", {
       autoAttach: true,
       flatten: true,
@@ -101,7 +100,6 @@ export class CdpConnection implements CDPSessionLike {
         { type: "service_worker", exclude: true },
       ],
     });
-    console.log("[cdp] Target.setAutoAttach OK <-");
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
 
@@ -147,13 +145,10 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   async attachToTarget(targetId: string): Promise<CdpSession> {
-    console.log("[cdp] Target.attachToTarget ->", { targetId, flatten: true });
     const { sessionId } = (await this.send<{ sessionId: string }>(
       "Target.attachToTarget",
       { targetId, flatten: true },
     )) as { sessionId: string };
-
-    console.log("[cdp] Target.attachToTarget OK <-", { targetId, sessionId });
 
     let session = this.sessions.get(sessionId);
     if (!session) {
@@ -179,45 +174,13 @@ export class CdpConnection implements CDPSessionLike {
 
     if ("id" in msg) {
       const rec = this.inflight.get(msg.id);
-      if (!rec) {
-        console.warn(
-          `[cdp] ${Date.now()} stray response id=${msg.id} has no inflight entry. payload=${JSON.stringify(
-            msg,
-          )}`,
-        );
-        return;
-      }
+      if (!rec) return;
 
       this.inflight.delete(msg.id);
-      const sid = rec.sessionId ?? "root";
 
       if ("error" in msg && msg.error) {
-        const frameId =
-          rec.params &&
-          typeof rec.params === "object" &&
-          "frameId" in rec.params
-            ? String((rec.params as Record<string, unknown>).frameId)
-            : undefined;
-
-        console.error(
-          `[cdp] ${Date.now()} <- ERROR id=${msg.id} sid=${sid} ${rec.method}` +
-            (frameId ? ` frameId=${frameId}` : "") +
-            ` code=${msg.error.code} msg="${msg.error.message}"`,
-        );
-
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
-        const frameId =
-          rec.params &&
-          typeof rec.params === "object" &&
-          "frameId" in rec.params
-            ? String((rec.params as Record<string, unknown>).frameId)
-            : undefined;
-
-        console.log(
-          `[cdp] ${Date.now()} <- OK    id=${msg.id} sid=${sid} ${rec.method}` +
-            (frameId ? ` frameId=${frameId}` : ""),
-        );
         rec.resolve((msg as { result?: unknown }).result);
       }
       return;

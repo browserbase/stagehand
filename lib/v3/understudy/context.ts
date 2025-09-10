@@ -2,10 +2,7 @@
 import type { Protocol } from "devtools-protocol";
 import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
-import {
-  installV3PiercerIntoSession,
-  tapPiercerConsole,
-} from "../understudy/piercer";
+import { installV3PiercerIntoSession } from "../understudy/piercer";
 import { executionContexts } from "./executionContextRegistry";
 
 type TargetId = string;
@@ -59,14 +56,11 @@ export class V3Context {
     wsUrl: string,
     opts?: { includeCursor?: boolean },
   ): Promise<V3Context> {
-    console.log("[ctx] create: connecting", wsUrl);
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
-    console.log("[ctx] create: enableAutoAttach done");
     const ctx = new V3Context(conn, !!opts?.includeCursor);
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
-    console.log("[ctx] create: bootstrap done");
     return ctx;
   }
 
@@ -92,14 +86,9 @@ export class V3Context {
     );
   }
 
-  private async ensurePiercer(
-    session: CDPSessionLike,
-    label: string,
-  ): Promise<void> {
+  private async ensurePiercer(session: CDPSessionLike): Promise<void> {
     const key = this.sessionKey(session);
     if (this._piercerInstalled.has(key)) return;
-
-    tapPiercerConsole(session, label);
 
     await installV3PiercerIntoSession(session);
     this._piercerInstalled.add(key);
@@ -220,8 +209,6 @@ export class V3Context {
    * - Clean up on detach/destroy.
    */
   private async bootstrap(): Promise<void> {
-    console.log("[ctx] bootstrap: start");
-
     // Live attach via auto-attach (normal path)
     this.conn.on<Protocol.Target.AttachedToTargetEvent>(
       "Target.attachedToTarget",
@@ -277,10 +264,6 @@ export class V3Context {
     );
 
     const targets = await this.conn.getTargets();
-    console.log(
-      "[ctx] bootstrap: existing targets =",
-      Array.isArray(targets) ? targets.length : "ERR",
-    );
     for (const t of targets) {
       try {
         await this.conn.attachToTarget(t.targetId);
@@ -303,12 +286,6 @@ export class V3Context {
     sessionId: SessionId,
     waitingForDebugger?: boolean, // Chrome paused this target at doc-start?
   ): Promise<void> {
-    console.log("[ctx] onAttachedToTarget:", {
-      type: info.type,
-      url: info.url,
-      sessionId,
-      paused: !!waitingForDebugger,
-    });
     const session = this.conn.getSession(sessionId);
     if (!session) return;
 
@@ -337,10 +314,7 @@ export class V3Context {
     // Capture main-world creations & inject piercer after resume
     executionContexts.attachSession(session);
     await session.send("Runtime.enable").catch(() => {});
-    await this.ensurePiercer(
-      session,
-      isTopLevelPage(info) ? "top" : info.type || "child",
-    );
+    await this.ensurePiercer(session);
 
     // Top-level handling
     if (isTopLevelPage(info)) {
@@ -399,10 +373,6 @@ export class V3Context {
         this.sessionOwnerPage.set(sessionId, owner);
         this.installFrameEventBridges(sessionId, owner);
       } else {
-        console.log(
-          "[ctx] OOPIF child staged until parent frameAttached →",
-          childMainId,
-        );
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
     } catch (e) {
@@ -422,13 +392,6 @@ export class V3Context {
     //     so Page.addScriptToEvaluateOnNewDocument applies at creation time.
     if (info.type === "iframe" && !waitingForDebugger) {
       try {
-        console.log(
-          "[ctx] child not paused → reloading via location.reload()",
-          {
-            sessionId,
-          },
-        );
-
         // Ensure lifecycle events are enabled to observe load
         await session
           .send("Page.setLifecycleEventsEnabled", { enabled: true })
@@ -461,7 +424,7 @@ export class V3Context {
 
         // After reload, our addScriptToEvaluateOnNewDocument runs at doc-start.
         // We can optionally re-evaluate the piercer (idempotent), but not required.
-        await this.ensurePiercer(session, "iframe");
+        await this.ensurePiercer(session);
       } catch (e) {
         console.log("[ctx] child reload attempt failed (continuing)", {
           sessionId,
