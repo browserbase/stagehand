@@ -366,6 +366,18 @@ export class Page {
     } catch {
       // ignore
     }
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      try {
+        const targets = await this.conn.getTargets();
+        if (!targets.some((t) => t.targetId === this._targetId)) {
+          return;
+        }
+      } catch {
+        // ignore and retry
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
