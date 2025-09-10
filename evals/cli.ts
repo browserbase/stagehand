@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import process from "process";
 import chalk from "chalk";
 import fs from "fs";
