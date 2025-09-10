@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import process from "process";
 import chalk from "chalk";
 import fs from "fs";
@@ -37,7 +35,8 @@ function saveConfig(config: Config): void {
 }
 
 function printHelp(): void {
-  console.log(chalk.yellow(`⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+  console.log(
+    chalk.yellow(`⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡾⠻⣶⡀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⢠⡶⠛⢳⡆⠀⠀⠀⠀⢸⡇⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⢸⣷⠶⣦⣴⠶⣾⡇⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀
@@ -47,7 +46,8 @@ function printHelp(): void {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠈⣷⠀⠀⠀⠀⢰⡏⠀⠀⠀⢀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⢀⡾⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠷⣦⣤⣤⣴⠾⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`))
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`),
+  );
   console.log(chalk.yellow.bold("\nStagehand Evals CLI"));
   console.log(chalk.cyan("\nevals <command> <target> [options]\n"));
 
@@ -450,11 +450,49 @@ function handleRun(args: string[]): void {
       process.exit(buildCode || 1);
     }
 
-    const child = spawn("tsx", ["evals/index.eval.ts", ...legacyArgs], {
-      env,
-      stdio: "inherit",
-      shell: true,
-    });
+    const compiledEvalPath = path.join(__dirname, "index.eval.js");
+    const sourceEvalPath = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "evals",
+      "index.eval.ts",
+    );
+
+    let child;
+
+    if (fs.existsSync(compiledEvalPath)) {
+      child = spawn(process.execPath, [compiledEvalPath, ...legacyArgs], {
+        env,
+        stdio: "inherit",
+        shell: true,
+      });
+    } else {
+      let tsxCliPath: string | undefined;
+      try {
+        // Resolve the local tsx CLI entry within this package installation
+        // This avoids requiring a globally installed tsx binary
+        tsxCliPath = require.resolve("tsx/dist/cli.js");
+      } catch {
+        // no-op; will fall back to shell-resolved "tsx" if not found
+      }
+
+      const tsxArgs = [sourceEvalPath, ...legacyArgs];
+
+      if (tsxCliPath) {
+        child = spawn(process.execPath, [tsxCliPath, ...tsxArgs], {
+          env,
+          stdio: "inherit",
+          shell: true,
+        });
+      } else {
+        child = spawn("tsx", tsxArgs, {
+          env,
+          stdio: "inherit",
+          shell: true,
+        });
+      }
+    }
 
     child.on("exit", (code) => {
       process.exit(code || 0);
