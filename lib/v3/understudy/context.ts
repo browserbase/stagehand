@@ -303,7 +303,10 @@ export class V3Context {
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
 
-    // Capture main-world creations & inject piercer BEFORE any resume
+    // Proactively resume ASAP so navigation isn't stuck at about:blank
+    await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+
+    // Capture main-world creations & inject piercer after resume
     executionContexts.attachSession(session);
     await session.send("Runtime.enable").catch(() => {});
     await this.ensurePiercer(
