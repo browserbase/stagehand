@@ -67,7 +67,7 @@ function printHelp(): void {
   );
 
   console.log(chalk.dim("  # Run specific eval"));
-  console.log(chalk.green("  evals run extract/extract_text\n"));
+  console.log(chalk.green("  evals run login\n"));
 
   console.log(chalk.dim("  # Run benchmark"));
   console.log(
