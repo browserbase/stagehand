@@ -125,6 +125,7 @@ pnpm playwright install
 pnpm run build
 pnpm run example # run the blank script at ./examples/example.ts
 pnpm run example 2048 # run the 2048 example at ./examples/2048.ts
+pnpm run evals -man # see evaluation suite options
 ```
 
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:

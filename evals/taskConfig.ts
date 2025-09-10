@@ -106,7 +106,11 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
 
 const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   ? process.env.EVAL_AGENT_MODELS.split(",")
-  : ["computer-use-preview-2025-03-11", "claude-3-7-sonnet-latest"];
+  : [
+      "computer-use-preview-2025-03-11",
+      "claude-sonnet-4-20250514",
+      "anthropic/claude-sonnet-4-20250514",
+    ];
 
 /**
  * getModelList:
@@ -117,7 +121,7 @@ const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
 const getModelList = (category?: string): string[] => {
   const provider = process.env.EVAL_PROVIDER?.toLowerCase();
 
-  if (category === "agent") {
+  if (category === "agent" || category === "external_agent_benchmarks") {
     return DEFAULT_AGENT_MODELS;
   }
 

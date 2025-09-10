@@ -1,5 +1,49 @@
 # @browserbasehq/stagehand
 
+## 2.5.0
+
+### Minor Changes
+
+- [#981](https://github.com/browserbase/stagehand/pull/981) [`8244ab2`](https://github.com/browserbase/stagehand/commit/8244ab247cd679962685ae2f7c54e874ce1fa614) Thanks [@sameelarif](https://github.com/sameelarif)! - Added support for `stagehand.agent` to interact with MCP servers as well as custom tools to be passed in. For more information, reference the [MCP integrations documentation](https://docs.stagehand.dev/best-practices/mcp-integrations)
+
+### Patch Changes
+
+- [#959](https://github.com/browserbase/stagehand/pull/959) [`09b5e1e`](https://github.com/browserbase/stagehand/commit/09b5e1e9c23c845903686db6665cc968ac34efbb) Thanks [@filip-michalsky](https://github.com/filip-michalsky)! - add webvoyager evals
+
+- [#1049](https://github.com/browserbase/stagehand/pull/1049) [`e3734b9`](https://github.com/browserbase/stagehand/commit/e3734b9c98352d5f0a4eca49791b0bbf2130ab41) Thanks [@miguelg719](https://github.com/miguelg719)! - Support local MCP server connections
+
+- [#1025](https://github.com/browserbase/stagehand/pull/1025) [`be85b19`](https://github.com/browserbase/stagehand/commit/be85b19679a826f19702e00f0aae72fce1118ec8) Thanks [@tkattkat](https://github.com/tkattkat)! - add support for custom baseUrl within openai provider
+
+- [#1040](https://github.com/browserbase/stagehand/pull/1040) [`88d1565`](https://github.com/browserbase/stagehand/commit/88d1565c65bb65a104fea2d5f5e862bbbda69677) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow OpenAI CUA to take in an optional baseURL
+
+- [#1046](https://github.com/browserbase/stagehand/pull/1046) [`ab5d6ed`](https://github.com/browserbase/stagehand/commit/ab5d6ede19aabc059badc4247f1cb2c6c9e71bae) Thanks [@tkattkat](https://github.com/tkattkat)! - Add support for gpt-5 in operator agent
+
+## 2.4.4
+
+### Patch Changes
+
+- [#1012](https://github.com/browserbase/stagehand/pull/1012) [`9e8c173`](https://github.com/browserbase/stagehand/commit/9e8c17374fdc8fbe7f26e6cf802c36bd14f11039) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix disabling api validation whenever a customLLM client is provided
+
+## 2.4.3
+
+### Patch Changes
+
+- [#951](https://github.com/browserbase/stagehand/pull/951) [`f45afdc`](https://github.com/browserbase/stagehand/commit/f45afdccc8680650755fee66ffbeac32b41e075d) Thanks [@miguelg719](https://github.com/miguelg719)! - Patch GPT-5 new api format
+
+- [#954](https://github.com/browserbase/stagehand/pull/954) [`261bba4`](https://github.com/browserbase/stagehand/commit/261bba43fa79ac3af95328e673ef3e9fced3279b) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add support for shadow DOMs (open & closed mode) when experimental: true
+
+- [#944](https://github.com/browserbase/stagehand/pull/944) [`8de7bd8`](https://github.com/browserbase/stagehand/commit/8de7bd8635c2051cd8025e365c6c8aa83d81c7e7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Bump zod version compatibility and add pathing spec
+
+- [#919](https://github.com/browserbase/stagehand/pull/919) [`3d80421`](https://github.com/browserbase/stagehand/commit/3d804210a106a6828c7fa50f8b765b10afd4cc6a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - enable scrolling inside of iframes
+
+- [#963](https://github.com/browserbase/stagehand/pull/963) [`0ead63d`](https://github.com/browserbase/stagehand/commit/0ead63d6526f6c286362b74b6407c8bebc900e69) Thanks [@tkattkat](https://github.com/tkattkat)! - Properly handle images in evaluator + clean up response parsing logic
+
+- [#961](https://github.com/browserbase/stagehand/pull/961) [`8422828`](https://github.com/browserbase/stagehand/commit/8422828c4cd5fd5ebcf348cfbdb40c768bb76dd9) Thanks [@tkattkat](https://github.com/tkattkat)! - Add more evals for stagehand agent
+
+- [#946](https://github.com/browserbase/stagehand/pull/946) [`b769206`](https://github.com/browserbase/stagehand/commit/b7692060f98a2f49aeeefb90d8789ed034b08ec2) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix: unable to act on/get content from some same process iframes
+
+- [#962](https://github.com/browserbase/stagehand/pull/962) [`72d2683`](https://github.com/browserbase/stagehand/commit/72d2683202af7e578d98367893964b33e0828de5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - handle namespaced elements in xpath build step
+
 ## 2.4.2
 
 ### Patch Changes

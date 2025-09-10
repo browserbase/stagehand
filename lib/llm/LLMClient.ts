@@ -1,18 +1,19 @@
-import { ZodType } from "zod/v3";
-import { LLMTool } from "../../types/llm";
-import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
+import { LLMTool } from "@/types/llm";
 import {
-  generateObject,
-  generateText,
-  streamText,
-  streamObject,
-  experimental_generateImage,
   embed,
   embedMany,
-  experimental_transcribe,
+  experimental_generateImage,
   experimental_generateSpeech,
+  experimental_transcribe,
+  generateObject,
+  generateText,
+  LanguageModel,
+  streamObject,
+  streamText,
 } from "ai";
+import { ZodType } from "zod/v3";
+import { LogLine } from "../../types/log";
+import { AvailableModel, ClientOptions } from "../../types/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -123,4 +124,6 @@ export abstract class LLMClient {
   public embedMany = embedMany;
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
+
+  getLanguageModel?(): LanguageModel;
 }

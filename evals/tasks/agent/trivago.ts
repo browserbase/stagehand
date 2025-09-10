@@ -5,21 +5,15 @@ export const trivago: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
     await stagehand.page.goto("https://www.trivago.com/");
 
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that can help me with my tasks. You are given a task and you need to complete it without asking follow up questions. Today is ${new Date().toISOString().slice(0, 10)}.The current page is ${await stagehand.page.title()}`,
-    });
-
     const agentResult = await agent.execute({
       instruction:
         "Find the cheapest room in the hotel H10 Tribeca in Madrid next weekend. Stop at the trivago page showing the results",
-      maxSteps: 13,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 13,
     });
     logger.log(agentResult);
 

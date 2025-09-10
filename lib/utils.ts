@@ -1,11 +1,11 @@
-import { ZodFirstPartyTypeKind as Kind, z } from "zod/v3";
+import { ID_PATTERN } from "@/types/context";
+import { ZodSchemaValidationError } from "@/types/stagehandErrors";
+import { Schema, Type } from "@google/genai";
+import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
-import { ZodPathSegments } from "../types/stagehand";
-import { Schema, Type } from "@google/genai";
 import { ModelProvider } from "../types/model";
-import { ZodSchemaValidationError } from "@/types/stagehandErrors";
-import { ID_PATTERN } from "@/types/context";
+import { ZodPathSegments } from "../types/stagehand";
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   const result = schema.safeParse(data);
@@ -497,4 +497,92 @@ export function trimTrailingTextNode(
   path: string | undefined,
 ): string | undefined {
   return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
+}
+
+// TODO: move to separate types file
+export interface JsonSchemaProperty {
+  type: string;
+  enum?: unknown[];
+  items?: JsonSchemaProperty;
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  minimum?: number;
+  maximum?: number;
+  description?: string;
+}
+export interface JsonSchema extends JsonSchemaProperty {
+  type: string;
+}
+
+/**
+ * Converts a JSON Schema object to a Zod schema
+ * @param schema The JSON Schema object to convert
+ * @returns A Zod schema equivalent to the input JSON Schema
+ */
+export function jsonSchemaToZod(schema: JsonSchema): ZodTypeAny {
+  switch (schema.type) {
+    case "object":
+      if (schema.properties) {
+        const shape: Record<string, ZodTypeAny> = {};
+        for (const key in schema.properties) {
+          shape[key] = jsonSchemaToZod(schema.properties[key]);
+        }
+        let zodObject = z.object(shape);
+        if (schema.required && Array.isArray(schema.required)) {
+          const requiredFields = schema.required.reduce<Record<string, true>>(
+            (acc, field) => ({ ...acc, [field]: true }),
+            {},
+          );
+          zodObject = zodObject.partial().required(requiredFields);
+        }
+        if (schema.description) {
+          zodObject = zodObject.describe(schema.description);
+        }
+        return zodObject;
+      } else {
+        return z.object({});
+      }
+    case "array":
+      if (schema.items) {
+        let zodArray = z.array(jsonSchemaToZod(schema.items));
+        if (schema.description) {
+          zodArray = zodArray.describe(schema.description);
+        }
+        return zodArray;
+      } else {
+        return z.array(z.any());
+      }
+    case "string": {
+      if (schema.enum) {
+        return z.string().refine((val) => schema.enum!.includes(val));
+      }
+      let zodString = z.string();
+      if (schema.description) {
+        zodString = zodString.describe(schema.description);
+      }
+      return zodString;
+    }
+    case "number": {
+      let zodNumber = z.number();
+      if (schema.minimum !== undefined) {
+        zodNumber = zodNumber.min(schema.minimum);
+      }
+      if (schema.maximum !== undefined) {
+        zodNumber = zodNumber.max(schema.maximum);
+      }
+      if (schema.description) {
+        zodNumber = zodNumber.describe(schema.description);
+      }
+      return zodNumber;
+    }
+    case "boolean": {
+      let zodBoolean = z.boolean();
+      if (schema.description) {
+        zodBoolean = zodBoolean.describe(schema.description);
+      }
+      return zodBoolean;
+    }
+    default:
+      return z.any();
+  }
 }

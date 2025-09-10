@@ -1,51 +1,51 @@
+import { ApiResponse, ErrorResponse } from "@/types/api";
+import { GotoOptions } from "@/types/playwright";
 import { Browserbase } from "@browserbasehq/sdk";
-import { Browser, chromium } from "playwright";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { Browser, chromium } from "playwright";
+import { z } from "zod/v3";
+import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
 import { EnhancedContext } from "../types/context";
 import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { AvailableModel, ClientOptions } from "../types/model";
 import { BrowserContext, Page } from "../types/page";
 import {
+  ActOptions,
+  AgentConfig,
   ConstructorParams,
+  ExtractOptions,
+  HistoryEntry,
   InitResult,
   LocalBrowserLaunchOptions,
-  AgentConfig,
-  StagehandMetrics,
-  StagehandFunctionName,
-  HistoryEntry,
-  ActOptions,
-  ExtractOptions,
   ObserveOptions,
+  StagehandFunctionName,
+  StagehandMetrics,
 } from "../types/stagehand";
+import {
+  InvalidAISDKModelFormatError,
+  MissingEnvironmentVariableError,
+  StagehandError,
+  StagehandInitError,
+  StagehandNotInitializedError,
+  UnsupportedAISDKModelProviderError,
+  UnsupportedModelError,
+} from "../types/stagehandErrors";
 import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
-import { ClientOptions } from "../types/model";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
-import { ApiResponse, ErrorResponse } from "@/types/api";
-import { AgentExecuteOptions, AgentResult } from "../types/agent";
-import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandOperatorHandler } from "./handlers/operatorHandler";
+import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
+import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
-
-import {
-  StagehandError,
-  StagehandNotInitializedError,
-  MissingEnvironmentVariableError,
-  UnsupportedModelError,
-  UnsupportedAISDKModelProviderError,
-  InvalidAISDKModelFormatError,
-  StagehandInitError,
-} from "../types/stagehandErrors";
-import { z } from "zod/v3";
-import { GotoOptions } from "@/types/playwright";
+import { connectToMCPServer } from "./mcp/connection";
+import { resolveTools } from "./mcp/utils";
+import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -73,7 +73,7 @@ async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
   logger: (message: LogLine) => void,
-  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
+  browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"],
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
 ): Promise<BrowserResult> {
@@ -166,6 +166,7 @@ async function getBrowser(
           stagehand: "true",
         },
       });
+      // Final projectId used: browserbaseSessionCreateParams.projectId || projectId
 
       sessionId = session.id;
       connectUrl = session.connectUrl;
@@ -377,7 +378,7 @@ export class Stagehand {
   protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
-  private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  private browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"];
   public variables: { [key: string]: unknown };
   private contextPath?: string;
   public llmClient: LLMClient;
@@ -393,7 +394,7 @@ export class Stagehand {
   public readonly logInferenceToFile?: boolean;
   private stagehandLogger: StagehandLogger;
   private disablePino: boolean;
-  private modelClientOptions: ClientOptions;
+  protected modelClientOptions: ClientOptions;
   private _env: "LOCAL" | "BROWSERBASE";
   private _browser: Browser | undefined;
   private _isClosed: boolean = false;
@@ -580,6 +581,7 @@ export class Stagehand {
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
     this.modelName = modelName ?? DEFAULT_MODEL_NAME;
+    this.usingAPI = useAPI;
 
     let modelApiKey: string | undefined;
 
@@ -643,7 +645,7 @@ export class Stagehand {
     this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
-    this.usingAPI = useAPI;
+
     if (this.usingAPI && env === "LOCAL") {
       // Make env supersede useAPI
       this.usingAPI = false;
@@ -912,34 +914,30 @@ export class Stagehand {
     ) => Promise<AgentResult>;
   } {
     if (!options || !options.provider) {
-      // use open operator agent
+      const executionModel = options?.executionModel;
+      const systemInstructions = options?.instructions;
+
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          return new StagehandOperatorHandler(
+          if (options?.integrations && !this.experimental) {
+            throw new StagehandError(
+              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+            );
+          }
+          const tools = options?.integrations
+            ? await resolveTools(options?.integrations, options?.tools)
+            : (options?.tools ?? {});
+          return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
             this.llmClient,
+            executionModel,
+            systemInstructions,
+            tools,
           ).execute(instructionOrOptions);
         },
       };
     }
-
-    const agentHandler = new StagehandAgentHandler(
-      this,
-      this.stagehandPage,
-      this.logger,
-      {
-        modelName: options.model,
-        clientOptions: options.options,
-        userProvidedInstructions:
-          options.instructions ??
-          `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${this.stagehandPage.page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
-        agentType: options.provider,
-        experimental: this.experimental,
-      },
-    );
 
     this.log({
       category: "agent",
@@ -949,6 +947,34 @@ export class Stagehand {
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        // Check if integrations are being used without experimental flag
+        if (options?.integrations && !this.experimental) {
+          throw new StagehandError(
+            "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+          );
+        }
+
+        const tools = options?.integrations
+          ? await resolveTools(options?.integrations, options?.tools)
+          : (options?.tools ?? {});
+
+        const agentHandler = new CuaAgentHandler(
+          this,
+          this.stagehandPage,
+          this.logger,
+          {
+            modelName: options.model,
+            clientOptions: options.options,
+            userProvidedInstructions:
+              options.instructions ??
+              `You are a helpful assistant that can use a web browser.
+        You are currently on the following page: ${this.stagehandPage.page.url()}.
+        Do not ask follow up questions, the user will trust your judgement.`,
+            agentType: options.provider,
+          },
+          tools,
+        );
+
         const executeOptions: AgentExecuteOptions =
           typeof instructionOrOptions === "string"
             ? { instruction: instructionOrOptions }
@@ -992,14 +1018,14 @@ export class Stagehand {
   }
 }
 
+export * from "../types/agent";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
-export * from "../types/operator";
-export * from "../types/agent";
-export * from "./llm/LLMClient";
-export * from "../types/stagehandErrors";
 export * from "../types/stagehandApiErrors";
+export * from "../types/stagehandErrors";
+export * from "./llm/LLMClient";
+export { connectToMCPServer };

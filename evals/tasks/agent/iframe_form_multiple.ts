@@ -6,30 +6,29 @@ export const iframe_form_multiple: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
-    await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
-
-    const agent = stagehand.agent({
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      model: modelName,
-    });
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
+    );
 
     const agentResult = await agent.execute({
       instruction:
         "Fill in the form name with 'John Smith', the email with 'john.smith@example.com', and select the 'Are you the domain owner?' option as 'No'",
-      maxSteps: 10,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
     });
     logger.log(agentResult);
 
     await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
-    const results = await evaluator.batchEvaluate({
+    const results = await evaluator.batchAsk({
       questions: [
-        "Is the form name input filled with 'John Smith'?",
-        "Is the form email input filled with 'john.smith@example.com'?",
-        "Is the 'Are you the domain owner?' option selected as 'No'?",
+        { question: "Is the form name input filled with 'John Smith'?" },
+        {
+          question:
+            "Is the form email input filled with 'john.smith@example.com'?",
+        },
       ],
     });
 

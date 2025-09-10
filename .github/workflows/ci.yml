@@ -12,7 +12,7 @@ on:
 
 env:
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-3-5-sonnet-latest"
-  EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract"
+  EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
   EVAL_TRIAL_COUNT: 5
 
@@ -29,6 +29,7 @@ jobs:
       run-act: ${{ steps.check-labels.outputs.run-act }}
       run-observe: ${{ steps.check-labels.outputs.run-observe }}
       run-targeted-extract: ${{ steps.check-labels.outputs.run-targeted-extract }}
+      run-agent: ${{ steps.check-labels.outputs.run-agent }}
     steps:
       - id: check-labels
         run: |
@@ -40,6 +41,7 @@ jobs:
             echo "run-act=true" >> $GITHUB_OUTPUT
             echo "run-observe=true" >> $GITHUB_OUTPUT
             echo "run-targeted-extract=true" >> $GITHUB_OUTPUT
+            echo "run-agent=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -49,6 +51,7 @@ jobs:
           echo "run-act=${{ contains(github.event.pull_request.labels.*.name, 'act') }}" >> $GITHUB_OUTPUT
           echo "run-observe=${{ contains(github.event.pull_request.labels.*.name, 'observe') }}" >> $GITHUB_OUTPUT
           echo "run-targeted-extract=${{ contains(github.event.pull_request.labels.*.name, 'targeted-extract') }}" >> $GITHUB_OUTPUT
+          echo "run-agent=${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" >> $GITHUB_OUTPUT
 
   run-lint:
     runs-on: ubuntu-latest
@@ -560,5 +563,75 @@ jobs:
             fi
           else
             echo "Eval summary not found for targeted_extract category. Failing CI."
+            exit 1
+          fi
+
+  run-agent-evals:
+    needs: [run-targeted-extract-evals, determine-evals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90 # Agent evals can be long-running
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      HEADLESS: true
+      EVAL_ENV: browserbase
+      # Use agent models for agent evals in CI
+      EVAL_AGENT_MODELS: "computer-use-preview-2025-03-11,claude-3-7-sonnet-latest"
+      EVAL_TRIAL_COUNT: 2 # Reduce trials for agent evals
+      EVAL_MAX_CONCURRENCY: 10 # Lower concurrency for agent evals
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Check for 'agent' label
+        id: label-check
+        run: |
+          if [ "${{ needs.determine-evals.outputs.run-agent }}" != "true" ]; then
+            echo "has_label=false" >> $GITHUB_OUTPUT
+            echo "No label for AGENT. Exiting with success."
+          else
+            echo "has_label=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: |
+          rm -rf node_modules
+          npm i -g pnpm
+          pnpm install --no-frozen-lockfile
+
+      - name: Build Stagehand
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: pnpm run build
+
+      - name: Run Agent Evals
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: pnpm run evals category agent
+
+      - name: Log Agent Evals Performance
+        if: needs.determine-evals.outputs.run-agent == 'true'
+        run: |
+          experimentName=$(jq -r '.experimentName' eval-summary.json)
+          echo "View results at https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experimentName}"
+          if [ -f eval-summary.json ]; then
+            agent_score=$(jq '.categories.agent' eval-summary.json)
+            echo "Agent category score: $agent_score%"
+            # Lower threshold for agent evals since they're complex
+            if (( $(echo "$agent_score < 50" | bc -l) )); then
+              echo "Agent category score is below 50%. Failing CI."
+              exit 1
+            fi
+          else
+            echo "Eval summary not found for agent category. Failing CI."
             exit 1
           fi

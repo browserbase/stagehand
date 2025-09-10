@@ -19,3 +19,5 @@ eval-summary.json
 package-lock.json
 evals/deterministic/tests/BrowserContext/tmp-test.har
 lib/version.ts
+/examples/inference_summary
+/inference_summary

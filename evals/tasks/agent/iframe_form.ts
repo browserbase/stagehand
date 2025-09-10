@@ -6,25 +6,21 @@ export const iframe_form: EvalFunction = async ({
   sessionUrl,
   stagehand,
   logger,
-  modelName,
+  agent,
 }) => {
   try {
-    await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
-
-    const agent = stagehand.agent({
-      provider: "anthropic",
-      model: modelName,
-    });
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
+    );
 
     const agentResult = await agent.execute({
       instruction: "Fill in the form name with 'John Smith'",
-      maxSteps: 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
     });
     logger.log(agentResult);
 
-    await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
-    const result = await evaluator.evaluate({
+    const result = await evaluator.ask({
       question: "Is the form name input filled with 'John Smith'?",
     });
 
@@ -40,13 +36,14 @@ export const iframe_form: EvalFunction = async ({
 
     const agentResult2 = await agent.execute({
       instruction: "Fill in the form email with 'john.smith@example.com'",
-      maxSteps: 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });
     logger.log(agentResult2);
 
     await stagehand.page.mouse.wheel(0, -1000);
-    const result2 = await evaluator.evaluate({
+    const result2 = await evaluator.ask({
       question: "Is the form email input filled with 'john.smith@example.com'?",
+      screenshot: true,
     });
 
     if (result2.evaluation !== "YES" && result2.evaluation !== "NO") {

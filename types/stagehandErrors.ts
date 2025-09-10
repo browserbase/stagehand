@@ -230,6 +230,26 @@ export class StagehandInitError extends StagehandError {
   }
 }
 
+export class MCPConnectionError extends StagehandError {
+  public readonly serverUrl: string;
+  public readonly originalError: unknown;
+
+  constructor(serverUrl: string, originalError: unknown) {
+    const errorMessage =
+      originalError instanceof Error
+        ? originalError.message
+        : String(originalError);
+
+    super(
+      `Failed to connect to MCP server at "${serverUrl}". ${errorMessage}. ` +
+        `Please verify the server URL is correct and the server is running.`,
+    );
+
+    this.serverUrl = serverUrl;
+    this.originalError = originalError;
+  }
+}
+
 export class StagehandShadowRootMissingError extends StagehandError {
   constructor(detail?: string) {
     super(

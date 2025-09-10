@@ -7,7 +7,7 @@
  * - Generation of unique experiment names based on the current timestamp, environment,
  *   and eval name or category.
  */
-
+import fs from "fs";
 import { LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
 const { jaroWinkler } = stringComparison;
@@ -138,4 +138,68 @@ export function dedent(
 
   // trim trailing/leading blank lines
   return result.trimEnd();
+}
+
+// Dataset helpers shared by suites
+
+export function sampleUniform<T>(arr: T[], k: number): T[] {
+  const n = arr.length;
+  if (k >= n) return arr.slice();
+  const copy = arr.slice();
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = tmp;
+  }
+  return copy.slice(0, k);
+}
+
+export function readJsonlFile(filePath: string): string[] {
+  let lines: string[] = [];
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  } catch (e) {
+    console.warn(
+      `Could not read file at ${filePath}. Error: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    lines = [];
+  }
+  return lines;
+}
+
+export function parseJsonlRows<T>(
+  lines: string[],
+  validator: (parsed: unknown) => parsed is T,
+): T[] {
+  const candidates: T[] = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line);
+      if (validator(parsed)) {
+        candidates.push(parsed);
+      }
+    } catch {
+      // skip invalid lines
+    }
+  }
+  return candidates;
+}
+
+export function applySampling<T>(
+  candidates: T[],
+  sampleCount?: number,
+  maxCases: number = 25,
+): T[] {
+  if (sampleCount && sampleCount > 0) {
+    return sampleUniform(candidates, sampleCount);
+  } else {
+    const result: T[] = [];
+    for (const candidate of candidates) {
+      result.push(candidate);
+      if (result.length >= maxCases) break;
+    }
+    return result;
+  }
 }
