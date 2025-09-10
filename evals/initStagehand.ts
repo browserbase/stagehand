@@ -114,6 +114,11 @@ export const initStagehand = async ({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
     } as AgentConfig;
+  } else {
+    agentConfig = {
+      model: modelName,
+      executionModel: "google/gemini-2.5-flash",
+    } as AgentConfig;
   }
 
   const agent = stagehand.agent(agentConfig);

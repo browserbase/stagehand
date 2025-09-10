@@ -1,11 +1,13 @@
 import Browserbase from "@browserbasehq/sdk";
+import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
+import { ToolSet } from "ai";
+import { Cookie } from "playwright";
 import { z } from "zod/v3";
+import { LLMClient } from "../lib/llm/LLMClient";
 import { LLMProvider } from "../lib/llm/LLMProvider";
+import { AgentProviderType } from "./agent";
 import { LogLine } from "./log";
 import { AvailableModel, ClientOptions } from "./model";
-import { LLMClient } from "../lib/llm/LLMClient";
-import { Cookie } from "playwright";
-import { AgentProviderType } from "./agent";
 
 export interface ConstructorParams {
   /**
@@ -269,13 +271,28 @@ export interface AgentConfig {
    */
   model?: string;
   /**
+   * The model to use for tool execution (observe/act calls within agent tools).
+   * If not specified, inherits from the main model configuration.
+   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
+   */
+  executionModel?: string;
+  /**
    * Custom instructions to provide to the agent
    */
   instructions?: string;
+
   /**
    * Additional options to pass to the agent client
    */
   options?: Record<string, unknown>;
+  /**
+   * MCP integrations - Array of Client objects
+   */
+  integrations?: (Client | string)[];
+  /**
+   * Tools passed to the agent client
+   */
+  tools?: ToolSet;
 }
 
 export enum StagehandFunctionName {

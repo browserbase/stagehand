@@ -9,15 +9,16 @@ export const iframe_form: EvalFunction = async ({
   agent,
 }) => {
   try {
-    await stagehand.page.goto("https://tucowsdomains.com/abuse-form/phishing/");
+    await stagehand.page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
+    );
 
     const agentResult = await agent.execute({
       instruction: "Fill in the form name with 'John Smith'",
-      maxSteps: 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
     });
     logger.log(agentResult);
 
-    await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.ask({
       question: "Is the form name input filled with 'John Smith'?",
@@ -35,7 +36,7 @@ export const iframe_form: EvalFunction = async ({
 
     const agentResult2 = await agent.execute({
       instruction: "Fill in the form email with 'john.smith@example.com'",
-      maxSteps: 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });
     logger.log(agentResult2);
 

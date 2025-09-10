@@ -1,4 +1,6 @@
 import { EvalFunction } from "@/types/evals";
+import { Evaluator } from "../../evaluator";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const webvoyager: EvalFunction = async ({
   stagehand,
@@ -34,17 +36,41 @@ export const webvoyager: EvalFunction = async ({
       instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}`,
     });
 
-    const result = await agent.execute({
-      instruction: params.ques,
-      maxSteps: 20,
+    // Start collecting screenshots in parallel
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      captureOnNavigation: true, // Also capture on page navigation
     });
 
-    const message = result?.message || "";
-    const success =
-      typeof message === "string" && /Final Answer\s*:/i.test(message);
+    screenshotCollector.start();
+
+    const agentResult = await agent.execute({
+      instruction: params.ques,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    });
+
+    // Stop collecting and get all screenshots
+    const screenshots = screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
+
+    const evaluator = new Evaluator(stagehand);
+    const evalResult = await evaluator.ask({
+      question: `Did the agent successfully complete this task: "${params.ques}"?`,
+      screenshot: screenshots,
+      agentReasoning:
+        agentResult.message ||
+        "no reasoning available, agent potentially hit step limit",
+    });
 
     return {
-      _success: !!success,
+      _success: evalResult.evaluation === "YES",
+      reasoning: evalResult.reasoning,
+      screenshotCount: screenshots.length,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

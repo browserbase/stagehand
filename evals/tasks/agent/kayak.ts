@@ -14,11 +14,11 @@ export const kayak: EvalFunction = async ({
 
     await agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
-      maxSteps: 25,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
     await agent.execute({
       instruction: "Sort the flights by price",
-      maxSteps: 8,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
     });
 
     if (stagehand.context.pages().length !== 2) {
@@ -32,7 +32,7 @@ export const kayak: EvalFunction = async ({
     }
     const { evaluation, reasoning } = await evaluator.ask({
       question:
-        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page",
+        "Are the flights shown sorted by price? Check the sort button in the top left corner of the page. It should show cheapest first; use this as the success criteria since the page might promote other flights and not show the list in order.",
     });
 
     const success = evaluation === "YES";
