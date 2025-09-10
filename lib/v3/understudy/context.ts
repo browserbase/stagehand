@@ -178,6 +178,27 @@ export class V3Context {
   }
 
   /**
+   * Create a new top-level page (tab) with the given URL and return its Page object.
+   * Waits until the target is attached and registered.
+   */
+  public async newPage(url = "about:blank"): Promise<Page> {
+    const { targetId } = await this.conn.send<{ targetId: string }>(
+      "Target.createTarget",
+      { url },
+    );
+    // Best-effort bring-to-front
+    await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const page = this.pagesByTarget.get(targetId);
+      if (page) return page;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error(`newPage timeout: target not attached (${targetId})`);
+  }
+
+  /**
    * Close CDP and clear all mappings. Best-effort cleanup.
    */
   async close(): Promise<void> {
