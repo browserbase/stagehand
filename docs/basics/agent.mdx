@@ -26,7 +26,11 @@ agent.execute("apply for a job at browserbase")
 
 ## Using `agent()`
 
-Here is how you can use `agent()` to create an agent.
+There are two ways to create agents in Stagehand:
+
+### Computer Use Agents
+
+Use computer use agents with specialized models from OpenAI or Anthropic: 
 
 <CodeGroup>
 ```typescript TypeScript
@@ -53,6 +57,18 @@ agent = stagehand.agent({
 await agent.execute("apply for a job at Browserbase")
 ```
 </CodeGroup>
+
+### Use Stagehand Agent with Any LLM
+
+Use the agent without specifying a provider to utilize any model or LLM provider:
+
+<Note>Non CUA agents are currently only supported in TypeScript</Note>
+
+```typescript TypeScript
+const agent = stagehand.agent();
+await agent.execute("apply for a job at Browserbase")
+```
+
 
 ## MCP Integrations
 

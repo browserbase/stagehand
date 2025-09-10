@@ -143,7 +143,11 @@ function buildUsage(detailed = false): string {
     (default ${chalk.dim("25")})
 
   ${chalk.cyan("--dataset".padEnd(12))} ${"filter to specific benchmark".padEnd(24)}
+<<<<<<< HEAD
     (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("webbench")}, ${chalk.yellow("osworld")}]
+=======
+    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("webbench")}, ${chalk.yellow("osworld")}, ${chalk.yellow("onlineMind2Web")}]
+>>>>>>> main
 
 
     ${chalk.magenta.underline("Positional filters\n")}
@@ -251,6 +255,25 @@ function buildUsage(detailed = false): string {
       ${chalk.green("EVAL_OSWORLD_SOURCE=Mind2Web EVAL_OSWORLD_LIMIT=10 pnpm run evals name=agent/osworld")}
       
       ${chalk.green("EVAL_DATASET=osworld EVAL_OSWORLD_EVALUATION_TYPE=url_match pnpm run evals")}
+<<<<<<< HEAD
+=======
+    
+    
+    ${chalk.cyan.bold("Mind2Web")} - Real-world web interaction tasks for evaluating web agents
+    
+      ${chalk.dim("Run:")} ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("agent/onlineMind2Web")}
+      
+      ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=onlineMind2Web pnpm run evals")}
+      
+      ${chalk.gray("Environment Variables:")}
+      
+      EVAL_ONLINEMIND2WEB_LIMIT     max tasks to run (default: 25)
+      EVAL_ONLINEMIND2WEB_SAMPLE    random sample count before limit
+      
+      ${chalk.dim("Example:")}
+      
+      ${chalk.green("EVAL_ONLINEMIND2WEB_SAMPLE=50 EVAL_ONLINEMIND2WEB_LIMIT=10 pnpm run evals name=agent/onlineMind2Web")}
+>>>>>>> main
   `;
 
   const envSection = dedent`

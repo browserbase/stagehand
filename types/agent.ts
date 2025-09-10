@@ -2,6 +2,14 @@ import { LogLine } from "./log";
 
 export interface AgentAction {
   type: string;
+  reasoning?: string;
+  taskCompleted?: boolean;
+  action?: string;
+  // Tool-specific fields
+  timeMs?: number; // wait tool
+  pageText?: string; // ariaTree tool
+  pageUrl?: string; // ariaTree tool
+  instruction?: string; // various tools
   [key: string]: unknown;
 }
 

@@ -10,19 +10,15 @@ export const sf_library_card: EvalFunction = async ({
 }) => {
   try {
     await stagehand.page.goto("https://sflib1.sfpl.org/selfreg");
-
     const agentResult = await agent.execute({
-      instruction:
-        "Fill in the 'Residential Address' field with '166 Geary St'",
+      instruction: "Fill in the 'street Address' field with '166 Geary St'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });
     logger.log(agentResult);
-
-    await stagehand.page.mouse.wheel(0, -1000);
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.ask({
       question:
-        "Does the page show the 'Residential Address' field filled with '166 Geary St'?",
+        "Does the page show the 'street Address' field filled with '166 Geary St'?",
     });
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {

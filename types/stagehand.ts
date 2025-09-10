@@ -271,6 +271,12 @@ export interface AgentConfig {
    */
   model?: string;
   /**
+   * The model to use for tool execution (observe/act calls within agent tools).
+   * If not specified, inherits from the main model configuration.
+   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
+   */
+  executionModel?: string;
+  /**
    * Custom instructions to provide to the agent
    */
   instructions?: string;

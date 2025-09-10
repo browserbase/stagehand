@@ -33,7 +33,7 @@ import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
 import { AgentProvider } from "@/lib/agent/AgentProvider";
-import { AISdkClient } from "@/examples/external_clients/aisdk";
+import { AISdkClient } from "@/lib/llm/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import { LogLine } from "@/types/log";
@@ -42,6 +42,7 @@ import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildWebBenchTestcases } from "./suites/webbench";
 import { buildOSWorldTestcases } from "./suites/osworld";
+import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 
 dotenv.config();
 
@@ -141,6 +142,10 @@ const generateFilteredTestcases = (): Testcase[] => {
   // Special handling: fan out OSWorld dataset for agent/osworld
   const isOSWorldTaskIncluded =
     taskNamesToRun.includes("agent/osworld") || datasetFilter === "osworld";
+  // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
+  const isMind2WebTaskIncluded = taskNamesToRun.includes(
+    "agent/onlineMind2Web",
+  );
 
   let allTestcases: Testcase[] = [];
 
@@ -203,6 +208,22 @@ const generateFilteredTestcases = (): Testcase[] => {
   ) {
     // Remove OSWorld from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
+  }
+
+  // Only include Mind2Web if no dataset filter or if onlineMind2Web is selected
+  if (
+    isMind2WebTaskIncluded &&
+    (!datasetFilter || datasetFilter === "onlineMind2Web")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
+    allTestcases.push(...buildOnlineMind2WebTestcases(currentModels));
+  } else if (
+    isMind2WebTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "onlineMind2Web"
+  ) {
+    // Remove Mind2Web from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
   }
 
   // Create a list of all remaining testcases using the determined task names and models
