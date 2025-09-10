@@ -1,7 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import { StagehandPage } from "../../StagehandPage";
-
+import { buildActObservePrompt } from "../../prompt";
+import { SupportedPlaywrightAction } from "@/types/act";
 export const createActTool = (
   stagehandPage: StagehandPage,
   executionModel?: string,
@@ -20,8 +21,19 @@ export const createActTool = (
     execute: async ({ action }) => {
       try {
         const observeOptions = executionModel
-          ? { instruction: action, modelName: executionModel }
-          : { instruction: action };
+          ? {
+              instruction: buildActObservePrompt(
+                action,
+                Object.values(SupportedPlaywrightAction),
+              ),
+              modelName: executionModel,
+            }
+          : {
+              instruction: buildActObservePrompt(
+                action,
+                Object.values(SupportedPlaywrightAction),
+              ),
+            };
 
         const observeResults = await stagehandPage.page.observe(observeOptions);
 
@@ -74,8 +86,8 @@ export const createActTool = (
             isIframe: true,
             playwrightArguments: {
               description: iframeObserveResult.description,
-              method: iframeObserveResult.method || "click",
-              arguments: iframeObserveResult.arguments || [],
+              method: iframeObserveResult.method,
+              arguments: iframeObserveResult.arguments,
               selector: iframeObserveResult.selector,
             },
           };
@@ -84,8 +96,8 @@ export const createActTool = (
         // For regular (non-iframe) actions, use the original observe result
         const playwrightArguments = {
           description: observeResult.description,
-          method: observeResult.method || "click",
-          arguments: observeResult.arguments || [],
+          method: observeResult.method,
+          arguments: observeResult.arguments,
           selector: observeResult.selector,
         };
 
