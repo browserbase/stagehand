@@ -1,18 +1,12 @@
 import { LogLine } from "./log";
-
-export interface PlaywrightArguments {
-  description: string;
-  method: string;
-  arguments: string[];
-  selector: string;
-}
+import { ObserveResult } from "./stagehand";
 
 export interface ActToolResult {
   success: boolean;
   action?: string;
   error?: string;
   isIframe?: boolean;
-  playwrightArguments?: PlaywrightArguments | null;
+  playwrightArguments?: ObserveResult | null;
 }
 
 export interface AgentAction {
@@ -25,7 +19,7 @@ export interface AgentAction {
   pageText?: string; // ariaTree tool
   pageUrl?: string; // ariaTree tool
   instruction?: string; // various tools
-  playwrightArguments?: PlaywrightArguments | null; // act tool
+  playwrightArguments?: ObserveResult | null; // act tool
   [key: string]: unknown;
 }
 
