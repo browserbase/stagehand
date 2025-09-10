@@ -16,7 +16,7 @@
     "eslint": "eslint .",
     "cache:clear": "rm -rf .cache",
     "docs": "pnpm --filter @browserbasehq/stagehand-docs run dev",
-    "evals": "tsx evals/cli.ts",
+    "evals": "tsx scripts/run-evals.ts",
     "evals:legacy": "tsx scripts/run-evals.ts",
     "e2e": "pnpm run build && cd evals/deterministic && playwright test --config=e2e.playwright.config.ts",
     "e2e:bb": "pnpm run build && cd evals/deterministic && playwright test --config=bb.playwright.config.ts",
