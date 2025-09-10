@@ -99,6 +99,14 @@ export interface ExtractHandlerParams<T extends z.AnyZodObject> {
   page: Page;
 }
 
+export const defaultExtractSchema = z.object({
+  extraction: z.string(),
+});
+
+export const pageTextSchema = z.object({
+  page_text: z.string(),
+});
+
 export type ObserveParams = {
   instruction?: string;
   modelName?: AvailableModel;

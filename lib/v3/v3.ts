@@ -25,7 +25,7 @@ import { LLMProvider } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
-import { defaultExtractSchema } from "@/types/page";
+import { defaultExtractSchema, pageTextSchema } from "../v3/types";
 import { ObserveResult, ActResult, HistoryEntry } from "@/types/stagehand";
 import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
@@ -387,18 +387,34 @@ export class V3 {
    */
   async act(params: ActParams): Promise<ActResult>;
   async act(
+    instruction: string,
+    page?: AnyPage,
+    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+  ): Promise<ActResult>;
+  async act(
     observe: ObserveResult,
     page?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult>;
 
   async act(
-    input: ActParams | ObserveResult,
+    input: ActParams | ObserveResult | string,
     pageArg?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult> {
     if (!this.actHandler)
       throw new Error("V3 not initialized. Call init() before act().");
+
+    // String shorthand → ActParams
+    if (typeof input === "string") {
+      const p: ActParams = {
+        instruction: input,
+        page: pageArg,
+        domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+        timeoutMs: opts?.timeoutMs,
+      };
+      return this.act(p);
+    }
 
     if (isObserveResult(input)) {
       // Resolve page: use provided page if any, otherwise default active page
@@ -440,7 +456,7 @@ export class V3 {
         page = this.ctx!.resolvePageByMainFrameId(frameId);
       }
     } else {
-      await this.ctx!.awaitActivePage()
+      page = await this.ctx!.awaitActivePage();
     }
 
     const handlerParams: ActHandlerParams = {
@@ -467,18 +483,37 @@ export class V3 {
 
   /**
    * Run an "extract" instruction through the ExtractHandler.
+   *
+   * Overloads mirror StagehandPage.extract typing:
+   * - No args → returns page text shape.
+   * - String or options → defaults schema to defaultExtractSchema unless provided.
    */
 
-  async extract(): Promise<{ page_text: string }>;
-  async extract<T extends z.AnyZodObject>(
+  async extract(): Promise<z.infer<typeof pageTextSchema>>;
+  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
     params: ExtractParams<T>,
-  ): Promise<z.infer<T> | { page_text: string }>;
+  ): Promise<z.infer<T>>;
+  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
+    instruction: string,
+    page?: AnyPage,
+  ): Promise<z.infer<T>>;
 
-  async extract<T extends z.AnyZodObject>(
-    params?: ExtractParams<T>,
-  ): Promise<z.infer<T> | { page_text: string }> {
+  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
+    params?: ExtractParams<T> | string,
+    pageArg?: AnyPage,
+  ): Promise<z.infer<T> | z.infer<typeof pageTextSchema>> {
     if (!this.extractHandler) {
       throw new Error("V3 not initialized. Call init() before extract().");
+    }
+
+    // String shorthand → ExtractParams with instruction only
+    if (typeof params === "string") {
+      const p = {
+        instruction: params,
+        page: pageArg,
+      } as ExtractParams<z.AnyZodObject>;
+      // Re-enter with normalized params
+      return this.extract(p);
     }
 
     let page: Page;
@@ -492,7 +527,7 @@ export class V3 {
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
     } else {
-      await this.ctx!.awaitActivePage()
+      page = await this.ctx!.awaitActivePage();
     }
 
     const noArgs = !params?.instruction && !params?.schema;
@@ -502,7 +537,7 @@ export class V3 {
       ? undefined
       : onlyInstruction
         ? (defaultExtractSchema as unknown as T)
-        : params?.schema;
+        : (params?.schema as T);
 
     const handlerParams: ExtractHandlerParams<T> = {
       instruction: params?.instruction,
@@ -532,31 +567,63 @@ export class V3 {
   /**
    * Run an "observe" instruction through the ObserveHandler.
    */
-  async observe(params: ObserveParams): Promise<ObserveResult[]> {
+  async observe(): Promise<ObserveResult[]>;
+  async observe(params: ObserveParams): Promise<ObserveResult[]>;
+  async observe(
+    instruction: string,
+    page?: AnyPage,
+    opts?: {
+      domSettleTimeoutMs?: number;
+      returnAction?: boolean;
+      drawOverlay?: boolean;
+    },
+  ): Promise<ObserveResult[]>;
+  async observe(
+    params?: ObserveParams | string,
+    pageArg?: AnyPage,
+    opts?: {
+      domSettleTimeoutMs?: number;
+      returnAction?: boolean;
+      drawOverlay?: boolean;
+    },
+  ): Promise<ObserveResult[]> {
     if (!this.observeHandler) {
       throw new Error("V3 not initialized. Call init() before observe().");
     }
 
+    let effective: ObserveParams;
+    if (typeof params === "string") {
+      effective = {
+        instruction: params,
+        page: pageArg,
+        domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+        returnAction: opts?.returnAction,
+        drawOverlay: opts?.drawOverlay,
+      };
+    } else {
+      effective = params || {};
+    }
+
     // Resolve to our internal Page type
     let page: Page;
-    if (params.page) {
-      if (params.page instanceof (await import("./understudy/page")).Page) {
-        page = params.page;
+    if (effective.page) {
+      if (effective.page instanceof (await import("./understudy/page")).Page) {
+        page = effective.page;
       } else {
-        const frameId = await this.resolveTopFrameId(params.page);
+        const frameId = await this.resolveTopFrameId(effective.page);
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
     } else {
-      await this.ctx!.awaitActivePage()
+      page = await this.ctx!.awaitActivePage();
     }
 
     const handlerParams: ObserveHandlerParams = {
-      instruction: params.instruction,
-      domSettleTimeoutMs: params.domSettleTimeoutMs,
-      returnAction: params.returnAction,
-      drawOverlay: params.drawOverlay,
+      instruction: effective.instruction,
+      domSettleTimeoutMs: effective.domSettleTimeoutMs,
+      returnAction: effective.returnAction,
+      drawOverlay: effective.drawOverlay,
       fromAct: false,
-      page: page!,
+      page,
     };
 
     const results = await this.observeHandler.observe(handlerParams);
@@ -564,10 +631,10 @@ export class V3 {
     this.addToHistory(
       "observe",
       {
-        instruction: params.instruction,
-        domSettleTimeoutMs: params.domSettleTimeoutMs,
-        returnAction: params.returnAction,
-        drawOverlay: params.drawOverlay,
+        instruction: effective.instruction,
+        domSettleTimeoutMs: effective.domSettleTimeoutMs,
+        returnAction: effective.returnAction,
+        drawOverlay: effective.drawOverlay,
       },
       results,
     );
