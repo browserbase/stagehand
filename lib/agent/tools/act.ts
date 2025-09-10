@@ -19,6 +19,21 @@ export const createActTool = (
     }),
     execute: async ({ action }) => {
       try {
+        const observeOptions = executionModel
+          ? { instruction: action, modelName: executionModel }
+          : { instruction: action };
+
+        const observeResults = await stagehandPage.page.observe(observeOptions);
+
+        if (!observeResults || observeResults.length === 0) {
+          return {
+            success: false,
+            error: "No observable actions found for the given instruction",
+          };
+        }
+
+        const observeResult = observeResults[0];
+
         let result;
         if (executionModel) {
           result = await stagehandPage.page.act({
@@ -26,30 +41,66 @@ export const createActTool = (
             modelName: executionModel,
           });
         } else {
-          result = await stagehandPage.page.act(action);
+          result = await stagehandPage.page.act(observeResult);
         }
+
         const isIframeAction = result.action === "an iframe";
 
         if (isIframeAction) {
-          const fallback = await stagehandPage.page.act(
-            executionModel
-              ? { action, modelName: executionModel, iframes: true }
-              : { action, iframes: true },
-          );
+          // For iframe actions, we need to observe again with iframes: true to get the correct selector
+          const iframeObserveOptions = executionModel
+            ? { instruction: action, modelName: executionModel, iframes: true }
+            : { instruction: action, iframes: true };
+
+          const iframeObserveResults =
+            await stagehandPage.page.observe(iframeObserveOptions);
+
+          if (!iframeObserveResults || iframeObserveResults.length === 0) {
+            // If we can't observe anything in the iframe context, fail gracefully
+            return {
+              success: false,
+              error: "No observable actions found within iframe context",
+              isIframe: true,
+              playwrightArguments: null as null,
+            };
+          }
+
+          const iframeObserveResult = iframeObserveResults[0];
+          const fallback = await stagehandPage.page.act(iframeObserveResult);
+
           return {
             success: fallback.success,
             action: fallback.action,
             isIframe: true,
+            playwrightArguments: {
+              description: iframeObserveResult.description,
+              method: iframeObserveResult.method || "click",
+              arguments: iframeObserveResult.arguments || [],
+              selector: iframeObserveResult.selector,
+            },
           };
         }
+
+        // For regular (non-iframe) actions, use the original observe result
+        const playwrightArguments = {
+          description: observeResult.description,
+          method: observeResult.method || "click",
+          arguments: observeResult.arguments || [],
+          selector: observeResult.selector,
+        };
 
         return {
           success: result.success,
           action: result.action,
           isIframe: false,
+          playwrightArguments,
         };
       } catch (error) {
-        return { success: false, error: error.message };
+        return {
+          success: false,
+          error: error.message,
+          playwrightArguments: null as null,
+        };
       }
     },
   });

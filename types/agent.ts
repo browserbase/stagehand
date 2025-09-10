@@ -1,5 +1,20 @@
 import { LogLine } from "./log";
 
+export interface PlaywrightArguments {
+  description: string;
+  method: string;
+  arguments: string[];
+  selector: string;
+}
+
+export interface ActToolResult {
+  success: boolean;
+  action?: string;
+  error?: string;
+  isIframe?: boolean;
+  playwrightArguments?: PlaywrightArguments | null;
+}
+
 export interface AgentAction {
   type: string;
   reasoning?: string;
@@ -10,6 +25,7 @@ export interface AgentAction {
   pageText?: string; // ariaTree tool
   pageUrl?: string; // ariaTree tool
   instruction?: string; // various tools
+  playwrightArguments?: PlaywrightArguments | null; // act tool
   [key: string]: unknown;
 }
 
