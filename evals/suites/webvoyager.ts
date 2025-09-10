@@ -59,20 +59,24 @@ export const buildWebVoyagerTestcases = (models: string[]): Testcase[] => {
           web_name: row.web_name,
         },
       };
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,
         tags: [
           model,
-          input.name,
-          ...(
-            tasksConfig.find((t) => t.name === input.name)?.categories || []
-          ).map((x) => `category/${x}`),
-          `webvoyager/id/${row.id}`,
+          "webvoyager", // Simple dataset tag
         ],
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.id}`,
+          category: taskCategories[0] || "agent",
+          categories: taskCategories,
+          dataset: "webvoyager",
+          dataset_id: row.id,
+          web_name: row.web_name,
+          question: row.ques, // Include question for easier searching
         },
         expected: true,
       });

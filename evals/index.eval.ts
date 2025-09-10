@@ -23,7 +23,13 @@ import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "@/types/evals";
+import {
+  SummaryResult,
+  Testcase,
+  EvalInput,
+  ErrorType,
+  EvalOutput,
+} from "@/types/evals";
 import { EvalLogger } from "./logger";
 import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
 import { env } from "./env";
@@ -170,22 +176,26 @@ const generateFilteredTestcases = (): Testcase[] => {
 
   // Create a list of all remaining testcases using the determined task names and models
   const regularTestcases = currentModels.flatMap((model) =>
-    taskNamesToRun.map((testName) => ({
-      input: { name: testName, modelName: model as AvailableModel },
-      name: testName,
-      tags: [
-        model,
-        testName,
-        ...(tasksConfig.find((t) => t.name === testName)?.categories || []).map(
-          (x) => `category/${x}`,
-        ),
-      ],
-      metadata: {
-        model: model as AvailableModel,
-        test: testName,
-      },
-      expected: true,
-    })),
+    taskNamesToRun.map((testName) => {
+      const taskCategories =
+        tasksConfig.find((t) => t.name === testName)?.categories || [];
+      return {
+        input: { name: testName, modelName: model as AvailableModel },
+        name: testName,
+        tags: [
+          model,
+          // Only include primary category as tag
+          taskCategories.length > 0 ? taskCategories[0] : "uncategorized",
+        ],
+        metadata: {
+          model: model as AvailableModel,
+          test: testName,
+          category: taskCategories[0],
+          categories: taskCategories, // Keep all categories in metadata for filtering
+        },
+        expected: true,
+      };
+    }),
   );
 
   allTestcases = [...allTestcases, ...regularTestcases];
@@ -252,40 +262,25 @@ const generateFilteredTestcases = (): Testcase[] => {
         const logger = new EvalLogger();
         try {
           // Dynamically import the task based on its name
-          const taskModulePath = path.join(
-            __dirname,
-            "tasks",
-            `${input.name}.ts`,
-          );
+          const basePath = path.join(__dirname, "tasks", `${input.name}`);
+          const candidatePaths = [`${basePath}.js`, `${basePath}.ts`];
 
-          // Check if file exists at direct path
           let taskModule;
-          try {
-            // First try to import directly (for backward compatibility)
-            taskModule = await import(taskModulePath);
-          } catch (error) {
-            if (input.name.includes("/")) {
-              // If the name includes a path separator, try to import from subdirectory
-              const subDirPath = path.join(
-                __dirname,
-                "tasks",
-                `${input.name}.ts`,
-              );
-              try {
-                taskModule = await import(subDirPath);
-              } catch (subError) {
-                throw new StagehandEvalError(
-                  `Failed to import task module for ${input.name}. Tried paths:\n` +
-                    `- ${taskModulePath}\n` +
-                    `- ${subDirPath}\n` +
-                    `Error: ${subError.message}`,
-                );
-              }
-            } else {
-              throw new StagehandEvalError(
-                `Failed to import task module for ${input.name} at path ${taskModulePath}: ${error.message}`,
-              );
+          let lastError: unknown;
+          for (const candidate of candidatePaths) {
+            try {
+              taskModule = await import(candidate);
+              break;
+            } catch (err) {
+              lastError = err;
             }
+          }
+
+          if (!taskModule) {
+            const tried = candidatePaths.join("\n- ");
+            throw new StagehandEvalError(
+              `Failed to import task module for ${input.name}. Tried paths:\n- ${tried}\nError: ${(lastError as Error)?.message}`,
+            );
           }
 
           // Extract the task function
@@ -376,27 +371,68 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
           return result;
         } catch (error) {
+          // Categorize the error
+          let errorType = ErrorType.UNKNOWN;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
+          if (error instanceof Error) {
+            if (
+              error.message.includes("timeout") ||
+              error.message.includes("Timeout")
+            ) {
+              errorType = ErrorType.TIMEOUT;
+            } else if (
+              error.message.includes("network") ||
+              error.message.includes("fetch")
+            ) {
+              errorType = ErrorType.NETWORK;
+            } else if (
+              error.message.includes("parse") ||
+              error.message.includes("JSON")
+            ) {
+              errorType = ErrorType.PARSING_ERROR;
+            } else if (
+              error.message.includes("init") ||
+              error.message.includes("setup")
+            ) {
+              errorType = ErrorType.SETUP_ERROR;
+            }
+          }
+
           // Log any errors that occur during task execution
-          console.error(`❌ ${input.name}: Error - ${error}`);
+          console.error(`❌ ${input.name}: ${errorType} - ${errorMessage}`);
           logger.error({
             message: `Error in task ${input.name}`,
             level: 0,
             auxiliary: {
               error: {
-                value: error.message,
+                value: errorMessage,
+                type: "string",
+              },
+              error_type: {
+                value: errorType,
                 type: "string",
               },
               trace: {
-                value: error.stack,
+                value: error instanceof Error ? error.stack : "",
                 type: "string",
               },
             },
           });
-          return {
+
+          const output: EvalOutput = {
             _success: false,
             error: JSON.parse(JSON.stringify(error, null, 2)),
+            error_type: errorType,
+            error_message: errorMessage,
+            error_stack: error instanceof Error ? error.stack : undefined,
             logs: logger.getLogs(),
+            debugUrl: "",
+            sessionUrl: "",
           };
+
+          return output;
         }
       },
       // Use the scoring functions defined above
@@ -410,7 +446,11 @@ const generateFilteredTestcases = (): Testcase[] => {
       const output =
         typeof result.output === "boolean"
           ? { _success: result.output }
-          : result.output;
+          : (result.output as EvalOutput);
+
+      // The full output object (including error_type, error_message, etc.)
+      // is already captured in result.output and will be visible in Braintrust
+      // We don't need to duplicate it in metadata
 
       return {
         input: result.input,

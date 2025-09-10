@@ -68,21 +68,24 @@ export const buildGAIATestcases = (models: string[]): Testcase[] => {
           expected: typeof finalAnswer === "string" ? finalAnswer : undefined,
         },
       };
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,
         tags: [
           model,
-          input.name,
-          ...(
-            tasksConfig.find((t) => t.name === input.name)?.categories || []
-          ).map((x) => `category/${x}`),
-          `gaia/id/${row.id}`,
-          row.Level ? `gaia/level/${row.Level}` : "gaia/level/unknown",
+          "gaia", // Simple dataset tag
         ],
         metadata: {
           model: model as AvailableModel,
           test: `${input.name}:${row.id}`,
+          category: taskCategories[0] || "agent",
+          categories: taskCategories,
+          dataset: "gaia",
+          dataset_id: row.id,
+          dataset_level: row.Level || "unknown",
+          question: row.ques, // Include question for easier searching
         },
         expected: true,
       });

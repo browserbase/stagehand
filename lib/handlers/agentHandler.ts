@@ -265,10 +265,10 @@ export class StagehandAgentHandler {
         case "keypress": {
           const { keys } = action;
           if (Array.isArray(keys)) {
-            for (const key of keys) {
-              const mappedKey = mapKeyToPlaywright(key);
-              await this.page.keyboard.press(mappedKey);
-            }
+            const mappedKeys = keys.map((key) => mapKeyToPlaywright(key));
+            await this.page.keyboard.press(mappedKeys.join("+"));
+          } else {
+            await this.page.keyboard.press(mapKeyToPlaywright(keys as string));
           }
           return { success: true };
         }
