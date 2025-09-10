@@ -49,6 +49,18 @@ If you're looking for the Python implementation, you can find it
   </picture>
 </div>
 
+<p align="center">
+	<!-- Keep these links. Translations will automatically update with the README. -->
+	<a href="https://readme-i18n.com/de/browserbase/stagehand">Deutsch</a> | 
+	<a href="https://readme-i18n.com/es/browserbase/stagehand">Español</a> | 
+	<a href="https://readme-i18n.com/fr/browserbase/stagehand">français</a> | 
+	<a href="https://readme-i18n.com/ja/browserbase/stagehand">日本語</a> | 
+	<a href="https://readme-i18n.com/ko/browserbase/stagehand">한국어</a> | 
+	<a href="https://readme-i18n.com/pt/browserbase/stagehand">Português</a> | 
+	<a href="https://readme-i18n.com/ru/browserbase/stagehand">Русский</a> | 
+	<a href="https://readme-i18n.com/zh/browserbase/stagehand">中文</a>
+</p>
+
 ## Why Stagehand?
 
 Most existing browser automation tools either require you to write low-level code in a framework like Selenium, Playwright, or Puppeteer, or use high-level agents that can be unpredictable in production. By letting developers choose what to write in code vs. natural language, Stagehand is the natural choice for browser automations in production.
