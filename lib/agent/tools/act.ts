@@ -20,19 +20,18 @@ export const createActTool = (
     }),
     execute: async ({ action }) => {
       try {
+        const builtPrompt = buildActObservePrompt(
+          action,
+          Object.values(SupportedPlaywrightAction),
+        );
+
         const observeOptions = executionModel
           ? {
-              instruction: buildActObservePrompt(
-                action,
-                Object.values(SupportedPlaywrightAction),
-              ),
+              instruction: builtPrompt,
               modelName: executionModel,
             }
           : {
-              instruction: buildActObservePrompt(
-                action,
-                Object.values(SupportedPlaywrightAction),
-              ),
+              instruction: builtPrompt,
             };
 
         const observeResults = await stagehandPage.page.observe(observeOptions);
@@ -46,29 +45,26 @@ export const createActTool = (
 
         const observeResult = observeResults[0];
 
-        let result;
-        if (executionModel) {
-          result = await stagehandPage.page.act({
-            action,
-            modelName: executionModel,
-          });
-        } else {
-          result = await stagehandPage.page.act(observeResult);
-        }
+        const result = await stagehandPage.page.act(observeResult);
 
         const isIframeAction = result.action === "an iframe";
 
         if (isIframeAction) {
-          // For iframe actions, we need to observe again with iframes: true to get the correct selector
           const iframeObserveOptions = executionModel
-            ? { instruction: action, modelName: executionModel, iframes: true }
-            : { instruction: action, iframes: true };
+            ? {
+                instruction: builtPrompt,
+                modelName: executionModel,
+                iframes: true,
+              }
+            : {
+                instruction: builtPrompt,
+                iframes: true,
+              };
 
           const iframeObserveResults =
             await stagehandPage.page.observe(iframeObserveOptions);
 
           if (!iframeObserveResults || iframeObserveResults.length === 0) {
-            // If we can't observe anything in the iframe context, fail gracefully
             return {
               success: false,
               error: "No observable actions found within iframe context",
@@ -93,7 +89,6 @@ export const createActTool = (
           };
         }
 
-        // For regular (non-iframe) actions, use the original observe result
         const playwrightArguments = {
           description: observeResult.description,
           method: observeResult.method,
