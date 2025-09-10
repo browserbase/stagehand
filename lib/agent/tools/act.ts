@@ -69,7 +69,6 @@ export const createActTool = (
               success: false,
               error: "No observable actions found within iframe context",
               isIframe: true,
-              playwrightArguments: null as null,
             };
           }
 
@@ -106,7 +105,6 @@ export const createActTool = (
         return {
           success: false,
           error: error.message,
-          playwrightArguments: null as null,
         };
       }
     },
