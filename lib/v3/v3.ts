@@ -406,7 +406,7 @@ export class V3 {
       if (pageArg) {
         v3Page = await this.normalizeToV3Page(pageArg);
       } else {
-        v3Page = this.ctx!.activePage();
+        v3Page = await this.ctx!.awaitActivePage();
       }
 
       // normalize selector to the engine your executor expects
@@ -440,7 +440,7 @@ export class V3 {
         page = this.ctx!.resolvePageByMainFrameId(frameId);
       }
     } else {
-      page = this.ctx.activePage();
+      await this.ctx!.awaitActivePage()
     }
 
     const handlerParams: ActHandlerParams = {
@@ -492,7 +492,7 @@ export class V3 {
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
     } else {
-      page = this.ctx.activePage();
+      await this.ctx!.awaitActivePage()
     }
 
     const noArgs = !params?.instruction && !params?.schema;
@@ -547,7 +547,7 @@ export class V3 {
         page = this.ctx.resolvePageByMainFrameId(frameId);
       }
     } else {
-      page = this.ctx.activePage();
+      await this.ctx!.awaitActivePage()
     }
 
     const handlerParams: ObserveHandlerParams = {
