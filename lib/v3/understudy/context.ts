@@ -36,6 +36,8 @@ export class V3Context {
   ) {}
 
   private readonly _piercerInstalled = new Set<string>();
+  // Timestamp for most recent popup/open signal
+  private _lastPopupSignalAt = 0;
 
   private sessionKey(session: CDPSessionLike): string {
     return session.id ?? "root";
@@ -240,6 +242,11 @@ export class V3Context {
         ) {
           return;
         }
+        // Note popups to help activePage settle
+        const ti = info;
+        if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
+          this._notePopupSignal();
+        }
         try {
           await this.conn.attachToTarget(info.targetId);
         } catch {
@@ -316,7 +323,7 @@ export class V3Context {
 
     // Top-level handling
     if (isTopLevelPage(info)) {
-      const page = await Page.create(session, info.targetId);
+      const page = await Page.create(this.conn, session, info.targetId);
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
       this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);
@@ -560,6 +567,11 @@ export class V3Context {
         owner.onFrameNavigated(evt.frame, session);
       },
     );
+
+    // Observe window.open to anticipate default page changes
+    session.on<Protocol.Page.WindowOpenEvent>("Page.windowOpen", () => {
+      this._notePopupSignal();
+    });
   }
 
   /**
@@ -577,5 +589,43 @@ export class V3Context {
       if (p === page) return tid;
     }
     return undefined;
+  }
+
+  private _notePopupSignal(): void {
+    this._lastPopupSignalAt = Date.now();
+  }
+
+  /**
+   * Await the current active page, waiting briefly if a popup/open was just triggered.
+   * Normal path returns immediately; popup path waits up to timeoutMs for the new page.
+   */
+  async awaitActivePage(timeoutMs = 2000): Promise<Page> {
+    const recentWindowMs = 300; // keep small to avoid slowing normal path
+    const now = Date.now();
+    const hasRecentPopup = now - this._lastPopupSignalAt <= recentWindowMs;
+
+    const immediate = this.activePage();
+    if (!hasRecentPopup && immediate) return immediate;
+
+    const deadline = now + timeoutMs;
+    while (Date.now() < deadline) {
+      // Prefer most-recent by createdAt
+      let newestTid: TargetId | undefined;
+      let newestTs = -1;
+      for (const [tid] of this.pagesByTarget) {
+        const ts = this.createdAtByTarget.get(tid) ?? 0;
+        if (ts > newestTs) {
+          newestTs = ts;
+          newestTid = tid;
+        }
+      }
+      if (newestTid) {
+        const p = this.pagesByTarget.get(newestTid);
+        if (p && newestTs >= this._lastPopupSignalAt) return p;
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (immediate) return immediate;
+    throw new Error("awaitActivePage: no page available");
   }
 }
