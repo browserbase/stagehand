@@ -45,9 +45,7 @@ export const createActTool = (
 
         const observeResult = observeResults[0];
 
-        const result = await stagehandPage.page.act(observeResult);
-
-        const isIframeAction = result.action === "an iframe";
+        const isIframeAction = observeResult.description === "an iframe";
 
         if (isIframeAction) {
           const iframeObserveOptions = executionModel
@@ -88,6 +86,7 @@ export const createActTool = (
           };
         }
 
+        const result = await stagehandPage.page.act(observeResult);
         const playwrightArguments = {
           description: observeResult.description,
           method: observeResult.method,
