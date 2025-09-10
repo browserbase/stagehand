@@ -1,5 +1,6 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
+import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import {
   computeAbsoluteXPathForNode,
@@ -48,6 +49,7 @@ export class Page {
   private readonly pageId: string;
 
   private constructor(
+    private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
@@ -169,6 +171,7 @@ export class Page {
    * Assumes Page domain is already enabled on the session passed in.
    */
   static async create(
+    conn: CdpConnection,
     session: CDPSessionLike,
     targetId: string,
   ): Promise<Page> {
@@ -181,7 +184,7 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(session, targetId, mainFrameId);
+    const page = new Page(conn, session, targetId, mainFrameId);
 
     // Seed topology + ownership for nodes known at creation time.
     page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
@@ -352,6 +355,17 @@ export class Page {
 
   public mainFrame(): Frame {
     return this.mainFrameWrapper;
+  }
+
+  /**
+   * Close this top-level page (tab). Best-effort via Target.closeTarget.
+   */
+  public async close(): Promise<void> {
+    try {
+      await this.conn.send("Target.closeTarget", { targetId: this._targetId });
+    } catch {
+      // ignore
+    }
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
