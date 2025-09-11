@@ -30,20 +30,26 @@ export async function createBrowserbaseSession(
     return { ws, sessionId: resumeSessionId, bb };
   }
 
-  // Create a new session with optional overrides
-  const createPayload: Browserbase.Sessions.SessionCreateParams = {
-    projectId: params?.projectId ?? projectId,
-    ...(params ?? {}),
+  // Create a new session with optional overrides and a default viewport
+  const {
+    projectId: overrideProjectId,
+    browserSettings,
+    userMetadata,
+    ...rest
+  } = params ?? {};
+
+  const createPayload = {
+    projectId: overrideProjectId ?? projectId,
+    ...rest,
+    browserSettings: {
+      ...(browserSettings ?? {}),
+      viewport: browserSettings?.viewport ?? { width: 1024, height: 768 },
+    },
     userMetadata: {
-      ...(params?.userMetadata ?? {}),
+      ...(userMetadata ?? {}),
       stagehand: "true",
     },
-  } as Browserbase.Sessions.SessionCreateParams;
-
-  // Provide a sane default viewport if not supplied
-  if (!createPayload.browserSettings.viewport) {
-    createPayload.browserSettings.viewport = { width: 1024, height: 768 };
-  }
+  } satisfies Browserbase.Sessions.SessionCreateParams;
 
   const created = (await bb.sessions.create(createPayload)) as unknown as {
     id: string;
