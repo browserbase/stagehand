@@ -1,5 +1,17 @@
 # @browserbasehq/stagehand
 
+## 2.5.1
+
+### Patch Changes
+
+- [#1066](https://github.com/browserbase/stagehand/pull/1066) [`9daa584`](https://github.com/browserbase/stagehand/commit/9daa58477111e1470f2b618a898738b5e1967cb6) Thanks [@tkattkat](https://github.com/tkattkat)! - Add playwright arguments to agent execute response
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - Replace operator handler with base of new agent
+
+- [#1056](https://github.com/browserbase/stagehand/pull/1056) [`6a002b2`](https://github.com/browserbase/stagehand/commit/6a002b234dbf1ac7d1f180eeffdf66154fa7799b) Thanks [@chrisreadsf](https://github.com/chrisreadsf)! - remove need for duplicate project id if already passed to Stagehand
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - replace operator agent with scaffold for new stagehand agent
+
 ## 2.5.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-examples",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "private": true,
   "description": "Example scripts for Stagehand",
   "main": "./",
