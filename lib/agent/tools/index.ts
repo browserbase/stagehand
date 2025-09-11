@@ -12,6 +12,8 @@ import { LogLine } from "@/types/log";
 import { thinkTool } from "./think";
 import { createClickTool } from "./click";
 import { createTypeTool } from "./type";
+import { createDragAndDropTool } from "./dragAndDrop";
+import { createSearchTool } from "./search";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -27,6 +29,7 @@ export function createAgentTools(
     act: createActTool(stagehandPage, executionModel),
     ariaTree: createAriaTreeTool(stagehandPage),
     click: createClickTool(stagehandPage),
+    dragAndDrop: createDragAndDropTool(stagehandPage),
     type: createTypeTool(stagehandPage),
     close: createCloseTool(),
     think: thinkTool,
@@ -36,6 +39,7 @@ export function createAgentTools(
     screenshot: createScreenshotTool(stagehandPage),
     scroll: createScrollTool(stagehandPage),
     wait: createWaitTool(),
+    search: createSearchTool(),
   };
 }
 

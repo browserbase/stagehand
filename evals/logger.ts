@@ -66,6 +66,7 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  */
 export class EvalLogger {
   private logs: LogLineEval[] = [];
+  private maxLogEntries = 100; // Limit log entries to prevent memory buildup
   stagehand?: Stagehand;
 
   constructor() {
@@ -89,7 +90,7 @@ export class EvalLogger {
    */
   log(logLine: LogLine) {
     console.log(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
+    this.addLogLine(parseLogLine(logLine));
   }
 
   /**
@@ -99,7 +100,7 @@ export class EvalLogger {
    */
   error(logLine: LogLine) {
     console.error(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
+    this.addLogLine(parseLogLine(logLine));
   }
 
   /**
@@ -109,7 +110,21 @@ export class EvalLogger {
    */
   warn(logLine: LogLine) {
     console.warn(logLineToString(logLine));
-    this.logs.push(parseLogLine(logLine));
+    this.addLogLine(parseLogLine(logLine));
+  }
+
+  /**
+   * addLogLine:
+   * Adds a log line to the logs array, maintaining a maximum size to prevent memory buildup.
+   * If the array exceeds maxLogEntries, it removes the oldest entries.
+   */
+  private addLogLine(logLine: LogLineEval) {
+    this.logs.push(logLine);
+
+    // Keep only the most recent entries to prevent memory buildup
+    if (this.logs.length > this.maxLogEntries) {
+      this.logs = this.logs.slice(-this.maxLogEntries);
+    }
   }
 
   /**
@@ -119,5 +134,13 @@ export class EvalLogger {
    */
   getLogs(): LogLineEval[] {
     return this.logs || [];
+  }
+
+  /**
+   * clearLogs:
+   * Clears all stored log lines to free up memory.
+   */
+  clearLogs(): void {
+    this.logs = [];
   }
 }

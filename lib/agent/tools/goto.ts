@@ -10,7 +10,7 @@ export const createGotoTool = (stagehandPage: StagehandPage) =>
     }),
     execute: async ({ url }) => {
       try {
-        await stagehandPage.page.goto(url, { waitUntil: "load" });
+        await stagehandPage.page.goto(url, { waitUntil: "commit" });
         return { success: true, url };
       } catch (error) {
         return { success: false, error: error.message };

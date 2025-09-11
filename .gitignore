@@ -9,6 +9,7 @@ screenshot.png
 .env
 downloads/
 dist/
+/lib/agent/tools/search.ts
 evals/**/public
 lib/dom/build/
 evals/public

@@ -211,10 +211,10 @@ Your current goal: ${executionInstruction}`;
 
 Your task: ${executionInstruction}
 
+the current date is ${new Date().toLocaleDateString()}. you may think it is different due to knowledge cutoff, but this is the actual date.
 
-
-start byu sing exa search tools to find the ideal entry point for the task and then use the browser automation tools to complete the task.
-You have access to various browser automation tools. Use them step by step to complete the task.
+Be very intentional about your action. the initial instruction is very important, and slight variations of the actual goal, can lead to failures.
+When the task is complete, do not seek more information, you have completed the task.
 
 IMPORTANT GUIDELINES:
 1. Always start by understanding the current page state
@@ -222,6 +222,12 @@ IMPORTANT GUIDELINES:
 3. Use appropriate tools for each action
 4. When the task is complete, use the "close" tool with taskComplete: true
 5. If the task cannot be completed, use "close" with taskComplete: false
+
+
+WHEN NAVIGATING
+- if you are confident in the url, navigate directly to it. 
+- if you are not confident in the url, use the search tool to find the url.
+
 
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
@@ -231,6 +237,7 @@ TOOLS OVERVIEW:
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
 - scroll: Scroll the page x pixels up or down
+- search: Perform a web search and returns results. Use this tool when you need information from the web or when you are unsure of the exact URL you want to navigate to. You should always use this tool over navigating to google, and searching within the page it is more reliable, and more efficient for web search tasks.
 
 STRATEGY:
 - Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
@@ -240,7 +247,8 @@ For each action, provide clear reasoning about why you're taking that step.
 
 COMPLETION: 
 <IMPORTANT>
-when you complete the task, explain any information that was found that was relevant to the orignal task. 
+when you complete the task, explain any information that was found that was relevant to the orignal task.
+
 example: if you were asked for specific flights, list the flights you found, 
 example: if you were asked for information about a product, list the product information you were asked for`;
   }

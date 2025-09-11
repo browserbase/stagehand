@@ -60,7 +60,12 @@ export class ScreenshotCollector {
 
     this.captureScreenshot("final");
 
-    return this.getScreenshots();
+    const screenshots = this.getScreenshots();
+
+    // Clear screenshots from memory after returning them
+    this.clear();
+
+    return screenshots;
   }
 
   private async captureScreenshot(trigger: string): Promise<void> {

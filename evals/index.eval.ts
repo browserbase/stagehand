@@ -50,7 +50,7 @@ dotenv.config();
  */
 const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
   ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
-  : 3;
+  : 2; // Reduced from 3 to 2 to help with memory usage
 
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
@@ -250,6 +250,13 @@ const generateFilteredTestcases = (): Testcase[] => {
       // Each test is a function that runs the corresponding task module
       task: async (input: EvalInput) => {
         const logger = new EvalLogger();
+
+        // Log memory usage before starting task
+        const memUsage = process.memoryUsage();
+        console.log(
+          `🧠 Memory before ${input.name}: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+        );
+
         try {
           // Dynamically import the task based on its name
           const taskModulePath = path.join(
@@ -373,6 +380,10 @@ const generateFilteredTestcases = (): Testcase[] => {
             }
           } finally {
             await taskInput.stagehand.close();
+            // Force garbage collection if available
+            if (global.gc) {
+              global.gc();
+            }
           }
           return result;
         } catch (error) {
@@ -392,10 +403,14 @@ const generateFilteredTestcases = (): Testcase[] => {
               },
             },
           });
+          // Clear logger to free memory before returning error
+          const logs = logger.getLogs();
+          logger.clearLogs();
+
           return {
             _success: false,
             error: JSON.parse(JSON.stringify(error, null, 2)),
-            logs: logger.getLogs(),
+            logs: logs,
           };
         }
       },

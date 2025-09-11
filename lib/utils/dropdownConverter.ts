@@ -259,5 +259,26 @@ export const dropdownConverterScript = `
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function injectDropdownConverter(page: any) {
-  await page.addScriptTag({ content: dropdownConverterScript });
+  const guardedScript = `
+if (!window.__dropdownConverterInjected) {
+  window.__dropdownConverterInjected = true;
+  ${dropdownConverterScript}
+}`;
+
+  // Ensure future navigations get the converter automatically
+  await page.addInitScript({ content: guardedScript });
+
+  // Best effort: apply to the current document as well
+  try {
+    await page.waitForLoadState("domcontentloaded");
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    Error;
+  }
+  try {
+    await page.evaluate(guardedScript);
+  } catch {
+    // Ignore if the context was destroyed mid-navigation; init script will cover next docs
+  }
 }

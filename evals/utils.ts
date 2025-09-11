@@ -111,11 +111,25 @@ export function logLineToString(logLine: LogLine): string {
     if (logLine.auxiliary?.error) {
       return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message}\n ${logLine.auxiliary.error.value}\n ${logLine.auxiliary.trace.value}`;
     }
-    return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${
-      logLine.auxiliary ? JSON.stringify(logLine.auxiliary) : ""
-    }`;
-  } catch (error) {
-    console.error(`Error logging line:`, error);
+
+    // Optimize JSON.stringify to prevent memory issues with large objects
+    let auxiliaryStr = "";
+    if (logLine.auxiliary) {
+      try {
+        // Limit the depth and size of JSON stringification
+        auxiliaryStr = JSON.stringify(logLine.auxiliary, null, 0);
+        // Truncate very large auxiliary data to prevent memory issues
+        if (auxiliaryStr.length > 10000) {
+          auxiliaryStr = auxiliaryStr.substring(0, 10000) + "...[truncated]";
+        }
+      } catch {
+        auxiliaryStr = "[auxiliary data too large to serialize]";
+      }
+    }
+
+    return `${timestamp}::[stagehand:${logLine.category}] ${logLine.message} ${auxiliaryStr}`;
+  } catch {
+    // console.error(`Error logging line:`, error); // Disabled for silent mode
     return "error logging line";
   }
 }
