@@ -32,7 +32,8 @@ export const webvoyager: EvalFunction = async ({
 
     const agent = stagehand.agent({
       model: modelName,
-      executionModel: "google/gemini-2.5-flash",
+      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
+      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}`,
     });
 
     // Start collecting screenshots in parallel
