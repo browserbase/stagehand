@@ -51,7 +51,7 @@ importers:
         specifier: ^8.18.0
         version: 8.18.1
       zod:
-        specifier: '>=3.25.0 <4.1.0'
+        specifier: '>=3.25.0 <3.25.68'
         version: 3.25.67
       zod-to-json-schema:
         specifier: ^3.23.5
@@ -5816,10 +5816,10 @@ snapshots:
 
   '@ark/util@0.46.0': {}
 
-  '@asteasolutions/zod-to-openapi@6.4.0(zod@3.25.67)':
+  '@asteasolutions/zod-to-openapi@6.4.0(zod@3.25.76)':
     dependencies:
       openapi3-ts: 4.4.0
-      zod: 3.25.67
+      zod: 3.25.76
 
   '@asyncapi/parser@3.4.0':
     dependencies:
@@ -5872,15 +5872,15 @@ snapshots:
 
   '@braintrust/core@0.0.34':
     dependencies:
-      '@asteasolutions/zod-to-openapi': 6.4.0(zod@3.25.67)
+      '@asteasolutions/zod-to-openapi': 6.4.0(zod@3.25.76)
       uuid: 9.0.1
-      zod: 3.25.67
+      zod: 3.25.76
 
   '@braintrust/core@0.0.67':
     dependencies:
-      '@asteasolutions/zod-to-openapi': 6.4.0(zod@3.25.67)
+      '@asteasolutions/zod-to-openapi': 6.4.0(zod@3.25.76)
       uuid: 9.0.1
-      zod: 3.25.67
+      zod: 3.25.76
 
   '@browserbasehq/sdk@2.5.0':
     dependencies:
@@ -6596,8 +6596,8 @@ snapshots:
       p-queue: 6.6.2
       p-retry: 4.6.2
       uuid: 10.0.0
-      zod: 3.25.67
-      zod-to-json-schema: 3.24.5(zod@3.25.67)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
     transitivePeerDependencies:
       - openai
 
@@ -6605,9 +6605,9 @@ snapshots:
     dependencies:
       '@langchain/core': 0.3.50(openai@4.96.2(ws@8.18.1)(zod@3.25.67))
       js-tiktoken: 1.0.20
-      openai: 4.96.2(ws@8.18.1)(zod@3.25.67)
-      zod: 3.25.67
-      zod-to-json-schema: 3.24.5(zod@3.25.67)
+      openai: 4.96.2(ws@8.18.1)(zod@3.25.76)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
     transitivePeerDependencies:
       - encoding
       - ws
@@ -7702,8 +7702,8 @@ snapshots:
       linear-sum-assignment: 1.0.7
       mustache: 4.2.0
       openai: 4.23.0
-      zod: 3.25.67
-      zod-to-json-schema: 3.24.5(zod@3.25.67)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
     transitivePeerDependencies:
       - encoding
 
@@ -10578,6 +10578,21 @@ snapshots:
     optionalDependencies:
       ws: 8.18.1
       zod: 3.25.67
+    transitivePeerDependencies:
+      - encoding
+
+  openai@4.96.2(ws@8.18.1)(zod@3.25.76):
+    dependencies:
+      '@types/node': 18.19.87
+      '@types/node-fetch': 2.6.12
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    optionalDependencies:
+      ws: 8.18.1
+      zod: 3.25.76
     transitivePeerDependencies:
       - encoding
 
