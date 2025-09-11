@@ -368,6 +368,8 @@ export class V3 {
       const { ws, sessionId, bb } = await createBrowserbaseSession(
         apiKey,
         projectId,
+        this.opts.browserbaseSessionCreateParams,
+        this.opts.browserbaseSessionID,
       );
       this.ctx = await V3Context.create(ws, {
         includeCursor: this.opts.includeCursor ?? false,
