@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "../../v3/v3";
+import V3 from "../../v3/v3.js";
 import puppeteer from "puppeteer-core";
 import { chromium } from "playwright";
 import { ObserveResult } from "@/types/stagehand";

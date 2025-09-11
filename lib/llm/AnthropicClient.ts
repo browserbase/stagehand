@@ -21,7 +21,6 @@ export class AnthropicClient extends LLMClient {
   private client: Anthropic;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
-  public clientOptions: ClientOptions;
 
   constructor({
     enableCaching = false,
