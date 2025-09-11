@@ -14,6 +14,14 @@ export interface V3Options {
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
+  /**
+   * Optional: fine-tune Browserbase session creation or resume an existing session.
+   */
+  browserbaseSessionCreateParams?: Omit<
+    Browserbase.Sessions.SessionCreateParams,
+    "projectId"
+  > & { projectId?: string };
+  browserbaseSessionID?: string;
 
   // Local Chromium (optional)
   chromePath?: string;
