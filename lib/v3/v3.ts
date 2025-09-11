@@ -695,12 +695,38 @@ export class V3 {
 
   /** Guard: ensure Browserbase credentials exist in options. */
   private requireBrowserbaseCreds(): { apiKey: string; projectId: string } {
-    const { apiKey, projectId } = this.opts;
+    let { apiKey, projectId } = this.opts;
+
+    // Fall back to environment variables if not explicitly provided
+    // dotenv is already configured at the top of this module
+    if (!apiKey)
+      apiKey = process.env.BROWSERBASE_API_KEY ?? process.env.BB_API_KEY;
+    if (!projectId)
+      projectId =
+        process.env.BROWSERBASE_PROJECT_ID ?? process.env.BB_PROJECT_ID;
+
     if (!apiKey || !projectId) {
+      const missing: string[] = [];
+      if (!apiKey) missing.push("BROWSERBASE_API_KEY");
+      if (!projectId) missing.push("BROWSERBASE_PROJECT_ID");
       throw new Error(
-        "BROWSERBASE requires both apiKey and projectId in V3Options.",
+        `BROWSERBASE credentials missing. Provide in your v3 constructor, or set ${missing.join(
+          ", ",
+        )} in your .env`,
       );
     }
+
+    // Cache resolved values back into opts for consistency
+    this.opts.apiKey = apiKey;
+    this.opts.projectId = projectId;
+
+    // Informational log
+    this.logger({
+      category: "init",
+      message: "Using Browserbase credentials",
+      level: 1,
+    });
+
     return { apiKey, projectId };
   }
 
