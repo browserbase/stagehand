@@ -40,6 +40,11 @@ export async function createBrowserbaseSession(
     },
   } as Browserbase.Sessions.SessionCreateParams;
 
+  // Provide a sane default viewport if not supplied
+  if (!createPayload.browserSettings.viewport) {
+    createPayload.browserSettings.viewport = { width: 1024, height: 768 };
+  }
+
   const created = (await bb.sessions.create(createPayload)) as unknown as {
     id: string;
     connectUrl: string;
