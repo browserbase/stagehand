@@ -26,12 +26,21 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
 import { defaultExtractSchema, pageTextSchema } from "../v3/types";
-import { ObserveResult, ActResult, HistoryEntry } from "@/types/stagehand";
+import {
+  ObserveResult,
+  ActResult,
+  HistoryEntry,
+  AgentConfig,
+} from "@/types/stagehand";
+import { AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { StagehandLogger } from "@/lib/logger";
 import { LogLine } from "@/types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
 import process from "process";
+import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
+import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
+import { resolveTools } from "@/lib/mcp/utils";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -797,6 +806,78 @@ export class V3 {
       return page;
     }
     throw new Error("Unsupported page object.");
+  }
+
+  /**
+   * Create a v3 agent instance (AISDK tool-based) with execute().
+   * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
+   */
+  agent(options?: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  } {
+    this.logger({
+      category: "agent",
+      message: "Creating v3 agent instance",
+      level: 1,
+    });
+
+    // If a CUA provider is specified, use the CUA path
+    if (options?.provider) {
+      return {
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+          if (options?.integrations && !this.experimental) {
+            throw new Error(
+              "MCP integrations are experimental. Enable experimental: true in V3 options.",
+            );
+          }
+          const tools = options?.integrations
+            ? await resolveTools(options.integrations, options.tools)
+            : (options?.tools ?? {});
+
+          const handler = new V3CuaAgentHandler(
+            this,
+            this.logger,
+            {
+              modelName: options.model!,
+              clientOptions: options.options,
+              userProvidedInstructions:
+                options.instructions ??
+                `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+              agentType: options.provider,
+            },
+            tools,
+          );
+          return handler.execute(instructionOrOptions);
+        },
+      };
+    }
+
+    // Default: AISDK tools-based agent
+    return {
+      execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
+        if (options?.integrations && !this.experimental) {
+          throw new Error(
+            "MCP integrations are experimental. Enable experimental: true in V3 options.",
+          );
+        }
+
+        const tools = options?.integrations
+          ? await resolveTools(options.integrations, options.tools)
+          : (options?.tools ?? {});
+
+        const handler = new V3AgentHandler(
+          this,
+          this.logger,
+          this.llmClient,
+          options?.model,
+          options?.instructions,
+          tools,
+        );
+        return handler.execute(instructionOrOptions);
+      },
+    };
   }
 }
 

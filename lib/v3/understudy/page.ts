@@ -520,6 +520,36 @@ export class Page {
   }
 
   /**
+   * Force the page viewport to an exact CSS size and device scale factor.
+   * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
+   */
+  async setViewportSize(
+    width: number,
+    height: number,
+    options?: { deviceScaleFactor?: number },
+  ): Promise<void> {
+    const dsf = Math.max(0.01, options?.deviceScaleFactor ?? 1);
+    await this.mainSession
+      .send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: dsf,
+        mobile: false,
+        screenWidth: width,
+        screenHeight: height,
+        positionX: 0,
+        positionY: 0,
+        scale: 1,
+      } as Protocol.Emulation.SetDeviceMetricsOverrideRequest)
+      .catch(() => {});
+
+    // Best-effort ensure visible size in headless
+    await this.mainSession
+      .send("Emulation.setVisibleSize", { width, height })
+      .catch(() => {});
+  }
+
+  /**
    * Click at absolute page coordinates (CSS pixels).
    * Dispatches mouseMoved → mousePressed → mouseReleased via CDP Input domain
    * on the top-level page target's session. Coordinates are relative to the

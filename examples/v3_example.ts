@@ -1,35 +1,40 @@
 import { V3 } from "../lib/v3/v3";
-import puppeteer from "puppeteer-core";
+import { z } from "zod/v3";
 
 async function example(v3: V3) {
-  const puppeteerBrowser = await puppeteer.connect({
-    browserWSEndpoint: v3.connectURL(),
-  });
-  const puppeteerPages = await puppeteerBrowser.pages();
-
-  const page = puppeteerPages[0];
-
+  const page = v3.context().pages()[0];
   await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-root-in-oopif/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
   );
+  const startTime = Date.now();
+  const companyList = await v3.extract({
+    instruction:
+      "Extract ALL companies that received the AI grant. Each object should contain the company name and its corresponding batch number. MAKE SURE YOU GET ALL FOUR BATCHES.",
+    schema: z.object({
+      companies: z.array(
+        z.object({
+          company: z.string(),
+          batch: z.string(),
+        }),
+      ),
+    }),
+  });
+  console.log(companyList.companies);
+  console.log(`endTime: ${Date.now() - startTime}`);
 
-  const observeResult = {
-    selector:
-      "xpath=/html/body/main/section/iframe/html/body/shadow-demo//div/button",
-    method: "click",
-    description: "nunya",
-    arguments: [""],
-  };
-
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  await v3.act(observeResult, page);
+  // /html[1]/body[1]/div[6]/div[1]/header/nav/div[1]/div/div[2]/div[1]/form/div[1]/div[2]/input
+  // /html[1]/body[1]/div[5]/div[1]/header[1]/nav[1]/div[1]/div[1]/div[1]/div[3]/div[1]/form[1]/div[1]/div[2]/input[1]
 }
 
 (async () => {
   const v3 = new V3({
     env: "LOCAL",
     headless: false,
-    verbose: 0,
+    verbose: 1,
+    logInferenceToFile: true,
+    modelName: "google/gemini-2.5-flash-lite",
+    chromeFlags: ["--window-size=1024,768"],
+    // includeCursor: true,
   });
   await v3.init();
   await example(v3);
