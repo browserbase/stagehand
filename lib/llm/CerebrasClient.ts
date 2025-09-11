@@ -17,7 +17,6 @@ export class CerebrasClient extends LLMClient {
   private client: OpenAI;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
-  public clientOptions: ClientOptions;
   public hasVision = false;
 
   constructor({

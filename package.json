@@ -1,10 +1,18 @@
 {
   "name": "@browserbasehq/stagehand",
   "version": "2.5.0",
+  "type": "module",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "bin": {
     "evals": "./dist/evals/cli.js"
   },
@@ -24,7 +32,7 @@
     "build-v3-dom-scripts": "tsx lib/v3/dom/genDomScripts.ts",
     "build-dom-scripts": "tsx lib/dom/genDomScripts.ts",
     "build-types": "tsc --emitDeclarationOnly --outDir dist",
-    "build-js": "tsup lib/index.ts --dts",
+    "build-js": "tsup lib/index.ts --format esm,cjs --dts --target es2022",
     "build:cli": "tsup evals/cli.ts --outDir dist/evals --format cjs && cp evals/evals.config.json dist/evals/ && chmod +x dist/evals/cli.js && npm link",
     "build": "pnpm run lint && pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-v3-dom-scripts && pnpm run build-js && pnpm run build-types",
     "gen-version": "tsx scripts/gen-version.ts",
