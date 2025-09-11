@@ -1,4 +1,4 @@
-import V3 from "../lib/v3/v3.js";
+import { V3 } from "../lib/v3/v3";
 import puppeteer from "puppeteer-core";
 
 const v3 = new V3({
@@ -28,3 +28,6 @@ const observeResult = {
 
 await new Promise((resolve) => setTimeout(resolve, 200));
 await v3.act(observeResult, page);
+
+await v3.close();
+await puppeteerBrowser.close();

@@ -68,7 +68,7 @@ function defaultLogger(
  * - Bridges external page objects (Playwright/Puppeteer) into internal frameIds for handlers.
  * - Provides a stable API surface for downstream code regardless of runtime environment.
  */
-export default class V3 {
+export class V3 {
   private readonly opts: V3Options;
   private state: InitState = { kind: "UNINITIALIZED" };
   private actHandler: ActHandler | null = null;

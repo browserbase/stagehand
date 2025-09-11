@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import V3 from "../../v3/v3.js";
+import { V3 } from "../../v3/v3";
 
 test.describe("V3 default page tracking", () => {
   let v3: V3;
