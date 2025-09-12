@@ -14,7 +14,7 @@ test.describe("V3 default page tracking", () => {
   });
 
   test("activePage points to initial page", async () => {
-    const ctx = v3.context();
+    const ctx = v3.context;
     // Should have at least one top-level page
     const pages = ctx.pages();
     expect(pages.length).toBeGreaterThanOrEqual(1);
@@ -25,7 +25,7 @@ test.describe("V3 default page tracking", () => {
   });
 
   test("activePage switches to most recent top-level page and reverts on close", async () => {
-    const ctx = v3.context();
+    const ctx = v3.context;
     const newPage = await ctx.newPage("https://example.com/");
 
     const activeAfterCreate = await ctx.awaitActivePage();
@@ -33,7 +33,7 @@ test.describe("V3 default page tracking", () => {
   });
 
   test("popup default-page flow via five-tab site", async () => {
-    const ctx = v3.context();
+    const ctx = v3.context;
 
     // 1) Navigate the default page to the site
     const root = await ctx.awaitActivePage();

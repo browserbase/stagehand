@@ -637,7 +637,7 @@ export class V3 {
   }
 
   /** Expose the current CDP-backed context. */
-  context(): V3Context {
+  public get context(): V3Context {
     return this.ctx;
   }
 
