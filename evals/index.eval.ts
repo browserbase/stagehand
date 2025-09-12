@@ -31,7 +31,8 @@ import dotenv from "dotenv";
 import { StagehandEvalError } from "@/types/stagehandErrors";
 import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
-import { initStagehand } from "./initStagehand";
+// import { initStagehand } from "./initStagehand";
+import { initV3 } from "./initV3";
 import { AgentProvider } from "@/lib/agent/AgentProvider";
 import { AISdkClient } from "@/lib/llm/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
@@ -302,7 +303,8 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          let taskInput: Awaited<ReturnType<typeof initStagehand>>;
+          // let taskInput: Awaited<ReturnType<typeof initStagehand>>;
+          let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
 
           if (USE_API) {
             // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
@@ -328,7 +330,13 @@ const generateFilteredTestcases = (): Testcase[] => {
               );
             }
 
-            taskInput = await initStagehand({
+            // taskInput = await initStagehand({
+            //   logger,
+            //   modelName: input.modelName,
+            //   modelClientOptions: { apiKey: apiKey },
+            // });
+            // Also initialize V3 so tasks can migrate to it progressively
+            v3Input = await initV3({
               logger,
               modelName: input.modelName,
               modelClientOptions: { apiKey: apiKey },
@@ -355,7 +363,7 @@ const generateFilteredTestcases = (): Testcase[] => {
                 ),
               });
             }
-            taskInput = await initStagehand({
+            v3Input = await initV3({
               logger,
               llmClient,
               modelName: input.modelName,
@@ -364,7 +372,13 @@ const generateFilteredTestcases = (): Testcase[] => {
           // Pass full EvalInput to the task (data-driven params available via input.params)
           let result;
           try {
-            result = await taskFunction({ ...taskInput, input });
+            result = await taskFunction({
+              // ...taskInput,
+              v3: v3Input?.v3,
+              v3Agent: v3Input?.agent,
+              logger: v3Input?.logger,
+              v3Input,
+            });
             // Log result to console
             if (result && result._success) {
               console.log(`✅ ${input.name}: Passed`);
@@ -372,7 +386,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               console.log(`❌ ${input.name}: Failed`);
             }
           } finally {
-            await taskInput.stagehand.close();
+            if (v3Input?.v3) await v3Input.v3.close();
           }
           return result;
         } catch (error) {

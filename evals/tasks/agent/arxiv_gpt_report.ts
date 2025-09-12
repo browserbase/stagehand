@@ -1,18 +1,19 @@
 //agent often fails on this one,
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://arxiv.org/");
+    const page = v3.context().pages()[0];
+    const evaluator = new V3Evaluator(v3);
+    await page.goto("https://arxiv.org/");
 
-    await agent.execute({
+    await v3Agent.execute({
       instruction:
         "Find the paper 'GPT-4 Technical Report', when was v3 submitted?",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
@@ -55,6 +56,6 @@ export const arxiv_gpt_report: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

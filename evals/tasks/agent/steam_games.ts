@@ -3,23 +3,24 @@ import { EvalFunction } from "@/types/evals";
 export const steam_games: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://store.steampowered.com/");
+    const page = v3.context().pages()[0];
+    await page.goto("https://store.steampowered.com/");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Show most played games in Steam. And tell me the number of players in game at this time",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
     });
 
     //strictly used url check and no extract as the top games / players can vary
-    const success = stagehand.page
-      .url()
-      .includes("https://store.steampowered.com/");
+    const success = (await page.url()).includes(
+      "https://store.steampowered.com/",
+    );
 
     if (!success) {
       return {
@@ -45,6 +46,6 @@ export const steam_games: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

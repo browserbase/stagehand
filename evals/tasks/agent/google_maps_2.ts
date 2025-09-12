@@ -1,31 +1,33 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
+import type { AvailableModel } from "@/types/model";
 import { z } from "zod";
 
 export const google_maps_2: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://maps.google.com");
+    const page = v3.context().pages()[0];
+    await page.goto("https://maps.google.com");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Search for the fastest walking route from La Puerta de Alcalá to La Puerta del Sol",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
     });
     logger.log(agentResult);
 
-    const evaluator = new Evaluator(stagehand);
+    const evaluator = new V3Evaluator(v3);
     const result = await evaluator.ask({
       question:
         "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol? Does the distance between the two points show as 1.5 km?",
     });
-    const { distance } = await stagehand.page.extract({
-      modelName: "google/gemini-2.5-flash",
+    const { distance } = await v3.extract({
+      modelName: "google/gemini-2.5-flash" as AvailableModel,
       instruction:
         "Extract the distance for the fastest route walking to the decimal",
       schema: z.object({
@@ -80,6 +82,6 @@ export const google_maps_2: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

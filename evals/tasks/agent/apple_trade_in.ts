@@ -1,18 +1,19 @@
 //this eval is expected to fail due to issues scrolling within the trade in dialog
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const apple_trade_in: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.apple.com/shop/trade-in");
-    const evaluator = new Evaluator(stagehand);
-    await agent.execute({
+    const page = v3.context().pages()[0];
+    await page.goto("https://www.apple.com/shop/trade-in");
+    const evaluator = new V3Evaluator(v3);
+    await v3Agent.execute({
       instruction:
         "Find out the trade-in value for an iPhone 13 Pro Max in good condition on the Apple website.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
@@ -51,6 +52,6 @@ export const apple_trade_in: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

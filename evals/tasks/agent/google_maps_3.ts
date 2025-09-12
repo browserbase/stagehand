@@ -1,16 +1,17 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 export const google_maps_3: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://maps.google.com/");
-    const evaluator = new Evaluator(stagehand);
-    await agent.execute({
+    const page = v3.context().pages()[0];
+    await page.goto("https://maps.google.com/");
+    const evaluator = new V3Evaluator(v3);
+    await v3Agent.execute({
       instruction:
         "Search for locksmiths open now but not open 24 hours in Texas City.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
@@ -47,6 +48,6 @@ export const google_maps_3: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

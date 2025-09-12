@@ -4,11 +4,14 @@ import type { LogLine } from "../types/log";
 import type { AgentInstance } from "../types/agent";
 import type { EvalCase } from "braintrust";
 import { Stagehand } from "@/dist";
+import type { V3 } from "@/lib/v3/v3";
 import { ConstructorParams } from "@/dist";
 import { EvalLogger } from "@/evals/logger";
 
 export type StagehandInitResult = {
   stagehand: Stagehand;
+  v3?: V3;
+  v3Agent?: AgentInstance;
   logger: EvalLogger;
   debugUrl: string;
   sessionUrl: string;

@@ -1,17 +1,18 @@
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 import { EvalFunction } from "@/types/evals";
 
 export const all_recipes: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.allrecipes.com/");
-    const evaluator = new Evaluator(stagehand);
-    const agentResult = await agent.execute({
+    const page = v3.context().pages()[0];
+    await page.goto("https://www.allrecipes.com/");
+    const evaluator = new V3Evaluator(v3);
+    const agentResult = await v3Agent.execute({
       instruction:
         "Search for a recipe for Beef Wellington on Allrecipes that has at least 200 reviews and an average rating of 4.5 stars or higher. List the main ingredients required for the dish.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
@@ -25,7 +26,7 @@ export const all_recipes: EvalFunction = async ({
 
     const success =
       evaluation === "YES" &&
-      stagehand.page.url() ===
+      (await page.url()) ===
         "https://www.allrecipes.com/recipe/16899/beef-wellington/";
 
     if (!success) {
@@ -53,6 +54,6 @@ export const all_recipes: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

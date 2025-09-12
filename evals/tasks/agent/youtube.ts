@@ -3,20 +3,21 @@ import { EvalFunction } from "@/types/evals";
 export const youtube: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://youtube.com");
+    const page = v3.context().pages()[0];
+    await page.goto("https://youtube.com");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Search for Keinemusik's set under some very famous pointy landmarks. Make sure to click on the video",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
-    const url = await stagehand.page.url();
+    const url = await page.url();
 
     if (url.includes("https://www.youtube.com/watch?v=eEobh8iCbIE")) {
       return {
@@ -44,6 +45,6 @@ export const youtube: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

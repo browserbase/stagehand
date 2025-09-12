@@ -1,21 +1,22 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const sf_library_card: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://sflib1.sfpl.org/selfreg");
-    const agentResult = await agent.execute({
+    const page = v3.context().pages()[0];
+    await page.goto("https://sflib1.sfpl.org/selfreg");
+    const agentResult = await v3Agent.execute({
       instruction: "Fill in the 'street Address' field with '166 Geary St'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
     });
     logger.log(agentResult);
-    const evaluator = new Evaluator(stagehand);
+    const evaluator = new V3Evaluator(v3);
     const result = await evaluator.ask({
       question:
         "Does the page show the 'street Address' field filled with '166 Geary St'?",
@@ -57,6 +58,6 @@ export const sf_library_card: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

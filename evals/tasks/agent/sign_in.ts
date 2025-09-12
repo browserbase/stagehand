@@ -3,20 +3,21 @@ import { EvalFunction } from "@/types/evals";
 export const sign_in: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://v0-modern-login-flow.vercel.app/");
+    const page = v3.context().pages()[0];
+    await page.goto("https://v0-modern-login-flow.vercel.app/");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Sign in with the email address 'test@browserbaser.com' and the password 'stagehand=goated' ",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
-    const url = await stagehand.page.url();
+    const url = await page.url();
 
     if (url === "https://v0-modern-login-flow.vercel.app/authorized") {
       return {
@@ -44,6 +45,6 @@ export const sign_in: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };
