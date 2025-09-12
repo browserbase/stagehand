@@ -3,6 +3,7 @@ import { Locator } from "./locator";
 import type { Frame } from "./frame";
 import type { Page } from "./page";
 import { executionContexts } from "./executionContextRegistry";
+import { v3Logger } from "@/lib/v3/logger";
 
 /**
  * Recognize iframe steps like "iframe" or "iframe[2]" in an XPath.
@@ -68,9 +69,14 @@ export async function deepLocatorThroughIframes(
     if (!buf.length) return;
 
     const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
-    console.log("[deep-hop] resolving iframe in parent", {
-      parentFrameId: ctx.frameId,
-      selectorForIframe,
+    v3Logger({
+      category: "deep-hop",
+      message: "resolving iframe in parent",
+      level: 2,
+      auxiliary: {
+        parentFrameId: { value: String(ctx.frameId), type: "string" },
+        selectorForIframe: { value: selectorForIframe, type: "string" },
+      },
     });
 
     const tmp = new Locator(ctx, selectorForIframe);
@@ -84,14 +90,31 @@ export async function deepLocatorThroughIframes(
         { objectId },
       );
       const iframeBackendNodeId = desc.node.backendNodeId;
-      console.log("[deep-hop] iframe backendNodeId", { iframeBackendNodeId });
+      v3Logger({
+        category: "deep-hop",
+        message: "iframe backendNodeId",
+        level: 2,
+        auxiliary: {
+          iframeBackendNodeId: {
+            value: String(iframeBackendNodeId),
+            type: "string",
+          },
+        },
+      });
 
       const childIds = await listDirectChildFrameIdsFromRegistry(
         page,
         ctx.frameId,
         1000,
       );
-      console.log("[deep-hop] direct child frameIds", childIds);
+      v3Logger({
+        category: "deep-hop",
+        message: "direct child frameIds",
+        level: 2,
+        auxiliary: {
+          childIds: { value: JSON.stringify(childIds), type: "object" },
+        },
+      });
 
       let childFrameId: string | undefined;
       for (const fid of childIds) {
@@ -100,9 +123,17 @@ export async function deepLocatorThroughIframes(
             backendNodeId: Protocol.DOM.BackendNodeId;
             nodeId?: Protocol.DOM.NodeId;
           }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
-          console.log("[deep-hop] owner mapping", {
-            frameId: fid,
-            ownerBackendNodeId: owner.backendNodeId,
+          v3Logger({
+            category: "deep-hop",
+            message: "owner mapping",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(fid), type: "string" },
+              ownerBackendNodeId: {
+                value: String(owner.backendNodeId),
+                type: "string",
+              },
+            },
           });
 
           if (owner.backendNodeId === iframeBackendNodeId) {
@@ -110,9 +141,14 @@ export async function deepLocatorThroughIframes(
             break;
           }
         } catch (e) {
-          console.log("[deep-hop] owner lookup failed", {
-            frameId: fid,
-            err: String(e),
+          v3Logger({
+            category: "deep-hop",
+            message: "owner lookup failed",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(fid), type: "string" },
+              err: { value: String(e), type: "string" },
+            },
           });
         }
       }
@@ -123,7 +159,14 @@ export async function deepLocatorThroughIframes(
         );
       }
 
-      console.log("[deep-hop] switching to child", { childFrameId });
+      v3Logger({
+        category: "deep-hop",
+        message: "switching to child",
+        level: 2,
+        auxiliary: {
+          childFrameId: { value: String(childFrameId), type: "string" },
+        },
+      });
       // Ensure we use the correct owning session with minimal delay:
       // 1) If same-process iframe, the parent session owns the frame and its
       //    main world will appear quickly — no extra waiting.
@@ -148,7 +191,15 @@ export async function deepLocatorThroughIframes(
   }
 
   const finalSelector = "xpath=" + buildXPathFromSteps(buf);
-  console.log("[deep-hop] final tail", { frameId: ctx.frameId, finalSelector });
+  v3Logger({
+    category: "deep-hop",
+    message: "final tail",
+    level: 2,
+    auxiliary: {
+      frameId: { value: String(ctx.frameId), type: "string" },
+      finalSelector: { value: finalSelector, type: "string" },
+    },
+  });
   return new Locator(ctx, finalSelector);
 }
 

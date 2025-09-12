@@ -4,6 +4,7 @@ import { Page } from "./understudy/page";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { LLMClient } from "@/lib/llm/LLMClient";
 import { z } from "zod/v3";
+import type { LogLine } from "@/types/log";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -41,6 +42,10 @@ export interface V3Options {
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
   selfHeal?: boolean;
+  /** Disable pino logging backend (useful for tests or minimal environments). */
+  disablePino?: boolean;
+  /** Optional external logger hook for integrating with host apps. */
+  logger?: (line: LogLine) => void;
 
   /** Show a visual cursor overlay that follows our mouse events. */
   includeCursor?: boolean;

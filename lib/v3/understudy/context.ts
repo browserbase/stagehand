@@ -1,5 +1,6 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
+import { v3Logger } from "@/lib/v3/logger";
 import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
 import { installV3PiercerIntoSession } from "../understudy/piercer";
@@ -376,10 +377,15 @@ export class V3Context {
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
     } catch (e) {
-      console.log("[ATTACH] child probe failed (no Page.getFrameTree?)", {
-        sessionId,
-        type: info.type,
-        err: String(e),
+      v3Logger({
+        category: "ctx",
+        message: "ATTACH child probe failed (no Page.getFrameTree?)",
+        level: 2,
+        auxiliary: {
+          sessionId: { value: String(sessionId), type: "string" },
+          type: { value: String(info.type), type: "string" },
+          err: { value: String(e), type: "string" },
+        },
       });
     }
 
@@ -426,9 +432,14 @@ export class V3Context {
         // We can optionally re-evaluate the piercer (idempotent), but not required.
         await this.ensurePiercer(session);
       } catch (e) {
-        console.log("[ctx] child reload attempt failed (continuing)", {
-          sessionId,
-          err: String(e),
+        v3Logger({
+          category: "ctx",
+          message: "child reload attempt failed (continuing)",
+          level: 2,
+          auxiliary: {
+            sessionId: { value: String(sessionId), type: "string" },
+            err: { value: String(e), type: "string" },
+          },
         });
       }
     }

@@ -1,4 +1,5 @@
 import { Protocol } from "devtools-protocol";
+import { v3Logger } from "@/lib/v3/logger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -543,16 +544,34 @@ export class Page {
       try {
         const hit = await resolveNodeForLocationDeep(this, x, y);
         if (hit) {
-          console.log(
-            `[Page.click] resolved hit frame=${hit.frameId} be=${hit.backendNodeId} at (${x}, ${y})`,
-          );
+          v3Logger({
+            category: "page",
+            message: "click resolved hit",
+            level: 2,
+            auxiliary: {
+              frameId: { value: String(hit.frameId), type: "string" },
+              backendNodeId: {
+                value: String(hit.backendNodeId),
+                type: "string",
+              },
+              x: { value: String(x), type: "integer" },
+              y: { value: String(y), type: "integer" },
+            },
+          });
           const xp = await computeAbsoluteXPathForNode(
             this,
             hit.frameId,
             hit.backendNodeId,
           );
           if (xp) xpathResult = xp;
-          console.log(`[Page.click] resolved xpath: ${xpathResult}`);
+          v3Logger({
+            category: "page",
+            message: `click resolved xpath`,
+            level: 2,
+            auxiliary: {
+              xpath: { value: String(xpathResult ?? ""), type: "string" },
+            },
+          });
         }
       } catch {
         // best-effort; fall through if any step fails

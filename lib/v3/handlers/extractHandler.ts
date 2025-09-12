@@ -9,7 +9,7 @@ import { pageTextSchema } from "@/types/page";
 import { injectUrls, transformSchema } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
 import { ZodPathSegments } from "@/types/stagehand";
-import { LogLine } from "@/types/log";
+import { v3Logger } from "@/lib/v3/logger";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -57,7 +57,6 @@ type ExtractionResponse<T extends z.AnyZodObject> = ExtractionResponseBase &
   z.infer<T>;
 
 export class ExtractHandler {
-  private readonly logger: (logLine: LogLine) => void;
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
@@ -75,7 +74,6 @@ export class ExtractHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
-    logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -89,7 +87,6 @@ export class ExtractHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
-    this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -123,7 +120,7 @@ export class ExtractHandler {
       focusXPath: focusXpath,
     });
 
-    this.logger({
+    v3Logger({
       category: "extraction",
       message: "Starting extraction using a11y snapshot",
       level: 1,
@@ -154,7 +151,7 @@ export class ExtractHandler {
       llmClient: this.llmClient,
       requestId,
       userProvidedInstructions: this.systemPrompt,
-      logger: this.logger,
+      logger: v3Logger,
       logInferenceToFile: this.logInferenceToFile,
     })) as ExtractionResponse<T>;
 
@@ -166,7 +163,7 @@ export class ExtractHandler {
       ...output
     } = extractionResponse;
 
-    this.logger({
+    v3Logger({
       category: "extraction",
       message: completed
         ? "Extraction completed successfully"

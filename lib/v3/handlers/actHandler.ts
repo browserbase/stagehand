@@ -2,7 +2,7 @@
 import { ActHandlerParams, V3FunctionName } from "@/lib/v3/types";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { observe } from "@/lib/inference";
-import { LogLine } from "@/types/log";
+import { v3Logger } from "@/lib/v3/logger";
 import { LLMClient } from "@/lib/llm/LLMClient";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
@@ -14,7 +14,6 @@ import { buildActObservePrompt } from "@/lib/prompt";
 import { SupportedPlaywrightAction } from "@/types/act";
 
 export class ActHandler {
-  private readonly logger: (logLine: LogLine) => void;
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
@@ -32,7 +31,6 @@ export class ActHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
-    logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     selfHeal?: boolean,
@@ -46,7 +44,6 @@ export class ActHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
-    this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.selfHeal = !!selfHeal;
@@ -84,7 +81,7 @@ export class ActHandler {
         llmClient: this.llmClient,
         requestId,
         userProvidedInstructions: this.systemPrompt,
-        logger: this.logger,
+        logger: v3Logger,
         returnAction: true,
         logInferenceToFile: this.logInferenceToFile,
         fromAct: true,
@@ -136,7 +133,7 @@ export class ActHandler {
         .filter((v): v is ObserveResult => v !== undefined);
 
       if (results.length === 0) {
-        this.logger({
+        v3Logger({
           category: "action",
           message: "no actionable element returned by LLM",
           level: 1,
@@ -195,7 +192,7 @@ export class ActHandler {
   ): Promise<ActResult> {
     const method = observeResult.method?.trim();
     if (!method || method === "not-supported") {
-      this.logger({
+      v3Logger({
         category: "action",
         message: "ObserveResult has no supported method",
         level: 0,
@@ -223,7 +220,6 @@ export class ActHandler {
         method,
         observeResult.selector,
         args,
-        this.logger,
         domSettleTimeoutMs,
       );
       return {
@@ -236,7 +232,7 @@ export class ActHandler {
 
       // Attempt self-heal: re-observe and retry with updated selector
       if (this.selfHeal) {
-        this.logger({
+        v3Logger({
           category: "action",
           message:
             "Error performing act from an ObserveResult. Reprocessing the page and trying again",
@@ -282,7 +278,7 @@ export class ActHandler {
             llmClient: this.llmClient,
             requestId,
             userProvidedInstructions: this.systemPrompt,
-            logger: this.logger,
+            logger: v3Logger,
             returnAction: true,
             logInferenceToFile: this.logInferenceToFile,
             fromAct: true,
@@ -321,7 +317,6 @@ export class ActHandler {
             method,
             newSelector,
             args,
-            this.logger,
             domSettleTimeoutMs,
           );
 

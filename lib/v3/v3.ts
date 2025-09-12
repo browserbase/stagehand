@@ -27,7 +27,7 @@ import dotenv from "dotenv";
 import { z } from "zod/v3";
 import { defaultExtractSchema, pageTextSchema } from "../v3/types";
 import { ObserveResult, ActResult, HistoryEntry } from "@/types/stagehand";
-import { StagehandLogger } from "@/lib/logger";
+import { initV3Logger, v3Logger } from "./logger";
 import { LogLine } from "@/types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
@@ -35,23 +35,6 @@ import process from "process";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
-
-let globalLogger: StagehandLogger | null = null;
-
-function defaultLogger(
-  line: LogLine,
-  disablePino?: boolean,
-  verbose?: 0 | 1 | 2,
-): void {
-  if (!globalLogger) {
-    globalLogger = new StagehandLogger(
-      { pretty: true, usePino: !disablePino },
-      undefined,
-    );
-    if (verbose !== undefined) globalLogger.setVerbosity(verbose); // << sync
-  }
-  globalLogger.log(line);
-}
 
 /**
  * V3
@@ -88,7 +71,6 @@ export class V3 {
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
 
-  private stagehandLogger: StagehandLogger;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
   private _history: Array<HistoryEntry> = [];
@@ -178,26 +160,15 @@ export class V3 {
 
   constructor(opts: V3Options) {
     this._installProcessGuards();
-    this.externalLogger =
-      (opts as { logger?: (l: LogLine) => void }).logger ??
-      ((l: LogLine) =>
-        defaultLogger(
-          l,
-          (opts as { disablePino?: boolean }).disablePino,
-          (opts as { verbose?: 0 | 1 | 2 }).verbose ?? 1,
-        ));
-
-    this.stagehandLogger = new StagehandLogger(
-      {
-        pretty: true,
-        usePino:
-          !(opts as { disablePino?: boolean }).disablePino &&
-          !(opts as { logger?: (l: LogLine) => void }).logger,
-      },
-      this.externalLogger,
-    );
-    this.verbose = (opts as { verbose?: 0 | 1 | 2 }).verbose ?? 1;
-    this.stagehandLogger.setVerbosity(this.verbose);
+    this.externalLogger = opts.logger;
+    this.verbose = opts.verbose ?? 1;
+    // Initialize the global v3 logger (fire-and-forget)
+    void initV3Logger({
+      verbose: this.verbose,
+      disablePino: opts.disablePino,
+      externalLogger: this.externalLogger,
+      pretty: true,
+    });
     this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
@@ -230,14 +201,21 @@ export class V3 {
 
   private async _panicClose(reason: string): Promise<void> {
     try {
-      // Optional: log to your logger if you prefer
-      console.error(`[v3] panicClose → ${reason}`);
+      v3Logger({
+        category: "v3",
+        message: `panicClose → ${reason}`,
+        level: 0,
+      });
     } catch {
       //
     }
 
     try {
-      console.error(`[v3] calling this.close() → ${reason}`);
+      v3Logger({
+        category: "v3",
+        message: `calling this.close() → ${reason}`,
+        level: 0,
+      });
       await this.close({ force: true });
     } catch {
       // swallow — we’re already panicking
@@ -262,18 +240,28 @@ export class V3 {
           new Promise((r) => setTimeout(r, 3000)),
         ]);
       } finally {
-        console.error(`[v3] ${label}: exiting`);
+        v3Logger({ category: "v3", message: `${label}: exiting`, level: 0 });
         process.exit(1);
       }
     };
 
     const onUncaught = (err: unknown) => {
-      console.error("[v3] uncaughtException:", err);
+      v3Logger({
+        category: "v3",
+        message: "uncaughtException",
+        level: 0,
+        auxiliary: { err: { value: String(err), type: "string" } },
+      });
       void exitAfter("uncaughtException");
     };
 
     const onUnhandled = (reason: unknown) => {
-      console.error("[v3] unhandledRejection:", reason);
+      v3Logger({
+        category: "v3",
+        message: "unhandledRejection",
+        level: 0,
+        auxiliary: { reason: { value: String(reason), type: "string" } },
+      });
       void exitAfter("unhandledRejection");
     };
 
@@ -292,7 +280,6 @@ export class V3 {
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
-      this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.opts.selfHeal ?? false,
@@ -308,7 +295,6 @@ export class V3 {
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
-      this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
@@ -324,7 +310,6 @@ export class V3 {
       this.llmClient,
       this.modelName,
       this.modelClientOptions,
-      this.logger,
       this.opts.systemPrompt ?? "",
       this.logInferenceToFile,
       this.experimental,
@@ -735,7 +720,7 @@ export class V3 {
   public get logger(): (logLine: LogLine) => void {
     return (logLine: LogLine) => {
       logLine.level = logLine.level ?? 1;
-      this.stagehandLogger.log(logLine);
+      v3Logger(logLine);
     };
   }
 
@@ -755,7 +740,12 @@ export class V3 {
     if (this.isPuppeteerPage(page)) {
       const cdp = await page.target().createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
-      console.log("[ActHandler] Puppeteer frame id:", frameTree.frame.id);
+      v3Logger({
+        category: "v3",
+        message: "Puppeteer frame id",
+        level: 2,
+        auxiliary: { frameId: { value: frameTree.frame.id, type: "string" } },
+      });
       return frameTree.frame.id;
     }
 
