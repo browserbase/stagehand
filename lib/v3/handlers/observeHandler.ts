@@ -7,10 +7,9 @@ import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "@/types/context";
 import { ObserveResult } from "@/types/stagehand";
-import { LogLine } from "@/types/log";
+import { v3Logger } from "@/lib/v3/logger";
 
 export class ObserveHandler {
-  private readonly logger: (logLine: LogLine) => void;
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
@@ -28,7 +27,6 @@ export class ObserveHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
-    logger: (logLine: LogLine) => void,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -42,7 +40,6 @@ export class ObserveHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
-    this.logger = logger;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -56,7 +53,7 @@ export class ObserveHandler {
       instruction ??
       "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
-    this.logger({
+    v3Logger({
       category: "observation",
       message: "starting observation",
       level: 1,
@@ -76,7 +73,7 @@ export class ObserveHandler {
     const combinedTree = snapshot.combinedTree;
     const combinedXpathMap = snapshot.combinedXpathMap ?? {};
 
-    this.logger({
+    v3Logger({
       category: "observation",
       message: "Got accessibility tree data",
       level: 1,
@@ -89,7 +86,7 @@ export class ObserveHandler {
       llmClient: this.llmClient,
       requestId: "1234",
       userProvidedInstructions: this.systemPrompt,
-      logger: this.logger,
+      logger: v3Logger,
       returnAction: returnAction ?? true,
       logInferenceToFile: this.logInferenceToFile,
       fromAct: !!fromAct,
@@ -141,7 +138,7 @@ export class ObserveHandler {
       )
     ).filter(<T>(e: T | undefined): e is T => e !== undefined);
 
-    this.logger({
+    v3Logger({
       category: "observation",
       message: "found elements",
       level: 1,

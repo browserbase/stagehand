@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import { v3Logger } from "@/lib/v3/logger";
 import type { CDPSessionLike } from "./cdp";
 import { v3ScriptContent } from "../dom/build/scriptV3Content";
 
@@ -38,7 +39,17 @@ export function tapPiercerConsole(
     (evt) => {
       const head = evt.args?.[0]?.value as string | undefined;
       if (head?.startsWith?.("[v3-piercer]")) {
-        console.log(`[piercer][${label}]`, head, evt.args?.[1]?.value ?? "");
+        v3Logger({
+          category: "piercer",
+          message: `[${label}] ${head}`,
+          level: 2,
+          auxiliary: {
+            value: {
+              value: String(evt.args?.[1]?.value ?? ""),
+              type: "string",
+            },
+          },
+        });
       }
     },
   );

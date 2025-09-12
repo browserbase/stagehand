@@ -1,5 +1,6 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
+import { v3Logger } from "@/lib/v3/logger";
 import type { Frame } from "./frame";
 import { executionContexts } from "./executionContextRegistry";
 
@@ -321,10 +322,15 @@ export class Locator {
       );
 
       const xp = raw.replace(/^xpath=/i, "");
-      console.log("[locator] xpath main-world", {
-        frameId: this.frame.frameId,
-        xp,
-        ctxId,
+      v3Logger({
+        category: "locator",
+        message: "xpath main-world",
+        level: 2,
+        auxiliary: {
+          frameId: { value: String(this.frame.frameId), type: "string" },
+          xp: { value: xp, type: "string" },
+          ctxId: { value: String(ctxId), type: "string" },
+        },
       });
 
       // Try page-side resolver first (fast path for open/closed via attachShadow)
@@ -373,16 +379,26 @@ export class Locator {
 
       // Page-side resolver failed — likely a closed DSD (never hit attachShadow).
       // Fall back to CDP DOM traversal with pierce: true.
-      console.log("[locator] xpath pierce-fallback", {
-        frameId: this.frame.frameId,
-        xp,
+      v3Logger({
+        category: "locator",
+        message: "xpath pierce-fallback",
+        level: 2,
+        auxiliary: {
+          frameId: { value: String(this.frame.frameId), type: "string" },
+          xp: { value: xp, type: "string" },
+        },
       });
 
       const fallback = await this.resolveViaDomPierceXPath(xp);
       if (!fallback) {
-        console.log("[locator] xpath not found", {
-          frameId: this.frame.frameId,
-          xp,
+        v3Logger({
+          category: "locator",
+          message: "xpath not found",
+          level: 2,
+          auxiliary: {
+            frameId: { value: String(this.frame.frameId), type: "string" },
+            xp: { value: xp, type: "string" },
+          },
         });
         throw new Error(`Element not found for selector: ${this.selector}`);
       }
@@ -400,9 +416,14 @@ export class Locator {
         nodeId = null;
       }
 
-      console.log("[locator] xpath pierce-fallback hit", {
-        frameId: this.frame.frameId,
-        backendNodeId,
+      v3Logger({
+        category: "locator",
+        message: "xpath pierce-fallback hit",
+        level: 2,
+        auxiliary: {
+          frameId: { value: String(this.frame.frameId), type: "string" },
+          backendNodeId: { value: String(backendNodeId), type: "string" },
+        },
       });
 
       return { nodeId, objectId };
