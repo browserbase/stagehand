@@ -1,5 +1,13 @@
 import { LogLine } from "./log";
 import { ObserveResult } from "./stagehand";
+import type {
+  StreamTextOnStepFinishCallback,
+  StreamTextOnFinishCallback,
+  StreamTextOnErrorCallback,
+  StreamTextOnChunkCallback,
+  ToolSet,
+} from "ai";
+import type { AgentTools } from "@/lib/agent/tools";
 
 export interface ActToolResult {
   success: boolean;
@@ -45,6 +53,11 @@ export interface AgentOptions {
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
+  abortSignal?: AbortSignal;
+  onStepFinish?: StreamTextOnStepFinishCallback<AgentTools & ToolSet>;
+  onFinish?: StreamTextOnFinishCallback<AgentTools & ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+  onChunk?: StreamTextOnChunkCallback<AgentTools & ToolSet>;
 }
 
 export type AgentProviderType = "openai" | "anthropic";

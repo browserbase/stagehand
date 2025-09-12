@@ -42,6 +42,8 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
 import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
+import { StreamTextResult, ToolSet } from "ai";
+import type { AgentTools } from "./agent/tools";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
@@ -912,10 +914,15 @@ export class Stagehand {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    stream: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<StreamTextResult<AgentTools & ToolSet, never>>;
+    stop: () => void;
   } {
     if (!options || !options.provider) {
       const executionModel = options?.executionModel;
       const systemInstructions = options?.instructions;
+      let abortController = new AbortController();
 
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
@@ -927,6 +934,23 @@ export class Stagehand {
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
+          // If stop() was previously called, reset controller for a new run
+          if (abortController.signal.aborted) {
+            abortController = new AbortController();
+          }
+
+          const executeOptions =
+            typeof instructionOrOptions === "string"
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: abortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal:
+                    instructionOrOptions.abortSignal || abortController.signal,
+                };
+
           return new StagehandAgentHandler(
             this.stagehandPage,
             this.logger,
@@ -934,7 +958,52 @@ export class Stagehand {
             executionModel,
             systemInstructions,
             tools,
-          ).execute(instructionOrOptions);
+          ).execute(executeOptions);
+        },
+        stream: async (
+          instructionOrOptions: string | AgentExecuteOptions,
+        ): Promise<StreamTextResult<AgentTools & ToolSet, never>> => {
+          if (options?.integrations && !this.experimental) {
+            throw new StagehandError(
+              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+            );
+          }
+          const tools = options?.integrations
+            ? await resolveTools(options?.integrations, options?.tools)
+            : (options?.tools ?? {});
+
+          if (abortController.signal.aborted) {
+            abortController = new AbortController();
+          }
+
+          const streamOptions =
+            typeof instructionOrOptions === "string"
+              ? {
+                  instruction: instructionOrOptions,
+                  abortSignal: abortController.signal,
+                }
+              : {
+                  ...instructionOrOptions,
+                  abortSignal:
+                    instructionOrOptions.abortSignal || abortController.signal,
+                };
+
+          return new StagehandAgentHandler(
+            this.stagehandPage,
+            this.logger,
+            this.llmClient,
+            executionModel,
+            systemInstructions,
+            tools,
+          ).stream(streamOptions);
+        },
+        stop: () => {
+          this.log({
+            category: "agent",
+            message: "Stopping agent execution",
+            level: 1,
+          });
+          abortController.abort();
         },
       };
     }
@@ -1013,6 +1082,18 @@ export class Stagehand {
         }
 
         return await agentHandler.execute(executeOptions);
+      },
+      stream: async () => {
+        throw new StagehandError(
+          "Stream method is only available when using AI SDK models (e.g., openai/gpt-4o-mini). Please create an agent without specifying a provider to use the stream method.",
+        );
+      },
+      stop: () => {
+        this.log({
+          category: "agent",
+          message: "Stop is not supported for legacy providers",
+          level: 0,
+        });
       },
     };
   }

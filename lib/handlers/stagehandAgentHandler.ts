@@ -9,8 +9,10 @@ import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
+import { StreamTextResult } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
+import type { AgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
 
 export class StagehandAgentHandler {
@@ -196,6 +198,143 @@ export class StagehandAgentHandler {
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
       };
+    }
+  }
+
+  /**
+   * Stream method that exposes the AI SDK's streamText functionality with real-time callbacks.
+   *
+   * Note on type parameters:
+   * - AgentTools & ToolSet: The combined type of our agent tools and any MCP tools
+   * - never: The PARTIAL_OUTPUT type is set to 'never' because we're not using experimental_output.
+   */
+  public async stream(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ): Promise<StreamTextResult<AgentTools & ToolSet, never>> {
+    const options =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions;
+
+    const maxSteps = options.maxSteps || 10;
+    const actions: AgentAction[] = [];
+    const collectedReasoning: string[] = [];
+
+    try {
+      const systemPrompt = this.buildSystemPrompt(
+        options.instruction,
+        this.systemInstructions,
+      );
+      const tools = this.createTools();
+      const allTools = { ...tools, ...this.mcpTools } as AgentTools & ToolSet;
+      const messages: CoreMessage[] = [
+        {
+          role: "user",
+          content: options.instruction,
+        },
+      ];
+
+      if (!this.llmClient) {
+        throw new Error(
+          "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
+        );
+      }
+
+      if (!this.llmClient.getLanguageModel) {
+        throw new Error(
+          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
+        );
+      }
+
+      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const wrappedModel = wrapLanguageModel({
+        model: baseModel,
+        middleware: {
+          transformParams: async ({ params }) => {
+            const { processedPrompt } = processMessages(params);
+            return { ...params, prompt: processedPrompt };
+          },
+        },
+      });
+
+      const result = this.llmClient.streamText({
+        model: wrappedModel,
+        system: systemPrompt,
+        messages,
+        tools: allTools,
+        maxSteps,
+        temperature: 1,
+        toolChoice: "auto",
+        abortSignal: (
+          options as AgentExecuteOptions & { abortSignal?: AbortSignal }
+        ).abortSignal,
+        onStepFinish: async (event) => {
+          this.logger({
+            category: "agent",
+            message: `Step finished: ${event.finishReason}`,
+            level: 2,
+          });
+
+          if (event.toolCalls && event.toolCalls.length > 0) {
+            for (const toolCall of event.toolCalls) {
+              const args = toolCall.args as Record<string, unknown>;
+
+              if (event.text.length > 0) {
+                collectedReasoning.push(event.text);
+                this.logger({
+                  category: "agent",
+                  message: `reasoning: ${event.text}`,
+                  level: 1,
+                });
+              }
+
+              const action: AgentAction = {
+                type: toolCall.toolName,
+                reasoning: event.text || undefined,
+                taskCompleted:
+                  toolCall.toolName === "close"
+                    ? (args?.taskComplete as boolean)
+                    : false,
+                ...args,
+              };
+
+              actions.push(action);
+            }
+          }
+
+          if ((options as AgentExecuteOptions).onStepFinish) {
+            await (options as AgentExecuteOptions).onStepFinish(event);
+          }
+        },
+        onFinish: async (event) => {
+          if ((options as AgentExecuteOptions).onFinish) {
+            await (options as AgentExecuteOptions).onFinish(event);
+          }
+        },
+        onError: async (event) => {
+          this.logger({
+            category: "agent",
+            message: `Error during streaming: ${event.error}`,
+            level: 0,
+          });
+          if ((options as AgentExecuteOptions).onError) {
+            await (options as AgentExecuteOptions).onError(event);
+          }
+        },
+        onChunk: (options as AgentExecuteOptions).onChunk,
+      });
+
+      return result as StreamTextResult<AgentTools & ToolSet, never>;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: "agent",
+        message: `Error setting up stream: ${errorMessage}`,
+        level: 0,
+      });
+
+      throw error;
     }
   }
 
