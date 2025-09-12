@@ -26,7 +26,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   // Acquire the correct page for the requested framework
   let page: AnyPage;
   if (framework === "v3") {
-    page = v3.context().pages()[0];
+    page = v3.context.pages()[0];
   } else if (framework === "puppeteer") {
     const browser = await puppeteer.connect({
       browserWSEndpoint: v3.connectURL(),
