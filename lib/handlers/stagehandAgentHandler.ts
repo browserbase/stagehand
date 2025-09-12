@@ -55,40 +55,8 @@ export class StagehandAgentHandler {
     const collectedReasoning: string[] = [];
 
     try {
-      const systemPrompt = this.buildSystemPrompt(
-        options.instruction,
-        this.systemInstructions,
-      );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools };
-      const messages: CoreMessage[] = [
-        {
-          role: "user",
-          content: options.instruction,
-        },
-      ];
-
-      if (!this.llmClient) {
-        throw new Error(
-          "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
-        );
-      }
-
-      if (!this.llmClient.getLanguageModel) {
-        throw new Error(
-          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
-        );
-      }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
-      const wrappedModel = wrapLanguageModel({
-        model: baseModel,
-        middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt };
-          },
-        },
-      });
+      const { systemPrompt, messages, allTools, wrappedModel } =
+        this.prepareLLM(options.instruction);
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -130,33 +98,11 @@ export class StagehandAgentHandler {
                 }
               }
 
-              // Get the tool result if available
+              // Get the tool result if available to enrich action (act tool)
               const toolResult = event.toolResults?.[i];
-
-              const getPlaywrightArguments = () => {
-                if (toolCall.toolName !== "act" || !toolResult) {
-                  return {};
-                }
-                const result = toolResult.result as ActToolResult;
-                if (result && result.playwrightArguments) {
-                  return { playwrightArguments: result.playwrightArguments };
-                }
-
-                return {};
-              };
-
-              const action: AgentAction = {
-                type: toolCall.toolName,
-                reasoning: event.text || undefined,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
-                    : false,
-                ...args,
-                ...getPlaywrightArguments(),
-              };
-
-              actions.push(action);
+              actions.push(
+                this.buildAction(toolCall, args, event.text, toolResult),
+              );
             }
           }
         },
@@ -221,41 +167,8 @@ export class StagehandAgentHandler {
     const collectedReasoning: string[] = [];
 
     try {
-      const systemPrompt = this.buildSystemPrompt(
-        options.instruction,
-        this.systemInstructions,
-      );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools } as AgentTools & ToolSet;
-      const messages: CoreMessage[] = [
-        {
-          role: "user",
-          content: options.instruction,
-        },
-      ];
-
-      if (!this.llmClient) {
-        throw new Error(
-          "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
-        );
-      }
-
-      if (!this.llmClient.getLanguageModel) {
-        throw new Error(
-          "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
-        );
-      }
-
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
-      const wrappedModel = wrapLanguageModel({
-        model: baseModel,
-        middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt };
-          },
-        },
-      });
+      const { systemPrompt, messages, allTools, wrappedModel } =
+        this.prepareLLM(options.instruction);
 
       const result = this.llmClient.streamText({
         model: wrappedModel,
@@ -288,17 +201,7 @@ export class StagehandAgentHandler {
                 });
               }
 
-              const action: AgentAction = {
-                type: toolCall.toolName,
-                reasoning: event.text || undefined,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
-                    : false,
-                ...args,
-              };
-
-              actions.push(action);
+              actions.push(this.buildAction(toolCall, args, event.text));
             }
           }
 
@@ -336,6 +239,87 @@ export class StagehandAgentHandler {
 
       throw error;
     }
+  }
+
+  /**
+   * Prepare common LLM params (system prompt, messages, tools, wrapped model)
+   * used by both execute() and stream().
+   */
+  private prepareLLM(instruction: string): {
+    systemPrompt: string;
+    messages: CoreMessage[];
+    allTools: AgentTools & ToolSet;
+    wrappedModel: LanguageModel;
+  } {
+    const systemPrompt = this.buildSystemPrompt(
+      instruction,
+      this.systemInstructions,
+    );
+    const tools = this.createTools();
+    const allTools = { ...tools, ...this.mcpTools } as AgentTools & ToolSet;
+    const messages: CoreMessage[] = [
+      {
+        role: "user",
+        content: instruction,
+      },
+    ];
+
+    if (!this.llmClient) {
+      throw new Error(
+        "LLM client is not initialized. Please ensure you have the required API keys set (e.g., OPENAI_API_KEY) and that the model configuration is correct.",
+      );
+    }
+
+    if (!this.llmClient.getLanguageModel) {
+      throw new Error(
+        "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
+      );
+    }
+    const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+    const wrappedModel = wrapLanguageModel({
+      model: baseModel,
+      middleware: {
+        transformParams: async ({ params }) => {
+          const { processedPrompt } = processMessages(params);
+          return { ...params, prompt: processedPrompt };
+        },
+      },
+    });
+
+    return { systemPrompt, messages, allTools, wrappedModel };
+  }
+
+  /**
+   * Build an AgentAction from a tool call, optionally enriching with
+   * playwrightArguments when available (execute path only).
+   */
+  private buildAction(
+    toolCall: { toolName: string },
+    args: Record<string, unknown>,
+    reasoning?: string,
+    toolResult?: { result?: unknown },
+  ): AgentAction {
+    let playwrightArguments: AgentAction["playwrightArguments"];
+    if (toolCall.toolName === "act" && toolResult && toolResult.result) {
+      const actResult = toolResult.result as ActToolResult;
+      if (actResult && actResult.playwrightArguments) {
+        playwrightArguments = actResult.playwrightArguments;
+      }
+    }
+
+    const action: AgentAction = {
+      type: toolCall.toolName,
+      reasoning: reasoning || undefined,
+      taskCompleted:
+        toolCall.toolName === "close" ? (args?.taskComplete as boolean) : false,
+      ...args,
+    };
+
+    if (playwrightArguments) {
+      action.playwrightArguments = playwrightArguments;
+    }
+
+    return action;
   }
 
   // in the future if we continue to describe tools in system prompt, we need to make sure to update them in here when new tools are added or removed. still tbd on whether we want to keep them in here long term.
