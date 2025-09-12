@@ -8,7 +8,7 @@ export const createAriaTreeTool = (v3: V3) =>
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
     parameters: z.object({}),
     execute: async () => {
-      const page = await v3.context().awaitActivePage();
+      const page = await v3.context.awaitActivePage();
       const { page_text } = (await v3.extract()) as { page_text: string };
       const pageUrl = await page.url();
 

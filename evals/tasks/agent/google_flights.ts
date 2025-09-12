@@ -9,7 +9,7 @@ export const google_flights: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://google.com/travel/flights");
 
     const agentResult = await v3Agent.execute({

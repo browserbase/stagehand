@@ -9,7 +9,7 @@ export const createNavBackTool = (v3: V3) =>
       reasoning: z.string().describe("Why you're going back"),
     }),
     execute: async () => {
-      const page = await v3.context().awaitActivePage();
+      const page = await v3.context.awaitActivePage();
       await page.goBack({ waitUntil: "domcontentloaded" });
       return { success: true };
     },

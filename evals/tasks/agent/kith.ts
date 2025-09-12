@@ -10,7 +10,7 @@ export const kith: EvalFunction = async ({
 }) => {
   try {
     const evaluator = new V3Evaluator(v3);
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );

@@ -8,7 +8,7 @@ export const nba_trades: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     const evaluator = new V3Evaluator(v3);
     await page.goto("https://www.espn.com/");
 

@@ -2,7 +2,7 @@ import { V3 } from "../lib/v3/v3";
 import { z } from "zod/v3";
 
 async function example(v3: V3) {
-  const page = v3.context().pages()[0];
+  const page = v3.context.pages()[0];
   await page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
   );

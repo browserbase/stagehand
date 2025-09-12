@@ -10,7 +10,7 @@ export const apple_trade_in: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://www.apple.com/shop/trade-in");
     const evaluator = new V3Evaluator(v3);
     await v3Agent.execute({

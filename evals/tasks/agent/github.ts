@@ -8,7 +8,7 @@ export const github: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://github.com/");
     const evaluator = new V3Evaluator(v3);
     const agentResult = await v3Agent.execute({

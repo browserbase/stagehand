@@ -9,7 +9,7 @@ export const all_recipes: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://www.allrecipes.com/");
     const evaluator = new V3Evaluator(v3);
     const agentResult = await v3Agent.execute({

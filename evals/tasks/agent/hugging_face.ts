@@ -10,7 +10,7 @@ export const hugging_face: EvalFunction = async ({
 }) => {
   try {
     const evaluator = new V3Evaluator(v3);
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://huggingface.co/");
     const agentResult = await v3Agent.execute({
       instruction:

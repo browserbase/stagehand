@@ -78,7 +78,7 @@ export class V3Evaluator {
     await new Promise((r) => setTimeout(r, screenshotDelayMs));
     let imageBuffer: Buffer | undefined;
     if (screenshot) {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
       imageBuffer = Buffer.from(base64, "base64");
     }
@@ -148,7 +148,7 @@ export class V3Evaluator {
     await new Promise((r) => setTimeout(r, screenshotDelayMs));
     let imageBuffer: Buffer | undefined;
     if (screenshot) {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
       imageBuffer = Buffer.from(base64, "base64");
     }

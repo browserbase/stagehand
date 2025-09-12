@@ -17,7 +17,7 @@ async function main() {
   await v3.init();
 
   try {
-    const startPage = await v3.context().pages()[0];
+    const startPage = await v3.context.pages()[0];
     await startPage.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
     );

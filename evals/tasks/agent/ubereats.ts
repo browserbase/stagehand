@@ -10,7 +10,7 @@ export const ubereats: EvalFunction = async ({
 }) => {
   try {
     const evaluator = new V3Evaluator(v3);
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://www.ubereats.com/");
 
     await v3Agent.execute({

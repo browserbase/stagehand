@@ -46,7 +46,7 @@ export class V3CuaAgentHandler {
   private setupAgentClient(): void {
     // Provide screenshots to the agent client
     this.agentClient.setScreenshotProvider(async () => {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
       return base64; // base64 png
     });
@@ -101,7 +101,7 @@ export class V3CuaAgentHandler {
         : optionsOrInstruction;
 
     // Redirect if blank
-    const page = await this.v3.context().awaitActivePage();
+    const page = await this.v3.context.awaitActivePage();
     const currentUrl = await page.url();
     if (!currentUrl || currentUrl === "about:blank") {
       this.logger({
@@ -155,7 +155,7 @@ export class V3CuaAgentHandler {
   private async executeAction(
     action: AgentAction,
   ): Promise<ActionExecutionResult> {
-    const page = await this.v3.context().awaitActivePage();
+    const page = await this.v3.context.awaitActivePage();
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
@@ -239,7 +239,7 @@ export class V3CuaAgentHandler {
 
   private async updateClientViewport(): Promise<void> {
     try {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const { w, h } = await page.mainFrame().evaluate<{
         w: number;
         h: number;
@@ -252,7 +252,7 @@ export class V3CuaAgentHandler {
 
   private async updateClientUrl(): Promise<void> {
     try {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const url = await page.url();
       this.agentClient.setCurrentUrl(url);
     } catch {
@@ -267,7 +267,7 @@ export class V3CuaAgentHandler {
       level: 1,
     });
     try {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       const base64Image = await page.screenshot({ fullPage: false });
       const currentUrl = await page.url();
       return await this.agentClient.captureScreenshot({
@@ -286,7 +286,7 @@ export class V3CuaAgentHandler {
 
   private async injectCursor(): Promise<void> {
     try {
-      const page = await this.v3.context().awaitActivePage();
+      const page = await this.v3.context.awaitActivePage();
       await page.enableCursorOverlay();
     } catch {
       // Best-effort only

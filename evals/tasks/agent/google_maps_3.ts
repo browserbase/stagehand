@@ -8,7 +8,7 @@ export const google_maps_3: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://maps.google.com/");
     const evaluator = new V3Evaluator(v3);
     await v3Agent.execute({

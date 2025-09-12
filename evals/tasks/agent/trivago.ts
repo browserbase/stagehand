@@ -8,7 +8,7 @@ export const trivago: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://www.trivago.com/");
 
     const agentResult = await v3Agent.execute({

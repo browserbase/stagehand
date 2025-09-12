@@ -8,7 +8,7 @@ export const sign_in: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://v0-modern-login-flow.vercel.app/");
 
     const agentResult = await v3Agent.execute({

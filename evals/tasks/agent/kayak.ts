@@ -10,7 +10,7 @@ export const kayak: EvalFunction = async ({
 }) => {
   try {
     const evaluator = new V3Evaluator(v3);
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://www.kayak.com");
 
     await v3Agent.execute({
@@ -22,7 +22,7 @@ export const kayak: EvalFunction = async ({
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
     });
 
-    if (v3.context().pages().length !== 2) {
+    if (v3.context.pages().length !== 2) {
       return {
         _success: false,
         message: "No new pages were opened",

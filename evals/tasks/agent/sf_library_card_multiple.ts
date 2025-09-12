@@ -9,7 +9,7 @@ export const sf_library_card_multiple: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://sflib1.sfpl.org/selfreg");
 
     const agentResult = await v3Agent.execute({

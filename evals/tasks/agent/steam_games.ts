@@ -8,7 +8,7 @@ export const steam_games: EvalFunction = async ({
   v3,
 }) => {
   try {
-    const page = v3.context().pages()[0];
+    const page = v3.context.pages()[0];
     await page.goto("https://store.steampowered.com/");
 
     const agentResult = await v3Agent.execute({

@@ -10,7 +10,7 @@ export const createGotoTool = (v3: V3) =>
     }),
     execute: async ({ url }) => {
       try {
-        const page = await v3.context().awaitActivePage();
+        const page = await v3.context.awaitActivePage();
         await page.goto(url, { waitUntil: "load" });
         return { success: true, url };
       } catch (error) {
