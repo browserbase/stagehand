@@ -4,10 +4,8 @@ import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
 import { deepLocatorThroughIframes } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
-import { LogLine } from "@/types/log";
+import { v3Logger } from "@/lib/v3/logger";
 import { StagehandClickError } from "@/types/stagehandErrors";
-
-type LoggerFn = (line: LogLine) => void;
 
 export class UnderstudyCommandException extends Error {
   constructor(message: string) {
@@ -21,7 +19,6 @@ export interface UnderstudyMethodHandlerContext {
   locator: Locator;
   xpath: string;
   args: ReadonlyArray<string>;
-  logger: LoggerFn;
   frame: Frame;
   initialUrl: string;
   domSettleTimeoutMs?: number;
@@ -33,11 +30,10 @@ export async function performUnderstudyMethod(
   method: string,
   rawXPath: string,
   args: ReadonlyArray<unknown>,
-  logger: LoggerFn,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   // Proactively wait for the DOM/network to be quiet before acting
-  await waitForDomNetworkQuiet(frame, logger, domSettleTimeoutMs);
+  await waitForDomNetworkQuiet(frame, domSettleTimeoutMs);
 
   const selectorRaw = rawXPath.trim();
   const isXPath =
@@ -50,7 +46,7 @@ export async function performUnderstudyMethod(
 
   const initialUrl = await getFrameUrl(frame);
 
-  logger({
+  v3Logger({
     category: "action",
     message: "performing understudy method",
     level: 2,
@@ -66,7 +62,6 @@ export async function performUnderstudyMethod(
     locator,
     xpath: selectorRaw,
     args: args.map((a) => (a == null ? "" : String(a))),
-    logger,
     frame,
     initialUrl,
     domSettleTimeoutMs,
@@ -90,7 +85,7 @@ export async function performUnderstudyMethod(
           await typeText(ctx);
           break;
         default:
-          logger({
+          v3Logger({
             category: "action",
             message: "chosen method is invalid",
             level: 1,
@@ -102,17 +97,11 @@ export async function performUnderstudyMethod(
       }
     }
 
-    await handlePossibleNavigation(
-      "action",
-      selectorRaw,
-      initialUrl,
-      frame,
-      logger,
-    );
+    await handlePossibleNavigation("action", selectorRaw, initialUrl, frame);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
-    logger({
+    v3Logger({
       category: "action",
       message: "error performing method",
       level: 1,
@@ -148,12 +137,12 @@ const METHOD_HANDLER_MAP: Record<
 };
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
-  const { locator, xpath, args, logger } = ctx;
+  const { locator, xpath, args } = ctx;
   try {
     const text = args[0]?.toString() || "";
     await locator.selectOption(text);
   } catch (e) {
-    logger({
+    v3Logger({
       category: "action",
       message: "error selecting option",
       level: 0,
@@ -170,8 +159,8 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
 async function scrollIntoView(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath, logger, frame } = ctx;
-  logger({
+  const { locator, xpath, frame } = ctx;
+  v3Logger({
     category: "action",
     message: "scrolling element into view",
     level: 2,
@@ -187,8 +176,8 @@ async function scrollIntoView(
 async function scrollElementToPercentage(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath, logger, args } = ctx;
-  logger({
+  const { locator, xpath, args } = ctx;
+  v3Logger({
     category: "action",
     message: "scrolling element vertically to specified percentage",
     level: 2,
@@ -203,9 +192,9 @@ async function scrollElementToPercentage(
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, logger } = ctx;
+  const { frame, args } = ctx;
   const deltaY = Number(args[0] ?? 200);
-  logger({
+  v3Logger({
     category: "action",
     message: "dispatching mouse wheel",
     level: 2,
@@ -221,13 +210,13 @@ async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger } = ctx;
+  const { locator, xpath, args } = ctx;
   try {
     await locator.fill(""); // clear
     await locator.fill(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger({
+    v3Logger({
       category: "action",
       message: "error filling element",
       level: 1,
@@ -241,12 +230,12 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { locator, xpath, args, logger } = ctx;
+  const { locator, xpath, args } = ctx;
   try {
     await locator.type(args[0] ?? "");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger({
+    v3Logger({
       category: "action",
       message: "error typing into element",
       level: 1,
@@ -260,7 +249,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, logger, xpath } = ctx;
+  const { frame, args, xpath } = ctx;
   const key = args[0] ?? "";
   try {
     await frame.session.send<never>("Input.dispatchKeyEvent", {
@@ -275,7 +264,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     } as Protocol.Input.DispatchKeyEventRequest);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger({
+    v3Logger({
       category: "action",
       message: "error pressing key",
       level: 1,
@@ -292,12 +281,12 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function clickElement(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, logger, xpath } = ctx;
+  const { locator, xpath } = ctx;
   try {
     await locator.click();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    logger({
+    v3Logger({
       category: "action",
       message: "error performing click",
       level: 0,
@@ -326,8 +315,8 @@ async function scrollByElementHeight(
   ctx: UnderstudyMethodHandlerContext,
   direction: 1 | -1,
 ): Promise<void> {
-  const { locator, logger, xpath, frame } = ctx;
-  logger({
+  const { locator, xpath, frame } = ctx;
+  v3Logger({
     category: "action",
     message:
       direction > 0 ? "scrolling to next chunk" : "scrolling to previous chunk",
@@ -392,7 +381,6 @@ async function getFrameUrl(frame: Frame): Promise<string> {
  */
 async function waitForDomNetworkQuiet(
   frame: Frame,
-  logger: LoggerFn,
   timeoutMs?: number,
 ): Promise<void> {
   const timeout = typeof timeoutMs === "number" ? timeoutMs : 5_000;
@@ -492,7 +480,7 @@ async function waitForDomNetworkQuiet(
         if (now - m.start > 2_000) {
           inflight.delete(id);
           meta.delete(id);
-          logger({
+          v3Logger({
             category: "dom",
             message: "⏳ forcing completion of stalled iframe document",
             level: 1,
@@ -509,7 +497,7 @@ async function waitForDomNetworkQuiet(
 
     const guard = setTimeout(() => {
       if (inflight.size) {
-        logger({
+        v3Logger({
           category: "dom",
           message:
             "⚠️ DOM-settle timeout reached – network requests still pending",
@@ -542,9 +530,8 @@ async function handlePossibleNavigation(
   xpath: string,
   initialUrl: string,
   frame: Frame,
-  logger: LoggerFn,
 ): Promise<void> {
-  logger({
+  v3Logger({
     category: "action",
     message: `${actionDescription}, checking for page navigation`,
     level: 1,
@@ -555,14 +542,14 @@ async function handlePossibleNavigation(
   const afterUrl = await getFrameUrl(frame);
 
   if (afterUrl !== initialUrl) {
-    logger({
+    v3Logger({
       category: "action",
       message: "new page (frame) URL detected",
       level: 1,
       auxiliary: { url: { value: afterUrl, type: "string" } },
     });
   } else {
-    logger({
+    v3Logger({
       category: "action",
       message: "no new (frame) URL detected",
       level: 1,
