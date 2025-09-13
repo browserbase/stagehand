@@ -1,5 +1,22 @@
 import { Page } from "@playwright/test";
 
+// Dynamic import for sharp to handle optional dependency
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let sharp: any = null;
+
+async function getSharp() {
+  if (!sharp) {
+    try {
+      const sharpModule = await import("sharp");
+      // Sharp is a CommonJS module, so it exports the function directly
+      sharp = sharpModule.default || sharpModule;
+    } catch {
+      // Sharp not available, will return fallback values
+    }
+  }
+  return sharp;
+}
+
 export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
@@ -19,7 +36,7 @@ export class ScreenshotCollector {
   private lastScreenshot?: Buffer;
   private ssimThreshold: number = 0.92;
   private mseThreshold: number = 50;
-  private originalScreenshot?: any;
+  private originalScreenshot?: typeof this.page.screenshot;
   private interceptScreenshots: boolean;
 
   constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
@@ -91,10 +108,10 @@ export class ScreenshotCollector {
 
     try {
       const screenshot = await this.page.screenshot();
-      
+
       // Check if we should keep this screenshot based on image diff
       let shouldKeep = true;
-      if (this.lastScreenshot && trigger !== 'initial' && trigger !== 'final') {
+      if (this.lastScreenshot && trigger !== "initial" && trigger !== "final") {
         try {
           // First do a quick MSE check
           const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
@@ -103,12 +120,15 @@ export class ScreenshotCollector {
             shouldKeep = false;
           } else {
             // Significant difference detected, verify with SSIM
-            const ssim = await this.calculateSSIM(this.lastScreenshot, screenshot);
+            const ssim = await this.calculateSSIM(
+              this.lastScreenshot,
+              screenshot,
+            );
             shouldKeep = ssim < this.ssimThreshold;
           }
         } catch (error) {
           // If comparison fails, keep the screenshot
-          console.error('Image comparison failed:', error);
+          console.error("Image comparison failed:", error);
           shouldKeep = true;
         }
       }
@@ -149,23 +169,36 @@ export class ScreenshotCollector {
     this.lastScreenshot = undefined;
   }
 
-
   private setupScreenshotInterception(): void {
+    console.log("🔧 Setting up screenshot interception...");
     // Store the original screenshot method
     this.originalScreenshot = this.page.screenshot.bind(this.page);
     let lastCallTime = 0;
+    let screenshotCount = 0;
 
     // Override the screenshot method
-    this.page.screenshot = async (options?: any) => {
-      const screenshot = await this.originalScreenshot(options);
+    this.page.screenshot = async (
+      options?: Parameters<typeof this.originalScreenshot>[0],
+    ) => {
+      screenshotCount++;
+      const screenshot = await this.originalScreenshot!(options);
 
       // If called within 3 seconds of previous call, likely from agent
       const now = Date.now();
-      if (now - lastCallTime < 3000) {
-        this.onAgentScreenshot(screenshot);
-      }
-      lastCallTime = now;
+      const timeSinceLastCall = now - lastCallTime;
 
+      if (timeSinceLastCall < 3000 && lastCallTime > 0) {
+        console.log(
+          `📸 Agent screenshot detected (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
+        );
+        this.onAgentScreenshot(screenshot);
+      } else {
+        console.log(
+          `📷 Non-agent screenshot ignored (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
+        );
+      }
+
+      lastCallTime = now;
       return screenshot;
     };
   }
@@ -182,12 +215,15 @@ export class ScreenshotCollector {
           shouldKeep = false;
         } else {
           // Significant difference detected, verify with SSIM
-          const ssim = await this.calculateSSIM(this.lastScreenshot, screenshot);
+          const ssim = await this.calculateSSIM(
+            this.lastScreenshot,
+            screenshot,
+          );
           shouldKeep = ssim < this.ssimThreshold;
         }
       } catch (error) {
         // If comparison fails, keep the screenshot
-        console.error('Image comparison failed:', error);
+        console.error("Image comparison failed:", error);
         shouldKeep = true;
       }
     }
@@ -204,31 +240,32 @@ export class ScreenshotCollector {
         `Agent screenshot captured, total: ${this.screenshots.length}`,
       );
     } else {
-      console.log(
-        `Agent screenshot skipped, too similar to previous`,
-      );
+      console.log(`Agent screenshot skipped, too similar to previous`);
     }
   }
 
   private async calculateMSE(img1: Buffer, img2: Buffer): Promise<number> {
     try {
-      const sharp = require('sharp');
-      
+      const sharpInstance = await getSharp();
+      if (!sharpInstance) {
+        return Number.MAX_SAFE_INTEGER;
+      }
+
       // Resize images for faster comparison
       const size = { width: 400, height: 300 };
-      const data1 = await sharp(img1).resize(size).raw().toBuffer();
-      const data2 = await sharp(img2).resize(size).raw().toBuffer();
-      
+      const data1 = await sharpInstance(img1).resize(size).raw().toBuffer();
+      const data2 = await sharpInstance(img2).resize(size).raw().toBuffer();
+
       if (data1.length !== data2.length) return Number.MAX_SAFE_INTEGER;
-      
+
       let sum = 0;
       for (let i = 0; i < data1.length; i++) {
         const diff = data1[i] - data2[i];
         sum += diff * diff;
       }
-      
+
       return sum / data1.length;
-    } catch (error) {
+    } catch {
       // If sharp is not available, assume images are different
       return Number.MAX_SAFE_INTEGER;
     }
@@ -236,22 +273,37 @@ export class ScreenshotCollector {
 
   private async calculateSSIM(img1: Buffer, img2: Buffer): Promise<number> {
     try {
-      const sharp = require('sharp');
-      
+      const sharpInstance = await getSharp();
+      if (!sharpInstance) {
+        return 0;
+      }
+
       // Resize and convert to grayscale for SSIM calculation
       const size = { width: 400, height: 300 };
-      const gray1 = await sharp(img1).resize(size).grayscale().raw().toBuffer();
-      const gray2 = await sharp(img2).resize(size).grayscale().raw().toBuffer();
-      
+      const gray1 = await sharpInstance(img1)
+        .resize(size)
+        .grayscale()
+        .raw()
+        .toBuffer();
+      const gray2 = await sharpInstance(img2)
+        .resize(size)
+        .grayscale()
+        .raw()
+        .toBuffer();
+
       if (gray1.length !== gray2.length) return 0;
-      
+
       // Simplified SSIM calculation
       const c1 = 0.01 * 0.01;
       const c2 = 0.03 * 0.03;
-      
-      let sum1 = 0, sum2 = 0, sum1_sq = 0, sum2_sq = 0, sum12 = 0;
+
+      let sum1 = 0,
+        sum2 = 0,
+        sum1_sq = 0,
+        sum2_sq = 0,
+        sum12 = 0;
       const N = gray1.length;
-      
+
       for (let i = 0; i < N; i++) {
         sum1 += gray1[i];
         sum2 += gray2[i];
@@ -259,18 +311,19 @@ export class ScreenshotCollector {
         sum2_sq += gray2[i] * gray2[i];
         sum12 += gray1[i] * gray2[i];
       }
-      
+
       const mean1 = sum1 / N;
       const mean2 = sum2 / N;
-      const var1 = (sum1_sq / N) - (mean1 * mean1);
-      const var2 = (sum2_sq / N) - (mean2 * mean2);
-      const cov12 = (sum12 / N) - (mean1 * mean2);
-      
+      const var1 = sum1_sq / N - mean1 * mean1;
+      const var2 = sum2_sq / N - mean2 * mean2;
+      const cov12 = sum12 / N - mean1 * mean2;
+
       const numerator = (2 * mean1 * mean2 + c1) * (2 * cov12 + c2);
-      const denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
-      
+      const denominator =
+        (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
+
       return numerator / denominator;
-    } catch (error) {
+    } catch {
       // If sharp is not available, assume images are different
       return 0;
     }
