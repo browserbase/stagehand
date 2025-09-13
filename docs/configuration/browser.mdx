@@ -114,7 +114,7 @@ stagehand = Stagehand(
       apiKey: process.env.BROWSERBASE_API_KEY,
       projectId: process.env.BROWSERBASE_PROJECT_ID,
       browserbaseSessionCreateParams: {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!, // Optional: automatically set if given in environment variable or by Stagehand parameter
         proxies: true,
         region: "us-west-2",
         timeout: 3600, // 1 hour session timeout
@@ -149,7 +149,7 @@ stagehand = Stagehand(
         api_key=os.getenv("BROWSERBASE_API_KEY"),
         project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
         browserbase_session_create_params={
-            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"),
+            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"), # Optional: automatically set if given in environment or by Stagehand parameter
             "proxies": True,
             "region": "us-west-2",
             "timeout": 3600,  # 1 hour session timeout

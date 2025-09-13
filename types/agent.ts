@@ -1,4 +1,13 @@
 import { LogLine } from "./log";
+import { ObserveResult } from "./stagehand";
+
+export interface ActToolResult {
+  success: boolean;
+  action?: string;
+  error?: string;
+  isIframe?: boolean;
+  playwrightArguments?: ObserveResult | null;
+}
 
 export interface AgentAction {
   type: string;
@@ -10,6 +19,7 @@ export interface AgentAction {
   pageText?: string; // ariaTree tool
   pageUrl?: string; // ariaTree tool
   instruction?: string; // various tools
+  playwrightArguments?: ObserveResult | null; // act tool
   [key: string]: unknown;
 }
 

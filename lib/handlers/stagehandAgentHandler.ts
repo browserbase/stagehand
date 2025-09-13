@@ -1,4 +1,9 @@
-import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
+import {
+  AgentAction,
+  AgentExecuteOptions,
+  AgentResult,
+  ActToolResult,
+} from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
@@ -99,7 +104,8 @@ export class StagehandAgentHandler {
           });
 
           if (event.toolCalls && event.toolCalls.length > 0) {
-            for (const toolCall of event.toolCalls) {
+            for (let i = 0; i < event.toolCalls.length; i++) {
+              const toolCall = event.toolCalls[i];
               const args = toolCall.args as Record<string, unknown>;
 
               if (event.text.length > 0) {
@@ -122,6 +128,21 @@ export class StagehandAgentHandler {
                 }
               }
 
+              // Get the tool result if available
+              const toolResult = event.toolResults?.[i];
+
+              const getPlaywrightArguments = () => {
+                if (toolCall.toolName !== "act" || !toolResult) {
+                  return {};
+                }
+                const result = toolResult.result as ActToolResult;
+                if (result && result.playwrightArguments) {
+                  return { playwrightArguments: result.playwrightArguments };
+                }
+
+                return {};
+              };
+
               const action: AgentAction = {
                 type: toolCall.toolName,
                 reasoning: event.text || undefined,
@@ -130,6 +151,7 @@ export class StagehandAgentHandler {
                     ? (args?.taskComplete as boolean)
                     : false,
                 ...args,
+                ...getPlaywrightArguments(),
               };
 
               actions.push(action);
