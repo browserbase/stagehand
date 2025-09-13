@@ -1,0 +1,85 @@
+{
+  "id": "cabb3bae-cccb-41bd-9f5d-0f3a9fecd825",
+  "snapshot": "chrome",
+  "instruction": "Browse spider-man toys for kids and sort by lowest price.",
+  "source": "online_tasks",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.kohls.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "active_tab_html_parse",
+      "goto_prefix": "https://www.",
+      "category": "class&url",
+      "class_multiObject_li": {
+        "pmpSearch_breadcrumb": [
+          "Spider-Man",
+          "Toys",
+          "Kids"
+        ],
+        "sbSelector": [
+          "Price Low-High"
+        ]
+      },
+      "url_include_expected_multichoice": {
+        "Spider-Man": "Spider-Man",
+        "spiderman": "Spider-Man",
+        "Toys": "Toys",
+        "Kids": "Kids",
+        "S=4": "Price Low-High"
+      }
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": {
+          "spider-man": true,
+          "toys": true,
+          "kids": true,
+          "price low-high": true,
+          "is_other_exist": false
+        }
+      }
+    }
+  },
+  "proxy": true,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

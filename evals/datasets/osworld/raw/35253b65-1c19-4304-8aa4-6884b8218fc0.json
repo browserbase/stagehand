@@ -1,0 +1,55 @@
+{
+  "id": "35253b65-1c19-4304-8aa4-6884b8218fc0",
+  "snapshot": "chrome",
+  "instruction": "Hey, I need a quick way back to this site. Could you whip up a shortcut on my desktop for me?",
+  "source": "https://www.laptopmag.com/articles/how-to-create-desktop-shortcuts-for-web-pages-using-chrome",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.mathsisfun.com/games/2048.html"
+        ]
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "is_shortcut_on_desktop",
+    "result": {
+      "type": "shortcuts_on_desktop"
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "type": "exec",
+        "exec": "/opt/google/chrome/google-chrome --profile-directory=Default --app-id=poahllcmmahlafplfhgjomkjmeblpapf"
+      }
+    }
+  },
+  "proxy": true,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

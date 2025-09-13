@@ -1,0 +1,63 @@
+{
+  "id": "9f935cce-0a9f-435f-8007-817732bfc0a5",
+  "snapshot": "chrome",
+  "instruction": "Browse list of Civil Division forms.",
+  "source": "online_tasks",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.justice.gov/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "is_expected_url_pattern_match",
+    "result": {
+      "type": "active_url_from_accessTree",
+      "goto_prefix": "https://www."
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": [
+          "forms\\?title=&field_component_target_id=431"
+        ]
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

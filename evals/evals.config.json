@@ -811,6 +811,10 @@
       ]
     },
     {
+      "name": "agent/webbench",
+      "categories": ["external_agent_benchmarks"]
+    },
+    {
       "name": "agent/nba_trades",
       "categories": [
         "agent"
@@ -833,6 +837,10 @@
       "categories": [
         "agent"
       ]
+    },
+    {
+      "name": "agent/osworld",
+      "categories": ["external_agent_benchmarks"]
     },
     {
       "name": "agent/onlineMind2Web",

@@ -15,6 +15,8 @@
     "@browserbasehq/stagehand": "workspace:*"
   },
   "devDependencies": {
+    "@types/papaparse": "^5.3.16",
+    "papaparse": "^5.5.3",
     "tsx": "^4.10.5"
   }
 }

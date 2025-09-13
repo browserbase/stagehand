@@ -1,0 +1,110 @@
+{
+  "id": "da46d875-6b82-4681-9284-653b0c7ae241",
+  "snapshot": "chrome",
+  "instruction": "Book an appointment to apply for a transportation access pass at the Charlie Card store on the first Monday eight months later, 10:15 am, fill in my details (James Smith, james.smith@gmail.com). And do not click \"book\" directly. Let me review it.",
+  "source": "test_task_2",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.mbta.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": [
+      "is_expected_url_pattern_match",
+      "check_direct_json_object",
+      "check_direct_json_object"
+    ],
+    "conj": "and",
+    "result": [
+      {
+        "type": "active_tab_info"
+      },
+      {
+        "type": "active_tab_html_parse",
+        "category": "class",
+        "class_multiObject_only_child": {
+          "HAZ16": {
+            "0": "content",
+            "1": "time"
+          }
+        }
+      },
+      {
+        "type": "active_tab_html_parse",
+        "category": "input",
+        "inputObject": {
+          "/html/body/div[2]/div/form/div[7]/div/div/div[1]/input[1]": "name",
+          "/html/body/div[2]/div/form/div[7]/div/div/div[1]/input[2]": "mail"
+        }
+      }
+    ],
+    "expected": [
+      {
+        "type": "rule",
+        "rules": {
+          "expected": [
+            "book/CharlieCardStoreAppointments@mbta.com/"
+          ]
+        }
+      },
+      {
+        "type": "rule_relativeTime",
+        "rules": {
+          "relativeTime": {
+            "from": "first monday eight months later"
+          },
+          "expected": {
+            "content": "Apply for Transportation Access Pass (TAP) CharlieCard non-auto approval",
+            "time": "{MonthFull} {Day0D}, 10:15 AM"
+          }
+        }
+      },
+      {
+        "type": "rule",
+        "rules": {
+          "expected": {
+            "name": "James Smith",
+            "mail": "james.smith@gmail.com"
+          }
+        }
+      }
+    ]
+  },
+  "proxy": true,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

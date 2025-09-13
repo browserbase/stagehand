@@ -1,0 +1,17 @@
+{
+  "id": "3720f614-37fd-4d04-8a6b-76f54f8c222d",
+  "snapshot": "chrome",
+  "instruction": "I am more familiar with Korean as I am from Korea. I want to use chrome with my mother tongue. Could you help me change the Chrome interface language to Korean? ",
+  "source": "https://superuser.com/questions/984668/change-interface-language-of-chrome-to-english",
+  "config": [],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "infeasible"
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

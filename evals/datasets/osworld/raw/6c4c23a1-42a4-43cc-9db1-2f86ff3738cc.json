@@ -1,0 +1,80 @@
+{
+  "id": "6c4c23a1-42a4-43cc-9db1-2f86ff3738cc",
+  "snapshot": "chrome",
+  "instruction": "Find flights from Seattle to New York on 5th next month and only show those that can be purchased with miles.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.delta.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "active_tab_html_parse",
+      "goto_prefix": "https://www.",
+      "category": "class",
+      "class_singleObject": {
+        "mach-flight-context-info__wrapper--date": "time",
+        "mach-global-tabs-small__wrapper__tab--active": "category"
+      },
+      "class_multiObject_child": {
+        "mach-flight-context-info__wrapper__info--separator": {
+          "0": "start",
+          "1": "end"
+        }
+      }
+    },
+    "expected": {
+      "type": "rule_relativeTime",
+      "rules": {
+        "relativeTime": {
+          "from": "5th next month"
+        },
+        "expected": {
+          "start": "SEA",
+          "end": "NYC",
+          "time": "{DoW}, {Month} {Day0D}, {Year}",
+          "category": "Miles"
+        }
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

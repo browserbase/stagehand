@@ -1,0 +1,74 @@
+{
+  "id": "2888b4e6-5b47-4b57-8bf5-c73827890774",
+  "snapshot": "chrome",
+  "instruction": "Show me all men's large-size short-sleeve shirts with a discount of 50% or more.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.macys.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "url_path_parse",
+      "goto_prefix": "https://www.",
+      "parse_keys": [
+        "mens_clothing",
+        "shirts",
+        "Men_regular_size_t",
+        "Price_discount_range",
+        "short_sleeve"
+      ]
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": {
+          "mens_clothing": true,
+          "shirts": true,
+          "Men_regular_size_t": "L",
+          "Price_discount_range": "50_PERCENT_ off & more",
+          "short_sleeve": true
+        }
+      }
+    }
+  },
+  "proxy": false,
+  "possibility_of_env_change": "medium",
+  "fixed_ip": false
+}

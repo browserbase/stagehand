@@ -1,0 +1,68 @@
+{
+  "id": "b4f95342-463e-4179-8c3f-193cd7241fb2",
+  "snapshot": "chrome",
+  "instruction": "Find the Next Available dates for Diamond.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.recreation.gov/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "active_tab_html_parse",
+      "goto_prefix": "https://www.",
+      "category": "class",
+      "class_singleObject": {},
+      "class_multiObject": {
+        "camp-sortable-column-header": {
+          "2": "camp-sortable-column-header"
+        }
+      }
+    },
+    "expected": {
+      "type": "gotoRecreationPage_and_get_html_content",
+      "selector": "class",
+      "class": "camp-sortable-column-header",
+      "order": "2"
+    }
+  },
+  "proxy": false,
+  "possibility_of_env_change": "high",
+  "fixed_ip": false
+}

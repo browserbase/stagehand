@@ -1,0 +1,17 @@
+{
+  "id": "ae78f875-5b98-4907-bbb5-9c737fc68c03",
+  "snapshot": "chrome",
+  "instruction": "Could you please change the number of search results displayed on one page to 50? I find that having more results visible at once significantly enhances my research efficiency, as it reduces the need to constantly click through multiple pages. ",
+  "source": "https://support.google.com/chrome/thread/219988391/increase-search-results-per-page?hl=en",
+  "config": [],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "infeasible"
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

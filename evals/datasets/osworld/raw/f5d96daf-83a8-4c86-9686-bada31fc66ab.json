@@ -1,0 +1,72 @@
+{
+  "id": "f5d96daf-83a8-4c86-9686-bada31fc66ab",
+  "snapshot": "chrome",
+  "instruction": "Compare iPhone 15 Pro Max with iPhone 14 Pro Max and iPhone 13 Pro Max",
+  "source": "Mind2Web",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.apple.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "active_tab_url_parse",
+      "goto_prefix": "https://www.",
+      "parse_keys": [
+        "modelList"
+      ],
+      "split_list": true
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": {
+          "modelList": [
+            "iphone-15-pro-max",
+            "iphone-14-pro-max",
+            "iphone-13-pro-max"
+          ]
+        },
+        "ignore_list_order": true
+      }
+    }
+  },
+  "proxy": true,
+  "possibility_of_env_change": "medium",
+  "fixed_ip": false
+}

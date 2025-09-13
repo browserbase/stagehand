@@ -1,0 +1,119 @@
+{
+  "id": "47543840-672a-467d-80df-8f7c3b9788c9",
+  "snapshot": "chrome",
+  "instruction": "On the current website, show me the cars available for pickup at Boston Logan Intl Airport from the 10th to the 11th of next month, sorted by the number of seats to find the largest capacity.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.budget.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": [
+      "is_expected_url_pattern_match",
+      "check_direct_json_object",
+      "check_direct_json_object"
+    ],
+    "conj": "and",
+    "result": [
+      {
+        "type": "active_url_from_accessTree",
+        "goto_prefix": "https://www."
+      },
+      {
+        "type": "active_tab_html_parse",
+        "goto_prefix": "https://www.",
+        "category": "class",
+        "class_singleObject": {},
+        "class_multiObject": {
+          "location-info": {
+            "0": "start_location",
+            "1": "end_location"
+          },
+          "day-time-info": {
+            "0": "from",
+            "1": "to"
+          }
+        }
+      },
+      {
+        "type": "active_tab_html_parse",
+        "goto_prefix": "https://www.",
+        "category": "xpath",
+        "xpathObject": {
+          "/html/body/div[6]/div[2]/div[1]/div/div/div[2]/section[1]/div[1]/form/div[1]/div[1]/div[2]/div/a": "rank"
+        }
+      }
+    ],
+    "expected": [
+      {
+        "type": "rule",
+        "rules": {
+          "expected": [
+            "reservation#/vehicles"
+          ]
+        }
+      },
+      {
+        "type": "rule_relativeTime",
+        "rules": {
+          "relativeTime": {
+            "from": "10th next month",
+            "to": "11th next month"
+          },
+          "expected": {
+            "start_location": "Boston Logan Intl Airport,\n\t\t\t\t\t\t\t\tBOS \n\t\t\t\t\t\t\t  \n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t \n\t\t\t\t\t\t\t\t \n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t      \n\t\t\t\t\t\t\t        \n\t\t\t\t\t\t\t        \n\t\t\t\t\t\t\t          \n\t\t\t\t\t\t\t            \n\t\t\t\t\t\t\t            Pick-Up",
+            "end_location": "Boston Logan Intl Airport,\n\t\t\t\t\t\t\t\tBOS",
+            "from": "{DoW}, {Month} {Day0D}, 12:00 PM",
+            "to": "{DoW}, {Month} {Day0D}, 12:00 PM"
+          }
+        }
+      },
+      {
+        "type": "rule",
+        "rules": {
+          "expected": {
+            "rank": "Number of Seats (High to Low)"
+          }
+        }
+      }
+    ]
+  },
+  "proxy": true,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

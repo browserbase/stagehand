@@ -40,6 +40,8 @@ import { LogLine } from "@/types/log";
 import { generateSummary } from "./core/summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
+import { buildWebBenchTestcases } from "./suites/webbench";
+import { buildOSWorldTestcases } from "./suites/osworld";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 
 dotenv.config();
@@ -105,6 +107,20 @@ const generateFilteredTestcases = (): Testcase[] => {
     );
   }
 
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
+  // If using external benchmarks via dataset filter, override category to use agent models
+  if (
+    datasetFilter &&
+    ["gaia", "webvoyager", "webbench", "osworld"].includes(datasetFilter)
+  ) {
+    effectiveCategory = "external_agent_benchmarks";
+    console.log(
+      `Using dataset filter "${datasetFilter}", switching to external_agent_benchmarks category.`,
+    );
+  }
+
   // Dynamically determine the MODELS based on the effective category
   const currentModels = getModelList(effectiveCategory);
 
@@ -113,13 +129,19 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
-  // Check for dataset filter from environment
-  const datasetFilter = process.env.EVAL_DATASET;
-
   // Special handling: fan out GAIA dataset for agent/gaia
-  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
+  const isGAIATaskIncluded =
+    taskNamesToRun.includes("agent/gaia") || datasetFilter === "gaia";
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
-  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
+  const isWebVoyagerTaskIncluded =
+    taskNamesToRun.includes("agent/webvoyager") ||
+    datasetFilter === "webvoyager";
+  // Special handling: fan out WebBench dataset for agent/webbench
+  const isWebBenchTaskIncluded =
+    taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
+  // Special handling: fan out OSWorld dataset for agent/osworld
+  const isOSWorldTaskIncluded =
+    taskNamesToRun.includes("agent/osworld") || datasetFilter === "osworld";
   // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
   const isMind2WebTaskIncluded = taskNamesToRun.includes(
     "agent/onlineMind2Web",
@@ -131,7 +153,11 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
-  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
+  } else if (
+    taskNamesToRun.includes("agent/gaia") &&
+    datasetFilter &&
+    datasetFilter !== "gaia"
+  ) {
     // Remove GAIA from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
@@ -144,12 +170,44 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
   } else if (
-    isWebVoyagerTaskIncluded &&
+    taskNamesToRun.includes("agent/webvoyager") &&
     datasetFilter &&
     datasetFilter !== "webvoyager"
   ) {
     // Remove WebVoyager from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
+  }
+
+  // Only include WebBench if no dataset filter or if webbench is selected
+  if (
+    isWebBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webbench")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
+    allTestcases.push(...buildWebBenchTestcases(currentModels));
+  } else if (
+    taskNamesToRun.includes("agent/webbench") &&
+    datasetFilter &&
+    datasetFilter !== "webbench"
+  ) {
+    // Remove WebBench from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
+  }
+
+  // Only include OSWorld if no dataset filter or if osworld is selected
+  if (
+    isOSWorldTaskIncluded &&
+    (!datasetFilter || datasetFilter === "osworld")
+  ) {
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
+    allTestcases.push(...buildOSWorldTestcases(currentModels));
+  } else if (
+    taskNamesToRun.includes("agent/osworld") &&
+    datasetFilter &&
+    datasetFilter !== "osworld"
+  ) {
+    // Remove OSWorld from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
   }
 
   // Only include Mind2Web if no dataset filter or if onlineMind2Web is selected
@@ -302,6 +360,9 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
+          console.log(
+            `🏃 Running eval: ${input.name} with model: ${input.modelName}`,
+          );
           let taskInput: Awaited<ReturnType<typeof initStagehand>>;
 
           if (USE_API) {
