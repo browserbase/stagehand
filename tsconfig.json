@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "declaration": true
   },
-  "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
+  "exclude": ["node_modules", "dist", ".eslintrc.cjs", "evals/deterministic/"]
 }
