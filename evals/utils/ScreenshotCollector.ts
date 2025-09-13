@@ -4,6 +4,7 @@ export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
   captureOnNavigation?: boolean;
+  interceptScreenshots?: boolean;
 }
 
 export class ScreenshotCollector {
@@ -17,13 +18,16 @@ export class ScreenshotCollector {
   private isCapturing: boolean = false;
   private lastScreenshot?: Buffer;
   private ssimThreshold: number = 0.92;
-  private mseThreshold: number = 100;
+  private mseThreshold: number = 50;
+  private originalScreenshot?: any;
+  private interceptScreenshots: boolean;
 
   constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
     this.page = page;
     this.interval = options.interval || 5000;
     this.maxScreenshots = options.maxScreenshots || 10;
     this.captureOnNavigation = options.captureOnNavigation ?? true;
+    this.interceptScreenshots = options.interceptScreenshots ?? false;
   }
 
   start(): void {
@@ -31,22 +35,28 @@ export class ScreenshotCollector {
       return;
     }
 
-    this.intervalId = setInterval(async () => {
-      await this.captureScreenshot("interval");
-    }, this.interval);
+    // Setup screenshot interception if enabled
+    if (this.interceptScreenshots) {
+      this.setupScreenshotInterception();
+    } else {
+      // Original time-based approach
+      this.intervalId = setInterval(async () => {
+        await this.captureScreenshot("interval");
+      }, this.interval);
 
-    if (this.captureOnNavigation) {
-      const loadListener = () => this.captureScreenshot("load");
-      const domContentListener = () =>
-        this.captureScreenshot("domcontentloaded");
+      if (this.captureOnNavigation) {
+        const loadListener = () => this.captureScreenshot("load");
+        const domContentListener = () =>
+          this.captureScreenshot("domcontentloaded");
 
-      this.page.on("load", loadListener);
-      this.page.on("domcontentloaded", domContentListener);
+        this.page.on("load", loadListener);
+        this.page.on("domcontentloaded", domContentListener);
 
-      this.navigationListeners = [
-        () => this.page.off("load", loadListener),
-        () => this.page.off("domcontentloaded", domContentListener),
-      ];
+        this.navigationListeners = [
+          () => this.page.off("load", loadListener),
+          () => this.page.off("domcontentloaded", domContentListener),
+        ];
+      }
     }
 
     this.captureScreenshot("initial");
@@ -56,6 +66,12 @@ export class ScreenshotCollector {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
+    }
+
+    // Restore original screenshot method if we intercepted it
+    if (this.originalScreenshot && this.interceptScreenshots) {
+      this.page.screenshot = this.originalScreenshot;
+      this.originalScreenshot = undefined;
     }
 
     this.navigationListeners.forEach((removeListener) => removeListener());
@@ -131,6 +147,67 @@ export class ScreenshotCollector {
   clear(): void {
     this.screenshots = [];
     this.lastScreenshot = undefined;
+  }
+
+
+  private setupScreenshotInterception(): void {
+    // Store the original screenshot method
+    this.originalScreenshot = this.page.screenshot.bind(this.page);
+    let lastCallTime = 0;
+
+    // Override the screenshot method
+    this.page.screenshot = async (options?: any) => {
+      const screenshot = await this.originalScreenshot(options);
+
+      // If called within 3 seconds of previous call, likely from agent
+      const now = Date.now();
+      if (now - lastCallTime < 3000) {
+        this.onAgentScreenshot(screenshot);
+      }
+      lastCallTime = now;
+
+      return screenshot;
+    };
+  }
+
+  private async onAgentScreenshot(screenshot: Buffer): Promise<void> {
+    // Apply MSE/SSIM logic to decide if we should keep this screenshot
+    let shouldKeep = true;
+    if (this.lastScreenshot) {
+      try {
+        // First do a quick MSE check
+        const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
+        if (mse < this.mseThreshold) {
+          // Very similar, skip
+          shouldKeep = false;
+        } else {
+          // Significant difference detected, verify with SSIM
+          const ssim = await this.calculateSSIM(this.lastScreenshot, screenshot);
+          shouldKeep = ssim < this.ssimThreshold;
+        }
+      } catch (error) {
+        // If comparison fails, keep the screenshot
+        console.error('Image comparison failed:', error);
+        shouldKeep = true;
+      }
+    }
+
+    if (shouldKeep) {
+      this.screenshots.push(screenshot);
+      this.lastScreenshot = screenshot;
+
+      if (this.screenshots.length > this.maxScreenshots) {
+        this.screenshots.shift();
+      }
+
+      console.log(
+        `Agent screenshot captured, total: ${this.screenshots.length}`,
+      );
+    } else {
+      console.log(
+        `Agent screenshot skipped, too similar to previous`,
+      );
+    }
   }
 
   private async calculateMSE(img1: Buffer, img2: Buffer): Promise<number> {
