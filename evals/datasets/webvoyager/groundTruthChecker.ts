@@ -12,6 +12,10 @@
 import * as path from "path";
 import * as fs from "fs";
 import type { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v3";
+import { generateObject } from "ai";
+import { AISdkClient } from "../../../lib/llm/aisdk";
+import type { LLMParsedResponse } from "../../../lib/inference";
 
 interface ReferenceAnswer {
   id: number;
@@ -34,6 +38,14 @@ interface GroundTruthResult {
   reasoning: string;
   matchedAnswerType?: "golden" | "possible";
 }
+
+// Schema for the LLM response
+const GroundTruthResponseSchema = z.object({
+  decision: z.enum(["MATCH_GOLDEN", "MATCH_POSSIBLE", "NO_MATCH", "UNCERTAIN"]),
+  reasoning: z.string().describe("Brief explanation of the decision"),
+});
+
+type GroundTruthResponse = z.infer<typeof GroundTruthResponseSchema>;
 
 let referenceData: ReferenceData | null = null;
 
@@ -119,44 +131,71 @@ Guidelines:
 - Consider if the agent's answer contains the key information from any reference answer
 - Be reasonably flexible with formatting and phrasing differences
 
-Respond with exactly one of:
-- "MATCH: golden" if the agent's answer matches a golden reference answer
-- "MATCH: possible" if the agent's answer matches a possible reference answer  
-- "NO_MATCH" if the agent's answer doesn't match any reference answer
-- "UNCERTAIN" if you cannot confidently determine
+Decide which of the following best describes the match:
+- MATCH_GOLDEN: The agent's answer matches a golden reference answer
+- MATCH_POSSIBLE: The agent's answer matches a possible reference answer
+- NO_MATCH: The agent's answer doesn't match any reference answer
+- UNCERTAIN: Cannot confidently determine if there's a match`;
 
-Follow your decision with a brief explanation on the next line.`;
+    let llmResponse: GroundTruthResponse;
 
-    // Use the existing LLM client from stagehand (already configured with model)
-    const llmResult = await stagehand.llmClient.createChatCompletion({
-      options: {
+    // Check if we can use generateObject directly (AI SDK client)
+    if (stagehand.llmClient instanceof AISdkClient) {
+      const model = stagehand.llmClient.getLanguageModel();
+      const result = await generateObject({
+        model,
         messages: [{ role: "user", content: prompt }],
-      },
-      logger: () => {}, // Silent logger for ground truth check
-    });
-
-    const response = llmResult.choices[0]?.message?.content?.trim() || "";
-
-    if (response.startsWith("MATCH:")) {
-      const matchType = response.includes("golden") ? "golden" : "possible";
-      return {
-        confident: true,
-        match: true,
-        reasoning: response,
-        matchedAnswerType: matchType,
-      };
-    } else if (response.startsWith("NO_MATCH")) {
-      return {
-        confident: true,
-        match: false,
-        reasoning: response,
-      };
+        schema: GroundTruthResponseSchema,
+      });
+      llmResponse = result.object;
     } else {
-      return {
-        confident: false,
-        match: false,
-        reasoning: `LLM uncertain: ${response}`,
-      };
+      // Fallback to the existing createChatCompletion with response_model
+      const result = await stagehand.llmClient.createChatCompletion<
+        LLMParsedResponse<GroundTruthResponse>
+      >({
+        options: {
+          messages: [{ role: "user", content: prompt }],
+          response_model: {
+            name: "GroundTruthResponse",
+            schema: GroundTruthResponseSchema,
+          },
+        },
+        logger: () => {}, // Silent logger for ground truth check
+      });
+
+      // Extract the structured data from the response
+      llmResponse = result.data;
+    }
+
+    // Process the structured response
+    switch (llmResponse.decision) {
+      case "MATCH_GOLDEN":
+        return {
+          confident: true,
+          match: true,
+          reasoning: llmResponse.reasoning,
+          matchedAnswerType: "golden",
+        };
+      case "MATCH_POSSIBLE":
+        return {
+          confident: true,
+          match: true,
+          reasoning: llmResponse.reasoning,
+          matchedAnswerType: "possible",
+        };
+      case "NO_MATCH":
+        return {
+          confident: true,
+          match: false,
+          reasoning: llmResponse.reasoning,
+        };
+      case "UNCERTAIN":
+      default:
+        return {
+          confident: false,
+          match: false,
+          reasoning: llmResponse.reasoning || "Could not determine match",
+        };
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

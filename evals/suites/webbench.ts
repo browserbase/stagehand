@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import Papa from "papaparse";
 import type { Testcase, EvalInput } from "@/types/evals";
 import type { AvailableModel } from "@/types/model";
 import { tasksConfig } from "../taskConfig";
@@ -14,46 +15,17 @@ type WebBenchRow = {
 };
 
 function parseCSV(content: string): Array<Record<string, string>> {
-  const lines = content.trim().split("\n");
-  if (lines.length === 0) return [];
+  const result = Papa.parse<Record<string, string>>(content, {
+    header: true,
+    skipEmptyLines: true,
+    // This handles multi-line fields automatically
+  });
 
-  // Parse header
-  const headers = lines[0].split(",").map((h) => h.trim());
-  const rows: Array<Record<string, string>> = [];
-
-  // Parse data rows
-  for (let i = 1; i < lines.length; i++) {
-    const row: Record<string, string> = {};
-    let currentField = "";
-    let insideQuotes = false;
-    let fieldIndex = 0;
-
-    for (let j = 0; j < lines[i].length; j++) {
-      const char = lines[i][j];
-      const nextChar = lines[i][j + 1];
-
-      if (char === '"' && nextChar === '"' && insideQuotes) {
-        // Escaped quote
-        currentField += '"';
-        j++; // Skip next quote
-      } else if (char === '"') {
-        // Toggle quote state
-        insideQuotes = !insideQuotes;
-      } else if (char === "," && !insideQuotes) {
-        // End of field
-        row[headers[fieldIndex]] = currentField.trim();
-        currentField = "";
-        fieldIndex++;
-      } else {
-        currentField += char;
-      }
-    }
-    // Add last field
-    row[headers[fieldIndex]] = currentField.trim();
-    rows.push(row);
+  if (result.errors.length > 0) {
+    console.error("CSV parsing errors:", result.errors);
   }
 
-  return rows;
+  return result.data;
 }
 
 function parseWebBenchRow(row: Record<string, string>): WebBenchRow | null {
