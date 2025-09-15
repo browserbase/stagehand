@@ -351,6 +351,7 @@ export class V3 {
       });
       this.ctx = await V3Context.create(ws, {
         includeCursor: this.opts.includeCursor ?? false,
+        env: "LOCAL",
       });
       this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "LOCAL", chrome, ws };
@@ -367,6 +368,7 @@ export class V3 {
       );
       this.ctx = await V3Context.create(ws, {
         includeCursor: this.opts.includeCursor ?? false,
+        env: "BROWSERBASE",
       });
       this.ctx.conn.onTransportClosed(this._onCdpClosed);
       this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
