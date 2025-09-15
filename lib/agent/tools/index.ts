@@ -14,6 +14,7 @@ import { createClickTool } from "./click";
 import { createTypeTool } from "./type";
 import { createDragAndDropTool } from "./dragAndDrop";
 import { createSearchTool } from "./search";
+import { createKeysTool } from "./keys";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -40,6 +41,7 @@ export function createAgentTools(
     scroll: createScrollTool(stagehandPage),
     wait: createWaitTool(),
     search: createSearchTool(),
+    keys: createKeysTool(stagehandPage),
   };
 }
 

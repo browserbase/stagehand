@@ -42,8 +42,6 @@ export class ContextManager {
   // Thresholds
   private readonly CHECKPOINT_INTERVAL = 15;
   private readonly RECENT_TOOLS_TO_KEEP = 10;
-  private readonly CRITICAL_CONTEXT_WINDOW = 5;
-  private readonly TOKEN_LIMIT = 100000;
   private readonly AGGRESSIVE_THRESHOLD = 100000;
   private readonly SUMMARIZATION_THRESHOLD = 120000;
 
@@ -684,7 +682,7 @@ Provide a brief summary (max 200 words) that preserves essential context for con
       const systemMessage = systemMsgIndex >= 0 ? prompt[systemMsgIndex] : null;
 
       // Keep only the last few messages for continuity
-      const recentMessages = prompt.slice(-5);
+      const recentMessages = prompt.slice(-10);
 
       // Generate comprehensive summary
       const summary = await this.generateConversationSummary(

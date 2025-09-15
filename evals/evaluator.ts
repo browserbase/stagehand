@@ -271,10 +271,10 @@ export class Evaluator {
       question,
       screenshots,
       agentReasoning,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and multiple screenshots showing the progression of a task.
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question the agents reasoningand multiple screenshots showing the progression of a task.
         ${agentReasoning ? "You also have access to the agent's detailed reasoning and thought process throughout the task." : ""}
         Analyze ALL screenshots to understand the complete journey. Look for evidence of task completion across all screenshots, not just the last one.
-        Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc).
+        Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc). Do not assume that the task was not completed if the last screenshot does not show the task being completed. the agent reasoning should carry a lot of weight in your evaluation.
         ${agentReasoning ? "The agent's reasoning provides crucial context about what actions were attempted, what was observed, and the decision-making process. Use this alongside the visual evidence to make a comprehensive evaluation." : ""}
         Today's date is ${new Date().toLocaleDateString()}`,
     } = options;

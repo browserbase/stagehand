@@ -34,8 +34,8 @@ const StagehandConfig = {
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
   useAPI: process.env.USE_API === "true",
-  verbose: 2 as const, // Disable all logging
-  debugDom: true, // Disable DOM debugging
+  verbose: 2 as const,
+  debugDom: true,
   headless: false,
   enableCaching,
   domSettleTimeoutMs: 30_000,

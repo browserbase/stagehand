@@ -9,7 +9,11 @@ export const createNavBackTool = (stagehandPage: StagehandPage) =>
       reasoning: z.string().describe("Why you're going back"),
     }),
     execute: async () => {
-      await stagehandPage.page.goBack();
-      return { success: true };
+      try {
+        await stagehandPage.page.goBack();
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     },
   });

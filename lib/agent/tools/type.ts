@@ -7,7 +7,11 @@ export const createTypeTool = (stagehandPage: StagehandPage) =>
     description:
       "Type text into an element using its coordinates. this will click the element and then type the text into it ( this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
     parameters: z.object({
-      describe: z.string().describe("Describe the element to click on"),
+      describe: z
+        .string()
+        .describe(
+          "Describe the element to type into in a short, specific phrase that mentions the element type and a good visual description",
+        ),
       text: z.string().describe("The text to type into the element"),
       coordinates: z
         .array(z.number())
