@@ -6,14 +6,15 @@ export const extract_capacitor_info: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/",
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction: "Extract the ECCN Code, RoHS Status, and Impedance.",
       schema: z.object({
         ECCN_code: z.string(),
@@ -119,6 +120,6 @@ export const extract_capacitor_info: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

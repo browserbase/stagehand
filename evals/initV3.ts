@@ -105,6 +105,7 @@ export async function initV3({
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams as V3Options["browserbaseSessionCreateParams"],
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
+    selfHeal: true,
   });
 
   // Associate the logger with the V3 instance

@@ -4,26 +4,25 @@ import { z } from "zod/v3";
 export const peeler_complex: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(`https://chefstoys.com/`, { timeout: 60000 });
-    await stagehand.page.waitForLoadState("networkidle");
+    const page = v3.context.pages()[0];
+    await page.goto(`https://chefstoys.com/`, { timeoutMs: 60000 });
+    await page.waitForLoadState("networkidle");
 
-    await stagehand.page.act("find the button to close the popup");
-    await stagehand.page.act({
-      action: "search for %search_query%",
+    await v3.act("find the button to close the popup");
+    await v3.act({
+      instruction: "search for %search_query%",
       variables: {
         search_query: "peeler",
       },
     });
 
-    await stagehand.page.act({
-      action: 'click on the first "OXO" brand peeler',
-    });
+    await v3.act({ instruction: 'click on the first "OXO" brand peeler' });
 
-    const { price } = await stagehand.page.extract({
+    const { price } = await v3.extract({
       instruction: "get the price of the peeler",
       schema: z.object({ price: z.number().nullable() }),
     });
@@ -59,6 +58,6 @@ export const peeler_complex: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

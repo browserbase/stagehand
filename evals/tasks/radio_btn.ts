@@ -3,20 +3,19 @@ import { EvalFunction } from "@/types/evals";
 export const radio_btn: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/paneer-pizza/",
     );
 
-    await stagehand.page.act({
-      action: "click the 'medium' option",
-    });
+    await v3.act({ instruction: "click the 'medium' option" });
 
     // confirm that the Medium radio is now checked
-    const radioBtnClicked = await stagehand.page
+    const radioBtnClicked = await page
       .locator('input[type="radio"][name="Pizza"][value="Medium"]')
       .isChecked();
 
@@ -35,6 +34,6 @@ export const radio_btn: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

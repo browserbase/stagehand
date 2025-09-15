@@ -108,12 +108,38 @@ export class Frame implements FrameManager {
     return nodes;
   }
 
-  /** Runtime.evaluate in the frame’s isolated world */
-  async evaluate<T = unknown>(
-    expression: string,
-    ...args: unknown[]
-  ): Promise<T> {
+  /**
+   * Evaluate a function or expression in this frame's isolated world.
+   * - If a string is provided, treated as a JS expression.
+   * - If a function is provided, it is stringified and invoked with the optional argument.
+   */
+  async evaluate<R = unknown, Arg = unknown>(
+    pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+  ): Promise<R> {
+    await this.session.send("Runtime.enable").catch(() => {});
     const contextId = await this.getExecutionContextId();
+
+    const isString = typeof pageFunctionOrExpression === "string";
+    let expression: string;
+
+    if (isString) {
+      expression = String(pageFunctionOrExpression);
+    } else {
+      const fnSrc = pageFunctionOrExpression.toString();
+      const argJson = JSON.stringify(arg);
+      expression = `(() => {
+        const __fn = ${fnSrc};
+        const __arg = ${argJson};
+        try {
+          const __res = __fn(__arg);
+          return Promise.resolve(__res).then(v => {
+            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+          });
+        } catch (e) { throw e; }
+      })()`;
+    }
+
     const res = await this.session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
       {
@@ -121,13 +147,12 @@ export class Frame implements FrameManager {
         contextId,
         awaitPromise: true,
         returnByValue: true,
-        arguments: args.map((value) => ({ value })),
       },
     );
     if (res.exceptionDetails) {
       throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
     }
-    return res.result.value as T;
+    return res.result.value as R;
   }
 
   /** Page.captureScreenshot (frame-scoped session) */

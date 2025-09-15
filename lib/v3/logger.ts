@@ -46,13 +46,93 @@ export async function initV3Logger(
     current = makeNoop();
     return;
   }
+  // Decide whether to use Pino-backed logger
+  const usePino = !opts.disablePino && !opts.externalLogger;
 
-  // Lazy import to avoid pulling pino into browser bundles
+  if (!usePino) {
+    // Lightweight adapter that forwards to an external logger or no-ops.
+    let level: Verbosity = opts.verbose ?? 1;
+    const forward = opts.externalLogger ?? (() => {});
+
+    current = {
+      setVerbosity(v) {
+        level = v;
+      },
+      log(line) {
+        if ((line.level ?? 1) <= level) forward(line);
+      },
+      error(msg, data) {
+        const line: LogLine = {
+          category: "log",
+          message: msg,
+          level: 0,
+          ...(data
+            ? {
+                auxiliary: Object.fromEntries(
+                  Object.entries(data).map(([k, v]) => [
+                    k,
+                    {
+                      value: String(v),
+                      type: typeof v as "string" | "number" | "boolean",
+                    },
+                  ]),
+                ),
+              }
+            : {}),
+        } as unknown as LogLine;
+        forward(line);
+      },
+      info(msg, data) {
+        const line: LogLine = {
+          category: "log",
+          message: msg,
+          level: 1,
+          ...(data
+            ? {
+                auxiliary: Object.fromEntries(
+                  Object.entries(data).map(([k, v]) => [
+                    k,
+                    {
+                      value: String(v),
+                      type: typeof v as "string" | "number" | "boolean",
+                    },
+                  ]),
+                ),
+              }
+            : {}),
+        } as unknown as LogLine;
+        forward(line);
+      },
+      debug(msg, data) {
+        const line: LogLine = {
+          category: "log",
+          message: msg,
+          level: 2,
+          ...(data
+            ? {
+                auxiliary: Object.fromEntries(
+                  Object.entries(data).map(([k, v]) => [
+                    k,
+                    {
+                      value: String(v),
+                      type: typeof v as "string" | "number" | "boolean",
+                    },
+                  ]),
+                ),
+              }
+            : {}),
+        } as unknown as LogLine;
+        forward(line);
+      },
+    };
+    return;
+  }
+
+  // Lazy import to avoid pulling pino into non-Pino paths (and browser bundles)
   const { StagehandLogger } = await import("@/lib/logger");
 
-  const usePino = !opts.disablePino && !opts.externalLogger;
   const stagehand = new StagehandLogger(
-    { pretty: opts.pretty ?? true, usePino },
+    { pretty: opts.pretty ?? true, usePino: true },
     opts.externalLogger,
   );
   if (opts.verbose !== undefined) stagehand.setVerbosity(opts.verbose);

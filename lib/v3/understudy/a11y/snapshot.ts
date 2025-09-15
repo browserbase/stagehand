@@ -268,29 +268,153 @@ export async function captureHybridSnapshot(
     }
   }
 
-  // ============== 1) Build per-frame DOM + A11y maps (no prefixing yet) ==============
-  for (const frameId of frames) {
-    const owningSess = ownerSession(page, frameId);
+  // ============== 1) Build per-session DOM once, then slice per frame ==============
+  type SessionDomIndex = {
+    rootBackend: number;
+    absByBe: Map<number, string>;
+    tagByBe: Map<number, string>;
+    scrollByBe: Map<number, boolean>;
+    /** Maps each backend node to its document root backend id (contentDocument root). */
+    docRootOf: Map<number, number>;
+    /** For iframe elements, contentDocument root backend id. */
+    contentDocRootByIframe: Map<number, number>;
+  };
 
-    // DOM maps (scoped to this frame’s document in its owning session)
-    const parentId = parentByFrame.get(frameId);
-    const sameSessionAsParent =
-      !!parentId &&
-      ownerSession(page, parentId) === ownerSession(page, frameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
-      owningSess,
-      frameId,
-      pierce,
-      (fid, be) => `${page.getOrdinal(fid)}-${be}`,
-      /*attemptOwnerLookup=*/ sameSessionAsParent,
+  async function buildSessionDomIndex(
+    session: CDPSessionLike,
+    pierce: boolean,
+  ): Promise<SessionDomIndex> {
+    await session.send("DOM.enable").catch(() => {});
+    const { root } = await session.send<{ root: Protocol.DOM.Node }>(
+      "DOM.getDocument",
+      { depth: -1, pierce },
     );
 
-    // A11y (must run on the owning session for this frame)
-    const { outline, urlMap } = await a11yForFrame(owningSess, frameId, {
-      // Do not apply focusXPath per-frame in the full build; we either
-      // handled scoped traversal above, or we capture full trees here.
-      tagNameMap,
+    const absByBe = new Map<number, string>();
+    const tagByBe = new Map<number, string>();
+    const scrollByBe = new Map<number, boolean>();
+    const docRootOf = new Map<number, number>();
+    const contentDocRootByIframe = new Map<number, number>();
+
+    type Entry = { node: Protocol.DOM.Node; xp: string; docRootBe: number };
+    const rootBe = root.backendNodeId!;
+    const stack: Entry[] = [{ node: root, xp: "/", docRootBe: rootBe }];
+
+    while (stack.length) {
+      const { node, xp, docRootBe } = stack.pop()!;
+      if (node.backendNodeId) {
+        absByBe.set(node.backendNodeId, xp || "/");
+        tagByBe.set(node.backendNodeId, String(node.nodeName).toLowerCase());
+        if (node?.isScrollable === true)
+          scrollByBe.set(node.backendNodeId, true);
+        docRootOf.set(node.backendNodeId, docRootBe);
+      }
+
+      const kids = node.children ?? [];
+      if (kids.length) {
+        const segs = buildChildXPathSegments(kids);
+        for (let i = kids.length - 1; i >= 0; i--) {
+          const child = kids[i]!;
+          const step = segs[i]!;
+          stack.push({ node: child, xp: joinXPath(xp, step), docRootBe });
+        }
+      }
+
+      for (const sr of node.shadowRoots ?? []) {
+        stack.push({ node: sr, xp: joinXPath(xp, "//"), docRootBe });
+      }
+
+      const cd = node.contentDocument as Protocol.DOM.Node | undefined;
+      if (cd && typeof cd.backendNodeId === "number") {
+        contentDocRootByIframe.set(node.backendNodeId!, cd.backendNodeId);
+        // Descend into contentDocument without changing the visible XPath (doc root shares the iframe's path)
+        stack.push({ node: cd, xp, docRootBe: cd.backendNodeId });
+      }
+    }
+
+    return {
+      rootBackend: rootBe,
+      absByBe,
+      tagByBe,
+      scrollByBe,
+      docRootOf,
+      contentDocRootByIframe,
+    };
+  }
+
+  function relativizeXPath(baseAbs: string, nodeAbs: string): string {
+    const base = normalizeXPath(baseAbs);
+    const abs = normalizeXPath(nodeAbs);
+    if (abs === base) return "/";
+    if (abs.startsWith(base)) {
+      const tail = abs.slice(base.length);
+      if (!tail) return "/";
+      return tail.startsWith("/") || tail.startsWith("//") ? tail : `/${tail}`;
+    }
+    // Fallback: if base is root
+    if (base === "/") return abs;
+    return abs; // do not drop node; keep absolute as best effort
+  }
+
+  // Build indices once per unique session
+  const uniqueSessions: CDPSessionLike[] = [];
+  const sessionToIndex = new Map<CDPSessionLike, SessionDomIndex>();
+  for (const frameId of frames) {
+    const sess = ownerSession(page, frameId);
+    if (!uniqueSessions.includes(sess)) uniqueSessions.push(sess);
+  }
+  for (const sess of uniqueSessions) {
+    const idx = await buildSessionDomIndex(sess, pierce);
+    sessionToIndex.set(sess, idx);
+  }
+
+  // Slice per-frame maps from session indices
+  for (const frameId of frames) {
+    const sess = ownerSession(page, frameId);
+    const idx = sessionToIndex.get(sess)!;
+
+    // Determine the document root for this frame within this session
+    const parentId = parentByFrame.get(frameId);
+    const sameSessionAsParent =
+      !!parentId && ownerSession(page, parentId) === sess;
+    let docRootBe = idx.rootBackend;
+    if (sameSessionAsParent) {
+      try {
+        const { backendNodeId } = await sess.send<{ backendNodeId?: number }>(
+          "DOM.getFrameOwner",
+          { frameId },
+        );
+        if (typeof backendNodeId === "number") {
+          const cdBe = idx.contentDocRootByIframe.get(backendNodeId);
+          if (typeof cdBe === "number") docRootBe = cdBe;
+        }
+      } catch {
+        // fall back to session root
+      }
+    }
+
+    const tagNameMap: Record<string, string> = {};
+    const xpathMap: Record<string, string> = {};
+    const scrollableMap: Record<string, boolean> = {};
+    const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
+    const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
+
+    for (const [be, nodeAbs] of idx.absByBe.entries()) {
+      const nodeDocRoot = idx.docRootOf.get(be);
+      if (nodeDocRoot !== docRootBe) continue; // keep nodes within this document only
+
+      const rel = relativizeXPath(baseAbs, nodeAbs);
+      const key = enc(be);
+      xpathMap[key] = rel;
+      const tag = idx.tagByBe.get(be);
+      if (tag) tagNameMap[key] = tag;
+      if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+    }
+
+    // Build A11y tree (once per frame)
+    const { outline, urlMap } = await a11yForFrame(sess, frameId, {
       experimental: options?.experimental ?? false,
+      tagNameMap,
       scrollableMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
     });
@@ -404,6 +528,8 @@ export async function captureHybridSnapshot(
 function prefixXPath(parentAbs: string, child: string): string {
   const p = parentAbs === "/" ? "" : parentAbs.replace(/\/$/, "");
   if (!child || child === "/") return p || "/";
+  if (child.startsWith("//"))
+    return p ? `${p}//${child.slice(2)}` : `//${child.slice(2)}`;
   const c = child.replace(/^\//, "");
   return p ? `${p}/${c}` : `/${c}`;
 }

@@ -3,23 +3,24 @@ import { EvalFunction } from "@/types/evals";
 export const login: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
     );
 
-    await stagehand.page.act({
-      action: "type %nunya% into the username field",
+    await v3.act({
+      instruction: "type %nunya% into the username field",
       variables: {
         nunya: "business",
       },
     });
 
     const xpath = "xpath=/html/body/main/form/div[1]/input";
-    const actualValue = await stagehand.page.locator(xpath).inputValue();
+    const actualValue = await page.locator(xpath).inputValue();
 
     const expectedValue = "business";
 
@@ -40,6 +41,6 @@ export const login: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -5,18 +5,19 @@ import { z } from "zod/v3";
 export const extract_nhl_stats: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://www.hockeydb.com/ihdb/stats/top_league.php?lid=nhl1927&sid=1990",
       {
         waitUntil: "domcontentloaded",
       },
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
       schema: z.object({
@@ -121,6 +122,6 @@ export const extract_nhl_stats: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

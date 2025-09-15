@@ -140,7 +140,7 @@ export function buildObserveUserMessage(
   return {
     role: "user",
     content: `instruction: ${instruction}
-Accessibility Tree: \n${domElements}`,
+Accessibility Tree: \n${domElements}\n`,
   };
 }
 
@@ -161,7 +161,7 @@ export function buildActObservePrompt(
   If the user is asking to scroll to the next chunk/previous chunk, choose the nextChunk/prevChunk method. No arguments are required here.
   If the action implies a key press, e.g., 'press enter', 'press a', 'press space', etc., always choose the press method with the appropriate key as argument — e.g. 'a', 'Enter', 'Space'. Do not choose a click action on an on-screen keyboard. Capitalize the first character like 'Enter', 'Tab', 'Escape' only for special keys.
   If the action implies choosing an option from a dropdown, AND the corresponding element is a 'select' element, choose the selectOptionFromDropdown method. The argument should be the text of the option to select.
-  If the action implies choosing an option from a dropdown, and the corresponding element is NOT a 'select' element, choose the click method.`;
+  If the action implies choosing an option from a dropdown, and the corresponding element is NOT a 'select' element, choose the click method on the element that will expand the dropdown.`;
 
   // Add variable names (not values) to the instruction if any
   if (variables && Object.keys(variables).length > 0) {

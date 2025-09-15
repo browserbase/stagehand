@@ -3,14 +3,15 @@ import { EvalFunction } from "@/types/evals";
 export const heal_scroll_50: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
-    await stagehand.page.act({
+    await v3.act({
       description: "the element to scroll on",
       selector: "/html/body/div/div/button",
       arguments: ["50%"],
@@ -20,7 +21,7 @@ export const heal_scroll_50: EvalFunction = async ({
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Get the current scroll position and total scroll height
-    const scrollInfo = await stagehand.page.evaluate(() => {
+    const scrollInfo = await page.evaluate(() => {
       return {
         scrollTop: window.scrollY + window.innerHeight / 2,
         scrollHeight: document.documentElement.scrollHeight,
@@ -55,6 +56,6 @@ export const heal_scroll_50: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

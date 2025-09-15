@@ -4,17 +4,18 @@ import { EvalFunction } from "@/types/evals";
 export const extract_snowshoeing_destinations: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
     );
 
-    await stagehand.page.act({ action: "accept the cookies" });
+    await v3.act({ instruction: "accept the cookies" });
 
-    const snowshoeing_regions = await stagehand.page.extract({
+    const snowshoeing_regions = await v3.extract({
       instruction:
         "Extract all the snowshoeing regions and the names of the trails within each region.",
       schema: z.object({
@@ -78,6 +79,6 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

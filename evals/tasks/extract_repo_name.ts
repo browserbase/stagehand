@@ -3,13 +3,14 @@ import { EvalFunction } from "@/types/evals";
 export const extract_repo_name: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://github.com/facebook/react");
+    const page = v3.context.pages()[0];
+    await page.goto("https://github.com/facebook/react");
 
-    const { extraction } = await stagehand.page.extract(
+    const { extraction } = await v3.extract(
       "extract the title of the Github repository. Do not include the owner of the repository.",
     );
 
@@ -40,6 +41,6 @@ export const extract_repo_name: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

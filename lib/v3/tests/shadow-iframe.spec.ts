@@ -59,7 +59,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     await v3.act(c.action, page);
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });
-    const text = extraction.extraction ?? "";
+    const text = extraction.page_text ?? "";
     for (const s of c.expectedSubstrings) {
       expect(
         text.includes(s),
@@ -171,7 +171,13 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3({ env: "LOCAL", headless: false, verbose: 0 });
+    v3 = new V3({
+      env: "LOCAL",
+      headless: false,
+      verbose: 1,
+      disablePino: true,
+      logger: console.log,
+    });
     await v3.init();
   });
 

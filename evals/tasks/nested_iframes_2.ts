@@ -1,24 +1,22 @@
 import { EvalFunction } from "@/types/evals";
-import { FrameLocator } from "playwright";
 
 export const nested_iframes_2: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
-  const page = stagehand.page;
   try {
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes-2/",
     );
 
-    await page.act({
-      action: "click the button called 'click me (inner 2)'",
-      iframes: true,
+    await v3.act({
+      instruction: "click the button called 'click me (inner 2)'",
     });
 
-    const inner: FrameLocator = page
+    const inner = page
       .frameLocator('iframe[src="iframe2.html"]')
       .frameLocator('iframe[src="inner2.html"]');
 
@@ -43,6 +41,6 @@ export const nested_iframes_2: EvalFunction = async ({
       error,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

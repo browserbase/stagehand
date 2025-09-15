@@ -5,13 +5,12 @@ export const extract_apartments: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
-      "https://www.apartments.com/san-francisco-ca/2-bedrooms/",
-    );
-    const apartment_listings = await stagehand.page.extract({
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.apartments.com/san-francisco-ca/2-bedrooms/");
+    const apartment_listings = await v3.extract({
       instruction:
         "Extract all the apartment listings with their prices and their addresses.",
       schema: z.object({
@@ -66,6 +65,6 @@ export const extract_apartments: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

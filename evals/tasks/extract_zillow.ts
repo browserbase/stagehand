@@ -4,16 +4,16 @@ import { EvalFunction } from "../../types/evals";
 export const extract_zillow: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
     );
-    // timeout for 5 seconds
-    await stagehand.page.waitForTimeout(5000);
-    const real_estate_listings = await stagehand.page.extract({
+
+    const real_estate_listings = await v3.extract({
       instruction:
         "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
       schema: z.object({
@@ -26,7 +26,7 @@ export const extract_zillow: EvalFunction = async ({
       }),
     });
 
-    await stagehand.close();
+    await v3.close();
     const listings = real_estate_listings.listings;
     const expectedLength = 38;
 
@@ -69,6 +69,6 @@ export const extract_zillow: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

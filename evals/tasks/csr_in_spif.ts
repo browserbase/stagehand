@@ -3,23 +3,22 @@ import { EvalFunction } from "@/types/evals";
 export const csr_in_spif: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   // this eval is designed to test whether stagehand can successfully
   // click inside an CSR (closed mode shadow) root that is inside an
   // SPIF (same process iframe)
 
-  const page = stagehand.page;
   try {
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
     );
-    await page.act({ action: "click the button", iframes: true });
+    await v3.act({ instruction: "click the button" });
 
-    const extraction = await page.extract({
+    const extraction = await v3.extract({
       instruction: "extract the entire page text",
-      iframes: true,
     });
 
     const pageText = extraction.extraction;
@@ -49,6 +48,6 @@ export const csr_in_spif: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -5,18 +5,17 @@ export const arxiv: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://arxiv.org/search/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://arxiv.org/search/");
 
-    await stagehand.page.act(
-      "type web agents with multimodal models in the search bar",
-    );
+    await v3.act("type web agents with multimodal models in the search bar");
 
-    await stagehand.page.act("hit enter");
+    await v3.act("hit enter");
 
-    const paper_links = await stagehand.page.extract({
+    const paper_links = await v3.extract({
       instruction: "extract the titles and links for two papers",
       schema: z.object({
         papers: z
@@ -46,8 +45,8 @@ export const arxiv: EvalFunction = async ({
     const papers = [];
     for (const paper of paper_links.papers) {
       if (paper.link) {
-        await stagehand.page.goto(paper.link);
-        const abstract = await stagehand.page.extract({
+        await page.goto(paper.link);
+        const abstract = await v3.extract({
           instruction: "extract details of the paper from the abstract",
           schema: z.object({
             category: z
@@ -181,6 +180,6 @@ export const arxiv: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

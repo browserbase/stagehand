@@ -3,14 +3,15 @@ import { EvalFunction } from "@/types/evals";
 export const observe_yc_startup: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.ycombinator.com/companies");
-    await stagehand.page.waitForLoadState("networkidle");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.ycombinator.com/companies");
+    await page.waitForLoadState("networkidle");
 
-    const observations = await stagehand.page.observe({
+    const observations = await v3.observe({
       instruction:
         "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
     });
@@ -30,33 +31,54 @@ export const observe_yc_startup: EvalFunction = async ({
       `div._section_i9oky_163._results_i9oky_343`,
     ];
 
-    const possibleHandles = [];
-    for (const locatorStr of possibleLocators) {
-      const locator = stagehand.page.locator(locatorStr);
-      const handle = await locator.elementHandle();
-      if (handle) {
-        possibleHandles.push({ locatorStr, handle });
-      }
-    }
-
     let foundMatch = false;
     let matchedLocator: string | null = null;
 
+    const nodesEqual = async (
+      obsSel: string,
+      candSel: string,
+    ): Promise<boolean> => {
+      return page.evaluate(
+        ({ obsSel, candSel }) => {
+          function resolve(sel: string): Element | null {
+            if (!sel) return null;
+            const raw = sel.trim();
+            const isXPath =
+              /^xpath=/i.test(raw) ||
+              raw.startsWith("/") ||
+              raw.startsWith("(");
+            if (isXPath) {
+              try {
+                const xp = raw.replace(/^xpath=/i, "");
+                return document.evaluate(
+                  xp,
+                  document,
+                  null,
+                  XPathResult.FIRST_ORDERED_NODE_TYPE,
+                  null,
+                ).singleNodeValue as Element | null;
+              } catch {
+                return null;
+              }
+            }
+            try {
+              return document.querySelector(raw);
+            } catch {
+              return null;
+            }
+          }
+          const a = resolve(obsSel);
+          const b = resolve(candSel);
+          return a === b;
+        },
+        { obsSel, candSel },
+      );
+    };
+
     for (const observation of observations) {
       try {
-        const observationLocator = stagehand.page
-          .locator(observation.selector)
-          .first();
-        const observationHandle = await observationLocator.elementHandle();
-        if (!observationHandle) {
-          continue;
-        }
-
-        for (const { locatorStr, handle: candidateHandle } of possibleHandles) {
-          const isSameNode = await observationHandle.evaluate(
-            (node, otherNode) => node === otherNode,
-            candidateHandle,
-          );
+        for (const locatorStr of possibleLocators) {
+          const isSameNode = await nodesEqual(observation.selector, locatorStr);
           if (isSameNode) {
             foundMatch = true;
             matchedLocator = locatorStr;
@@ -93,6 +115,6 @@ export const observe_yc_startup: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -3,6 +3,7 @@ import { v3Logger } from "@/lib/v3/logger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
+import { FrameLocator } from "./frameLocator";
 import {
   computeAbsoluteXPathForNode,
   resolveNodeForLocationDeep,
@@ -420,12 +421,8 @@ export class Page {
       "Page.navigate",
       { url },
     );
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
-    }
+    const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
+    await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
   }
 
   /**
@@ -518,6 +515,91 @@ export class Page {
    */
   locator(selector: string): ReturnType<Frame["locator"]> {
     return this.mainFrameWrapper.locator(selector);
+  }
+
+  /**
+   * Frame locator similar to Playwright: targets iframe elements and scopes
+   * subsequent locators to that frame. Supports chaining.
+   */
+  frameLocator(selector: string): FrameLocator {
+    return new FrameLocator(this, selector);
+  }
+
+  /**
+   * List all frames belonging to this page as Frame objects bound to their owning sessions.
+   * The list is ordered by a stable ordinal assigned during the page lifetime.
+   */
+  frames(): Frame[] {
+    const ids = this.listAllFrameIds();
+    const withOrd = ids.map((id) => ({ id, ord: this.getOrdinal(id) }));
+    withOrd.sort((a, b) => a.ord - b.ord);
+    return withOrd.map(({ id }) => this.frameForId(id));
+  }
+
+  /**
+   * Wait until the page reaches a lifecycle state on the current main frame.
+   * Mirrors Playwright's API signatures.
+   */
+  async waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void> {
+    await this.waitForMainLoadState(state, timeoutMs ?? 15000);
+  }
+
+  /**
+   * Evaluate a function or expression in the current main frame's isolated world.
+   * - If a string is provided, it is treated as a JS expression.
+   * - If a function is provided, it is stringified and invoked with the optional argument.
+   * - The return value should be JSON-serializable. Non-serializable objects will
+   *   best-effort serialize via JSON.stringify inside the page context.
+   */
+  async evaluate<R = unknown, Arg = unknown>(
+    pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
+    arg?: Arg,
+  ): Promise<R> {
+    await this.mainSession.send("Runtime.enable").catch(() => {});
+    const ctxId = await this.createIsolatedWorldForCurrentMain();
+
+    const isString = typeof pageFunctionOrExpression === "string";
+    let expression: string;
+
+    if (isString) {
+      expression = String(pageFunctionOrExpression);
+    } else {
+      const fnSrc = pageFunctionOrExpression.toString();
+      // Build an IIFE that calls the user's function with the argument and
+      // attempts to deep-serialize the result for returnByValue.
+      const argJson = JSON.stringify(arg);
+      expression = `(() => {
+        const __fn = ${fnSrc};
+        const __arg = ${argJson};
+        try {
+          const __res = __fn(__arg);
+          return Promise.resolve(__res).then(v => {
+            try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+          });
+        } catch (e) { throw e; }
+      })()`;
+    }
+
+    const { result, exceptionDetails } =
+      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
+
+    if (exceptionDetails) {
+      const msg =
+        exceptionDetails.text ||
+        exceptionDetails.exception?.description ||
+        "Evaluation failed";
+      throw new Error(msg);
+    }
+
+    return result?.value as R;
   }
 
   /**

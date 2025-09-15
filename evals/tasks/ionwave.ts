@@ -3,21 +3,20 @@ import { EvalFunction } from "@/types/evals";
 export const ionwave: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/",
     );
 
-    await stagehand.page.act({
-      action: 'Click on "Closed Bids"',
-    });
+    await v3.act({ instruction: 'Click on "Closed Bids"' });
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/closed-bids.html";
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
 
     return {
       _success: currentUrl.startsWith(expectedUrl),
@@ -35,6 +34,6 @@ export const ionwave: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

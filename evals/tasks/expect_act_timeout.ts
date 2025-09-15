@@ -4,12 +4,13 @@ export const expect_act_timeout: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://docs.stagehand.dev");
-    const result = await stagehand.page.act({
-      action: "search for 'Stagehand'",
+    const page = v3.context.pages()[0];
+    await page.goto("https://docs.stagehand.dev");
+    const result = await v3.act({
+      instruction: "search for 'Stagehand'",
       timeoutMs: 1_000,
     });
 
@@ -28,6 +29,6 @@ export const expect_act_timeout: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -3,13 +3,14 @@ import { EvalFunction } from "@/types/evals";
 export const observe_taxes: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://file.1040.com/estimate/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://file.1040.com/estimate/");
 
-    const observations = await stagehand.page.observe({
+    const observations = await v3.observe({
       instruction:
         "Find all the form input elements under the 'Income' section",
     });
@@ -34,7 +35,7 @@ export const observe_taxes: EvalFunction = async ({
 
     const expectedLocator = `#tpWages`;
 
-    const expectedResult = await stagehand.page
+    const expectedResult = await page
       .locator(expectedLocator)
       .first()
       .innerText();
@@ -42,7 +43,7 @@ export const observe_taxes: EvalFunction = async ({
     let foundMatch = false;
     for (const observation of observations) {
       try {
-        const observationResult = await stagehand.page
+        const observationResult = await page
           .locator(observation.selector)
           .first()
           .innerText();
@@ -77,6 +78,6 @@ export const observe_taxes: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

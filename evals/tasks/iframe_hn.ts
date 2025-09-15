@@ -4,21 +4,20 @@ import { z } from "zod/v3";
 export const iframe_hn: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
     );
 
-    const result = await page.extract({
+    const result = await v3.extract({
       instruction: "extract the title of the first hackernews story",
       schema: z.object({
         story_title: z.string(),
       }),
-      iframes: true,
     });
 
     const title = result.story_title.toLowerCase();
@@ -53,6 +52,6 @@ export const iframe_hn: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };
