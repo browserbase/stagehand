@@ -45,7 +45,7 @@ export type ModelProvider =
   | "aisdk";
 
 export type ClientOptions =
-  | Record<string, string>
+  | Record<string, unknown>
   | OpenAIClientOptions
   | AnthropicClientOptions;
 

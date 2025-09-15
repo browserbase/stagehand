@@ -45,7 +45,11 @@ import { LLMProvider } from "./llm/LLMProvider";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
+import {
+  isRunningInBun,
+  loadApiKeyFromEnv,
+  loadBedrockClientOptions,
+} from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -587,10 +591,23 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        modelApiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0],
-          this.logger,
-        );
+        const provider = this.modelName.split("/")[0];
+
+        // Special handling for Amazon Bedrock's complex authentication
+        if (provider === "bedrock") {
+          const bedrockOptions = loadBedrockClientOptions(this.logger);
+          this.modelClientOptions = {
+            ...modelClientOptions,
+            ...bedrockOptions,
+          };
+        } else {
+          // Standard single API key handling for other AISDK providers
+          modelApiKey = loadApiKeyFromEnv(provider, this.logger);
+          this.modelClientOptions = {
+            ...modelClientOptions,
+            apiKey: modelApiKey,
+          };
+        }
       } else {
         // Temporary add for legacy providers
         modelApiKey =
@@ -601,11 +618,11 @@ export class Stagehand {
               : LLMProvider.getModelProvider(this.modelName) === "google"
                 ? process.env.GOOGLE_API_KEY
                 : undefined;
+        this.modelClientOptions = {
+          ...modelClientOptions,
+          apiKey: modelApiKey,
+        };
       }
-      this.modelClientOptions = {
-        ...modelClientOptions,
-        apiKey: modelApiKey,
-      };
     } else {
       this.modelClientOptions = modelClientOptions;
     }
@@ -753,7 +770,7 @@ export class Stagehand {
         logger: this.logger,
       });
 
-      const modelApiKey = this.modelClientOptions?.apiKey;
+      const modelApiKey = this.modelClientOptions?.apiKey as string;
       const { sessionId, available } = await this.apiClient.init({
         modelName: this.modelName,
         modelApiKey: modelApiKey,

@@ -6,6 +6,7 @@ import {
 } from "@/types/stagehandErrors";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { azure, createAzure } from "@ai-sdk/azure";
+import { bedrock, createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { cerebras, createCerebras } from "@ai-sdk/cerebras";
 import { createDeepSeek, deepseek } from "@ai-sdk/deepseek";
 import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
@@ -38,6 +39,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   xai,
   azure,
   groq,
+  bedrock,
   cerebras,
   togetherai,
   mistral,
@@ -52,6 +54,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   xai: createXai,
   azure: createAzure,
   groq: createGroq,
+  bedrock: createAmazonBedrock,
   cerebras: createCerebras,
   togetherai: createTogetherAI,
   mistral: createMistral,
@@ -108,7 +111,7 @@ export function getAISDKLanguageModel(
       );
     }
     // Create the provider instance with the custom configuration options
-    const provider = creator(modelClientOptions);
+    const provider = creator(modelClientOptions as Record<string, unknown>);
     // Get the specific model from the provider
     return provider(subModelName);
   } else {

@@ -31,7 +31,7 @@ export class CerebrasClient extends LLMClient {
     enableCaching?: boolean;
     cache?: LLMCache;
     modelName: AvailableModel;
-    clientOptions?: OpenAI.ClientOptions;
+    clientOptions?: ClientOptions;
     userProvidedInstructions?: string;
   }) {
     super(modelName, userProvidedInstructions);
