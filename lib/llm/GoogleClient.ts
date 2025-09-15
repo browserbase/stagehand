@@ -60,8 +60,6 @@ export class GoogleClient extends LLMClient {
   private client: GoogleGenAI;
   private cache: LLMCache | undefined;
   private enableCaching: boolean;
-  public clientOptions: ClientOptions;
-  public hasVision: boolean;
   private logger: (message: LogLine) => void;
 
   constructor({

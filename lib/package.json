@@ -2,6 +2,7 @@
   "name": "@browserbasehq/stagehand-lib",
   "version": "2.4.1",
   "private": true,
+  "type": "module",
   "description": "Core Stagehand library sources",
   "main": "../dist/index.js",
   "module": "../dist/index.js",

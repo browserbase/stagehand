@@ -8,8 +8,11 @@
  * We can't rely on the normal build process for stagehand, because we need our script content as a string so that the import *just works*
  */
 import fs from "fs";
-import path from "path";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
 import esbuild from "esbuild";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 fs.mkdirSync(path.join(__dirname, "./build"), { recursive: true });
 

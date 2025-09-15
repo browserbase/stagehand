@@ -4,6 +4,7 @@
   "private": true,
   "description": "Example scripts for Stagehand",
   "main": "./",
+  "type": "module",
   "scripts": {
     "build": "pnpm --filter @browserbasehq/stagehand run build",
     "start": "pnpm run build && sh -c 'if [ -n \"$1\" ]; then tsx \"$1.ts\"; else tsx example.ts; fi' --"
