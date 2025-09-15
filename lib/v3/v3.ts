@@ -486,6 +486,15 @@ export class V3 {
    */
 
   async extract(): Promise<z.infer<typeof pageTextSchema>>;
+  // If a page is provided but no instruction and no schema, return page text shape
+  async extract(
+    params: Omit<ExtractParams<z.AnyZodObject>, "instruction" | "schema"> & {
+      page: AnyPage;
+      instruction?: undefined;
+      schema?: undefined;
+    },
+  ): Promise<z.infer<typeof pageTextSchema>>;
+  // Generic schema path
   async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
     params: ExtractParams<T>,
   ): Promise<z.infer<T>>;
