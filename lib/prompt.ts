@@ -154,7 +154,7 @@ export function buildActObservePrompt(
 ): string {
   // Base instruction
   let instruction = `Find the most relevant element to perform an action on given the following action: ${action}. 
-  Provide an action for this element such as ${supportedActions.join(", ")}, or any other playwright locator method. Remember that to users, buttons and links look the same in most cases.
+  Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.
   If the action is completely unrelated to a potential action to be taken on the page, return an empty array. 
   ONLY return one action. If multiple actions are relevant, return the most relevant one. 
   If the user is asking to scroll to a position on the page, e.g., 'halfway' or 0.75, etc, you must return the argument formatted as the correct percentage, e.g., '50%' or '75%', etc.

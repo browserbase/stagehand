@@ -87,7 +87,12 @@ export class Locator {
       } as Protocol.Input.DispatchMouseEventRequest);
     } finally {
       // release the element handle
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      try {
+        await session.send<never>("Runtime.releaseObject", { objectId });
+      } catch {
+        // If the context navigated or was destroyed (e.g., link opens new tab),
+        // releaseObject may fail with -32000. Ignore as best-effort cleanup.
+      }
     }
   }
 
