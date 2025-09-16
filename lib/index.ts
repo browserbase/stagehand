@@ -931,7 +931,7 @@ export class Stagehand {
               : instructionOrOptions;
 
           if (this.usingAPI) {
-            const agentConfigForApi: AgentConfig = options;
+            const agentConfigForApi: AgentConfig = options ?? {};
 
             return await this.apiClient.agentExecute(
               agentConfigForApi,
