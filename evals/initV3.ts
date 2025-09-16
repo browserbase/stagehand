@@ -106,6 +106,8 @@ export async function initV3({
       configOverrides?.browserbaseSessionCreateParams as V3Options["browserbaseSessionCreateParams"],
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
     selfHeal: true,
+    disablePino: true,
+    logger: logger.log.bind(logger),
   });
 
   // Associate the logger with the V3 instance

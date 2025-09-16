@@ -33,7 +33,13 @@ import {
   AgentConfig,
 } from "@/types/stagehand";
 import { AgentExecuteOptions, AgentResult } from "@/types/agent";
-import { initV3Logger, v3Logger } from "./logger";
+import {
+  initV3Logger,
+  bindInstanceLogger,
+  unbindInstanceLogger,
+  withInstanceLogContext,
+  v3Logger,
+} from "./logger";
 import { LogLine } from "@/types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
@@ -83,6 +89,7 @@ export class V3 {
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
   private _history: Array<HistoryEntry> = [];
+  private readonly instanceId: string;
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -171,13 +178,22 @@ export class V3 {
     this._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
+    this.instanceId =
+      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
+      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
     // Initialize the global v3 logger (fire-and-forget)
     void initV3Logger({
       verbose: this.verbose,
       disablePino: opts.disablePino,
-      externalLogger: this.externalLogger,
       pretty: true,
     });
+    if (this.externalLogger) {
+      try {
+        bindInstanceLogger(this.instanceId, this.externalLogger);
+      } catch {
+        // ignore
+      }
+    }
     this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
@@ -210,7 +226,7 @@ export class V3 {
 
   private async _panicClose(reason: string): Promise<void> {
     try {
-      v3Logger({
+      this.logger({
         category: "v3",
         message: `panicClose → ${reason}`,
         level: 0,
@@ -220,7 +236,7 @@ export class V3 {
     }
 
     try {
-      v3Logger({
+      this.logger({
         category: "v3",
         message: `calling this.close() → ${reason}`,
         level: 0,
@@ -249,13 +265,13 @@ export class V3 {
           new Promise((r) => setTimeout(r, 3000)),
         ]);
       } finally {
-        v3Logger({ category: "v3", message: `${label}: exiting`, level: 0 });
+        this.logger({ category: "v3", message: `${label}: exiting`, level: 0 });
         process.exit(1);
       }
     };
 
     const onUncaught = (err: unknown) => {
-      v3Logger({
+      this.logger({
         category: "v3",
         message: "uncaughtException",
         level: 0,
@@ -265,7 +281,7 @@ export class V3 {
     };
 
     const onUnhandled = (reason: unknown) => {
-      v3Logger({
+      this.logger({
         category: "v3",
         message: "unhandledRejection",
         level: 0,
@@ -285,98 +301,100 @@ export class V3 {
    * and sets up a CDP context.
    */
   async init(): Promise<void> {
-    this.actHandler = new ActHandler(
-      this.llmClient,
-      this.modelName,
-      this.modelClientOptions,
-      this.opts.systemPrompt ?? "",
-      this.logInferenceToFile,
-      this.opts.selfHeal ?? false,
-      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-        this.updateMetrics(
-          functionName,
-          promptTokens,
-          completionTokens,
-          inferenceTimeMs,
-        ),
-    );
-    this.extractHandler = new ExtractHandler(
-      this.llmClient,
-      this.modelName,
-      this.modelClientOptions,
-      this.opts.systemPrompt ?? "",
-      this.logInferenceToFile,
-      this.experimental,
-      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-        this.updateMetrics(
-          functionName,
-          promptTokens,
-          completionTokens,
-          inferenceTimeMs,
-        ),
-    );
-    this.observeHandler = new ObserveHandler(
-      this.llmClient,
-      this.modelName,
-      this.modelClientOptions,
-      this.opts.systemPrompt ?? "",
-      this.logInferenceToFile,
-      this.experimental,
-      (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-        this.updateMetrics(
-          functionName,
-          promptTokens,
-          completionTokens,
-          inferenceTimeMs,
-        ),
-    );
-    if (this.opts.env === "LOCAL") {
-      // chrome-launcher conditionally adds --headless when the environment variable
-      // HEADLESS is set, without parsing its value.
-      // if it is not equal to true, then we delete it from the process
-      const envHeadless = process.env.HEADLESS;
-      if (envHeadless !== undefined) {
-        const normalized = envHeadless.trim().toLowerCase();
-        if (normalized !== "true") {
-          delete process.env.HEADLESS;
+    return await withInstanceLogContext(this.instanceId, async () => {
+      this.actHandler = new ActHandler(
+        this.llmClient,
+        this.modelName,
+        this.modelClientOptions,
+        this.opts.systemPrompt ?? "",
+        this.logInferenceToFile,
+        this.opts.selfHeal ?? false,
+        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          this.updateMetrics(
+            functionName,
+            promptTokens,
+            completionTokens,
+            inferenceTimeMs,
+          ),
+      );
+      this.extractHandler = new ExtractHandler(
+        this.llmClient,
+        this.modelName,
+        this.modelClientOptions,
+        this.opts.systemPrompt ?? "",
+        this.logInferenceToFile,
+        this.experimental,
+        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          this.updateMetrics(
+            functionName,
+            promptTokens,
+            completionTokens,
+            inferenceTimeMs,
+          ),
+      );
+      this.observeHandler = new ObserveHandler(
+        this.llmClient,
+        this.modelName,
+        this.modelClientOptions,
+        this.opts.systemPrompt ?? "",
+        this.logInferenceToFile,
+        this.experimental,
+        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+          this.updateMetrics(
+            functionName,
+            promptTokens,
+            completionTokens,
+            inferenceTimeMs,
+          ),
+      );
+      if (this.opts.env === "LOCAL") {
+        // chrome-launcher conditionally adds --headless when the environment variable
+        // HEADLESS is set, without parsing its value.
+        // if it is not equal to true, then we delete it from the process
+        const envHeadless = process.env.HEADLESS;
+        if (envHeadless !== undefined) {
+          const normalized = envHeadless.trim().toLowerCase();
+          if (normalized !== "true") {
+            delete process.env.HEADLESS;
+          }
         }
+
+        const { ws, chrome } = await launchLocalChrome({
+          chromePath: this.opts.chromePath,
+          chromeFlags: this.opts.chromeFlags,
+          headless: this.opts.headless,
+          userDataDir: this.opts.userDataDir,
+          connectTimeoutMs: this.opts.connectTimeoutMs,
+        });
+        this.ctx = await V3Context.create(ws, {
+          includeCursor: this.opts.includeCursor ?? false,
+          env: "LOCAL",
+        });
+        this.ctx.conn.onTransportClosed(this._onCdpClosed);
+        this.state = { kind: "LOCAL", chrome, ws };
+        return;
       }
 
-      const { ws, chrome } = await launchLocalChrome({
-        chromePath: this.opts.chromePath,
-        chromeFlags: this.opts.chromeFlags,
-        headless: this.opts.headless,
-        userDataDir: this.opts.userDataDir,
-        connectTimeoutMs: this.opts.connectTimeoutMs,
-      });
-      this.ctx = await V3Context.create(ws, {
-        includeCursor: this.opts.includeCursor ?? false,
-        env: "LOCAL",
-      });
-      this.ctx.conn.onTransportClosed(this._onCdpClosed);
-      this.state = { kind: "LOCAL", chrome, ws };
-      return;
-    }
+      if (this.opts.env === "BROWSERBASE") {
+        const { apiKey, projectId } = this.requireBrowserbaseCreds();
+        const { ws, sessionId, bb } = await createBrowserbaseSession(
+          apiKey,
+          projectId,
+          this.opts.browserbaseSessionCreateParams,
+          this.opts.browserbaseSessionID,
+        );
+        this.ctx = await V3Context.create(ws, {
+          includeCursor: this.opts.includeCursor ?? false,
+          env: "BROWSERBASE",
+        });
+        this.ctx.conn.onTransportClosed(this._onCdpClosed);
+        this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+        return;
+      }
 
-    if (this.opts.env === "BROWSERBASE") {
-      const { apiKey, projectId } = this.requireBrowserbaseCreds();
-      const { ws, sessionId, bb } = await createBrowserbaseSession(
-        apiKey,
-        projectId,
-        this.opts.browserbaseSessionCreateParams,
-        this.opts.browserbaseSessionID,
-      );
-      this.ctx = await V3Context.create(ws, {
-        includeCursor: this.opts.includeCursor ?? false,
-        env: "BROWSERBASE",
-      });
-      this.ctx.conn.onTransportClosed(this._onCdpClosed);
-      this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
-      return;
-    }
-
-    const neverEnv: never = this.opts.env;
-    throw new Error(`Unsupported env: ${neverEnv}`);
+      const neverEnv: never = this.opts.env;
+      throw new Error(`Unsupported env: ${neverEnv}`);
+    });
   }
 
   /**
@@ -400,83 +418,88 @@ export class V3 {
     pageArg?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult> {
-    if (!this.actHandler)
-      throw new Error("V3 not initialized. Call init() before act().");
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.actHandler)
+        throw new Error("V3 not initialized. Call init() before act().");
 
-    // String shorthand → ActParams
-    if (typeof input === "string") {
-      const p: ActParams = {
-        instruction: input,
-        page: pageArg,
-        domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-        timeoutMs: opts?.timeoutMs,
-      };
-      return this.act(p);
-    }
-
-    if (isObserveResult(input)) {
-      // Resolve page: use provided page if any, otherwise default active page
-      let v3Page: Page;
-      if (pageArg) {
-        v3Page = await this.normalizeToV3Page(pageArg);
-      } else {
-        v3Page = await this.ctx!.awaitActivePage();
+      // String shorthand → ActParams
+      if (typeof input === "string") {
+        const p: ActParams = {
+          instruction: input,
+          page: pageArg,
+          domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+          timeoutMs: opts?.timeoutMs,
+        };
+        return this.act(p);
       }
 
-      // normalize selector to the engine your executor expects
-      const selector = input.selector.startsWith("xpath=")
-        ? input.selector
-        : `xpath=${input.selector}`;
-      const actResult = await this.actHandler.actFromObserveResult(
-        { ...input, selector }, // ObserveResult
-        v3Page, // V3 Page
-        opts?.domSettleTimeoutMs,
-      );
-      // history: record ObserveResult-based act call
-      this.addToHistory(
-        "act",
-        { observeResult: input, domSettleTimeoutMs: opts?.domSettleTimeoutMs },
-        actResult,
-      );
-      return actResult;
-    }
-    const params = input as ActParams;
+      if (isObserveResult(input)) {
+        // Resolve page: use provided page if any, otherwise default active page
+        let v3Page: Page;
+        if (pageArg) {
+          v3Page = await this.normalizeToV3Page(pageArg);
+        } else {
+          v3Page = await this.ctx!.awaitActivePage();
+        }
 
-    let page: Page;
-
-    if (params.page) {
-      if (params.page instanceof (await import("./understudy/page")).Page) {
-        // Already a V3 Page
-        page = params.page;
-      } else {
-        // Playwright / Puppeteer path: resolve → frameId → V3 Page
-        const frameId = await this.resolveTopFrameId(params.page);
-        page = this.ctx!.resolvePageByMainFrameId(frameId);
+        // normalize selector to the engine your executor expects
+        const selector = input.selector.startsWith("xpath=")
+          ? input.selector
+          : `xpath=${input.selector}`;
+        const actResult = await this.actHandler.actFromObserveResult(
+          { ...input, selector }, // ObserveResult
+          v3Page, // V3 Page
+          opts?.domSettleTimeoutMs,
+        );
+        // history: record ObserveResult-based act call
+        this.addToHistory(
+          "act",
+          {
+            observeResult: input,
+            domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+          },
+          actResult,
+        );
+        return actResult;
       }
-    } else {
-      page = await this.ctx!.awaitActivePage();
-    }
+      const params = input as ActParams;
 
-    const handlerParams: ActHandlerParams = {
-      instruction: params.instruction,
-      page: page!,
-      variables: params.variables,
-      domSettleTimeoutMs: params.domSettleTimeoutMs,
-      timeoutMs: params.timeoutMs,
-    };
-    const actResult = await this.actHandler.act(handlerParams);
-    // history: record instruction-based act call (omit page object)
-    this.addToHistory(
-      "act",
-      {
+      let page: Page;
+
+      if (params.page) {
+        if (params.page instanceof (await import("./understudy/page")).Page) {
+          // Already a V3 Page
+          page = params.page;
+        } else {
+          // Playwright / Puppeteer path: resolve → frameId → V3 Page
+          const frameId = await this.resolveTopFrameId(params.page);
+          page = this.ctx!.resolvePageByMainFrameId(frameId);
+        }
+      } else {
+        page = await this.ctx!.awaitActivePage();
+      }
+
+      const handlerParams: ActHandlerParams = {
         instruction: params.instruction,
+        page: page!,
         variables: params.variables,
         domSettleTimeoutMs: params.domSettleTimeoutMs,
         timeoutMs: params.timeoutMs,
-      },
-      actResult,
-    );
-    return actResult;
+      };
+      const actResult = await this.actHandler.act(handlerParams);
+      // history: record instruction-based act call (omit page object)
+      this.addToHistory(
+        "act",
+        {
+          instruction: params.instruction,
+          variables: params.variables,
+          domSettleTimeoutMs: params.domSettleTimeoutMs,
+          timeoutMs: params.timeoutMs,
+        },
+        actResult,
+      );
+      return actResult;
+    });
   }
 
   /**
@@ -509,66 +532,68 @@ export class V3 {
     params?: ExtractParams<T> | string,
     pageArg?: AnyPage,
   ): Promise<z.infer<T> | z.infer<typeof pageTextSchema>> {
-    if (!this.extractHandler) {
-      throw new Error("V3 not initialized. Call init() before extract().");
-    }
-
-    // String shorthand → ExtractParams with instruction only
-    if (typeof params === "string") {
-      const p = {
-        instruction: params,
-        page: pageArg,
-      } as ExtractParams<z.AnyZodObject>;
-      // Re-enter with normalized params
-      return this.extract(p);
-    }
-
-    let page: Page;
-    if (params?.page) {
-      if (params.page instanceof (await import("./understudy/page")).Page) {
-        // Already a V3 Page
-        page = params.page;
-      } else {
-        // Playwright / Puppeteer path: resolve → frameId → V3 Page
-        const frameId = await this.resolveTopFrameId(params.page);
-        page = this.ctx.resolvePageByMainFrameId(frameId);
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.extractHandler) {
+        throw new Error("V3 not initialized. Call init() before extract().");
       }
-    } else {
-      page = await this.ctx!.awaitActivePage();
-    }
 
-    const noArgs = !params?.instruction && !params?.schema;
-    const onlyInstruction = !!params?.instruction && !params?.schema;
+      // String shorthand → ExtractParams with instruction only
+      if (typeof params === "string") {
+        const p = {
+          instruction: params,
+          page: pageArg,
+        } as ExtractParams<z.AnyZodObject>;
+        // Re-enter with normalized params
+        return this.extract(p);
+      }
 
-    const effectiveSchema: T | undefined = noArgs
-      ? undefined
-      : onlyInstruction
-        ? (defaultExtractSchema as unknown as T)
-        : (params?.schema as T);
+      let page: Page;
+      if (params?.page) {
+        if (params.page instanceof (await import("./understudy/page")).Page) {
+          // Already a V3 Page
+          page = params.page;
+        } else {
+          // Playwright / Puppeteer path: resolve → frameId → V3 Page
+          const frameId = await this.resolveTopFrameId(params.page);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        }
+      } else {
+        page = await this.ctx!.awaitActivePage();
+      }
 
-    const handlerParams: ExtractHandlerParams<T> = {
-      instruction: params?.instruction,
-      schema: effectiveSchema,
-      modelName: params?.modelName,
-      modelClientOptions: params?.modelClientOptions,
-      domSettleTimeoutMs: params?.domSettleTimeoutMs,
-      selector: params?.selector,
-      page: page!,
-    };
+      const noArgs = !params?.instruction && !params?.schema;
+      const onlyInstruction = !!params?.instruction && !params?.schema;
 
-    const result = await this.extractHandler.extract<T>(handlerParams);
-    // history: record extract call (omit page object and raw schema instance to avoid heavy serialization)
-    this.addToHistory(
-      "extract",
-      {
+      const effectiveSchema: T | undefined = noArgs
+        ? undefined
+        : onlyInstruction
+          ? (defaultExtractSchema as unknown as T)
+          : (params?.schema as T);
+
+      const handlerParams: ExtractHandlerParams<T> = {
         instruction: params?.instruction,
-        // best-effort: log presence of schema without serializing the full instance
-        hasSchema: !!params?.schema,
+        schema: effectiveSchema,
+        modelName: params?.modelName,
+        modelClientOptions: params?.modelClientOptions,
         domSettleTimeoutMs: params?.domSettleTimeoutMs,
-      },
-      result,
-    );
-    return result;
+        selector: params?.selector,
+        page: page!,
+      };
+
+      const result = await this.extractHandler.extract<T>(handlerParams);
+      // history: record extract call (omit page object and raw schema instance to avoid heavy serialization)
+      this.addToHistory(
+        "extract",
+        {
+          instruction: params?.instruction,
+          // best-effort: log presence of schema without serializing the full instance
+          hasSchema: !!params?.schema,
+          domSettleTimeoutMs: params?.domSettleTimeoutMs,
+        },
+        result,
+      );
+      return result;
+    });
   }
 
   /**
@@ -594,58 +619,62 @@ export class V3 {
       drawOverlay?: boolean;
     },
   ): Promise<ObserveResult[]> {
-    if (!this.observeHandler) {
-      throw new Error("V3 not initialized. Call init() before observe().");
-    }
-
-    let effective: ObserveParams;
-    if (typeof params === "string") {
-      effective = {
-        instruction: params,
-        page: pageArg,
-        domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-        returnAction: opts?.returnAction,
-        drawOverlay: opts?.drawOverlay,
-      };
-    } else {
-      effective = params || {};
-    }
-
-    // Resolve to our internal Page type
-    let page: Page;
-    if (effective.page) {
-      if (effective.page instanceof (await import("./understudy/page")).Page) {
-        page = effective.page;
-      } else {
-        const frameId = await this.resolveTopFrameId(effective.page);
-        page = this.ctx.resolvePageByMainFrameId(frameId);
+    return await withInstanceLogContext(this.instanceId, async () => {
+      if (!this.observeHandler) {
+        throw new Error("V3 not initialized. Call init() before observe().");
       }
-    } else {
-      page = await this.ctx!.awaitActivePage();
-    }
 
-    const handlerParams: ObserveHandlerParams = {
-      instruction: effective.instruction,
-      domSettleTimeoutMs: effective.domSettleTimeoutMs,
-      returnAction: effective.returnAction,
-      drawOverlay: effective.drawOverlay,
-      fromAct: false,
-      page,
-    };
+      let effective: ObserveParams;
+      if (typeof params === "string") {
+        effective = {
+          instruction: params,
+          page: pageArg,
+          domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+          returnAction: opts?.returnAction,
+          drawOverlay: opts?.drawOverlay,
+        };
+      } else {
+        effective = params || {};
+      }
 
-    const results = await this.observeHandler.observe(handlerParams);
-    // history: record observe call (omit page object)
-    this.addToHistory(
-      "observe",
-      {
+      // Resolve to our internal Page type
+      let page: Page;
+      if (effective.page) {
+        if (
+          effective.page instanceof (await import("./understudy/page")).Page
+        ) {
+          page = effective.page;
+        } else {
+          const frameId = await this.resolveTopFrameId(effective.page);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        }
+      } else {
+        page = await this.ctx!.awaitActivePage();
+      }
+
+      const handlerParams: ObserveHandlerParams = {
         instruction: effective.instruction,
         domSettleTimeoutMs: effective.domSettleTimeoutMs,
         returnAction: effective.returnAction,
         drawOverlay: effective.drawOverlay,
-      },
-      results,
-    );
-    return results;
+        fromAct: false,
+        page,
+      };
+
+      const results = await this.observeHandler.observe(handlerParams);
+      // history: record observe call (omit page object)
+      this.addToHistory(
+        "observe",
+        {
+          instruction: effective.instruction,
+          domSettleTimeoutMs: effective.domSettleTimeoutMs,
+          returnAction: effective.returnAction,
+          drawOverlay: effective.drawOverlay,
+        },
+        results,
+      );
+      return results;
+    });
   }
 
   /** Return the browser-level CDP WebSocket endpoint. */
@@ -697,6 +726,11 @@ export class V3 {
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
       this._isClosing = false;
+      try {
+        unbindInstanceLogger(this.instanceId);
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -739,8 +773,18 @@ export class V3 {
 
   public get logger(): (logLine: LogLine) => void {
     return (logLine: LogLine) => {
-      logLine.level = logLine.level ?? 1;
-      v3Logger(logLine);
+      const fn = this.externalLogger;
+      const line = { ...logLine, level: logLine.level ?? 1 };
+      if (typeof fn === "function") {
+        try {
+          fn(line);
+          return;
+        } catch {
+          // fall through to no-op
+        }
+      }
+      // Fallback to global v3 logger so console/Pino still receive logs
+      v3Logger(line);
     };
   }
 
@@ -760,7 +804,7 @@ export class V3 {
     if (this.isPuppeteerPage(page)) {
       const cdp = await page.target().createCDPSession();
       const { frameTree } = await cdp.send("Page.getFrameTree");
-      v3Logger({
+      this.logger({
         category: "v3",
         message: "Puppeteer frame id",
         level: 2,
@@ -827,57 +871,59 @@ export class V3 {
     // If a CUA provider is specified, use the CUA path
     if (options?.provider) {
       return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          if (options?.integrations && !this.experimental) {
-            throw new Error(
-              "MCP integrations are experimental. Enable experimental: true in V3 options.",
-            );
-          }
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+          withInstanceLogContext(this.instanceId, async () => {
+            if (options?.integrations && !this.experimental) {
+              throw new Error(
+                "MCP integrations are experimental. Enable experimental: true in V3 options.",
+              );
+            }
+            const tools = options?.integrations
+              ? await resolveTools(options.integrations, options.tools)
+              : (options?.tools ?? {});
 
-          const handler = new V3CuaAgentHandler(
-            this,
-            this.logger,
-            {
-              modelName: options.model!,
-              clientOptions: options.options,
-              userProvidedInstructions:
-                options.instructions ??
-                `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-              agentType: options.provider,
-            },
-            tools,
-          );
-          return handler.execute(instructionOrOptions);
-        },
+            const handler = new V3CuaAgentHandler(
+              this,
+              this.logger,
+              {
+                modelName: options.model!,
+                clientOptions: options.options,
+                userProvidedInstructions:
+                  options.instructions ??
+                  `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
+                agentType: options.provider,
+              },
+              tools,
+            );
+            return handler.execute(instructionOrOptions);
+          }),
       };
     }
 
     // Default: AISDK tools-based agent
     return {
-      execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-        if (options?.integrations && !this.experimental) {
-          throw new Error(
-            "MCP integrations are experimental. Enable experimental: true in V3 options.",
+      execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+        withInstanceLogContext(this.instanceId, async () => {
+          if (options?.integrations && !this.experimental) {
+            throw new Error(
+              "MCP integrations are experimental. Enable experimental: true in V3 options.",
+            );
+          }
+
+          const tools = options?.integrations
+            ? await resolveTools(options.integrations, options.tools)
+            : (options?.tools ?? {});
+
+          const handler = new V3AgentHandler(
+            this,
+            this.logger,
+            this.llmClient,
+            options?.model,
+            options?.instructions,
+            tools,
           );
-        }
-
-        const tools = options?.integrations
-          ? await resolveTools(options.integrations, options.tools)
-          : (options?.tools ?? {});
-
-        const handler = new V3AgentHandler(
-          this,
-          this.logger,
-          this.llmClient,
-          options?.model,
-          options?.instructions,
-          tools,
-        );
-        return handler.execute(instructionOrOptions);
-      },
+          return handler.execute(instructionOrOptions);
+        }),
     };
   }
 }
