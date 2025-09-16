@@ -3,25 +3,21 @@ import { EvalFunction } from "@/types/evals";
 export const stock_x: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
-      "https://stockx.com/air-jordan-3-retro-black-cement-2024",
-    );
+    const page = v3.context.pages()[0];
+    await page.goto("https://stockx.com/air-jordan-3-retro-black-cement-2024");
 
-    await stagehand.page.waitForTimeout(3000);
-
-    await stagehand.page.act({
-      action: "click on Jordan 3 Retro Crimson in the related products",
+    await v3.act({
+      instruction: "click on Jordan 3 Retro Crimson in the related products",
     });
 
-    await stagehand.page.waitForTimeout(2000);
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
     const expectedUrlPrefix = "https://stockx.com/jordan-3-retro-crimson";
 
-    await stagehand.close();
+    await v3.close();
 
     return {
       _success: currentUrl.startsWith(expectedUrlPrefix),
@@ -39,6 +35,6 @@ export const stock_x: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

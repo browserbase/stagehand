@@ -5,7 +5,7 @@ import { compareStrings } from "@/evals/utils";
 export const extract_press_releases: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   const schema = z.object({
@@ -22,12 +22,13 @@ export const extract_press_releases: EvalFunction = async ({
   type PressRelease = z.infer<typeof schema>["items"][number];
 
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/press-releases/",
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const rawResult = await stagehand.page.extract({
+    const rawResult = await v3.extract({
       instruction:
         "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema,
@@ -116,6 +117,6 @@ export const extract_press_releases: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

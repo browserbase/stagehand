@@ -3,19 +3,17 @@ import { EvalFunction } from "@/types/evals";
 export const iframe_scroll: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc-scroll/",
     );
-    await stagehand.page.act({
-      action: "scroll down 50% inside the iframe",
-      iframes: true,
-    });
+    await v3.act({ instruction: "scroll down 50% inside the iframe" });
 
-    const frames = stagehand.page.frames();
+    const frames = page.frames();
     const frame = frames[1];
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -55,6 +53,6 @@ export const iframe_scroll: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

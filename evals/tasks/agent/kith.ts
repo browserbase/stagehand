@@ -1,20 +1,21 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const kith: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto(
+    const evaluator = new V3Evaluator(v3);
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://kith.com/collections/nike-air-force-1/products/nkcw2288-111?variant=19439468707968",
     );
 
-    await agent.execute({
+    await v3Agent.execute({
       instruction:
         "add the shoes to cart, go to checkout, and fill the delivery information. Don't fill the payment information",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
@@ -27,7 +28,7 @@ export const kith: EvalFunction = async ({
     const success = evaluation === "YES";
 
     if (success) {
-      await agent.execute({
+      await v3Agent.execute({
         instruction:
           "fill the credit card information, do not submit the order just add placeholders",
         maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
@@ -74,6 +75,6 @@ export const kith: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

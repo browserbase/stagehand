@@ -5,29 +5,28 @@ import { z } from "zod/v3";
 export const ted_talk: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://www.ted.com/talks/sir_ken_robinson_do_schools_kill_creativity",
       {
         waitUntil: "domcontentloaded",
       },
     );
 
-    await stagehand.page.act({
-      action: "scroll 10% down the page",
-    });
+    await v3.act({ instruction: "scroll 10% down the page" });
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    await stagehand.page.act({
-      action:
+    await v3.act({
+      instruction:
         "Click the link that takes you to the page about the 'Culture' topic",
     });
 
-    const playlists = await stagehand.page.extract({
+    const playlists = await v3.extract({
       instruction:
         "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
       schema: z.object({
@@ -125,6 +124,6 @@ export const ted_talk: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

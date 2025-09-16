@@ -87,7 +87,12 @@ export class Locator {
       } as Protocol.Input.DispatchMouseEventRequest);
     } finally {
       // release the element handle
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      try {
+        await session.send<never>("Runtime.releaseObject", { objectId });
+      } catch {
+        // If the context navigated or was destroyed (e.g., link opens new tab),
+        // releaseObject may fail with -32000. Ignore as best-effort cleanup.
+      }
     }
   }
 
@@ -286,6 +291,172 @@ export class Locator {
     }
   }
 
+  /**
+   * Return true if the element is attached and visible (rough heuristic).
+   */
+  async isVisible(): Promise<boolean> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() {
+            try {
+              if (!this.isConnected) return false;
+              const style = window.getComputedStyle(this);
+              if (!style) return false;
+              if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) return false;
+              const rect = this.getBoundingClientRect();
+              if (!rect) return false;
+              if (Math.max(rect.width, rect.height) === 0) return false;
+              // Check that it has at least one box (accounts for some SVG/text cases)
+              if (this.getClientRects().length === 0) return false;
+              return true;
+            } catch { return false; }
+          }`,
+          returnByValue: true,
+        },
+      );
+      return Boolean(res.result.value);
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * Return true if the element is an input[type=checkbox|radio] and is checked.
+   * Also considers aria-checked for ARIA widgets.
+   */
+  async isChecked(): Promise<boolean> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() {
+            try {
+              const tag = (this.tagName || '').toLowerCase();
+              if (tag === 'input') {
+                const t = (this.type || '').toLowerCase();
+                if (t === 'checkbox' || t === 'radio') return !!this.checked;
+              }
+              const aria = this.getAttribute && this.getAttribute('aria-checked');
+              if (aria != null) return aria === 'true';
+              return false;
+            } catch { return false; }
+          }`,
+          returnByValue: true,
+        },
+      );
+      return Boolean(res.result.value);
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * Return the element's input value (for input/textarea/select/contenteditable).
+   */
+  async inputValue(): Promise<string> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() {
+            try {
+              const tag = (this.tagName || '').toLowerCase();
+              if (tag === 'input' || tag === 'textarea') return String(this.value ?? '');
+              if (tag === 'select') return String(this.value ?? '');
+              if (this.isContentEditable) return String(this.textContent ?? '');
+              return '';
+            } catch { return ''; }
+          }`,
+          returnByValue: true,
+        },
+      );
+      return String(res.result.value ?? "");
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * Return the element's textContent (raw, not innerText).
+   */
+  async textContent(): Promise<string> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() { try { return String(this.textContent ?? ''); } catch { return ''; } }`,
+          returnByValue: true,
+        },
+      );
+      return String(res.result.value ?? "");
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * Return the element's innerHTML string.
+   */
+  async innerHtml(): Promise<string> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() { try { return String(this.innerHTML ?? ''); } catch { return ''; } }`,
+          returnByValue: true,
+        },
+      );
+      return String(res.result.value ?? "");
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * Return the element's innerText (layout-aware, visible text).
+   */
+  async innerText(): Promise<string> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `function() { try { return String(this.innerText ?? this.textContent ?? ''); } catch { return ''; } }`,
+          returnByValue: true,
+        },
+      );
+      return String(res.result.value ?? "");
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  /**
+   * For API parity, returns the same locator (querySelector already returns the first match).
+   */
+  first(): Locator {
+    return this;
+  }
+
   // ---------- helpers ----------
 
   /**
@@ -312,6 +483,7 @@ export class Locator {
     const looksLikeXPath =
       /^xpath=/i.test(raw) || raw.startsWith("/") || raw.startsWith("(");
     const isCssPrefixed = /^css=/i.test(raw);
+    const isTextSelector = /^text=/i.test(raw);
 
     if (looksLikeXPath) {
       // main world (needed for closed shadow)
@@ -429,6 +601,73 @@ export class Locator {
       return { nodeId, objectId };
     }
 
+    // Text selector branch (search by visible text)
+    if (isTextSelector) {
+      // Create/ensure an isolated world for evaluation
+      const { executionContextId } = await session.send<{
+        executionContextId: Protocol.Runtime.ExecutionContextId;
+      }>("Page.createIsolatedWorld", {
+        frameId: this.frame.frameId,
+        worldName: "v3-world",
+      });
+
+      // Extract the text content from the selector
+      let query = raw.replace(/^text=/i, "").trim();
+      if (
+        (query.startsWith('"') && query.endsWith('"')) ||
+        (query.startsWith("'") && query.endsWith("'"))
+      ) {
+        query = query.slice(1, -1);
+      }
+
+      const expr = `(() => {
+        const needle = ${JSON.stringify(query)};
+        if (!needle) return null;
+        try {
+          const iter = document.createNodeIterator(document.documentElement, NodeFilter.SHOW_ELEMENT);
+          let n;
+          while ((n = iter.nextNode())) {
+            const el = n;
+            const t = (el.innerText ?? el.textContent ?? '').trim();
+            if (t && t.includes(needle)) return el;
+          }
+        } catch {}
+        return null;
+      })()`;
+
+      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression: expr,
+          contextId: executionContextId,
+          returnByValue: false,
+          awaitPromise: true,
+        },
+      );
+
+      if (evalRes.exceptionDetails) {
+        throw new Error(evalRes.exceptionDetails.text ?? "Evaluation failed");
+      }
+
+      const objectId = evalRes.result.objectId;
+      if (!objectId) {
+        throw new Error(`Element not found for selector: ${this.selector}`);
+      }
+
+      let nodeId: Protocol.DOM.NodeId | null = null;
+      try {
+        const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
+          "DOM.requestNode",
+          { objectId },
+        );
+        nodeId = rn.nodeId ?? null;
+      } catch {
+        nodeId = null;
+      }
+
+      return { nodeId, objectId };
+    }
+
     // CSS branch (isolated world is fine)
     const { executionContextId } = await session.send<{
       executionContextId: Protocol.Runtime.ExecutionContextId;
@@ -437,9 +676,17 @@ export class Locator {
       worldName: "v3-world",
     });
 
-    const expr = `document.querySelector(${JSON.stringify(
-      isCssPrefixed ? raw.replace(/^css=/i, "") : raw,
-    )})`;
+    // Basic support for Playwright-style chaining '>>' by converting to a descendant CSS selector.
+    // Example: "#licenseType >> option:checked" → "#licenseType option:checked"
+    let cssInput = isCssPrefixed ? raw.replace(/^css=/i, "") : raw;
+    if (cssInput.includes(">>")) {
+      cssInput = cssInput
+        .split(">>")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .join(" ");
+    }
+    const expr = `document.querySelector(${JSON.stringify(cssInput)})`;
 
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",

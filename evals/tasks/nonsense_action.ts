@@ -3,14 +3,15 @@ import { EvalFunction } from "@/types/evals";
 export const nonsense_action: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.homedepot.com/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.homedepot.com/");
 
-    const result = await stagehand.page.act({
-      action: "what is the capital of the moon?",
+    const result = await v3.act({
+      instruction: "what is the capital of the moon?",
     });
 
     return {
@@ -28,6 +29,6 @@ export const nonsense_action: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

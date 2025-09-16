@@ -3,26 +3,27 @@ import { EvalFunction } from "@/types/evals";
 export const heal_simple_google_search: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
     );
 
-    await stagehand.page.act({
+    await v3.act({
       description: "The search bar",
       selector: "/html/not-the-search-bar",
       arguments: ["OpenAI"],
       method: "fill",
     });
 
-    await stagehand.page.act("click the google search button");
+    await v3.act("click the google search button");
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
 
     return {
       _success: currentUrl.startsWith(expectedUrl),
@@ -40,6 +41,6 @@ export const heal_simple_google_search: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

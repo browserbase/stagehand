@@ -31,6 +31,7 @@ export class V3Context {
   private constructor(
     readonly conn: CdpConnection,
     private readonly includeCursor = false,
+    private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   ) {}
 
   private readonly _piercerInstalled = new Set<string>();
@@ -55,11 +56,15 @@ export class V3Context {
    */
   static async create(
     wsUrl: string,
-    opts?: { includeCursor?: boolean },
+    opts?: { includeCursor?: boolean; env?: "LOCAL" | "BROWSERBASE" },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
-    const ctx = new V3Context(conn, !!opts?.includeCursor);
+    const ctx = new V3Context(
+      conn,
+      !!opts?.includeCursor,
+      opts?.env ?? "LOCAL",
+    );
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
     return ctx;
@@ -337,6 +342,22 @@ export class V3Context {
         page.enableCursorOverlay().catch(() => {});
       }
 
+      // Pin viewport metrics once so CSS px and screenshot px match.
+      // We normalize to the current CSS viewport size and deviceScaleFactor = 1.
+      // This avoids HiDPI mismatch (image pixels vs CSS pixels) without requiring
+      // callers to repeatedly resize before screenshots.
+      try {
+        const { w, h } = await page.mainFrame().evaluate<{
+          w: number;
+          h: number;
+        }>("({ w: window.innerWidth, h: window.innerHeight })");
+        const width = Math.max(1, Math.floor(w));
+        const height = Math.max(1, Math.floor(h));
+        await page.setViewportSize(width, height, { deviceScaleFactor: 1 });
+      } catch {
+        // best-effort; proceed if override fails
+      }
+
       // Resume only if Chrome actually paused
       if (waitingForDebugger) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
@@ -594,8 +615,12 @@ export class V3Context {
    * Await the current active page, waiting briefly if a popup/open was just triggered.
    * Normal path returns immediately; popup path waits up to timeoutMs for the new page.
    */
-  async awaitActivePage(timeoutMs = 2000): Promise<Page> {
-    const recentWindowMs = 300; // keep small to avoid slowing normal path
+  async awaitActivePage(timeoutMs?: number): Promise<Page> {
+    const defaultTimeout = this.env === "BROWSERBASE" ? 4000 : 2000;
+    timeoutMs = timeoutMs ?? defaultTimeout;
+    // If a popup was just triggered, Chrome (especially on Browserbase)
+    // may briefly pause new targets at document start ("waiting for debugger").
+    const recentWindowMs = this.env === "BROWSERBASE" ? 1000 : 300;
     const now = Date.now();
     const hasRecentPopup = now - this._lastPopupSignalAt <= recentWindowMs;
 

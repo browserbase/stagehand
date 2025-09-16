@@ -4,18 +4,17 @@ import { z } from "zod/v3";
 export const imdb_movie_details: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.imdb.com/title/tt0111161/", {
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.imdb.com/title/tt0111161/", {
       waitUntil: "domcontentloaded",
     });
-    await stagehand.page.act({
-      action: "click on the movie ratings",
-    });
+    await v3.act({ instruction: "click on the movie ratings" });
 
-    const movieDetails = await stagehand.page.extract({
+    const movieDetails = await v3.extract({
       instruction: "Extract the list of countries with the most ratings.",
       schema: z.object({
         countries: z
@@ -102,6 +101,6 @@ export const imdb_movie_details: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

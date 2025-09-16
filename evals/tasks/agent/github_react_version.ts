@@ -1,16 +1,17 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 export const github_react_version: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3,
+  v3Agent,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://github.com/");
-    await agent.execute({
+    const page = v3.context.pages()[0];
+    const evaluator = new V3Evaluator(v3);
+    await page.goto("https://github.com/");
+    await v3Agent.execute({
       instruction:
         "Check the latest release version of React and the date it was published. ",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
@@ -47,6 +48,6 @@ export const github_react_version: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

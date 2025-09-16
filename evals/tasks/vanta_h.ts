@@ -3,13 +3,14 @@ import { EvalFunction } from "@/types/evals";
 export const vanta_h: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.vanta.com/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.vanta.com/");
 
-    const observations = await stagehand.page.observe(
+    const observations = await v3.observe(
       "click the buy now button if it is available",
     );
 
@@ -30,6 +31,6 @@ export const vanta_h: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

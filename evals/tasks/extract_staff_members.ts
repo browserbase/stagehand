@@ -4,15 +4,16 @@ import { EvalFunction } from "@/types/evals";
 export const extract_staff_members: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "extract a list of ALL the staff members on this page, with their name and their job title",
       schema: z.object({
@@ -142,6 +143,6 @@ export const extract_staff_members: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

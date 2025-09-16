@@ -6,16 +6,17 @@ export const extract_hamilton_weather: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/",
     );
     const xpath =
       "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
-    const weatherData = await stagehand.page.extract({
+    const weatherData = await v3.extract({
       instruction: "extract the weather data for Sun, Feb 23 at 11PM",
       schema: z.object({
         temperature: z.string(),
@@ -78,6 +79,6 @@ export const extract_hamilton_weather: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

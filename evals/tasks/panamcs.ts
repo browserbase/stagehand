@@ -3,17 +3,16 @@ import { EvalFunction } from "@/types/evals";
 export const panamcs: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
     );
 
-    const observations = await stagehand.page.observe(
-      "click the 'about us' link",
-    );
+    const observations = await v3.observe("click the 'about us' link");
 
     if (observations.length === 0) {
       return {
@@ -27,7 +26,7 @@ export const panamcs: EvalFunction = async ({
 
     const expectedLocator = `#menu > li:nth-child(1) > a`;
 
-    const expectedResult = await stagehand.page
+    const expectedResult = await page
       .locator(expectedLocator)
       .first()
       .innerText();
@@ -35,7 +34,7 @@ export const panamcs: EvalFunction = async ({
     let foundMatch = false;
     for (const observation of observations) {
       try {
-        const observationResult = await stagehand.page
+        const observationResult = await page
           .locator(observation.selector)
           .first()
           .innerText();
@@ -70,6 +69,6 @@ export const panamcs: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

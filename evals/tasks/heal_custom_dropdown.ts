@@ -3,7 +3,7 @@ import { EvalFunction } from "@/types/evals";
 export const heal_custom_dropdown: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   /**
@@ -16,12 +16,12 @@ export const heal_custom_dropdown: EvalFunction = async ({
    */
 
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/",
     );
 
-    await page.act({
+    await v3.act({
       description: "The 'Select a country' dropdown",
       selector: "/html/not-a-dropdown",
       arguments: [],
@@ -33,7 +33,7 @@ export const heal_custom_dropdown: EvalFunction = async ({
     // a11y tree.
 
     // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
-    const extraction = await page.extract();
+    const extraction = await v3.extract();
     const fullTree = extraction.page_text;
 
     if (fullTree.includes("Canada")) {
@@ -60,6 +60,6 @@ export const heal_custom_dropdown: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

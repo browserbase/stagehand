@@ -5,14 +5,15 @@ export const extract_jfk_links: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/jfk/",
     );
 
-    const extraction = await stagehand.page.extract({
+    const extraction = await v3.extract({
       instruction:
         "extract all the record file name and their corresponding links",
       schema: z.object({
@@ -117,6 +118,6 @@ export const extract_jfk_links: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

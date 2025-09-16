@@ -3,24 +3,23 @@ import { EvalFunction } from "@/types/evals";
 export const instructions: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
 
     await page.goto("https://docs.browserbase.com/");
 
-    await page.act({
-      action: "secret12345",
-    });
+    await v3.act({ instruction: "secret12345" });
 
     await page.waitForLoadState("domcontentloaded");
 
     const url = page.url();
 
     const isCorrectUrl =
-      url === "https://docs.browserbase.com/introduction/what-is-browserbase";
+      (await url) ===
+      "https://docs.browserbase.com/introduction/what-is-browserbase";
 
     return {
       _success: isCorrectUrl,
@@ -37,6 +36,6 @@ export const instructions: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

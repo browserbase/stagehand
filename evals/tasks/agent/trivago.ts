@@ -3,21 +3,22 @@ import { EvalFunction } from "@/types/evals";
 export const trivago: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.trivago.com/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.trivago.com/");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Find the cheapest room in the hotel H10 Tribeca in Madrid next weekend. Stop at the trivago page showing the results",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 13,
     });
     logger.log(agentResult);
 
-    const url = await stagehand.page.url();
+    const url = await page.url();
 
     if (
       url.includes("hotel-h10-tribeca-madrid") &&
@@ -48,6 +49,6 @@ export const trivago: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };
