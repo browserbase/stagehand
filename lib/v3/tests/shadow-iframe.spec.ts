@@ -168,7 +168,7 @@ const cases: Case[] = [
   },
 ];
 
-test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
+test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
