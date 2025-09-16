@@ -3,27 +3,24 @@ import { EvalFunction } from "@/types/evals";
 export const checkboxes: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
     );
 
-    await stagehand.page.act({
-      action: "click the 'baseball' option",
-    });
+    await v3.act({ instruction: "click the 'baseball' option" });
 
-    await stagehand.page.act({
-      action: "click the 'netball' option",
-    });
+    await v3.act({ instruction: "click the 'netball' option" });
 
-    const baseballChecked = await stagehand.page
+    const baseballChecked = await page
       .locator('input[type="checkbox"][name="sports"][value="baseball"]')
       .isChecked();
 
-    const netballChecked = await stagehand.page
+    const netballChecked = await page
       .locator('input[type="checkbox"][name="sports"][value="netball"]')
       .isChecked();
 
@@ -42,6 +39,6 @@ export const checkboxes: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

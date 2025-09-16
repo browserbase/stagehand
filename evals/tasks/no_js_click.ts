@@ -4,7 +4,7 @@ import { ObserveResult } from "@/types/stagehand";
 export const no_js_click: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   /**
@@ -14,7 +14,8 @@ export const no_js_click: EvalFunction = async ({
    */
 
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
     );
 
@@ -24,9 +25,9 @@ export const no_js_click: EvalFunction = async ({
       description: "the button to click",
       arguments: [],
     };
-    await stagehand.page.act(observeResult);
+    await v3.act(observeResult);
 
-    const text = await stagehand.page.textContent("#success-msg");
+    const text = await page.locator("#success-msg").textContent();
     if (text?.trim() === "click succeeded") {
       return {
         _success: true,
@@ -51,6 +52,6 @@ export const no_js_click: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

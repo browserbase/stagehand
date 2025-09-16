@@ -1,18 +1,19 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const ubereats: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://www.ubereats.com/");
+    const evaluator = new V3Evaluator(v3);
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.ubereats.com/");
 
-    await agent.execute({
+    await v3Agent.execute({
       instruction:
         "Order a pizza from ubereats to 639 geary st in sf, call the task complete once the login page is shown after adding pizza and viewing the cart",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
@@ -24,7 +25,7 @@ export const ubereats: EvalFunction = async ({
 
     const success =
       evaluation === "YES" &&
-      stagehand.page.url().includes("https://auth.uber.com/");
+      (await page.url()).includes("https://auth.uber.com/");
     if (!success) {
       return {
         _success: false,
@@ -49,6 +50,6 @@ export const ubereats: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

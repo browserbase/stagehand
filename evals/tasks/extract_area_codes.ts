@@ -5,15 +5,16 @@ export const extract_area_codes: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/",
       { waitUntil: "domcontentloaded" },
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
       schema: z.object({
@@ -156,6 +157,6 @@ export const extract_area_codes: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

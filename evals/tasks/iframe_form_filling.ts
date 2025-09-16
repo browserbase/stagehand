@@ -3,34 +3,25 @@ import { EvalFunction } from "@/types/evals";
 export const iframe_form_filling: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
     );
 
-    await page.act({
-      action: "type 'nunya' into the 'first name' field",
-      iframes: true,
+    await v3.act({ instruction: "type 'nunya' into the 'first name' field" });
+    await v3.act({ instruction: "type 'business' into the 'last name' field" });
+    await v3.act({
+      instruction: "type 'test@email.com' into the 'email' field",
     });
-    await page.act({
-      action: "type 'business' into the 'last name' field",
-      iframes: true,
+    await v3.act({
+      instruction: "click 'phone' as the preferred contact method",
     });
-    await page.act({
-      action: "type 'test@email.com' into the 'email' field",
-      iframes: true,
-    });
-    await page.act({
-      action: "click 'phone' as the preferred contact method",
-      iframes: true,
-    });
-    await page.act({
-      action: "type 'yooooooooooooooo' into the message box",
-      iframes: true,
+    await v3.act({
+      instruction: "type 'yooooooooooooooo' into the message box",
     });
 
     const iframe = page.frameLocator("iframe");
@@ -77,6 +68,6 @@ export const iframe_form_filling: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

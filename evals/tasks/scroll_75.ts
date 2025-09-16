@@ -1,30 +1,22 @@
-import { Stagehand } from "@browserbasehq/stagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const scroll_75: EvalFunction = async ({
   logger,
-  stagehandConfig,
   debugUrl,
   sessionUrl,
+  v3,
 }) => {
-  const stagehand = new Stagehand({
-    ...stagehandConfig,
-    domSettleTimeoutMs: 3000,
-  });
-  await stagehand.init();
-
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
-    await stagehand.page.act({
-      action: "Scroll 75% down the page",
-    });
+    await v3.act({ instruction: "Scroll 75% down the page" });
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Get the current scroll position and total scroll height
-    const scrollInfo = await stagehand.page.evaluate(() => {
+    const scrollInfo = await page.evaluate(() => {
       return {
         scrollTop: window.scrollY + window.innerHeight * 0.75,
         scrollHeight: document.documentElement.scrollHeight,
@@ -59,6 +51,6 @@ export const scroll_75: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

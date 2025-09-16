@@ -4,18 +4,19 @@ import { z } from "zod/v3";
 export const extract_regulations_table: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
     );
 
     const xpath =
       "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
 
-    const allottees = await stagehand.page.extract({
+    const allottees = await v3.extract({
       instruction:
         "Extract ALL of the Allottees and their corresponding name, area, and area code.",
       schema: z.object({
@@ -79,6 +80,6 @@ export const extract_regulations_table: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

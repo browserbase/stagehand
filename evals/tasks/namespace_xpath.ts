@@ -3,19 +3,18 @@ import { EvalFunction } from "@/types/evals";
 export const namespace_xpath: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/namespaced-xpath/",
     );
 
-    await stagehand.page.act({
-      action: "fill 'nunya' into the 'type here' form",
-    });
+    await v3.act({ instruction: "fill 'nunya' into the 'type here' form" });
 
-    const inputValue = await stagehand.page.locator("#ns-text").inputValue();
+    const inputValue = await page.locator("#ns-text").inputValue();
     // confirm that the form was filled
     const formHasBeenFilled = inputValue === "nunya";
 
@@ -34,6 +33,6 @@ export const namespace_xpath: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

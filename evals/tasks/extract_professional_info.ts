@@ -5,15 +5,16 @@ import { z } from "zod/v3";
 export const extract_professional_info: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the list of Practices, phone number, and fax number of the professional.",
       schema: z.object({
@@ -23,7 +24,7 @@ export const extract_professional_info: EvalFunction = async ({
       }),
     });
 
-    await stagehand.close();
+    await v3.close();
 
     const { practices, phone, fax } = result;
 
@@ -128,6 +129,6 @@ export const extract_professional_info: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -14,11 +14,12 @@ import { ObserveResult } from "@/types/stagehand";
 export const google_flights: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/",
     );
 
@@ -29,13 +30,13 @@ export const google_flights: EvalFunction = async ({
       method: "click",
       arguments: [],
     };
-    await stagehand.page.act(observeResult);
+    await v3.act(observeResult);
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
 
-    await stagehand.close();
+    await v3.close();
 
     if (currentUrl === expectedUrl) {
       return {
@@ -62,6 +63,6 @@ export const google_flights: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

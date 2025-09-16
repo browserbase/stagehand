@@ -5,14 +5,15 @@ export const extract_geniusee: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
     );
     const selector = "/html/body/main/div[2]/div[2]/div[2]/table";
-    const scalability = await stagehand.page.extract({
+    const scalability = await v3.extract({
       instruction:
         "Extract the scalability comment in the table for Gemini (Google)",
       schema: z.object({
@@ -69,6 +70,6 @@ export const extract_geniusee: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

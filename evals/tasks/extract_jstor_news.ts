@@ -6,18 +6,19 @@ export const extract_jstor_news: EvalFunction = async ({
 
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/jstor/",
       {
         waitUntil: "load",
       },
     );
-    await stagehand.page.act({ action: "close the cookie" });
+    await v3.act({ instruction: "close the cookie" });
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction: "Extract ALL the news report titles and their dates.",
       schema: z.object({
         reports: z.array(
@@ -142,6 +143,6 @@ export const extract_jstor_news: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

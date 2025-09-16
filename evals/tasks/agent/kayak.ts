@@ -1,27 +1,28 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const kayak: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://www.kayak.com");
+    const evaluator = new V3Evaluator(v3);
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.kayak.com");
 
-    await agent.execute({
+    await v3Agent.execute({
       instruction: "Find flights from San Francisco to Tokyo next week",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
-    await agent.execute({
+    await v3Agent.execute({
       instruction: "Sort the flights by price",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
     });
 
-    if (stagehand.context.pages().length !== 2) {
+    if (v3.context.pages().length !== 2) {
       return {
         _success: false,
         message: "No new pages were opened",
@@ -60,6 +61,6 @@ export const kayak: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

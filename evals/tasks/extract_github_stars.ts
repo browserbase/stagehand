@@ -5,22 +5,23 @@ export const extract_github_stars: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://github.com/facebook/react");
+    const page = v3.context.pages()[0];
+    await page.goto("https://github.com/facebook/react");
 
-    const { stars } = await stagehand.page.extract({
+    const { stars } = await v3.extract({
       instruction: "Extract the number of stars for the project",
       schema: z.object({
         stars: z.number().describe("the number of stars for the project"),
       }),
     });
 
-    const expectedStarsString = await stagehand.page
+    const expectedStarsString = await page
       .locator("#repo-stars-counter-star")
       .first()
-      .innerHTML();
+      .innerHtml();
 
     const expectedStars = expectedStarsString.toLowerCase().endsWith("k")
       ? parseFloat(expectedStarsString.slice(0, -1)) * 1000
@@ -45,6 +46,6 @@ export const extract_github_stars: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

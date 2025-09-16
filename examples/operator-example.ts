@@ -8,27 +8,30 @@
 
 import { Stagehand } from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
-import StagehandConfig from "@/stagehand.config";
 import chalk from "chalk";
 
 // Load environment variables
 dotenv.config();
 
 const INSTRUCTION =
-  "Go to Google Japan and interact with it in Japanese. Tell me (in English) an authentic recipe that I can make with ingredients found in American grocery stores.";
+  "go to the browserbase/stagehand github repo and extract the username of the all time top contributor";
 
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    ...StagehandConfig,
+    env: "LOCAL",
+    verbose: 1,
   });
 
   await stagehand.init();
 
   try {
-    const agent = stagehand.agent();
+    const agent = stagehand.agent({
+      model: "computer-use-preview",
+      provider: "openai",
+    });
 
     // Execute the agent
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);

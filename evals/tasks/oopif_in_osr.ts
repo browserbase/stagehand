@@ -3,26 +3,22 @@ import { EvalFunction } from "@/types/evals";
 export const oopif_in_osr: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   // this eval is designed to test whether stagehand can successfully
   // fill a form inside a OOPIF (out of process iframe) that is inside an
   // OSR (open mode shadow) root
 
-  const page = stagehand.page;
   try {
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
     );
-    await page.act({
-      action: "fill 'nunya' into the first name field",
-      iframes: true,
-    });
+    await v3.act({ instruction: "fill 'nunya' into the first name field" });
 
-    const extraction = await page.extract({
+    const extraction = await v3.extract({
       instruction: "extract the entire page text",
-      iframes: true,
     });
 
     const pageText = extraction.extraction;
@@ -52,6 +48,6 @@ export const oopif_in_osr: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

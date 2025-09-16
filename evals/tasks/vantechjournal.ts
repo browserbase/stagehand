@@ -3,18 +3,17 @@ import { EvalFunction } from "@/types/evals";
 export const vantechjournal: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://vantechjournal.com");
+    const page = v3.context.pages()[0];
+    await page.goto("https://vantechjournal.com");
 
-    await stagehand.page.act({
-      action: "click on page 'recommendations'",
-    });
+    await v3.act({ instruction: "click on page 'recommendations'" });
 
     const expectedUrl = "https://vantechjournal.com/recommendations";
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
 
     return {
       _success: currentUrl === expectedUrl,
@@ -33,6 +32,6 @@ export const vantechjournal: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

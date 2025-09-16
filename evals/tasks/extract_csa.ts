@@ -4,16 +4,16 @@ import { z } from "zod/v3";
 export const extract_csa: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/csa/",
     );
 
-    const result = await page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
       schema: z.object({
@@ -151,6 +151,6 @@ export const extract_csa: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

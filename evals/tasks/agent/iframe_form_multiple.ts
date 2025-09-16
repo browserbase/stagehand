@@ -1,27 +1,28 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const iframe_form_multiple: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
     );
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Fill in the form name with 'John Smith', the email with 'john.smith@example.com', and select the 'Are you the domain owner?' option as 'No'",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 10,
     });
     logger.log(agentResult);
 
-    await stagehand.page.mouse.wheel(0, -1000);
-    const evaluator = new Evaluator(stagehand);
+    await page.scroll(0, 0, 0, -1000);
+    const evaluator = new V3Evaluator(v3);
     const results = await evaluator.batchAsk({
       questions: [
         { question: "Is the form name input filled with 'John Smith'?" },
@@ -69,6 +70,6 @@ export const iframe_form_multiple: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -6,14 +6,15 @@ export const extract_baptist_health: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/",
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the address, phone number, and fax number of the healthcare location.",
       schema: z.object({
@@ -101,6 +102,6 @@ export const extract_baptist_health: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -3,16 +3,17 @@ import { EvalFunction } from "@/types/evals";
 export const history: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://docs.stagehand.dev");
-    await stagehand.page.act("click on the 'Quickstart' tab");
-    await stagehand.page.extract("Extract the title of the page");
-    await stagehand.page.observe("Find all links on the page");
+    const page = v3.context.pages()[0];
+    await page.goto("https://docs.stagehand.dev");
+    await v3.act("click on the 'Quickstart' tab");
+    await v3.extract("Extract the title of the page");
+    await v3.observe("Find all links on the page");
 
-    const history = stagehand.history;
+    const history = v3.history;
 
     const hasCorrectNumberOfEntries = history.length === 4;
 
@@ -53,6 +54,6 @@ export const history: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

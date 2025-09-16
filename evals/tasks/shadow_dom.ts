@@ -3,16 +3,16 @@ import { EvalFunction } from "@/types/evals";
 export const shadow_dom: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
-  const page = stagehand.page;
   try {
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
-    await page.act("click the button");
-    const extraction = await page.extract({
+    await v3.act("click the button");
+    const extraction = await v3.extract({
       instruction: "extract the page text",
     });
 
@@ -41,6 +41,6 @@ export const shadow_dom: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

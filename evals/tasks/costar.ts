@@ -5,18 +5,19 @@ export const costar: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.costar.com/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.costar.com/");
 
-    await stagehand.page.act({ action: "click on the first article" });
+    await v3.act({ instruction: "click on the first article" });
 
-    await stagehand.page.act({
-      action: "click on the learn more button for the first job",
+    await v3.act({
+      instruction: "click on the learn more button for the first job",
     });
 
-    const articleTitle = await stagehand.page.extract({
+    const articleTitle = await v3.extract({
       instruction: "extract the title of the article",
       schema: z.object({
         title: z.string().describe("the title of the article").nullable(),
@@ -38,7 +39,7 @@ export const costar: EvalFunction = async ({
     const isTitleValid =
       articleTitle.title !== null && articleTitle.title.length > 5;
 
-    await stagehand.close();
+    await v3.close();
 
     return {
       title: articleTitle.title,
@@ -72,6 +73,6 @@ export const costar: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

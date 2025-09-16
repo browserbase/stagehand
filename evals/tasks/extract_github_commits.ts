@@ -5,16 +5,17 @@ export const extract_github_commits: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://github.com/facebook/react");
+    const page = v3.context.pages()[0];
+    await page.goto("https://github.com/facebook/react");
 
-    await stagehand.page.act({
-      action:
+    await v3.act({
+      instruction:
         "find commit history, generally described by the number of commits",
     });
-    const { commits } = await stagehand.page.extract({
+    const { commits } = await v3.extract({
       instruction: "Extract last 20 commits",
       schema: z.object({
         commits: z.array(
@@ -54,6 +55,6 @@ export const extract_github_commits: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

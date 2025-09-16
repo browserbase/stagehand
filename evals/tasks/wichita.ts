@@ -4,17 +4,18 @@ import { z } from "zod/v3";
 export const wichita: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.wichitafallstx.gov/Bids.aspx");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
-    await stagehand.page.act({
-      action: 'Click on "Show Closed/Awarded/Cancelled bids"',
+    await v3.act({
+      instruction: 'Click on "Show Closed/Awarded/Cancelled bids"',
     });
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction: "Extract the total number of bids that the search produced.",
       schema: z.object({
         total_results: z.string(),
@@ -71,6 +72,6 @@ export const wichita: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

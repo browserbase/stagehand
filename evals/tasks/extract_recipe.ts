@@ -4,11 +4,12 @@ import { z } from "zod/v3";
 export const extract_recipe: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
       {
         waitUntil: "domcontentloaded",
@@ -16,7 +17,7 @@ export const extract_recipe: EvalFunction = async ({
     );
 
     const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-    const recipeDetails = await stagehand.page.extract({
+    const recipeDetails = await v3.extract({
       instruction:
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
       schema: z.object({
@@ -100,6 +101,6 @@ export const extract_recipe: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

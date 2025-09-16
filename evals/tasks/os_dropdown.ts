@@ -3,7 +3,7 @@ import { EvalFunction } from "@/types/evals";
 export const os_dropdown: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   /**
@@ -12,12 +12,12 @@ export const os_dropdown: EvalFunction = async ({
    */
 
   try {
-    const page = stagehand.page;
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/",
     );
 
-    await page.act(
+    await v3.act(
       "choose 'Smog Check Technician' from the 'License Type' dropdown",
     );
     const selectedOption = await page
@@ -48,6 +48,6 @@ export const os_dropdown: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

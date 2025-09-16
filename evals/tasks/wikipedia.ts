@@ -3,18 +3,19 @@ import { EvalFunction } from "@/types/evals";
 export const wikipedia: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(`https://en.wikipedia.org/wiki/Baseball`);
-    await stagehand.page.act({
-      action: 'click the "hit and run" link in this article',
+    const page = v3.context.pages()[0];
+    await page.goto(`https://en.wikipedia.org/wiki/Baseball`);
+    await v3.act({
+      instruction: 'click the "hit and run" link in this article',
       timeoutMs: 360_000,
     });
 
     const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
-    const currentUrl = stagehand.page.url();
+    const currentUrl = await page.url();
 
     return {
       _success: currentUrl === url,
@@ -33,6 +34,6 @@ export const wikipedia: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

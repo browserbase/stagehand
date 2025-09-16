@@ -1,24 +1,20 @@
 import { EvalFunction } from "@/types/evals";
-import { FrameLocator } from "playwright";
 
 export const iframes_nested: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
-  const page = stagehand.page;
   try {
+    const page = v3.context.pages()[0];
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/",
     );
 
-    await page.act({
-      action: "type 'stagehand' into the 'username' field",
-      iframes: true,
-    });
+    await v3.act({ instruction: "type 'stagehand' into the 'username' field" });
 
-    const inner: FrameLocator = page
+    const inner = page
       .frameLocator("iframe.lvl1") // level 1
       .frameLocator("iframe.lvl2") // level 2
       .frameLocator("iframe.lvl3"); // level 3 – form lives here
@@ -44,6 +40,6 @@ export const iframes_nested: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

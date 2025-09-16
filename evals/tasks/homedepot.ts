@@ -4,17 +4,18 @@ import { z } from "zod/v3";
 export const homedepot: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://www.homedepot.com/");
-    await stagehand.page.act("enter 'gas grills' in the search bar");
-    await stagehand.page.act("press enter");
-    await stagehand.page.act("click on the best selling gas grill");
-    await stagehand.page.act("click on the Product Details");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.homedepot.com/");
+    await v3.act("enter 'gas grills' in the search bar");
+    await v3.act("press enter");
+    await v3.act("click on the best selling gas grill");
+    await v3.act("click on the Product Details");
 
-    const productSpecs = await stagehand.page.extract({
+    const productSpecs = await v3.extract({
       instruction: "Extract the Primary exact Burner BTU of the product",
       schema: z.object({
         productSpecs: z.object({
@@ -77,6 +78,6 @@ export const homedepot: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

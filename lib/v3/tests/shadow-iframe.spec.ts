@@ -4,6 +4,7 @@ import puppeteer from "puppeteer-core";
 import { chromium } from "playwright";
 import { ObserveResult } from "@/types/stagehand";
 import { AnyPage } from "@/lib/v3/types";
+import { v3TestConfig } from "./v3.config";
 
 /**
  * IMPORTANT:
@@ -59,7 +60,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     await v3.act(c.action, page);
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });
-    const text = extraction.extraction ?? "";
+    const text = extraction.page_text ?? "";
     for (const s of c.expectedSubstrings) {
       expect(
         text.includes(s),
@@ -167,11 +168,11 @@ const cases: Case[] = [
   },
 ];
 
-test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
+test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3({ env: "LOCAL", headless: false, verbose: 0 });
+    v3 = new V3(v3TestConfig);
     await v3.init();
   });
 

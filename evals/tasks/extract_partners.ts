@@ -4,25 +4,22 @@ import { z } from "zod/v3";
 export const extract_partners: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://ramp.com");
+    const page = v3.context.pages()[0];
+    await page.goto("https://ramp.com");
 
-    await stagehand.page.act({
-      action: "scroll to the bottom of the page",
+    await v3.act({ instruction: "scroll to the bottom of the page" });
+
+    await v3.act({ instruction: "Close the popup." });
+
+    await v3.act({
+      instruction: "click on the link that leads to the partners page.",
     });
 
-    await stagehand.page.act({
-      action: "Close the popup.",
-    });
-
-    await stagehand.page.act({
-      action: "click on the link that leads to the partners page.",
-    });
-
-    const partners = await stagehand.page.extract({
+    const partners = await v3.extract({
       instruction: `
       Extract all of the partner categories on the page.
     `,
@@ -85,6 +82,6 @@ export const extract_partners: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

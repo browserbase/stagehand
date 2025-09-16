@@ -5,14 +5,15 @@ export const extract_aigrant_targeted: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
     const selector = "/html/body/div/ul[5]/li[28]";
-    const company = await stagehand.page.extract({
+    const company = await v3.extract({
       instruction: "Extract the company name.",
       schema: z.object({
         company_name: z.string(),
@@ -67,6 +68,6 @@ export const extract_aigrant_targeted: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

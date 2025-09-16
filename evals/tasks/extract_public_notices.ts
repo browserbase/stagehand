@@ -5,16 +5,17 @@ import { compareStrings } from "@/evals/utils";
 export const extract_public_notices: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/sars/",
       { waitUntil: "load" },
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
       schema: z.object({
@@ -175,6 +176,6 @@ export const extract_public_notices: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

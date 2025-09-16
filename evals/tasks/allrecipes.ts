@@ -5,21 +5,22 @@ export const allrecipes: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.allrecipes.com/", {
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.allrecipes.com/", {
       waitUntil: "domcontentloaded",
     });
 
-    await stagehand.page.act({
-      action: 'Type "chocolate chip cookies" in the search bar',
+    await v3.act({
+      instruction: 'Type "chocolate chip cookies" in the search bar',
     });
-    await stagehand.page.act({
-      action: "press enter",
+    await v3.act({
+      instruction: "press enter",
     });
 
-    const recipeDetails = await stagehand.page.extract({
+    const recipeDetails = await v3.extract({
       instruction:
         "Extract the title of the first recipe and the total number of ratings it has received.",
       schema: z.object({
@@ -96,6 +97,6 @@ export const allrecipes: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

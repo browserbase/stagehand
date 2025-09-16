@@ -1,14 +1,19 @@
-import { Page } from "@playwright/test";
-
 export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
   captureOnNavigation?: boolean;
 }
 
+// Minimal page-like interface: supports screenshot() and optional event hooks
+type ScreenshotCapablePage = {
+  screenshot: (...args: []) => Promise<Buffer | string>;
+  on?: (event: string, listener: (...args: []) => void) => void;
+  off?: (event: string, listener: (...args: []) => void) => void;
+};
+
 export class ScreenshotCollector {
   private screenshots: Buffer[] = [];
-  private page: Page;
+  private page: ScreenshotCapablePage;
   private interval: number;
   private maxScreenshots: number;
   private captureOnNavigation: boolean;
@@ -16,7 +21,10 @@ export class ScreenshotCollector {
   private navigationListeners: Array<() => void> = [];
   private isCapturing: boolean = false;
 
-  constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
+  constructor(
+    page: ScreenshotCapablePage,
+    options: ScreenshotCollectorOptions = {},
+  ) {
     this.page = page;
     this.interval = options.interval || 5000;
     this.maxScreenshots = options.maxScreenshots || 10;
@@ -32,7 +40,7 @@ export class ScreenshotCollector {
       await this.captureScreenshot("interval");
     }, this.interval);
 
-    if (this.captureOnNavigation) {
+    if (this.captureOnNavigation && this.page.on && this.page.off) {
       const loadListener = () => this.captureScreenshot("load");
       const domContentListener = () =>
         this.captureScreenshot("domcontentloaded");
@@ -41,8 +49,8 @@ export class ScreenshotCollector {
       this.page.on("domcontentloaded", domContentListener);
 
       this.navigationListeners = [
-        () => this.page.off("load", loadListener),
-        () => this.page.off("domcontentloaded", domContentListener),
+        () => this.page!.off!("load", loadListener),
+        () => this.page!.off!("domcontentloaded", domContentListener),
       ];
     }
 
@@ -72,7 +80,11 @@ export class ScreenshotCollector {
 
     try {
       const screenshot = await this.page.screenshot();
-      this.screenshots.push(screenshot);
+      const buffer =
+        typeof screenshot === "string"
+          ? Buffer.from(screenshot, "base64")
+          : (screenshot as Buffer);
+      this.screenshots.push(buffer);
 
       if (this.screenshots.length > this.maxScreenshots) {
         this.screenshots.shift();

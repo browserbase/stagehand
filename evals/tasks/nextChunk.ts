@@ -1,49 +1,39 @@
-import { Stagehand } from "@browserbasehq/stagehand";
 import { EvalFunction } from "@/types/evals";
 
 export const nextChunk: EvalFunction = async ({
   logger,
-  stagehandConfig,
   debugUrl,
   sessionUrl,
+  v3,
 }) => {
-  const stagehand = new Stagehand({
-    ...stagehandConfig,
-    domSettleTimeoutMs: 3000,
-  });
   try {
-    await stagehand.init();
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.apartments.com/san-francisco-ca/", {
+      waitUntil: "domcontentloaded",
+    });
+    await v3.act({ instruction: "click on the all filters button" });
 
-    await stagehand.page.goto("https://www.apartments.com/san-francisco-ca/");
-    await stagehand.page.act({
-      action: "click on the all filters button",
+    const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
+      const container = document.querySelector(
+        "#advancedFilters > div",
+      ) as HTMLElement;
+      if (!container) {
+        console.warn(
+          "Could not find #advancedFilters > div. Returning 0 for measurements.",
+        );
+        return { initialScrollTop: 0, chunkHeight: 0 };
+      }
+      return {
+        initialScrollTop: container.scrollTop,
+        chunkHeight: container.getBoundingClientRect().height,
+      };
     });
 
-    const { initialScrollTop, chunkHeight } = await stagehand.page.evaluate(
-      () => {
-        const container = document.querySelector(
-          "#advancedFilters > div",
-        ) as HTMLElement;
-        if (!container) {
-          console.warn(
-            "Could not find #advancedFilters > div. Returning 0 for measurements.",
-          );
-          return { initialScrollTop: 0, chunkHeight: 0 };
-        }
-        return {
-          initialScrollTop: container.scrollTop,
-          chunkHeight: container.getBoundingClientRect().height,
-        };
-      },
-    );
-
-    await stagehand.page.act({
-      action: "scroll down one chunk on the filters modal",
-    });
+    await v3.act({ instruction: "scroll down one chunk on the filters modal" });
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const newScrollTop = await stagehand.page.evaluate(() => {
+    const newScrollTop = await page.evaluate(() => {
       const container = document.querySelector(
         "#advancedFilters > div",
       ) as HTMLElement;
@@ -80,6 +70,6 @@ export const nextChunk: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

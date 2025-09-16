@@ -1,17 +1,18 @@
 import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "@/evals/evaluator";
+import { V3Evaluator } from "@/evals/v3Evaluator";
 export const nba_trades: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
   logger,
-  agent,
+  v3Agent,
+  v3,
 }) => {
   try {
-    const evaluator = new Evaluator(stagehand);
-    await stagehand.page.goto("https://www.espn.com/");
+    const page = v3.context.pages()[0];
+    const evaluator = new V3Evaluator(v3);
+    await page.goto("https://www.espn.com/");
 
-    const agentResult = await agent.execute({
+    const agentResult = await v3Agent.execute({
       instruction:
         "Find the latest Team transaction in the NBA within the past week.",
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
@@ -23,7 +24,7 @@ export const nba_trades: EvalFunction = async ({
     });
 
     const success =
-      stagehand.page.url() === "https://www.espn.com/nba/transactions" &&
+      (await page.url()) === "https://www.espn.com/nba/transactions" &&
       evaluation === "YES";
 
     if (!success) {
@@ -51,6 +52,6 @@ export const nba_trades: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

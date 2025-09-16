@@ -3,29 +3,22 @@ import { EvalFunction } from "@/types/evals";
 export const multi_tab: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    const stagehandPage = stagehand.page;
-    await stagehandPage.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/",
     );
 
-    await stagehandPage.act({
-      action: "click the button to open the other page",
-    });
-    await stagehandPage.act({
-      action: "click the button to open the other page",
-    });
-    await stagehandPage.act({
-      action: "click the button to open the other page",
-    });
-    await stagehandPage.act({
-      action: "click the button to open the other page",
-    });
+    await v3.act({ instruction: "click the button to open the other page" });
+    await v3.act({ instruction: "click the button to open the other page" });
+    await v3.act({ instruction: "click the button to open the other page" });
+    await v3.act({ instruction: "click the button to open the other page" });
+    let activePage = await v3.context.awaitActivePage();
 
-    let currentPageUrl = stagehandPage.url();
+    let currentPageUrl = await activePage.url();
     let expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page5.html";
 
@@ -40,14 +33,15 @@ export const multi_tab: EvalFunction = async ({
     }
 
     // try acting on the first page again
-    const pages = stagehand.context.pages();
+    const pages = v3.context.pages();
     const page1 = pages[0];
-    await page1.act({
-      action: "click the button to open the other page",
+    await v3.act({
+      instruction: "click the button to open the other page",
+      page: page1,
     });
 
-    // stagehandPage.url() should point to the URL of the active page
-    currentPageUrl = stagehandPage.url();
+    activePage = await v3.context.awaitActivePage();
+    currentPageUrl = await activePage.url();
     expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";
     if (currentPageUrl !== expectedUrl) {
@@ -60,7 +54,7 @@ export const multi_tab: EvalFunction = async ({
       };
     }
 
-    const page2text = await stagehandPage.extract();
+    const page2text = await v3.extract({ page: activePage });
     const expectedPage2text = "You've made it to page 2";
 
     if (page2text.page_text.includes(expectedPage2text)) {
@@ -87,6 +81,6 @@ export const multi_tab: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -3,26 +3,25 @@ import { EvalFunction } from "@/types/evals";
 export const tab_handling: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/",
     );
 
-    await stagehand.page.act({
-      action: "click the button to open the other page",
-    });
+    await v3.act({ instruction: "click the button to open the other page" });
 
-    const pages = stagehand.context.pages();
+    const pages = v3.context.pages();
     const page1 = pages[0];
     const page2 = pages[1];
 
     // extract all the text from the first page
-    const extraction1 = await page1.extract();
+    const extraction1 = await v3.extract({ page: page1 });
     // extract all the text from the second page
-    const extraction2 = await page2.extract();
+    const extraction2 = await v3.extract({ page: page2 });
 
     const extraction1Success = extraction1.page_text.includes("Welcome!");
     const extraction2Success = extraction2.page_text.includes(
@@ -44,6 +43,6 @@ export const tab_handling: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -4,27 +4,28 @@ export const apple: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto("https://www.apple.com/iphone-16-pro/");
+    const page = v3.context.pages()[0];
+    await page.goto("https://www.apple.com/iphone-16-pro/");
 
-    await stagehand.page.act({ action: "click on the buy button" });
-    await stagehand.page.act({ action: "select the Pro Max model" });
-    await stagehand.page.act({ action: "select the natural titanium color" });
-    await stagehand.page.act({ action: "select the 256GB storage option" });
-    await stagehand.page.act({
-      action: "click on the 'select a smartphone' trade-in option",
+    await v3.act({ instruction: "click on the buy button" });
+    await v3.act({ instruction: "select the Pro Max model" });
+    await v3.act({ instruction: "select the natural titanium color" });
+    await v3.act({ instruction: "select the 256GB storage option" });
+    await v3.act({
+      instruction: "click on the 'select a smartphone' trade-in option",
     });
 
-    await stagehand.page.act({
-      action: "select the iPhone 13 mini model from the dropdown",
+    await v3.act({
+      instruction: "select the iPhone 13 mini model from the dropdown",
     });
-    await stagehand.page.act({
-      action: "select the iPhone 13 mini is in good condition",
+    await v3.act({
+      instruction: "select the iPhone 13 mini is in good condition",
     });
 
-    const successMessageLocator = stagehand.page.locator(
+    const successMessageLocator = page.locator(
       'text="Good News. Your iPhone 13 mini qualifies for credit."',
     );
     const isVisible = await successMessageLocator.isVisible();
@@ -44,6 +45,6 @@ export const apple: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

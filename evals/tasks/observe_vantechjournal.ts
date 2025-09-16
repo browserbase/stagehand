@@ -3,14 +3,14 @@ import { EvalFunction } from "@/types/evals";
 export const observe_vantechjournal: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto("https://vantechjournal.com/archive");
-    await stagehand.page.waitForTimeout(1000);
+    const page = v3.context.pages()[0];
+    await page.goto("https://vantechjournal.com/archive");
 
-    const observations = await stagehand.page.observe({
+    const observations = await v3.observe({
       instruction: "Find the 'load more' link",
     });
 
@@ -26,36 +26,56 @@ export const observe_vantechjournal: EvalFunction = async ({
 
     const expectedLocator = `xpath=/html/body/div[3]/div/section/div/div/div[3]/a`;
 
-    const expectedResult = await stagehand.page.locator(expectedLocator);
+    const nodesEqual = async (aSel: string, bSel: string): Promise<boolean> => {
+      return page.evaluate(
+        ({ aSel, bSel }) => {
+          function resolve(sel: string): Element | null {
+            if (!sel) return null;
+            const raw = sel.trim();
+            const isXPath =
+              /^xpath=/i.test(raw) ||
+              raw.startsWith("/") ||
+              raw.startsWith("(");
+            if (isXPath) {
+              try {
+                const xp = raw.replace(/^xpath=/i, "");
+                return document.evaluate(
+                  xp,
+                  document,
+                  null,
+                  XPathResult.FIRST_ORDERED_NODE_TYPE,
+                  null,
+                ).singleNodeValue as Element | null;
+              } catch {
+                return null;
+              }
+            }
+            try {
+              return document.querySelector(raw);
+            } catch {
+              return null;
+            }
+          }
+          const a = resolve(aSel);
+          const b = resolve(bSel);
+          return a === b;
+        },
+        { aSel, bSel },
+      );
+    };
 
     let foundMatch = false;
-
     for (const observation of observations) {
       try {
-        const observationLocator = stagehand.page
-          .locator(observation.selector)
-          .first();
-        const observationHandle = await observationLocator.elementHandle();
-        const expectedHandle = await expectedResult.elementHandle();
-
-        if (!observationHandle || !expectedHandle) {
-          // Couldn’t get handles, skip
-          continue;
-        }
-
-        const isSameNode = await observationHandle.evaluate(
-          (node, otherNode) => node === otherNode,
-          expectedHandle,
-        );
-
-        if (isSameNode) {
+        const equal = await nodesEqual(observation.selector, expectedLocator);
+        if (equal) {
           foundMatch = true;
           break;
         }
       } catch (error) {
         console.warn(
-          `Failed to check observation with selector ${observation.selector}:`,
-          error.message,
+          `Failed to compare ${observation.selector} to expected`,
+          error?.message || String(error),
         );
         continue;
       }
@@ -63,7 +83,7 @@ export const observe_vantechjournal: EvalFunction = async ({
 
     return {
       _success: foundMatch,
-      expected: expectedResult,
+      expected: expectedLocator,
       observations,
       debugUrl,
       sessionUrl,
@@ -78,6 +98,6 @@ export const observe_vantechjournal: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

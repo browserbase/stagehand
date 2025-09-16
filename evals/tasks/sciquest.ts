@@ -4,19 +4,18 @@ import { z } from "zod/v3";
 export const sciquest: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
     );
 
-    await stagehand.page.act({
-      action: 'Click on the "Closed" tab',
-    });
+    await v3.act({ instruction: 'Click on the "Closed" tab' });
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
       schema: z.object({
@@ -74,6 +73,6 @@ export const sciquest: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

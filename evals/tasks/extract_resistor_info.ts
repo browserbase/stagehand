@@ -5,15 +5,16 @@ import { z } from "zod/v3";
 export const extract_resistor_info: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/resistor/",
     );
 
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
       schema: z.object({
@@ -161,6 +162,6 @@ export const extract_resistor_info: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

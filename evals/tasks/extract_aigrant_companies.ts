@@ -5,13 +5,14 @@ export const extract_aigrant_companies: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
-    const companyList = await stagehand.page.extract({
+    const companyList = await v3.extract({
       instruction:
         "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
       schema: z.object({
@@ -130,6 +131,6 @@ export const extract_aigrant_companies: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };

@@ -4,15 +4,16 @@ import { z } from "zod/v3";
 export const extract_rockauto: EvalFunction = async ({
   debugUrl,
   sessionUrl,
-  stagehand,
+  v3,
   logger,
 }) => {
   try {
-    await stagehand.page.goto(
+    const page = v3.context.pages()[0];
+    await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
-    const result = await stagehand.page.extract({
+    const result = await v3.extract({
       instruction:
         "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
         "Do not include the manufacturer name. Do not include products from the premium category.",
@@ -103,6 +104,6 @@ export const extract_rockauto: EvalFunction = async ({
       sessionUrl,
     };
   } finally {
-    await stagehand.close();
+    await v3.close();
   }
 };
