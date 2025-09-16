@@ -4,6 +4,7 @@ import puppeteer from "puppeteer-core";
 import { chromium } from "playwright";
 import { ObserveResult } from "@/types/stagehand";
 import { AnyPage } from "@/lib/v3/types";
+import { v3TestConfig } from "./v3.config";
 
 /**
  * IMPORTANT:
@@ -171,13 +172,7 @@ test.describe("Stagehand v3: shadow <-> iframe scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3({
-      env: "LOCAL",
-      headless: false,
-      verbose: 1,
-      disablePino: true,
-      logger: console.log,
-    });
+    v3 = new V3(v3TestConfig);
     await v3.init();
   });
 

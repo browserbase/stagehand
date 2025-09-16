@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../../v3/v3";
+import { v3TestConfig } from "./v3.config";
 
 test.describe("V3 default page tracking", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3({ env: "LOCAL", headless: false, verbose: 0, disablePino: true, logger: console.log });
+    v3 = new V3(v3TestConfig);
     await v3.init();
   });
 
