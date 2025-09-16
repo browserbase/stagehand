@@ -21,6 +21,7 @@ type InitV3Args = {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
   logger: EvalLogger;
+  createAgent?: boolean; // only create an agent for agent tasks
   configOverrides?: Partial<
     Pick<
       V3Options,
@@ -41,7 +42,7 @@ export type V3InitResult = {
   debugUrl?: string; // not exposed by v3; placeholder for parity
   sessionUrl?: string; // not exposed by v3; placeholder for parity
   modelName: AvailableModel;
-  agent: AgentInstance;
+  agent?: AgentInstance;
 };
 
 export async function initV3({
@@ -50,6 +51,7 @@ export async function initV3({
   logger,
   configOverrides,
   modelName,
+  createAgent,
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model (OpenAI/Anthropic computer-use)
   const baseName = modelName.includes("/")
@@ -117,34 +119,38 @@ export async function initV3({
   const isCUAModel = (model: string): boolean =>
     model.includes("computer-use-preview") || model.startsWith("claude");
 
-  let agentConfig: AgentConfig | undefined;
-  if (isCUAModel(modelName)) {
-    const base = modelName.includes("/") ? modelName.split("/")[1] : modelName;
-    const provider = base.startsWith("claude") ? "anthropic" : "openai";
-    const apiKey =
-      provider === "anthropic"
-        ? process.env.ANTHROPIC_API_KEY
-        : process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error(
-        `Missing API key for ${provider}. Set ${
-          provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
-        } in your environment.`,
-      );
+  let agent: AgentInstance | undefined;
+  if (createAgent) {
+    let agentConfig: AgentConfig | undefined;
+    if (isCUAModel(modelName)) {
+      const base = modelName.includes("/")
+        ? modelName.split("/")[1]
+        : modelName;
+      const provider = base.startsWith("claude") ? "anthropic" : "openai";
+      const apiKey =
+        provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          `Missing API key for ${provider}. Set ${
+            provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
+          } in your environment.`,
+        );
+      }
+      agentConfig = {
+        model: modelName,
+        provider,
+        options: { apiKey },
+      } as AgentConfig;
+    } else {
+      agentConfig = {
+        model: modelName,
+        executionModel: "google/gemini-2.5-flash",
+      } as AgentConfig;
     }
-    agentConfig = {
-      model: modelName,
-      provider,
-      options: { apiKey },
-    } as AgentConfig;
-  } else {
-    agentConfig = {
-      model: modelName,
-      executionModel: "google/gemini-2.5-flash",
-    } as AgentConfig;
+    agent = v3.agent(agentConfig);
   }
-
-  const agent = v3.agent(agentConfig);
 
   return {
     v3,

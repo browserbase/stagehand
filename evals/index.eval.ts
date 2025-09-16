@@ -306,6 +306,8 @@ const generateFilteredTestcases = (): Testcase[] => {
           // let taskInput: Awaited<ReturnType<typeof initStagehand>>;
           let v3Input: Awaited<ReturnType<typeof initV3>> | undefined;
 
+          const isAgentTask =
+            input.name.startsWith("agent/") || input.name.includes("/agent/");
           if (USE_API) {
             // Derive provider from model. Prefer explicit "provider/model"; otherwise infer for agent models
             let provider: string;
@@ -340,6 +342,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               logger,
               modelName: input.modelName,
               modelClientOptions: { apiKey: apiKey },
+              createAgent: isAgentTask,
             });
           } else {
             let llmClient: LLMClient;
@@ -367,6 +370,7 @@ const generateFilteredTestcases = (): Testcase[] => {
               logger,
               llmClient,
               modelName: input.modelName,
+              createAgent: isAgentTask,
             });
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)
