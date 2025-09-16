@@ -183,7 +183,8 @@ export async function buildBackendIdMaps(
           if (n.contentDocument && locate(n.contentDocument)) return true;
           return false;
         } else {
-          if (n.backendNodeId === backendNodeId) return (iframeNode = n), true;
+          if (n.backendNodeId === backendNodeId)
+            return ((iframeNode = n), true);
           return (
             (n.children?.some(locate) ?? false) ||
             (n.contentDocument ? locate(n.contentDocument) : false)

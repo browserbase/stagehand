@@ -452,6 +452,7 @@ export const providerEnvVarMap: Partial<
   perplexity: "PERPLEXITY_API_KEY",
   azure: "AZURE_API_KEY",
   xai: "XAI_API_KEY",
+  bedrock: "AWS_BEARER_TOKEN_BEDROCK", // Primary API key method for Bedrock
   google_legacy: "GOOGLE_API_KEY",
 };
 
@@ -487,6 +488,75 @@ export function loadApiKeyFromEnv(
   logger({
     category: "init",
     message: `API key for ${provider} not found in environment variable ${envVarName}`,
+    level: 0,
+  });
+
+  return undefined;
+}
+
+/**
+ * Loads Amazon Bedrock client configuration from environment variables.
+ * Supports both API key authentication and SigV4 authentication methods.
+ * @param logger Logger function for info/error messages
+ * @returns Bedrock client options object or undefined if no authentication method is available
+ */
+export function loadBedrockClientOptions(
+  logger: (logLine: LogLine) => void,
+): Record<string, unknown> | undefined {
+  // Authentication precedence:
+  // 1. API key from AWS_BEARER_TOKEN_BEDROCK (recommended)
+  // 2. SigV4 authentication using AWS credentials
+
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  const region =
+    process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || "us-east-1"; // Default to us-east-1
+
+  // Method 1: API key authentication (recommended)
+  if (bearerToken && bearerToken.length > 0) {
+    logger({
+      category: "init",
+      message: "Using Amazon Bedrock API key authentication",
+      level: 1,
+    });
+
+    const config: Record<string, unknown> = {
+      apiKey: bearerToken,
+      region: region, // Always include region (defaults to us-east-1)
+    };
+
+    return config;
+  }
+
+  // Method 2: Check for SigV4 authentication credentials
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = process.env.AWS_SESSION_TOKEN;
+
+  if (accessKeyId && secretAccessKey) {
+    logger({
+      category: "init",
+      message: "Using Amazon Bedrock SigV4 authentication",
+      level: 1,
+    });
+
+    const config: Record<string, unknown> = {
+      accessKeyId,
+      secretAccessKey,
+      region: region, // Always include region (defaults to us-east-1)
+    };
+
+    // Add session token if present (for temporary credentials)
+    if (sessionToken && sessionToken.length > 0) {
+      config.sessionToken = sessionToken;
+    }
+
+    return config;
+  }
+
+  logger({
+    category: "init",
+    message:
+      "No Amazon Bedrock authentication credentials found. Please set either AWS_BEARER_TOKEN_BEDROCK for API key auth or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (and optionally AWS_SESSION_TOKEN) for SigV4 auth",
     level: 0,
   });
 
