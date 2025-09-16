@@ -46,7 +46,7 @@ export class StagehandAgentHandler {
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
-    const maxSteps = options.maxSteps || 10;
+    const maxSteps = options.maxSteps || 20;
     const actions: AgentAction[] = [];
     let finalMessage = "";
     let completed = false;
@@ -88,6 +88,8 @@ export class StagehandAgentHandler {
         },
       });
 
+      let stepNumber = 0;
+
       const result = await this.llmClient.generateText({
         model: wrappedModel,
         system: systemPrompt,
@@ -99,8 +101,8 @@ export class StagehandAgentHandler {
         onStepFinish: async (event) => {
           this.logger({
             category: "agent",
-            message: `Step finished: ${event.finishReason}`,
-            level: 2,
+            message: `Taking step ${++stepNumber}/${maxSteps}`,
+            level: 1,
           });
 
           if (event.toolCalls && event.toolCalls.length > 0) {
@@ -114,6 +116,12 @@ export class StagehandAgentHandler {
                   category: "agent",
                   message: `reasoning: ${event.text}`,
                   level: 1,
+                  auxiliary: {
+                    toolCalls: {
+                      value: JSON.stringify(event.toolCalls),
+                      type: "object",
+                    },
+                  },
                 });
               }
 
