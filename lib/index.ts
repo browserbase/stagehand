@@ -925,20 +925,6 @@ export class Stagehand {
             );
           }
 
-          const executeOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-
-          if (this.usingAPI) {
-            const agentConfigForApi: AgentConfig = options;
-
-            return await this.apiClient.agentExecute(
-              agentConfigForApi,
-              executeOptions,
-            );
-          }
-
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
@@ -949,7 +935,7 @@ export class Stagehand {
             executionModel,
             systemInstructions,
             tools,
-          ).execute(executeOptions);
+          ).execute(instructionOrOptions);
         },
       };
     }
