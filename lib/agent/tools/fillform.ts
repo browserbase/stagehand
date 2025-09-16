@@ -60,12 +60,12 @@ export const createFillFormTool = (
           })
         : await stagehandPage.page.observe(instruction);
 
-      const completedActions = [];
-      for (const result of observeResults) {
-        const action = await stagehandPage.page.act(result);
-        completedActions.push(action);
+      for (const observeResult of observeResults) {
+        await stagehandPage.page.act(observeResult);
       }
-
-      return { success: true, actions: completedActions };
+      return {
+        success: true,
+        playwrightArguments: observeResults,
+      };
     },
   });
