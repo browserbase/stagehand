@@ -5,7 +5,7 @@ test.describe("V3 default page tracking", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3({ env: "LOCAL", headless: false, verbose: 0 });
+    v3 = new V3({ env: "LOCAL", headless: false, verbose: 0, disablePino: true, logger: console.log });
     await v3.init();
   });
 
