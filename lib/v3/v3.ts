@@ -78,10 +78,9 @@ export class V3 {
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
   private _isClosing = false;
-  private _processGuardsInstalled = false;
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
-    this._panicClose(`CDP transport closed: ${why}`).catch(() => {});
+    this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
@@ -90,6 +89,8 @@ export class V3 {
   public verbose: 0 | 1 | 2 = 1;
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
+  private static _processGuardsInstalled = false;
+  private static _instances: Set<V3> = new Set();
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -175,7 +176,7 @@ export class V3 {
   }
 
   constructor(opts: V3Options) {
-    this._installProcessGuards();
+    V3._installProcessGuards();
     this.externalLogger = opts.logger;
     this.verbose = opts.verbose ?? 1;
     this.instanceId =
@@ -222,13 +223,15 @@ export class V3 {
       );
     }
     this.opts = opts;
+    // Track instance for global process guard handling
+    V3._instances.add(this);
   }
 
-  private async _panicClose(reason: string): Promise<void> {
+  private async _immediateShutdown(reason: string): Promise<void> {
     try {
       this.logger({
         category: "v3",
-        message: `panicClose → ${reason}`,
+        message: `initiating shutdown → ${reason}`,
         level: 0,
       });
     } catch {
@@ -238,62 +241,80 @@ export class V3 {
     try {
       this.logger({
         category: "v3",
-        message: `calling this.close() → ${reason}`,
+        message: `closing resources → ${reason}`,
         level: 0,
       });
       await this.close({ force: true });
     } catch {
-      // swallow — we’re already panicking
+      // swallow — already shutting down
     }
   }
 
-  private _installProcessGuards(): void {
-    if (this._processGuardsInstalled) return;
-    this._processGuardsInstalled = true;
+  private static _installProcessGuards(): void {
+    if (V3._processGuardsInstalled) return;
+    V3._processGuardsInstalled = true;
 
-    const onSig = (sig: string) => {
-      this._panicClose(`signal ${sig}`).finally(() => {
-        // Let Node default exit continue; do NOT force process.exit here
-      });
+    const shutdownAllImmediate = async (reason: string) => {
+      const instances = Array.from(V3._instances);
+      await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
     };
 
     const exitAfter = async (label: string) => {
       try {
-        // Give close() up to 3s; even if it times out, we still exit.
+        // Give all instances up to 3s to close
         await Promise.race([
-          this.close({ force: true }),
+          (async () => {
+            const instances = Array.from(V3._instances);
+            await Promise.all(instances.map((i) => i.close({ force: true })));
+          })(),
           new Promise((r) => setTimeout(r, 3000)),
         ]);
       } finally {
-        this.logger({ category: "v3", message: `${label}: exiting`, level: 0 });
+        v3Logger({
+          category: "v3",
+          message: `${label}: shutdown complete`,
+          level: 0,
+        });
         process.exit(1);
       }
     };
 
-    const onUncaught = (err: unknown) => {
-      this.logger({
+    process.once("SIGINT", () => {
+      v3Logger({
+        category: "v3",
+        message: "SIGINT: initiating shutdown",
+        level: 0,
+      });
+      void shutdownAllImmediate("signal SIGINT");
+      void exitAfter("SIGINT");
+    });
+    process.once("SIGTERM", () => {
+      v3Logger({
+        category: "v3",
+        message: "SIGTERM: initiating shutdown",
+        level: 0,
+      });
+      void shutdownAllImmediate("signal SIGTERM");
+      void exitAfter("SIGTERM");
+    });
+    process.once("uncaughtException", (err: unknown) => {
+      v3Logger({
         category: "v3",
         message: "uncaughtException",
         level: 0,
         auxiliary: { err: { value: String(err), type: "string" } },
       });
       void exitAfter("uncaughtException");
-    };
-
-    const onUnhandled = (reason: unknown) => {
-      this.logger({
+    });
+    process.once("unhandledRejection", (reason: unknown) => {
+      v3Logger({
         category: "v3",
         message: "unhandledRejection",
         level: 0,
         auxiliary: { reason: { value: String(reason), type: "string" } },
       });
       void exitAfter("unhandledRejection");
-    };
-
-    process.once("SIGINT", () => onSig("SIGINT"));
-    process.once("SIGTERM", () => onSig("SIGTERM"));
-    process.once("uncaughtException", onUncaught);
-    process.once("unhandledRejection", onUnhandled);
+    });
   }
 
   /**
@@ -731,6 +752,8 @@ export class V3 {
       } catch {
         // ignore
       }
+      // Remove from global registry
+      V3._instances.delete(this);
     }
   }
 
