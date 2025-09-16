@@ -33,6 +33,27 @@ export class Locator {
   ) {}
 
   /**
+   * Return the DOM backendNodeId for this locator's target element.
+   * Useful for identity comparisons without needing element handles.
+   */
+  async backendNodeId(): Promise<Protocol.DOM.BackendNodeId> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      await session.send("DOM.enable").catch(() => {});
+      const { node } = await session.send<{ node: Protocol.DOM.Node }>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      return node.backendNodeId as Protocol.DOM.BackendNodeId;
+    } finally {
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
    * Click the element at its visual center.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
