@@ -110,12 +110,20 @@ export class V3 {
     totalInferenceTimeMs: 0,
   };
 
-  public get metrics(): V3Metrics {
-    return this.v3Metrics;
+  /**
+   * Async property for metrics so callers can `await v3.metrics`.
+   * Returning a Promise future-proofs async aggregation/storage.
+   */
+  public get metrics(): Promise<V3Metrics> {
+    return Promise.resolve(this.v3Metrics);
   }
 
-  public get history(): ReadonlyArray<HistoryEntry> {
-    return Object.freeze([...this._history]);
+  /**
+   * Async property for history so callers can `await v3.history`.
+   * Returns a frozen copy to avoid external mutation.
+   */
+  public get history(): Promise<ReadonlyArray<HistoryEntry>> {
+    return Promise.resolve(Object.freeze([...this._history]));
   }
 
   public addToHistory(
