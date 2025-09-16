@@ -418,6 +418,36 @@ export class V3 {
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+
+        try {
+          const resumed = !!this.opts.browserbaseSessionID;
+          let debugUrl: string | undefined;
+          try {
+            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+              debuggerUrl?: string;
+            };
+            debugUrl = dbg?.debuggerUrl;
+          } catch {
+            // Ignore debug fetch failures; continue with sessionUrl only
+          }
+          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+          this.logger({
+            category: "init",
+            message: resumed
+              ? "browserbase session resumed"
+              : "browserbase session started",
+            level: 1,
+            auxiliary: {
+              sessionUrl: { value: sessionUrl, type: "string" },
+              ...(debugUrl && {
+                debugUrl: { value: debugUrl, type: "string" },
+              }),
+              sessionId: { value: sessionId, type: "string" },
+            },
+          });
+        } catch {
+          // best-effort logging — ignore failures
+        }
         return;
       }
 
