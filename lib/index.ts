@@ -924,6 +924,21 @@ export class Stagehand {
               "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
             );
           }
+
+          const executeOptions: AgentExecuteOptions =
+            typeof instructionOrOptions === "string"
+              ? { instruction: instructionOrOptions }
+              : instructionOrOptions;
+
+          if (this.usingAPI) {
+            const agentConfigForApi: AgentConfig = options;
+
+            return await this.apiClient.agentExecute(
+              agentConfigForApi,
+              executeOptions,
+            );
+          }
+
           const tools = options?.integrations
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
@@ -934,7 +949,7 @@ export class Stagehand {
             executionModel,
             systemInstructions,
             tools,
-          ).execute(instructionOrOptions);
+          ).execute(executeOptions);
         },
       };
     }
