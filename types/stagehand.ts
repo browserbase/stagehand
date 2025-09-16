@@ -175,14 +175,14 @@ export interface LocalBrowserLaunchOptions {
   args?: string[];
   chromiumSandbox?: boolean;
   clientCertificates?: Array<{
-      origin: string;
-      certPath?: string;
-      cert?: Buffer;
-      keyPath?: string;
-      key?: Buffer;
-      pfxPath?: string;
-      pfx?: Buffer;
-      passphrase?: string;
+    origin: string;
+    certPath?: string;
+    cert?: Buffer;
+    keyPath?: string;
+    key?: Buffer;
+    pfxPath?: string;
+    pfx?: Buffer;
+    passphrase?: string;
   }>;
   devtools?: boolean;
   env?: Record<string, string | number | boolean>;
