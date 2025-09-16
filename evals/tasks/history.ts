@@ -13,7 +13,7 @@ export const history: EvalFunction = async ({
     await v3.extract("Extract the title of the page");
     await v3.observe("Find all links on the page");
 
-    const history = v3.history;
+    const history = await v3.history;
 
     const hasCorrectNumberOfEntries = history.length === 4;
 
