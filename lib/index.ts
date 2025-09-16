@@ -309,6 +309,7 @@ async function getBrowser(
       handleSIGINT: localBrowserLaunchOptions?.handleSIGINT ?? true,
       handleSIGTERM: localBrowserLaunchOptions?.handleSIGTERM ?? true,
       ignoreDefaultArgs: localBrowserLaunchOptions?.ignoreDefaultArgs,
+      clientCertificates: localBrowserLaunchOptions?.clientCertificates,
     });
 
     if (localBrowserLaunchOptions?.cookies) {
