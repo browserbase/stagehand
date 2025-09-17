@@ -101,10 +101,10 @@ export class ExtractHandler {
     // No-args → page text (parity with v2)
     const noArgs = !instruction && !schema;
     if (noArgs) {
-      const focusXpath = selector?.replace(/^xpath=/i, "") ?? "";
+      const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
       const snap = await captureHybridSnapshot(page, {
         experimental: this.experimental,
-        focusXPath: focusXpath || undefined,
+        focusSelector: focusSelector || undefined,
       });
 
       const result = { page_text: snap.combinedTree };
@@ -112,12 +112,12 @@ export class ExtractHandler {
       return pageTextSchema.parse(result);
     }
 
-    const focusXpath = selector?.replace(/^xpath=/, "") ?? "";
+    const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
 
     // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
     const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
       experimental: this.experimental,
-      focusXPath: focusXpath,
+      focusSelector: focusSelector,
     });
 
     v3Logger({
