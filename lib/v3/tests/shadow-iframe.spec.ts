@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../../v3/v3";
 import puppeteer from "puppeteer-core";
-import { chromium } from "playwright";
+import { chromium as playwrightChromium } from "playwright";
+import { chromium as patchrightChromium } from "patchright-core";
 import { ObserveResult } from "@/types/stagehand";
 import { AnyPage } from "@/lib/v3/types";
 import { v3TestConfig } from "./v3.config";
@@ -19,7 +20,7 @@ type Case = {
   expectedSubstrings?: string[]; // check v3.extract().page_text contains these
 };
 
-type Framework = "v3" | "puppeteer" | "playwright";
+type Framework = "v3" | "puppeteer" | "playwright" | "patchright";
 
 async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   let cleanup: (() => Promise<void> | void) | null = null;
@@ -43,12 +44,23 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
       }
     };
   } else if (framework === "playwright") {
-    const pwBrowser = await chromium.connectOverCDP(v3.connectURL());
+    const pwBrowser = await playwrightChromium.connectOverCDP(v3.connectURL());
     const pwContext = pwBrowser.contexts()[0];
     page = pwContext.pages()[0];
     cleanup = async () => {
       try {
         await pwBrowser.close();
+      } catch {
+        // ignore
+      }
+    };
+  } else if (framework === "patchright") {
+    const prBrowser = await patchrightChromium.connectOverCDP(v3.connectURL());
+    const prContext = prBrowser.contexts()[0];
+    page = prContext.pages()[0];
+    cleanup = async () => {
+      try {
+        await prBrowser.close();
       } catch {
         // ignore
       }
@@ -180,7 +192,12 @@ test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  const frameworks: Framework[] = ["v3", "playwright", "puppeteer"];
+  const frameworks: Framework[] = [
+    "v3",
+    "playwright",
+    "puppeteer",
+    "patchright",
+  ];
   for (const fw of frameworks) {
     for (const c of cases) {
       test(`[${fw}] ${c.title}`, async () => {

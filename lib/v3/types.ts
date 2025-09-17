@@ -68,9 +68,10 @@ export type InitState =
   | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string };
 
 export type PlaywrightPage = import("playwright-core").Page;
+export type PatchrightPage = import("patchright-core").Page;
 export type PuppeteerPage = import("puppeteer-core").Page;
 
-export type AnyPage = PlaywrightPage | PuppeteerPage | Page;
+export type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 
 export type ActParams = {
   instruction: string;
@@ -79,7 +80,7 @@ export type ActParams = {
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
-  page?: PlaywrightPage | PuppeteerPage | Page;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 };
 
 export interface ActHandlerParams {
@@ -99,7 +100,7 @@ export interface ExtractParams<T extends z.AnyZodObject> {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | Page;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
 export interface ExtractHandlerParams<T extends z.AnyZodObject> {
@@ -127,7 +128,7 @@ export type ObserveParams = {
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
   drawOverlay?: boolean;
-  page?: PlaywrightPage | PuppeteerPage | Page;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 };
 
 export interface ObserveHandlerParams {

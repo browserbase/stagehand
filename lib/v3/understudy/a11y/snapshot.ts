@@ -207,8 +207,7 @@ export async function captureHybridSnapshot(
   // If focusSelector provided, try to traverse into the correct frame first and
   // scope the snapshot to that frame + (optional) subtree. This avoids building
   // the full-tree and trimming after.
-  const requestedFocus =
-    options?.focusSelector?.trim();
+  const requestedFocus = options?.focusSelector?.trim();
   if (requestedFocus) {
     try {
       let targetFrameId: string;
