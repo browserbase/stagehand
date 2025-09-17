@@ -421,7 +421,9 @@ ${scriptContent} \
           // Handle screenshots with CDP
           if (prop === "screenshot") {
             return async (options: StagehandScreenshotOptions = {}) => {
-              // Extract useCDP and remaining options
+              const rawScreenshot: typeof target.screenshot =
+                Object.getPrototypeOf(target).screenshot.bind(target);
+
               const {
                 useCDP = this.stagehand.env === "BROWSERBASE",
                 ...playwrightOptions
@@ -450,8 +452,7 @@ ${scriptContent} \
 
                 return buffer;
               } else {
-                const screenshotFn = value as typeof target.screenshot;
-                return await screenshotFn(playwrightOptions);
+                return await rawScreenshot(playwrightOptions);
               }
             };
           }
