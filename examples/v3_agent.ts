@@ -9,9 +9,11 @@ async function main() {
   // Initialize Stagehand
   const v3 = new V3({
     env: "BROWSERBASE",
-    // headless: false,
+    // localBrowserLaunchOptions: {
+    //   headless: false,
+    //   args: ["--window-size=1024,768"],
+    // },
     verbose: 1,
-    // chromeFlags: ["--window-size=1024,768"],
   });
 
   await v3.init();

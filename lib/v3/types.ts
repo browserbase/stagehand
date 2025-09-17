@@ -8,6 +8,54 @@ import type { LogLine } from "@/types/log";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
+/** Local launch options for V3 (chrome-launcher + CDP).
+ * Matches v2 shape where feasible; unsupported fields are accepted but ignored.
+ */
+export interface LocalBrowserLaunchOptions {
+  // Launch-time flags / setup
+  args?: string[];
+  executablePath?: string; // maps to chromePath
+  userDataDir?: string;
+  preserveUserDataDir?: boolean;
+  headless?: boolean;
+  devtools?: boolean;
+  chromiumSandbox?: boolean; // if false → --no-sandbox
+  ignoreDefaultArgs?: boolean | string[];
+  proxy?: {
+    server: string;
+    bypass?: string;
+    username?: string;
+    password?: string;
+  };
+  locale?: string; // via --lang
+  viewport?: { width: number; height: number };
+  deviceScaleFactor?: number; // via --force-device-scale-factor
+  hasTouch?: boolean; // via --touch-events=enabled (best-effort)
+  ignoreHTTPSErrors?: boolean; // via --ignore-certificate-errors
+  cdpUrl?: string; // attach to existing Chrome (expects ws:// URL)
+  connectTimeoutMs?: number;
+
+  // Post-connect (best-effort via CDP). Some are TODOs for a later pass.
+  downloadsPath?: string; // Browser.setDownloadBehavior
+  acceptDownloads?: boolean; // allow/deny via Browser.setDownloadBehavior
+
+  // TODO: implement these?
+  // Not yet implemented in V3
+  // env?: Record<string, string | number | boolean>;
+  // extraHTTPHeaders?: Record<string, string>;
+  // geolocation?: { latitude: number; longitude: number; accuracy?: number };
+  // bypassCSP?: boolean;
+  // cookies?: Array<{
+  //   name: string; value: string; url?: string; domain?: string; path?: string;
+  //   expires?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "Strict" | "Lax" | "None";
+  // }>;
+  // timezoneId?: string;
+  // permissions?: string[];
+  // recordHar?: { omitContent?: boolean; content?: "omit" | "embed" | "attach"; path: string; mode?: "full" | "minimal"; urlFilter?: string | RegExp };
+  // recordVideo?: { dir: string; size?: { width: number; height: number } };
+  // tracesDir?: string;
+}
+
 /** Constructor options for V3 */
 export interface V3Options {
   env: V3Env;
@@ -25,19 +73,13 @@ export interface V3Options {
   browserbaseSessionID?: string;
 
   // Local Chromium (optional)
-  chromePath?: string;
-  chromeFlags?: string[];
-  headless?: boolean;
-  userDataDir?: string;
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   llmClient?: LLMClient; // allow user to pass their own
   enableCaching?: boolean;
   systemPrompt?: string;
-
-  /** How long to wait for a CDP endpoint, in ms (default 15000) */
-  connectTimeoutMs?: number;
   logInferenceToFile?: boolean;
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
@@ -64,7 +106,14 @@ export interface JsonVersionResponse {
 
 export type InitState =
   | { kind: "UNINITIALIZED" }
-  | { kind: "LOCAL"; chrome: LaunchedChrome; ws: string }
+  | {
+      kind: "LOCAL";
+      chrome: LaunchedChrome;
+      ws: string;
+      userDataDir?: string;
+      createdTempProfile?: boolean;
+      preserveUserDataDir?: boolean;
+    }
   | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string };
 
 export type PlaywrightPage = import("playwright-core").Page;

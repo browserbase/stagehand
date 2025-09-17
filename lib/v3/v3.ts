@@ -13,6 +13,7 @@ import {
   V3Metrics,
   V3FunctionName,
   PatchrightPage,
+  LocalBrowserLaunchOptions,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -45,6 +46,9 @@ import { LogLine } from "@/types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
 import process from "process";
+import fs from "fs";
+import path from "path";
+import os from "os";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "@/lib/mcp/utils";
@@ -388,20 +392,110 @@ export class V3 {
             delete process.env.HEADLESS;
           }
         }
+        const lbo: LocalBrowserLaunchOptions =
+          this.opts.localBrowserLaunchOptions ?? {};
+
+        // If a CDP URL is provided, attach instead of launching.
+        if (lbo.cdpUrl) {
+          this.ctx = await V3Context.create(lbo.cdpUrl, {
+            includeCursor: this.opts.includeCursor ?? false,
+            env: "LOCAL",
+          });
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          this.state = {
+            kind: "LOCAL",
+            // no LaunchedChrome when attaching externally; create a stub kill
+            chrome: {
+              kill: async () => {},
+            } as unknown as import("chrome-launcher").LaunchedChrome,
+            ws: lbo.cdpUrl,
+          };
+          // Post-connect settings (downloads and viewport) if provided
+          await this._applyPostConnectLocalOptions(lbo);
+          return;
+        }
+
+        // Determine or create user data dir
+        let userDataDir = lbo.userDataDir;
+        let createdTemp = false;
+        if (!userDataDir) {
+          const base = path.join(os.tmpdir(), "stagehand-v3");
+          fs.mkdirSync(base, { recursive: true });
+          userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
+          createdTemp = true;
+        }
+
+        // Build chrome flags
+        const defaults = [
+          "--remote-allow-origins=*",
+          "--disable-gpu",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-dev-shm-usage",
+          "--site-per-process",
+        ];
+        let chromeFlags: string[] = [];
+        const ignore = lbo.ignoreDefaultArgs;
+        if (ignore === true) {
+          // drop defaults
+          chromeFlags = [];
+        } else if (Array.isArray(ignore)) {
+          chromeFlags = defaults.filter(
+            (f) => !ignore.some((ex) => f.includes(ex)),
+          );
+        } else {
+          chromeFlags = [...defaults];
+        }
+
+        // headless handled by launchLocalChrome
+        if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
+        if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
+        if (lbo.viewport?.width && lbo.viewport?.height) {
+          chromeFlags.push(
+            `--window-size=${lbo.viewport.width},${lbo.viewport.height}`,
+          );
+        }
+        if (typeof lbo.deviceScaleFactor === "number") {
+          chromeFlags.push(
+            `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
+          );
+        }
+        if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
+        if (lbo.ignoreHTTPSErrors)
+          chromeFlags.push("--ignore-certificate-errors");
+        if ((lbo.chromiumSandbox ?? false) === false)
+          chromeFlags.push("--no-sandbox");
+        if (lbo.proxy?.server)
+          chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
+        if (lbo.proxy?.bypass)
+          chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
+
+        // add user-supplied args last
+        if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
         const { ws, chrome } = await launchLocalChrome({
-          chromePath: this.opts.chromePath,
-          chromeFlags: this.opts.chromeFlags,
-          headless: this.opts.headless,
-          userDataDir: this.opts.userDataDir,
-          connectTimeoutMs: this.opts.connectTimeoutMs,
+          chromePath: lbo.executablePath,
+          chromeFlags,
+          headless: lbo.headless,
+          userDataDir,
+          connectTimeoutMs: lbo.connectTimeoutMs,
         });
         this.ctx = await V3Context.create(ws, {
           includeCursor: this.opts.includeCursor ?? false,
           env: "LOCAL",
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
-        this.state = { kind: "LOCAL", chrome, ws };
+        this.state = {
+          kind: "LOCAL",
+          chrome,
+          ws,
+          userDataDir,
+          createdTempProfile: createdTemp,
+          preserveUserDataDir: !!lbo.preserveUserDataDir,
+        };
+
+        // Post-connect settings (downloads and viewport) if provided
+        await this._applyPostConnectLocalOptions(lbo);
         return;
       }
 
@@ -455,6 +549,37 @@ export class V3 {
       const neverEnv: never = this.opts.env;
       throw new Error(`Unsupported env: ${neverEnv}`);
     });
+  }
+
+  /** Apply post-connect local browser options that require CDP. */
+  private async _applyPostConnectLocalOptions(
+    lbo: LocalBrowserLaunchOptions,
+  ): Promise<void> {
+    try {
+      // Downloads behavior
+      if (lbo.downloadsPath || lbo.acceptDownloads !== undefined) {
+        const behavior = lbo.acceptDownloads === false ? "deny" : "allow";
+        await this.ctx?.conn
+          .send("Browser.setDownloadBehavior", {
+            behavior,
+            downloadPath: lbo.downloadsPath,
+            eventsEnabled: true,
+          })
+          .catch(() => {});
+      }
+
+      // Viewport
+      if (lbo.viewport) {
+        const page = await this.ctx!.awaitActivePage();
+        await page
+          .setViewportSize(lbo.viewport.width, lbo.viewport.height, {
+            deviceScaleFactor: lbo.deviceScaleFactor,
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // best-effort only
+    }
   }
 
   /**
@@ -777,6 +902,18 @@ export class V3 {
           await this.state.chrome.kill();
         } catch {
           //
+        }
+        // cleanup temp user data dir if we created it and not preserved
+        try {
+          if (
+            this.state.createdTempProfile &&
+            !this.state.preserveUserDataDir &&
+            this.state.userDataDir
+          ) {
+            fs.rmSync(this.state.userDataDir, { recursive: true, force: true });
+          }
+        } catch {
+          // ignore cleanup errors
         }
       }
     } finally {
