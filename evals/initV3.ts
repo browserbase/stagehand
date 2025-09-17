@@ -11,7 +11,7 @@ import type { AvailableModel, ClientOptions } from "@/types/model";
 import type { LLMClient } from "@/lib/llm/LLMClient";
 import { V3 } from "@/lib/v3/v3";
 import type { AgentInstance } from "@/types/agent";
-import type { V3Options } from "@/lib/v3/types";
+import type { V3Options, LocalBrowserLaunchOptions } from "@/lib/v3/types";
 import { AgentConfig } from "@/types/stagehand";
 
 dotenv.config();
@@ -22,16 +22,16 @@ type InitV3Args = {
   domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
   logger: EvalLogger;
   createAgent?: boolean; // only create an agent for agent tasks
-  configOverrides?: Partial<
-    Pick<
-      V3Options,
-      | "headless"
-      | "chromeFlags"
-      | "browserbaseSessionCreateParams"
-      | "browserbaseSessionID"
-      | "experimental"
-    >
-  >;
+  configOverrides?: {
+    localBrowserLaunchOptions?: Partial<
+      Pick<LocalBrowserLaunchOptions, "headless" | "args">
+    >;
+    // Back-compat alias for args
+    chromeFlags?: string[];
+    browserbaseSessionCreateParams?: V3Options["browserbaseSessionCreateParams"];
+    browserbaseSessionID?: V3Options["browserbaseSessionID"];
+    experimental?: boolean;
+  };
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
 };
@@ -93,8 +93,12 @@ export async function initV3({
     env,
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
-    headless: configOverrides?.headless ?? false,
-    chromeFlags: configOverrides?.chromeFlags,
+    localBrowserLaunchOptions: {
+      headless: configOverrides?.localBrowserLaunchOptions?.headless ?? false,
+      args:
+        configOverrides?.localBrowserLaunchOptions?.args ??
+        configOverrides?.chromeFlags,
+    },
     modelName: internalModel,
     ...v3ClientOpts,
     enableCaching,
@@ -105,7 +109,7 @@ export async function initV3({
     verbose: 2,
     includeCursor: false,
     browserbaseSessionCreateParams:
-      configOverrides?.browserbaseSessionCreateParams as V3Options["browserbaseSessionCreateParams"],
+      configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
     selfHeal: true,
     disablePino: true,

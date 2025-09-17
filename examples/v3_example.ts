@@ -29,11 +29,12 @@ async function example(v3: V3) {
 (async () => {
   const v3 = new V3({
     env: "LOCAL",
-    headless: false,
+    localBrowserLaunchOptions: {
+      headless: false,
+      args: ["--window-size=1400,300"],
+    },
     verbose: 1,
-    logInferenceToFile: true,
     modelName: "google/gemini-2.5-flash-lite",
-    chromeFlags: ["--window-size=1024,768"],
     // includeCursor: true,
   });
   await v3.init();
