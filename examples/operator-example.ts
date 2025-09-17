@@ -32,7 +32,7 @@ async function main() {
       executionModel: "google/gemini-2.5-flash",
     });
     console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);
-    await stagehand.page.goto("https://gamestop.com");
+    await stagehand.page.goto("https://amazon.com");
     await agent.execute({
       instruction: INSTRUCTION,
       maxSteps: 100,

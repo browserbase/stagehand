@@ -298,6 +298,7 @@ export class StagehandAgentHandler {
   </task>
    <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
+     <impoetantNote> If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</note>
     <note>When the task is complete, do not seek more information; you have completed the task.</note>
   </mindset>
   <guidelines>
