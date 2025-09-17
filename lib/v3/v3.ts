@@ -501,10 +501,8 @@ export class V3 {
           v3Page = await this.ctx!.awaitActivePage();
         }
 
-        // normalize selector to the engine your executor expects
-        const selector = input.selector.startsWith("xpath=")
-          ? input.selector
-          : `xpath=${input.selector}`;
+        // Use selector as provided to support XPath, CSS, and other engines
+        const selector = input.selector;
         const actResult = await this.actHandler.actFromObserveResult(
           { ...input, selector }, // ObserveResult
           v3Page, // V3 Page
