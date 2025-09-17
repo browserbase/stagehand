@@ -15,6 +15,7 @@ import { createTypeTool } from "./type";
 import { createDragAndDropTool } from "./dragAndDrop";
 import { createSearchTool } from "./search";
 import { createKeysTool } from "./keys";
+import { createClickAndHoldTool } from "./clickAndHold";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -30,6 +31,7 @@ export function createAgentTools(
     act: createActTool(stagehandPage, executionModel),
     ariaTree: createAriaTreeTool(stagehandPage),
     click: createClickTool(stagehandPage),
+    clickAndHold: createClickAndHoldTool(stagehandPage),
     dragAndDrop: createDragAndDropTool(stagehandPage),
     type: createTypeTool(stagehandPage),
     close: createCloseTool(),

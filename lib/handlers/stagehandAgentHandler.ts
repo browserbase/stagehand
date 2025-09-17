@@ -246,7 +246,8 @@ export class StagehandAgentHandler {
     </step_1>
   </page_understanding_protocol>
   <navigation>
-    <rule>If you are confident in the URL, navigate directly to it.</rule>
+    <rule>When first starting a task, check what page you are on before proceeding</rule>
+    <rule>If you are not confident in the URL, use the search tool to find it.</rule
     <rule>If you are not confident in the URL, use the search tool to find it.</rule>
   </navigation>
   <tools>
