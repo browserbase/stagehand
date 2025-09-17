@@ -575,7 +575,7 @@ export class Locator {
       v3Logger({
         category: "locator",
         message: "xpath pierce-fallback",
-        level: 2,
+        level: 1,
         auxiliary: {
           frameId: { value: String(this.frame.frameId), type: "string" },
           xp: { value: xp, type: "string" },
@@ -707,7 +707,28 @@ export class Locator {
         .filter(Boolean)
         .join(" ");
     }
-    const expr = `document.querySelector(${JSON.stringify(cssInput)})`;
+    const expr = `(() => {
+    const selector = ${JSON.stringify(cssInput)};
+    function queryDeepFirst(root) {
+      // Try in this root
+      try {
+        const hit = root.querySelector(selector);
+        if (hit) return hit;
+      } catch {}
+
+      // Walk elements and descend into open shadow roots
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.shadowRoot) {
+          const found = queryDeepFirst(node.shadowRoot);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    return queryDeepFirst(document);
+})()`;
 
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
@@ -725,7 +746,105 @@ export class Locator {
 
     const objectId = evalRes.result.objectId;
     if (!objectId) {
-      throw new Error(`Element not found for selector: ${this.selector}`);
+      // Fallback: main-world deep search including CLOSED shadow roots via v3 backdoor
+      const ctxId = await executionContexts.waitForMainWorld(
+        session,
+        this.frame.frameId,
+        1000,
+      );
+
+      v3Logger({
+        category: "locator",
+        message: "css pierce-fallback",
+        level: 2,
+        auxiliary: {
+          frameId: { value: String(this.frame.frameId), type: "string" },
+          selector: { value: cssInput, type: "string" },
+        },
+      });
+
+      const exprPierce = `(() => {
+        const selector = ${JSON.stringify(cssInput)};
+        const backdoor = window.__stagehandV3__;
+        // If our v3 script isn't present, bail
+        if (!backdoor || typeof backdoor.getClosedRoot !== 'function') return null;
+
+        function* roots() {
+          yield document;
+          const queue = [];
+
+          // Seed: discover all open/closed roots reachable from document
+          try {
+            const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+            let n;
+            while ((n = walker.nextNode())) {
+              const el = n;
+              if (el.shadowRoot) queue.push(el.shadowRoot);
+              try {
+                const closed = backdoor.getClosedRoot(el);
+                if (closed) queue.push(closed);
+              } catch {}
+            }
+          } catch {}
+
+          while (queue.length) {
+            const root = queue.shift();
+            yield root;
+            try {
+              const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+              let e;
+              while ((e = w.nextNode())) {
+                const el = e;
+                if (el.shadowRoot) queue.push(el.shadowRoot);
+                try {
+                  const closed = backdoor.getClosedRoot(el);
+                  if (closed) queue.push(closed);
+                } catch {}
+              }
+            } catch {}
+          }
+        }
+
+        for (const r of roots()) {
+          try {
+            const hit = r.querySelector(selector);
+            if (hit) return hit;
+          } catch {}
+        }
+        return null;
+      })()`;
+
+      const pierceRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression: exprPierce,
+          contextId: ctxId,
+          returnByValue: false,
+          awaitPromise: true,
+        },
+      );
+
+      if (pierceRes.exceptionDetails) {
+        throw new Error(pierceRes.exceptionDetails.text ?? "Evaluation failed");
+      }
+
+      const obj2 = pierceRes.result.objectId;
+      if (!obj2) {
+        throw new Error(`Element not found for selector: ${this.selector}`);
+      }
+
+      let nodeId2: Protocol.DOM.NodeId | null = null;
+      try {
+        const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>(
+          "DOM.requestNode",
+          { objectId: obj2 },
+        );
+        nodeId2 = rn.nodeId ?? null;
+      } catch {
+        nodeId2 = null;
+      }
+
+      return { nodeId: nodeId2, objectId: obj2 };
     }
 
     let nodeId: Protocol.DOM.NodeId | null = null;

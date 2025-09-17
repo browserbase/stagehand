@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator";
 import type { Page } from "./page";
 import { Frame } from "./frame";
+import { executionContexts } from "./executionContextRegistry";
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -11,11 +12,18 @@ export class FrameLocator {
   private readonly parent?: FrameLocator;
   private readonly selector: string;
   private readonly page: Page;
+  private readonly root?: Frame;
 
-  constructor(page: Page, selector: string, parent?: FrameLocator) {
+  constructor(
+    page: Page,
+    selector: string,
+    parent?: FrameLocator,
+    root?: Frame,
+  ) {
     this.page = page;
     this.selector = selector;
     this.parent = parent;
+    this.root = root;
   }
 
   /** Create a nested FrameLocator under this one. */
@@ -27,7 +35,7 @@ export class FrameLocator {
   async resolveFrame(): Promise<Frame> {
     const parentFrame: Frame = this.parent
       ? await this.parent.resolveFrame()
-      : this.page.mainFrame();
+      : (this.root ?? this.page.mainFrame());
 
     // Resolve the iframe element inside the parent frame
     const tmp = parentFrame.locator(this.selector);
@@ -56,6 +64,8 @@ export class FrameLocator {
             nodeId?: Protocol.DOM.NodeId;
           }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
           if (owner.backendNodeId === iframeBackendNodeId) {
+            // Ensure child frame is ready (handles OOPIF adoption or same-process)
+            await ensureChildFrameReady(this.page, parentFrame, fid, 1200);
             return this.page.frameForId(fid);
           }
         } catch {
@@ -133,6 +143,15 @@ class LocatorDelegate {
   }
 }
 
+/** Factory to start a FrameLocator chain from an arbitrary root Frame. */
+export function frameLocatorFromFrame(
+  page: Page,
+  root: Frame,
+  selector: string,
+): FrameLocator {
+  return new FrameLocator(page, selector, undefined, root);
+}
+
 async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
@@ -162,4 +181,101 @@ function findFrameNode(
     if (hit) return hit;
   }
   return undefined;
+}
+
+/**
+ * Ensure we can evaluate in the child frame with minimal delay.
+ * - If the child is same-process: parent session owns it and main world appears quickly.
+ * - If OOPIF and adoption not finished: wait briefly for ownership change, then main world.
+ */
+async function ensureChildFrameReady(
+  page: Page,
+  parentFrame: Frame,
+  childFrameId: string,
+  budgetMs: number,
+): Promise<void> {
+  const parentSession = parentFrame.session;
+  const deadline = Date.now() + Math.max(0, budgetMs);
+
+  // If already owned by a different session (OOPIF adopted), wait briefly there.
+  const owner = page.getSessionForFrame(childFrameId);
+  if (owner && owner !== parentSession) {
+    try {
+      await executionContexts.waitForMainWorld(owner, childFrameId, 600);
+    } catch {
+      // best effort
+    }
+    return;
+  }
+
+  const hasMainWorldOnParent = (): boolean => {
+    try {
+      return (
+        executionContexts.getMainWorld(parentSession, childFrameId) !== null
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  if (hasMainWorldOnParent()) return;
+
+  await parentSession
+    .send("Page.setLifecycleEventsEnabled", { enabled: true })
+    .catch(() => {});
+  await parentSession.send("Runtime.enable").catch(() => {});
+
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      parentSession.off("Page.lifecycleEvent", onLifecycle);
+      resolve();
+    };
+    const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
+      if (
+        evt.frameId !== childFrameId ||
+        (evt.name !== "DOMContentLoaded" &&
+          evt.name !== "load" &&
+          evt.name !== "networkIdle" &&
+          evt.name !== "networkidle")
+      ) {
+        return;
+      }
+      if (hasMainWorldOnParent()) return finish();
+      try {
+        const nowOwner = page.getSessionForFrame(childFrameId);
+        if (nowOwner && nowOwner !== parentSession) {
+          const left = Math.max(150, deadline - Date.now());
+          executionContexts
+            .waitForMainWorld(nowOwner, childFrameId, left)
+            .finally(finish);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    parentSession.on("Page.lifecycleEvent", onLifecycle);
+
+    const tick = () => {
+      if (done) return;
+      if (hasMainWorldOnParent()) return finish();
+      try {
+        const nowOwner = page.getSessionForFrame(childFrameId);
+        if (nowOwner && nowOwner !== parentSession) {
+          const left = Math.max(150, deadline - Date.now());
+          executionContexts
+            .waitForMainWorld(nowOwner, childFrameId, left)
+            .finally(finish);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      if (Date.now() >= deadline) return finish();
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
 }

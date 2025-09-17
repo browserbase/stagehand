@@ -25,8 +25,13 @@ import { executionContexts } from "../executionContextRegistry";
  */
 
 export type SnapshotOptions = {
-  /** Filter the A11y tree to this XPath (applied in the root frame). */
-  focusXPath?: string;
+  /**
+   * Filter the snapshot to a specific element/subtree using a selector that can cross iframes.
+   * Supports:
+   *  - XPath: strings starting with 'xpath=' or '/'
+   *  - CSS with iframe hops via '>>': e.g., 'section iframe >> #email'
+   */
+  focusSelector?: string;
   /** Pierce shadow DOM in DOM.getDocument (default: true). */
   pierceShadow?: boolean;
   /** Experimental behaviours flag. */
@@ -199,15 +204,41 @@ export async function captureHybridSnapshot(
     }
   >();
 
-  // If focusXPath provided, try to traverse into the correct frame first and
+  // If focusSelector provided, try to traverse into the correct frame first and
   // scope the snapshot to that frame + (optional) subtree. This avoids building
   // the full-tree and trimming after.
-  const requestedFocus = options?.focusXPath?.trim();
+  const requestedFocus =
+    options?.focusSelector?.trim();
   if (requestedFocus) {
     try {
-      const focus = normalizeXPath(requestedFocus);
-      const { targetFrameId, tailXPath, absPrefix } =
-        await resolveFocusFrameAndTail(page, focus, parentByFrame, rootId);
+      let targetFrameId: string;
+      let tailSelector: string | undefined;
+      let absPrefix: string | undefined;
+
+      const looksLikeXPath =
+        /^xpath=/i.test(requestedFocus) || requestedFocus.startsWith("/");
+      if (looksLikeXPath) {
+        const focus = normalizeXPath(requestedFocus);
+        const hit = await resolveFocusFrameAndTail(
+          page,
+          focus,
+          parentByFrame,
+          rootId,
+        );
+        targetFrameId = hit.targetFrameId;
+        tailSelector = hit.tailXPath || undefined;
+        absPrefix = hit.absPrefix;
+      } else {
+        const cssHit = await resolveCssFocusFrameAndTail(
+          page,
+          requestedFocus,
+          parentByFrame,
+          rootId,
+        );
+        targetFrameId = cssHit.targetFrameId;
+        tailSelector = cssHit.tailSelector || undefined;
+        absPrefix = cssHit.absPrefix;
+      }
 
       // Build DOM + A11y just for the target frame (more efficient)
       const owningSess = ownerSession(page, targetFrameId);
@@ -227,7 +258,7 @@ export async function captureHybridSnapshot(
         owningSess,
         targetFrameId,
         {
-          focusXPath: tailXPath || undefined,
+          focusSelector: tailSelector || undefined,
           tagNameMap,
           experimental: options?.experimental ?? false,
           scrollableMap,
@@ -665,6 +696,70 @@ async function resolveFocusFrameAndTail(
   return { targetFrameId: ctxFrameId, tailXPath, absPrefix };
 }
 
+/** Resolve focus frame and tail CSS selector using '>>' to hop iframes. */
+async function resolveCssFocusFrameAndTail(
+  page: Page,
+  rawSelector: string,
+  parentByFrame: Map<string, string | null>,
+  rootId: string,
+): Promise<{
+  targetFrameId: string;
+  tailSelector: string;
+  absPrefix: string; // best-effort: empty when unknown
+}> {
+  const parts = rawSelector
+    .split(">>")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let ctxFrameId = rootId;
+  const absPrefix = ""; // computing true absolute XPath for CSS hops is non-trivial; leave empty
+
+  // All but last part are iframe element selectors in the current context
+  for (let i = 0; i < Math.max(0, parts.length - 1); i++) {
+    const parentSess = page.getSessionForFrame(ctxFrameId);
+    // Resolve iframe element in parent context using CSS (supports shadow via v3 backdoor)
+    const objectId = await resolveObjectIdForCss(
+      parentSess,
+      parts[i]!,
+      ctxFrameId,
+    );
+    if (!objectId) throw new Error("Failed to resolve iframe via CSS hop");
+    try {
+      await parentSess.send("DOM.enable").catch(() => {});
+      const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const iframeBackendNodeId = desc.node.backendNodeId;
+      // Map to child frame id via DOM.getFrameOwner across parent's children
+      let childFrameId: string | undefined;
+      for (const fid of listChildrenOf(parentByFrame, ctxFrameId)) {
+        try {
+          const { backendNodeId } = await parentSess.send<{
+            backendNodeId: number;
+          }>("DOM.getFrameOwner", { frameId: fid });
+          if (backendNodeId === iframeBackendNodeId) {
+            childFrameId = fid;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (!childFrameId)
+        throw new Error("Could not map CSS iframe hop to child frameId");
+      ctxFrameId = childFrameId;
+    } finally {
+      await parentSess
+        .send("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  const tailSelector = parts[parts.length - 1] ?? "*";
+  return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
+}
+
 function listChildrenOf(
   parentByFrame: Map<string, string | null>,
   parentId: string,
@@ -826,7 +921,7 @@ type A11yNode = {
 };
 
 type A11yOptions = {
-  focusXPath?: string;
+  focusSelector?: string;
   experimental: boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
@@ -876,12 +971,15 @@ async function a11yForFrame(
     const enc = opts.encode(be);
     urlMap[enc] = url;
   }
-  // If focusXPath provided, filter the AX nodes to the subtree rooted at that XPath
+  // If focusSelector provided, filter the AX nodes to the subtree rooted at that selector
   const nodesForOutline = await (async () => {
-    const xp = opts.focusXPath?.trim();
-    if (!xp) return nodes;
+    const sel = opts.focusSelector?.trim();
+    if (!sel) return nodes;
     try {
-      const objectId = await resolveObjectIdForXPath(session, xp, frameId);
+      const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
+      const objectId = looksLikeXPath
+        ? await resolveObjectIdForXPath(session, sel, frameId)
+        : await resolveObjectIdForCss(session, sel, frameId);
       if (!objectId) return nodes;
       const desc = await session.send<{ node?: { backendNodeId?: number } }>(
         "DOM.describeNode",
@@ -948,6 +1046,85 @@ async function resolveObjectIdForXPath(
       const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
       return res.singleNodeValue;
     } catch { return null; }
+  })()`;
+  const { result, exceptionDetails } = await session.send<{
+    result: { objectId?: string | undefined };
+    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
+  }>("Runtime.evaluate", {
+    expression: expr,
+    returnByValue: false,
+    contextId,
+    awaitPromise: true,
+  });
+  if (exceptionDetails) return null;
+  return result?.objectId ?? null;
+}
+
+/** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
+async function resolveObjectIdForCss(
+  session: CDPSessionLike,
+  selector: string,
+  frameId?: string,
+): Promise<string | null> {
+  let contextId: number | undefined;
+  try {
+    if (frameId) {
+      contextId = await executionContexts
+        .waitForMainWorld(session, frameId, 800)
+        .catch(
+          () => executionContexts.getMainWorld(session, frameId) ?? undefined,
+        );
+    }
+  } catch {
+    contextId = undefined;
+  }
+  const expr = `(() => {
+    const selector = ${JSON.stringify(selector)};
+    function queryOpenDeep(root) {
+      try {
+        const hit = root.querySelector(selector);
+        if (hit) return hit;
+      } catch {}
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      let n;
+      while ((n = walker.nextNode())) {
+        if (n.shadowRoot) {
+          const found = queryOpenDeep(n.shadowRoot);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    const backdoor = window.__stagehandV3__;
+    if (backdoor && typeof backdoor.getClosedRoot === 'function') {
+      function* roots() {
+        yield document;
+        const queue = [];
+        try {
+          const w = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+          let e; while ((e = w.nextNode())) {
+            if (e.shadowRoot) queue.push(e.shadowRoot);
+            try { const closed = backdoor.getClosedRoot(e); if (closed) queue.push(closed); } catch {}
+          }
+        } catch {}
+        while (queue.length) {
+          const r = queue.shift();
+          yield r;
+          try {
+            const w2 = document.createTreeWalker(r, NodeFilter.SHOW_ELEMENT);
+            let e2; while ((e2 = w2.nextNode())) {
+              if (e2.shadowRoot) queue.push(e2.shadowRoot);
+              try { const closed2 = backdoor.getClosedRoot(e2); if (closed2) queue.push(closed2); } catch {}
+            }
+          } catch {}
+        }
+      }
+      for (const r of roots()) {
+        try { const hit = r.querySelector(selector); if (hit) return hit; } catch {}
+      }
+      return null;
+    }
+    return queryOpenDeep(document);
   })()`;
   const { result, exceptionDetails } = await session.send<{
     result: { objectId?: string | undefined };

@@ -2,7 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
-import { deepLocatorThroughIframes } from "../../understudy/deepLocator";
+import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "@/lib/v3/logger";
 import { StagehandClickError } from "@/types/stagehandErrors";
@@ -36,13 +36,12 @@ export async function performUnderstudyMethod(
   await waitForDomNetworkQuiet(frame, domSettleTimeoutMs);
 
   const selectorRaw = rawXPath.trim();
-  const isXPath =
-    selectorRaw.startsWith("xpath=") || selectorRaw.startsWith("/");
-
-  // Use iframe-aware resolver for XPath; plain Locator for other engines
-  const locator = isXPath
-    ? await deepLocatorThroughIframes(page, frame, selectorRaw)
-    : frame.locator(selectorRaw);
+  // Unified resolver: supports '>>' hops and XPath across iframes
+  const locator: Locator = await resolveLocatorWithHops(
+    page,
+    frame,
+    selectorRaw,
+  );
 
   const initialUrl = await getFrameUrl(frame);
 
