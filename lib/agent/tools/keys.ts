@@ -75,7 +75,7 @@ function normalizeKeys(
 export const createKeysTool = (stagehandPage: StagehandPage) =>
   tool({
     description:
-      "Send keyboard events: press, down, up, type, or insertText. Supports combinations like mod+a, cmd+c, ctrl+v, etc. 'mod' maps to Command on macOS and Control on Windows/Linux.",
+      "Send keyboard events: press, down, up, type, or insertText. Supports combinations like mod+a, cmd+c, ctrl+v, etc. 'mod' maps to Command on macOS and Control on Windows/Linux. One really good use case of this tool, is clearing text from an input that is currently focused",
     parameters: z.object({
       method: z
         .enum(["press", "down", "up", "type", "insertText"]) // defaults to press if keys provided
