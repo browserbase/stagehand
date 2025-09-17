@@ -38,6 +38,9 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.1)(zod@3.25.67)
+      patchright-core:
+        specifier: ^1.55.2
+        version: 1.55.2
       pino:
         specifier: ^9.6.0
         version: 9.6.0
@@ -51,7 +54,7 @@ importers:
         specifier: ^8.18.0
         version: 8.18.1
       zod:
-        specifier: '>=3.25.0 <4.1.0'
+        specifier: 3.25.67
         version: 3.25.67
       zod-to-json-schema:
         specifier: ^3.23.5
@@ -4384,6 +4387,11 @@ packages:
     resolution: {integrity: sha512-0YNdUceMdaQwoKce1gatDScmMo5pu/tfABfnzEqeG0gtTmd7mh/WcwgUjtAeOU7N8nFFlbQBnFK2gXW5fGvmMA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  patchright-core@1.55.2:
+    resolution: {integrity: sha512-mZEQkbW8fDUbI062VbP04bqK7E3qqxjI6MCOvPTRlD9R5s3vWYcERuXmP/zR7Es4nIX9DP4vEpvT9s8zao/A9w==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
     engines: {node: '>=8'}
@@ -6978,8 +6986,8 @@ snapshots:
       express-rate-limit: 7.5.1(express@5.1.0)
       pkce-challenge: 5.0.0
       raw-body: 3.0.0
-      zod: 3.25.76
-      zod-to-json-schema: 3.24.5(zod@3.25.76)
+      zod: 3.25.67
+      zod-to-json-schema: 3.24.5(zod@3.25.67)
     transitivePeerDependencies:
       - supports-color
 
@@ -10808,6 +10816,8 @@ snapshots:
     optional: true
 
   patch-console@2.0.0: {}
+
+  patchright-core@1.55.2: {}
 
   path-exists@4.0.0: {}
 

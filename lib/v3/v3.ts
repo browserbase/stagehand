@@ -12,6 +12,7 @@ import {
   AnyPage,
   V3Metrics,
   V3FunctionName,
+  PatchrightPage,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -852,9 +853,15 @@ export class V3 {
    * so handlers can resolve it to a `Page` within our V3Context.
    */
   private async resolveTopFrameId(
-    page: PlaywrightPage | PuppeteerPage,
+    page: PlaywrightPage | PuppeteerPage | PatchrightPage,
   ): Promise<string> {
     if (this.isPlaywrightPage(page)) {
+      const cdp = await page.context().newCDPSession(page);
+      const { frameTree } = await cdp.send("Page.getFrameTree");
+      return frameTree.frame.id;
+    }
+
+    if (this.isPatchrightPage(page)) {
       const cdp = await page.context().newCDPSession(page);
       const { frameTree } = await cdp.send("Page.getFrameTree");
       return frameTree.frame.id;
@@ -883,6 +890,14 @@ export class V3 {
     );
   }
 
+  private isPatchrightPage(p: unknown): p is PatchrightPage {
+    return (
+      typeof p === "object" &&
+      p !== null &&
+      typeof (p as PatchrightPage).context === "function"
+    );
+  }
+
   private isPuppeteerPage(p: unknown): p is PuppeteerPage {
     return (
       typeof p === "object" &&
@@ -896,6 +911,13 @@ export class V3 {
       return input as Page;
     }
     if (this.isPlaywrightPage(input)) {
+      const frameId = await this.resolveTopFrameId(input);
+      const page = this.ctx!.resolvePageByMainFrameId(frameId);
+      if (!page)
+        throw new Error("Failed to resolve V3 Page from Playwright page.");
+      return page;
+    }
+    if (this.isPatchrightPage(input)) {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)

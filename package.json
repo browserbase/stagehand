@@ -48,6 +48,7 @@
     "playwright-core": "^1.54.1",
     "puppeteer-core": "^22.8.0",
     "chrome-launcher": "^1.2.0",
+    "patchright-core": "^1.55.2",
     "@playwright/test": "^1.42.1",
     "@types/adm-zip": "^0.5.7",
     "@types/cheerio": "^0.22.35",
@@ -75,7 +76,7 @@
   "peerDependencies": {
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
-    "zod": ">=3.25.0 <4.1.0"
+    "zod": "3.25.67"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.39.0",
