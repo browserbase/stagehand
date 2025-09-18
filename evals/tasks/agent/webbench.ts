@@ -6,7 +6,6 @@ export const webbench: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  modelName,
   input,
   agent,
 }) => {

@@ -9,7 +9,6 @@ export const osworld: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  modelName,
   input,
   agent,
 }) => {

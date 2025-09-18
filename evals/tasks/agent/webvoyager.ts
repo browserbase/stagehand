@@ -8,7 +8,6 @@ export const webvoyager: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  modelName,
   input,
   agent,
 }) => {

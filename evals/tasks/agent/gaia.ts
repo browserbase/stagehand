@@ -13,7 +13,6 @@ export const gaia: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  modelName,
   input,
   agent,
 }) => {
