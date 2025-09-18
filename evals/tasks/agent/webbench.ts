@@ -1,5 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const webbench: EvalFunction = async ({
   stagehand,
@@ -38,6 +39,14 @@ export const webbench: EvalFunction = async ({
 
     await stagehand.page.goto(params.url, { waitUntil: "domcontentloaded" });
 
+    // Start collecting screenshots in parallel
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      captureOnNavigation: true, // Also capture on page navigation
+    });
+
+    screenshotCollector.start();
+
     logger.log({
       category: "webbench",
       message: `Starting WebBench task ${params.id}`,
@@ -66,6 +75,15 @@ export const webbench: EvalFunction = async ({
     const result = await agent.execute({
       instruction: params.task,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    });
+
+    // Stop collecting and get all screenshots
+    const screenshots = screenshotCollector.stop();
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
     // Log the result
@@ -107,8 +125,10 @@ export const webbench: EvalFunction = async ({
 
     const evalResult = await evaluator.ask({
       question: evalPrompt,
-      answer: result?.message || "",
-      screenshot: true,
+      screenshot: screenshots,
+      agentReasoning:
+        result?.message ||
+        "no reasoning available, agent potentially hit step limit",
     });
 
     return {
