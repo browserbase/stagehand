@@ -124,16 +124,10 @@ stagehand = Stagehand(
           blockAds: true,
           solveCaptchas: true,
           recordSession: false,
+          os: "windows", // Valid: "windows" | "mac" | "linux" | "mobile" | "tablet"
           viewport: {
             width: 1920,
             height: 1080,
-          },
-          fingerprint: {
-            browsers: ["chrome", "edge"],
-            devices: ["desktop"],
-            operatingSystems: ["windows", "macos"],
-            locales: ["en-US", "en-GB"],
-            httpVersion: 2,
           },
         },
         userMetadata: {
@@ -159,16 +153,10 @@ stagehand = Stagehand(
                 "block_ads": True,
                 "solve_captchas": True,
                 "record_session": False,
+                "os": "windows",  # "windows" | "mac" | "linux" | "mobile" | "tablet"
                 "viewport": {
                     "width": 1920,
                     "height": 1080,
-                },
-                "fingerprint": {
-                    "browsers": ["chrome", "edge"],
-                    "devices": ["desktop"],
-                    "operating_systems": ["windows", "macos"],
-                    "locales": ["en-US", "en-GB"],
-                    "http_version": 2,
                 },
             },
             "user_metadata": {
