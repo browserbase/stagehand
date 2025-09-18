@@ -3,7 +3,6 @@ import type { AvailableModel } from "@/types/model";
 import { tasksConfig } from "../taskConfig";
 import { applySampling } from "../utils";
 import { osworldDataset } from "../datasets/osworld";
-import { EvalLogger } from "../logger";
 
 export const buildOSWorldTestcases = (models: string[]): Testcase[] => {
   /**
