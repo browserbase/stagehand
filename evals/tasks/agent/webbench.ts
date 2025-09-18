@@ -8,6 +8,7 @@ export const webbench: EvalFunction = async ({
   sessionUrl,
   modelName,
   input,
+  agent,
 }) => {
   try {
     const params = ((input && input.params) || {}) as {
@@ -62,13 +63,7 @@ export const webbench: EvalFunction = async ({
       },
     });
 
-    // Execute the task using agent
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must complete the given task by browsing the website. Current page: ${await stagehand.page.title()}`,
-    });
-
+    // Execute the task using the pre-initialized agent
     const result = await agent.execute({
       instruction: params.task,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,

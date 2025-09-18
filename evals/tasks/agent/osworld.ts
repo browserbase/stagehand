@@ -11,6 +11,7 @@ export const osworld: EvalFunction = async ({
   sessionUrl,
   modelName,
   input,
+  agent,
 }) => {
   try {
     const params = (input && input.params) as unknown as
@@ -87,13 +88,7 @@ export const osworld: EvalFunction = async ({
     // Set timeout for task execution
     const timeout = params.timeout || 60000; // Default 60 seconds
 
-    // Execute the task using agent with timeout
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must complete the given task by browsing the website. ${params.startUrl ? `Starting page: ${await stagehand.page.title()}` : ""}`,
-    });
-
+    // Execute the task using the pre-initialized agent with timeout
     const executionPromise = agent.execute({
       instruction: params.instruction,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,

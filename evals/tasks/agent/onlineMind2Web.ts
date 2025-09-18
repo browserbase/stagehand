@@ -12,6 +12,7 @@ export const onlineMind2Web: EvalFunction = async ({
   sessionUrl,
   modelName,
   input,
+  agent,
 }) => {
   try {
     const params = ((input && input.params) || {}) as {
@@ -34,12 +35,6 @@ export const onlineMind2Web: EvalFunction = async ({
 
     await stagehand.page.goto(params.website, {
       timeout: 60_000,
-    });
-
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`,
     });
 
     const screenshot = await stagehand.page.screenshot();
