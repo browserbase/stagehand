@@ -302,7 +302,7 @@ async function evaluateDomState(
   try {
     // Use Stagehand's extract to check for specific DOM elements
     const extractResult = await stagehand.page.extract({
-      instruction: `Check if the page contains the expected elements or state as specified`,
+      instruction: `Check if the page contains the expected DOM state. Expected criteria: ${JSON.stringify(expected)}. Verify if the current page state matches these criteria.`,
       schema: z.object({
         hasExpectedState: z
           .boolean()
@@ -318,6 +318,10 @@ async function evaluateDomState(
       message: "DOM state evaluation",
       level: 1,
       auxiliary: {
+        expected_criteria: {
+          value: JSON.stringify(expected),
+          type: "object",
+        },
         extract_result: {
           value: JSON.stringify(extractResult),
           type: "object",

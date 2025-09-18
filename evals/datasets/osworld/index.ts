@@ -27,5 +27,3 @@ export const osworldStats = {
     {} as Record<string, number>,
   ),
 };
-
-// console.log("OSWorld dataset loaded:", osworldStats);
