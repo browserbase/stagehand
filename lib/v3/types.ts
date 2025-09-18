@@ -4,6 +4,7 @@ import { Page } from "./understudy/page";
 import { AvailableModel, ClientOptions } from "@/types/model";
 import { LLMClient } from "@/lib/llm/LLMClient";
 import { z } from "zod/v3";
+import type { ZodTypeAny } from "zod/v3";
 import type { LogLine } from "@/types/log";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
@@ -142,7 +143,8 @@ export interface ActHandlerParams {
   page: Page;
 }
 
-export interface ExtractParams<T extends z.AnyZodObject> {
+// Base extract params (without inline schema fields)
+export interface BaseExtractParams<T extends z.AnyZodObject> {
   instruction?: string;
   schema?: T;
   modelName?: AvailableModel;
@@ -151,6 +153,31 @@ export interface ExtractParams<T extends z.AnyZodObject> {
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
+
+// Allow callers to supply top-level inline Zod fields alongside instruction, e.g.:
+// v3.extract({ instruction: "...", title: z.string(), url: z.string().url() })
+// This index signature explicitly excludes known base keys to avoid type collisions.
+export type ExtractParams<T extends z.AnyZodObject> = BaseExtractParams<T> & {
+  [K in Exclude<string, keyof BaseExtractParams<T>>]?: ZodTypeAny;
+};
+
+// Public helper type for inline schema fields (excludes base extract keys)
+export type InlineSchemaShape<T extends z.AnyZodObject = z.AnyZodObject> = {
+  [K in Exclude<string, keyof BaseExtractParams<T>>]?: ZodTypeAny;
+};
+
+// Utility: pick only the inline Zod fields from a params object P,
+// excluding base extract keys and instruction/schema.
+export type InlineFrom<P> = {
+  [K in keyof P as K extends
+    | keyof BaseExtractParams<z.AnyZodObject>
+    | "instruction"
+    | "schema"
+    ? never
+    : P[K] extends ZodTypeAny
+      ? K
+      : never]: P[K] extends ZodTypeAny ? P[K] : never;
+};
 
 export interface ExtractHandlerParams<T extends z.AnyZodObject> {
   instruction?: string;

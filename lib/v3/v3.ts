@@ -6,14 +6,14 @@ import {
   ActParams,
   ActHandlerParams,
   ExtractHandlerParams,
-  ExtractParams,
   ObserveParams,
   ObserveHandlerParams,
-  AnyPage,
   V3Metrics,
   V3FunctionName,
   PatchrightPage,
+  AnyPage,
   LocalBrowserLaunchOptions,
+  ExtractParams,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -27,7 +27,8 @@ import { LLMProvider } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
-import { defaultExtractSchema, pageTextSchema } from "../v3/types";
+import type { ZodTypeAny, ZodObject } from "zod/v3";
+import type { BaseExtractParams, InlineFrom } from "@/lib/v3/types";
 import {
   ObserveResult,
   ActResult,
@@ -52,6 +53,7 @@ import os from "os";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "@/lib/mcp/utils";
+import { defaultExtractSchema, pageTextSchema } from "@/types/page";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -694,40 +696,46 @@ export class V3 {
    */
 
   async extract(): Promise<z.infer<typeof pageTextSchema>>;
-  // If a page is provided but no instruction and no schema, return page text shape
+  async extract(params: {
+    page: AnyPage;
+  }): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
-    params: Omit<ExtractParams<z.AnyZodObject>, "instruction" | "schema"> & {
-      page: AnyPage;
-      instruction?: undefined;
-      schema?: undefined;
-    },
-  ): Promise<z.infer<typeof pageTextSchema>>;
-  // Generic schema path
-  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
-    params: ExtractParams<T>,
-  ): Promise<z.infer<T>>;
-  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
     instruction: string,
     page?: AnyPage,
+  ): Promise<z.infer<typeof defaultExtractSchema>>;
+  async extract(
+    params: { instruction: string } & Omit<
+      BaseExtractParams<z.AnyZodObject>,
+      "instruction" | "schema"
+    >,
+  ): Promise<z.infer<typeof defaultExtractSchema>>;
+  async extract<T extends z.AnyZodObject>(
+    params: { instruction: string; schema: T } & Omit<
+      BaseExtractParams<T>,
+      "instruction" | "schema"
+    >,
   ): Promise<z.infer<T>>;
+  // Inline Zod fields at top level; infer from any P by picking Zod fields (excluding base keys)
+  async extract<P extends Record<string, unknown>>(
+    params: { instruction: string } & P &
+      Omit<BaseExtractParams<z.AnyZodObject>, "instruction" | "schema">,
+  ): Promise<z.infer<ZodObject<InlineFrom<P>>>>;
 
-  async extract<T extends z.AnyZodObject = typeof defaultExtractSchema>(
-    params?: ExtractParams<T> | string,
-    pageArg?: AnyPage,
-  ): Promise<z.infer<T> | z.infer<typeof pageTextSchema>> {
+  async extract(...fnArgs: unknown[]): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
         throw new Error("V3 not initialized. Call init() before extract().");
       }
 
-      // String shorthand → ExtractParams with instruction only
-      if (typeof params === "string") {
-        const p = {
-          instruction: params,
-          page: pageArg,
-        } as ExtractParams<z.AnyZodObject>;
-        // Re-enter with normalized params
-        return this.extract(p);
+      let params: ExtractParams<z.AnyZodObject> | undefined;
+      let pageArg: AnyPage | undefined;
+      if (fnArgs.length === 0) {
+        params = undefined;
+      } else if (typeof fnArgs[0] === "string") {
+        params = { instruction: fnArgs[0] } as ExtractParams<z.AnyZodObject>;
+        pageArg = fnArgs[1] as AnyPage | undefined;
+      } else {
+        params = fnArgs[0] as ExtractParams<z.AnyZodObject>;
       }
 
       let page: Page;
@@ -740,22 +748,81 @@ export class V3 {
           const frameId = await this.resolveTopFrameId(params.page);
           page = this.ctx.resolvePageByMainFrameId(frameId);
         }
+      } else if (pageArg) {
+        if (pageArg instanceof (await import("./understudy/page")).Page) {
+          page = pageArg as Page;
+        } else if (this.isPlaywrightPage(pageArg)) {
+          const frameId = await this.resolveTopFrameId(pageArg);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else if (this.isPuppeteerPage(pageArg)) {
+          const frameId = await this.resolveTopFrameId(pageArg);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else if(this.isPatchrightPage(pageArg)) {
+          const frameId = await this.resolveTopFrameId(pageArg);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else {
+          throw new Error("Unsupported page object provided to extract().");
+        }
       } else {
         page = await this.ctx!.awaitActivePage();
       }
 
-      const noArgs = !params?.instruction && !params?.schema;
-      const onlyInstruction = !!params?.instruction && !params?.schema;
+      const baseKeys = new Set([
+        "instruction",
+        "schema",
+        "modelName",
+        "modelClientOptions",
+        "domSettleTimeoutMs",
+        "selector",
+        "page",
+      ]);
 
-      const effectiveSchema: T | undefined = noArgs
-        ? undefined
-        : onlyInstruction
-          ? (defaultExtractSchema as unknown as T)
-          : (params?.schema as T);
+      // Collect inline top-level Zod fields into an object shape
+      const inlineShape: Record<string, ZodTypeAny> = {};
+      const isZodSchema = (val: unknown): val is ZodTypeAny => {
+        if (!val || typeof val !== "object") return false;
+        const obj = val as {
+          _def?: unknown;
+          parse?: unknown;
+          safeParse?: unknown;
+        };
+        return (
+          "_def" in obj &&
+          typeof obj.parse === "function" &&
+          typeof obj.safeParse === "function"
+        );
+      };
+      if (params && typeof params === "object") {
+        for (const [k, v] of Object.entries(
+          params as Record<string, unknown>,
+        )) {
+          if (baseKeys.has(k)) continue;
+          if (isZodSchema(v)) inlineShape[k] = v;
+        }
+      }
 
-      const handlerParams: ExtractHandlerParams<T> = {
+      const hasInline = Object.keys(inlineShape).length > 0;
+      const noArgs = !params?.instruction && !params?.schema && !hasInline;
+      const onlyInstruction =
+        !!params?.instruction && !params?.schema && !hasInline;
+
+      let effectiveSchema: z.AnyZodObject | undefined;
+      if (noArgs) {
+        effectiveSchema = undefined;
+      } else if (onlyInstruction) {
+        effectiveSchema = defaultExtractSchema as unknown as z.AnyZodObject;
+      } else if (hasInline) {
+        const inlineObj = z.object(inlineShape);
+        effectiveSchema = params?.schema
+          ? (params.schema as z.AnyZodObject).extend(inlineObj.shape)
+          : (inlineObj as unknown as z.AnyZodObject);
+      } else {
+        effectiveSchema = params?.schema as z.AnyZodObject | undefined;
+      }
+
+      const handlerParams: ExtractHandlerParams<z.AnyZodObject> = {
         instruction: params?.instruction,
-        schema: effectiveSchema,
+        schema: effectiveSchema as z.AnyZodObject,
         modelName: params?.modelName,
         modelClientOptions: params?.modelClientOptions,
         domSettleTimeoutMs: params?.domSettleTimeoutMs,
@@ -763,14 +830,15 @@ export class V3 {
         page: page!,
       };
 
-      const result = await this.extractHandler.extract<T>(handlerParams);
+      const result =
+        await this.extractHandler.extract<z.AnyZodObject>(handlerParams);
       // history: record extract call (omit page object and raw schema instance to avoid heavy serialization)
       this.addToHistory(
         "extract",
         {
           instruction: params?.instruction,
-          // best-effort: log presence of schema without serializing the full instance
-          hasSchema: !!params?.schema,
+          // best-effort: log presence of schema (inline or explicit) without serializing instances
+          hasSchema: !!params?.schema || hasInline,
           domSettleTimeoutMs: params?.domSettleTimeoutMs,
         },
         result,
