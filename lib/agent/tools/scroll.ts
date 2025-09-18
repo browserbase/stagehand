@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createScrollTool = (stagehandPage: StagehandPage) =>
+export const createScrollTool = (stagehand: Stagehand) =>
   tool({
     description: "Scroll the page",
     parameters: z.object({
@@ -17,9 +17,9 @@ export const createScrollTool = (stagehandPage: StagehandPage) =>
     }),
     execute: async ({ pixels, direction, coordinates }) => {
       if (coordinates) {
-        await stagehandPage.page.mouse.move(coordinates[0], coordinates[1]);
+        await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
       }
-      await stagehandPage.page.mouse.wheel(
+      await stagehand.page.mouse.wheel(
         0,
         direction === "up" ? -pixels : pixels,
       );

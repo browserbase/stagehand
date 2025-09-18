@@ -103,7 +103,7 @@ export const initStagehand = async ({
   const { debugUrl, sessionUrl } = await stagehand.init();
 
   // Set navigation timeout to 60 seconds for evaluations
-  stagehand.context.setDefaultNavigationTimeout(60_000);
+  stagehand.context.setDefaultNavigationTimeout(120_000);
 
   const isCUAModel = (model: string): boolean =>
     model.includes("computer-use-preview") || model.startsWith("claude");

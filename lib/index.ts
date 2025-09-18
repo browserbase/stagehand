@@ -828,12 +828,42 @@ export class Stagehand {
       content: guardedScript,
     });
 
-    const session = await this.context.newCDPSession(this.page);
-    await session.send("Browser.setDownloadBehavior", {
-      behavior: "allow",
-      downloadPath: this.downloadsPath,
-      eventsEnabled: true,
-    });
+    try {
+      const session = await this.context.newCDPSession(this.page);
+      await session.send("Browser.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: this.downloadsPath,
+        eventsEnabled: true,
+      });
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      this.stagehandLogger.warn("Failed to set download behavior via CDP", {
+        error: msg,
+        downloadsPath: this.downloadsPath,
+      });
+
+      // Don't throw here - this is not critical for basic functionality
+      // The eval can continue without download behavior configured
+      if (
+        msg.includes("no object with guid") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page is closed") ||
+        msg.includes("Target frame is detached") ||
+        msg.includes("Session closed") ||
+        msg.includes("No target with given id found") ||
+        msg.includes("Target.attachToTarget")
+      ) {
+        this.stagehandLogger.warn(
+          "Page context may be invalid during initialization. Continuing without download configuration.",
+        );
+      } else {
+        // For other errors, still try to continue but log the issue
+        this.stagehandLogger.warn(
+          "Unexpected CDP error during initialization",
+          { error: msg },
+        );
+      }
+    }
 
     this.browserbaseSessionID = sessionId;
 
@@ -927,7 +957,7 @@ export class Stagehand {
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
           return new StagehandAgentHandler(
-            this.stagehandPage,
+            this,
             this.logger,
             this.llmClient,
             executionModel,

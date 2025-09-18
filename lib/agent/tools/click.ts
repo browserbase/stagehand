@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createClickTool = (stagehandPage: StagehandPage) =>
+export const createClickTool = (stagehand: Stagehand) =>
   tool({
     description:
       "Click on an element using its coordinates ( this is the most reliable way to click on an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
@@ -18,8 +18,12 @@ export const createClickTool = (stagehandPage: StagehandPage) =>
     }),
 
     execute: async ({ describe, coordinates }) => {
-      await stagehandPage.page.mouse.move(coordinates[0], coordinates[1]);
-      await stagehandPage.page.mouse.click(coordinates[0], coordinates[1]);
-      return { success: true, describe, coordinates };
+      try {
+        await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
+        await stagehand.page.mouse.click(coordinates[0], coordinates[1]);
+        return { success: true, describe, coordinates };
+      } catch {
+        return { success: false, error: `Error clicking, try again` };
+      }
     },
   });

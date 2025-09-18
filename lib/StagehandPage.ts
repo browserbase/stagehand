@@ -26,6 +26,7 @@ import {
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
+  StagehandCDPError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
@@ -1080,26 +1081,105 @@ ${scriptContent} \
    */
   async getCDPClient(
     target: PlaywrightPage | Frame = this.page,
+    retries = 3,
   ): Promise<CDPSession> {
     const cached = this.cdpClients.get(target);
-    if (cached) return cached;
-
-    try {
-      const session = await this.context.newCDPSession(target);
-      this.cdpClients.set(target, session);
-      return session;
-    } catch (err) {
-      // Fallback for same-process iframes
-      const msg = (err as Error).message ?? "";
-      if (msg.includes("does not have a separate CDP session")) {
-        // Re-use / create the top-level session instead
-        const rootSession = await this.getCDPClient(this.page);
-        // cache the alias so we don't try again for this frame
-        this.cdpClients.set(target, rootSession);
-        return rootSession;
+    if (cached) {
+      // Check if cached session is still valid
+      try {
+        await cached.send("Runtime.evaluate", { expression: "1" });
+        return cached;
+      } catch {
+        // Cached session is invalid, remove it and create a new one
+        this.cdpClients.delete(target);
       }
-      throw err;
     }
+
+    const attemptCDPConnection = async (
+      attempt: number,
+    ): Promise<CDPSession> => {
+      try {
+        // Check if target (page/frame) is still valid before creating session
+        if (
+          target !== this.page &&
+          "isDetached" in target &&
+          target.isDetached()
+        ) {
+          throw new StagehandCDPError("Target frame is detached");
+        }
+
+        // For pages, check if it's closed
+        if ("isClosed" in target && target.isClosed()) {
+          throw new StagehandCDPError("Target page is closed");
+        }
+
+        const session = await this.context.newCDPSession(target);
+        this.cdpClients.set(target, session);
+        return session;
+      } catch (err) {
+        const msg = (err as Error).message ?? "";
+
+        // Fallback for same-process iframes
+        if (msg.includes("does not have a separate CDP session")) {
+          // Re-use / create the top-level session instead
+          const rootSession = await this.getCDPClient(this.page, retries);
+          // cache the alias so we don't try again for this frame
+          this.cdpClients.set(target, rootSession);
+          return rootSession;
+        }
+
+        // Handle page/context closure or GUID errors
+        if (
+          msg.includes("no object with guid") ||
+          msg.includes("Target closed") ||
+          msg.includes("Target page is closed") ||
+          msg.includes("Target frame is detached") ||
+          msg.includes("Session closed") ||
+          msg.includes("No target with given id found") ||
+          msg.includes("Target.attachToTarget") ||
+          msg.includes("Target page, context or browser has been closed")
+        ) {
+          this.stagehand.log({
+            category: "cdp",
+            message: `CDP session creation failed: ${msg}`,
+            level: 1,
+            auxiliary: {
+              attempt: { value: attempt.toString(), type: "string" },
+              targetType: {
+                value: target === this.page ? "page" : "frame",
+                type: "string",
+              },
+              error: { value: msg, type: "string" },
+            },
+          });
+
+          // If we have retries left and this isn't a recursive call for the main page
+          if (attempt < retries && target === this.page) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.pow(2, attempt) * 1000),
+            ); // Exponential backoff
+            return attemptCDPConnection(attempt + 1);
+          }
+
+          // If this is for a frame and main page fails, throw a more descriptive error
+          if (target !== this.page) {
+            throw new StagehandCDPError(
+              `Failed to create CDP session for frame: ${msg}. Page may have been closed or navigated.`,
+              err as Error,
+            );
+          }
+
+          throw new StagehandCDPError(
+            `Failed to create CDP session after ${retries} attempts: ${msg}. Page context may be invalid.`,
+            err as Error,
+          );
+        }
+
+        throw err;
+      }
+    };
+
+    return attemptCDPConnection(1);
   }
 
   /**
@@ -1116,12 +1196,66 @@ ${scriptContent} \
     params: Record<string, unknown> = {},
     target?: PlaywrightPage | Frame,
   ): Promise<T> {
-    const client = await this.getCDPClient(target ?? this.page);
+    try {
+      const client = await this.getCDPClient(target ?? this.page);
 
-    return client.send(
-      method as Parameters<CDPSession["send"]>[0],
-      params as Parameters<CDPSession["send"]>[1],
-    ) as Promise<T>;
+      return (await client.send(
+        method as Parameters<CDPSession["send"]>[0],
+        params as Parameters<CDPSession["send"]>[1],
+      )) as Promise<T>;
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+
+      // Log CDP command failures for debugging
+      this.stagehand.log({
+        category: "cdp",
+        message: `CDP command failed: ${method}`,
+        level: 1,
+        auxiliary: {
+          method: { value: method, type: "string" },
+          params: { value: JSON.stringify(params), type: "string" },
+          error: { value: msg, type: "string" },
+        },
+      });
+
+      // If the session is invalid, try to recreate it once
+      if (
+        msg.includes("Session closed") ||
+        msg.includes("Target closed") ||
+        msg.includes("Target page is closed") ||
+        msg.includes("Target frame is detached") ||
+        msg.includes("no object with guid") ||
+        msg.includes("No target with given id found") ||
+        msg.includes("Target.attachToTarget")
+      ) {
+        // Clear the cached session and try once more
+        this.cdpClients.delete(target ?? this.page);
+
+        try {
+          const newClient = await this.getCDPClient(target ?? this.page);
+          return (await newClient.send(
+            method as Parameters<CDPSession["send"]>[0],
+            params as Parameters<CDPSession["send"]>[1],
+          )) as Promise<T>;
+        } catch (retryErr) {
+          this.stagehand.log({
+            category: "cdp",
+            message: `CDP command retry failed: ${method}`,
+            level: 1,
+            auxiliary: {
+              originalError: { value: msg, type: "string" },
+              retryError: {
+                value: (retryErr as Error).message,
+                type: "string",
+              },
+            },
+          });
+          throw retryErr;
+        }
+      }
+
+      throw err;
+    }
   }
 
   /** Enable a CDP domain (e.g. `"Network"` or `"DOM"`) on the chosen target. */

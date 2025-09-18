@@ -7,7 +7,6 @@ import { createCloseTool } from "./close";
 import { createAriaTreeTool } from "./ariaTree";
 import { createFillFormTool } from "./fillform";
 import { createScrollTool } from "./scroll";
-import { StagehandPage } from "../../StagehandPage";
 import { LogLine } from "@/types/log";
 import { thinkTool } from "./think";
 import { createClickTool } from "./click";
@@ -16,34 +15,35 @@ import { createDragAndDropTool } from "./dragAndDrop";
 import { createSearchTool } from "./search";
 import { createKeysTool } from "./keys";
 import { createClickAndHoldTool } from "./clickAndHold";
+import { Stagehand } from "../../index";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
 }
 
 export function createAgentTools(
-  stagehandPage: StagehandPage,
+  stagehand: Stagehand,
   options?: AgentToolOptions,
 ) {
   const executionModel = options?.executionModel;
 
   return {
-    act: createActTool(stagehandPage, executionModel),
-    ariaTree: createAriaTreeTool(stagehandPage),
-    click: createClickTool(stagehandPage),
-    clickAndHold: createClickAndHoldTool(stagehandPage),
-    dragAndDrop: createDragAndDropTool(stagehandPage),
-    type: createTypeTool(stagehandPage),
+    act: createActTool(stagehand, executionModel),
+    ariaTree: createAriaTreeTool(stagehand),
+    click: createClickTool(stagehand),
+    clickAndHold: createClickAndHoldTool(stagehand),
+    dragAndDrop: createDragAndDropTool(stagehand),
+    type: createTypeTool(stagehand),
     close: createCloseTool(),
     think: thinkTool,
-    fillForm: createFillFormTool(stagehandPage, executionModel),
-    goto: createGotoTool(stagehandPage),
-    navback: createNavBackTool(stagehandPage),
-    screenshot: createScreenshotTool(stagehandPage),
-    scroll: createScrollTool(stagehandPage),
+    fillForm: createFillFormTool(stagehand, executionModel),
+    goto: createGotoTool(stagehand),
+    navback: createNavBackTool(stagehand),
+    screenshot: createScreenshotTool(stagehand),
+    scroll: createScrollTool(stagehand),
     wait: createWaitTool(),
     search: createSearchTool(),
-    keys: createKeysTool(stagehandPage),
+    keys: createKeysTool(stagehand),
   };
 }
 

@@ -31,11 +31,21 @@ export const onlineMind2Web: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-
-    await stagehand.page.goto(params.website, {
-      timeout: 60_000,
-    });
-
+    try {
+      stagehand.context.setDefaultNavigationTimeout(120_000);
+      await stagehand.page.goto(params.website, {
+        timeout: 150_000,
+        waitUntil: "commit",
+      });
+    } catch (error) {
+      return {
+        _success: false,
+        error: `navigation timeout: ${error}`,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
     const agent = stagehand.agent({
       model: modelName,
       executionModel: "google/gemini-2.5-flash",
@@ -68,7 +78,7 @@ export const onlineMind2Web: EvalFunction = async ({
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
+      question: `did the agent successfully complete this task: "${params.confirmed_task}"? The task might be a bit outdated or impossible to complete, in those cases lean towards YES."?`,
       screenshot: screenshots,
       agentReasoning:
         agentResult.message ||

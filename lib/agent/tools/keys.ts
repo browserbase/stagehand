@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
 type Platform = "mac" | "windows" | "linux";
 
@@ -51,6 +51,7 @@ function normalizeKeyToken(raw: string, platform: Platform): string {
   if (lower === "pgdn" || lower === "pagedown") return "PageDown";
   if (lower === "del" || lower === "delete") return "Delete";
   if (lower === "backspace") return "Backspace";
+  if (lower === "tab") return "Tab";
   if (lower === "home") return "Home";
   if (lower === "end") return "End";
   // Upper-case single letters (a -> A), keep others as-is
@@ -72,7 +73,7 @@ function normalizeKeys(
   return { combo: normalizedTokens.join("+"), tokens: normalizedTokens };
 }
 
-export const createKeysTool = (stagehandPage: StagehandPage) =>
+export const createKeysTool = (stagehand: Stagehand) =>
   tool({
     description:
       "Send keyboard events: press, down, up, type, or insertText. Supports combinations like mod+a, cmd+c, ctrl+v, etc. 'mod' maps to Command on macOS and Control on Windows/Linux. One really good use case of this tool, is clearing text from an input that is currently focused",
@@ -105,81 +106,85 @@ export const createKeysTool = (stagehandPage: StagehandPage) =>
         ),
     }),
     execute: async ({ method, keys, text, delay, repeat, platform }) => {
-      const userAgent = await stagehandPage.page.evaluate(
-        () => navigator.userAgent,
-      );
-      const resolvedPlatform = resolvePlatform(platform ?? "auto", userAgent);
+      try {
+        const userAgent = await stagehand.page.evaluate(
+          () => navigator.userAgent,
+        );
+        const resolvedPlatform = resolvePlatform(platform ?? "auto", userAgent);
 
-      const times = Math.max(1, repeat ?? 1);
+        const times = Math.max(1, repeat ?? 1);
 
-      if (method === "type") {
-        if (!text) throw new Error("'text' is required for method 'type'");
-        for (let i = 0; i < times; i++) {
-          await stagehandPage.page.keyboard.type(
-            text,
-            delay ? { delay } : undefined,
-          );
+        if (method === "type") {
+          if (!text) throw new Error("'text' is required for method 'type'");
+          for (let i = 0; i < times; i++) {
+            await stagehand.page.keyboard.type(
+              text,
+              delay ? { delay } : undefined,
+            );
+          }
+          return { success: true, method, text, times };
         }
-        return { success: true, method, text, times };
-      }
 
-      if (method === "insertText") {
-        if (!text)
-          throw new Error("'text' is required for method 'insertText'");
-        for (let i = 0; i < times; i++) {
-          await stagehandPage.page.keyboard.insertText(text);
-          if (delay) await stagehandPage.page.waitForTimeout(delay);
+        if (method === "insertText") {
+          if (!text)
+            throw new Error("'text' is required for method 'insertText'");
+          for (let i = 0; i < times; i++) {
+            await stagehand.page.keyboard.insertText(text);
+            if (delay) await stagehand.page.waitForTimeout(delay);
+          }
+          return { success: true, method, text, times };
         }
-        return { success: true, method, text, times };
-      }
 
-      if (!keys)
-        throw new Error("'keys' is required for methods press/down/up");
-      const { combo, tokens } = normalizeKeys(keys, resolvedPlatform);
+        if (!keys)
+          throw new Error("'keys' is required for methods press/down/up");
+        const { combo, tokens } = normalizeKeys(keys, resolvedPlatform);
 
-      if (method === "press") {
-        for (let i = 0; i < times; i++) {
-          await stagehandPage.page.keyboard.press(
-            combo,
-            delay ? { delay } : undefined,
-          );
+        if (method === "press") {
+          for (let i = 0; i < times; i++) {
+            await stagehand.page.keyboard.press(
+              combo,
+              delay ? { delay } : undefined,
+            );
+          }
+          return {
+            success: true,
+            method,
+            keys: combo,
+            times,
+            platform: resolvedPlatform,
+          };
         }
-        return {
-          success: true,
-          method,
-          keys: combo,
-          times,
-          platform: resolvedPlatform,
-        };
-      }
 
-      if (method === "down") {
-        for (const token of tokens) {
-          await stagehandPage.page.keyboard.down(token);
-          if (delay) await stagehandPage.page.waitForTimeout(delay);
+        if (method === "down") {
+          for (const token of tokens) {
+            await stagehand.page.keyboard.down(token);
+            if (delay) await stagehand.page.waitForTimeout(delay);
+          }
+          return {
+            success: true,
+            method,
+            keys: tokens,
+            platform: resolvedPlatform,
+          };
         }
-        return {
-          success: true,
-          method,
-          keys: tokens,
-          platform: resolvedPlatform,
-        };
-      }
 
-      if (method === "up") {
-        // Release in reverse order for combos
-        for (let i = tokens.length - 1; i >= 0; i--) {
-          await stagehandPage.page.keyboard.up(tokens[i]);
-          if (delay) await stagehandPage.page.waitForTimeout(delay);
+        if (method === "up") {
+          // Release in reverse order for combos
+          for (let i = tokens.length - 1; i >= 0; i--) {
+            await stagehand.page.keyboard.up(tokens[i]);
+            if (delay) await stagehand.page.waitForTimeout(delay);
+          }
+          return {
+            success: true,
+            method,
+            keys: tokens,
+            platform: resolvedPlatform,
+          };
         }
-        return {
-          success: true,
-          method,
-          keys: tokens,
-          platform: resolvedPlatform,
-        };
-      }
 
-      throw new Error(`Unsupported method: ${method}`);
+        throw new Error(`Unsupported method: ${method}`);
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     },
   });

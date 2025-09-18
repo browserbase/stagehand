@@ -273,3 +273,13 @@ export class StagehandShadowSegmentNotFoundError extends StagehandError {
     );
   }
 }
+
+export class StagehandCDPError extends StagehandError {
+  constructor(
+    message: string,
+    public originalError?: Error,
+  ) {
+    super(message);
+    this.name = "StagehandCDPError";
+  }
+}

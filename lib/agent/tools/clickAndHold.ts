@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createClickAndHoldTool = (stagehandPage: StagehandPage) =>
+export const createClickAndHoldTool = (stagehand: Stagehand) =>
   tool({
     description: "Click and hold on an element using its coordinates",
     parameters: z.object({
@@ -20,10 +20,10 @@ export const createClickAndHoldTool = (stagehandPage: StagehandPage) =>
     }),
 
     execute: async ({ describe, coordinates, duration }) => {
-      await stagehandPage.page.mouse.move(coordinates[0], coordinates[1]);
-      await stagehandPage.page.mouse.down();
-      await stagehandPage.page.waitForTimeout(duration);
-      await stagehandPage.page.mouse.up();
+      await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
+      await stagehand.page.mouse.down();
+      await stagehand.page.waitForTimeout(duration);
+      await stagehand.page.mouse.up();
       return { success: true, describe, coordinates, duration };
     },
   });

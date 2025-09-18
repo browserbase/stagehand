@@ -20,6 +20,7 @@ import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
+import { imageResize } from "./utils/imageUtils";
 
 dotenv.config();
 
@@ -44,7 +45,7 @@ export class Evaluator {
     this.stagehand = stagehand;
     this.modelName = modelName || "google/gemini-2.5-flash";
     this.modelClientOptions = modelClientOptions || {
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+      apiKey: process.env.GEMINI_API_KEY || "",
     };
   }
 
@@ -271,10 +272,10 @@ export class Evaluator {
       question,
       screenshots,
       agentReasoning,
-      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question the agents reasoningand multiple screenshots showing the progression of a task.
+      systemPrompt = `You are an expert evaluator that confidently returns YES or NO given a question and multiple screenshots showing the progression of a task.
         ${agentReasoning ? "You also have access to the agent's detailed reasoning and thought process throughout the task." : ""}
         Analyze ALL screenshots to understand the complete journey. Look for evidence of task completion across all screenshots, not just the last one.
-        Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc). Do not assume that the task was not completed if the last screenshot does not show the task being completed. the agent reasoning should carry a lot of weight in your evaluation.
+        Success criteria may appear at different points in the sequence (confirmation messages, intermediate states, etc).
         ${agentReasoning ? "The agent's reasoning provides crucial context about what actions were attempted, what was observed, and the decision-making process. Use this alongside the visual evidence to make a comprehensive evaluation." : ""}
         Today's date is ${new Date().toLocaleDateString()}`,
     } = options;
@@ -292,17 +293,27 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    const imageContents = screenshots.map((screenshot) => ({
-      type: "image_url" as const,
-      image_url: {
-        url: `data:image/jpeg;base64,${screenshot.toString("base64")}`,
-      },
-    }));
+    //Downsize screenshots:
+    const downsizedScreenshots = await Promise.all(
+      screenshots.map(async (screenshot) => {
+        return await imageResize(screenshot, 0.7);
+      }),
+    );
+
+    const imageContents = downsizedScreenshots.map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (screenshot: { toString: (arg0: string) => any }) => ({
+        type: "image_url" as const,
+        image_url: {
+          url: `data:image/png;base64,${screenshot.toString("base64")}`,
+        },
+      }),
+    );
 
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
-      logger: this.silentLogger,
+      logger: this.stagehand.logger,
       options: {
         messages: [
           { role: "system", content: systemPrompt },

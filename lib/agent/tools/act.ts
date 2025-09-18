@@ -1,11 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createActTool = (
-  stagehandPage: StagehandPage,
-  executionModel?: string,
-) =>
+export const createActTool = (stagehand: Stagehand, executionModel?: string) =>
   tool({
     description: "Perform an action on the page (click, type)",
     parameters: z.object({
@@ -23,17 +20,17 @@ export const createActTool = (
       try {
         let result;
         if (executionModel) {
-          result = await stagehandPage.page.act({
+          result = await stagehand.page.act({
             action,
             modelName: executionModel,
           });
         } else {
-          result = await stagehandPage.page.act(action);
+          result = await stagehand.page.act(action);
         }
         const isIframeAction = result.action === "an iframe";
 
         if (isIframeAction) {
-          const fallback = await stagehandPage.page.act(
+          const fallback = await stagehand.page.act(
             executionModel
               ? { action, modelName: executionModel, iframes: true }
               : { action, iframes: true },

@@ -66,7 +66,7 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  */
 export class EvalLogger {
   private logs: LogLineEval[] = [];
-  private maxLogEntries = 100; // Limit log entries to prevent memory buildup
+  private maxLogEntries = 70; // Limit log entries to prevent memory buildup
   stagehand?: Stagehand;
 
   constructor() {

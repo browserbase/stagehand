@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createTypeTool = (stagehandPage: StagehandPage) =>
+export const createTypeTool = (stagehand: Stagehand) =>
   tool({
     description:
       "Type text into an element using its coordinates. this will click the element and then type the text into it ( this is the most reliable way to type into an element, always use this over act, unless the element is not visible in the screenshot, but shown in ariaTree)",
@@ -18,8 +18,12 @@ export const createTypeTool = (stagehandPage: StagehandPage) =>
         .describe("The (x, y) coordinates to type into the element"),
     }),
     execute: async ({ describe, coordinates, text }) => {
-      await stagehandPage.page.mouse.click(coordinates[0], coordinates[1]);
-      await stagehandPage.page.keyboard.type(text);
+      try {
+        await stagehand.page.mouse.click(coordinates[0], coordinates[1]);
+        await stagehand.page.keyboard.type(text);
+      } catch {
+        return { success: false, error: `Error typing, try again` };
+      }
       return { success: true, describe, coordinates, text };
     },
   });

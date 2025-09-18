@@ -1,6 +1,5 @@
 import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
@@ -10,9 +9,10 @@ import { ToolSet } from "ai";
 import { injectDropdownConverter } from "../utils/dropdownConverter";
 import { ContextManager } from "./contextManager";
 import { randomUUID } from "crypto";
+import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
-  private stagehandPage: StagehandPage;
+  private stagehand: Stagehand;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private executionModel?: string;
@@ -21,14 +21,14 @@ export class StagehandAgentHandler {
   private contextManager: ContextManager;
 
   constructor(
-    stagehandPage: StagehandPage,
+    stagehand: Stagehand,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
     mcpTools?: ToolSet,
   ) {
-    this.stagehandPage = stagehandPage;
+    this.stagehand = stagehand;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
@@ -93,7 +93,7 @@ export class StagehandAgentHandler {
         },
       });
 
-      await injectDropdownConverter(this.stagehandPage.page);
+      await injectDropdownConverter(this.stagehand.page);
       this.logger({
         category: "agent",
         message: "Injected dropdown converter script",
@@ -292,6 +292,7 @@ export class StagehandAgentHandler {
     return `<system>
   <identity>You are a web automation assistant using browser automation tools to accomplish the user's goal.</identity>
   <task>
+    <note>You are currently running evals, which provide a starting url. stay on this domain, unless the task requires going to different domains for multi website tasks, for the most part the tasks should be completable within the current domain.</note>
     <goal>${cdata(executionInstruction)}</goal>
     <date display="local" iso="${isoDate}">${localeDate}</date>
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
@@ -366,7 +367,7 @@ export class StagehandAgentHandler {
   }
 
   private createTools() {
-    return createAgentTools(this.stagehandPage, {
+    return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
       logger: this.logger,
     });
