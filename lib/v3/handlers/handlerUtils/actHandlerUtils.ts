@@ -339,7 +339,7 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   }
 }
 
-export async function dragAndDrop(
+async function dragAndDrop(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
   const { page, frame, locator, args, xpath } = ctx;
