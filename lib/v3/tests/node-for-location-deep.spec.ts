@@ -3,7 +3,7 @@ import { V3 } from "../../v3/v3";
 import { v3TestConfig } from "./v3.config";
 import {
   computeAbsoluteXPathForNode,
-  resolveNodeForLocationDeep
+  resolveNodeForLocationDeep,
 } from "@/lib/v3/understudy/a11y/snapshot";
 
 test.describe("resolveNodeForLocationDeep via Page.click(returnXpath)", () => {
