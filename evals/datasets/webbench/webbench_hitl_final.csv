@@ -1,0 +1,631 @@
+ID,Starting URL,Category,Difficulty,Task
+2,https://www.acehardware.com,READ,easy,"Search for ""LED light bulbs"" on AceHardware.com and provide the titles and sale prices of the first 5 products that appear.
+Only use http://acehardware.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+19,https://www.airbnb.com,DELETE,easy,"Log in to your Airbnb account, save a Guest Favorite property to your wishlist, and then go to your wishlist and remove the property you previously added.
+Only use http://airbnb.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+20,https://www.airbnb.com,DELETE,hard,"Log in to Airbnb, send a query to a host of a New York City property, and then delete your message confirming that the message does not appear on your profile.
+Only use http://airbnb.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+22,https://www.airbnb.com,READ,easy,"Browse the “Play” section in Paris and extract the titles and brief descriptions of the top five properties.
+Only use http://airbnb.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+33,https://www.alibaba.com,READ,easy,"Search for ""smartphones"" on Alibaba and note how many listings are available.
+Only use http://alibaba.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+35,https://www.alibaba.com,READ,hard,"Search for ""RFID tags"", filter by a minimum order quantity of less than 1000, and list the first 3 supplier names.
+Only use http://alibaba.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+51,https://www.allrecipes.com,CREATE,easy,"Log in, write a detailed review for the ""Lemon Chicken Orzo Soup"" recipe including a 5-star rating and your comments on taste and presentation.
+Only use http://allrecipes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+56,https://www.allrecipes.com,CREATE,easy,"Log in, create a new recipe collection titled ""Quick Weeknight Dinners"" and populate it with 5 chosen recipes.
+Only use http://allrecipes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+63,https://www.allrecipes.com,READ,easy,"Search for a seasonal, fall-appropriate recipe and note the recommended serving size mentioned.
+Only use http://allrecipes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+67,https://www.allrecipes.com,READ,easy,"Locate a ""chocolate chip cookie"" recipe page and summarize the calorie count from its nutritional information.
+Only use http://allrecipes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+73,https://www.alltrails.com,DELETE,easy,"Log in to your account, add the ""Canyon Loop"" trail to your saved trails, and then delete it—confirm that it no longer appears in your list.
+Only use http://alltrails.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+80,https://www.alltrails.com,UPDATE,easy,"Log in to your account and update your adventure profile by changing your favorite activity from ""hiking"" to ""mountain biking.""
+Only use http://alltrails.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+93,https://www.apa.org,READ,hard,"Use the website’s search function to find articles published in 2022 related to ""clinical psychology"" and output the titles of the first four matches.
+Only use http://apa.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+102,https://apkpure.com,READ,easy,"Search for the app ""Spotify"" on APKPure and list the latest version number along with its release date as shown on the version history section.
+Only use http://apkpure.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+104,https://apnews.com,READ,easy,"Use the website’s search bar to look for articles containing ""climate change"" and list the titles of the first five articles returned.
+Only use http://apnews.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+113,https://archive.org,READ,easy,"Use advanced search for ”Space images"" on archive.org and output the capture dates and titles of the first 10 images listed.
+Only use http://archive.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+125,http://www.barnesandnoble.com,DELETE,easy,"Log in, add the physical book ""To Kill a Mockingbird"" to your wishlist, then remove it and verify its deletion.
+Only use http://barnesandnoble.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+129,http://www.barnesandnoble.com,READ,easy,"Use the store locator by entering ZIP code 90210, then display the address, store hours, and contact details of the nearest location.
+Only use http://barnesandnoble.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+139,https://www.bbb.org,READ,easy,"Search for any companies on bbb.org and output the BBB rating of the first business listed in the results.
+Only use http://bbb.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+140,https://www.bbb.org,READ,hard,"Search for any businesses in Los Angeles with a BBB rating of A+ and list the names of the first five businesses displayed.
+Only use http://bbb.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+149,https://www.bestbuy.com,CREATE,easy,"Log into your Best Buy account and create a new wishlist titled ""Holiday Shopping,"" then add the ""Sony 65-inch 4K Ultra HD TV"" to that wishlist.
+Only use http://bestbuy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+151,https://www.bestbuy.com,CREATE,easy,"On the ""Sony 75-inch 4K TV"" product page, post a new question in the Q&A section asking, ""Does this TV support VESA wall mounting?""
+Only use http://bestbuy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+159,https://www.bestbuy.com,READ,easy,"Locate the guide titled ""How to Choose the Best 4K TV: The Essential Guide"" and summarize the top 3 tips provided.
+Only use http://bestbuy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+162,https://www.bestbuy.com,UPDATE,hard,"Log into your account, add an item to your cart, then switch the delivery option from standard shipping to in-store pickup and confirm that the order details update accordingly.
+Only use http://bestbuy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+172,https://www.booking.com,READ,hard,"Search for 8 review score or above hotels in Manhattan, New York for next weekend with free cancellation, free Wi-Fi, and breakfast included. Compare at least four options and pick the one closest to the Empire State Building.
+Only use http://booking.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+180,https://www.buzzfeed.com,CREATE,easy,"Using the Community submission portal, draft a BuzzFeed listicle titled “Top 10 Internet Memes of 2023” that includes five list items, each with a short description.
+Only use http://buzzfeed.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+183,https://www.buzzfeed.com,DELETE,hard,"Log in, post a comment on one of the front page news articles on BuzzFeed, then locate this previously posted comment and delete the comment, ensuring it is removed from the article page.
+Only use http://buzzfeed.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+198,https://www.canada.ca,READ,easy,"Navigate to the COVID-19 information section on Canada.ca and note three public health guidelines currently recommended.
+Only use http://canada.ca to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+206,https://www.caranddriver.com,DELETE,hard,"Log in to your Car and Drive account, save and article to your bookmarks, then delete the previously bookmarked article from your ""My Bookmarks"" list, and confirm that the article is no longer stored.
+Only use http://caranddriver.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+209,https://www.caranddriver.com,READ,easy,"Navigate to Car and Driver’s homepage and list the titles of the top three featured car reviews.
+Only use http://caranddriver.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+213,https://www.cars.com,READ,easy,"In the ""New Cars"" section, check the pricing for 2024 BMW 3 Series 330e and list at least two pricing components (e.g., MSRP, incentives) that are displayed.
+Only use http://cars.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+220,https://www.cbr.com,READ,easy,"Navigate to the CBR homepage and list the titles of the top five most recent articles in the news section.
+Only use http://cbr.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+221,https://www.cbr.com,READ,easy,"Navigate to an article featuring an embedded movie trailer and extract its title, description, and the link to the full trailer (if available).
+Only use http://cbr.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+222,https://www.cbr.com,READ,easy,"Use the site’s search function to look up ""Star Wars"" and list the first five article titles with a brief note on each article’s focus.
+Only use http://cbr.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+228,https://www.cbssports.com,READ,easy,"Check the live stream schedule and list the next two sports events along with their start times and the channels on which they will be broadcast.
+Only use http://cbssports.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+231,https://www.cdc.gov,READ,easy,"Find the latest measles advisory issued by the CDC, then note the publication date along with a brief summary of the advisory.
+Only use http://cdc.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+236,https://my.clevelandclinic.org,READ,easy,"Navigate to the Health Education section and list the top 5 articles on heart disease available on the Cleveland Clinic website.
+Only use http://clevelandclinic.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+247,https://www.cnet.com,READ,easy,"Search for a CNET column on artificial intelligence and list any recommended products that the article highlights.
+Only use http://cnet.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+249,https://www.cnet.com,READ,easy,"Browse any Deals or Offers section available and list the details of at least one affiliate deal mentioned.
+Only use http://cnet.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+256,https://collider.com,DELETE,hard,"Log into your Collider newsletter subscription settings, ensure that communications have been subscribed to, and unsubscribe from all communications, then verify that a confirmation message is displayed.
+Only use http://collider.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+261,https://collider.com,READ,easy,"Search for Collider’s coverage on a war film and provide a summary of the review highlights.
+Only use http://collider.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+264,https://www.collinsdictionary.com,READ,easy,"Look up the word ""onomatopoeia"" and extract the main definition and one usage example from the Collins Corpus.
+Only use http://collinsdictionary.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+266,https://www.columbia.edu,READ,hard,"Use the search functionality to locate pages detailing tuition and fees, then extract the published tuition fee information for undergraduate programs.
+Only use http://columbia.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+267,https://www.columbia.edu,READ,easy,"Identify and list the dates for the upcoming Columbia University campus events from the events calendar.
+Only use http://columbia.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+269,https://www.commonsensemedia.org,READ,easy,"Use the search feature to find the expert review of the animated film “Frozen” and extract its recommended age range and one key critique.
+Only use http://commonsensemedia.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+292,https://newyork.craigslist.org,CREATE,easy,"Log in to Craigslist, search for a baby stroller in your area in the ""for sale"" section, and save it to your favorites.
+Only use http://craigslist.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+323,https://www.crunchyroll.com,CREATE,hard,"Access your account and set up a watchlist called ""Classic Anime"" by adding at least four classic anime series from the catalog.
+Only use http://crunchyroll.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+328,https://www.crunchyroll.com,DELETE,easy,"Sign in to your profile, create a new watchlist titled ""Action-packed Series,"" then remove the watchlist titled ""Action-packed Series,"" confirming its deletion from your account.
+Only use http://crunchyroll.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+331,https://www.crunchyroll.com,READ,easy,"Visit the news or blog section and summarize the details of an upcoming Crunchyroll event.
+Only use http://crunchyroll.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+332,https://www.crunchyroll.com,READ,easy,"Navigate to the details page of the anime ""One Piece"" and extract the available language and subtitle options.
+Only use http://crunchyroll.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+334,https://www.crunchyroll.com,UPDATE,easy,"Log in to your account, create a ""Weekend Binge"" watchlist and add ""Attack on Titan."" Then open the ""Weekend Binge"" watchlist, and update it by adding the anime ""Hunter x Hunter"" to the list.
+Only use http://crunchyroll.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+364,https://www.dickssportinggoods.com,CREATE,easy,"Register a new user account on Dick’s Sporting Goods by filling out the required personal information and confirm the registration via the on-screen confirmation message.
+Only use http://dickssportinggoods.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+368,https://www.dickssportinggoods.com,CREATE,easy,"Log in, write a detailed product review for a Wilson baseball glove including a star rating, a title, and your experience with the product, then submit the review.
+Only use http://dickssportinggoods.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+375,https://www.dickssportinggoods.com,UPDATE,easy,"Add a pair of Nike running shoes to your cart, then go to your cart and modify the quantity of the Nike running shoes from 1 to 2.
+Only use http://dickssportinggoods.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+376,https://www.dickssportinggoods.com,UPDATE,easy,"Log in to your profile and update your address by adding your new apartment details.
+Only use http://dickssportinggoods.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+377,https://www.dictionary.com,READ,easy,"Look up the word ""pronunciation,"" play its audio sample, and note the phonetic transcription displayed.
+Only use http://dictionary.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+378,https://www.dictionary.com,READ,easy,"Look up the word ""quintessential"" and record both its pronunciation guide and the available audio sample.
+Only use http://dictionary.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+391,https://www.dw.com,READ,easy,"Visit the DW homepage and list the headline and publication time of the top news article featured in the main section.
+Only use http://dw.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+397,https://www.eater.com,READ,easy,"Locate a feature article on international dining scenes and list two featured cities mentioned in the piece.
+Only use http://eater.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+403,https://www.ebay.com,READ,hard,"Find three different sellers offering the same ""Blue Tooth Speaker"" item. Compare the total cost (including shipping and taxes), seller ratings, return policies, and estimated delivery times. Create a table to compare the various speakers and recommend the best purchase option if I'm purchasing from New York City, NY.
+Only use http://ebay.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+412,https://economictimes.indiatimes.com,READ,easy,"Navigate to the Markets section and record the current BSE and NSE index values as displayed on the dashboard.
+Only use http://economictimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+417,https://www.elle.com,READ,easy,"Use the site’s search function to find articles about “Sustainable Fashion” and record the publication dates of the top 3 results.
+Only use http://elle.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+418,https://www.elle.com,READ,easy,"Identify the digital magazine section and record the publication date of the most recent issue available.
+Only use http://elle.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+420,https://en.wikipedia.org/wiki/Main_Page,READ,easy,"What does the 'Climate Change' article say is driving the current rise in global temperatures?
+Only use http://en.wikipedia.org/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+421,https://en.wikipedia.org/wiki/Main_Page,READ,easy,"Select the 'Page information' option under the 'Tools' dropdown to see how many page views the 'COVID-19' article has in the past 30 days.
+Only use http://en.wikipedia.org/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+424,https://www.encyclopedia.com,READ,easy,"Use the search bar to find and list the title along with the publisher of the encyclopedia entry on ""Climate Change.""
+Only use http://encyclopedia.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+425,https://www.encyclopedia.com,READ,easy,"Search for ""Artificial Intelligence"" and list any related news or magazine articles or media referenced on the entry.
+Only use http://encyclopedia.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+430,https://www.eonline.com,READ,easy,"Search for articles mentioning ""Beyoncé"" and provide the headlines and publication dates for the first three results.
+Only use http://eonline.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+432,https://www.epa.gov,READ,easy,"Find the latest update on air quality data for Los Angeles on the EPA’s Air Quality System page and record the reported index value.
+Only use http://epa.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+433,https://www.epa.gov,READ,easy,"Locate the SmartWay program page and list two benefits that it offers for businesses.
+Only use http://epa.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+445,https://www.esquire.com,DELETE,hard,"Create a comment on a recent article as described in a previous task, then delete that same comment and verify that it is no longer visible.
+Only use http://esquire.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+446,https://www.esquire.com,READ,hard,"Navigate through the archive by decade and note the publication year of one highlighted article from each decade (e.g., 1980s, 1990s, 2000s, etc.).
+Only use http://esquire.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+449,https://www.esquire.com,READ,easy,"Navigate to the Esquire homepage and list the headlines of the top 3 featured articles.
+Only use http://esquire.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+460,https://www.eventbrite.com,READ,easy,"Access the Eventbrite Help Center to locate guidelines on organizing virtual events; then list the key steps and recommendations provided.
+Only use http://eventbrite.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+481,https://www.expedia.com/,READ,easy,"Search for flights from New York’s JFK to Los Angeles’ LAX on June 15th with a return on June 20th, and list the top three cheapest fares.
+Only use http://expedia.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+488,https://www.facebook.com,CREATE,hard,"Log in and set up a new Facebook Page for a fictitious business called “Eco-Groceries” complete with a short business description.
+Only use http://facebook.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+495,https://www.facebook.com,CREATE,easy,"Log in, go to the Videos section to see Reels, and save the first reel that will appear on the page.
+Only use http://facebook.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+505,https://www.fandom.com,READ,hard,"Find an image posted to the Stranger Things Wiki forum and identify the dimensions of the largest downloadable option
+Only use http://fandom.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+508,https://www.fda.gov,READ,easy,"Locate the section dedicated to FDA-regulated foods and extract the risk factors listed in the Food Safety sub‐section.
+Only use http://fda.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+517,https://www.firstcry.com,READ,easy,"Search for baby strollers on FirstCry and list the prices, key features, and customer ratings of the top 3 models displayed.
+Only use http://firstcry.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+519,https://www.firstcry.com,READ,easy,"Browse the maternity care products section and extract details (price, customer rating, and availability) for the ""Maternity Support Belt.""
+Only use http://firstcry.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+521,https://www.firstcry.com,READ,easy,"Check the ""FirstCry Prime"" membership page and note down the benefits offered, including free shipping and early sale access details.
+Only use http://firstcry.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+537,https://flickr.com,READ,easy,"Search Flickr for photos tagged ""sunset"" and list the titles and usernames of the first 5 results.
+Only use http://flickr.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+538,https://flickr.com,READ,easy,"Open the details of a selected photo and extract its metadata details (title, description, and tags) as displayed on its page.
+Only use http://flickr.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+543,https://www.flipkart.com,READ,hard,"In the ""Laptops"" section, apply the filter for ""Dell"" and extract the average discount percentage on the first 3 Dell laptops displayed.
+Only use http://flipkart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+545,https://www.flipkart.com/,READ,hard,"Navigate to the ""Mobiles"" category, search for ""iPhone"", and list the product names, prices, and discount details of the top 5 search results.
+Only use http://flipkart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+553,https://food52.com,READ,easy,"Browse the “A Few of Our Faves” section and list three recipes featured this week, including their titles.
+Only use http://food52.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+554,https://food52.com,READ,easy,"Use the Food52 search function to find a recipe that includes both lemon and thyme in the ingredients, then list the step-by-step cooking instructions of the first matching result.
+Only use http://food52.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+564,https://www.ford.com,CREATE,hard,"Establish a new saved configuration for a Ford Mustang Mach-E with added options such as an extended battery and panoramic sunroof, then note the generated build reference number.
+Only use http://ford.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+565,https://www.ford.com,CREATE,hard,"Utilize the financing calculator tool to simulate a Ford Credit financing option for a Ford Fusion, and output the estimated monthly payment along with the term details.
+Only use http://ford.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+567,https://www.ford.com,DELETE,hard,"Login, create a new saved vehicle configuration, then access your saved vehicle configurations and delete it, and confirm that it is no longer present in your saved builds list.
+Only use http://ford.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+574,https://fortune.com,READ,easy,"Navigate to the Fortune homepage and list the titles of the top 5 featured business articles.
+Only use http://fortune.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+577,https://www.foxnews.com,READ,hard,"Use the website’s search function to find an article related to the ""US Economy"" and extract the main points from the introduction.
+Only use http://foxnews.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+578,https://www.foxnews.com,READ,easy,"Retrieve an archived article on ""immigration policy"" from the site’s archive; summarize its publication date and primary focus.
+Only use http://foxnews.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+582,https://www.foxsports.com,READ,easy,"Browse the video highlights section and list the titles of the five most recent NBA highlight videos.
+Only use http://foxsports.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+591,https://www.freepik.com,READ,easy,"Navigate to the Reimagine tool page and note the supported input file formats along with any usage requirements mentioned.
+Only use http://freepik.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+604,https://gamerant.com,READ,easy,"Use the search function to find articles about ""Cyberpunk 2077"" and provide the headlines of the first five results.
+Only use http://gamerant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+608,https://gamerant.com,READ,easy,"Search for latest PS5 review on Game Rant and extract the publication date along with a brief summary of the main criticisms.
+Only use http://gamerant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+609,https://gamerant.com,UPDATE,hard,"Log in to your account, post a comment on ""Monster Hunter Wilds Review."" Then navigate to your comment and update it with additional details.
+Only use http://gamerant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+612,https://gamerant.com,UPDATE,easy,"Change your display name in your account settings to include a gaming tag ""rockstar36458"" and confirm that the update is applied.
+Only use http://gamerant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+615,https://www.gamespot.com,READ,easy,"Select the review article for ""The Legend of Zelda: Tears of the Kingdom"" and extract the review score along with three key highlights mentioned in the review.
+Only use http://gamespot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+622,https://www.gamesradar.com,READ,easy,"Use the website’s search function to look for articles on ""comics"" and list the titles of the first three results.
+Only use http://gamesradar.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+652,https://github.com,CREATE,easy,"Fork the repository ""microsoft/vscode"" to your GitHub account and verify that the fork appears in your profile repository list.
+Only use http://github.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+660,https://github.com,DELETE,easy,"Log in, create a repository called ""OldProject"" on your Github account then delete the repository named ""OldProject"" from your GitHub account and verify its no longer there. 
+Only use http://github.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+661,https://github.com,DELETE,hard,"Log in, create a repository called ""sample-repo"" with a new branch ""old-feature"" then delete the ""old-feature"" branch using GitHub’s branch management options.
+Only use http://github.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+672,https://github.com,UPDATE,hard,"Create a repository named ""sample-repo-2"" then change the branch protection rules for the ""main"" branch in your repository to require at least one approving review before merging any changes.
+Only use http://github.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+680,https://www.glassdoor.com/index.htm,CREATE,easy,"Post a new discussion in a Glassdoor community Bowl about work-life balance at tech startups, providing your insights and suggestions.
+Only use http://glassdoor.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+687,https://www.glassdoor.com/index.htm,DELETE,hard,"Log in to your Glassdoor account, post a new comment in a community discussion about job search tips, then delete your comment and verify that it is no longer displayed.
+Only use http://glassdoor.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+695,https://www.goal.com/en-us,READ,easy,"Find the match analysis of the last Champions League game and write down the main tactical observation discussed in the article.
+Only use http://goal.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+703,https://www.goodhousekeeping.com,DELETE,hard,"Log in to your GoodHousekeeping.com account, add one recipe to ""Weekend Cooking"" list, and then remove one recipe from your ""Weekend Cooking"" list, and verify that it no longer appears in your saved items.
+Only use http://goodhousekeeping.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+710,https://www.goodhousekeeping.com,READ,easy,"In the Beauty category, filter for articles discussing skincare routines and list the publication dates of the first three posts.
+Only use http://goodhousekeeping.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+715,https://www.goodreads.com,READ,easy,"Search for the book ""To Kill a Mockingbird"" on Goodreads, view its ratings, and list the top 3 user reviews.
+Only use http://goodreads.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+746,https://www.grubhub.com,READ,easy,"Navigate to Catering, and summarize 5 of the FAQs, as well as the associated answers. 
+Only use http://grubhub.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+751,https://www.harpersbazaar.com,READ,easy,"Search for the article on ""Spring Fashion Trends"" and extract the names of the five luxury brands mentioned in it.
+Only use http://harpersbazaar.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+756,https://www.healthline.com,READ,easy,"Use the search tool to look for “diabetes management” and output the titles of the first five articles displayed.
+Only use http://healthline.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+758,https://www.healthline.com,READ,easy,"Navigate to Healthline’s homepage and list the titles of the top five featured health articles.
+Only use http://healthline.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+765,https://www2.hm.com/en_us/index.html,READ,easy,"View the ""Sale"" section and record the discount percentage displayed on the first product.
+Only use http://hm.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+771,https://www.homedepot.com,CREATE,easy,"Log in to your Home Depot account and create a new project list titled “Spring Garden,” then add the product “Husky Outdoor Planter Box” to the list.
+Only use http://homedepot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+775,https://www.homedepot.com,CREATE,easy,"Submit a “Contact Us” inquiry regarding delivery options for a “Samsung Family Hub Refrigerator,” including your contact details and a brief question.
+Only use http://homedepot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+782,https://www.homedepot.com,READ,easy,"Search for “porch lumber” on Home Depot and extract the pricing details for the 2x4 pressure-treated lumber available for delivery.
+Only use http://homedepot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+793,https://www.hotels.com,READ,hard,"Filter search results for properties in Paris available next month that offer spa amenities and bars, and list the amenities of the first three hotels.
+Only use http://hotels.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+799,https://www.housebeautiful.com,CREATE,easy,"Sign up for notifications on new articles by entering your email and opting in for alerts on interior design trends.
+Only use http://housebeautiful.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+804,https://www.housebeautiful.com,READ,easy,"Navigate to the homepage and list the titles of the top 3 featured articles on modern interior design.
+Only use http://housebeautiful.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+819,https://www.ign.com,READ,easy,"Navigate to the Guides section, Locate IGN’s GTA V guide, read the cheat codes section, and provide a summary of at least three cheat codes mentioned.
+Only use http://ign.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+827,https://www.ikea.com,CREATE,easy,"Log in and post a review for the ""BILLY bookcase"" emphasizing its ease of assembly, then share your review on the product page.
+Only use http://ikea.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+839,https://www.ikea.com,UPDATE,easy,"Access your profile, navigate to your saved addresses, and update your default delivery address to include specific instructions for building access.
+Only use http://ikea.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+850,http://indeed.com,READ,easy,"Check if a ""Delivery Driver"" job in Orlando provides 401k and paid time off. If it does, add it to my save list.
+Only use http://indeed.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+854,https://www.independent.co.uk/us,READ,easy,"Navigate to the ""World"" news section on Independent.co.uk and list the headlines of the top 3 articles.
+Only use http://independent.co.uk to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+856,https://www.india.com,READ,easy,"Locate the article covering the latest economic policy announcement in the Business section and note its publication date and headline.
+Only use http://india.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+860,https://www.indiamart.com,READ,easy,"Look up ""LED lighting systems"" and note any indicators of supplier verification and lead response times that appear on the product pages.
+Only use http://indiamart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+861,https://www.indiamart.com,READ,easy,"Use the search function to find ""organic tea leaves"" and list the top 5 supplier names along with their location details.
+Only use http://indiamart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+873,https://www.instacart.com,CREATE,easy,"Search for ""Peanut Butter and Jelly"", add it to your cart, and then go to your cart to check the estimated delivery time for the order.
+Only use http://instacart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+875,https://www.instacart.com,CREATE,easy,"Log in to Instacart and add “Organic Carrots” to your shopping cart for immediate checkout.
+Only use http://instacart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+883,https://www.instacart.com,READ,hard,"Search for organic bananas on Instacart and list the top 3 prices along with their retailer names.
+Only use http://instacart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+885,https://www.instacart.com,UPDATE,easy,"Log in to your Instacart account, add 6 bunches of organic bananas to your cart, and then access your cart and update the quantity of your organic bananas from 6 to 10 bunches.
+Only use http://instacart.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+890,https://www.instructables.com,READ,easy,"Filter projects tagged with ""woodworking"" and list the titles and authors of the first 5 Instructables.
+Only use http://instructables.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+895,https://www.investopedia.com,READ,easy,"Go to the market analysis section, locate the latest update on US economic indicators, and extract the names of at least three key indicators mentioned.
+Only use http://investopedia.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+897,https://www.irs.gov,READ,easy,"Go to the Help page on IRS.gov that explains Direct Pay options for individuals and list the available payment methods mentioned.
+Only use http://irs.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+905,https://www.istockphoto.com,READ,easy,"Filter search results for ""business meeting"" by horizontal orientation, then list the first 5 image descriptions or titles displayed.
+Only use http://istockphoto.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+913,https://www.jagranjosh.com,READ,easy,"Search for the ""Previous Year Question Papers"" section and report the number of downloadable papers available for the UPSC exam.
+Only use http://jagranjosh.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+916,https://www.jagranjosh.com,READ,easy,"Check the academic calendar section for upcoming exam dates and list the next three major exams along with their schedules.
+Only use http://jagranjosh.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+919,https://www.jstor.org,READ,easy,"Search for an article on ""Innovation in Urban Design"" and list the keywords associated with it from the metadata.
+Only use http://jstor.org/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+927,https://www.justdial.com,READ,easy,"Locate the “24x7 Emergency Medical Clinic” in Bangalore and display its operating hours along with a brief description of services.
+Only use http://justdial.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+943,https://www.khanacademy.org,READ,easy,"Search for ""Algebra"" courses on Khan Academy and list the titles and short descriptions of the first five results.
+Only use http://khanacademy.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+945,https://www.khanacademy.org,READ,easy,"On the Khan Academy homepage, list all available interface languages and note the total number of languages offered.
+Only use http://khanacademy.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+948,https://www.khanacademy.org,UPDATE,easy,"Log in to your student account and update your monthly learning goal on the progress dashboard to reflect a new target for completed exercises.
+Only use http://khanacademy.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+953,https://kidshealth.org,READ,easy,"Navigate to the ""Parents"" section and locate an article about managing screen time for children; then, provide a brief summary of the article title and its main tips.
+Only use http://kidshealth.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+958,https://www.kmart.com.au,CREATE,hard,"Log in to your Kmart account, create a new wishlist titled ""Holiday Gifts,"" and add 3 items representing gifts for him, for her, and for kids.
+Only use http://kmart.com.au/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+960,https://www.kmart.com.au,DELETE,easy,"Log in to your Kmart account, add a ""Camera"" to your shopping cart, then remove the ""Camera"" item from your shopping cart, and confirm its deletion from the cart.
+Only use http://kmart.com.au/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+977,https://www.latimes.com,READ,easy,"Locate a feature article with a photo gallery and list the captions of the photos presented within the gallery.
+Only use http://latimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+980,https://www.latimes.com,READ,easy,"Use the search function to locate articles on “Los Angeles” and “immigration”, then provide the titles of the first three results.
+Only use http://latimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+981,https://www.latimes.com,READ,easy,"Browse the entertainment section and list the top three celebrity news headlines along with their publication dates.
+Only use http://latimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+992,https://letterboxd.com,CREATE,hard,"Compose a detailed film review diary entry for ""The Grand Budapest Hotel,"" focusing on its cinematography, and rate it 5 stars.
+Only use http://letterboxd.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+995,https://letterboxd.com,CREATE,easy,"Update your profile with a public update listing your top 3 favorite films of all time.
+Only use http://letterboxd.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1015,https://www.linkedin.com,CREATE,easy,"Add a job history entry to your profile titled Analyst at LabRite, from June 2021 - September 2023.
+Only use http://linkedin.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1017,https://www.linkedin.com,CREATE,easy,"Comment on a recent article posted by Google, ensuring that your comment has a positive and professional connotation.
+Only use http://linkedin.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1021,https://www.linkedin.com,CREATE,easy,"Compose a text-based post asking your network for advice on upskilling in data analytics and mention two trending skills you wish to learn.
+Only use http://linkedin.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1033,https://www.linkedin.com,UPDATE,easy,"Make a post thanking several colleagues. Then edit the post to add an additional relevant hashtag before resubmitting it.
+Only use http://linkedin.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1041,https://www.livejournal.com,DELETE,easy,"Log in, create a temporary journal entry titled ""Temporary Post,"" then delete this entry and confirm that it no longer appears on your journal.
+Only use http://livejournal.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1043,https://www.livejournal.com,DELETE,hard,"Login, create a friends list and add 3 individuals, then from your friends list, remove a specific friend by selecting their profile and confirming their deletion from your contact list.
+Only use http://livejournal.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1050,https://www.livejournal.com,UPDATE,hard,"Log in and create a journal entry and schedule send it for 12 hours later. Then modify a scheduled journal entry by changing its posting time to an earlier hour on the same day as originally planned.
+Only use http://livejournal.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1052,https://www.livescience.com,READ,easy,"Use the LiveScience search bar to look up ""volcano research"" and list the titles of the relevant articles that appear.
+Only use http://livescience.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1053,https://www.livescience.com,READ,easy,"Navigate to the ""Space"" category and extract the title, author (if available), and publication date of the first article.
+Only use http://livescience.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1057,https://www.loc.gov,FILE_MANIPULATION,easy,"Download a digitized manuscript related to early American literature from the catalog and verify that the preview includes the word ""manuscript.""
+Only use http://loc.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1063,https://www.lonelyplanet.com,READ,easy,"Use the search function to find articles on “Nepal trekking” and extract the titles of at least three related articles.
+Only use http://lonelyplanet.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1084,https://www.macys.com,READ,easy,"Find the product description and reviews for a specific item.
+Only use http://macys.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1087,https://www.made-in-china.com,READ,hard,"Navigate to the suppliers profiles section, select a verified supplier offering ""electronic components,"" and extract the certification details provided on their profile.
+Only use http://made-in-china.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1094,https://www.marksandspencer.com,READ,easy,"Navigate to the ""Food"" section and list the names and prices of the first five ready-meal products.
+Only use http://marksandspencer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1096,https://www.marksandspencer.com,READ,easy,"Go to the ""Help"" or ""Customer Service"" section and list the top five frequently asked questions (FAQs) displayed.
+Only use http://marksandspencer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1106,https://www.maryland.gov/Pages/default.aspx,READ,easy,"Use the instant search feature to look up ""public records retention policy"" and provide the URL of the first matching result.
+Only use http://maryland.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1107,https://www.maryland.gov/Pages/default.aspx,READ,easy,"Explore the ""Feedback"" section and summarize the process given for submitting citizen input.
+Only use http://maryland.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1109,https://mashable.com,READ,easy,"Find an article that includes a section on upcoming events or festivals, and list the event names mentioned within that section.
+Only use http://mashable.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1110,https://mashable.com,READ,easy,"Browse the Mashable homepage and list the top three trending headlines along with their publication dates.
+Only use http://mashable.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1126,https://www.medscape.com,READ,easy,"Use the search feature to find articles on ""COVID-19 long-haulers"" and list the first five article titles that appear.
+Only use http://medscape.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1134,https://www.mercari.com,READ,hard,"Browse the electronics category and calculate the average price of used smartphones shown in the listings.
+Only use http://mercari.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1144,https://www.metacritic.com,READ,easy,"Use the site search to find reviews for “The Shawshank Redemption” and extract both the critic consensus and the overall user score.
+Only use http://metacritic.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1147,https://www.metacritic.com,READ,easy,"Use the search bar to locate reviews for the film “Titanic” and find the publication date of one of the critic reviews.
+Only use http://metacritic.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1154,https://www.michigan.gov/som,READ,easy,"Locate the most recent press release on state economic development on Michigan.gov and extract the release date along with the main headline.
+Only use http://michigan.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1166,https://www.mountsinai.org,READ,easy,"Search for information on virtual urgent care service and outline the steps a patient should follow to access a virtual consultation.
+Only use http://mountsinai.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1197,https://www.ndtv.com,READ,easy,"Locate the regional news segment for Rajasthan and list the top three headlines along with their brief introductions.
+Only use http://ndtv.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1198,https://www.ndtv.com,READ,easy,"Navigate to the Business section in the footer and list the titles of the five most recent articles along with their publication dates.
+Only use http://ndtv.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1210,https://www.newegg.com,READ,easy,"Search for ""external SSD"" in the storage category, apply a capacity filter for 1TB, and list the top three product models with their prices.
+Only use http://newegg.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1212,https://www.newegg.com,READ,easy,"Visit the Newegg Premier membership page, read through the listed benefits, and summarize at least five key membership perks.
+Only use http://newegg.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1224,https://www.nj.com,READ,easy,"Locate the ""Food & Dining"" guide and extract the names of three recommended local restaurants highlighted in the guide.
+Only use http://nj.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1230,https://www.nordstrom.com,DELETE,easy,"Log in, add the ""Ray-Ban Aviator Sunglasses"" to your wish list, then remove that item and confirm its deletion from your account.
+Only use http://nordstrom.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1231,https://www.nordstrom.com,DELETE,easy,"Log in, create a wish list titled ""Past Purchases"", and then permanently delete that wish list.
+Only use http://nordstrom.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1233,https://www.nordstrom.com,READ,easy,"Use the search bar to locate BOSS Menswear Suit and record the product name, price, and available sizes displayed.
+Only use http://nordstrom.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1236,https://www.nordstrom.com,READ,easy,"Navigate to the ""Under $100"" section in the Women's Handbags category and record the names, prices, and availability of the first three items.
+Only use http://nordstrom.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1240,https://www.nps.gov/index.htm,READ,easy,"Navigate to the homepage and search find a park by state in Wyoming on the first page
+Only use http://nps.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1241,https://www.ny.gov,READ,easy,"Search for official guidelines regarding the renewal of a New York State driver’s license, and note the contact information provided.
+Only use http://ny.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1245,https://www.nyc.gov,READ,easy,"Search for the FAQ page on recycling and waste management services and extract two common questions along with their answers.
+Only use http://nyc.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1246,https://www.nyc.gov,READ,easy,"Navigate to the ""Benefits & Support"" section and list the names of three programs available to NYC residents.
+Only use http://nyc.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1254,https://nypost.com,READ,easy,"Browse the News section and summarize the leading article by noting its headline, a brief excerpt, and the publication time.
+Only use http://nypost.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1257,https://nypost.com,READ,easy,"Go to the Business section and extract the headline of the article discussing the latest market trends.
+Only use http://nypost.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1259,https://nypost.com,UPDATE,hard,"Log in to the NY Post comment section, leave a comment on an article from the front page, then locate this comment, and edit it to add more information.
+Only use http://nypost.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1270,https://www.oed.com/?tl=true,READ,hard,"Filter search results to show only entries for words first used from 1500 to 1600 and list the headwords of the first 10 results.
+Only use http://oed.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1307,https://www.oregon.gov/Pages/index.aspx,READ,easy,"Identify the page for the Oregon agency responsible for environmental protection and list the contact details provided on that page.
+Only use http://oregon.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1321,https://www.pcgamer.com,DELETE,hard,"Log in to your pcgamer.com account, post a comment on one of the front page articles, then locate your recently posted comment and delete it.
+Only use http://pcgamer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1324,https://www.pcgamer.com,READ,easy,"Navigate to the ""Reviews"" section and list the titles of the three most recent PC hardware review articles.
+Only use http://pcgamer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1356,https://pixabay.com,READ,hard,"Go to the ""Videos"" section and output the file sizes from the download section and resolutions for the top 3 trending videos.
+Only use http://pixabay.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1359,https://pixabay.com,READ,easy,"Search for ""vintage"" imagery and list the publication dates (if provided) and contributor ids (if provided) for the top 5 results.
+Only use http://pixabay.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1360,https://pixabay.com,READ,easy,"Search for ""abstract background"" in the vectors/illustrations category and output the contributor usernames and at least three tags from each of the first 5 results.
+Only use http://pixabay.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1364,https://www.playstation.com/en-us,CREATE,easy,"Subscribe to the newsletters by entering your email to receive monthly updates on PlayStation news, deals, and events.
+Only use http://playstation.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1365,https://www.playstation.com/en-us,CREATE,easy,"In the support section, submit a formal inquiry about issues with remote downloads, specifying your console model and error details.
+Only use http://playstation.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1369,https://www.playstation.com/en-us,READ,easy,"Browse the homepage and identify the main featured release; provide its headline and a brief summary.
+Only use http://playstation.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1377,https://www.polygon.com,READ,easy,"Find any top 19 list of recommended PC games and pull out the first three game titles from that list.
+Only use http://polygon.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1392,https://www.purdue.edu,READ,easy,"Locate the section on study abroad programs and list two destination countries where Purdue students can study.
+Only use http://purdue.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1400,https://www.radiotimes.com,CREATE,easy,"Use the social media sharing buttons on a Radiotimes article to generate a shareable link and create a custom message endorsing the article.
+Only use http://radiotimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1407,https://www.radiotimes.com,READ,hard,"Locate tonight's featured TV schedule on Radiotimes, and list the titles of shows airing on both BBC and ITV.
+Only use http://radiotimes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1413,https://www.realsimple.com,READ,easy,"Visit the Travel & Lifestyle section under Shopping and record the author’s name and publication date for the leading article.
+Only use http://realsimple.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1416,https://www.realtor.com,READ,easy,"Filter apartments for rent in New York City with a monthly rent under $2,500, and list the first three listings’ addresses, rental prices, and highlighted amenities.
+Only use http://realtor.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1417,https://www.realtor.com,READ,easy,"Go to the “Find a Realtor” section, enter criteria for a buyer in Phoenix, AZ, and list the names and contact details of the first five matching real estate professionals.
+Only use http://realtor.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1428,https://www.redbubble.com,READ,easy,"Look up “Floral Patterns” on Redbubble and list the product titles that appear in the search results.
+Only use http://redbubble.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1438,https://www.rei.com,READ,easy,"Search for ""hiking boots"" on REI.com and list the names, prices, and ratings of the top three results.
+Only use http://rei.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1448,https://restaurantguru.com,READ,easy,"Search for Italian restaurants in New York City and list the top 3 restaurants by user rating.
+Only use http://restaurantguru.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1456,https://resy.com,CREATE,easy,"Create a reservation request for a large group of eight at a restaurant in ""NoMad Diner"", including a note requesting a private dining area.
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1464,https://resy.com,CREATE,easy,"Create a personalized list titled ""Romantic Dinners"" on Resy and add the restaurants ""Le Bernardin,"" ""Jeju Noodle Bar,,"" and ""Eleven Madison Park"" to it.
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1466,https://resy.com,DELETE,easy,"Login, add ""Passerine"" as favoriated in your account. then access your favorites list on Resy and remove it from the list.
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1468,https://resy.com,READ,easy,"How many $'s does the Carbone in Greenwich Village, New York have?
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1469,https://resy.com,READ,hard,"Search for available reservation times for a French restaurant in New York City on an upcoming Friday evening.
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1470,https://resy.com,READ,easy,"Find Arden, in New York. List the available dining times for tonight. 
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1472,https://resy.com,UPDATE,easy,"Make a reservation at ""Tacombi - Williamsburg"" for 7:00 PM on a given night. Modify your ""Tacombi - Williamsburg"" reservation by changing the dinner time from 7:00 PM to 8:00 PM.
+Only use http://resy.com/ to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1478,https://www.reverso.net/text-translation,READ,easy,"Use the collaborative dictionary to translate 'proud' from English to Arabic and return the result
+Only use http://reverso.net to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1491,https://www.samsung.com/us,READ,easy,"Navigate to the Samsung Galaxy S23 product page and list its key technical specifications such as processor, battery capacity, and display resolution.
+Only use http://samsung.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1503,https://screenrant.com,READ,easy,"What is the description of the game 'Marvel Rivals'?
+Only use http://screenrant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1504,https://screenrant.com,READ,easy,"Find the article '10 TV Shows That Went Downhill After A Major Cliffhanger' and summarize why 'The Flash' is included.
+Only use http://screenrant.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1522,https://us.shein.com/?ref=www&rep=dir&ret=us,UPDATE,easy,"While logged in, add a ""gold hoop earrings"" product to your cart, update its quantity to 2 units, and verify that the total price is adjusted accordingly.
+Only use http://shein.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1520,https://us.shein.com/?ref=www&rep=dir&ret=us,READ,hard,"Browse the ""New In"" section and list the product names, prices, and available colors of the top 5 most popular items.
+Only use http://shein.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1525,https://www.si.com,READ,easy,"Locate an SI.com feature on college sports and provide a brief summary outlining its key discussion points.
+Only use http://si.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1528,https://www.si.edu,READ,easy,"Navigate the homepage to locate the ""Smithsonian Open Access"" section and list the titles of the first five featured digital assets.
+Only use http://si.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1539,https://www.simplyrecipes.com,UPDATE,hard,"Login, post a comment praising a Lentil Soup recipe, then edit your previously submitted comment with additional recommendations for pairings with this dish. 
+Only use http://simplyrecipes.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1545,https://www.skysports.com,READ,easy,"Identify and read the latest article under the rugby section covering match recaps, and list the names of the two teams that played.
+Only use http://skysports.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1546,https://www.skysports.com,READ,easy,"Browse the homepage for any breaking news related to the ""Football"" and provide a short text summary of the update.
+Only use http://skysports.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1550,https://www.slideshare.net,READ,easy,"Search for presentations on ""digital marketing trends 2023"" and list the titles and authors of the first five results.
+Only use http://slideshare.net to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1551,https://www.slideshare.net,READ,easy,"Browse the ""Business"" category and extract the title of the most-viewed presentation.
+Only use http://slideshare.net to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1553,https://www.slideshare.net,READ,easy,"Identify three presentations on ""sustainable energy"" sorted by popularity and list their titles.
+Only use http://slideshare.net to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1555,https://www.smithsonianmag.com,READ,hard,"Browse the History category and record the title and publication date of the most popular article (based on visible engagement or share counts).
+Only use http://smithsonianmag.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1566,https://www.sofascore.com,READ,hard,"Explore the heatmap visualization on a live football game page and specify the zone where the highest concentration of shots occurred.
+Only use http://sofascore.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1573,https://www.sportskeeda.com,CREATE,easy,"Log in to your Sportskeeda account and post a comment on the latest ""UEFA Champions League"" article sharing your opinion on the match outcome.
+Only use http://sportskeeda.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1586,https://www.sportskeeda.com,UPDATE,easy,"Access your account settings on Sportskeeda and update your bio to better reflect your interests in both traditional sports and esports.
+Only use http://sportskeeda.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1591,https://open.spotify.com,CREATE,easy,"Create a podcast playlist by starting a new list and adding one episode from a podcast in the ""Tech Trends"" category.
+Only use http://spotify.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1601,https://open.spotify.com,DELETE,easy,"Create a temporary playlist titled ""Test Playlist,"" add two tracks, then delete the playlist and confirm its removal from your library.
+Only use http://spotify.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1605,https://open.spotify.com,FILE_MANIPULATION,hard,"Login and find out how to request extended streaming data, and follow the steps to request this data. 
+Only use http://spotify.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1609,https://open.spotify.com,READ,easy,"Browse the Spotify home page and list the names of the top 5 trending playlists currently featured.
+Only use http://spotify.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1625,https://www.springer.com/us,READ,hard,"Find the ""Philosophy"" articles page and summarize the abstract of the most recent article posted.
+Only use http://springer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1635,https://stackexchange.com,CREATE,easy,"Log in, navigate to the Data Science community, and post an answer on a question about ""feature engineering techniques"" including at least two bullet points.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1640,https://stackexchange.com,CREATE,hard,"Post an answer in the Super User community to a question regarding ""SSD vs HDD performance"" and include relevant benchmark numbers.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1642,https://stackexchange.com,CREATE,easy,"Log in and post a new question in the Academia community titled ""How to balance research and teaching responsibilities?"" with contextual examples from your experience.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1644,https://stackexchange.com,CREATE,hard,"Using the Markdown editor, log in and create a comprehensive guide titled ""How to use StackExchange effectively"" on the Meta site.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1658,https://stackexchange.com,DELETE,easy,"In the Super User community, post a temporary answer labeled ""Test answer for deletion"" to an existing question and then delete it, ensuring it no longer appears in your contributions.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1661,https://stackexchange.com,READ,easy,"Visit the Meta site of StackExchange and list the titles of the 3 most recent community discussion topics.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1662,https://stackexchange.com,READ,easy,"Use the main search bar to find questions tagged with ""python"" in the Stack Overflow community and output the titles of the first 5 results.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1669,https://stackexchange.com,UPDATE,easy,"Log in and post a question in the Cross Validated community titled ""Statistical Significance in A/B Testing."" Then update the title of this question to ""Understanding Statistical Significance in A/B Testing.""
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1671,https://stackexchange.com,UPDATE,easy,"Log in to the Web Applications community and answer a question ""increasing website engagement."" Then update your answer with additional examples and an emoji.
+Only use http://stackexchange.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1676,https://stackoverflow.com/questions,CREATE,hard,"Provide an answer to a question regarding best practices for REST API development in Ruby on Rails, including a sample code implementation.
+Only use http://stackoverflow.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1690,https://stackoverflow.com/questions,DELETE,easy,"Log in, post a question about Node.js with the tag ""node"" and then go back to delete the tag from your posted question on Node.js, ensuring that the removal is confirmed.
+Only use http://stackoverflow.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1692,https://stackoverflow.com/questions,READ,easy,"Browse through the ""Help Center"" to locate the page on editing posts and list the top three tips mentioned.
+Only use http://stackoverflow.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1698,https://stackoverflow.com/questions,UPDATE,hard,"Log in to your account, and post a question regarding web security, then update the tags on your question about web security to also include ""sql-injection""
+Only use http://stackoverflow.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1704,https://stardewvalleywiki.com/Stardew_Valley_Wiki,READ,easy,"Analyze which villagers have birthdays in Summer using the calendar data
+Only use http://stardewvalleywiki.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1705,https://stardewvalleywiki.com/Stardew_Valley_Wiki,READ,easy,"Find and list all the gifts that Sebastian ""loves"" according to his gift preferences page.
+Only use http://stardewvalleywiki.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1713,https://www.statista.com,READ,easy,"Filter the available reports by the sports industry and list the titles of the first three annual reports presented.
+Only use http://statista.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1723,https://store.steampowered.com,READ,hard,"Go to the Top Sellers section and list all games currently discounted at more than 50%.
+Only use http://steampowered.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1729,https://www.studocu.com,CREATE,easy,"Create a new account and then create a course name of  ""Introduction to Economics."" Ensure that a confirmation message appears.
+Only use http://studocu.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1732,https://www.studocu.com,CREATE,hard,"Assemble a new study plan by creating a ""Revision Pack"" StudyList that curates documents on key course topics and then use the site’s sharing feature to share it with a friend.
+Only use http://studocu.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1745,https://www.target.com,READ,easy,"Check how long shipping takes for an ipad Air to be delivered to the New York City 10003 Zip Code
+Only use http://target.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1750,https://www.techradar.com,READ,easy,"Search for articles related to “energy efficient computers” and extract a recommendation mentioned in one of the articles.
+Only use http://techradar.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1761,https://www.telegraph.co.uk/us,DELETE,easy,"Log in to your Telegraph account, find an article on the front page and save it to your reading list, then access your reading list, delete the saved articles, and verify that it no longer appears.
+Only use http://telegraph.co.uk to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1765,https://www.telegraph.co.uk/us,READ,easy,"Use the search function to find an article about a “Royal Ceremony” and provide the headline and publication date of the first result.
+Only use http://telegraph.co.uk to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1768,https://www.telegraph.co.uk/us,UPDATE,easy,"Log in to your Telegraph account, navigate to your profile settings, and change your newsletter subscription preference from daily updates to weekly updates.
+Only use http://telegraph.co.uk to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1769,https://testbook.com,READ,easy,"Search the articles section for ""SSC exam pattern changes"" and extract the key updates mentioned.
+Only use http://testbook.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1774,https://www.texas.gov,READ,easy,"In the ""Find Services"" section, locate the official guidelines on vehicle registration and extract the checklist of submission requirements shown.
+Only use http://texas.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1778,https://www.theatlantic.com,READ,easy,"Navigate to The Atlantic homepage and list the titles of the top three featured articles displayed.
+Only use http://theatlantic.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1780,https://www.theatlantic.com,READ,easy,"Visit the subscription page and identify the differences in benefits offered between the digital, digital and print subscriptions.
+Only use http://theatlantic.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1784,https://www.thegamer.com,READ,easy,"Search for reviews  and list the headlines of the top five game review articles currently featured.
+Only use http://thegamer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1785,https://www.thegamer.com,READ,hard,"Locate an Opinion or Cultural Commentary article discussing modern gaming culture and summarize its central argument in one or two sentences.
+Only use http://thegamer.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1792,https://www.thehindu.com,READ,easy,"Search the Health section for COVID-19 related news, and output the title and publication time of the first article that appears.
+Only use http://thehindu.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1798,https://www.themoviedb.org,READ,easy,"Browse the ""Trending"" section on themoviedb.org and extract the titles of the top 5 trending movies at the moment.
+Only use http://themoviedb.org to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1801,https://www.thepioneerwoman.com,CREATE,easy,"Log in to the site and save your favorite recipe from the ""Comfort Food"" category to your saved recipes collection.
+Only use http://thepioneerwoman.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1813,https://www.thepioneerwoman.com,READ,easy,"Locate a tutorial featuring Ree Drummond’s signature dish.
+Only use http://thepioneerwoman.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1816,https://www.thesaurus.com,READ,easy,"Look up the synonyms for ""rapid"" and list the first five synonyms that appear.
+Only use http://thesaurus.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1819,https://www.thespruce.com,READ,easy,"Search for ""DIY kitchen backsplash ideas"" on TheSpruce and list the titles of the first five articles.
+Only use http://thespruce.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1828,https://www.thoughtco.com,READ,easy,"Browse the ThoughtCo homepage and list the titles of the three newest articles displayed on the landing page.
+Only use http://thoughtco.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1829,https://www.threads.net,READ,hard,"Use the search function to find threads mentioning “sustainability” and summarize the main discussion points from the first three results.
+Only use http://threads.net to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1832,https://www.ticketmaster.com,READ,hard,"Visit the New York Giants' page, and find an available game to find tickets for. 
+Only use http://ticketmaster.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1836,https://www.tiktok.com/explore,READ,easy,"Browse the For You feed and list the usernames and view counts of the first 5 videos displayed.
+Only use http://tiktok.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1843,https://time.com,READ,easy,"Navigate to the ""Science"" section and summarize the key findings of the leading article in 2–3 sentences.
+Only use http://time.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1848,https://www.timeanddate.com,READ,easy,"Browse the API section to retrieve the Date Calculator API Pricing details including the package prices and number of credits
+Only use http://timeanddate.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1853,https://www.today.com,CREATE,easy,"Save an article about summer recipes to your reading list and add a brief note explaining why you found it interesting.
+Only use http://today.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1858,https://www.today.com,READ,hard,"Scroll through the infinite content feed in the News category and record how many new articles load after an extended scroll.
+Only use http://today.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1860,https://www.today.com,READ,easy,"Search for articles on “healthy breakfast recipes” and display the title and summary of the top result.
+Only use http://today.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1861,https://www.today.com,READ,easy,"Navigate to the homepage and locate the schedule for the live Today show broadcast, then record the start time of today’s episode.
+Only use http://today.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1868,https://www.tomsguide.com,FILE_MANIPULATION,easy,"Locate the downloadable PDF version of the ""How to Enable 2FA"" guide on Tom's Guide, download it, and verify that the filename contains the text ""2FA"".
+Only use http://tomsguide.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1873,https://www.tomsguide.com,READ,easy,"In the Reviews section, filter for gaming review and note down the headline of the top-listed review article.
+Only use http://tomsguide.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1883,https://www.travelweekly.com,READ,easy,"Browse the homepage and list the top five featured travel industry news headlines.
+Only use http://travelweekly.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1885,https://www.travelweekly.com,READ,easy,"Use the search tool to look for upcoming webinar events on travel technology and output the titles of the events.
+Only use http://travelweekly.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1888,https://us.trip.com/?locale=en-us,READ,easy,"Browse the Trip homepage and list the top 5 trending featured properties
+Only use http://trip.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1890,https://us.trip.com/?locale=en-us,READ,easy,"Search for tours available in Rome tomorrow and list the top three tours sorted by ""Top Rated"".
+Only use http://trip.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1892,https://www.tripadvisor.com,READ,hard,"Identify the top-rated hotel in Paris, verify if it offers free cancellation, and analyze at least three recent guest reviews to see if they mention staff helpfulness.
+Only use http://tripadvisor.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1897,https://www.trustpilot.com,READ,hard,"Use Trustpilot’s search function to filter  HR & Recruiting located in ""London"", then list the review summaries for the top three highest‑rated companies.
+Only use http://trustpilot.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1911,https://www.twitch.tv,UPDATE,easy,"Modify your alert settings by updating the text that appears when someone donates Bits, ensuring your channel name is featured prominently in the alert.
+Only use http://twitch.tv to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1914,https://www.ucdavis.edu,READ,easy,"Navigate to the Admissions section and extract the key deadline dates for Fall 2025 undergraduate applications.
+Only use http://ucdavis.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1915,https://www.ucdavis.edu,READ,easy,"Search for the UC Davis library page and retrieve the opening hours and contact information for the main library.
+Only use http://ucdavis.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1917,https://www.ucdavis.edu,READ,easy,"Go to the Financial Aid and Scholarships page and extract the main eligibility criteria and deadlines for applying for aid.
+Only use http://ucdavis.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1924,https://www.ucla.edu,READ,easy,"Search for information on UCLA’s athletic programs or sports teams and list the sports teams mentioned on the page.
+Only use http://ucla.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1930,https://www.ufl.edu,READ,easy,"Use the site’s search bar to find information on UF research computing facilities and note two primary services offered.
+Only use http://ufl.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1931,https://www.ufl.edu,READ,easy,"Browse the Academic Departments listing and extract key details on the Computer & Information Science & Engineering department’s research focus areas.
+Only use http://ufl.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1938,https://www.ultimate-guitar.com,READ,easy,"Find the guitar tabs for ""Hotel California"" by the Eagles.
+Only use http://ultimate-guitar.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1939,https://umich.edu,READ,easy,"Browse the University of Michigan homepage and list the top three headlines featured in the News section.
+Only use http://umich.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1942,https://umich.edu,READ,easy,"Explore the “Michigan Online” section and list two online courses or learning platforms mentioned on that page.
+Only use http://umich.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1951,https://www.uniqlo.com/us/en,DELETE,hard,"Log in to your Uniqlo account, add the BlockTech Shirt to a wishlist, then remove it from the wishlist, confirming that the product no longer appears on the list.
+Only use http://uniqlo.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1966,https://www.upenn.edu,READ,easy,"Search the website for information on interdisciplinary research centers and list two names or brief descriptions provided on the page.
+Only use http://upenn.edu to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1968,https://www.urbandictionary.com,READ,easy,"Find the definition for “woke” and list any descriptive tags or keywords that appear alongside the definition.
+Only use http://urbandictionary.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1969,https://www.urbandictionary.com,READ,hard,"Use the search bar to look up “stan” and compare the top two definitions by summarizing the contrasting perspectives or nuances in their descriptions.
+Only use http://urbandictionary.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+1974,https://www.usa.gov,FILE_MANIPULATION,easy,"Find and download the most recent government guide on disaster preparedness from USA.gov, then verify that the file is in PDF format.
+Only use http://usa.gov to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."
+2021,https://www.usnews.com,READ,easy,"Search the site for ""economic trends 2023"" and list the titles and publication dates of the first five matching articles.
+Only use http://usnews.com to achieve the task. Don't go to any other site. The task is achievable with just navigation from this site."

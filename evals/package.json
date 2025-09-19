@@ -16,6 +16,8 @@
     "sharp": "^0.33.5"
   },
   "devDependencies": {
+    "@types/papaparse": "^5.3.16",
+    "papaparse": "^5.5.3",
     "tsx": "^4.10.5"
   }
 }
