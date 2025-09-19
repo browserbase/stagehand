@@ -1,9 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../../v3/v3";
 import { v3TestConfig } from "./v3.config";
-import {
-  performUnderstudyMethod,
-} from "../handlers/handlerUtils/actHandlerUtils";
+import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils";
 
 test.describe("tests performUnderstudyMethod", () => {
   let v3: V3;
@@ -19,7 +17,9 @@ test.describe("tests performUnderstudyMethod", () => {
 
   test("tests that clicking works", async () => {
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
+    );
 
     await performUnderstudyMethod(
       page,
@@ -30,13 +30,15 @@ test.describe("tests performUnderstudyMethod", () => {
       30000,
     );
 
-    const isVisible = await page.locator("#success-msg").isVisible()
+    const isVisible = await page.locator("#success-msg").isVisible();
     expect(isVisible).toBe(true);
   });
 
   test("fill sets input value", async () => {
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/login/");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
+    );
 
     await performUnderstudyMethod(
       page,
@@ -47,14 +49,17 @@ test.describe("tests performUnderstudyMethod", () => {
       30000,
     );
 
-    const textContent = await page.locator("/html/body/main/form/div[1]/input").inputValue();
+    const textContent = await page
+      .locator("/html/body/main/form/div[1]/input")
+      .inputValue();
     expect(textContent).toBe("Alice");
-
   });
 
   test("tests that key presses work", async () => {
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/key-press/");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/key-press/",
+    );
 
     await performUnderstudyMethod(
       page,
@@ -65,13 +70,17 @@ test.describe("tests performUnderstudyMethod", () => {
       30000,
     );
 
-    const textContent = await page.locator("/html/body/div/div/h1").textContent();
+    const textContent = await page
+      .locator("/html/body/div/div/h1")
+      .textContent();
     expect(textContent).toContain("Enter");
   });
 
   test("tests select option from a dropdown", async () => {
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/",
+    );
 
     await performUnderstudyMethod(
       page,
@@ -82,13 +91,17 @@ test.describe("tests performUnderstudyMethod", () => {
       30000,
     );
 
-    const inputValue = await page.locator("#licenseType >> option:checked").textContent();
+    const inputValue = await page
+      .locator("#licenseType >> option:checked")
+      .textContent();
     expect(inputValue).toBe("Smog Check Technician");
   });
 
   test("tests drag & drop works (start xpath & end xpath)", async () => {
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/");
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/",
+    );
 
     await performUnderstudyMethod(
       page,
@@ -99,7 +112,9 @@ test.describe("tests performUnderstudyMethod", () => {
       30000,
     );
 
-    const droppedContent = await page.locator("/html/body/div/section[2]/div/div[1]/div").textContent()
+    const droppedContent = await page
+      .locator("/html/body/div/section[2]/div/div[1]/div")
+      .textContent();
     expect(droppedContent).toBe("TEXT: Hello from text");
   });
 });

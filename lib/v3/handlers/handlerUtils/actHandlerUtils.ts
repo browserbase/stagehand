@@ -339,9 +339,7 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   }
 }
 
-async function dragAndDrop(
-  ctx: UnderstudyMethodHandlerContext,
-): Promise<void> {
+async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { page, frame, locator, args, xpath } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath)
