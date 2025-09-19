@@ -139,6 +139,8 @@ export class V3CuaAgentHandler {
     }
 
     const start = Date.now();
+    // Reset global stash for this run
+    this.v3.clearActionStash();
     const result = await this.agent.execute({ options, logger: this.logger });
     const inferenceTimeMs = Date.now() - start;
     if (result.usage) {
@@ -156,22 +158,41 @@ export class V3CuaAgentHandler {
     action: AgentAction,
   ): Promise<ActionExecutionResult> {
     const page = await this.v3.context.awaitActivePage();
+    const wantXpath = Boolean(
+      this.options.stashActions ||
+        this.options.clientOptions?.stashActions ||
+        this.options.clientOptions?.returnXpathForActions,
+    );
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
-        await page.click(x as number, y as number, {
+        const xpath = await page.click(x as number, y as number, {
           button: (button as "left" | "right" | "middle") ?? "left",
           clickCount: (clickCount as number) ?? 1,
+          returnXpath: wantXpath,
         });
+        if (wantXpath)
+          this.v3.recordActionStash({
+            type: "click",
+            xpath: String(xpath ?? ""),
+            ts: Date.now(),
+          });
         return { success: true };
       }
       case "double_click":
       case "doubleClick": {
         const { x, y } = action;
-        await page.click(x as number, y as number, {
+        const xpath = await page.click(x as number, y as number, {
           button: "left",
           clickCount: 2,
+          returnXpath: wantXpath,
         });
+        if (wantXpath)
+          this.v3.recordActionStash({
+            type: "doubleClick",
+            xpath: String(xpath ?? ""),
+            ts: Date.now(),
+          });
         return { success: true };
       }
       case "type": {
@@ -191,12 +212,21 @@ export class V3CuaAgentHandler {
       }
       case "scroll": {
         const { x, y, scroll_x = 0, scroll_y = 0 } = action;
-        await page.scroll(
+        const xpath = await page.scroll(
           (x as number) ?? 0,
           (y as number) ?? 0,
           (scroll_x as number) ?? 0,
           (scroll_y as number) ?? 0,
+          { returnXpath: wantXpath },
         );
+        if (wantXpath)
+          this.v3.recordActionStash({
+            type: "scroll",
+            xpath: String(xpath ?? ""),
+            dx: (scroll_x as number) ?? 0,
+            dy: (scroll_y as number) ?? 0,
+            ts: Date.now(),
+          });
         return { success: true };
       }
       case "drag": {
@@ -204,10 +234,20 @@ export class V3CuaAgentHandler {
         if (Array.isArray(path) && path.length >= 2) {
           const start = path[0];
           const end = path[path.length - 1];
-          await page.dragAndDrop(start.x, start.y, end.x, end.y, {
+          const xps = await page.dragAndDrop(start.x, start.y, end.x, end.y, {
             steps: Math.min(20, Math.max(5, path.length)),
             delay: 10,
+            returnXpath: wantXpath,
           });
+          if (wantXpath) {
+            const [fromXpath, toXpath] = (xps as [string, string]) || ["", ""];
+            this.v3.recordActionStash({
+              type: "dragAndDrop",
+              fromXpath,
+              toXpath,
+              ts: Date.now(),
+            });
+          }
         }
         return { success: true };
       }

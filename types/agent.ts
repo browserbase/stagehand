@@ -61,7 +61,49 @@ export interface AgentHandlerOptions {
   userProvidedInstructions?: string;
   agentType: AgentType;
   experimental?: boolean;
+  /**
+   * When true, coordinate-based actions (click, doubleClick, scroll, drag) are captured
+   * and stashed on the V3 instance. Consumers can retrieve them via `await v3.actionStash()`.
+   */
+  stashActions?: boolean;
 }
+
+// Action stash types: clean discriminated union with shared base
+export type ActionStashType =
+  | "click"
+  | "doubleClick"
+  | "scroll"
+  | "dragAndDrop";
+
+export interface ActionStashBase {
+  type: ActionStashType;
+  ts: number;
+}
+
+export interface ClickActionStashEntry extends ActionStashBase {
+  type: "click" | "doubleClick";
+  xpath: string;
+}
+
+export interface ScrollActionStashEntry extends ActionStashBase {
+  type: "scroll";
+  xpath: string;
+  dx: number;
+  dy: number;
+}
+
+export interface DragAndDropActionStashEntry extends ActionStashBase {
+  type: "dragAndDrop";
+  fromXpath: string;
+  toXpath: string;
+}
+
+export type ActionStashEntry =
+  | ClickActionStashEntry
+  | ScrollActionStashEntry
+  | DragAndDropActionStashEntry;
+
+export type ActionStash = ReadonlyArray<ActionStashEntry>;
 
 export interface ActionExecutionResult {
   success: boolean;

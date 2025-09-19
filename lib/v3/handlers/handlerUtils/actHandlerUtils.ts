@@ -20,6 +20,7 @@ export interface UnderstudyMethodHandlerContext {
   xpath: string;
   args: ReadonlyArray<string>;
   frame: Frame;
+  page: Page;
   initialUrl: string;
   domSettleTimeoutMs?: number;
 }
@@ -62,6 +63,7 @@ export async function performUnderstudyMethod(
     xpath: selectorRaw,
     args: args.map((a) => (a == null ? "" : String(a))),
     frame,
+    page,
     initialUrl,
     domSettleTimeoutMs,
   };
@@ -123,6 +125,7 @@ const METHOD_HANDLER_MAP: Record<
   (ctx: UnderstudyMethodHandlerContext) => Promise<void>
 > = {
   scrollIntoView,
+  scrollByPixelOffset,
   scrollTo: scrollElementToPercentage,
   scroll: scrollElementToPercentage,
   "mouse.wheel": wheelScroll,
@@ -130,6 +133,8 @@ const METHOD_HANDLER_MAP: Record<
   type: typeText,
   press: pressKey,
   click: clickElement,
+  doubleClick,
+  dragAndDrop,
   nextChunk: scrollToNextChunk,
   prevChunk: scrollToPreviousChunk,
   selectOptionFromDropdown: selectOption,
@@ -158,7 +163,7 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
 async function scrollIntoView(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
-  const { locator, xpath, frame } = ctx;
+  const { locator, xpath } = ctx;
   v3Logger({
     category: "action",
     message: "scrolling element into view",
@@ -166,8 +171,9 @@ async function scrollIntoView(
     auxiliary: { xpath: { value: xpath, type: "string" } },
   });
   const { objectId } = await locator.resolveNode();
-  await frame.session.send("DOM.scrollIntoViewIfNeeded", { objectId });
-  await frame.session
+  const ownerSession = locator.getFrame().session;
+  await ownerSession.send("DOM.scrollIntoViewIfNeeded", { objectId });
+  await ownerSession
     .send("Runtime.releaseObject", { objectId })
     .catch(() => {});
 }
@@ -188,6 +194,22 @@ async function scrollElementToPercentage(
 
   const [yArg = "0%"] = args;
   await locator.scrollTo(yArg);
+}
+
+/** Scroll the page by pixel offset, starting from the element's center. */
+async function scrollByPixelOffset(
+  ctx: UnderstudyMethodHandlerContext,
+): Promise<void> {
+  const { locator, page, args } = ctx;
+  const dx = Number(args[0] ?? 0);
+  const dy = Number(args[1] ?? 0);
+
+  try {
+    const { x, y } = await locator.centroid();
+    await page.scroll(x, y, dx, dy);
+  } catch (e) {
+    throw new UnderstudyCommandException(e.message);
+  }
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -298,6 +320,104 @@ async function clickElement(
   }
 }
 
+async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
+  const { locator, xpath } = ctx;
+  try {
+    await locator.click({ clickCount: 2 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    v3Logger({
+      category: "action",
+      message: "error performing doubleClick",
+      level: 0,
+      auxiliary: {
+        error: { value: msg, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(msg);
+  }
+}
+
+export async function dragAndDrop(
+  ctx: UnderstudyMethodHandlerContext,
+): Promise<void> {
+  const { page, frame, locator, args, xpath } = ctx;
+  const toXPath = String(args[0] ?? "").trim();
+  if (!toXPath)
+    throw new UnderstudyCommandException(
+      "dragAndDrop requires a target XPath arg",
+    );
+
+  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+
+  try {
+    // 1) Centers in local (owning-frame) viewport
+    const { x: fromLocalX, y: fromLocalY } = await locator.centroid();
+    const { x: toLocalX, y: toLocalY } = await targetLocator.centroid();
+
+    // 2) Convert to main-viewport absolute coordinates
+    const fromAbs = await locator
+      .getFrame()
+      .evaluate<{ x: number; y: number }, { x: number; y: number }>(
+        ({ x, y }: { x: number; y: number }) => {
+          let X = x;
+          let Y = y;
+          let w: Window = window;
+          while (w !== w.top) {
+            const fe = w.frameElement as HTMLElement | null;
+            if (!fe) break;
+            const r = fe.getBoundingClientRect();
+            X += r.left;
+            Y += r.top;
+            w = w.parent as Window;
+          }
+          return { x: Math.round(X), y: Math.round(Y) };
+        },
+        { x: fromLocalX, y: fromLocalY },
+      );
+
+    const toAbs = await targetLocator
+      .getFrame()
+      .evaluate<{ x: number; y: number }, { x: number; y: number }>(
+        ({ x, y }: { x: number; y: number }) => {
+          let X = x;
+          let Y = y;
+          let w: Window = window;
+          while (w !== w.top) {
+            const fe = w.frameElement as HTMLElement | null;
+            if (!fe) break;
+            const r = fe.getBoundingClientRect();
+            X += r.left;
+            Y += r.top;
+            w = w.parent as Window;
+          }
+          return { x: Math.round(X), y: Math.round(Y) };
+        },
+        { x: toLocalX, y: toLocalY },
+      );
+
+    // 3) Perform drag in main session
+    await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {
+      steps: 10,
+      delay: 5,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    v3Logger({
+      category: "action",
+      message: "error performing dragAndDrop",
+      level: 0,
+      auxiliary: {
+        error: { value: msg, type: "string" },
+        from: { value: xpath, type: "string" },
+        to: { value: toXPath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(msg);
+  }
+}
+
 async function scrollToNextChunk(
   ctx: UnderstudyMethodHandlerContext,
 ): Promise<void> {
@@ -314,7 +434,7 @@ async function scrollByElementHeight(
   ctx: UnderstudyMethodHandlerContext,
   direction: 1 | -1,
 ): Promise<void> {
-  const { locator, xpath, frame } = ctx;
+  const { locator, xpath } = ctx;
   v3Logger({
     category: "action",
     message:
@@ -325,7 +445,8 @@ async function scrollByElementHeight(
 
   const { objectId } = await locator.resolveNode();
   try {
-    await frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
+    const ownerSession = locator.getFrame().session;
+    await ownerSession.send<Protocol.Runtime.CallFunctionOnResponse>(
       "Runtime.callFunctionOn",
       {
         objectId,
@@ -360,7 +481,8 @@ async function scrollByElementHeight(
       },
     );
   } finally {
-    await frame.session
+    const ownerSession = locator.getFrame().session;
+    await ownerSession
       .send("Runtime.releaseObject", { objectId })
       .catch(() => {});
   }
