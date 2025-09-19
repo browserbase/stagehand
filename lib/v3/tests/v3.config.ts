@@ -3,7 +3,10 @@ import type { LogLine } from "@/types/log";
 
 export const v3TestConfig: V3Options = {
   env: "LOCAL",
-  localBrowserLaunchOptions: { headless: true },
+  localBrowserLaunchOptions: {
+    headless: true,
+    viewport: { width: 1024, height: 768 },
+  },
   verbose: 0,
   disablePino: true,
   logger: (line: LogLine) => console.log(line),
