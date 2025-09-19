@@ -21,7 +21,6 @@ async function getSharp() {
 export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
-  captureOnNavigation?: boolean;
   interceptScreenshots?: boolean;
 }
 
@@ -30,9 +29,7 @@ export class ScreenshotCollector {
   private page: Page;
   private interval: number;
   private maxScreenshots: number;
-  private captureOnNavigation: boolean;
   private intervalId?: NodeJS.Timeout;
-  private navigationListeners: Array<() => void> = [];
   private isCapturing: boolean = false;
   private lastScreenshot?: Buffer;
   private ssimThreshold: number = 0.92;
@@ -44,38 +41,23 @@ export class ScreenshotCollector {
     this.page = page;
     this.interval = options.interval || 10000;
     this.maxScreenshots = options.maxScreenshots || 10;
-    this.captureOnNavigation = options.captureOnNavigation ?? true;
-    this.interceptScreenshots = options.interceptScreenshots ?? false;
+    this.interceptScreenshots = options.interceptScreenshots ?? true;
+    this.ssimThreshold = process.env.SCREENSHOT_SSIM_THRESHOLD
+      ? parseFloat(process.env.SCREENSHOT_SSIM_THRESHOLD)
+      : 0.92;
+    this.mseThreshold = process.env.SCREENSHOT_MSE_THRESHOLD
+      ? parseFloat(process.env.SCREENSHOT_MSE_THRESHOLD)
+      : 50;
   }
 
   start(): void {
-    if (this.intervalId) {
-      return;
-    }
-
-    // Setup screenshot interception if enabled
+    // Setup screenshot interception if enabled (for agent screenshots)
     if (this.interceptScreenshots) {
       this.setupScreenshotInterception();
-    } else {
-      // Original time-based approach
-      this.intervalId = setInterval(async () => {
-        await this.captureScreenshot("interval");
-      }, this.interval);
-
-      if (this.captureOnNavigation) {
-        const loadListener = () => this.captureScreenshot("load");
-        const domContentListener = () =>
-          this.captureScreenshot("domcontentloaded");
-
-        this.page.on("load", loadListener);
-        this.page.on("domcontentloaded", domContentListener);
-
-        this.navigationListeners = [
-          () => this.page.off("load", loadListener),
-          () => this.page.off("domcontentloaded", domContentListener),
-        ];
-      }
     }
+
+    // Always start the interval timer
+    this.startIntervalTimer();
 
     this.captureScreenshot("initial");
   }
@@ -91,9 +73,6 @@ export class ScreenshotCollector {
       this.page.screenshot = this.originalScreenshot;
       this.originalScreenshot = undefined;
     }
-
-    this.navigationListeners.forEach((removeListener) => removeListener());
-    this.navigationListeners = [];
 
     this.captureScreenshot("final");
 
@@ -170,8 +149,19 @@ export class ScreenshotCollector {
     this.lastScreenshot = undefined;
   }
 
+  private startIntervalTimer(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+    this.intervalId = setInterval(async () => {
+      await this.captureScreenshot("interval");
+    }, this.interval);
+  }
+
   private setupScreenshotInterception(): void {
-    console.log("🔧 Setting up screenshot interception...");
+    console.log(
+      "🔧 Setting up hybrid screenshot collection with interception...",
+    );
     // Store the original screenshot method
     this.originalScreenshot = this.page.screenshot.bind(this.page);
     let lastCallTime = 0;
@@ -192,7 +182,10 @@ export class ScreenshotCollector {
         console.log(
           `📸 Agent screenshot detected (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
         );
-        this.onAgentScreenshot(screenshot);
+        // Process agent screenshot and reset the interval timer
+        await this.onAgentScreenshot(screenshot);
+        // Reset the interval timer since we just captured a screenshot
+        this.startIntervalTimer();
       } else {
         console.log(
           `📷 Non-agent screenshot ignored (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
@@ -238,10 +231,12 @@ export class ScreenshotCollector {
       }
 
       console.log(
-        `Agent screenshot captured, total: ${this.screenshots.length}`,
+        `Agent screenshot captured (hybrid mode), total: ${this.screenshots.length}`,
       );
     } else {
-      console.log(`Agent screenshot skipped, too similar to previous`);
+      console.log(
+        `Agent screenshot skipped (hybrid mode), too similar to previous`,
+      );
     }
   }
 

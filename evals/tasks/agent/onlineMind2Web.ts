@@ -39,11 +39,10 @@ export const onlineMind2Web: EvalFunction = async ({
     const screenshot = await stagehand.page.screenshot();
     fs.writeFileSync("screenshot.png", screenshot);
 
-    // Start collecting screenshots in parallel
+    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 5, // Keep up to the last 5 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
-      interceptScreenshots: true, // Intercept agent screenshot calls
+      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
     });
 
     screenshotCollector.start();
