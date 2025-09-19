@@ -78,7 +78,8 @@ export async function resolveNodeForLocationDeep(
   x: number,
   y: number,
 ): Promise<{ frameId: string; backendNodeId: number } | null> {
-  // Build parent map from the unified frame tree maintained by Page
+  // Build a parent map from the unified frame tree maintained by Page.
+  // This lets us map an <iframe> host element to its child frame id.
   const tree = page.getFullFrameTree();
   const parentByFrame = new Map<string, string | null>();
   (function index(n: Protocol.Page.FrameTree, parent: string | null) {
@@ -86,27 +87,89 @@ export async function resolveNodeForLocationDeep(
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(tree, null);
 
+  // Current traversal state: start at the main frame in the top-level session.
   let curFrameId = page.mainFrameId();
   let curSession = page.getSessionForFrame(curFrameId);
-  let curX = x;
+  let curX = x; // coordinates relative to current frame's viewport
   let curY = y;
 
   for (let depth = 0; depth < 8; depth++) {
     try {
       await curSession.send("DOM.enable").catch(() => {});
-      const res = await curSession.send<{
-        backendNodeId?: number;
-        frameId?: string;
-      }>("DOM.getNodeForLocation", {
-        x: curX,
-        y: curY,
-        includeUserAgentShadowDOM: false,
-        ignorePointerEventsNone: true,
-      });
-      const be = res.backendNodeId;
-      if (typeof be !== "number") return null;
 
-      // See if this backend node is the host <iframe> for any child frame
+      // Convert viewport → document coordinates for this frame by adding scroll offsets.
+      // DOM.getNodeForLocation expects document-based CSS pixels.
+      let sx = 0;
+      let sy = 0;
+      try {
+        await curSession.send("Runtime.enable").catch(() => {});
+        const ctxId = await executionContexts
+          .waitForMainWorld(curSession, curFrameId)
+          .catch(() => {});
+        if (ctxId) {
+          const { result } = await curSession.send<{
+            result: { value?: { sx?: number; sy?: number } };
+          }>("Runtime.evaluate", {
+            contextId: ctxId,
+            expression:
+              "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})",
+            returnByValue: true,
+          });
+          sx = Number(result?.value?.sx ?? 0);
+          sy = Number(result?.value?.sy ?? 0);
+        } else {
+          // Fallback: evaluate without explicit context
+          const { result } = await curSession.send<{
+            result: { value?: { sx?: number; sy?: number } };
+          }>("Runtime.evaluate", {
+            expression:
+              "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})",
+            returnByValue: true,
+          });
+          sx = Number(result?.value?.sx ?? 0);
+          sy = Number(result?.value?.sy ?? 0);
+        }
+      } catch {
+        // best-effort; leave sx/sy as 0 if reading fails
+      }
+      const xDoc = curX + sx;
+      const yDoc = curY + sy;
+      // Floor to integer CSS pixels as required by CDP
+      const xi = Math.max(0, Math.floor(xDoc));
+      const yi = Math.max(0, Math.floor(yDoc));
+
+      // Hit-test within the current frame's owning session using document coordinates.
+      let res: { backendNodeId?: number; frameId?: string } | undefined;
+      try {
+        res = await curSession.send<{
+          backendNodeId?: number;
+          frameId?: string;
+        }>("DOM.getNodeForLocation", {
+          x: xi,
+          y: yi,
+          includeUserAgentShadowDOM: false,
+          ignorePointerEventsNone: false,
+        });
+      } catch {
+        return null;
+      }
+
+      const be = res?.backendNodeId;
+      const reportedFrameId = res?.frameId;
+
+      // If CDP reports the concrete frame id and it differs, return that hit directly.
+      if (
+        typeof be === "number" &&
+        reportedFrameId &&
+        reportedFrameId !== curFrameId
+      )
+        return { frameId: reportedFrameId, backendNodeId: be };
+
+      if (typeof be !== "number") {
+        return null;
+      }
+
+      // Check if the hit node is an <iframe> host for any child frame; if not, we are done.
       let matchedChild: string | undefined;
       for (const fid of listChildrenOf(parentByFrame, curFrameId)) {
         try {
@@ -118,17 +181,17 @@ export async function resolveNodeForLocationDeep(
             break;
           }
         } catch {
-          // ignore
+          // ignore and try next child
         }
       }
 
       if (!matchedChild) {
-        // Not an iframe host → final hit
+        // Not an iframe host → final hit inside current frame.
         return { frameId: curFrameId, backendNodeId: be };
       }
 
       // Translate coordinates into the child's viewport by subtracting the
-      // parent's iframe element bounding rect
+      // parent's iframe element bounding rect, then continue traversal in the child.
       let left = 0;
       let top = 0;
       try {
@@ -159,13 +222,11 @@ export async function resolveNodeForLocationDeep(
       curY = Math.max(0, curY - top);
       curFrameId = matchedChild;
       curSession = page.getSessionForFrame(curFrameId);
-      continue; // descend
     } catch {
       return null;
     }
   }
-
-  return null; // depth exceeded
+  return null;
 }
 
 export async function captureHybridSnapshot(
