@@ -723,7 +723,25 @@ export class Page {
     y: number,
     deltaX: number,
     deltaY: number,
-  ): Promise<void> {
+    options?: { returnXpath?: boolean },
+  ): Promise<void | string> {
+    let xpathResult: string | undefined;
+    if (options?.returnXpath) {
+      try {
+        const hit = await resolveNodeForLocationDeep(this, x, y);
+        if (hit) {
+          const xp = await computeAbsoluteXPathForNode(
+            this,
+            hit.frameId,
+            hit.backendNodeId,
+          );
+          if (xp) xpathResult = xp;
+        }
+      } catch {
+        // best-effort
+      }
+    }
+
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -741,6 +759,8 @@ export class Page {
       deltaX,
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
+
+    if (options?.returnXpath) return xpathResult ?? "";
   }
 
   /**
@@ -756,8 +776,9 @@ export class Page {
       button?: "left" | "right" | "middle";
       steps?: number;
       delay?: number;
+      returnXpath?: boolean;
     },
-  ): Promise<void> {
+  ): Promise<void | [string, string]> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -777,6 +798,37 @@ export class Page {
           return 1;
       }
     };
+
+    let fromXpath: string | undefined;
+    let toXpath: string | undefined;
+    if (options?.returnXpath) {
+      try {
+        const start = await resolveNodeForLocationDeep(this, fromX, fromY);
+        if (start) {
+          const xp = await computeAbsoluteXPathForNode(
+            this,
+            start.frameId,
+            start.backendNodeId,
+          );
+          if (xp) fromXpath = xp;
+        }
+      } catch {
+        //
+      }
+      try {
+        const end = await resolveNodeForLocationDeep(this, toX, toY);
+        if (end) {
+          const xp = await computeAbsoluteXPathForNode(
+            this,
+            end.frameId,
+            end.backendNodeId,
+          );
+          if (xp) toXpath = xp;
+        }
+      } catch {
+        //
+      }
+    }
 
     // Move to start
     await this.updateCursor(fromX, fromY);
@@ -823,6 +875,8 @@ export class Page {
       buttons: buttonMask(button),
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
+
+    if (options?.returnXpath) return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**
