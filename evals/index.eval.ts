@@ -56,7 +56,7 @@ const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
 
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
-  : 1;
+  : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
 
