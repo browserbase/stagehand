@@ -273,6 +273,15 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { frame, args, xpath } = ctx;
   const key = args[0] ?? "";
   try {
+    v3Logger({
+      category: "action",
+      message: "pressing key",
+      level: 1,
+      auxiliary: {
+        key: { value: key, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
     await frame.session.send<never>("Input.dispatchKeyEvent", {
       type: "keyDown",
       key,

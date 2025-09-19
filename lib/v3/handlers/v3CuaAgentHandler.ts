@@ -4,6 +4,8 @@ import {
   AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
+  KeyPressActionStashEntry,
+  TypeActionStashEntry,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { V3 } from "@/lib/v3/v3";
@@ -12,6 +14,7 @@ import { AgentProvider } from "@/lib/agent/AgentProvider";
 import { mapKeyToPlaywright } from "@/lib/agent/utils/cuaKeyMapping";
 import { V3FunctionName } from "@/lib/v3/types";
 import { ToolSet } from "ai";
+import { computeActiveElementXpath } from "@/lib/v3/understudy/a11y/snapshot";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -198,6 +201,15 @@ export class V3CuaAgentHandler {
       case "type": {
         const { text } = action;
         await page.type(String(text ?? ""));
+        if (wantXpath) {
+          const xpath = await computeActiveElementXpath(page);
+          this.v3.recordActionStash({
+            type: "type",
+            text: String(text ?? ""),
+            xpath: String(xpath ?? ""),
+            ts: Date.now(),
+          } as TypeActionStashEntry);
+        }
         return { success: true };
       }
       case "keypress": {
@@ -207,6 +219,16 @@ export class V3CuaAgentHandler {
             const mapped = mapKeyToPlaywright(String(k));
             await page.keyPress(mapped);
           }
+        }
+        if (wantXpath) {
+          const mappedJoined = Array.isArray(keys)
+            ? keys.map((k) => mapKeyToPlaywright(String(k))).join(",")
+            : mapKeyToPlaywright(String(keys ?? ""));
+          this.v3.recordActionStash({
+            type: "keyPress",
+            keys: mappedJoined,
+            ts: Date.now(),
+          } as KeyPressActionStashEntry);
         }
         return { success: true };
       }

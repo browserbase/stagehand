@@ -224,6 +224,182 @@ export async function resolveXpathForLocation(
   return null;
 }
 
+/**
+ * Compute the absolute XPath for the currently focused element.
+ * - Detects which frame has focus via document.hasFocus().
+ * - Finds the deepest activeElement (dives into shadow DOM).
+ * - Builds an absolute, cross-frame XPath by prefixing iframe hosts.
+ */
+export async function computeActiveElementXpath(
+  page: Page,
+): Promise<string | null> {
+  // Build parent map from the frame tree so we can prefix through iframes
+  const tree = page.getFullFrameTree();
+  const parentByFrame = new Map<string, string | null>();
+  (function index(n: Protocol.Page.FrameTree, parent: string | null) {
+    parentByFrame.set(n.frame.id, parent);
+    for (const c of n.childFrames ?? []) index(c, n.frame.id);
+  })(tree, null);
+
+  // Probe for the focused frame
+  const frames = page.listAllFrameIds();
+  let focusedFrameId: string | null = null;
+  for (const fid of frames) {
+    const sess = page.getSessionForFrame(fid);
+    try {
+      await sess.send("Runtime.enable").catch(() => {});
+      const ctxId = await executionContexts
+        .waitForMainWorld(sess, fid, 1000)
+        .catch(() => {});
+      const evalParams = ctxId
+        ? {
+            contextId: ctxId,
+            expression: "document.hasFocus()===true",
+            returnByValue: true,
+          }
+        : { expression: "document.hasFocus()===true", returnByValue: true };
+      const { result } = await sess.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        evalParams,
+      );
+      if (result?.value === true) {
+        focusedFrameId = fid;
+        break;
+      }
+    } catch {
+      // keep looking
+    }
+  }
+  if (!focusedFrameId) focusedFrameId = page.mainFrameId();
+  const focusedSession = page.getSessionForFrame(focusedFrameId);
+
+  // Get deepest active element (including shadow)
+  let objectId: string | undefined;
+  try {
+    await focusedSession.send("Runtime.enable").catch(() => {});
+    const ctxId = await executionContexts
+      .waitForMainWorld(focusedSession, focusedFrameId, 1000)
+      .catch(() => {});
+    const expr = `(() => {
+      try {
+        function deepActive(doc) {
+          let el = doc.activeElement || null;
+          while (el && el.shadowRoot && el.shadowRoot.activeElement) {
+            el = el.shadowRoot.activeElement;
+          }
+          return el || null;
+        }
+        return deepActive(document);
+      } catch { return null; }
+    })()`;
+    const evalParams = ctxId
+      ? { contextId: ctxId, expression: expr, returnByValue: false }
+      : { expression: expr, returnByValue: false };
+    const { result } =
+      await focusedSession.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        evalParams,
+      );
+    objectId = result?.objectId as string | undefined;
+  } catch {
+    objectId = undefined;
+  }
+  if (!objectId) return null;
+
+  // Compute XPath in the focused session for the element
+  const leafXPath = await (async () => {
+    try {
+      const { result } = await focusedSession.send<{
+        result: { value?: string };
+      }>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: `function() {
+            try {
+              const node = this;
+              function sibIndex(n) {
+                let i = 1; const t = n.nodeType+':'+(n.nodeName||'').toLowerCase();
+                for (let p = n.previousSibling; p; p = p.previousSibling) {
+                  const key = p.nodeType+':'+(p.nodeName||'').toLowerCase();
+                  if (key === t) i++;
+                }
+                return i;
+              }
+              function step(n) {
+                if (!n) return '';
+                if (n.nodeType === Node.DOCUMENT_NODE) return '';
+                if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return '//';
+                if (n.nodeType === Node.TEXT_NODE) return 'text()[' + sibIndex(n) + ']';
+                if (n.nodeType === Node.COMMENT_NODE) return 'comment()[' + sibIndex(n) + ']';
+                const tag = (n.nodeName||'').toLowerCase();
+                const name = tag.includes(':') ? "*[name()='"+tag+"']" : tag;
+                return name + '[' + sibIndex(n) + ']';
+              }
+              const parts = [];
+              let cur = node;
+              while (cur) {
+                if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+                  parts.push('//');
+                  cur = (cur && cur.host) ? cur.host : null;
+                  continue;
+                }
+                const s = step(cur);
+                if (s) parts.push(s);
+                cur = cur.parentNode;
+              }
+              parts.reverse();
+              let out = '';
+              for (const s of parts) {
+                if (s === '//') out = out ? (out.endsWith('/') ? out + '/' : out + '//') : '//';
+                else out = out ? (out.endsWith('/') ? out + s : out + '/' + s) : '/' + s;
+              }
+              return out || '/';
+            } catch { return ''; }
+          }`,
+        returnByValue: true,
+      });
+      try {
+        await focusedSession.send("Runtime.releaseObject", { objectId });
+      } catch {
+        //
+      }
+      const xp = result?.value || "";
+      return typeof xp === "string" && xp ? xp : null;
+    } catch {
+      try {
+        await focusedSession.send("Runtime.releaseObject", { objectId });
+      } catch {
+        //
+      }
+      return null;
+    }
+  })();
+
+  if (!leafXPath) return null;
+
+  // Walk up to main frame, prefixing iframe host XPaths
+  let prefix = "";
+  let cur: string | null | undefined = focusedFrameId;
+  while (cur) {
+    const parent = parentByFrame.get(cur) ?? null;
+    if (!parent) break;
+    const parentSess = page.getSessionForFrame(parent);
+    try {
+      const { backendNodeId } = await parentSess.send<{
+        backendNodeId?: number;
+      }>("DOM.getFrameOwner", { frameId: cur });
+      if (typeof backendNodeId === "number") {
+        const xp = await absoluteXPathForBackendNode(parentSess, backendNodeId);
+        if (xp) prefix = prefix ? prefixXPath(prefix, xp) : normalizeXPath(xp);
+      }
+    } catch {
+      // ignore and continue upward
+    }
+    cur = parent;
+  }
+
+  return prefix ? prefixXPath(prefix, leafXPath) : normalizeXPath(leafXPath);
+}
+
 function scrollOffsetsExpr(): string {
   return "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})";
 }
