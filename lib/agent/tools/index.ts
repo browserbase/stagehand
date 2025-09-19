@@ -16,9 +16,27 @@ import { createSearchTool } from "./search";
 import { createKeysTool } from "./keys";
 import { createClickAndHoldTool } from "./clickAndHold";
 import { Stagehand } from "../../index";
+import type { ToolSet, ToolCallUnion, ToolResultUnion } from "ai";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
+  mainModel?: string;
+}
+
+function filterToolsByModelName(
+  modelName: string | undefined,
+  tools: ToolSet,
+): ToolSet {
+  const normalized = (modelName || "").toLowerCase().trim();
+  const isAnthropic = normalized.startsWith("claude");
+  if (isAnthropic) return tools;
+
+  const filtered: ToolSet = { ...tools } as ToolSet;
+  delete (filtered as Record<string, unknown>)["dragAndDrop"];
+  delete (filtered as Record<string, unknown>)["clickAndHold"];
+  delete (filtered as Record<string, unknown>)["click"];
+  delete (filtered as Record<string, unknown>)["type"];
+  return filtered;
 }
 
 export function createAgentTools(
@@ -27,7 +45,7 @@ export function createAgentTools(
 ) {
   const executionModel = options?.executionModel;
 
-  return {
+  const all = {
     act: createActTool(stagehand, executionModel),
     ariaTree: createAriaTreeTool(stagehand),
     click: createClickTool(stagehand),
@@ -44,7 +62,31 @@ export function createAgentTools(
     wait: createWaitTool(),
     search: createSearchTool(),
     keys: createKeysTool(stagehand),
-  };
+  } satisfies ToolSet;
+  return filterToolsByModelName(options?.mainModel, all);
 }
 
 export type AgentTools = ReturnType<typeof createAgentTools>;
+
+// Precise tool type map derived from our actual tool factories (type-only, not executed)
+export type AgentToolTypesMap = {
+  act: ReturnType<typeof createActTool>;
+  ariaTree: ReturnType<typeof createAriaTreeTool>;
+  click: ReturnType<typeof createClickTool>;
+  clickAndHold: ReturnType<typeof createClickAndHoldTool>;
+  dragAndDrop: ReturnType<typeof createDragAndDropTool>;
+  type: ReturnType<typeof createTypeTool>;
+  close: ReturnType<typeof createCloseTool>;
+  think: typeof thinkTool;
+  fillForm: ReturnType<typeof createFillFormTool>;
+  goto: ReturnType<typeof createGotoTool>;
+  navback: ReturnType<typeof createNavBackTool>;
+  screenshot: ReturnType<typeof createScreenshotTool>;
+  scroll: ReturnType<typeof createScrollTool>;
+  wait: ReturnType<typeof createWaitTool>;
+  search: ReturnType<typeof createSearchTool>;
+  keys: ReturnType<typeof createKeysTool>;
+};
+
+export type AgentToolCall = ToolCallUnion<AgentToolTypesMap>;
+export type AgentToolResult = ToolResultUnion<AgentToolTypesMap>;

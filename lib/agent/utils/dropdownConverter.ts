@@ -271,7 +271,6 @@ if (!window.__dropdownConverterInjected) {
   // Best effort: apply to the current document as well
   try {
     await page.waitForLoadState("domcontentloaded");
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   } catch {
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     Error;

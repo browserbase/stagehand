@@ -39,11 +39,8 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
         // Validate chunk number
         if (chunkNumber < 1 || chunkNumber > totalChunks) {
           return {
+            success: false,
             error: `Invalid chunk number ${chunkNumber}. Available chunks: 1-${totalChunks}`,
-            pageUrl,
-            totalChunks,
-            currentChunk: null as number | null,
-            content: null as string | null,
           };
         }
 
@@ -59,42 +56,27 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
         const hasMoreChunks = chunkNumber < totalChunks;
         const nextChunkNumber = hasMoreChunks ? chunkNumber + 1 : null;
 
+        // Return formatted content with all necessary information
+        let content = `Accessibility Tree - Chunk ${chunkNumber} of ${totalChunks} (characters ${startIndex + 1}-${endIndex} of ${totalCharacters})\n\n${chunkContent}`;
+
+        if (hasMoreChunks) {
+          content += `\n\n[CHUNK INCOMPLETE: This is chunk ${chunkNumber} of ${totalChunks}. To get the next chunk, call this tool again with chunkNumber: ${nextChunkNumber}]`;
+        } else {
+          content += `\n\n[CHUNK COMPLETE: This is the final chunk (${chunkNumber} of ${totalChunks})]`;
+        }
+
         return {
-          content: chunkContent,
-          pageUrl,
-          currentChunk: chunkNumber,
+          success: true,
+          content,
+          chunkNumber,
           totalChunks,
           hasMoreChunks,
-          nextChunkNumber,
-          chunkInfo: `Chunk ${chunkNumber} of ${totalChunks} (characters ${startIndex + 1}-${endIndex} of ${totalCharacters})`,
         };
       } catch {
         return {
+          success: false,
           error: `Error getting aria tree, try again`,
         };
       }
-    },
-    experimental_toToolResultContent: (result) => {
-      if (result.error) {
-        return [{ type: "text", text: `Error, try again: ${result.error}` }];
-      }
-
-      if (typeof result === "string") {
-        return [{ type: "text", text: `Accessibility Tree:\n${result}` }];
-      }
-
-      if (result.error) {
-        return [{ type: "text", text: `Error: ${result.error}` }];
-      }
-
-      let text = `Accessibility Tree - ${result.chunkInfo}\n\n${result.content}`;
-
-      if (result.hasMoreChunks) {
-        text += `\n\n[CHUNK INCOMPLETE: This is chunk ${result.currentChunk} of ${result.totalChunks}. To get the next chunk, call this tool again with chunkNumber: ${result.nextChunkNumber}]`;
-      } else {
-        text += `\n\n[CHUNK COMPLETE: This is the final chunk (${result.currentChunk} of ${result.totalChunks})]`;
-      }
-
-      return [{ type: "text", text }];
     },
   });

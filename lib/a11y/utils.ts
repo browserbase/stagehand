@@ -131,7 +131,7 @@ export async function buildBackendIdMaps(
   targetFrame?: Frame,
 ): Promise<BackendIdMaps> {
   // 0. choose CDP session
-  let session: CDPSession;
+  let session: CDPSession | null;
   if (!targetFrame || targetFrame === sp.page.mainFrame()) {
     session = await sp.getCDPClient();
   } else {
@@ -142,9 +142,14 @@ export async function buildBackendIdMaps(
     }
   }
 
+  if (!session) {
+    throw new Error("Cannot build backend ID maps: CDP session unavailable");
+  }
+
+  const enableMainCDPClient = await sp.getCDPClient();
   await sp.enableCDP(
     "DOM",
-    session === (await sp.getCDPClient()) ? undefined : targetFrame,
+    session === enableMainCDPClient ? undefined : targetFrame,
   );
 
   try {
@@ -159,10 +164,11 @@ export async function buildBackendIdMaps(
     let rootFid: string | undefined =
       targetFrame && (await getCDPFrameId(sp, targetFrame));
 
+    const mainCDPClient = await sp.getCDPClient();
     if (
       targetFrame &&
       targetFrame !== sp.page.mainFrame() &&
-      session === (await sp.getCDPClient())
+      session === mainCDPClient
     ) {
       // same-proc iframe: walk down to its contentDocument
       const frameId = rootFid!;
@@ -276,9 +282,10 @@ export async function buildBackendIdMaps(
 
     return { tagNameMap, xpathMap };
   } finally {
+    const finalMainCDPClient = await sp.getCDPClient();
     await sp.disableCDP(
       "DOM",
-      session === (await sp.getCDPClient()) ? undefined : targetFrame,
+      session === finalMainCDPClient ? undefined : targetFrame,
     );
   }
 }

@@ -14,7 +14,8 @@ import chalk from "chalk";
 // Load environment variables
 dotenv.config();
 
-const INSTRUCTION = "buy me shampoo on amazon using random info";
+const INSTRUCTION =
+  "buy me shampoo on amazon using random info, when you get to login page, go to make account, enter email, then call it a day";
 
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);

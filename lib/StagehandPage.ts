@@ -26,7 +26,6 @@ import {
   HandlerNotInitializedError,
   StagehandDefaultError,
   ExperimentalApiConflictError,
-  StagehandCDPError,
 } from "../types/stagehandErrors";
 import { StagehandAPIError } from "@/types/stagehandApiErrors";
 import { scriptContent } from "@/lib/dom/build/scriptContent";
@@ -525,11 +524,22 @@ ${scriptContent} \
       };
 
       const session = await this.getCDPClient(this.rawPage);
-      await session.send("Page.enable");
-
-      const rootId = await getCurrentRootFrameId(session);
-      this.updateRootFrameId(rootId);
-      this.intContext.registerFrameId(rootId, this);
+      if (session) {
+        await session.send("Page.enable");
+        const rootId = await getCurrentRootFrameId(session);
+        this.updateRootFrameId(rootId);
+        this.intContext.registerFrameId(rootId, this);
+      } else {
+        // Fallback: use a default frame ID when CDP is unavailable
+        this.updateRootFrameId("default");
+        this.intContext.registerFrameId("default", this);
+        this.stagehand.log({
+          category: "cdp",
+          message:
+            "CDP session unavailable during initialization, using fallback",
+          level: 1,
+        });
+      }
 
       this.intPage = new Proxy(page, handler) as unknown as Page;
 
@@ -589,6 +599,18 @@ ${scriptContent} \
   public async _waitForSettledDom(timeoutMs?: number): Promise<void> {
     const timeout = timeoutMs ?? this.stagehand.domSettleTimeoutMs;
     const client = await this.getCDPClient();
+
+    if (!client) {
+      this.stagehand.log({
+        category: "dom",
+        message: "DOM settling skipped: CDP session unavailable",
+        level: 1,
+      });
+      // Fallback to basic page load waiting
+      const hasDoc = !!(await this.page.title().catch(() => false));
+      if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
+      return;
+    }
 
     const hasDoc = !!(await this.page.title().catch(() => false));
     if (!hasDoc) await this.page.waitForLoadState("domcontentloaded");
@@ -1082,7 +1104,7 @@ ${scriptContent} \
   async getCDPClient(
     target: PlaywrightPage | Frame = this.page,
     retries = 3,
-  ): Promise<CDPSession> {
+  ): Promise<CDPSession | null> {
     const cached = this.cdpClients.get(target);
     if (cached) {
       // Check if cached session is still valid
@@ -1097,7 +1119,7 @@ ${scriptContent} \
 
     const attemptCDPConnection = async (
       attempt: number,
-    ): Promise<CDPSession> => {
+    ): Promise<CDPSession | null> => {
       try {
         // Check if target (page/frame) is still valid before creating session
         if (
@@ -1105,12 +1127,28 @@ ${scriptContent} \
           "isDetached" in target &&
           target.isDetached()
         ) {
-          throw new StagehandCDPError("Target frame is detached");
+          this.stagehand.log({
+            category: "cdp",
+            message: "Target frame is detached, cannot create CDP session",
+            level: 1,
+            auxiliary: {
+              targetType: { value: "frame", type: "string" },
+            },
+          });
+          return null;
         }
 
         // For pages, check if it's closed
         if ("isClosed" in target && target.isClosed()) {
-          throw new StagehandCDPError("Target page is closed");
+          this.stagehand.log({
+            category: "cdp",
+            message: "Target page is closed, cannot create CDP session",
+            level: 1,
+            auxiliary: {
+              targetType: { value: "page", type: "string" },
+            },
+          });
+          return null;
         }
 
         const session = await this.context.newCDPSession(target);
@@ -1123,8 +1161,10 @@ ${scriptContent} \
         if (msg.includes("does not have a separate CDP session")) {
           // Re-use / create the top-level session instead
           const rootSession = await this.getCDPClient(this.page, retries);
-          // cache the alias so we don't try again for this frame
-          this.cdpClients.set(target, rootSession);
+          if (rootSession) {
+            // cache the alias so we don't try again for this frame
+            this.cdpClients.set(target, rootSession);
+          }
           return rootSession;
         }
 
@@ -1161,18 +1201,13 @@ ${scriptContent} \
             return attemptCDPConnection(attempt + 1);
           }
 
-          // If this is for a frame and main page fails, throw a more descriptive error
-          if (target !== this.page) {
-            throw new StagehandCDPError(
-              `Failed to create CDP session for frame: ${msg}. Page may have been closed or navigated.`,
-              err as Error,
-            );
-          }
-
-          throw new StagehandCDPError(
-            `Failed to create CDP session after ${retries} attempts: ${msg}. Page context may be invalid.`,
-            err as Error,
-          );
+          // Return null instead of throwing - let callers handle gracefully
+          this.stagehand.log({
+            category: "cdp",
+            message: `Cannot create CDP session: ${msg}. Operations requiring CDP will be skipped.`,
+            level: 1,
+          });
+          return null;
         }
 
         throw err;
@@ -1195,9 +1230,18 @@ ${scriptContent} \
     method: string,
     params: Record<string, unknown> = {},
     target?: PlaywrightPage | Frame,
-  ): Promise<T> {
+  ): Promise<T | null> {
     try {
       const client = await this.getCDPClient(target ?? this.page);
+
+      if (!client) {
+        this.stagehand.log({
+          category: "cdp",
+          message: `Cannot send CDP command ${method}: no valid session available`,
+          level: 1,
+        });
+        return null;
+      }
 
       return (await client.send(
         method as Parameters<CDPSession["send"]>[0],
@@ -1233,6 +1277,14 @@ ${scriptContent} \
 
         try {
           const newClient = await this.getCDPClient(target ?? this.page);
+          if (!newClient) {
+            this.stagehand.log({
+              category: "cdp",
+              message: `CDP command retry failed: ${method} - no valid session available`,
+              level: 1,
+            });
+            return null;
+          }
           return (await newClient.send(
             method as Parameters<CDPSession["send"]>[0],
             params as Parameters<CDPSession["send"]>[1],
