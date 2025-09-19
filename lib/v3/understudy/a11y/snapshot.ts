@@ -55,31 +55,19 @@ export type HybridSnapshot = {
 };
 
 /**
- * Compute an absolute XPath for a given backendNodeId within a specific frame.
- * Uses the existing hybrid snapshot machinery to ensure iframe-aware paths.
+ * Resolve deepest node for a page coordinate and compute its absolute XPath across frames.
+ * More efficient than building a full hybrid snapshot when only a single node’s XPath is needed.
  */
-export async function computeAbsoluteXPathForNode(
-  page: Page,
-  frameId: string,
-  backendNodeId: number,
-): Promise<string | null> {
-  const snap = await captureHybridSnapshot(page);
-  const encId = `${page.getOrdinal(frameId)}-${backendNodeId}`;
-  return snap.combinedXpathMap[encId] ?? null;
-}
-
-/**
- * Resolve the deepest node at the given page coordinates, traversing into
- * same-process iframes and OOPIFs by mapping the iframe host element to the
- * child frame and translating coordinates into the child viewport space.
- */
-export async function resolveNodeForLocationDeep(
+export async function resolveXpathForLocation(
   page: Page,
   x: number,
   y: number,
-): Promise<{ frameId: string; backendNodeId: number } | null> {
-  // Build a parent map from the unified frame tree maintained by Page.
-  // This lets us map an <iframe> host element to its child frame id.
+): Promise<{
+  frameId: string;
+  backendNodeId: number;
+  absoluteXPath: string;
+} | null> {
+  // Build a parent map from the unified frame tree maintained by Page (same as the plain resolver).
   const tree = page.getFullFrameTree();
   const parentByFrame = new Map<string, string | null>();
   (function index(n: Protocol.Page.FrameTree, parent: string | null) {
@@ -87,18 +75,23 @@ export async function resolveNodeForLocationDeep(
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(tree, null);
 
-  // Current traversal state: start at the main frame in the top-level session.
+  // Track iframe hosts encountered so we can build the absolute prefix later.
+  const iframeChain: Array<{
+    parentFrameId: string;
+    parentSession: CDPSessionLike;
+    iframeBackendNodeId: number;
+  }> = [];
+
   let curFrameId = page.mainFrameId();
   let curSession = page.getSessionForFrame(curFrameId);
-  let curX = x; // coordinates relative to current frame's viewport
+  let curX = x;
   let curY = y;
 
   for (let depth = 0; depth < 8; depth++) {
     try {
       await curSession.send("DOM.enable").catch(() => {});
 
-      // Convert viewport → document coordinates for this frame by adding scroll offsets.
-      // DOM.getNodeForLocation expects document-based CSS pixels.
+      // Convert viewport coords → document coords (add scroll offsets)
       let sx = 0;
       let sy = 0;
       try {
@@ -106,39 +99,24 @@ export async function resolveNodeForLocationDeep(
         const ctxId = await executionContexts
           .waitForMainWorld(curSession, curFrameId)
           .catch(() => {});
-        if (ctxId) {
-          const { result } = await curSession.send<{
-            result: { value?: { sx?: number; sy?: number } };
-          }>("Runtime.evaluate", {
-            contextId: ctxId,
-            expression:
-              "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})",
-            returnByValue: true,
-          });
-          sx = Number(result?.value?.sx ?? 0);
-          sy = Number(result?.value?.sy ?? 0);
-        } else {
-          // Fallback: evaluate without explicit context
-          const { result } = await curSession.send<{
-            result: { value?: { sx?: number; sy?: number } };
-          }>("Runtime.evaluate", {
-            expression:
-              "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})",
-            returnByValue: true,
-          });
-          sx = Number(result?.value?.sx ?? 0);
-          sy = Number(result?.value?.sy ?? 0);
-        }
+        const evalParams = ctxId
+          ? {
+              contextId: ctxId,
+              expression: scrollOffsetsExpr(),
+              returnByValue: true,
+            }
+          : { expression: scrollOffsetsExpr(), returnByValue: true };
+        const { result } = await curSession.send<{
+          result: { value?: { sx?: number; sy?: number } };
+        }>("Runtime.evaluate", evalParams);
+        sx = Number(result?.value?.sx ?? 0);
+        sy = Number(result?.value?.sy ?? 0);
       } catch {
-        // best-effort; leave sx/sy as 0 if reading fails
+        // ignore
       }
-      const xDoc = curX + sx;
-      const yDoc = curY + sy;
-      // Floor to integer CSS pixels as required by CDP
-      const xi = Math.max(0, Math.floor(xDoc));
-      const yi = Math.max(0, Math.floor(yDoc));
+      const xi = Math.max(0, Math.floor(curX + sx));
+      const yi = Math.max(0, Math.floor(curY + sy));
 
-      // Hit-test within the current frame's owning session using document coordinates.
       let res: { backendNodeId?: number; frameId?: string } | undefined;
       try {
         res = await curSession.send<{
@@ -156,20 +134,25 @@ export async function resolveNodeForLocationDeep(
 
       const be = res?.backendNodeId;
       const reportedFrameId = res?.frameId;
-
-      // If CDP reports the concrete frame id and it differs, return that hit directly.
       if (
         typeof be === "number" &&
         reportedFrameId &&
         reportedFrameId !== curFrameId
-      )
-        return { frameId: reportedFrameId, backendNodeId: be };
-
-      if (typeof be !== "number") {
-        return null;
+      ) {
+        // Fast-path when CDP reports the child frame directly; build combined XPath.
+        const abs = await buildAbsoluteXPathFromChain(
+          iframeChain,
+          curSession,
+          be,
+        );
+        return abs
+          ? { frameId: reportedFrameId, backendNodeId: be, absoluteXPath: abs }
+          : null;
       }
 
-      // Check if the hit node is an <iframe> host for any child frame; if not, we are done.
+      if (typeof be !== "number") return null;
+
+      // Is this an iframe host for one of our child frames?
       let matchedChild: string | undefined;
       for (const fid of listChildrenOf(parentByFrame, curFrameId)) {
         try {
@@ -181,17 +164,30 @@ export async function resolveNodeForLocationDeep(
             break;
           }
         } catch {
-          // ignore and try next child
+          // continue
         }
       }
 
       if (!matchedChild) {
-        // Not an iframe host → final hit inside current frame.
-        return { frameId: curFrameId, backendNodeId: be };
+        // Final target in current frame → build absolute xpath and return
+        const abs = await buildAbsoluteXPathFromChain(
+          iframeChain,
+          curSession,
+          be,
+        );
+        return abs
+          ? { frameId: curFrameId, backendNodeId: be, absoluteXPath: abs }
+          : null;
       }
 
-      // Translate coordinates into the child's viewport by subtracting the
-      // parent's iframe element bounding rect, then continue traversal in the child.
+      // Descend into child: record the iframe host for the absolute prefix
+      iframeChain.push({
+        parentFrameId: curFrameId,
+        parentSession: curSession,
+        iframeBackendNodeId: be,
+      });
+
+      // Translate into child's viewport
       let left = 0;
       let top = 0;
       try {
@@ -215,9 +211,8 @@ export async function resolveNodeForLocationDeep(
             .catch(() => {});
         }
       } catch {
-        // fall through with 0,0 offset
+        // ignore
       }
-
       curX = Math.max(0, curX - left);
       curY = Math.max(0, curY - top);
       curFrameId = matchedChild;
@@ -227,6 +222,107 @@ export async function resolveNodeForLocationDeep(
     }
   }
   return null;
+}
+
+function scrollOffsetsExpr(): string {
+  return "({sx:(window.scrollX||window.pageXOffset||0),sy:(window.scrollY||window.pageYOffset||0)})";
+}
+
+async function buildAbsoluteXPathFromChain(
+  chain: Array<{
+    parentFrameId: string;
+    parentSession: CDPSessionLike;
+    iframeBackendNodeId: number;
+  }>,
+  leafSession: CDPSessionLike,
+  leafBackendNodeId: number,
+): Promise<string | null> {
+  let prefix = "";
+  for (const step of chain) {
+    const xp = await absoluteXPathForBackendNode(
+      step.parentSession,
+      step.iframeBackendNodeId,
+    );
+    if (!xp) continue;
+    prefix = prefix ? prefixXPath(prefix, xp) : normalizeXPath(xp);
+  }
+  const leaf = await absoluteXPathForBackendNode(
+    leafSession,
+    leafBackendNodeId,
+  );
+  if (!leaf) return prefix || "/";
+  return prefix ? prefixXPath(prefix, leaf) : normalizeXPath(leaf);
+}
+
+async function absoluteXPathForBackendNode(
+  session: CDPSessionLike,
+  backendNodeId: number,
+): Promise<string | null> {
+  try {
+    const { object } = await session.send<{ object: { objectId?: string } }>(
+      "DOM.resolveNode",
+      { backendNodeId },
+    );
+    const objectId = object?.objectId;
+    if (!objectId) return null;
+
+    const { result } = await session.send<{ result: { value?: string } }>(
+      "Runtime.callFunctionOn",
+      {
+        objectId,
+        functionDeclaration: `function() {
+          try {
+            const node = this;
+            function sibIndex(n) {
+              let i = 1; const t = n.nodeType+':'+(n.nodeName||'').toLowerCase();
+              for (let p = n.previousSibling; p; p = p.previousSibling) {
+                const key = p.nodeType+':'+(p.nodeName||'').toLowerCase();
+                if (key === t) i++;
+              }
+              return i;
+            }
+            function step(n) {
+              if (!n) return '';
+              if (n.nodeType === Node.DOCUMENT_NODE) return '';
+              if (n.nodeType === Node.DOCUMENT_FRAGMENT_NODE) return '//'; // ShadowRoot hop
+              if (n.nodeType === Node.TEXT_NODE) return 'text()[' + sibIndex(n) + ']';
+              if (n.nodeType === Node.COMMENT_NODE) return 'comment()[' + sibIndex(n) + ']';
+              const tag = (n.nodeName||'').toLowerCase();
+              const name = tag.includes(':') ? "*[name()='"+tag+"']" : tag;
+              return name + '[' + sibIndex(n) + ']';
+            }
+            const parts = [];
+            let cur = node;
+            while (cur) {
+              // Insert a marker before stepping out of a ShadowRoot
+              if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+                parts.push('//');
+                cur = (cur && cur.host) ? cur.host : null;
+                continue;
+              }
+              const s = step(cur);
+              if (s) parts.push(s);
+              cur = cur.parentNode;
+            }
+            parts.reverse();
+            let out = '';
+            for (const s of parts) {
+              if (s === '//') out = out ? (out.endsWith('/') ? out + '/' : out + '//') : '//';
+              else out = out ? (out.endsWith('/') ? out + s : out + '/' + s) : '/' + s;
+            }
+            return out || '/';
+          } catch { return ''; }
+        }`,
+        returnByValue: true,
+      },
+    );
+    await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    return typeof result?.value === "string" && result.value
+      ? result.value
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function captureHybridSnapshot(
