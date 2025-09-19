@@ -4,10 +4,7 @@ import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
-import {
-  computeAbsoluteXPathForNode,
-  resolveNodeForLocationDeep,
-} from "./a11y/snapshot";
+import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types";
 
@@ -652,9 +649,9 @@ export class Page {
 
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
-      // Resolve the deepest node at the given coordinates (handles OOPIF)
+      // Resolve the deepest node at the given coordinates and compute absolute XPath efficiently
       try {
-        const hit = await resolveNodeForLocationDeep(this, x, y);
+        const hit = await resolveXpathForLocation(this, x, y);
         if (hit) {
           v3Logger({
             category: "page",
@@ -670,12 +667,7 @@ export class Page {
               y: { value: String(y), type: "integer" },
             },
           });
-          const xp = await computeAbsoluteXPathForNode(
-            this,
-            hit.frameId,
-            hit.backendNodeId,
-          );
-          if (xp) xpathResult = xp;
+          xpathResult = hit.absoluteXPath;
           v3Logger({
             category: "page",
             message: `click resolved xpath`,
@@ -728,15 +720,8 @@ export class Page {
     let xpathResult: string | undefined;
     if (options?.returnXpath) {
       try {
-        const hit = await resolveNodeForLocationDeep(this, x, y);
-        if (hit) {
-          const xp = await computeAbsoluteXPathForNode(
-            this,
-            hit.frameId,
-            hit.backendNodeId,
-          );
-          if (xp) xpathResult = xp;
-        }
+        const hit = await resolveXpathForLocation(this, x, y);
+        if (hit) xpathResult = hit.absoluteXPath;
       } catch {
         // best-effort
       }
@@ -803,28 +788,14 @@ export class Page {
     let toXpath: string | undefined;
     if (options?.returnXpath) {
       try {
-        const start = await resolveNodeForLocationDeep(this, fromX, fromY);
-        if (start) {
-          const xp = await computeAbsoluteXPathForNode(
-            this,
-            start.frameId,
-            start.backendNodeId,
-          );
-          if (xp) fromXpath = xp;
-        }
+        const start = await resolveXpathForLocation(this, fromX, fromY);
+        if (start) fromXpath = start.absoluteXPath;
       } catch {
         //
       }
       try {
-        const end = await resolveNodeForLocationDeep(this, toX, toY);
-        if (end) {
-          const xp = await computeAbsoluteXPathForNode(
-            this,
-            end.frameId,
-            end.backendNodeId,
-          );
-          if (xp) toXpath = xp;
-        }
+        const end = await resolveXpathForLocation(this, toX, toY);
+        if (end) toXpath = end.absoluteXPath;
       } catch {
         //
       }

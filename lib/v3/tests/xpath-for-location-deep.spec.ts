@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../../v3/v3";
 import { v3TestConfig } from "./v3.config";
-import {
-  computeAbsoluteXPathForNode,
-  resolveNodeForLocationDeep,
-} from "@/lib/v3/understudy/a11y/snapshot";
+import { resolveXpathForLocation } from "@/lib/v3/understudy/a11y/snapshot";
 
 test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;
@@ -33,13 +30,9 @@ test.describe("resolveNodeForLocationDeep", () => {
     await frame.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
-    const result = await resolveNodeForLocationDeep(page, 206, 563);
+    const result = await resolveXpathForLocation(page, 206, 563);
     console.log(result);
-    const xpath = await computeAbsoluteXPathForNode(
-      page,
-      result.frameId,
-      result.backendNodeId,
-    );
+    const xpath = result.absoluteXPath;
     expect(xpath).toBe(
       "/html[1]/body[1]/main[1]/section[3]/iframe[1]/html[1]/body[1]/center[1]/table[1]/tbody[1]/tr[3]/td[1]/table[1]/tbody[1]/tr[88]/td[3]/span[1]/a[1]",
     );
