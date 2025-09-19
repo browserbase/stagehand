@@ -54,6 +54,8 @@ import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "@/lib/mcp/utils";
 import { defaultExtractSchema, pageTextSchema } from "@/types/page";
+import type { ActionStashEntry } from "@/types/agent";
+import { performUnderstudyMethod } from "@/lib/v3/handlers/handlerUtils/actHandlerUtils";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -98,6 +100,7 @@ export class V3 {
   private readonly instanceId: string;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
+  private _actionStash: ActionStashEntry[] = [];
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -123,6 +126,79 @@ export class V3 {
    */
   public get metrics(): Promise<V3Metrics> {
     return Promise.resolve(this.v3Metrics);
+  }
+
+  /**
+   * Async getter for the current action stash as a read-only copy.
+   */
+  public async actionStash(): Promise<ReadonlyArray<ActionStashEntry>> {
+    return Object.freeze([...this._actionStash]);
+  }
+
+  /**
+   * Clear the internal action stash.
+   */
+  public clearActionStash(): void {
+    this._actionStash = [];
+  }
+
+  /**
+   * Append an entry to the action stash.
+   */
+  public recordActionStash(entry: ActionStashEntry): void {
+    this._actionStash.push(entry);
+  }
+
+  /**
+   * Replay a sequence of stashed coordinate-based actions using their XPaths.
+   * - click/doubleClick: resolves XPath → element and clicks it.
+   * - scroll: scrolls the element into view.
+   * - dragAndDrop: resolves both endpoints and performs a drag between them.
+   */
+  public async replay(stash: ReadonlyArray<ActionStashEntry>): Promise<void> {
+    const page = await this.context.awaitActivePage();
+    const list = [...stash].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    let prevTs: number | null = null;
+    for (const entry of list) {
+      if (prevTs !== null) {
+        const delay = Math.max(0, (entry.ts || 0) - prevTs);
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+      }
+      prevTs = entry.ts || Date.now();
+      if (entry.type === "click") {
+        await performUnderstudyMethod(
+          page,
+          page.mainFrame(),
+          "click",
+          entry.xpath,
+          [],
+        );
+      } else if (entry.type === "doubleClick") {
+        await performUnderstudyMethod(
+          page,
+          page.mainFrame(),
+          "doubleClick",
+          entry.xpath,
+          [],
+        );
+      } else if (entry.type === "scroll") {
+        await performUnderstudyMethod(
+          page,
+          page.mainFrame(),
+          "scrollByPixelOffset",
+          entry.xpath,
+          [entry.dx, entry.dy],
+        );
+      } else if (entry.type === "dragAndDrop") {
+        await performUnderstudyMethod(
+          page,
+          page.mainFrame(),
+          "dragAndDrop",
+          entry.fromXpath,
+          [entry.toXpath],
+        );
+      }
+    }
   }
 
   /**

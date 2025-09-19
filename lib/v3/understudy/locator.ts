@@ -32,6 +32,11 @@ export class Locator {
     private readonly options?: { deep?: boolean; depth?: number },
   ) {}
 
+  /** Return the owning Frame for this locator (typed accessor, no private access). */
+  public getFrame(): Frame {
+    return this.frame;
+  }
+
   /**
    * Return the DOM backendNodeId for this locator's target element.
    * Useful for identity comparisons without needing element handles.
@@ -46,6 +51,31 @@ export class Locator {
         { objectId },
       );
       return node.backendNodeId as Protocol.DOM.BackendNodeId;
+    } finally {
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
+   * Return the center of the element's bounding box in the owning frame's viewport
+   * (CSS pixels), rounded to integers. Scrolls into view best-effort.
+   */
+  public async centroid(): Promise<{ x: number; y: number }> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
+      );
+      if (!box.model) throw new Error("Element not visible (no box model)");
+      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
       await session
         .send<never>("Runtime.releaseObject", { objectId })
