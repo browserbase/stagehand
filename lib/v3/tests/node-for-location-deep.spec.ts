@@ -6,7 +6,7 @@ import {
   resolveNodeForLocationDeep,
 } from "@/lib/v3/understudy/a11y/snapshot";
 
-test.describe("resolveNodeForLocationDeep via Page.click(returnXpath)", () => {
+test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
