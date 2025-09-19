@@ -529,4 +529,248 @@ Each operation creates detailed logs for analysis:
 </Accordion>
 </AccordionGroup>
 
+## Operation History
+
+Track all Stagehand operations with the built-in history feature. The `stagehand.history` property provides a chronological record of every method call during your automation session.
+
+### Basic Usage
+
+Access the complete history of all operations performed in the current session:
+
+<CodeGroup>
+```typescript TypeScript
+// Get operation history
+const history = stagehand.history;
+console.log('Total operations:', history.length);
+
+// Examine entries
+history.forEach((entry, index) => {
+  console.log(`${index + 1}. ${entry.method} at ${entry.timestamp}`);
+});
+```
+
+```python Python
+# Get operation history
+history = stagehand.history
+print(f'Total operations: {len(history)}')
+
+# Examine entries
+for index, entry in enumerate(history):
+    print(f"{index + 1}. {entry['method']} at {entry['timestamp']}")
+```
+</CodeGroup>
+
+### Analyzing Operation History
+
+Use history data to analyze automation patterns, performance, and debugging:
+
+<CodeGroup>
+```typescript TypeScript
+function analyzeHistory(history: ReadonlyArray<HistoryEntry>) {
+  // Operation frequency analysis
+  const operationCounts = history.reduce((acc, entry) => {
+    acc[entry.method] = (acc[entry.method] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Timing analysis
+  const timestamps = history.map(entry => new Date(entry.timestamp));
+  const totalDuration = timestamps[timestamps.length - 1].getTime() - timestamps[0].getTime();
+
+  // Success rate analysis
+  const successfulOperations = history.filter(entry =>
+    entry.result !== null &&
+    (typeof entry.result !== 'object' || !('error' in entry.result))
+  ).length;
+
+  return {
+    totalOperations: history.length,
+    operationCounts,
+    totalDurationMs: totalDuration,
+    averageOperationTime: totalDuration / history.length,
+    successRate: (successfulOperations / history.length) * 100
+  };
+}
+
+// Example usage
+const analysis = analyzeHistory(stagehand.history);
+console.log('Automation Analysis:', {
+  operations: analysis.operationCounts,
+  duration: `${analysis.totalDurationMs}ms`,
+  successRate: `${analysis.successRate.toFixed(1)}%`,
+  avgOperationTime: `${analysis.averageOperationTime.toFixed(0)}ms`
+});
+```
+
+```python Python
+from datetime import datetime
+from typing import List, Dict, Any
+
+def analyze_history(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    # Operation frequency analysis
+    operation_counts = {}
+    for entry in history:
+        method = entry['method']
+        operation_counts[method] = operation_counts.get(method, 0) + 1
+
+    # Timing analysis
+    timestamps = [datetime.fromisoformat(entry['timestamp'].replace('Z', '+00:00'))
+                 for entry in history]
+    total_duration = (timestamps[-1] - timestamps[0]).total_seconds() * 1000  # ms
+
+    # Success rate analysis
+    successful_operations = len([
+        entry for entry in history
+        if entry['result'] is not None and
+           (not isinstance(entry['result'], dict) or 'error' not in entry['result'])
+    ])
+
+    return {
+        'total_operations': len(history),
+        'operation_counts': operation_counts,
+        'total_duration_ms': total_duration,
+        'average_operation_time': total_duration / len(history) if history else 0,
+        'success_rate': (successful_operations / len(history)) * 100 if history else 0
+    }
+
+# Example usage
+analysis = analyze_history(stagehand.history)
+print('Automation Analysis:', {
+    'operations': analysis['operation_counts'],
+    'duration': f"{analysis['total_duration_ms']:.0f}ms",
+    'success_rate': f"{analysis['success_rate']:.1f}%",
+    'avg_operation_time': f"{analysis['average_operation_time']:.0f}ms"
+})
+```
+</CodeGroup>
+
+### History-Based Debugging
+
+Leverage history data for debugging failed automations and optimization:
+
+<CodeGroup>
+```typescript TypeScript
+function debugAutomation(history: ReadonlyArray<HistoryEntry>) {
+  console.log('=== Automation Debug Report ===\n');
+
+  history.forEach((entry, index) => {
+    const timestamp = new Date(entry.timestamp).toLocaleTimeString();
+    const hasError = entry.result && typeof entry.result === 'object' && 'error' in entry.result;
+
+    console.log(`${index + 1}. [${timestamp}] ${entry.method.toUpperCase()}`);
+
+    if (hasError) {
+      console.log(`   ❌ ERROR:`, entry.result);
+    } else if (entry.result) {
+      console.log(`   ✅ Success:`, typeof entry.result === 'object' ?
+        `${Object.keys(entry.result).length} properties` :
+        entry.result);
+    } else {
+      console.log(`   ⏳ No result returned`);
+    }
+    console.log();
+  });
+
+  // Identify potential issues
+  const failedOperations = history.filter(entry =>
+    entry.result && typeof entry.result === 'object' && 'error' in entry.result
+  );
+
+  if (failedOperations.length > 0) {
+    console.log('🚨 Failed Operations:');
+    failedOperations.forEach(op => {
+      console.log(`   - ${op.method} at ${op.timestamp}`);
+    });
+  }
+}
+
+// Use during development or error handling
+try {
+  // ... automation code
+} catch (error) {
+  console.error('Automation failed:', error);
+  debugAutomation(stagehand.history);
+}
+```
+
+```python Python
+from datetime import datetime
+
+def debug_automation(history):
+    print('=== Automation Debug Report ===\n')
+
+    for index, entry in enumerate(history):
+        timestamp = datetime.fromisoformat(entry['timestamp'].replace('Z', '+00:00')).strftime('%H:%M:%S')
+        has_error = (entry['result'] and
+                    isinstance(entry['result'], dict) and
+                    'error' in entry['result'])
+
+        print(f"{index + 1}. [{timestamp}] {entry['method'].upper()}")
+
+        if has_error:
+            print(f"   ❌ ERROR: {entry['result']}")
+        elif entry['result']:
+            result_desc = (f"{len(entry['result'])} properties"
+                          if isinstance(entry['result'], dict)
+                          else entry['result'])
+            print(f"   ✅ Success: {result_desc}")
+        else:
+            print(f"   ⏳ No result returned")
+        print()
+
+    # Identify potential issues
+    failed_operations = [
+        entry for entry in history
+        if (entry['result'] and
+            isinstance(entry['result'], dict) and
+            'error' in entry['result'])
+    ]
+
+    if failed_operations:
+        print('🚨 Failed Operations:')
+        for op in failed_operations:
+            print(f"   - {op['method']} at {op['timestamp']}")
+
+# Use during development or error handling
+try:
+    # ... automation code
+    pass
+except Exception as error:
+    print(f'Automation failed: {error}')
+    debug_automation(stagehand.history)
+```
+</CodeGroup>
+
+### History Best Practices
+
+<AccordionGroup>
+<Accordion title="Performance Monitoring">
+- Use history timestamps to identify slow operations
+- Track operation patterns that indicate performance bottlenecks
+- Monitor success rates across different operation types
+- Analyze timing gaps between operations to optimize workflow efficiency
+</Accordion>
+
+<Accordion title="Debugging & Troubleshooting">
+- Examine results for failed operations to understand error patterns
+- Use history to reproduce specific automation sequences
+- Identify recurring patterns in automation failures
+- Compare successful and failed automation histories
+</Accordion>
+
+<Accordion title="Automation Optimization">
+- Analyze operation frequency to identify redundant actions
+- Use timing data to optimize operation sequencing
+- Monitor result patterns to improve extraction accuracy
+- Track which operations consume the most time in your workflows
+</Accordion>
+
+<Accordion title="Session Management">
+- History is session-scoped and resets when Stagehand is reinitialized
+- Use history data before closing sessions for complete analysis
+- Consider exporting history data for long-term analytics
+- Combine with metrics data for comprehensive automation insights
+</Accordion>
+</AccordionGroup>
+
 For detailed logging and debugging capabilities, see [Logging](/configuration/logging).
