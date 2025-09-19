@@ -11,28 +11,29 @@ export async function takeOptimizedScreenshot(
   scaleFactor: number = 0.75,
 ): Promise<Buffer> {
   try {
-    // Get current viewport
-    const viewport = page.viewportSize();
-    if (!viewport) {
-      // Take regular screenshot if viewport not available
-      return await page.screenshot({ type: "jpeg", quality: 70 });
+    // Take screenshot first without modifying viewport
+    const screenshot = await page.screenshot({ type: "jpeg", quality: 70 });
+
+    // Try to use sharp for resizing if available (optional dependency)
+    try {
+      // @ts-expect-error - sharp is an optional dependency
+      const sharp = await import("sharp");
+      const sharpInstance = sharp.default || sharp;
+      const metadata = await sharpInstance(screenshot).metadata();
+
+      if (metadata.width && metadata.height) {
+        const newWidth = Math.round(metadata.width * scaleFactor);
+        const newHeight = Math.round(metadata.height * scaleFactor);
+
+        return await sharpInstance(screenshot)
+          .resize(newWidth, newHeight)
+          .jpeg({ quality: 70 })
+          .toBuffer();
+      }
+    } catch (sharpError) {
+      // Sharp not available or failed, return original screenshot
+      console.debug("Sharp not available for image resizing:", sharpError);
     }
-
-    // Calculate new dimensions
-    const newWidth = Math.round(viewport.width * scaleFactor);
-    const newHeight = Math.round(viewport.height * scaleFactor);
-
-    // Set a smaller viewport temporarily
-    await page.setViewportSize({ width: newWidth, height: newHeight });
-
-    // Take screenshot with lower quality
-    const screenshot = await page.screenshot({
-      type: "jpeg",
-      quality: 70, // Lower quality for smaller file size
-    });
-
-    // Restore original viewport
-    await page.setViewportSize(viewport);
 
     return screenshot;
   } catch (error) {

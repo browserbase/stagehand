@@ -7,6 +7,7 @@ let sharp: any = null;
 async function getSharp() {
   if (!sharp) {
     try {
+      // @ts-expect-error - sharp is an optional dependency
       const sharpModule = await import("sharp");
       // Sharp is a CommonJS module, so it exports the function directly
       sharp = sharpModule.default || sharpModule;
@@ -41,7 +42,7 @@ export class ScreenshotCollector {
 
   constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
     this.page = page;
-    this.interval = options.interval || 5000;
+    this.interval = options.interval || 10000;
     this.maxScreenshots = options.maxScreenshots || 10;
     this.captureOnNavigation = options.captureOnNavigation ?? true;
     this.interceptScreenshots = options.interceptScreenshots ?? false;

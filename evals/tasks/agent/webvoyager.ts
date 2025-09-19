@@ -87,6 +87,7 @@ export const webvoyager: EvalFunction = async ({
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 10, // Keep last 10 screenshots
       captureOnNavigation: true, // Also capture on page navigation
+      interceptScreenshots: true, // Intercept agent screenshot calls
     });
 
     screenshotCollector.start();

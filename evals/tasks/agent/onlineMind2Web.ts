@@ -43,6 +43,7 @@ export const onlineMind2Web: EvalFunction = async ({
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 5, // Keep up to the last 5 screenshots
       captureOnNavigation: true, // Also capture on page navigation
+      interceptScreenshots: true, // Intercept agent screenshot calls
     });
 
     screenshotCollector.start();
