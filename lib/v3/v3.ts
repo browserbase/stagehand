@@ -197,6 +197,28 @@ export class V3 {
           entry.fromXpath,
           [entry.toXpath],
         );
+      } else if (entry.type === "type") {
+        await performUnderstudyMethod(
+          page,
+          page.mainFrame(),
+          "type",
+          entry.xpath,
+          [entry.text],
+        );
+      } else if (entry.type === "keyPress") {
+        const parts = String(entry.keys || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const k of parts) {
+          await performUnderstudyMethod(
+            page,
+            page.mainFrame(),
+            "press",
+            "xpath=/html", // global
+            [k],
+          );
+        }
       }
     }
   }

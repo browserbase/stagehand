@@ -73,7 +73,9 @@ export type ActionStashType =
   | "click"
   | "doubleClick"
   | "scroll"
-  | "dragAndDrop";
+  | "dragAndDrop"
+  | "type"
+  | "keyPress";
 
 export interface ActionStashBase {
   type: ActionStashType;
@@ -101,7 +103,20 @@ export interface DragAndDropActionStashEntry extends ActionStashBase {
 export type ActionStashEntry =
   | ClickActionStashEntry
   | ScrollActionStashEntry
-  | DragAndDropActionStashEntry;
+  | DragAndDropActionStashEntry
+  | TypeActionStashEntry
+  | KeyPressActionStashEntry;
+
+export interface TypeActionStashEntry extends ActionStashBase {
+  type: "type";
+  xpath: string;
+  text: string;
+}
+
+export interface KeyPressActionStashEntry extends ActionStashBase {
+  type: "keyPress";
+  keys: string;
+}
 
 export type ActionStash = ReadonlyArray<ActionStashEntry>;
 
