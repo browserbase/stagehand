@@ -757,7 +757,7 @@ export class V3 {
         } else if (this.isPuppeteerPage(pageArg)) {
           const frameId = await this.resolveTopFrameId(pageArg);
           page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if(this.isPatchrightPage(pageArg)) {
+        } else if (this.isPatchrightPage(pageArg)) {
           const frameId = await this.resolveTopFrameId(pageArg);
           page = this.ctx.resolvePageByMainFrameId(frameId);
         } else {
