@@ -16,16 +16,15 @@ export async function takeOptimizedScreenshot(
 
     // Try to use sharp for resizing if available (optional dependency)
     try {
-      // @ts-expect-error - sharp is an optional dependency
-      const sharp = await import("sharp");
-      const sharpInstance = sharp.default || sharp;
-      const metadata = await sharpInstance(screenshot).metadata();
+      const sharpModule = await import("sharp");
+      const sharp = sharpModule.default;
+      const metadata = await sharp(screenshot).metadata();
 
       if (metadata.width && metadata.height) {
         const newWidth = Math.round(metadata.width * scaleFactor);
         const newHeight = Math.round(metadata.height * scaleFactor);
 
-        return await sharpInstance(screenshot)
+        return await sharp(screenshot)
           .resize(newWidth, newHeight)
           .jpeg({ quality: 70 })
           .toBuffer();

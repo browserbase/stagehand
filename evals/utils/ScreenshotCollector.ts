@@ -1,27 +1,13 @@
 import { Page } from "@playwright/test";
-
-// Dynamic import for sharp to handle optional dependency
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let sharp: any = null;
-
-async function getSharp() {
-  if (!sharp) {
-    try {
-      // @ts-expect-error - sharp is an optional dependency
-      const sharpModule = await import("sharp");
-      // Sharp is a CommonJS module, so it exports the function directly
-      sharp = sharpModule.default || sharpModule;
-    } catch {
-      // Sharp not available, will return fallback values
-    }
-  }
-  return sharp;
-}
+import { EvalLogger } from "../logger";
+import { LogLine } from "@browserbasehq/stagehand";
+import sharp from "sharp";
 
 export interface ScreenshotCollectorOptions {
   interval?: number;
   maxScreenshots?: number;
   interceptScreenshots?: boolean;
+  logger?: EvalLogger;
 }
 
 export class ScreenshotCollector {
@@ -36,12 +22,15 @@ export class ScreenshotCollector {
   private mseThreshold: number = 50;
   private originalScreenshot?: typeof this.page.screenshot;
   private interceptScreenshots: boolean;
+  private logger?: EvalLogger;
+  private isRunning: boolean = false;
 
   constructor(page: Page, options: ScreenshotCollectorOptions = {}) {
     this.page = page;
     this.interval = options.interval || 10000;
     this.maxScreenshots = options.maxScreenshots || 10;
     this.interceptScreenshots = options.interceptScreenshots ?? true;
+    this.logger = options.logger;
     this.ssimThreshold = process.env.SCREENSHOT_SSIM_THRESHOLD
       ? parseFloat(process.env.SCREENSHOT_SSIM_THRESHOLD)
       : 0.92;
@@ -51,6 +40,17 @@ export class ScreenshotCollector {
   }
 
   start(): void {
+    if (this.isRunning) {
+      this.log({
+        category: "screenshot_collector",
+        message: "Screenshot collector already running, ignoring start()",
+        level: 1,
+      });
+      return;
+    }
+
+    this.isRunning = true;
+
     // Setup screenshot interception if enabled (for agent screenshots)
     if (this.interceptScreenshots) {
       this.setupScreenshotInterception();
@@ -63,6 +63,18 @@ export class ScreenshotCollector {
   }
 
   stop(): Buffer[] {
+    if (!this.isRunning) {
+      this.log({
+        category: "screenshot_collector",
+        message: "Screenshot collector not running, ignoring stop()",
+        level: 1,
+      });
+      return this.getScreenshots();
+    }
+
+    this.isRunning = false;
+
+    // Clear interval timer first to prevent any more interval captures
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = undefined;
@@ -74,7 +86,16 @@ export class ScreenshotCollector {
       this.originalScreenshot = undefined;
     }
 
-    this.captureScreenshot("final");
+    // Capture final screenshot only if we're not already capturing
+    if (!this.isCapturing) {
+      this.captureScreenshot("final");
+    }
+
+    this.log({
+      category: "screenshot_collector",
+      message: `Screenshot collector stopped with ${this.screenshots.length} screenshots`,
+      level: 1,
+    });
 
     return this.getScreenshots();
   }
@@ -95,6 +116,14 @@ export class ScreenshotCollector {
         try {
           // First do a quick MSE check
           const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
+
+          // Always log MSE comparison
+          this.log({
+            category: "screenshot_collector",
+            message: `MSE comparison: ${mse.toFixed(2)} vs threshold ${this.mseThreshold} (${mse < this.mseThreshold ? "similar" : "different"})`,
+            level: 2,
+          });
+
           if (mse < this.mseThreshold) {
             // Very similar, skip
             shouldKeep = false;
@@ -105,10 +134,15 @@ export class ScreenshotCollector {
               screenshot,
             );
             shouldKeep = ssim < this.ssimThreshold;
+            this.log({
+              category: "screenshot_collector",
+              message: `SSIM ${ssim.toFixed(4)} ${shouldKeep ? "<" : ">="} threshold ${this.ssimThreshold}, ${shouldKeep ? "keeping" : "skipping"} screenshot`,
+              level: 2,
+            });
           }
         } catch (error) {
           // If comparison fails, keep the screenshot
-          console.error("Image comparison failed:", error);
+          this.logError("Image comparison failed:", error);
           shouldKeep = true;
         }
       }
@@ -121,16 +155,20 @@ export class ScreenshotCollector {
           this.screenshots.shift();
         }
 
-        console.log(
-          `Screenshot captured (trigger: ${trigger}), total: ${this.screenshots.length}`,
-        );
+        this.log({
+          category: "screenshot_collector",
+          message: `Screenshot captured (trigger: ${trigger}), total: ${this.screenshots.length}`,
+          level: 2,
+        });
       } else {
-        console.log(
-          `Screenshot skipped (trigger: ${trigger}), too similar to previous`,
-        );
+        this.log({
+          category: "screenshot_collector",
+          message: `Screenshot skipped (trigger: ${trigger}), too similar to previous`,
+          level: 2,
+        });
       }
     } catch (error) {
-      console.error(`Failed to capture screenshot (${trigger}):`, error);
+      this.logError(`Failed to capture screenshot (${trigger}):`, error);
     } finally {
       this.isCapturing = false;
     }
@@ -153,15 +191,24 @@ export class ScreenshotCollector {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
-    this.intervalId = setInterval(async () => {
-      await this.captureScreenshot("interval");
-    }, this.interval);
+    // Only start timer if we're still running
+    if (this.isRunning) {
+      this.intervalId = setInterval(async () => {
+        // Check if still running before capturing
+        if (this.isRunning) {
+          await this.captureScreenshot("interval");
+        }
+      }, this.interval);
+    }
   }
 
   private setupScreenshotInterception(): void {
-    console.log(
-      "🔧 Setting up hybrid screenshot collection with interception...",
-    );
+    this.log({
+      category: "screenshot_collector",
+      message:
+        "🔧 Setting up hybrid screenshot collection with interception...",
+      level: 1,
+    });
     // Store the original screenshot method
     this.originalScreenshot = this.page.screenshot.bind(this.page);
     let lastCallTime = 0;
@@ -179,17 +226,21 @@ export class ScreenshotCollector {
       const timeSinceLastCall = now - lastCallTime;
 
       if (timeSinceLastCall < 3000 && lastCallTime > 0) {
-        console.log(
-          `📸 Agent screenshot detected (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
-        );
+        this.log({
+          category: "screenshot_collector",
+          message: `📸 Agent screenshot detected (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
+          level: 2,
+        });
         // Process agent screenshot and reset the interval timer
         await this.onAgentScreenshot(screenshot);
         // Reset the interval timer since we just captured a screenshot
         this.startIntervalTimer();
       } else {
-        console.log(
-          `📷 Non-agent screenshot ignored (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
-        );
+        this.log({
+          category: "screenshot_collector",
+          message: `📷 Non-agent screenshot ignored (#${screenshotCount}, ${timeSinceLastCall}ms since last)`,
+          level: 2,
+        });
       }
 
       lastCallTime = now;
@@ -204,6 +255,14 @@ export class ScreenshotCollector {
       try {
         // First do a quick MSE check
         const mse = await this.calculateMSE(this.lastScreenshot, screenshot);
+
+        // Always log MSE comparison
+        this.log({
+          category: "screenshot_collector",
+          message: `MSE comparison: ${mse.toFixed(2)} vs threshold ${this.mseThreshold} (${mse < this.mseThreshold ? "similar" : "different"})`,
+          level: 2,
+        });
+
         if (mse < this.mseThreshold) {
           // Very similar, skip
           shouldKeep = false;
@@ -214,6 +273,11 @@ export class ScreenshotCollector {
             screenshot,
           );
           shouldKeep = ssim < this.ssimThreshold;
+          this.log({
+            category: "screenshot_collector",
+            message: `SSIM ${ssim.toFixed(4)} ${shouldKeep ? "<" : ">="} threshold ${this.ssimThreshold}, ${shouldKeep ? "keeping" : "skipping"} screenshot`,
+            level: 2,
+          });
         }
       } catch (error) {
         // If comparison fails, keep the screenshot
@@ -230,27 +294,26 @@ export class ScreenshotCollector {
         this.screenshots.shift();
       }
 
-      console.log(
-        `Agent screenshot captured (hybrid mode), total: ${this.screenshots.length}`,
-      );
+      this.log({
+        category: "screenshot_collector",
+        message: `Agent screenshot captured (hybrid mode), total: ${this.screenshots.length}`,
+        level: 2,
+      });
     } else {
-      console.log(
-        `Agent screenshot skipped (hybrid mode), too similar to previous`,
-      );
+      this.log({
+        category: "screenshot_collector",
+        message: `Agent screenshot skipped (hybrid mode), too similar to previous`,
+        level: 2,
+      });
     }
   }
 
   private async calculateMSE(img1: Buffer, img2: Buffer): Promise<number> {
     try {
-      const sharpInstance = await getSharp();
-      if (!sharpInstance) {
-        return Number.MAX_SAFE_INTEGER;
-      }
-
       // Resize images for faster comparison
       const size = { width: 400, height: 300 };
-      const data1 = await sharpInstance(img1).resize(size).raw().toBuffer();
-      const data2 = await sharpInstance(img2).resize(size).raw().toBuffer();
+      const data1 = await sharp(img1).resize(size).raw().toBuffer();
+      const data2 = await sharp(img2).resize(size).raw().toBuffer();
 
       if (data1.length !== data2.length) return Number.MAX_SAFE_INTEGER;
 
@@ -261,37 +324,44 @@ export class ScreenshotCollector {
       }
 
       return sum / data1.length;
-    } catch {
-      // If sharp is not available, assume images are different
+    } catch (error) {
+      // Log error and assume images are different
+      this.logError("MSE calculation failed:", error);
       return Number.MAX_SAFE_INTEGER;
     }
   }
 
   private async calculateSSIM(img1: Buffer, img2: Buffer): Promise<number> {
     try {
-      const sharpInstance = await getSharp();
-      if (!sharpInstance) {
-        return 0;
-      }
-
       // Resize and convert to grayscale for SSIM calculation
       const size = { width: 400, height: 300 };
-      const gray1 = await sharpInstance(img1)
-        .resize(size)
-        .grayscale()
-        .raw()
-        .toBuffer();
-      const gray2 = await sharpInstance(img2)
-        .resize(size)
-        .grayscale()
-        .raw()
-        .toBuffer();
+      const gray1 = await sharp(img1).resize(size).grayscale().raw().toBuffer();
+      const gray2 = await sharp(img2).resize(size).grayscale().raw().toBuffer();
 
       if (gray1.length !== gray2.length) return 0;
 
+      // Debug: Check data properties
+      const samplePixels = [
+        gray1[0],
+        gray1[1],
+        gray1[2],
+        gray2[0],
+        gray2[1],
+        gray2[2],
+      ];
+      this.log({
+        category: "screenshot_collector",
+        message: `SSIM input debug: buffer lengths=${gray1.length}/${gray2.length}, sample pixels=[${samplePixels.join(",")}]`,
+        level: 2,
+      });
+
       // Simplified SSIM calculation
-      const c1 = 0.01 * 0.01;
-      const c2 = 0.03 * 0.03;
+      // Use proper constants for 8-bit images (0-255 range)
+      const L = 255; // Dynamic range for 8-bit images
+      const k1 = 0.01;
+      const k2 = 0.03;
+      const c1 = k1 * L * (k1 * L);
+      const c2 = k2 * L * (k2 * L);
 
       let sum1 = 0,
         sum2 = 0,
@@ -318,10 +388,47 @@ export class ScreenshotCollector {
       const denominator =
         (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
 
-      return numerator / denominator;
-    } catch {
-      // If sharp is not available, assume images are different
+      const ssim = denominator !== 0 ? numerator / denominator : 0;
+
+      // Always log SSIM calculation details for debugging
+      this.log({
+        category: "screenshot_collector",
+        message: `SSIM calculation: result=${ssim.toFixed(4)}, mean1=${mean1.toFixed(2)}, mean2=${mean2.toFixed(2)}, var1=${var1.toFixed(2)}, var2=${var2.toFixed(2)}, cov12=${cov12.toFixed(2)}`,
+        level: 2,
+      });
+
+      this.log({
+        category: "screenshot_collector",
+        message: `SSIM components: c1=${c1.toFixed(2)}, c2=${c2.toFixed(2)}, numerator=${numerator.toFixed(2)}, denominator=${denominator.toFixed(2)}`,
+        level: 2,
+      });
+
+      return ssim;
+    } catch (error) {
+      // Log error and assume images are different
+      this.logError("SSIM calculation failed:", error);
       return 0;
+    }
+  }
+
+  private log(logLine: LogLine): void {
+    if (this.logger) {
+      this.logger.log(logLine);
+    } else {
+      console.log(`[${logLine.category}] ${logLine.message}`);
+    }
+  }
+
+  private logError(message: string, error: unknown): void {
+    const logLine: LogLine = {
+      category: "screenshot_collector",
+      message: `${message}: ${error}`,
+      level: 0,
+    };
+    if (this.logger) {
+      this.logger.error(logLine);
+    } else {
+      console.error(`[${logLine.category}] ${logLine.message}`);
     }
   }
 }
