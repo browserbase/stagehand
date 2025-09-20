@@ -529,4 +529,66 @@ Each operation creates detailed logs for analysis:
 </Accordion>
 </AccordionGroup>
 
+## Action History Tracking
+
+Track all Stagehand operations with the built-in action history feature. The `stagehand.history` property provides a chronological record of every method call during your automation session.
+
+### Accessing History Data
+
+Get a complete history of all Stagehand operations performed in the current session:
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Perform various operations
+await stagehand.page.goto("https://example.com");
+await stagehand.page.act("click the login button");
+const userInfo = await stagehand.page.extract("extract user profile data");
+const elements = await stagehand.page.observe("find all navigation links");
+
+// Access complete operation history
+const history = stagehand.history;
+console.log('Total operations:', history.length);
+
+// Examine individual entries
+history.forEach((entry, index) => {
+  console.log(`Operation ${index + 1}:`, {
+    method: entry.method,
+    timestamp: entry.timestamp,
+    hasResult: entry.result !== null
+  });
+});
+```
+
+```python Python
+from stagehand import Stagehand
+
+stagehand = Stagehand(env="LOCAL")
+await stagehand.init()
+
+# Perform various operations
+await stagehand.page.goto("https://example.com")
+await stagehand.page.act("click the login button")
+user_info = await stagehand.page.extract("extract user profile data")
+elements = await stagehand.page.observe("find all navigation links")
+
+# Access complete operation history
+history = stagehand.history
+print(f'Total operations: {len(history)}')
+
+# Examine individual entries
+for index, entry in enumerate(history):
+    print(f"Operation {index + 1}:", {
+        'method': entry['method'],
+        'timestamp': entry['timestamp'],
+        'has_result': entry['result'] is not None
+    })
+```
+</CodeGroup>
+
+
 For detailed logging and debugging capabilities, see [Logging](/configuration/logging).
