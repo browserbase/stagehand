@@ -1,5 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 /**
  * Data-driven GAIA agent eval
@@ -43,9 +44,32 @@ export const gaia: EvalFunction = async ({
     }
     await stagehand.page.goto(params.web);
 
-    const result = await agent.execute({
-      instruction: params.ques,
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
+      logger, // Pass the logger for proper logging
+    });
+
+    let screenshots: Buffer[] = [];
+    let result;
+
+    try {
+      screenshotCollector.start();
+
+      result = await agent.execute({
+        instruction: params.ques,
+        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+      });
+    } finally {
+      // Always stop collecting and get all screenshots, even on error
+      screenshots = screenshotCollector.stop();
+    }
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
     });
 
     const expected = (params as Record<string, unknown>).expected as
