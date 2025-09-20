@@ -20,6 +20,10 @@ import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
+import {
+  takeOptimizedScreenshot,
+  compressImageBuffer,
+} from "./utils/imageResize";
 
 dotenv.config();
 
@@ -81,7 +85,8 @@ export class Evaluator {
     await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
     let imageBuffer: Buffer;
     if (screenshot) {
-      imageBuffer = await this.stagehand.page.screenshot();
+      // Use optimized screenshot for faster evaluator calls (25% size reduction)
+      imageBuffer = await takeOptimizedScreenshot(this.stagehand.page);
     }
     const llmClient = this.stagehand.llmProvider.getClient(
       this.modelName,
@@ -185,7 +190,8 @@ export class Evaluator {
 
     let imageBuffer: Buffer;
     if (screenshot) {
-      imageBuffer = await this.stagehand.page.screenshot();
+      // Use optimized screenshot for faster evaluator calls (25% size reduction)
+      imageBuffer = await takeOptimizedScreenshot(this.stagehand.page);
     }
 
     // Get the LLM client with our preferred model
@@ -292,7 +298,12 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    const imageContents = screenshots.map((screenshot) => ({
+    // Compress multiple screenshots for faster evaluator calls
+    const compressedScreenshots = screenshots.map((screenshot) =>
+      compressImageBuffer(screenshot),
+    );
+
+    const imageContents = compressedScreenshots.map((screenshot) => ({
       type: "image_url" as const,
       image_url: {
         url: `data:image/jpeg;base64,${screenshot.toString("base64")}`,

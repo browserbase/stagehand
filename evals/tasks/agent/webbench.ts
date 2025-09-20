@@ -39,46 +39,52 @@ export const webbench: EvalFunction = async ({
 
     await stagehand.page.goto(params.url, { waitUntil: "domcontentloaded" });
 
-    // Start collecting screenshots in parallel
+    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 10, // Keep last 10 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
+      logger, // Pass the logger for proper logging
     });
 
-    screenshotCollector.start();
+    let screenshots: Buffer[] = [];
+    let result;
 
-    logger.log({
-      category: "webbench",
-      message: `Starting WebBench task ${params.id}`,
-      level: 1,
-      auxiliary: {
-        category: {
-          value: params.category || "unknown",
-          type: "string",
-        },
-        difficulty: {
-          value: params.difficulty || "unknown",
-          type: "string",
-        },
-        url: {
-          value: params.url,
-          type: "string",
-        },
-        task_preview: {
-          value: params.task.substring(0, 100) + "...",
-          type: "string",
-        },
-      },
-    });
+    try {
+      screenshotCollector.start();
 
-    // Execute the task using the pre-initialized agent
-    const result = await agent.execute({
-      instruction: params.task,
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-    });
+      logger.log({
+        category: "webbench",
+        message: `Starting WebBench task ${params.id}`,
+        level: 1,
+        auxiliary: {
+          category: {
+            value: params.category || "unknown",
+            type: "string",
+          },
+          difficulty: {
+            value: params.difficulty || "unknown",
+            type: "string",
+          },
+          url: {
+            value: params.url,
+            type: "string",
+          },
+          task_preview: {
+            value: params.task.substring(0, 100) + "...",
+            type: "string",
+          },
+        },
+      });
 
-    // Stop collecting and get all screenshots
-    const screenshots = screenshotCollector.stop();
+      // Execute the task using the pre-initialized agent
+      result = await agent.execute({
+        instruction: params.task,
+        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+      });
+    } finally {
+      // Always stop collecting and get all screenshots, even on error
+      screenshots = screenshotCollector.stop();
+    }
 
     logger.log({
       category: "evaluation",

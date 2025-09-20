@@ -12,7 +12,8 @@
     "e2e:local": "pnpm run build && playwright test --config deterministic/local.playwright.config.ts"
   },
   "dependencies": {
-    "@browserbasehq/stagehand": "workspace:*"
+    "@browserbasehq/stagehand": "workspace:*",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@types/papaparse": "^5.3.16",

@@ -83,21 +83,27 @@ export const webvoyager: EvalFunction = async ({
 
     await stagehand.page.goto(params.web);
 
-    // Start collecting screenshots in parallel
+    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 10, // Keep last 10 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
+      logger, // Pass the logger for proper logging
     });
 
-    screenshotCollector.start();
+    let screenshots: Buffer[] = [];
+    let agentResult;
 
-    const agentResult = await agent.execute({
-      instruction: params.ques,
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-    });
+    try {
+      screenshotCollector.start();
 
-    // Stop collecting and get all screenshots
-    const screenshots = screenshotCollector.stop();
+      agentResult = await agent.execute({
+        instruction: params.ques,
+        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+      });
+    } finally {
+      // Always stop collecting and get all screenshots, even on error
+      screenshots = screenshotCollector.stop();
+    }
 
     logger.log({
       category: "evaluation",

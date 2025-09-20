@@ -2,6 +2,7 @@ import { EvalFunction } from "@/types/evals";
 import type { OSWorldStagehandTask } from "../../datasets/osworld/types";
 import { Stagehand } from "@/dist";
 import { EvalLogger } from "../../logger";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 import { z } from "zod/v3";
 
 export const osworld: EvalFunction = async ({
@@ -87,21 +88,44 @@ export const osworld: EvalFunction = async ({
     // Set timeout for task execution
     const timeout = params.timeout || 60000; // Default 60 seconds
 
-    // Execute the task using the pre-initialized agent with timeout
-    const executionPromise = agent.execute({
-      instruction: params.instruction,
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 10, // Keep last 10 screenshots
+      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
+      logger, // Pass the logger for proper logging
     });
 
-    // Apply timeout wrapper
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Task timed out after ${timeout}ms`)),
-        timeout,
-      ),
-    );
+    let screenshots: Buffer[] = [];
+    let result;
 
-    const result = await Promise.race([executionPromise, timeoutPromise]);
+    try {
+      screenshotCollector.start();
+
+      // Execute the task using the pre-initialized agent with timeout
+      const executionPromise = agent.execute({
+        instruction: params.instruction,
+        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+      });
+
+      // Apply timeout wrapper
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Task timed out after ${timeout}ms`)),
+          timeout,
+        ),
+      );
+
+      result = await Promise.race([executionPromise, timeoutPromise]);
+    } finally {
+      // Always stop collecting and get all screenshots, even on error
+      screenshots = screenshotCollector.stop();
+    }
+
+    logger.log({
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
+      level: 1,
+    });
 
     logger.log({
       category: "osworld",
