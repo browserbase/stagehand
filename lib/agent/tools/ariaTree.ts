@@ -1,15 +1,15 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createAriaTreeTool = (stagehandPage: StagehandPage) =>
+export const createAriaTreeTool = (stagehand: Stagehand) =>
   tool({
     description:
       "gets the accessibility (ARIA) tree from the current page. this is useful for understanding the page structure and accessibility features. it should provide full context of what is on the page",
     parameters: z.object({}),
     execute: async () => {
-      const { page_text } = await stagehandPage.page.extract();
-      const pageUrl = stagehandPage.page.url();
+      const { page_text } = await stagehand.page.extract();
+      const pageUrl = stagehand.page.url();
 
       let content = page_text;
       const MAX_CHARACTERS = 70000;

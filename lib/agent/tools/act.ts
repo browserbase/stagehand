@@ -1,12 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 import { buildActObservePrompt } from "../../prompt";
 import { SupportedPlaywrightAction } from "@/types/act";
-export const createActTool = (
-  stagehandPage: StagehandPage,
-  executionModel?: string,
-) =>
+export const createActTool = (stagehand: Stagehand, executionModel?: string) =>
   tool({
     description: "Perform an action on the page (click, type)",
     parameters: z.object({
@@ -34,7 +31,7 @@ export const createActTool = (
               instruction: builtPrompt,
             };
 
-        const observeResults = await stagehandPage.page.observe(observeOptions);
+        const observeResults = await stagehand.page.observe(observeOptions);
 
         if (!observeResults || observeResults.length === 0) {
           return {
@@ -60,7 +57,7 @@ export const createActTool = (
               };
 
           const iframeObserveResults =
-            await stagehandPage.page.observe(iframeObserveOptions);
+            await stagehand.page.observe(iframeObserveOptions);
 
           if (!iframeObserveResults || iframeObserveResults.length === 0) {
             return {
@@ -71,7 +68,7 @@ export const createActTool = (
           }
 
           const iframeObserveResult = iframeObserveResults[0];
-          const fallback = await stagehandPage.page.act(iframeObserveResult);
+          const fallback = await stagehand.page.act(iframeObserveResult);
 
           return {
             success: fallback.success,
@@ -86,7 +83,7 @@ export const createActTool = (
           };
         }
 
-        const result = await stagehandPage.page.act(observeResult);
+        const result = await stagehand.page.act(observeResult);
         const playwrightArguments = {
           description: observeResult.description,
           method: observeResult.method,

@@ -943,7 +943,7 @@ export class Stagehand {
             ? await resolveTools(options?.integrations, options?.tools)
             : (options?.tools ?? {});
           return new StagehandAgentHandler(
-            this.stagehandPage,
+            this,
             this.logger,
             this.llmClient,
             executionModel,

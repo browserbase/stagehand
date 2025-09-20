@@ -1,9 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
 export const createFillFormTool = (
-  stagehandPage: StagehandPage,
+  stagehand: Stagehand,
   executionModel?: string,
 ) =>
   tool({
@@ -54,15 +54,15 @@ export const createFillFormTool = (
         .join(", ")}`;
 
       const observeResults = executionModel
-        ? await stagehandPage.page.observe({
+        ? await stagehand.page.observe({
             instruction,
             modelName: executionModel,
           })
-        : await stagehandPage.page.observe(instruction);
+        : await stagehand.page.observe(instruction);
 
       const completedActions = [];
       for (const result of observeResults) {
-        const action = await stagehandPage.page.act(result);
+        const action = await stagehand.page.act(result);
         completedActions.push(action);
       }
 

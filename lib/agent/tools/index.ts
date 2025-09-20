@@ -7,7 +7,7 @@ import { createCloseTool } from "./close";
 import { createAriaTreeTool } from "./ariaTree";
 import { createFillFormTool } from "./fillform";
 import { createScrollTool } from "./scroll";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 import { LogLine } from "@/types/log";
 import { createExtractTool } from "./extract";
 
@@ -17,21 +17,21 @@ export interface AgentToolOptions {
 }
 
 export function createAgentTools(
-  stagehandPage: StagehandPage,
+  stagehand: Stagehand,
   options?: AgentToolOptions,
 ) {
   const executionModel = options?.executionModel;
 
   return {
-    act: createActTool(stagehandPage, executionModel),
-    ariaTree: createAriaTreeTool(stagehandPage),
+    act: createActTool(stagehand, executionModel),
+    ariaTree: createAriaTreeTool(stagehand),
     close: createCloseTool(),
-    extract: createExtractTool(stagehandPage, executionModel, options?.logger),
-    fillForm: createFillFormTool(stagehandPage, executionModel),
-    goto: createGotoTool(stagehandPage),
-    navback: createNavBackTool(stagehandPage),
-    screenshot: createScreenshotTool(stagehandPage),
-    scroll: createScrollTool(stagehandPage),
+    extract: createExtractTool(stagehand, executionModel, options?.logger),
+    fillForm: createFillFormTool(stagehand, executionModel),
+    goto: createGotoTool(stagehand),
+    navback: createNavBackTool(stagehand),
+    screenshot: createScreenshotTool(stagehand),
+    scroll: createScrollTool(stagehand),
     wait: createWaitTool(),
   };
 }

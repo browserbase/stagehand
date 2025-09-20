@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createGotoTool = (stagehandPage: StagehandPage) =>
+export const createGotoTool = (stagehand: Stagehand) =>
   tool({
     description: "Navigate to a specific URL",
     parameters: z.object({
@@ -10,7 +10,7 @@ export const createGotoTool = (stagehandPage: StagehandPage) =>
     }),
     execute: async ({ url }) => {
       try {
-        await stagehandPage.page.goto(url, { waitUntil: "load" });
+        await stagehand.page.goto(url, { waitUntil: "load" });
         return { success: true, url };
       } catch (error) {
         return { success: false, error: error.message };
