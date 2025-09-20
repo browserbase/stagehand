@@ -1,5 +1,21 @@
 # @browserbasehq/stagehand
 
+## 2.5.1
+
+### Patch Changes
+
+- [#1066](https://github.com/browserbase/stagehand/pull/1066) [`9daa584`](https://github.com/browserbase/stagehand/commit/9daa58477111e1470f2b618a898738b5e1967cb6) Thanks [@tkattkat](https://github.com/tkattkat)! - Add playwright arguments to agent execute response
+
+- [#1077](https://github.com/browserbase/stagehand/pull/1077) [`7f38b3a`](https://github.com/browserbase/stagehand/commit/7f38b3a3048ba28f81649c33c0d633c4853146bd) Thanks [@tkattkat](https://github.com/tkattkat)! - adds support for stagehand agent in the api
+
+- [#1032](https://github.com/browserbase/stagehand/pull/1032) [`bf2d0e7`](https://github.com/browserbase/stagehand/commit/bf2d0e79da744b6b2a82d60e1ad05ca9fa811488) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix for zod peer dependency support
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - Replace operator handler with base of new agent
+
+- [#1056](https://github.com/browserbase/stagehand/pull/1056) [`6a002b2`](https://github.com/browserbase/stagehand/commit/6a002b234dbf1ac7d1f180eeffdf66154fa7799b) Thanks [@chrisreadsf](https://github.com/chrisreadsf)! - remove need for duplicate project id if already passed to Stagehand
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - replace operator agent with scaffold for new stagehand agent
+
 ## 2.5.0
 
 ### Minor Changes

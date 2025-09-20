@@ -1,5 +1,16 @@
 # @browserbasehq/stagehand-evals
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1057](https://github.com/browserbase/stagehand/pull/1057) [`b7be89e`](https://github.com/browserbase/stagehand/commit/b7be89ef7cf12773c7d465cbf7f665a74faf3941) Thanks [@filip-michalsky](https://github.com/filip-michalsky)! - added web voyager ground truth (optional), added web bench, and subset of OSWorld evals which run on a browser
+
+### Patch Changes
+
+- Updated dependencies [[`9daa584`](https://github.com/browserbase/stagehand/commit/9daa58477111e1470f2b618a898738b5e1967cb6), [`7f38b3a`](https://github.com/browserbase/stagehand/commit/7f38b3a3048ba28f81649c33c0d633c4853146bd), [`bf2d0e7`](https://github.com/browserbase/stagehand/commit/bf2d0e79da744b6b2a82d60e1ad05ca9fa811488), [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab), [`6a002b2`](https://github.com/browserbase/stagehand/commit/6a002b234dbf1ac7d1f180eeffdf66154fa7799b), [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab)]:
+  - @browserbasehq/stagehand@2.5.1
+
 ## 1.0.9
 
 ### Patch Changes
