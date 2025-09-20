@@ -68,6 +68,11 @@ export class StagehandAPI {
     if (region && region !== "us-west-2") {
       return { sessionId: browserbaseSessionID ?? null, available: false };
     }
+    this.logger({
+      category: "init",
+      message: "creating new browserbase session...",
+      level: 1,
+    });
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
