@@ -33,10 +33,10 @@ export class ScreenshotCollector {
     this.logger = options.logger;
     this.ssimThreshold = process.env.SCREENSHOT_SSIM_THRESHOLD
       ? parseFloat(process.env.SCREENSHOT_SSIM_THRESHOLD)
-      : 0.92;
+      : 0.85;
     this.mseThreshold = process.env.SCREENSHOT_MSE_THRESHOLD
       ? parseFloat(process.env.SCREENSHOT_MSE_THRESHOLD)
-      : 50;
+      : 200;
   }
 
   start(): void {
