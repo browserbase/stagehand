@@ -89,7 +89,7 @@ export class AnthropicCUAClient extends AgentClient {
   }
 
   setTools(tools: ToolSet): void {
-    this.tools = tools as ToolSet;
+    this.tools = tools;
   }
 
   /**

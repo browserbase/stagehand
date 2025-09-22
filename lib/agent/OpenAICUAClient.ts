@@ -87,8 +87,8 @@ export class OpenAICUAClient extends AgentClient {
     this.actionHandler = handler;
   }
 
-  setTools(tools: unknown): void {
-    this.tools = tools as ToolSet;
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
   }
 
   /**
