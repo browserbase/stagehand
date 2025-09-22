@@ -41,4 +41,6 @@ export abstract class AgentClient {
   abstract setActionHandler(
     handler: (action: AgentAction) => Promise<void>,
   ): void;
+
+  abstract setTools(tools: unknown): void;
 }

@@ -1,8 +1,10 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
+import { modelToAgentProviderMap } from "@/lib/agent/AgentProvider";
+import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
-import fs from "fs";
+
 dotenv.config();
 
 export const onlineMind2Web: EvalFunction = async ({
@@ -10,9 +12,11 @@ export const onlineMind2Web: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
+  modelName,
   input,
-  agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     const params = ((input && input.params) || {}) as {
       task_id?: string;
@@ -33,33 +37,50 @@ export const onlineMind2Web: EvalFunction = async ({
     }
 
     await stagehand.page.goto(params.website, {
-      timeout: 60_000,
+      timeout: 75_000,
     });
 
-    const screenshot = await stagehand.page.screenshot();
-    fs.writeFileSync("screenshot.png", screenshot);
-
-    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
-    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      maxScreenshots: 5, // Keep up to the last 5 screenshots
-      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
-      logger, // Pass the logger for proper logging
-    });
-
-    let screenshots: Buffer[] = [];
-    let agentResult;
-
-    try {
-      screenshotCollector.start();
-
-      agentResult = await agent.execute({
-        instruction: params.confirmed_task,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-      });
-    } finally {
-      // Always stop collecting and get all screenshots, even on error
-      screenshots = screenshotCollector.stop();
+    if (!(modelName in modelToAgentProviderMap)) {
+      return {
+        _success: false,
+        error: `Model ${modelName} is not supported for agent tasks. Supported models: ${Object.keys(modelToAgentProviderMap).join(", ")}`,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     }
+
+    const provider = modelToAgentProviderMap[modelName];
+    const agent = stagehand.agent({
+      model: modelName,
+      provider,
+      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`,
+      options: {
+        apiKey: loadApiKeyFromEnv(provider, stagehand.logger),
+      },
+    });
+
+    // Start collecting screenshots in parallel
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 8, // Keep up to the last 8 screenshots
+    });
+
+    // Set the collector on the agent so it captures screenshots
+    if (agent.setScreenshotCollector) {
+      agent.setScreenshotCollector(screenshotCollector);
+    }
+
+    screenshotCollector.start();
+
+    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 50;
+    const agentResult = await agent.execute({
+      instruction: params.confirmed_task,
+      maxSteps: maxSteps,
+    });
+
+    logger.log(agentResult);
+    // Stop collecting and get all screenshots
+    const screenshots = screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
@@ -69,7 +90,7 @@ export const onlineMind2Web: EvalFunction = async ({
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
+      question: `Did the agent successfully complete this task: "${params.confirmed_task}"? The task might be a bit outdated or impossible to complete, in those cases lean towards YES.`,
       screenshot: screenshots,
       agentReasoning:
         agentResult.message ||
@@ -79,19 +100,17 @@ export const onlineMind2Web: EvalFunction = async ({
     return {
       _success: evalResult.evaluation === "YES",
       reasoning: evalResult.reasoning,
-      // screenshotCount: screenshots.length,
+      final_answer: agentResult?.message,
+      screenshotCount: screenshots.length,
       task_level: params.level,
+      execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
+    // Let the error propagate - the parent runner will handle cleanup
+    console.error(error);
+    throw error;
   }
 };

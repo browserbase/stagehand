@@ -20,10 +20,7 @@ import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
 import { z } from "zod";
-import {
-  takeOptimizedScreenshot,
-  compressImageBuffer,
-} from "./utils/imageResize";
+import { imageResize } from "./utils/imageUtils";
 
 dotenv.config();
 
@@ -48,7 +45,7 @@ export class Evaluator {
     this.stagehand = stagehand;
     this.modelName = modelName || "google/gemini-2.5-flash";
     this.modelClientOptions = modelClientOptions || {
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+      apiKey: process.env.GEMINI_API_KEY || "",
     };
   }
 
@@ -85,8 +82,7 @@ export class Evaluator {
     await new Promise((resolve) => setTimeout(resolve, screenshotDelayMs));
     let imageBuffer: Buffer;
     if (screenshot) {
-      // Use optimized screenshot for faster evaluator calls (25% size reduction)
-      imageBuffer = await takeOptimizedScreenshot(this.stagehand.page);
+      imageBuffer = await this.stagehand.page.screenshot();
     }
     const llmClient = this.stagehand.llmProvider.getClient(
       this.modelName,
@@ -190,8 +186,7 @@ export class Evaluator {
 
     let imageBuffer: Buffer;
     if (screenshot) {
-      // Use optimized screenshot for faster evaluator calls (25% size reduction)
-      imageBuffer = await takeOptimizedScreenshot(this.stagehand.page);
+      imageBuffer = await this.stagehand.page.screenshot();
     }
 
     // Get the LLM client with our preferred model
@@ -298,22 +293,36 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    // Compress multiple screenshots for faster evaluator calls
-    const compressedScreenshots = screenshots.map((screenshot) =>
-      compressImageBuffer(screenshot),
+    //Downsize screenshots:
+    const downsizedScreenshots = await Promise.all(
+      screenshots.map(async (screenshot) => {
+        return await imageResize(screenshot, 0.7);
+      }),
     );
 
-    const imageContents = compressedScreenshots.map((screenshot) => ({
+    const imageContents = downsizedScreenshots.map((screenshot) => ({
       type: "image_url" as const,
       image_url: {
-        url: `data:image/jpeg;base64,${screenshot.toString("base64")}`,
+        url: `data:image/png;base64,${screenshot.toString("base64")}`,
       },
     }));
+
+    this.stagehand.logger?.({
+      category: "evaluator",
+      message: `Evaluating question: ${question} with ${screenshots.length} screenshots`,
+      level: 2,
+      auxiliary: {
+        images: {
+          value: JSON.stringify(imageContents),
+          type: "object",
+        },
+      },
+    });
 
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
-      logger: this.silentLogger,
+      logger: this.stagehand.logger,
       options: {
         messages: [
           { role: "system", content: systemPrompt },

@@ -41,10 +41,13 @@ export const webbench: EvalFunction = async ({
 
     // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      maxScreenshots: 10, // Keep last 10 screenshots
-      interceptScreenshots: true, // Enable hybrid mode: timer + agent screenshot interception
-      logger, // Pass the logger for proper logging
+      maxScreenshots: 8, // Keep last 8 screenshots
     });
+
+    // Set the collector on the agent so it captures screenshots
+    if (agent.setScreenshotCollector) {
+      agent.setScreenshotCollector(screenshotCollector);
+    }
 
     let screenshots: Buffer[] = [];
     let result;

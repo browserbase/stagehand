@@ -300,6 +300,8 @@ const generateFilteredTestcases = (): Testcase[] => {
   const braintrustProjectName =
     process.env.CI === "true" ? "stagehand" : "stagehand-dev";
 
+  const startTime = Date.now();
+
   try {
     // Run the evaluations with the braintrust Eval function
     const evalResult = await Eval(braintrustProjectName, {
@@ -483,6 +485,9 @@ const generateFilteredTestcases = (): Testcase[] => {
 
     // Generate and write the summary
     await generateSummary(summaryResults, experimentName);
+    console.log(
+      `\n⌛️Evaluation completed in ${(Date.now() - startTime) / 1000}s\n`,
+    );
   } catch (error) {
     console.error("Error during evaluation run:", error);
     process.exit(1);
