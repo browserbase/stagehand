@@ -15,8 +15,8 @@ importers:
         specifier: ^2.4.0
         version: 2.5.0
       '@google/genai':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^1.12.0
+        version: 1.12.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.17.2
         version: 1.17.2
@@ -168,7 +168,11 @@ importers:
         version: 1.3.0
       tsup:
         specifier: ^8.2.1
+<<<<<<< HEAD
+        version: 8.4.0(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1)
+=======
         version: 8.4.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1)
+>>>>>>> upstream/main
       tsx:
         specifier: ^4.10.5
         version: 4.19.4
@@ -978,9 +982,14 @@ packages:
     resolution: {integrity: sha512-ZAoA40rNMPwSm+AeHpCq8STiNAwzWLJuP8Xv4CHIc9wv/PSuExjMrmjfYNj682vW0OOiZ1HKxzvjQr9XZIisQA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@google/genai@0.8.0':
-    resolution: {integrity: sha512-Zs+OGyZKyMbFofGJTR9/jTQSv8kITh735N3tEuIZj4VlMQXTC0soCFahysJ9NaeenRlD7xGb6fyqmX+FwrpU6Q==}
-    engines: {node: '>=18.0.0'}
+  '@google/genai@1.12.0':
+    resolution: {integrity: sha512-JBkQsULVexdM9zY4iXbm3A2dJ7El/hSPGCnxuRWPJNgeqcfYuyUnPTSy+I/v+MvTbz/occVmONSD6wn+17QLkg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@modelcontextprotocol/sdk': ^1.11.0
+    peerDependenciesMeta:
+      '@modelcontextprotocol/sdk':
+        optional: true
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -4501,6 +4510,8 @@ packages:
       yaml:
         optional: true
 
+<<<<<<< HEAD
+=======
   postcss-nested@6.2.0:
     resolution: {integrity: sha512-HQbt28KulC5AJzG+cZtj9kvKB93CFCdLvog1WFLf1D+xmMvPGlBstkpTEZfK5+AN9hfJocyBFCNiqyS48bpgzQ==}
     engines: {node: '>=12.0'}
@@ -4514,6 +4525,7 @@ packages:
   postcss-value-parser@4.2.0:
     resolution: {integrity: sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==}
 
+>>>>>>> upstream/main
   postcss@8.5.6:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -6324,7 +6336,7 @@ snapshots:
       '@eslint/core': 0.13.0
       levn: 0.4.1
 
-  '@google/genai@0.8.0':
+  '@google/genai@1.12.0':
     dependencies:
       google-auth-library: 9.15.1
       ws: 8.18.1
@@ -10852,6 +10864,12 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
+<<<<<<< HEAD
+  postcss-load-config@6.0.1(postcss@8.5.6)(tsx@4.19.4)(yaml@2.7.1):
+    dependencies:
+      lilconfig: 3.1.3
+    optionalDependencies:
+=======
   postcss-import@15.1.0(postcss@8.5.6):
     dependencies:
       postcss: 8.5.6
@@ -10876,10 +10894,13 @@ snapshots:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.7
+>>>>>>> upstream/main
       postcss: 8.5.6
       tsx: 4.19.4
       yaml: 2.7.1
 
+<<<<<<< HEAD
+=======
   postcss-nested@6.2.0(postcss@8.5.6):
     dependencies:
       postcss: 8.5.6
@@ -10892,6 +10913,7 @@ snapshots:
 
   postcss-value-parser@4.2.0: {}
 
+>>>>>>> upstream/main
   postcss@8.5.6:
     dependencies:
       nanoid: 3.3.11
@@ -11898,7 +11920,11 @@ snapshots:
 
   tslib@2.8.1: {}
 
+<<<<<<< HEAD
+  tsup@8.4.0(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1):
+=======
   tsup@8.4.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1):
+>>>>>>> upstream/main
     dependencies:
       bundle-require: 5.1.0(esbuild@0.25.3)
       cac: 6.7.14
@@ -11908,7 +11934,11 @@ snapshots:
       esbuild: 0.25.3
       joycon: 3.1.1
       picocolors: 1.1.1
+<<<<<<< HEAD
+      postcss-load-config: 6.0.1(postcss@8.5.6)(tsx@4.19.4)(yaml@2.7.1)
+=======
       postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(yaml@2.7.1)
+>>>>>>> upstream/main
       resolve-from: 5.0.0
       rollup: 4.40.1
       source-map: 0.8.0-beta.0
