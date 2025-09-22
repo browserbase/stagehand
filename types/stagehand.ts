@@ -58,6 +58,11 @@ export interface ConstructorParams {
    */
   enableCaching?: boolean;
   /**
+   * Directory used to persist cache files when caching is enabled
+   * @default `<cwd>/tmp/.cache`
+   */
+  cacheDir?: string;
+  /**
    * The ID of a Browserbase session to resume
    */
   browserbaseSessionID?: string;

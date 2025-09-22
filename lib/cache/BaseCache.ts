@@ -31,15 +31,24 @@ export class BaseCache<T extends CacheEntry> {
 
   constructor(
     logger: (message: LogLine) => void,
-    cacheDir: string = path.join(process.cwd(), "tmp", ".cache"),
+    cacheDir?: string,
     cacheFile: string = "cache.json",
   ) {
     this.logger = logger;
-    this.cacheDir = cacheDir;
-    this.cacheFile = path.join(cacheDir, cacheFile);
-    this.lockFile = path.join(cacheDir, "cache.lock");
+    const resolvedCacheDir = this.resolveCacheDirectory(cacheDir);
+    this.cacheDir = resolvedCacheDir;
+    this.cacheFile = path.join(resolvedCacheDir, cacheFile);
+    this.lockFile = path.join(resolvedCacheDir, "cache.lock");
     this.ensureCacheDirectory();
     this.setupProcessHandlers();
+  }
+
+  private resolveCacheDirectory(override?: string): string {
+    const candidate = override ?? process.env.STAGEHAND_CACHE_DIR;
+    if (candidate && candidate.trim().length > 0) {
+      return path.isAbsolute(candidate) ? candidate : path.resolve(candidate);
+    }
+    return path.join(process.cwd(), "tmp", ".cache");
   }
 
   private setupProcessHandlers(): void {

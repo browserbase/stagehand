@@ -5,6 +5,8 @@ description: You can cache actions in Stagehand to avoid redundant LLM calls.
 
 Caching actions in Stagehand is useful for actions that are expensive to run, or when the underlying DOM structure is not expected to change.
 
+> Set the `cacheDir` constructor option or the `STAGEHAND_CACHE_DIR` environment variable to change where Stagehand stores cache files. This is helpful in environments where the default `<cwd>/tmp/.cache` path is not writable.
+
 ## Using `observe` to preview an action
 `observe` lets you preview an action before taking it. If you are satisfied with the action preview, you can run it in `page.act` with no further LLM calls.
 
