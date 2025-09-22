@@ -69,7 +69,7 @@ export function processStepFinishEvent(
       const mapped = mapToolResultToActions({
         toolCallName: typedToolCall.toolName,
         toolResult,
-        args: (typedToolCall.args || {}) as Record<string, unknown>,
+        args: typedToolCall.args || {},
         reasoning: event.text || undefined,
       });
 

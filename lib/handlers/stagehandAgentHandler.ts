@@ -59,7 +59,7 @@ export class StagehandAgentHandler {
     try {
       const systemPrompt = buildStagehandAgentSystemPrompt(
         this.stagehand.page.url(),
-        this.llmClient?.modelName as string,
+        this.llmClient?.modelName,
         options.instruction,
         this.systemInstructions,
       );
@@ -155,7 +155,7 @@ export class StagehandAgentHandler {
   private createTools(): AgentTools {
     return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
-      mainModel: (this.llmClient?.modelName as string) || undefined,
+      mainModel: this.llmClient?.modelName || undefined,
       logger: this.logger,
     });
   }

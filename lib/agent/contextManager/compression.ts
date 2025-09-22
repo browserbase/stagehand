@@ -1,4 +1,4 @@
-import { CoreMessage, CoreToolMessage, ToolContent, ToolResultPart } from "ai";
+import { CoreMessage, ToolContent } from "ai";
 import {
   compressToolResultContent,
   isImageContentPart,
@@ -26,7 +26,7 @@ export function compressToolResults(
 
   prompt.forEach((msg, idx) => {
     if (msg.role === "tool") {
-      const toolMessage = msg as CoreToolMessage;
+      const toolMessage = msg;
       toolMessage.content.forEach((item) => {
         if (isToolResultContentPart(item)) {
           const positions = toolPositions.get(item.toolName) || [];
@@ -39,7 +39,7 @@ export function compressToolResults(
 
   const mapped = processed.map((msg, idx) => {
     if (msg.role === "tool") {
-      const toolMessage = msg as CoreToolMessage;
+      const toolMessage = msg;
       const processedContent: ToolContent = toolMessage.content.map((item) => {
         if (isToolResultContentPart(item)) {
           const positions = toolPositions.get(item.toolName) || [];
@@ -69,7 +69,7 @@ export function compressToolResults(
                 toolCallId: item.toolCallId,
                 toolName: item.toolName,
                 result: "Screenshot taken",
-              } as ToolResultPart;
+              };
             } else if (item.toolName === "ariaTree") {
               replacedOldToolResults++;
               replacedOldAriaTrees++;
@@ -90,7 +90,7 @@ export function compressToolResults(
                   success: true,
                   content: "Aria tree retrieved (compressed)",
                 },
-              } as ToolResultPart;
+              };
             }
           }
         }
@@ -112,9 +112,9 @@ export function compressToolResults(
         }
 
         return item;
-      }) as ToolContent;
+      });
 
-      return { ...toolMessage, content: processedContent } as CoreToolMessage;
+      return { ...toolMessage, content: processedContent };
     }
     return msg;
   });

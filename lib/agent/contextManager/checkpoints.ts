@@ -137,7 +137,7 @@ Provide a thorough summary that will allow continuation of the automation task:`
 export function countToolsInMessage(msg: CoreMessage): number {
   if (msg.role === "tool") return 1;
   if (msg.role === "assistant") {
-    const assistantMsg = msg as CoreAssistantMessage;
+    const assistantMsg = msg;
     if (typeof assistantMsg.content !== "string") {
       return assistantMsg.content.filter((part) => isToolCallPart(part)).length;
     }

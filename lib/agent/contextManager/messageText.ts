@@ -1,9 +1,4 @@
-import {
-  CoreAssistantMessage,
-  CoreMessage,
-  CoreToolMessage,
-  CoreUserMessage,
-} from "ai";
+import { CoreMessage } from "ai";
 import {
   isImageContentPart,
   isTextContentPart,
@@ -16,7 +11,7 @@ export function messagesToText(messages: CoreMessage[]): string {
   return messages
     .map((msg) => {
       if (msg.role === "user") {
-        const userMsg = msg as CoreUserMessage;
+        const userMsg = msg;
         const content =
           typeof userMsg.content === "string"
             ? userMsg.content
@@ -27,7 +22,7 @@ export function messagesToText(messages: CoreMessage[]): string {
                 .join(" ");
         return `User: ${content}`;
       } else if (msg.role === "assistant") {
-        const assistantMsg = msg as CoreAssistantMessage;
+        const assistantMsg = msg;
         const content =
           typeof assistantMsg.content === "string"
             ? assistantMsg.content
@@ -41,7 +36,7 @@ export function messagesToText(messages: CoreMessage[]): string {
                 .join(" ");
         return `Assistant: ${content}`;
       } else if (msg.role === "tool") {
-        const toolMsg = msg as CoreToolMessage;
+        const toolMsg = msg;
         const toolSummary = toolMsg.content
           .map(toolResultSummaryLabel)
           .join(" ");

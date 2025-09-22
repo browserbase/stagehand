@@ -177,7 +177,7 @@ export function buildActObservePrompt(
 
 export function buildStagehandAgentSystemPrompt(
   url: string,
-  modelName: string | undefined,
+  modelName: string,
   executionInstruction: string,
   systemInstructions?: string,
 ): string {

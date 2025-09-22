@@ -9,7 +9,7 @@ import {
   estimateTokens,
   generateCheckpointSummary,
   planCheckpoint,
-  summarizeConversation as summarizeConversationUtil,
+  summarizeConversation,
 } from ".";
 
 import {
@@ -313,8 +313,11 @@ export class ContextManager {
       const beforeCharSize = JSON.stringify(prompt).length;
       const beforeMessageCount = prompt.length;
 
-      const { summaryMessage, recentMessages } =
-        await summarizeConversationUtil(prompt, systemMsgIndex, llmClient);
+      const { summaryMessage, recentMessages } = await summarizeConversation(
+        prompt,
+        systemMsgIndex,
+        llmClient,
+      );
 
       const result: CoreMessage[] = [];
       if (systemMessage) {
@@ -386,7 +389,7 @@ export class ContextManager {
   }
 
   private toCoreMessages(prompt: PromptInput): CoreMessage[] {
-    return Array.isArray(prompt) ? (prompt as CoreMessage[]) : [];
+    return Array.isArray(prompt) ? prompt : [];
   }
 
   private shouldCreateCheckpoint(totalToolCount: number): boolean {
