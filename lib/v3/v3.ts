@@ -53,7 +53,7 @@ import os from "os";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "./mcp/utils";
-import { defaultExtractSchema, pageTextSchema } from "./types/page";
+import { defaultExtractSchema, pageTextSchema } from "./types";
 import type { ActionStashEntry } from "./types/agent";
 import { performUnderstudyMethod } from "@/lib/v3/handlers/handlerUtils/actHandlerUtils";
 
