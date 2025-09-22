@@ -10,8 +10,7 @@ import {
   TOOL_RESULT_AGE_MESSAGES_TO_CONSIDER_OLD,
   MAX_PREVIOUS_SAME_TOOL_RESULTS_TO_KEEP,
 } from "./constants";
-
-type LogLevel = 0 | 1 | 2;
+import { LogLevel } from "@/types/log";
 
 export function compressToolResults(
   prompt: CoreMessage[],
@@ -53,7 +52,6 @@ export function compressToolResults(
               MAX_PREVIOUS_SAME_TOOL_RESULTS_TO_KEEP;
           const isOld = isOldByAge || isOldByCount;
           if (isOld) {
-            // Use type-safe tool result creation
             if (item.toolName === "screenshot") {
               replacedOldToolResults++;
               replacedOldScreenshots++;
