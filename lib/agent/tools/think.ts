@@ -21,8 +21,6 @@ export const thinkTool = tool({
     return {
       acknowledged: true,
       message: reasoning,
-      duration: Math.floor(Math.random() * 3) + 4, // Random number between 4 and 6
-      timestamp: Date.now(),
     };
   },
 });

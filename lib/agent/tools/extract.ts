@@ -90,7 +90,6 @@ export const createExtractTool = (
         return {
           success: true,
           data: result,
-          timestamp: Date.now(),
         };
       } catch (error) {
         const errorMessage =
