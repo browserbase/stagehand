@@ -1,5 +1,5 @@
 //this eval is expected to fail.
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 import { V3Evaluator } from "@/evals/v3Evaluator";
 export const hotel_booking: EvalFunction = async ({
   debugUrl,

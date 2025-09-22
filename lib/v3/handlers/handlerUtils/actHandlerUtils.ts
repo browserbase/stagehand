@@ -5,7 +5,7 @@ import { Locator } from "../../understudy/locator";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
 import { v3Logger } from "@/lib/v3/logger";
-import { StagehandClickError } from "@/types/stagehandErrors";
+import { StagehandClickError } from "../../types/stagehandErrors";
 
 export class UnderstudyCommandException extends Error {
   constructor(message: string) {

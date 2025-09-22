@@ -1,12 +1,12 @@
 // lib/v3/handlers/observeHandler.ts
 import { ObserveHandlerParams, V3FunctionName } from "@/lib/v3/types";
-import { AvailableModel, ClientOptions } from "@/types/model";
-import { LLMClient } from "@/lib/llm/LLMClient";
+import { AvailableModel, ClientOptions } from "../types/model";
+import { LLMClient } from "../llm/LLMClient";
 import { observe as runObserve } from "@/lib/inference";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { trimTrailingTextNode } from "@/lib/utils";
-import { EncodedId } from "@/types/context";
-import { ObserveResult } from "@/types/stagehand";
+import { EncodedId } from "../types/context";
+import { ObserveResult } from "../types/stagehand";
 import { v3Logger } from "@/lib/v3/logger";
 
 export class ObserveHandler {

@@ -3,7 +3,7 @@ import { V3 } from "../../v3/v3";
 import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
-import { ObserveResult } from "@/types/stagehand";
+import { ObserveResult } from "../types/stagehand";
 import { AnyPage } from "@/lib/v3/types";
 import { v3TestConfig } from "./v3.config";
 

@@ -20,10 +20,10 @@ import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
 import { V3Context } from "@/lib/v3/understudy/context";
 import { Page } from "./understudy/page";
-import { LLMClient } from "@/lib/llm/LLMClient";
-import { AvailableModel } from "@/types/model";
-import { ClientOptions } from "../../types/model";
-import { LLMProvider } from "@/lib/llm/LLMProvider";
+import { LLMClient } from "./llm/LLMClient";
+import { AvailableModel } from "./types/model";
+import { ClientOptions } from "./types/model";
+import { LLMProvider } from "./llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
@@ -34,8 +34,8 @@ import {
   ActResult,
   HistoryEntry,
   AgentConfig,
-} from "@/types/stagehand";
-import { AgentExecuteOptions, AgentResult } from "@/types/agent";
+} from "./types/stagehand";
+import { AgentExecuteOptions, AgentResult } from "./types/agent";
 import {
   initV3Logger,
   bindInstanceLogger,
@@ -43,7 +43,7 @@ import {
   withInstanceLogContext,
   v3Logger,
 } from "./logger";
-import { LogLine } from "@/types/log";
+import { LogLine } from "./types/log";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
 import process from "process";
@@ -52,9 +52,9 @@ import path from "path";
 import os from "os";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
-import { resolveTools } from "@/lib/mcp/utils";
-import { defaultExtractSchema, pageTextSchema } from "@/types/page";
-import type { ActionStashEntry } from "@/types/agent";
+import { resolveTools } from "./mcp/utils";
+import { defaultExtractSchema, pageTextSchema } from "./types/page";
+import type { ActionStashEntry } from "./types/agent";
 import { performUnderstudyMethod } from "@/lib/v3/handlers/handlerUtils/actHandlerUtils";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";

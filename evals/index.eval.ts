@@ -22,22 +22,20 @@ import {
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
-import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "@/types/evals";
+import { Eval, wrapAISDKModel } from "braintrust";
+import { SummaryResult, Testcase, EvalInput } from "../lib/v3/types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
+import { AvailableModel } from "@/lib/v3/types/model";
+import { LLMClient } from "@/lib/v3/llm/LLMClient";
 import { env } from "./env";
 import dotenv from "dotenv";
-import { StagehandEvalError } from "@/types/stagehandErrors";
-import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
-import OpenAI from "openai";
-// import { initStagehand } from "./initStagehand";
+import { StagehandEvalError } from "../lib/v3/types/stagehandErrors";
 import { initV3 } from "./initV3";
-import { AgentProvider } from "@/lib/agent/AgentProvider";
-import { AISdkClient } from "@/lib/llm/aisdk";
-import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
+import { AgentProvider } from "../lib/v3/agent/AgentProvider";
+import { AISdkClient } from "../lib/v3/llm/aisdk";
+import { getAISDKLanguageModel } from "../lib/v3/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
-import { LogLine } from "@/types/log";
+import { LogLine } from "../lib/v3/types/log";
 import { generateSummary } from "./core/summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
@@ -353,16 +351,6 @@ const generateFilteredTestcases = (): Testcase[] => {
                     input.modelName.split("/")[0],
                     input.modelName.split("/")[1],
                   ),
-                ),
-              });
-            } else {
-              llmClient = new CustomOpenAIClient({
-                modelName: input.modelName as AvailableModel,
-                client: wrapOpenAI(
-                  new OpenAI({
-                    apiKey: process.env.TOGETHER_AI_API_KEY,
-                    baseURL: "https://api.together.xyz/v1",
-                  }),
                 ),
               });
             }

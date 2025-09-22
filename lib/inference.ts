@@ -1,6 +1,6 @@
 import { z } from "zod/v3";
-import { LogLine } from "../types/log";
-import { ChatMessage, LLMClient } from "./llm/LLMClient";
+import { LogLine } from "./v3/types/log";
+import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
 import {
   buildExtractSystemPrompt,
   buildExtractUserPrompt,

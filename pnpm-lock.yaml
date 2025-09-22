@@ -38,9 +38,6 @@ importers:
       openai:
         specifier: ^4.87.1
         version: 4.96.2(ws@8.18.1)(zod@3.25.67)
-      patchright-core:
-        specifier: ^1.55.2
-        version: 1.55.2
       pino:
         specifier: ^9.6.0
         version: 9.6.0
@@ -166,6 +163,9 @@ importers:
       multer:
         specifier: ^1.4.5-lts.1
         version: 1.4.5-lts.2
+      patchright-core:
+        specifier: ^1.55.2
+        version: 1.55.2
       playwright-core:
         specifier: ^1.54.1
         version: 1.54.2

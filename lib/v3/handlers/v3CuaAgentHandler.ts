@@ -6,12 +6,12 @@ import {
   AgentResult,
   KeyPressActionStashEntry,
   TypeActionStashEntry,
-} from "@/types/agent";
-import { LogLine } from "@/types/log";
+} from "../types/agent";
+import { LogLine } from "../types/log";
 import { V3 } from "@/lib/v3/v3";
-import { AgentClient } from "@/lib/agent/AgentClient";
-import { AgentProvider } from "@/lib/agent/AgentProvider";
-import { mapKeyToPlaywright } from "@/lib/agent/utils/cuaKeyMapping";
+import { AgentClient } from "../agent/AgentClient";
+import { AgentProvider } from "../agent/AgentProvider";
+import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { V3FunctionName } from "@/lib/v3/types";
 import { ToolSet } from "ai";
 import { computeActiveElementXpath } from "@/lib/v3/understudy/a11y/snapshot";

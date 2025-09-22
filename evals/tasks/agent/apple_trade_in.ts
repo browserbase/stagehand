@@ -1,5 +1,5 @@
 //this eval is expected to fail due to issues scrolling within the trade in dialog
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const apple_trade_in: EvalFunction = async ({

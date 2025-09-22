@@ -1,4 +1,4 @@
-import { ChatMessage } from "./llm/LLMClient";
+import { ChatMessage } from "./v3/llm/LLMClient";
 
 export function buildUserInstructionsString(
   userProvidedInstructions?: string,
