@@ -41,7 +41,7 @@ export const webbench: EvalFunction = async ({
 
     await stagehand.page.goto(params.url, { waitUntil: "domcontentloaded" });
 
-    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    // Start collecting screenshots
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 8, // Keep last 8 screenshots
     });

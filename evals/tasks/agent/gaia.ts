@@ -60,7 +60,7 @@ export const gaia: EvalFunction = async ({
       },
     });
 
-    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    // Start collecting screenshots with hybrid approach
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 8, // Keep last 8 screenshots
     });

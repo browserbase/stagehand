@@ -88,7 +88,7 @@ export const osworld: EvalFunction = async ({
     // Set timeout for task execution
     const timeout = params.timeout || 60000; // Default 60 seconds
 
-    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    // Start collecting screenshots
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 8, // Keep last 8 screenshots
     });

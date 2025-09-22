@@ -85,7 +85,7 @@ export const webvoyager: EvalFunction = async ({
 
     await stagehand.page.goto(params.web);
 
-    // Start collecting screenshots with hybrid approach (10s intervals + agent triggers)
+    // Start collecting screenshots
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
       maxScreenshots: 8, // Keep last 8 screenshots
     });
