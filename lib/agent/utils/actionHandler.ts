@@ -1,10 +1,10 @@
 import { AgentAction } from "@/types/agent";
-import { AgentToolResult } from "@/lib/agent/tools";
+import { AgentToolResult, AgentToolCall } from "@/lib/agent/tools";
 
 export interface ActionHandlerOptions {
   toolCallName: string;
-  toolResult: AgentToolResult | null;
-  args: Record<string, unknown>;
+  toolResult: AgentToolResult;
+  args: AgentToolCall["args"];
   reasoning?: string;
 }
 
@@ -15,7 +15,6 @@ export function mapToolResultToActions({
   reasoning,
 }: ActionHandlerOptions): AgentAction[] {
   if (toolResult) {
-    // Use the discriminated union - toolResult.toolName tells us the type
     if (toolResult.toolName === "act") {
       const result = toolResult.result;
 
@@ -66,7 +65,9 @@ export function mapToolResultToActions({
       type: toolCallName,
       reasoning,
       taskCompleted:
-        toolCallName === "close" ? (args?.taskComplete as boolean) : false,
+        toolCallName === "close" && args && "taskComplete" in args
+          ? args.taskComplete
+          : false,
       ...args,
     },
   ];
