@@ -34,10 +34,7 @@ export function mapToolResultToActions({
     }
 
     if (toolResult.toolName === "fillForm") {
-      const result = toolResult.result as {
-        success: boolean;
-        playwrightArguments: unknown[];
-      };
+      const result = toolResult.result;
       const observeResults = Array.isArray(result.playwrightArguments)
         ? result.playwrightArguments
         : [];
