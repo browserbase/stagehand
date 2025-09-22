@@ -5,16 +5,16 @@ import {
   ActToolResult,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
+import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
-  private stagehandPage: StagehandPage;
+  private stagehand: Stagehand;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private executionModel?: string;
@@ -24,14 +24,14 @@ export class StagehandAgentHandler {
   private screenshotCollector?: any;
 
   constructor(
-    stagehandPage: StagehandPage,
+    stagehand: Stagehand,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
     tools?: ToolSet,
   ) {
-    this.stagehandPage = stagehandPage;
+    this.stagehand = stagehand;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
@@ -241,7 +241,7 @@ For each action, provide clear reasoning about why you're taking that step.`;
   }
 
   private createTools() {
-    return createAgentTools(this.stagehandPage, {
+    return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
       logger: this.logger,
     });

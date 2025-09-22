@@ -930,7 +930,7 @@ export class Stagehand {
       const systemInstructions = options?.instructions;
 
       agentHandler = new StagehandAgentHandler(
-        this.stagehandPage,
+        this,
         this.logger,
         this.llmClient,
         executionModel,
