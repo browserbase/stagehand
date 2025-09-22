@@ -107,6 +107,7 @@ export function buildSystemPrompt(
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
     <item>Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.</item>
+    <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ariaTree instead - it's faster and more reliable.</item>
     <item>Keep actions atomic and verify outcomes before proceeding.</item>
     <item>For each action, provide clear reasoning about why you're taking that step.</item>
   </strategy>
@@ -172,6 +173,7 @@ export function buildSystemPrompt(
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
     <item>Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.</item>
+    <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ariaTree instead - it's faster and more reliable.</item>
     <item>Keep actions atomic and verify outcomes before proceeding.</item>
     <item>For each action, provide clear reasoning about why you're taking that step.</item>
   </strategy>

@@ -18,6 +18,7 @@ import { createClickAndHoldTool } from "./clickAndHold";
 import { Stagehand } from "../../index";
 import { createFillFormVisionTool } from "./fillformVision";
 import type { ToolSet, ToolCallUnion, ToolResultUnion } from "ai";
+import { createExtractTool } from "./extract";
 export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
@@ -70,6 +71,7 @@ export function createAgentTools(
     wait: createWaitTool(),
     ...(hasExaApiKey ? { search: createSearchTool() } : {}),
     keys: createKeysTool(stagehand),
+    extract: createExtractTool(stagehand),
   } satisfies ToolSet;
   return filterToolsByModelName(options?.mainModel, all);
 }
@@ -94,6 +96,7 @@ export type AgentToolTypesMap = {
   wait: ReturnType<typeof createWaitTool>;
   search: ReturnType<typeof createSearchTool>;
   keys: ReturnType<typeof createKeysTool>;
+  extract: ReturnType<typeof createExtractTool>;
 };
 
 export type AgentToolCall = ToolCallUnion<AgentToolTypesMap>;
