@@ -40,17 +40,11 @@ export const onlineMind2Web: EvalFunction = async ({
       timeout: 75_000,
     });
 
-    if (!(modelName in modelToAgentProviderMap)) {
-      return {
-        _success: false,
-        error: `Model ${modelName} is not supported for agent tasks. Supported models: ${Object.keys(modelToAgentProviderMap).join(", ")}`,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
-    }
+    const provider =
+      modelName in modelToAgentProviderMap
+        ? modelToAgentProviderMap[modelName]
+        : undefined;
 
-    const provider = modelToAgentProviderMap[modelName];
     const agent = stagehand.agent({
       model: modelName,
       provider,
@@ -72,7 +66,7 @@ export const onlineMind2Web: EvalFunction = async ({
 
     screenshotCollector.start();
 
-    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 50;
+    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 5;
     const agentResult = await agent.execute({
       instruction: params.confirmed_task,
       maxSteps: maxSteps,
