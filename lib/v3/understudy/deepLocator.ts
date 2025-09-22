@@ -128,3 +128,78 @@ export async function resolveLocatorWithHops(
   if (isXPath) return deepLocatorThroughIframes(page, root, sel);
   return new Locator(root, sel);
 }
+
+/**
+ * DeepLocatorDelegate: a lightweight wrapper that looks like a Locator and
+ * resolves to the correct frame/element on each call using hop/deep-XPath logic.
+ *
+ * Returned by `page.deepLocator()` for ergonomic, await-free chaining:
+ *   page.deepLocator('iframe#ifrA >> #btn').click()
+ */
+export class DeepLocatorDelegate {
+  constructor(
+    private readonly page: Page,
+    private readonly root: Frame,
+    private readonly selector: string,
+  ) {}
+
+  private async real(): Promise<Locator> {
+    return resolveLocatorWithHops(this.page, this.root, this.selector);
+  }
+
+  // Locator API delegates
+  async click(options?: {
+    button?: "left" | "right" | "middle";
+    clickCount?: number;
+  }) {
+    return (await this.real()).click(options);
+  }
+  async fill(value: string) {
+    return (await this.real()).fill(value);
+  }
+  async type(text: string, options?: { delay?: number }) {
+    return (await this.real()).type(text, options);
+  }
+  async selectOption(values: string | string[]) {
+    return (await this.real()).selectOption(values);
+  }
+  async scrollTo(percent: number | string) {
+    return (await this.real()).scrollTo(percent);
+  }
+  async isVisible() {
+    return (await this.real()).isVisible();
+  }
+  async isChecked() {
+    return (await this.real()).isChecked();
+  }
+  async inputValue() {
+    return (await this.real()).inputValue();
+  }
+  async textContent() {
+    return (await this.real()).textContent();
+  }
+  async innerHtml() {
+    return (await this.real()).innerHtml();
+  }
+  async innerText() {
+    return (await this.real()).innerText();
+  }
+  async centroid() {
+    return (await this.real()).centroid();
+  }
+  async backendNodeId() {
+    return (await this.real()).backendNodeId();
+  }
+  first() {
+    return this;
+  }
+}
+
+/** Factory to create a deep locator delegate from a Page + root frame. */
+export function deepLocatorFromPage(
+  page: Page,
+  root: Frame,
+  selector: string,
+): DeepLocatorDelegate {
+  return new DeepLocatorDelegate(page, root, selector);
+}
