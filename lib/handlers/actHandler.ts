@@ -163,7 +163,7 @@ export class StagehandActHandler {
         if (observeResults.length === 0) {
           return {
             success: false,
-            message: `Failed to self heal act: No observe results found for action`,
+            message: `Failed to self heal act: Element not found.`,
             action: actCommand,
           };
         }
@@ -264,9 +264,15 @@ export class StagehandActHandler {
       });
 
       if (observeResults.length === 0) {
+        this.logger({
+          category: "action",
+          message:
+            "No elements found to act on. Check best practices for act: https://docs.stagehand.com/basics/act",
+          level: 2,
+        });
         return {
           success: false,
-          message: `Failed to perform act: No observe results found for action`,
+          message: `Failed to perform act: No elements found to act on.`,
           action,
         };
       }

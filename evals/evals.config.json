@@ -811,6 +811,10 @@
       ]
     },
     {
+      "name": "agent/webbench",
+      "categories": ["external_agent_benchmarks"]
+    },
+    {
       "name": "agent/nba_trades",
       "categories": [
         "agent"
@@ -835,9 +839,19 @@
       ]
     },
     {
+      "name": "agent/osworld",
+      "categories": ["external_agent_benchmarks"]
+    },
+    {
       "name": "agent/onlineMind2Web",
       "categories": [
         "external_agent_benchmarks"
+      ]
+    },
+    {
+      "name": "screenshot_cdp_toggle",
+      "categories": [
+        "regression"
       ]
     }
   ]
