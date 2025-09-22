@@ -67,6 +67,9 @@ export class StagehandAgentHandler {
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
+          if (options.onStepFinish) {
+            await options.onStepFinish(event);
+          }
           this.logger({
             category: "agent",
             message: `Step finished: ${event.finishReason}`,
