@@ -5,7 +5,7 @@
  */
 
 import dotenv from "dotenv";
-import { enableCaching, env } from "./env";
+import { env } from "./env";
 import { EvalLogger } from "./logger";
 import type { AvailableModel, ClientOptions } from "../lib/v3/types/model";
 import type { LLMClient } from "../lib/v3/llm/LLMClient";
@@ -101,7 +101,6 @@ export async function initV3({
     },
     modelName: internalModel,
     ...v3ClientOpts,
-    enableCaching,
     experimental:
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental
