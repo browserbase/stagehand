@@ -3,7 +3,7 @@ import { LogLine } from "@/types/log";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage } from "ai";
 import { createAgentTools, type AgentTools } from "../agent/tools";
-import { buildSystemPrompt } from "../agent/utils/systemPrompt";
+import { buildStagehandAgentSystemPrompt } from "../prompt";
 import {
   finalizeAgentMessage,
   processStepFinishEvent,
@@ -57,7 +57,7 @@ export class StagehandAgentHandler {
     const collectedReasoning: string[] = [];
 
     try {
-      const systemPrompt = buildSystemPrompt(
+      const systemPrompt = buildStagehandAgentSystemPrompt(
         this.stagehand.page.url(),
         this.llmClient?.modelName as string,
         options.instruction,
