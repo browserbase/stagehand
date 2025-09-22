@@ -12,15 +12,6 @@ export interface ExaSearchResult {
   score?: number;
   image?: string;
 }
-
-interface ExaResponseShape {
-  requestId?: string;
-  autopromptString?: string;
-  resolvedSearchType?: string;
-  results?: ExaSearchResult[];
-  error?: string;
-}
-
 interface SearchResponse {
   data?: {
     results: ExaSearchResult[];
@@ -37,12 +28,12 @@ async function performExaSearch(query: string): Promise<SearchResponse> {
       numResults: 5,
     });
 
-    const responseObj = response as unknown as ExaResponseShape;
+    const responseObj = response;
     const results: ExaSearchResult[] = [];
 
     if (responseObj?.results && Array.isArray(responseObj.results)) {
       responseObj.results.forEach((item) => {
-        if (typeof item === "object" && item.id && item.title && item.url) {
+        if (item.id && item.title && item.url) {
           results.push({
             id: item.id,
             title: item.title,
