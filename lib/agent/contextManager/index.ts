@@ -1,4 +1,3 @@
-// Barrel exports for contextManager module
 export * from "./contextManager";
 export * from "./compression";
 export * from "./messageText";

@@ -64,15 +64,11 @@ export class ContextManager {
     }
   }
 
-  /**
-   * Process messages intelligently, maintaining compression state across calls
-   */
   async processMessages(
     prompt: PromptInput,
     sessionId: string,
     llmClient?: LLMClient,
   ): Promise<PromptInput> {
-    // Clean up old cache entries
     this.cleanup();
 
     const cachedEntry = this.cache.get(sessionId);
@@ -120,7 +116,6 @@ export class ContextManager {
       );
     }
 
-    // Save state
     const state: ProcessedState = {
       processedPrompt: processedPrompt as PromptInput,
       lastProcessedIndex: promptArray.length,
@@ -145,13 +140,10 @@ export class ContextManager {
       ? (previousState.processedPrompt as CoreMessage[])
       : [];
 
-    // Identify new messages (those added since last processing)
     const newMessages = promptArray.slice(previousState.lastProcessedIndex);
 
-    // Start with previously processed messages
     let processedPrompt = [...previousPromptArray];
 
-    // Add new messages
     processedPrompt = processedPrompt.concat(newMessages as CoreMessage[]);
 
     const totalToolCount =
@@ -408,9 +400,6 @@ export class ContextManager {
     }
   }
 
-  /**
-   * Clear session data after execution
-   */
   clearSession(sessionId: string) {
     this.cache.delete(sessionId);
   }

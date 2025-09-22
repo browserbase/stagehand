@@ -12,7 +12,6 @@ export function getResultAsString(result: unknown): string {
   return typeof result === "string" ? result : JSON.stringify(result);
 }
 
-// Helper to safely check object properties
 function hasProperty<T extends string>(
   obj: unknown,
   prop: T,

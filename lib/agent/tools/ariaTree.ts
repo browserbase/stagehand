@@ -1,10 +1,13 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
+import { createHash } from "crypto";
 import { Stagehand } from "../../index";
 
 // Cache to store the full content and avoid re-extracting on each chunk request
+// We cache based on both URL and content hash
 let cachedContent: string | null = null;
 let cachedPageUrl: string | null = null;
+let cachedContentHash: string | null = null;
 
 export const createAriaTreeTool = (stagehand: Stagehand) =>
   tool({
@@ -22,11 +25,22 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
       try {
         const pageUrl = stagehand.page.url();
 
-        // Only extract content if we don't have cached content or if the URL changed
-        if (!cachedContent || cachedPageUrl !== pageUrl) {
-          const { page_text } = await stagehand.page.extract();
+        // Get current content to check if it has changed
+        const { page_text } = await stagehand.page.extract();
+        const currentContentHash = createHash("sha256")
+          .update(page_text)
+          .digest("hex");
+
+        // Only use cached content if we have it, URL hasn't changed, and content hasn't changed
+        const shouldUseCache =
+          cachedContent &&
+          cachedPageUrl === pageUrl &&
+          cachedContentHash === currentContentHash;
+
+        if (!shouldUseCache) {
           cachedContent = page_text;
           cachedPageUrl = pageUrl;
+          cachedContentHash = currentContentHash;
         }
 
         const TOKENS_PER_CHUNK = 50000;
@@ -36,7 +50,6 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
         const totalCharacters = cachedContent.length;
         const totalChunks = Math.ceil(totalCharacters / CHARACTERS_PER_CHUNK);
 
-        // Validate chunk number
         if (chunkNumber < 1 || chunkNumber > totalChunks) {
           return {
             success: false,

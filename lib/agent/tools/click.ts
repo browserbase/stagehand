@@ -16,7 +16,6 @@ export const createClickTool = (stagehand: Stagehand) =>
         .array(z.number())
         .describe("The (x, y) coordinates to click on"),
     }),
-
     execute: async ({ describe, coordinates }) => {
       try {
         await stagehand.page.mouse.move(coordinates[0], coordinates[1]);

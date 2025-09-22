@@ -1,6 +1,7 @@
 import { AgentAction } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import type { AgentToolCall } from "../tools";
+import type { AgentToolCall, AgentToolResult } from "../tools";
+import { mapToolResultToActions } from "./actionHandler";
 
 export interface StepFinishEventLike {
   finishReason?: string;
@@ -9,6 +10,7 @@ export interface StepFinishEventLike {
     toolName: string;
     args: unknown;
   }>;
+  toolResults?: Array<AgentToolResult | null>;
 }
 
 export interface ProcessedStepResult {
@@ -34,7 +36,8 @@ export function processStepFinishEvent(
   });
 
   if (event.toolCalls && event.toolCalls.length > 0) {
-    for (const toolCall of event.toolCalls) {
+    for (let i = 0; i < event.toolCalls.length; i++) {
+      const toolCall = event.toolCalls[i];
       const typedToolCall = toolCall as AgentToolCall;
 
       logger({
@@ -61,17 +64,16 @@ export function processStepFinishEvent(
         }
       }
 
-      const action: AgentAction = {
-        type: typedToolCall.toolName,
-        reasoning: event.text || undefined,
-        taskCompleted:
-          typedToolCall.toolName === "close"
-            ? typedToolCall.args?.taskComplete
-            : false,
-        ...typedToolCall.args,
-      } as AgentAction;
+      const toolResult = event.toolResults?.[i] || null;
 
-      actions.push(action);
+      const mapped = mapToolResultToActions({
+        toolCallName: typedToolCall.toolName,
+        toolResult,
+        args: (typedToolCall.args || {}) as Record<string, unknown>,
+        reasoning: event.text || undefined,
+      });
+
+      actions.push(...mapped);
     }
   }
 

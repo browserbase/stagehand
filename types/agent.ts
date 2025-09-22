@@ -1,5 +1,4 @@
 import { LogLine } from "./log";
-
 export interface AgentAction {
   type: string;
   reasoning?: string;

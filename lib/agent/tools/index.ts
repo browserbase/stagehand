@@ -16,6 +16,7 @@ import { createSearchTool } from "./search";
 import { createKeysTool } from "./keys";
 import { createClickAndHoldTool } from "./clickAndHold";
 import { Stagehand } from "../../index";
+import { createFillFormVisionTool } from "./fillformVision";
 import type { ToolSet, ToolCallUnion, ToolResultUnion } from "ai";
 export interface AgentToolOptions {
   executionModel?: string;
@@ -29,13 +30,16 @@ function filterToolsByModelName(
 ): ToolSet {
   const normalized = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalized.startsWith("claude");
-  if (isAnthropic) return tools;
-
+  if (isAnthropic) {
+    delete (tools as Record<string, unknown>)["fillForm"];
+    return tools;
+  }
   const filtered: ToolSet = { ...tools } as ToolSet;
   delete (filtered as Record<string, unknown>)["dragAndDrop"];
   delete (filtered as Record<string, unknown>)["clickAndHold"];
   delete (filtered as Record<string, unknown>)["click"];
   delete (filtered as Record<string, unknown>)["type"];
+  delete (filtered as Record<string, unknown>)["fillFormVision"];
   return filtered;
 }
 
@@ -44,6 +48,9 @@ export function createAgentTools(
   options?: AgentToolOptions,
 ) {
   const executionModel = options?.executionModel;
+  const hasExaApiKey =
+    typeof process.env.EXA_API_KEY === "string" &&
+    process.env.EXA_API_KEY.length > 0;
 
   const all = {
     act: createActTool(stagehand, executionModel),
@@ -55,12 +62,13 @@ export function createAgentTools(
     close: createCloseTool(),
     think: thinkTool,
     fillForm: createFillFormTool(stagehand, executionModel),
+    fillFormVision: createFillFormVisionTool(stagehand),
     goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
     screenshot: createScreenshotTool(stagehand),
     scroll: createScrollTool(stagehand),
     wait: createWaitTool(),
-    search: createSearchTool(),
+    ...(hasExaApiKey ? { search: createSearchTool() } : {}),
     keys: createKeysTool(stagehand),
   } satisfies ToolSet;
   return filterToolsByModelName(options?.mainModel, all);
@@ -68,7 +76,6 @@ export function createAgentTools(
 
 export type AgentTools = ReturnType<typeof createAgentTools>;
 
-// Precise tool type map derived from our actual tool factories (type-only, not executed)
 export type AgentToolTypesMap = {
   act: ReturnType<typeof createActTool>;
   ariaTree: ReturnType<typeof createAriaTreeTool>;
@@ -79,6 +86,7 @@ export type AgentToolTypesMap = {
   close: ReturnType<typeof createCloseTool>;
   think: typeof thinkTool;
   fillForm: ReturnType<typeof createFillFormTool>;
+  fillFormVision: ReturnType<typeof createFillFormVisionTool>;
   goto: ReturnType<typeof createGotoTool>;
   navback: ReturnType<typeof createNavBackTool>;
   screenshot: ReturnType<typeof createScreenshotTool>;

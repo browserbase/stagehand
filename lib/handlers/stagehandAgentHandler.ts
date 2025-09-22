@@ -9,7 +9,7 @@ import {
   processStepFinishEvent,
 } from "../agent/utils/processStepFinish";
 import { ToolSet } from "ai";
-import { injectDropdownConverter } from "../agent/utils/dropdownConverter";
+//import { injectDropdownConverter } from "../agent/utils/dropdownConverter";
 import { ContextManager } from "../agent/contextManager";
 import { modelWrapper } from "../agent/utils/modelWrapper";
 import { randomUUID } from "crypto";
@@ -59,6 +59,7 @@ export class StagehandAgentHandler {
 
     try {
       const systemPrompt = buildSystemPrompt(
+        this.stagehand.page.url(),
         this.llmClient?.modelName as string,
         options.instruction,
         this.systemInstructions,
@@ -89,7 +90,7 @@ export class StagehandAgentHandler {
         sessionId,
       );
 
-      await injectDropdownConverter(this.stagehand.page);
+      //await injectDropdownConverter(this.stagehand.page);
       this.logger({
         category: "agent",
         message: "Injected dropdown converter script",

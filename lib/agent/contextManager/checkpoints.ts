@@ -1,5 +1,5 @@
 import { CoreAssistantMessage, CoreMessage } from "ai";
-import { isToolCallPart, messagesToText, messagesToTextDetailed } from ".";
+import { isToolCallPart, messagesToText } from ".";
 import type { LLMClient } from "../../llm/LLMClient";
 import { RECENT_MESSAGES_TO_KEEP_IN_SUMMARY } from "./constants";
 
@@ -102,7 +102,7 @@ export async function generateConversationSummary(
   messages: CoreMessage[],
   llmClient: LLMClient,
 ): Promise<string> {
-  const conversationText = messagesToTextDetailed(messages);
+  const conversationText = messagesToText(messages);
   const model = llmClient.getLanguageModel?.();
   if (!model) return "[Summary generation failed: LLM not available]";
 

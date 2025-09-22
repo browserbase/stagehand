@@ -52,6 +52,3 @@ export function messagesToText(messages: CoreMessage[]): string {
     .filter(Boolean)
     .join("\n\n");
 }
-
-// After cleanup, both functions became identical, so just alias the detailed version
-export const messagesToTextDetailed = messagesToText;

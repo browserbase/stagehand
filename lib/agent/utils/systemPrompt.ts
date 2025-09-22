@@ -1,4 +1,5 @@
 export function buildSystemPrompt(
+  url: string,
   modelName: string | undefined,
   executionInstruction: string,
   systemInstructions?: string,
@@ -9,6 +10,14 @@ export function buildSystemPrompt(
 
   const normalizedModel = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalizedModel.startsWith("claude");
+
+  const hasSearch =
+    typeof process.env.EXA_API_KEY === "string" &&
+    process.env.EXA_API_KEY.length > 0;
+
+  const searchToolLine = hasSearch
+    ? `\n    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>`
+    : "";
 
   const toolsSection = isAnthropic
     ? `<tools>
@@ -25,7 +34,7 @@ export function buildSystemPrompt(
     <tool name="goto">Navigate to a URL</tool>
     <tool name="wait|navback|refresh">Control timing and navigation</tool>
     <tool name="scroll">Scroll the page x pixels up or down</tool>
-    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>
+    ${searchToolLine}
   </tools>`
     : `<tools>
     <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context (use sparingly)</tool>
@@ -38,7 +47,7 @@ export function buildSystemPrompt(
     <tool name="goto">Navigate to a URL</tool>
     <tool name="wait|navback|refresh">Control timing and navigation</tool>
     <tool name="scroll">Scroll the page x pixels up or down</tool>
-    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>
+    ${searchToolLine}
   </tools>`;
 
   const toolPriorityItem = isAnthropic
@@ -54,6 +63,9 @@ export function buildSystemPrompt(
     <date display="local" iso="${isoDate}">${localeDate}</date>
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
   </task>
+  <page>
+    <startingUrl>you are starting your taskon this url:${url}</startingUrl>
+  </page>
   <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
     <note>When the task is complete, do not seek more information; you have completed the task.</note>
@@ -81,8 +93,12 @@ export function buildSystemPrompt(
   </page_understanding_protocol>
   <navigation>
     <rule>When first starting a task, check what page you are on before proceeding</rule>
-    <rule>If you are not confident in the URL, use the search tool to find it.</rule
-    <rule>If you are not confident in the URL, use the search tool to find it.</rule>
+    ${
+      hasSearch
+        ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>
+    <rule>If you are not confident in the URL, use the search tool to find it.</rule>`
+        : ``
+    }
   </navigation>
   ${toolsSection}
   <strategy>
@@ -116,6 +132,9 @@ export function buildSystemPrompt(
     <date display="local" iso="${isoDate}">${localeDate}</date>
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
   </task>
+   <page>
+    <startingUrl>you are starting your taskon this url:${url}</startingUrl>
+  </page>
    <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
      <impoetantNote> If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</note>
@@ -144,7 +163,7 @@ export function buildSystemPrompt(
   </page_understanding_protocol>
   <navigation>
     <rule>If you are confident in the URL, navigate directly to it.</rule>
-    <rule>If you are not confident in the URL, use the search tool to find it.</rule>
+    ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
   </navigation>
   ${toolsSection}
   <strategy>

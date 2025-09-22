@@ -53,19 +53,52 @@ export const createFillFormTool = (
         .map((field) => field.action)
         .join(", ")}`;
 
-      const observeResults = executionModel
+      let observeResults = executionModel
         ? await stagehand.page.observe({
             instruction,
             modelName: executionModel,
           })
         : await stagehand.page.observe(instruction);
 
-      const completedActions = [];
-      for (const result of observeResults) {
-        const action = await stagehand.page.act(result);
-        completedActions.push(action);
+      let usedIframe = false;
+      const hasIframeAction = observeResults?.some(
+        (r) => r.description === "an iframe",
+      );
+
+      if (hasIframeAction) {
+        const iframeObserveOptions = executionModel
+          ? {
+              instruction,
+              modelName: executionModel,
+              iframes: true,
+            }
+          : {
+              instruction,
+              iframes: true,
+            };
+
+        const iframeObserveResults =
+          await stagehand.page.observe(iframeObserveOptions);
+
+        if (!iframeObserveResults || iframeObserveResults.length === 0) {
+          return {
+            success: false,
+            error: "No observable actions found within iframe context",
+            isIframe: true,
+          };
+        }
+
+        observeResults = iframeObserveResults;
+        usedIframe = true;
       }
 
-      return { success: true, actions: completedActions };
+      for (const observeResult of observeResults) {
+        await stagehand.page.act(observeResult);
+      }
+      return {
+        success: true,
+        playwrightArguments: observeResults,
+        isIframe: usedIframe,
+      };
     },
   });
