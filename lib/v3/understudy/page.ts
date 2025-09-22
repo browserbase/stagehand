@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
 import { FrameLocator } from "./frameLocator";
+import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types";
@@ -512,6 +513,16 @@ export class Page {
    */
   locator(selector: string): ReturnType<Frame["locator"]> {
     return this.mainFrameWrapper.locator(selector);
+  }
+
+  /**
+   * Deep locator that supports cross-iframe traversal.
+   * - Recognizes '>>' hop notation to enter iframe contexts.
+   * - Supports deep XPath that includes iframe steps (e.g., '/html/body/iframe[2]//div').
+   * Returns a Locator scoped to the appropriate frame.
+   */
+  deepLocator(selector: string) {
+    return deepLocatorFromPage(this, this.mainFrameWrapper, selector);
   }
 
   /**
