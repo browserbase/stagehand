@@ -19,7 +19,7 @@ import {
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { imageResize } from "./utils/imageUtils";
 
 dotenv.config();

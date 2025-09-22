@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const google_maps_2: EvalFunction = async ({
   debugUrl,
