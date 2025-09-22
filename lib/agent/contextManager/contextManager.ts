@@ -13,7 +13,7 @@ import {
 } from ".";
 
 import { LLMClient } from "../../llm/LLMClient";
-
+import { LogLevel } from "@/types/log";
 import { LogLine } from "../../../types/log";
 
 type PromptInput = LanguageModelV1CallOptions["prompt"];
@@ -54,7 +54,7 @@ export class ContextManager {
     this.logger = logger;
   }
 
-  private log(message: string, level: 0 | 1 | 2 = 1) {
+  private log(message: string, level: LogLevel = 2) {
     if (this.logger) {
       this.logger({
         category: "context",
@@ -191,7 +191,7 @@ export class ContextManager {
       );
       this.log(
         `Checkpoint created: ${beforeCount} → ${afterCount} messages (${totalToolCount} tools processed)`,
-        1,
+        2,
       );
       this.log(
         `Checkpoint optimization: tokens ~${beforeTokens} → ~${estimatedTokensNow} (${tokenReductionPct}%)`,
@@ -214,7 +214,7 @@ export class ContextManager {
 
       this.log(
         `FULL SUMMARIZATION: ${beforeCount} → ${afterCount} messages (exceeded ${this.SUMMARIZATION_THRESHOLD} tokens)`,
-        0,
+        2,
       );
     } else if (llmClient && compressionLevel < 2) {
       this.log(
@@ -276,14 +276,14 @@ export class ContextManager {
 
       this.log(
         `Checkpoint created: ${messagesToCheckpoint.length} messages → 1 checkpoint + ${recentMessages.length} recent messages`,
-        1,
+        2,
       );
 
       return result;
     } catch (error) {
       this.log(
         `Checkpoint creation failed: ${error instanceof Error ? error.message : String(error)}`,
-        0,
+        2,
       );
       return prompt;
     }
@@ -349,14 +349,14 @@ export class ContextManager {
 
       this.log(
         `Full conversation summary created: ${prompt.length} → ${result.length} messages`,
-        1,
+        2,
       );
 
       return result;
     } catch (error) {
       this.log(
         `Conversation summarization failed: ${error instanceof Error ? error.message : String(error)}`,
-        0,
+        2,
       );
       return prompt;
     }
