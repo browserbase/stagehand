@@ -59,6 +59,8 @@ export const webvoyager: EvalFunction = async ({
   input,
   agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     const params = ((input && input.params) || {}) as {
       id?: string;
@@ -93,20 +95,14 @@ export const webvoyager: EvalFunction = async ({
       agent.setScreenshotCollector(screenshotCollector);
     }
 
-    let screenshots: Buffer[] = [];
-    let agentResult;
+    screenshotCollector.start();
 
-    try {
-      screenshotCollector.start();
-
-      agentResult = await agent.execute({
-        instruction: params.ques,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-      });
-    } finally {
-      // Always stop collecting and get all screenshots, even on error
-      screenshots = screenshotCollector.stop();
-    }
+    const agentResult = await agent.execute({
+      instruction: params.ques,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    });
+    // Always stop collecting and get all screenshots, even on error
+    const screenshots = screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
@@ -205,6 +201,8 @@ Today's date is ${new Date().toLocaleDateString()}`;
       groundTruthUsed: false,
       agentAnswer,
       screenshotCount: screenshots.length,
+      final_answer: agentResult?.message,
+      execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

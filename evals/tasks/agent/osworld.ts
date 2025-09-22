@@ -101,49 +101,30 @@ export const osworld: EvalFunction = async ({
     let screenshots: Buffer[] = [];
     let result;
 
-    try {
-      screenshotCollector.start();
+    screenshotCollector.start();
 
-      // Execute the task using the pre-initialized agent with timeout
-      const executionPromise = agent.execute({
-        instruction: params.instruction,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-      });
+    // Execute the task using the pre-initialized agent with timeout
+    const executionPromise = agent.execute({
+      instruction: params.instruction,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    });
 
-      // Apply timeout wrapper
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Task timed out after ${timeout}ms`)),
-          timeout,
-        ),
-      );
+    // Apply timeout wrapper
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Task timed out after ${timeout}ms`)),
+        timeout,
+      ),
+    );
 
-      result = await Promise.race([executionPromise, timeoutPromise]);
-    } finally {
-      // Always stop collecting and get all screenshots, even on error
-      screenshots = screenshotCollector.stop();
-    }
+    result = await Promise.race([executionPromise, timeoutPromise]);
+    // Always stop collecting and get all screenshots, even on error
+    screenshots = screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
       message: `Collected ${screenshots.length} screenshots for evaluation`,
       level: 1,
-    });
-
-    logger.log({
-      category: "osworld",
-      message: `Task ${params.id} execution completed`,
-      level: 1,
-      auxiliary: {
-        task_id: {
-          value: params.id,
-          type: "string",
-        },
-        has_result: {
-          value: (!!result).toString(),
-          type: "string",
-        },
-      },
     });
 
     // Evaluate based on OSWorld evaluation type

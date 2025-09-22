@@ -10,6 +10,8 @@ export const webbench: EvalFunction = async ({
   input,
   agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     const params = ((input && input.params) || {}) as {
       id?: string;
@@ -49,45 +51,15 @@ export const webbench: EvalFunction = async ({
       agent.setScreenshotCollector(screenshotCollector);
     }
 
-    let screenshots: Buffer[] = [];
-    let result;
+    screenshotCollector.start();
 
-    try {
-      screenshotCollector.start();
-
-      logger.log({
-        category: "webbench",
-        message: `Starting WebBench task ${params.id}`,
-        level: 1,
-        auxiliary: {
-          category: {
-            value: params.category || "unknown",
-            type: "string",
-          },
-          difficulty: {
-            value: params.difficulty || "unknown",
-            type: "string",
-          },
-          url: {
-            value: params.url,
-            type: "string",
-          },
-          task_preview: {
-            value: params.task.substring(0, 100) + "...",
-            type: "string",
-          },
-        },
-      });
-
-      // Execute the task using the pre-initialized agent
-      result = await agent.execute({
-        instruction: params.task,
-        maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
-      });
-    } finally {
-      // Always stop collecting and get all screenshots, even on error
-      screenshots = screenshotCollector.stop();
-    }
+    // Execute the task using the pre-initialized agent
+    const agentResult = await agent.execute({
+      instruction: params.task,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
+    });
+    // Always stop collecting and get all screenshots, even on error
+    const screenshots = screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
@@ -106,7 +78,7 @@ export const webbench: EvalFunction = async ({
           type: "string",
         },
         has_result: {
-          value: (!!result).toString(),
+          value: (!!agentResult).toString(),
           type: "string",
         },
       },
@@ -136,7 +108,7 @@ export const webbench: EvalFunction = async ({
       question: evalPrompt,
       screenshot: screenshots,
       agentReasoning:
-        result?.message ||
+        agentResult.message ||
         "no reasoning available, agent potentially hit step limit",
     });
 
@@ -146,6 +118,9 @@ export const webbench: EvalFunction = async ({
       task_id: params.id,
       category: params.category,
       difficulty: params.difficulty || "unknown",
+      screenshotCount: screenshots.length,
+      final_answer: agentResult?.message,
+      execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
