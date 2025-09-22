@@ -79,7 +79,6 @@ export interface V3Options {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   llmClient?: LLMClient; // allow user to pass their own
-  enableCaching?: boolean;
   systemPrompt?: string;
   logInferenceToFile?: boolean;
   experimental?: boolean;

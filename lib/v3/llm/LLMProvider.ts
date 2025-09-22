@@ -5,7 +5,6 @@ import {
 } from "../types/stagehandErrors";
 import { LogLine } from "../types/log";
 import { AvailableModel, ClientOptions, ModelProvider } from "../types/model";
-import { LLMCache } from "../cache/LLMCache";
 import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
@@ -126,32 +125,9 @@ export function getAISDKLanguageModel(
 
 export class LLMProvider {
   private logger: (message: LogLine) => void;
-  private enableCaching: boolean;
-  private cache: LLMCache | undefined;
 
-  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
+  constructor(logger: (message: LogLine) => void) {
     this.logger = logger;
-    this.enableCaching = enableCaching;
-    this.cache = enableCaching ? new LLMCache(logger) : undefined;
-  }
-
-  cleanRequestCache(requestId: string): void {
-    if (!this.enableCaching) {
-      return;
-    }
-
-    this.logger({
-      category: "llm_cache",
-      message: "cleaning up cache",
-      level: 1,
-      auxiliary: {
-        requestId: {
-          value: requestId,
-          type: "string",
-        },
-      },
-    });
-    this.cache.deleteCacheForRequestId(requestId);
   }
 
   getClient(
@@ -173,8 +149,6 @@ export class LLMProvider {
       return new AISdkClient({
         model: languageModel,
         logger: this.logger,
-        enableCaching: this.enableCaching,
-        cache: this.cache,
       });
     }
 
@@ -187,40 +161,30 @@ export class LLMProvider {
       case "openai":
         return new OpenAIClient({
           logger: this.logger,
-          enableCaching: this.enableCaching,
-          cache: this.cache,
           modelName: availableModel,
           clientOptions,
         });
       case "anthropic":
         return new AnthropicClient({
           logger: this.logger,
-          enableCaching: this.enableCaching,
-          cache: this.cache,
           modelName: availableModel,
           clientOptions,
         });
       case "cerebras":
         return new CerebrasClient({
           logger: this.logger,
-          enableCaching: this.enableCaching,
-          cache: this.cache,
           modelName: availableModel,
           clientOptions,
         });
       case "groq":
         return new GroqClient({
           logger: this.logger,
-          enableCaching: this.enableCaching,
-          cache: this.cache,
           modelName: availableModel,
           clientOptions,
         });
       case "google":
         return new GoogleClient({
           logger: this.logger,
-          enableCaching: this.enableCaching,
-          cache: this.cache,
           modelName: availableModel,
           clientOptions,
         });

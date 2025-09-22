@@ -47,7 +47,7 @@ export class V3Evaluator {
 
   private getClient(): LLMClient {
     // Prefer a dedicated provider so we can override model per-evaluation
-    const provider = new LLMProvider(this.v3.logger, true);
+    const provider = new LLMProvider(this.v3.logger);
     return provider.getClient(this.modelName, this.modelClientOptions);
   }
 

@@ -311,10 +311,7 @@ export class V3 {
     this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(
-      this.logger,
-      opts.enableCaching ?? false,
-    );
+    this.llmProvider = new LLMProvider(this.logger);
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = opts.modelClientOptions ?? {};
