@@ -30,16 +30,16 @@ function filterToolsByModelName(
 ): ToolSet {
   const normalized = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalized.startsWith("claude");
+  const filtered: ToolSet = { ...tools };
   if (isAnthropic) {
-    delete (tools as Record<string, unknown>)["fillForm"];
-    return tools;
+    delete filtered.fillForm;
+    return filtered;
   }
-  const filtered: ToolSet = { ...tools } as ToolSet;
-  delete (filtered as Record<string, unknown>)["dragAndDrop"];
-  delete (filtered as Record<string, unknown>)["clickAndHold"];
-  delete (filtered as Record<string, unknown>)["click"];
-  delete (filtered as Record<string, unknown>)["type"];
-  delete (filtered as Record<string, unknown>)["fillFormVision"];
+  delete filtered.dragAndDrop;
+  delete filtered.clickAndHold;
+  delete filtered.click;
+  delete filtered.type;
+  delete filtered.fillFormVision;
   return filtered;
 }
 

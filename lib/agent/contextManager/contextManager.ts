@@ -12,8 +12,13 @@ import {
   summarizeConversation as summarizeConversationUtil,
 } from ".";
 
+import {
+  CHECKPOINT_INTERVAL,
+  RECENT_TOOLS_TO_KEEP,
+  SUMMARIZATION_THRESHOLD,
+} from "./constants";
+
 import { LLMClient } from "../../llm/LLMClient";
-import { LogLevel } from "@/types/log";
 import { LogLine } from "../../../types/log";
 
 type PromptInput = LanguageModelV1CallOptions["prompt"];
@@ -45,23 +50,10 @@ export class ContextManager {
   private ttl = 3600000; // 1 hour
   private logger?: (message: LogLine) => void;
 
-  // Thresholds
-  private readonly CHECKPOINT_INTERVAL = 25;
-  private readonly RECENT_TOOLS_TO_KEEP = 10;
-  private readonly SUMMARIZATION_THRESHOLD = 120000;
+  // Thresholds moved to centralized constants
 
   constructor(logger?: (message: LogLine) => void) {
     this.logger = logger;
-  }
-
-  private log(message: string, level: LogLevel = 2) {
-    if (this.logger) {
-      this.logger({
-        category: "context",
-        message,
-        level,
-      });
-    }
   }
 
   async processMessages(
@@ -94,10 +86,11 @@ export class ContextManager {
     const toolCount = countTools(promptArray);
     const estimatedTokens = estimateTokens(promptArray);
 
-    this.log(
-      `Initial prompt analysis: ${promptArray.length} messages, ${toolCount} tools, ~${estimatedTokens} tokens`,
-      2,
-    );
+    this.logger?.({
+      category: "context",
+      message: `Initial prompt analysis: ${promptArray.length} messages, ${toolCount} tools, ~${estimatedTokens} tokens`,
+      level: 2,
+    });
 
     let processedPrompt = [...promptArray];
     let compressionLevel = 0;
@@ -105,15 +98,20 @@ export class ContextManager {
     if (toolCount > 7) {
       const beforeSize = JSON.stringify(processedPrompt).length;
       processedPrompt = compressToolResults(processedPrompt, (message, level) =>
-        this.log(message, level),
+        this.logger?.({
+          category: "context",
+          message,
+          level,
+        }),
       );
       const afterSize = JSON.stringify(processedPrompt).length;
       compressionLevel = 1;
 
-      this.log(
-        `Basic compression applied: ${beforeSize} → ${afterSize} chars (${Math.round((1 - afterSize / beforeSize) * 100)}% reduction)`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Basic compression applied: ${beforeSize} → ${afterSize} chars (${Math.round((1 - afterSize / beforeSize) * 100)}% reduction)`,
+        level: 2,
+      });
     }
 
     const state: ProcessedState = {
@@ -157,7 +155,11 @@ export class ContextManager {
       const beforeSize = JSON.stringify(processedPrompt).length;
       const beforeTokens = estimatedTokensNow;
       processedPrompt = compressToolResults(processedPrompt, (message, level) =>
-        this.log(message, level),
+        this.logger?.({
+          category: "context",
+          message,
+          level,
+        }),
       );
       const afterSize = JSON.stringify(processedPrompt).length;
       estimatedTokensNow = estimateTokens(processedPrompt);
@@ -168,10 +170,11 @@ export class ContextManager {
         const tokenReductionPct = Math.round(
           (1 - estimatedTokensNow / Math.max(1, beforeTokens)) * 100,
         );
-        this.log(
-          `Basic compression: ${beforeSize} → ${afterSize} chars (${Math.round((1 - afterSize / beforeSize) * 100)}%); tokens ~${beforeTokens} → ~${estimatedTokensNow} (${tokenReductionPct}%)`,
-          2,
-        );
+        this.logger?.({
+          category: "context",
+          message: `Basic compression: ${beforeSize} → ${afterSize} chars (${Math.round((1 - afterSize / beforeSize) * 100)}%); tokens ~${beforeTokens} → ~${estimatedTokensNow} (${tokenReductionPct}%)`,
+          level: 2,
+        });
       }
     }
 
@@ -189,18 +192,20 @@ export class ContextManager {
       const tokenReductionPct = Math.round(
         (1 - estimatedTokensNow / Math.max(1, beforeTokens)) * 100,
       );
-      this.log(
-        `Checkpoint created: ${beforeCount} → ${afterCount} messages (${totalToolCount} tools processed)`,
-        2,
-      );
-      this.log(
-        `Checkpoint optimization: tokens ~${beforeTokens} → ~${estimatedTokensNow} (${tokenReductionPct}%)`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Checkpoint created: ${beforeCount} → ${afterCount} messages (${totalToolCount} tools processed)`,
+        level: 2,
+      });
+      this.logger?.({
+        category: "context",
+        message: `Checkpoint optimization: tokens ~${beforeTokens} → ~${estimatedTokensNow} (${tokenReductionPct}%)`,
+        level: 2,
+      });
     }
 
     const shouldSummarizeByTokens =
-      estimatedTokensNow > this.SUMMARIZATION_THRESHOLD;
+      estimatedTokensNow > SUMMARIZATION_THRESHOLD;
 
     if (llmClient && shouldSummarizeByTokens && compressionLevel < 2) {
       const beforeCount = processedPrompt.length;
@@ -212,21 +217,23 @@ export class ContextManager {
       const afterCount = processedPrompt.length;
       compressionLevel = 2;
 
-      this.log(
-        `FULL SUMMARIZATION: ${beforeCount} → ${afterCount} messages (exceeded ${this.SUMMARIZATION_THRESHOLD} tokens)`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `FULL SUMMARIZATION: ${beforeCount} → ${afterCount} messages (exceeded ${SUMMARIZATION_THRESHOLD} tokens)`,
+        level: 2,
+      });
     } else if (llmClient && compressionLevel < 2) {
-      this.log(
-        `Skip summarization: tokens ~${estimatedTokensNow} ≤ threshold ${this.SUMMARIZATION_THRESHOLD}`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Skip summarization: tokens ~${estimatedTokensNow} ≤ threshold ${SUMMARIZATION_THRESHOLD}`,
+        level: 2,
+      });
     }
 
     const newState: ProcessedState = {
       processedPrompt: processedPrompt as PromptInput,
       lastProcessedIndex: promptArray.length,
-      checkpointCount: Math.floor(totalToolCount / this.CHECKPOINT_INTERVAL),
+      checkpointCount: Math.floor(totalToolCount / CHECKPOINT_INTERVAL),
       totalToolCount,
       compressionLevel,
     };
@@ -249,8 +256,8 @@ export class ContextManager {
         prompt,
         systemMsgIndex,
         toolCount,
-        this.RECENT_TOOLS_TO_KEEP,
-        this.CHECKPOINT_INTERVAL,
+        RECENT_TOOLS_TO_KEEP,
+        CHECKPOINT_INTERVAL,
       );
       if (!plan) return prompt;
 
@@ -274,17 +281,19 @@ export class ContextManager {
       result.push(checkpointMessage);
       result.push(...recentMessages);
 
-      this.log(
-        `Checkpoint created: ${messagesToCheckpoint.length} messages → 1 checkpoint + ${recentMessages.length} recent messages`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Checkpoint created: ${messagesToCheckpoint.length} messages → 1 checkpoint + ${recentMessages.length} recent messages`,
+        level: 2,
+      });
 
       return result;
     } catch (error) {
-      this.log(
-        `Checkpoint creation failed: ${error instanceof Error ? error.message : String(error)}`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Checkpoint creation failed: ${error instanceof Error ? error.message : String(error)}`,
+        level: 2,
+      });
       return prompt;
     }
   }
@@ -331,10 +340,11 @@ export class ContextManager {
         (1 - afterCharSize / Math.max(1, beforeCharSize)) * 100,
       );
 
-      this.log(
-        `Summarization optimization: messages ${beforeMessageCount} → ${afterMessageCount}; tokens ~${beforeTokenEstimate} → ~${afterTokenEstimate} (${tokenReductionPct}%); chars ${beforeCharSize} → ${afterCharSize} (${charReductionPct}%); recent kept ${recentMessages.length}${systemMessage ? " + system" : ""}`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Summarization optimization: messages ${beforeMessageCount} → ${afterMessageCount}; tokens ~${beforeTokenEstimate} → ~${afterTokenEstimate} (${tokenReductionPct}%); chars ${beforeCharSize} → ${afterCharSize} (${charReductionPct}%); recent kept ${recentMessages.length}${systemMessage ? " + system" : ""}`,
+        level: 2,
+      });
 
       this.cache.set(`${sessionId}:summary`, {
         state: {
@@ -347,17 +357,19 @@ export class ContextManager {
         timestamp: Date.now(),
       });
 
-      this.log(
-        `Full conversation summary created: ${prompt.length} → ${result.length} messages`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Full conversation summary created: ${prompt.length} → ${result.length} messages`,
+        level: 2,
+      });
 
       return result;
     } catch (error) {
-      this.log(
-        `Conversation summarization failed: ${error instanceof Error ? error.message : String(error)}`,
-        2,
-      );
+      this.logger?.({
+        category: "context",
+        message: `Conversation summarization failed: ${error instanceof Error ? error.message : String(error)}`,
+        level: 2,
+      });
       return prompt;
     }
   }
@@ -379,8 +391,8 @@ export class ContextManager {
 
   private shouldCreateCheckpoint(totalToolCount: number): boolean {
     return (
-      totalToolCount >= this.CHECKPOINT_INTERVAL &&
-      totalToolCount % this.CHECKPOINT_INTERVAL === 0
+      totalToolCount >= CHECKPOINT_INTERVAL &&
+      totalToolCount % CHECKPOINT_INTERVAL === 0
     );
   }
 
