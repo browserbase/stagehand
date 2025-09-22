@@ -558,10 +558,7 @@ export class Stagehand {
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
 
     const cacheDirCandidate = cacheDir ?? process.env.STAGEHAND_CACHE_DIR;
-    this.cacheDir =
-      cacheDirCandidate && cacheDirCandidate.trim().length > 0
-        ? path.resolve(cacheDirCandidate)
-        : undefined;
+    this.cacheDir = cacheDirCandidate ? path.resolve(cacheDirCandidate) : undefined;
 
     this.llmProvider =
       llmProvider ||
