@@ -1,0 +1,109 @@
+{
+  "id": "1704f00f-79e6-43a7-961b-cedd3724d5fd",
+  "snapshot": "chrome",
+  "instruction": "Find a large car from next Monday to Friday in Zurich, sorted by price.",
+  "source": "test_task_0",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.rentalcars.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": [
+      "check_direct_json_object",
+      "check_direct_json_object"
+    ],
+    "result": [
+      {
+        "type": "active_tab_url_parse",
+        "goto_prefix": "https://www.",
+        "parse_keys": [
+          "locationName",
+          "dropLocationName",
+          "filterCriteria_carCategory",
+          "filterCriteria_sortBy"
+        ]
+      },
+      {
+        "type": "active_tab_url_parse",
+        "goto_prefix": "https://www.",
+        "parse_keys": [
+          "puDay",
+          "puMonth",
+          "puYear",
+          "doDay",
+          "doMonth",
+          "doYear"
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "type": "rule",
+        "rules": {
+          "expected": {
+            "locationName": "Zürich",
+            "dropLocationName": "Zürich",
+            "filterCriteria_carCategory": "large",
+            "filterCriteria_sortBy": "PRICE"
+          }
+        }
+      },
+      {
+        "type": "rule_relativeTime",
+        "rules": {
+          "relativeTime": {
+            "from": "next Monday split",
+            "to": "next Friday split"
+          },
+          "timezone": "Europe/Zurich",
+          "expected": {
+            "puDay": "{DayD}",
+            "puMonth": "{MonthD}",
+            "puYear": "{Year}",
+            "doDay": "{DayD}",
+            "doMonth": "{MonthD}",
+            "doYear": "{Year}"
+          }
+        }
+      }
+    ]
+  },
+  "proxy": true,
+  "possibility_of_env_change": "medium",
+  "fixed_ip": false
+}

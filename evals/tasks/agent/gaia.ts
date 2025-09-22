@@ -13,8 +13,8 @@ export const gaia: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  modelName,
   input,
+  agent,
 }) => {
   try {
     const params = ((input && input.params) || {}) as {
@@ -42,12 +42,6 @@ export const gaia: EvalFunction = async ({
       };
     }
     await stagehand.page.goto(params.web);
-
-    const agent = stagehand.agent({
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await stagehand.page.title()}`,
-    });
 
     const result = await agent.execute({
       instruction: params.ques,

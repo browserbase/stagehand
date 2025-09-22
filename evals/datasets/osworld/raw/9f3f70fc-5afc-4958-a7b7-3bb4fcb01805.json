@@ -1,0 +1,81 @@
+{
+  "id": "9f3f70fc-5afc-4958-a7b7-3bb4fcb01805",
+  "snapshot": "chrome",
+  "instruction": "Browse the list of women's Nike jerseys over $60.",
+  "source": "test_task_1",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    },
+    {
+      "type": "chrome_open_tabs",
+      "parameters": {
+        "urls_to_open": [
+          "https://www.nba.com/"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Google Chrome"
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "check_direct_json_object",
+    "result": {
+      "type": "active_tab_html_parse",
+      "category": "class&url",
+      "class_multiObject": {
+        "filter-selector-link": [
+          "over $60",
+          "women",
+          "jerseys",
+          "nike"
+        ]
+      },
+      "url_include_expected": [
+        "over $60",
+        "women",
+        "jerseys",
+        "nike"
+      ]
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "expected": {
+          "over $60": true,
+          "women": true,
+          "jerseys": true,
+          "nike": true,
+          "is_other_exist": false
+        }
+      }
+    }
+  },
+  "proxy": true,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}
