@@ -14,11 +14,30 @@ async function example(stagehand: Stagehand) {
   const page = stagehand.page;
   await page.goto("https://docs.stagehand.dev");
   await page.act("click the quickstart button");
+
+  const agent = stagehand.agent({
+    // provider: "openai",
+    // model: "gpt-4o",
+    instructions: "You are a helpful assistant that can use a web browser.",
+  });
+  await agent.execute({
+    instruction: "search for 'API' on the documentation",
+    onStepFinish: (step) => {
+      stagehand.logger({
+        category: "agent",
+        message: `step finish: ${step}`,
+        level: 1,
+      });
+    },
+  });
 }
 
 (async () => {
   const stagehand = new Stagehand({
     ...StagehandConfig,
+    modelName: "openai/gpt-4.1",
+    useAPI: false,
+    env: "LOCAL",
   });
   await stagehand.init();
   await example(stagehand);

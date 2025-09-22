@@ -27,6 +27,12 @@ import {
   StagehandResponseBodyError,
   StagehandResponseParseError,
 } from "../types/stagehandApiErrors";
+import {
+  AgentStreamEvent,
+  AgentHookHandlers,
+  AgentHookEvent,
+} from "../types/agentHooks";
+import { AgentHookEventHandler } from "./agent/AgentHookEventHandler";
 import makeFetchCookie from "fetch-cookie";
 import { STAGEHAND_VERSION } from "./version";
 
@@ -163,9 +169,53 @@ export class StagehandAPI {
       );
     }
 
+    // Extract hooks from executeOptions to handle on client side
+    const hooks: AgentHookHandlers = {
+      onStepFinish: executeOptions.onStepFinish,
+      onFinish: executeOptions.onFinish,
+      onError: executeOptions.onError,
+      onChunk: executeOptions.onChunk,
+    };
+
+    // Remove hooks from executeOptions to send to server (they can't be serialized)
+    const {
+      onStepFinish: _onStepFinish, // eslint-disable-line @typescript-eslint/no-unused-vars
+      onFinish: _onFinish, // eslint-disable-line @typescript-eslint/no-unused-vars
+      onError: _onError, // eslint-disable-line @typescript-eslint/no-unused-vars
+      onChunk: _onChunk, // eslint-disable-line @typescript-eslint/no-unused-vars
+      ...serializableExecuteOptions
+    } = executeOptions;
+
+    // Generate unique execution ID for this agent execution
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+    // Create hook event handler if any hooks are provided
+    const hasHooks = !!(
+      hooks.onStepFinish ||
+      hooks.onFinish ||
+      hooks.onError ||
+      hooks.onChunk
+    );
+    let hookEventHandler: AgentHookEventHandler | null = null;
+
+    if (hasHooks) {
+      hookEventHandler = new AgentHookEventHandler(
+        hooks,
+        this.logger,
+        executionId,
+      );
+    }
+
     return this.execute<AgentResult>({
       method: "agentExecute",
-      args: { agentConfig, executeOptions },
+      args: {
+        agentConfig,
+        executeOptions: serializableExecuteOptions,
+        hookConfig: hasHooks
+          ? { enableHooks: true, executionId }
+          : { enableHooks: false },
+      },
+      hookEventHandler,
     });
   }
 
@@ -181,7 +231,10 @@ export class StagehandAPI {
     method,
     args,
     params,
-  }: ExecuteActionParams): Promise<T> {
+    hookEventHandler,
+  }: ExecuteActionParams & {
+    hookEventHandler?: AgentHookEventHandler | null;
+  }): Promise<T> {
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
@@ -221,17 +274,39 @@ export class StagehandAPI {
         if (!line.startsWith("data: ")) continue;
 
         try {
-          const eventData = JSON.parse(line.slice(6));
+          const eventData: AgentStreamEvent = JSON.parse(line.slice(6));
 
           if (eventData.type === "system") {
-            if (eventData.data.status === "error") {
-              throw new StagehandServerError(eventData.data.error);
+            const systemData = eventData.data as {
+              status: string;
+              result?: unknown;
+              error?: string;
+            };
+            if (systemData.status === "error") {
+              throw new StagehandServerError(
+                systemData.error || "Unknown server error",
+              );
             }
-            if (eventData.data.status === "finished") {
-              return eventData.data.result as T;
+            if (systemData.status === "finished") {
+              return systemData.result as T;
             }
           } else if (eventData.type === "log") {
-            this.logger(eventData.data.message);
+            // Handle print logs - these are regular log messages for display
+            const logData = eventData.data as LogLine;
+            this.logger(logData);
+          } else if (eventData.type === "hook_event") {
+            // Handle event logs - these trigger agent hooks
+            if (hookEventHandler) {
+              const hookEvent = eventData.data as AgentHookEvent;
+              await hookEventHandler.handleEvent(hookEvent);
+            } else {
+              // If no hook handler is registered, log the event for debugging
+              this.logger({
+                category: "agent",
+                message: `Received hook event but no handler registered: ${(eventData.data as AgentHookEvent).type}`,
+                level: 2,
+              });
+            }
           }
         } catch (e) {
           console.error("Error parsing event data:", e);

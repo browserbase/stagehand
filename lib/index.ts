@@ -1084,6 +1084,7 @@ export class Stagehand {
 }
 
 export * from "../types/agent";
+export * from "../types/agentHooks";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
