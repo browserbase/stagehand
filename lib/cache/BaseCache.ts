@@ -45,7 +45,7 @@ export class BaseCache<T extends CacheEntry> {
 
   private resolveCacheDirectory(override?: string): string {
     const candidate = override ?? process.env.STAGEHAND_CACHE_DIR;
-    if (candidate && candidate.trim().length > 0) {
+    if (candidate?.trim()) {
       return path.isAbsolute(candidate) ? candidate : path.resolve(candidate);
     }
     return path.join(process.cwd(), "tmp", ".cache");
