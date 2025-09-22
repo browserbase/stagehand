@@ -1,5 +1,5 @@
-import { EvalFunction } from "@/types/evals";
-import { ObserveResult } from "@/types/stagehand";
+import { EvalFunction } from "@/lib/v3/types/evals";
+import { ObserveResult } from "@/lib/v3/types/stagehand";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check

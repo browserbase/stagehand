@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 
 export const rakuten_jp: EvalFunction = async ({
   debugUrl,

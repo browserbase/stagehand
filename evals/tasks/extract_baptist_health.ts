@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 import { compareStrings } from "@/evals/utils";
 import { z } from "zod/v3";
 

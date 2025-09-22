@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 
 export const extract_aigrant_targeted: EvalFunction = async ({
   logger,

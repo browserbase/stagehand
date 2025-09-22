@@ -1,14 +1,14 @@
 // lib/v3/handlers/extractHandler.ts
 import { z, ZodTypeAny } from "zod/v3";
 import { ExtractHandlerParams, V3FunctionName } from "@/lib/v3/types";
-import { LLMClient } from "@/lib/llm/LLMClient";
-import { AvailableModel, ClientOptions } from "@/types/model";
+import { LLMClient } from "../llm/LLMClient";
+import { AvailableModel, ClientOptions } from "../types/model";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { extract as runExtract } from "@/lib/inference";
-import { pageTextSchema } from "@/types/page";
+import { pageTextSchema } from "../types/page";
 import { injectUrls, transformSchema } from "@/lib/utils";
-import { EncodedId } from "@/types/context";
-import { ZodPathSegments } from "@/types/stagehand";
+import { EncodedId } from "../types/context";
+import { ZodPathSegments } from "../types/stagehand";
 import { v3Logger } from "@/lib/v3/logger";
 
 /**

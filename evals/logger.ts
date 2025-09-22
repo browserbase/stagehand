@@ -11,8 +11,8 @@
  * reviewed after the tasks complete.
  */
 import { logLineToString } from "./utils";
-import { LogLineEval } from "@/types/evals";
-import { Stagehand, LogLine } from "@browserbasehq/stagehand";
+import { LogLineEval } from "../lib/v3/types/evals";
+import { LogLine } from "../lib/v3/types/log";
 import type { V3 } from "@/lib/v3/v3";
 
 /**
@@ -67,7 +67,7 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  */
 export class EvalLogger {
   private logs: LogLineEval[] = [];
-  stagehand?: Stagehand | V3;
+  stagehand?: V3;
 
   constructor() {
     this.logs = [];
@@ -78,7 +78,7 @@ export class EvalLogger {
    * Associates this logger with a given Stagehand instance.
    * This allows the logger to provide additional context if needed.
    */
-  init(stagehand?: Stagehand | V3) {
+  init(stagehand?: V3) {
     this.stagehand = stagehand;
   }
 

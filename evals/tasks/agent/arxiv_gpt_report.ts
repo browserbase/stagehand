@@ -1,5 +1,5 @@
 //agent often fails on this one,
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 import { V3Evaluator } from "@/evals/v3Evaluator";
 export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,

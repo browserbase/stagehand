@@ -1,9 +1,9 @@
-import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
-import { LogLine } from "@/types/log";
-import { LLMClient } from "@/lib/llm/LLMClient";
+import { AgentAction, AgentExecuteOptions, AgentResult } from "../types/agent";
+import { LogLine } from "../types/log";
+import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
-import { processMessages } from "@/lib/agent/utils/messageProcessing";
+import { processMessages } from "../agent/utils/messageProcessing";
 import { ToolSet } from "ai";
 import { V3 } from "@/lib/v3/v3";
 import { createAgentTools } from "@/lib/v3/agent/tools";

@@ -1,9 +1,9 @@
-import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { EvalFunction } from "@/lib/v3/types/evals";
+import { V3Evaluator } from "../../v3Evaluator";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const webvoyager: EvalFunction = async ({
-  stagehand,
+  v3,
   logger,
   debugUrl,
   sessionUrl,
@@ -28,16 +28,17 @@ export const webvoyager: EvalFunction = async ({
       };
     }
 
-    await stagehand.page.goto(params.web);
+    const page = v3.context.pages()[0];
+    await page.goto(params.web);
 
-    const agent = stagehand.agent({
+    const agent = v3.agent({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}`,
+      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.url()}`,
     });
 
     // Start collecting screenshots in parallel
-    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+    const screenshotCollector = new ScreenshotCollector(page, {
       maxScreenshots: 10, // Keep last 10 screenshots
       captureOnNavigation: true, // Also capture on page navigation
     });
@@ -58,7 +59,7 @@ export const webvoyager: EvalFunction = async ({
       level: 1,
     });
 
-    const evaluator = new Evaluator(stagehand);
+    const evaluator = new V3Evaluator(v3);
     const evalResult = await evaluator.ask({
       question: `Did the agent successfully complete this task: "${params.ques}"?`,
       screenshot: screenshots,

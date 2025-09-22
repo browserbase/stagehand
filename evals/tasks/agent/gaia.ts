@@ -1,5 +1,5 @@
-import { EvalFunction } from "@/types/evals";
-import { Evaluator } from "../../evaluator";
+import { EvalFunction } from "@/lib/v3/types/evals";
+import { V3Evaluator } from "../../v3Evaluator";
 
 /**
  * Data-driven GAIA agent eval
@@ -9,7 +9,7 @@ import { Evaluator } from "../../evaluator";
  * - Marks success if such an answer string is present (exact matching against dataset can be layered later)
  */
 export const gaia: EvalFunction = async ({
-  stagehand,
+  v3,
   logger,
   debugUrl,
   sessionUrl,
@@ -41,12 +41,13 @@ export const gaia: EvalFunction = async ({
         logs: logger.getLogs(),
       };
     }
-    await stagehand.page.goto(params.web);
+    const page = v3.context.pages()[0];
+    await page.goto(params.web);
 
-    const agent = stagehand.agent({
+    const agent = v3.agent({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-      instructions: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await stagehand.page.title()}`,
+      instructions: `You are a helpful assistant that must solve the task by browsing. You must produce a single line at the end like: "Final Answer: <answer>". Do not ask follow up questions. Current page: ${await page.url()}`,
     });
 
     const result = await agent.execute({
@@ -57,7 +58,7 @@ export const gaia: EvalFunction = async ({
     const expected = (params as Record<string, unknown>).expected as
       | string
       | undefined;
-    const evaluator = new Evaluator(stagehand);
+    const evaluator = new V3Evaluator(v3);
     const evalResult = await evaluator.ask({
       question: `Did the agent provide the expected answer: "${expected}"?`,
       answer: result?.message || "",

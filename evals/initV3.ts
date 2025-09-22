@@ -7,12 +7,12 @@
 import dotenv from "dotenv";
 import { enableCaching, env } from "./env";
 import { EvalLogger } from "./logger";
-import type { AvailableModel, ClientOptions } from "@/types/model";
-import type { LLMClient } from "@/lib/llm/LLMClient";
+import type { AvailableModel, ClientOptions } from "../lib/v3/types/model";
+import type { LLMClient } from "../lib/v3/llm/LLMClient";
 import { V3 } from "@/lib/v3/v3";
-import type { AgentInstance } from "@/types/agent";
+import type { AgentInstance } from "../lib/v3/types/agent";
 import type { V3Options, LocalBrowserLaunchOptions } from "@/lib/v3/types";
-import { AgentConfig } from "@/types/stagehand";
+import { AgentConfig } from "../lib/v3/types/stagehand";
 
 dotenv.config();
 

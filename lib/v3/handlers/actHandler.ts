@@ -3,15 +3,15 @@ import { ActHandlerParams, V3FunctionName } from "@/lib/v3/types";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { observe } from "@/lib/inference";
 import { v3Logger } from "@/lib/v3/logger";
-import { LLMClient } from "@/lib/llm/LLMClient";
-import { AvailableModel, ClientOptions } from "@/types/model";
+import { LLMClient } from "../llm/LLMClient";
+import { AvailableModel, ClientOptions } from "../types/model";
 import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 import type { Page } from "../understudy/page";
 import { trimTrailingTextNode } from "@/lib/utils";
-import { EncodedId } from "@/types/context";
-import type { ObserveResult, ActResult } from "@/types/stagehand";
+import { EncodedId } from "../types/context";
+import type { ObserveResult, ActResult } from "../types/stagehand";
 import { buildActObservePrompt } from "@/lib/prompt";
-import { SupportedPlaywrightAction } from "@/types/act";
+import { SupportedPlaywrightAction } from "../types/act";
 
 export class ActHandler {
   private readonly llmClient: LLMClient;

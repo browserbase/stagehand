@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 import { z } from "zod/v3";
 
 export const arxiv: EvalFunction = async ({

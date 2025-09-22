@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/types/evals";
+import { EvalFunction } from "@/lib/v3/types/evals";
 
 export const iframe_form_filling: EvalFunction = async ({
   debugUrl,

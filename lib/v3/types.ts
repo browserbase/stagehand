@@ -1,11 +1,11 @@
 import { LaunchedChrome } from "chrome-launcher";
 import Browserbase from "@browserbasehq/sdk";
 import { Page } from "./understudy/page";
-import { AvailableModel, ClientOptions } from "@/types/model";
-import { LLMClient } from "@/lib/llm/LLMClient";
+import { AvailableModel, ClientOptions } from "../v3/types/model";
+import { LLMClient } from "./llm/LLMClient";
 import { z } from "zod/v3";
 import type { ZodTypeAny } from "zod/v3";
-import type { LogLine } from "@/types/log";
+import type { LogLine } from "../v3/types/log";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 

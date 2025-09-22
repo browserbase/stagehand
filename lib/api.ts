@@ -6,9 +6,9 @@ import {
   StagehandAPIConstructorParams,
   StartSessionParams,
   StartSessionResult,
-} from "../types/api";
-import { LogLine } from "../types/log";
-import { GotoOptions } from "../types/playwright";
+} from "./v3/types/api";
+import { LogLine } from "./v3/types/log";
+import { GotoOptions } from "./v3/types/playwright";
 import {
   ActOptions,
   ActResult,
@@ -17,8 +17,8 @@ import {
   ExtractResult,
   ObserveOptions,
   ObserveResult,
-} from "../types/stagehand";
-import { AgentExecuteOptions, AgentResult } from ".";
+} from "./v3/types/stagehand";
+import { AgentExecuteOptions, AgentResult } from "@/lib/v3/types/agent";
 import {
   StagehandAPIUnauthorizedError,
   StagehandHttpError,
@@ -26,7 +26,7 @@ import {
   StagehandServerError,
   StagehandResponseBodyError,
   StagehandResponseParseError,
-} from "../types/stagehandApiErrors";
+} from "./v3/types/stagehandApiErrors";
 import makeFetchCookie from "fetch-cookie";
 import { STAGEHAND_VERSION } from "./version";
 
