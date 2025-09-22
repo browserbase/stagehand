@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 import { LogLine } from "@/types/log";
 
 /**
@@ -33,7 +33,7 @@ function evaluateZodSchema(
 }
 
 export const createExtractTool = (
-  stagehandPage: StagehandPage,
+  stagehand: Stagehand,
   executionModel?: string,
   logger?: (message: LogLine) => void,
 ) =>
@@ -42,20 +42,21 @@ export const createExtractTool = (
     
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
-    - IMPORANT: only use this if explicitly asked for structured output. In most scenarios, you should use the aria tree tool over this. 
-    - If you need to extract a link, make sure the type defintion follows the format of z.string().url()
+    - All fields in the schema should be optional (.optional())
+    - Use when you need specific structured data, not just text
+    
     EXAMPLES:
     1. Extract a single value:
        instruction: "extract the product price"
-       schema: "z.object({ price: z.number()})"
+       schema: "z.object({ price: z.number().optional() })"
     
     2. Extract multiple fields:
        instruction: "extract product name and price"
-       schema: "z.object({ name: z.string(), price: z.number() })"
+       schema: "z.object({ name: z.string().optional(), price: z.number().optional() })"
     
     3. Extract arrays:
        instruction: "extract all product names and prices"
-       schema: "z.object({ products: z.array(z.object({ name: z.string(), price: z.number() })) })"`,
+       schema: "z.object({ products: z.array(z.object({ name: z.string().optional(), price: z.number().optional() })) })"`,
     parameters: z.object({
       instruction: z
         .string()
@@ -65,7 +66,7 @@ export const createExtractTool = (
       schema: z
         .string()
         .describe(
-          'Zod schema as a string (e.g., "z.object({ price: z.number() })")',
+          'Zod schema as a string (e.g., "z.object({ price: z.number().optional() })")',
         ),
     }),
     execute: async ({ instruction, schema }) => {
@@ -80,7 +81,7 @@ export const createExtractTool = (
             : z.object({ result: zodSchema });
 
         // Extract with the schema - only pass modelName if executionModel is explicitly provided
-        const result = await stagehandPage.page.extract({
+        const result = await stagehand.page.extract({
           instruction,
           schema: schemaObject,
           ...(executionModel && { modelName: executionModel }),

@@ -1,35 +1,95 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { createHash } from "crypto";
+import { Stagehand } from "../../index";
 
-export const createAriaTreeTool = (stagehandPage: StagehandPage) =>
+// Cache to store the full content and avoid re-extracting on each chunk request
+// We cache based on both URL and content hash
+let cachedContent: string | null = null;
+let cachedPageUrl: string | null = null;
+let cachedContentHash: string | null = null;
+
+export const createAriaTreeTool = (stagehand: Stagehand) =>
   tool({
     description:
-      "gets the accessibility (ARIA) tree from the current page. this is useful for understanding the page structure and accessibility features. it should provide full context of what is on the page",
-    parameters: z.object({}),
-    execute: async () => {
-      const { page_text } = await stagehandPage.page.extract();
-      const pageUrl = stagehandPage.page.url();
+      "gets the accessibility (ARIA) tree from the current page in chunks. this is useful for understanding the page structure and accessibility features. it provides full context of what is on the page, broken into manageable chunks. if no chunk number is specified, returns the first chunk with metadata about total chunks available.",
+    parameters: z.object({
+      chunkNumber: z
+        .number()
+        .optional()
+        .describe(
+          "The chunk number to retrieve (1-based). If not provided, returns the first chunk.",
+        ),
+    }),
+    execute: async ({ chunkNumber = 1 }) => {
+      try {
+        const pageUrl = stagehand.page.url();
 
-      let content = page_text;
-      const MAX_CHARACTERS = 70000;
+        // Get current content to check if it has changed
+        const { page_text } = await stagehand.page.extract();
+        const currentContentHash = createHash("sha256")
+          .update(page_text)
+          .digest("hex");
 
-      const estimatedTokens = Math.ceil(content.length / 4);
+        // Only use cached content if we have it, URL hasn't changed, and content hasn't changed
+        const shouldUseCache =
+          cachedContent &&
+          cachedPageUrl === pageUrl &&
+          cachedContentHash === currentContentHash;
 
-      if (estimatedTokens > MAX_CHARACTERS) {
-        const maxCharacters = MAX_CHARACTERS * 4;
-        content =
-          content.substring(0, maxCharacters) +
-          "\n\n[CONTENT TRUNCATED: Exceeded 70,000 token limit]";
+        if (!shouldUseCache) {
+          cachedContent = page_text;
+          cachedPageUrl = pageUrl;
+          cachedContentHash = currentContentHash;
+        }
+
+        const TOKENS_PER_CHUNK = 50000;
+        const CHARACTERS_PER_TOKEN = 4; // Rough estimate
+        const CHARACTERS_PER_CHUNK = TOKENS_PER_CHUNK * CHARACTERS_PER_TOKEN;
+
+        const totalCharacters = cachedContent.length;
+        const totalChunks = Math.ceil(totalCharacters / CHARACTERS_PER_CHUNK);
+
+        if (chunkNumber < 1 || chunkNumber > totalChunks) {
+          return {
+            success: false,
+            error: `Invalid chunk number ${chunkNumber}. Available chunks: 1-${totalChunks}`,
+          };
+        }
+
+        // Calculate chunk boundaries
+        const startIndex = (chunkNumber - 1) * CHARACTERS_PER_CHUNK;
+        const endIndex = Math.min(
+          startIndex + CHARACTERS_PER_CHUNK,
+          totalCharacters,
+        );
+        const chunkContent = cachedContent.substring(startIndex, endIndex);
+
+        // Determine if there are more chunks
+        const hasMoreChunks = chunkNumber < totalChunks;
+        const nextChunkNumber = hasMoreChunks ? chunkNumber + 1 : null;
+
+        // Return formatted content with all necessary information
+        let content = `Accessibility Tree - Chunk ${chunkNumber} of ${totalChunks} (characters ${startIndex + 1}-${endIndex} of ${totalCharacters})\n\n${chunkContent}`;
+
+        if (hasMoreChunks) {
+          content += `\n\n[CHUNK INCOMPLETE: This is chunk ${chunkNumber} of ${totalChunks}. To get the next chunk, call this tool again with chunkNumber: ${nextChunkNumber}]`;
+        } else {
+          content += `\n\n[CHUNK COMPLETE: This is the final chunk (${chunkNumber} of ${totalChunks})]`;
+        }
+
+        return {
+          success: true,
+          content,
+          chunkNumber,
+          totalChunks,
+          hasMoreChunks,
+        };
+      } catch {
+        return {
+          success: false,
+          error: `Error getting aria tree, try again`,
+        };
       }
-
-      return {
-        content,
-        pageUrl,
-      };
-    },
-    experimental_toToolResultContent: (result) => {
-      const content = typeof result === "string" ? result : result.content;
-      return [{ type: "text", text: `Accessibility Tree:\n${content}` }];
     },
   });
