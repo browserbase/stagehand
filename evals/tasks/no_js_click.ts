@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/lib/v3/types/evals";
-import { ObserveResult } from "@/lib/v3/types/stagehand";
+import { Action } from "@/lib/v3/types/stagehand";
 
 export const no_js_click: EvalFunction = async ({
   debugUrl,
@@ -19,7 +19,7 @@ export const no_js_click: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
     );
 
-    const observeResult: ObserveResult = {
+    const observeResult: Action = {
       method: "click",
       selector: "xpath=/html/body/button",
       description: "the button to click",

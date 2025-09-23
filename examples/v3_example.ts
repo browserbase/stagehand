@@ -3,10 +3,13 @@ import { V3 } from "@browserbasehq/stagehand";
 async function example(v3: V3) {
   const page = v3.context.pages()[0];
   await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/download-on-click/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
   );
-
-  await page.locator("/html/body/button").click();
+  await page
+    .deepLocator(
+      "/html/body/shadow-host//section/iframe/html/body/main/section[1]/form/div/div[1]/input",
+    )
+    .fill("nunya");
 }
 
 (async () => {

@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/lib/v3/types/evals";
-import { ObserveResult } from "@/lib/v3/types/stagehand";
+import { Action } from "@/lib/v3/types/stagehand";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check
@@ -23,7 +23,7 @@ export const google_flights: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/",
     );
 
-    const observeResult: ObserveResult = {
+    const observeResult: Action = {
       selector:
         "xpath=/html/body/c-wiz[2]/div/div[2]/c-wiz/div[1]/c-wiz/div[2]/div[2]/div[2]/div/div[2]/div[1]/ul/li[1]/div/div[1]",
       description: "the first departing flight",

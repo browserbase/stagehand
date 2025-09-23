@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/lib/v3/types/evals";
-import { ObserveResult } from "@/lib/v3/types/stagehand";
+import { Action } from "@/lib/v3/types/stagehand";
 
 export const observe_iframes2: EvalFunction = async ({
   logger,
@@ -12,7 +12,7 @@ export const observe_iframes2: EvalFunction = async ({
     await page.goto("https://iframetester.com/?url=https://shopify.com");
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    let observations: ObserveResult[];
+    let observations: Action[];
     try {
       observations = await v3.observe({
         instruction: "find the main header of the page",

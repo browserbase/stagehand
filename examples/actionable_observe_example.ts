@@ -12,7 +12,7 @@
  * Also check out the form_filling_sensible.ts example for a more complex example of using observe() to fill out a form.
  */
 
-import { ObserveResult, Stagehand } from "@browserbasehq/stagehand";
+import { Action, Stagehand } from "@browserbasehq/stagehand";
 
 async function example() {
   const stagehand = new Stagehand({
@@ -24,7 +24,7 @@ async function example() {
 
   await page.goto("https://www.apartments.com/san-francisco-ca/");
 
-  let observation: ObserveResult;
+  let observation: Action;
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
   [observation] = await stagehand.observe({
