@@ -32,6 +32,12 @@ export interface AgentOptions {
   autoScreenshot?: boolean;
   waitBetweenActions?: number;
   context?: string;
+  /**
+   * When true (default), the agent will store actions and avoid using
+   * Claude-specific custom tools/prompts. Set to false to enable
+   * Claude-optimized toolset and prompts.
+   */
+  storeActions?: boolean;
 }
 
 export interface AgentExecuteOptions extends AgentOptions {

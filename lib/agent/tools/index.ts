@@ -23,17 +23,19 @@ export interface AgentToolOptions {
   executionModel?: string;
   logger?: (message: LogLine) => void;
   mainModel?: string;
+  storeActions?: boolean;
 }
 
 function filterToolsByModelName(
   modelName: string | undefined,
   tools: ToolSet,
+  storeActions?: boolean,
 ): ToolSet {
   const normalized = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalized.startsWith("claude");
   const filtered: ToolSet = { ...tools };
 
-  if (isAnthropic) {
+  if (isAnthropic && storeActions === false) {
     delete filtered.fillForm;
     return filtered;
   }

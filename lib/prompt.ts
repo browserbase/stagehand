@@ -180,6 +180,7 @@ export function buildStagehandAgentSystemPrompt(
   modelName: string,
   executionInstruction: string,
   systemInstructions?: string,
+  storeActions: boolean = true,
 ): string {
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
@@ -188,13 +189,15 @@ export function buildStagehandAgentSystemPrompt(
   const normalizedModel = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalizedModel.startsWith("claude");
 
+  const useAnthropicCustomizations = isAnthropic && storeActions === false;
+
   const hasSearch = process.env.EXA_API_KEY?.length > 0;
 
   const searchToolLine = hasSearch
     ? `\n    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>`
     : "";
 
-  const toolsSection = isAnthropic
+  const toolsSection = useAnthropicCustomizations
     ? `<tools>
     <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context (use sparingly)</tool>
     <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)</tool>
@@ -225,7 +228,7 @@ export function buildStagehandAgentSystemPrompt(
     ${searchToolLine}
   </tools>`;
 
-  const toolPriorityItem = isAnthropic
+  const toolPriorityItem = useAnthropicCustomizations
     ? `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability. Only use act when element is in ariaTree but not visible in screenshot.</item>`
     : `<item>Tool selection priority: Use act tool for clicking and typing on a page</item>`;
 

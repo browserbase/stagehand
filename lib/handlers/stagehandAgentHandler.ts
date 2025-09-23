@@ -51,6 +51,7 @@ export class StagehandAgentHandler {
         : instructionOrOptions;
 
     const maxSteps = options.maxSteps || 10;
+    const storeActions = options.storeActions ?? true;
     const actions: AgentAction[] = [];
     let finalMessage = "";
     let completed = false;
@@ -62,8 +63,9 @@ export class StagehandAgentHandler {
         this.llmClient?.modelName,
         options.instruction,
         this.systemInstructions,
+        storeActions,
       );
-      const tools = this.createTools();
+      const tools = this.createTools(storeActions);
       const allTools: ToolSet = { ...tools, ...this.mcpTools };
       const messages: CoreMessage[] = [
         {
@@ -152,11 +154,12 @@ export class StagehandAgentHandler {
     }
   }
 
-  private createTools(): AgentTools {
+  private createTools(storeActions: boolean): AgentTools {
     return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
       mainModel: this.llmClient?.modelName || undefined,
       logger: this.logger,
+      storeActions,
     });
   }
 }
