@@ -23,7 +23,13 @@ import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel, wrapOpenAI } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "@/types/evals";
+import {
+  SummaryResult,
+  Testcase,
+  EvalInput,
+  ErrorType,
+  EvalOutput,
+} from "@/types/evals";
 import { EvalLogger } from "./logger";
 import { AvailableModel, LLMClient } from "@browserbasehq/stagehand";
 import { env } from "./env";
@@ -45,6 +51,14 @@ import { buildOSWorldTestcases } from "./suites/osworld";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 
 dotenv.config();
+
+process.on("uncaughtException", (err) => {
+  console.error("[eval-runner] Uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[eval-runner] Unhandled rejection:", reason);
+});
 
 /**
  * Read max concurrency and trial count from environment variables set in args.ts.
@@ -107,20 +121,6 @@ const generateFilteredTestcases = (): Testcase[] => {
     );
   }
 
-  // Check for dataset filter from environment
-  const datasetFilter = process.env.EVAL_DATASET;
-
-  // If using external benchmarks via dataset filter, override category to use agent models
-  if (
-    datasetFilter &&
-    ["gaia", "webvoyager", "webbench", "osworld"].includes(datasetFilter)
-  ) {
-    effectiveCategory = "external_agent_benchmarks";
-    console.log(
-      `Using dataset filter "${datasetFilter}", switching to external_agent_benchmarks category.`,
-    );
-  }
-
   // Dynamically determine the MODELS based on the effective category
   const currentModels = getModelList(effectiveCategory);
 
@@ -129,19 +129,19 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
   // Special handling: fan out GAIA dataset for agent/gaia
-  const isGAIATaskIncluded =
-    taskNamesToRun.includes("agent/gaia") || datasetFilter === "gaia";
+  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
-  const isWebVoyagerTaskIncluded =
-    taskNamesToRun.includes("agent/webvoyager") ||
-    datasetFilter === "webvoyager";
+  const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
   // Special handling: fan out WebBench dataset for agent/webbench
-  const isWebBenchTaskIncluded =
-    taskNamesToRun.includes("agent/webbench") || datasetFilter === "webbench";
+  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench");
+
   // Special handling: fan out OSWorld dataset for agent/osworld
-  const isOSWorldTaskIncluded =
-    taskNamesToRun.includes("agent/osworld") || datasetFilter === "osworld";
+  const isOSWorldTaskIncluded = taskNamesToRun.includes("agent/osworld");
+
   // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
   const isMind2WebTaskIncluded = taskNamesToRun.includes(
     "agent/onlineMind2Web",
@@ -153,11 +153,7 @@ const generateFilteredTestcases = (): Testcase[] => {
   if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
-  } else if (
-    taskNamesToRun.includes("agent/gaia") &&
-    datasetFilter &&
-    datasetFilter !== "gaia"
-  ) {
+  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
     // Remove GAIA from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
@@ -170,7 +166,7 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
   } else if (
-    taskNamesToRun.includes("agent/webvoyager") &&
+    isWebVoyagerTaskIncluded &&
     datasetFilter &&
     datasetFilter !== "webvoyager"
   ) {
@@ -178,34 +174,20 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
   }
 
-  // Only include WebBench if no dataset filter or if webbench is selected
-  if (
-    isWebBenchTaskIncluded &&
-    (!datasetFilter || datasetFilter === "webbench")
-  ) {
+  // Only include WebBench if no dataset filter or if webbench is selected  
+  if (isWebBenchTaskIncluded && (!datasetFilter || datasetFilter === "webbench")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
     allTestcases.push(...buildWebBenchTestcases(currentModels));
-  } else if (
-    taskNamesToRun.includes("agent/webbench") &&
-    datasetFilter &&
-    datasetFilter !== "webbench"
-  ) {
+  } else if (isWebBenchTaskIncluded && datasetFilter && datasetFilter !== "webbench") {
     // Remove WebBench from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
   }
 
   // Only include OSWorld if no dataset filter or if osworld is selected
-  if (
-    isOSWorldTaskIncluded &&
-    (!datasetFilter || datasetFilter === "osworld")
-  ) {
+  if (isOSWorldTaskIncluded && (!datasetFilter || datasetFilter === "osworld")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
     allTestcases.push(...buildOSWorldTestcases(currentModels));
-  } else if (
-    taskNamesToRun.includes("agent/osworld") &&
-    datasetFilter &&
-    datasetFilter !== "osworld"
-  ) {
+  } else if (isOSWorldTaskIncluded && datasetFilter && datasetFilter !== "osworld") {
     // Remove OSWorld from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
   }
@@ -228,22 +210,26 @@ const generateFilteredTestcases = (): Testcase[] => {
 
   // Create a list of all remaining testcases using the determined task names and models
   const regularTestcases = currentModels.flatMap((model) =>
-    taskNamesToRun.map((testName) => ({
-      input: { name: testName, modelName: model as AvailableModel },
-      name: testName,
-      tags: [
-        model,
-        testName,
-        ...(tasksConfig.find((t) => t.name === testName)?.categories || []).map(
-          (x) => `category/${x}`,
-        ),
-      ],
-      metadata: {
-        model: model as AvailableModel,
-        test: testName,
-      },
-      expected: true,
-    })),
+    taskNamesToRun.map((testName) => {
+      const taskCategories =
+        tasksConfig.find((t) => t.name === testName)?.categories || [];
+      return {
+        input: { name: testName, modelName: model as AvailableModel },
+        name: testName,
+        tags: [
+          model,
+          // Only include primary category as tag
+          taskCategories.length > 0 ? taskCategories[0] : "uncategorized",
+        ],
+        metadata: {
+          model: model as AvailableModel,
+          test: testName,
+          category: taskCategories[0],
+          categories: taskCategories, // Keep all categories in metadata for filtering
+        },
+        expected: true,
+      };
+    }),
   );
 
   allTestcases = [...allTestcases, ...regularTestcases];
@@ -312,40 +298,25 @@ const generateFilteredTestcases = (): Testcase[] => {
         const logger = new EvalLogger();
         try {
           // Dynamically import the task based on its name
-          const taskModulePath = path.join(
-            __dirname,
-            "tasks",
-            `${input.name}.ts`,
-          );
+          const basePath = path.join(__dirname, "tasks", `${input.name}`);
+          const candidatePaths = [`${basePath}.js`, `${basePath}.ts`];
 
-          // Check if file exists at direct path
           let taskModule;
-          try {
-            // First try to import directly (for backward compatibility)
-            taskModule = await import(taskModulePath);
-          } catch (error) {
-            if (input.name.includes("/")) {
-              // If the name includes a path separator, try to import from subdirectory
-              const subDirPath = path.join(
-                __dirname,
-                "tasks",
-                `${input.name}.ts`,
-              );
-              try {
-                taskModule = await import(subDirPath);
-              } catch (subError) {
-                throw new StagehandEvalError(
-                  `Failed to import task module for ${input.name}. Tried paths:\n` +
-                    `- ${taskModulePath}\n` +
-                    `- ${subDirPath}\n` +
-                    `Error: ${subError.message}`,
-                );
-              }
-            } else {
-              throw new StagehandEvalError(
-                `Failed to import task module for ${input.name} at path ${taskModulePath}: ${error.message}`,
-              );
+          let lastError: unknown;
+          for (const candidate of candidatePaths) {
+            try {
+              taskModule = await import(candidate);
+              break;
+            } catch (err) {
+              lastError = err;
             }
+          }
+
+          if (!taskModule) {
+            const tried = candidatePaths.join("\n- ");
+            throw new StagehandEvalError(
+              `Failed to import task module for ${input.name}. Tried paths:\n- ${tried}\nError: ${(lastError as Error)?.message}`,
+            );
           }
 
           // Extract the task function
@@ -362,9 +333,6 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
 
           // Execute the task
-          console.log(
-            `🏃 Running eval: ${input.name} with model: ${input.modelName}`,
-          );
           let taskInput: Awaited<ReturnType<typeof initStagehand>>;
 
           if (USE_API) {
@@ -426,6 +394,7 @@ const generateFilteredTestcases = (): Testcase[] => {
           }
           // Pass full EvalInput to the task (data-driven params available via input.params)
           let result;
+          let isStagehandClosed = false;
           try {
             result = await taskFunction({ ...taskInput, input });
             // Log result to console
@@ -435,31 +404,80 @@ const generateFilteredTestcases = (): Testcase[] => {
               console.log(`❌ ${input.name}: Failed`);
             }
           } finally {
-            await taskInput.stagehand.close();
+            // Only close if not already closed
+            if (taskInput.stagehand && !isStagehandClosed) {
+              try {
+                await taskInput.stagehand.close();
+                isStagehandClosed = true;
+              } catch (closeError) {
+                console.warn("Error closing stagehand:", closeError);
+              }
+            }
           }
           return result;
         } catch (error) {
+          // Categorize the error
+          let errorType = ErrorType.UNKNOWN;
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
+          if (error instanceof Error) {
+            if (
+              error.message.includes("timeout") ||
+              error.message.includes("Timeout")
+            ) {
+              errorType = ErrorType.TIMEOUT;
+            } else if (
+              error.message.includes("network") ||
+              error.message.includes("fetch")
+            ) {
+              errorType = ErrorType.NETWORK;
+            } else if (
+              error.message.includes("parse") ||
+              error.message.includes("JSON")
+            ) {
+              errorType = ErrorType.PARSING_ERROR;
+            } else if (
+              error.message.includes("init") ||
+              error.message.includes("setup")
+            ) {
+              errorType = ErrorType.SETUP_ERROR;
+            }
+          }
+
           // Log any errors that occur during task execution
-          console.error(`❌ ${input.name}: Error - ${error}`);
+          console.error(`❌ ${input.name}: ${errorType} - ${errorMessage}`);
           logger.error({
             message: `Error in task ${input.name}`,
             level: 0,
             auxiliary: {
               error: {
-                value: error.message,
+                value: errorMessage,
+                type: "string",
+              },
+              error_type: {
+                value: errorType,
                 type: "string",
               },
               trace: {
-                value: error.stack,
+                value: error instanceof Error ? error.stack : "",
                 type: "string",
               },
             },
           });
-          return {
+
+          const output: EvalOutput = {
             _success: false,
             error: JSON.parse(JSON.stringify(error, null, 2)),
+            error_type: errorType,
+            error_message: errorMessage,
+            error_stack: error instanceof Error ? error.stack : undefined,
             logs: logger.getLogs(),
+            debugUrl: "",
+            sessionUrl: "",
           };
+
+          return output;
         }
       },
       // Use the scoring functions defined above
@@ -474,6 +492,10 @@ const generateFilteredTestcases = (): Testcase[] => {
         typeof result.output === "boolean"
           ? { _success: result.output }
           : result.output;
+
+      // The full output object (including error_type, error_message, etc.)
+      // is already captured in result.output and will be visible in Braintrust
+      // We don't need to duplicate it in metadata
 
       return {
         input: result.input,
