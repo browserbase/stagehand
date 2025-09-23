@@ -1,5 +1,6 @@
 import { LogLine } from "./log";
 import { ObserveResult } from "./stagehand";
+import { ScreenshotCollector } from "../evals/utils/ScreenshotCollector";
 export interface AgentAction {
   type: string;
   reasoning?: string;
@@ -165,5 +166,5 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
-  setScreenshotCollector?: (collector: unknown) => void;
+  setScreenshotCollector?: (collector: ScreenshotCollector) => void;
 }

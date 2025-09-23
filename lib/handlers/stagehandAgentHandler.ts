@@ -13,6 +13,7 @@ import { ContextManager } from "../agent/contextManager";
 import { modelWrapper } from "../agent/utils/modelWrapper";
 import { randomUUID } from "crypto";
 import { Stagehand } from "../index";
+import { ScreenshotCollector } from "../../evals/utils/ScreenshotCollector";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -22,7 +23,7 @@ export class StagehandAgentHandler {
   private systemInstructions?: string;
   private tools?: ToolSet;
   private contextManager: ContextManager;
-  private screenshotCollector: unknown;
+  private screenshotCollector?: ScreenshotCollector;
 
   constructor(
     stagehand: Stagehand,
@@ -166,16 +167,14 @@ export class StagehandAgentHandler {
   /**
    * Set the screenshot collector for this agent handler
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setScreenshotCollector(collector: any): void {
+  setScreenshotCollector(collector: ScreenshotCollector): void {
     this.screenshotCollector = collector;
   }
 
   /**
    * Get the screenshot collector
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getScreenshotCollector(): any {
+  getScreenshotCollector(): ScreenshotCollector | undefined {
     return this.screenshotCollector;
   }
   setTools(tools: ToolSet): void {
