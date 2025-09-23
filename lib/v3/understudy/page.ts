@@ -502,6 +502,39 @@ export class Page {
   }
 
   /**
+   * Return the current page title.
+   * Prefers reading from the active document via Runtime.evaluate to reflect dynamic changes.
+   * Falls back to navigation history title if evaluation is unavailable.
+   */
+  async title(): Promise<string> {
+    try {
+      await this.mainSession.send("Runtime.enable").catch(() => {});
+      const ctxId = await this.createIsolatedWorldForCurrentMain();
+      const { result } =
+        await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: "document.title",
+            contextId: ctxId,
+            returnByValue: true,
+          },
+        );
+      return String(result?.value ?? "");
+    } catch {
+      // Fallback: use navigation history entry title
+      try {
+        const { entries, currentIndex } =
+          await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
+            "Page.getNavigationHistory",
+          );
+        return entries[currentIndex]?.title ?? "";
+      } catch {
+        return "";
+      }
+    }
+  }
+
+  /**
    * Capture a screenshot (delegated to the current main frame).
    */
   async screenshot(options?: { fullPage?: boolean }): Promise<string> {
