@@ -32,6 +32,7 @@ function filterToolsByModelName(
   const normalized = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalized.startsWith("claude");
   const filtered: ToolSet = { ...tools };
+
   if (isAnthropic) {
     delete filtered.fillForm;
     return filtered;
@@ -49,9 +50,7 @@ export function createAgentTools(
   options?: AgentToolOptions,
 ) {
   const executionModel = options?.executionModel;
-  const hasExaApiKey =
-    typeof process.env.EXA_API_KEY === "string" &&
-    process.env.EXA_API_KEY.length > 0;
+  const hasExaApiKey = process.env.EXA_API_KEY?.length > 0;
 
   const all = {
     act: createActTool(stagehand, executionModel),

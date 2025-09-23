@@ -18,7 +18,7 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
       try {
         const { page_text } = await stagehand.page.extract();
 
-        const TOKENS_PER_CHUNK = 50000;
+        const TOKENS_PER_CHUNK = 60000;
         const CHARACTERS_PER_TOKEN = 4; // Rough estimate
         const CHARACTERS_PER_CHUNK = TOKENS_PER_CHUNK * CHARACTERS_PER_TOKEN;
 
