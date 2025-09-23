@@ -21,7 +21,7 @@ export const createActTool = (v3: V3, executionModel?: string) =>
         });
         return {
           success: result.success ?? true,
-          action: result?.action ?? action,
+          action: result?.actionDescription ?? action,
         };
       } catch (error) {
         return { success: false, error: error?.message ?? String(error) };

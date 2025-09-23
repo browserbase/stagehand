@@ -141,7 +141,8 @@ export class ActHandler {
         return {
           success: false,
           message: "Failed to perform act: No observe results found for action",
-          action: instruction,
+          actionDescription: instruction,
+          actions: [],
         };
       }
 
@@ -200,9 +201,10 @@ export class ActHandler {
       return {
         success: false,
         message: `Unable to perform action: The method '${method ?? ""}' is not supported in ObserveResult. Please use a supported Playwright locator method.`,
-        action:
+        actionDescription:
           observeResult.description ||
           `ObserveResult action (${method ?? "unknown"})`,
+        actions: [],
       };
     }
 
@@ -222,7 +224,17 @@ export class ActHandler {
       return {
         success: true,
         message: `Action [${method}] performed successfully on selector: ${observeResult.selector}`,
-        action: observeResult.description || `ObserveResult action (${method})`,
+        actionDescription:
+          observeResult.description || `ObserveResult action (${method})`,
+        actions: [
+          {
+            selector: observeResult.selector,
+            description:
+              observeResult.description || `ObserveResult action (${method})`,
+            method,
+            arguments: args,
+          },
+        ],
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -295,7 +307,8 @@ export class ActHandler {
               success: false,
               message:
                 "Failed to self-heal act: No observe results found for action",
-              action: actCommand,
+              actionDescription: actCommand,
+              actions: [],
             };
           }
 
@@ -320,8 +333,18 @@ export class ActHandler {
           return {
             success: true,
             message: `Action [${method}] performed successfully on selector: ${newSelector}`,
-            action:
+            actionDescription:
               observeResult.description || `ObserveResult action (${method})`,
+            actions: [
+              {
+                selector: newSelector,
+                description:
+                  observeResult.description ||
+                  `ObserveResult action (${method})`,
+                method,
+                arguments: args,
+              },
+            ],
           };
         } catch (retryErr) {
           const retryMsg =
@@ -329,8 +352,9 @@ export class ActHandler {
           return {
             success: false,
             message: `Failed to perform act after self-heal: ${retryMsg}`,
-            action:
+            actionDescription:
               observeResult.description || `ObserveResult action (${method})`,
+            actions: [],
           };
         }
       }
@@ -338,7 +362,9 @@ export class ActHandler {
       return {
         success: false,
         message: `Failed to perform act: ${msg}`,
-        action: observeResult.description || `ObserveResult action (${method})`,
+        actionDescription:
+          observeResult.description || `ObserveResult action (${method})`,
+        actions: [],
       };
     }
   }
