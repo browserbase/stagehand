@@ -96,107 +96,127 @@ export class ExtractHandler {
   async extract<T extends z.AnyZodObject>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { page_text: string }> {
-    const { instruction, schema, page, selector } = params;
+    const { instruction, schema, page, selector, timeoutMs } = params;
 
-    // No-args → page text (parity with v2)
-    const noArgs = !instruction && !schema;
-    if (noArgs) {
-      const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
-      const snap = await captureHybridSnapshot(page, {
-        experimental: this.experimental,
-        focusSelector: focusSelector || undefined,
+    const doExtract = async (): Promise<z.infer<T> | { page_text: string }> => {
+      // No-args → page text (parity with v2)
+      const noArgs = !instruction && !schema;
+      if (noArgs) {
+        const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
+        const snap = await captureHybridSnapshot(page, {
+          experimental: this.experimental,
+          focusSelector: focusSelector || undefined,
+        });
+
+        const result = { page_text: snap.combinedTree };
+        // Validate via the same schema used in v2
+        return pageTextSchema.parse(result);
+      }
+
+      const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
+
+      // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
+      const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(
+        page,
+        {
+          experimental: this.experimental,
+          focusSelector: focusSelector,
+        },
+      );
+
+      v3Logger({
+        category: "extraction",
+        message: "Starting extraction using a11y snapshot",
+        level: 1,
+        auxiliary: instruction
+          ? { instruction: { value: instruction, type: "string" } }
+          : undefined,
       });
 
-      const result = { page_text: snap.combinedTree };
-      // Validate via the same schema used in v2
-      return pageTextSchema.parse(result);
-    }
+      if (!schema || !instruction) {
+        throw new Error(
+          "extract() requires both `instruction` and `schema` in V3.",
+        );
+      }
 
-    const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
+      const [transformedSchema, urlFieldPaths] =
+        transformUrlStringsToNumericIds(schema);
 
-    // Build the hybrid snapshot (includes combinedTree; combinedUrlMap optional)
-    const { combinedTree, combinedUrlMap } = await captureHybridSnapshot(page, {
-      experimental: this.experimental,
-      focusSelector: focusSelector,
-    });
+      const requestId =
+        (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
+        `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
 
-    v3Logger({
-      category: "extraction",
-      message: "Starting extraction using a11y snapshot",
-      level: 1,
-      auxiliary: instruction
-        ? { instruction: { value: instruction, type: "string" } }
-        : undefined,
-    });
+      const extractionResponse = (await runExtract({
+        instruction,
+        domElements: combinedTree,
+        schema: transformedSchema,
+        chunksSeen: 1,
+        chunksTotal: 1,
+        llmClient: this.llmClient,
+        requestId,
+        userProvidedInstructions: this.systemPrompt,
+        logger: v3Logger,
+        logInferenceToFile: this.logInferenceToFile,
+      })) as ExtractionResponse<T>;
 
-    if (!schema || !instruction) {
-      throw new Error(
-        "extract() requires both `instruction` and `schema` in V3.",
+      const {
+        metadata: { completed },
+        prompt_tokens,
+        completion_tokens,
+        inference_time_ms,
+        ...output
+      } = extractionResponse;
+
+      v3Logger({
+        category: "extraction",
+        message: completed
+          ? "Extraction completed successfully"
+          : "Extraction incomplete after processing all data",
+        level: 1,
+        auxiliary: {
+          prompt_tokens: { value: String(prompt_tokens), type: "string" },
+          completion_tokens: {
+            value: String(completion_tokens),
+            type: "string",
+          },
+          inference_time_ms: {
+            value: String(inference_time_ms),
+            type: "string",
+          },
+        },
+      });
+
+      // Update EXTRACT metrics from the LLM calls
+      this.onMetrics?.(
+        V3FunctionName.EXTRACT,
+        prompt_tokens,
+        completion_tokens,
+        inference_time_ms,
       );
-    }
 
-    const [transformedSchema, urlFieldPaths] =
-      transformUrlStringsToNumericIds(schema);
+      // Re-inject URLs for any url() fields we temporarily converted to number()
+      const idToUrl: Record<EncodedId, string> = (combinedUrlMap ??
+        {}) as Record<EncodedId, string>;
+      for (const { segments } of urlFieldPaths) {
+        injectUrls(
+          output as unknown as Record<string, unknown>,
+          segments,
+          idToUrl,
+        );
+      }
 
-    const requestId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+      return output as z.infer<T>;
+    };
+    if (!timeoutMs) return doExtract();
 
-    const extractionResponse = (await runExtract({
-      instruction,
-      domElements: combinedTree,
-      schema: transformedSchema,
-      chunksSeen: 1,
-      chunksTotal: 1,
-      llmClient: this.llmClient,
-      requestId,
-      userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
-      logInferenceToFile: this.logInferenceToFile,
-    })) as ExtractionResponse<T>;
-
-    const {
-      metadata: { completed },
-      prompt_tokens,
-      completion_tokens,
-      inference_time_ms,
-      ...output
-    } = extractionResponse;
-
-    v3Logger({
-      category: "extraction",
-      message: completed
-        ? "Extraction completed successfully"
-        : "Extraction incomplete after processing all data",
-      level: 1,
-      auxiliary: {
-        prompt_tokens: { value: String(prompt_tokens), type: "string" },
-        completion_tokens: { value: String(completion_tokens), type: "string" },
-        inference_time_ms: { value: String(inference_time_ms), type: "string" },
-      },
-    });
-
-    // Update EXTRACT metrics from the LLM calls
-    this.onMetrics?.(
-      V3FunctionName.EXTRACT,
-      prompt_tokens,
-      completion_tokens,
-      inference_time_ms,
-    );
-
-    // Re-inject URLs for any url() fields we temporarily converted to number()
-    const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<
-      EncodedId,
-      string
-    >;
-    for (const { segments } of urlFieldPaths) {
-      injectUrls(
-        output as unknown as Record<string, unknown>,
-        segments,
-        idToUrl,
-      );
-    }
-
-    return output as z.infer<T>;
+    return await Promise.race([
+      doExtract(),
+      new Promise<z.infer<T> | { page_text: string }>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`extract() timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
   }
 }

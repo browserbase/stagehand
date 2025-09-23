@@ -166,21 +166,18 @@ export class ActHandler {
       );
     };
 
-    // Match v2 behavior: race with timeout if provided
+    // Hard timeout for entire act() call → reject on timeout (align with extract/observe)
     if (!timeoutMs) {
       return doObserveAndAct();
     }
 
     return await Promise.race([
       doObserveAndAct(),
-      new Promise<ActResult>((resolve) => {
-        setTimeout(() => {
-          resolve({
-            success: false,
-            message: `Action timed out after ${timeoutMs}ms`,
-            action: instruction,
-          });
-        }, timeoutMs);
+      new Promise<ActResult>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`act() timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
       }),
     ]);
   }
