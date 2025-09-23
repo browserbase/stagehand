@@ -63,7 +63,6 @@ export const createKeysTool = (stagehand: Stagehand) =>
             method,
             keys: combo,
             times,
-            platform: resolvedPlatform,
           };
         }
 
@@ -76,7 +75,6 @@ export const createKeysTool = (stagehand: Stagehand) =>
             success: true,
             method,
             keys: tokens,
-            platform: resolvedPlatform,
           };
         }
 
@@ -90,7 +88,6 @@ export const createKeysTool = (stagehand: Stagehand) =>
             success: true,
             method,
             keys: tokens,
-            platform: resolvedPlatform,
           };
         }
 

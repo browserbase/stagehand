@@ -23,6 +23,9 @@ export const createScrollTool = (stagehand: Stagehand) =>
         0,
         direction === "up" ? -pixels : pixels,
       );
-      return { success: true, pixels };
+      return {
+        success: true,
+        message: `scrolled ${pixels} pixels ${direction}`,
+      };
     },
   });
