@@ -20,6 +20,6 @@ export const createDragAndDropTool = (stagehand: Stagehand) =>
       await stagehand.page.mouse.down();
       await stagehand.page.mouse.move(endCoordinates[0], endCoordinates[1]);
       await stagehand.page.mouse.up();
-      return { success: true, describe, startCoordinates, endCoordinates };
+      return { success: true, describe };
     },
   });

@@ -24,6 +24,6 @@ export const createClickAndHoldTool = (stagehand: Stagehand) =>
       await stagehand.page.mouse.down();
       await stagehand.page.waitForTimeout(duration);
       await stagehand.page.mouse.up();
-      return { success: true, describe, coordinates, duration };
+      return { success: true, describe };
     },
   });

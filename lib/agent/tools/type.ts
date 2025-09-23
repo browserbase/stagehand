@@ -24,6 +24,6 @@ export const createTypeTool = (stagehand: Stagehand) =>
       } catch {
         return { success: false, error: `Error typing, try again` };
       }
-      return { success: true, describe, coordinates, text };
+      return { success: true, describe };
     },
   });
