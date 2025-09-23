@@ -496,7 +496,7 @@ export function loadApiKeyFromEnv(
 
 /**
  * Loads Amazon Bedrock client configuration from environment variables.
- * Supports both API key authentication and SigV4 authentication methods.
+ * Supports both AWS credentials and AWS Bedrock API key authentication.
  * @param logger Logger function for info/error messages
  * @returns Bedrock client options object or undefined if no authentication method is available
  */
@@ -504,30 +504,13 @@ export function loadBedrockClientOptions(
   logger: (logLine: LogLine) => void,
 ): Record<string, unknown> | undefined {
   // Authentication precedence:
-  // 1. API key from AWS_BEARER_TOKEN_BEDROCK (recommended)
-  // 2. SigV4 authentication using AWS credentials
+  // 1. Standard AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+  // 2. AWS Bedrock bearer token (AWS_BEARER_TOKEN_BEDROCK)
 
-  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
   const region =
-    process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || "us-east-1"; // Default to us-east-1
+    process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || "us-east-1";
 
-  // Method 1: API key authentication (recommended)
-  if (bearerToken && bearerToken.length > 0) {
-    logger({
-      category: "init",
-      message: "Using Amazon Bedrock API key authentication",
-      level: 1,
-    });
-
-    const config: Record<string, unknown> = {
-      apiKey: bearerToken,
-      region: region, // Always include region (defaults to us-east-1)
-    };
-
-    return config;
-  }
-
-  // Method 2: Check for SigV4 authentication credentials
+  // Method 1: Check for standard AWS credentials first
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
@@ -535,14 +518,14 @@ export function loadBedrockClientOptions(
   if (accessKeyId && secretAccessKey) {
     logger({
       category: "init",
-      message: "Using Amazon Bedrock SigV4 authentication",
+      message: "Using AWS credentials for Bedrock authentication",
       level: 1,
     });
 
     const config: Record<string, unknown> = {
       accessKeyId,
       secretAccessKey,
-      region: region, // Always include region (defaults to us-east-1)
+      region,
     };
 
     // Add session token if present (for temporary credentials)
@@ -553,10 +536,70 @@ export function loadBedrockClientOptions(
     return config;
   }
 
+  // Method 2: Handle AWS Bedrock bearer token
+  const bearerToken = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  if (bearerToken && bearerToken.length > 0) {
+    logger({
+      category: "init",
+      message: "Using AWS Bedrock bearer token authentication",
+      level: 1,
+    });
+
+    try {
+      // Extract region and credentials from the bearer token
+      const base64Token = bearerToken.replace(/^bedrock-api-key-/, "");
+      const decodedUrl = Buffer.from(base64Token, "base64").toString("utf-8");
+
+      // Add https:// protocol if missing
+      const fullUrl = decodedUrl.startsWith("http")
+        ? decodedUrl
+        : `https://${decodedUrl}`;
+      const url = new URL(fullUrl);
+      const params = url.searchParams;
+
+      const credential = params.get("X-Amz-Credential");
+      const securityToken = params.get("X-Amz-Security-Token");
+
+      if (credential && securityToken) {
+        const credentialParts = credential.split("/");
+        if (credentialParts.length >= 4) {
+          const tokenAccessKeyId = credentialParts[0];
+          const tokenRegion = credentialParts[2];
+          const decodedSessionToken = decodeURIComponent(securityToken);
+
+          // Use both direct credentials and credential provider for compatibility
+          const config: Record<string, unknown> = {
+            region: tokenRegion || region,
+            accessKeyId: tokenAccessKeyId,
+            secretAccessKey: "dummy-secret-key", // Bearer tokens handle auth differently, but SDK requires this
+            sessionToken: decodedSessionToken,
+            credentialProvider: async () => ({
+              accessKeyId: tokenAccessKeyId,
+              secretAccessKey: "dummy-secret-key",
+              sessionToken: decodedSessionToken,
+            }),
+          };
+
+          return config;
+        }
+      }
+
+      // If parsing fails, return minimal config and let AWS SDK handle it
+      return {
+        region,
+      };
+    } catch (error) {
+      return {
+        region,
+      };
+    }
+  }
+
+  // No authentication method found
   logger({
     category: "init",
     message:
-      "No Amazon Bedrock authentication credentials found. Please set either AWS_BEARER_TOKEN_BEDROCK for API key auth or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (and optionally AWS_SESSION_TOKEN) for SigV4 auth",
+      "No Amazon Bedrock authentication credentials found. Please set either AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY for standard auth or AWS_BEARER_TOKEN_BEDROCK for API key auth",
     level: 0,
   });
 
