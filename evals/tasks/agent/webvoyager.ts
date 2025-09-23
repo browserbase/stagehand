@@ -208,12 +208,8 @@ Today's date is ${new Date().toLocaleDateString()}`;
       logs: logger.getLogs(),
     };
   } catch (error) {
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
+    // Let the error propagate - the parent runner will handle cleanup
+    console.error(error);
+    throw error;
   }
 };

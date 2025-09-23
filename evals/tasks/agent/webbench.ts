@@ -126,27 +126,8 @@ export const webbench: EvalFunction = async ({
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      category: "webbench",
-      level: 0,
-      message: `Unhandled error in WebBench task`,
-      auxiliary: {
-        error: {
-          value: error instanceof Error ? error.message : String(error),
-          type: "string",
-        },
-        trace: {
-          value: error instanceof Error && error.stack ? error.stack : "",
-          type: "string",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
+    // Let the error propagate - the parent runner will handle cleanup
+    console.error(error);
+    throw error;
   }
 };
