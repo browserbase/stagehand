@@ -29,13 +29,14 @@ export interface AgentToolOptions {
 function filterToolsByModelName(
   modelName: string | undefined,
   tools: ToolSet,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   storeActions?: boolean,
 ): ToolSet {
   const normalized = (modelName || "").toLowerCase().trim();
   const isAnthropic = normalized.startsWith("claude");
   const filtered: ToolSet = { ...tools };
 
-  if (isAnthropic && storeActions === false) {
+  if (isAnthropic) {
     delete filtered.fillForm;
     return filtered;
   }
