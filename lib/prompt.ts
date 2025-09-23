@@ -246,6 +246,7 @@ export function buildStagehandAgentSystemPrompt(
   </page>
   <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
+    <importantNote> If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</importantNote>
     <note>When the task is complete, do not seek more information; you have completed the task.</note>
   </mindset>
   <guidelines>
@@ -270,13 +271,8 @@ export function buildStagehandAgentSystemPrompt(
     </step_1>
   </page_understanding_protocol>
   <navigation>
-    <rule>When first starting a task, check what page you are on before proceeding</rule>
-    ${
-      hasSearch
-        ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>
-    <rule>If you are not confident in the URL, use the search tool to find it.</rule>`
-        : ``
-    }
+    <rule>If you are confident in the URL, navigate directly to it.</rule>
+    ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
   </navigation>
   ${toolsSection}
   <strategy>
@@ -306,7 +302,6 @@ export function buildStagehandAgentSystemPrompt(
   return `<system>
   <identity>You are a web automation assistant using browser automation tools to accomplish the user's goal.</identity>
   <task>
-    <note>You are currently running evals, which provide a starting url. stay on this domain, unless the task requires going to different domains for multi website tasks, for the most part the tasks should be completable within the current domain.</note>
     <goal>${cdata(executionInstruction)}</goal>
     <date display="local" iso="${isoDate}">${localeDate}</date>
     <note>You may think the date is different due to knowledge cutoff, but this is the actual date.</note>
@@ -316,7 +311,7 @@ export function buildStagehandAgentSystemPrompt(
   </page>
    <mindset>
     <note>Be very intentional about your action. The initial instruction is very important, and slight variations of the actual goal can lead to failures.</note>
-     <impoetantNote> If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</note>
+    <importantNote> If something fails to meet a single condition of the task, move on from it rather than seeing if it meets other criteria. We only care that it meets all of it</importantNote>
     <note>When the task is complete, do not seek more information; you have completed the task.</note>
   </mindset>
   <guidelines>
