@@ -174,20 +174,34 @@ const generateFilteredTestcases = (): Testcase[] => {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
   }
 
-  // Only include WebBench if no dataset filter or if webbench is selected  
-  if (isWebBenchTaskIncluded && (!datasetFilter || datasetFilter === "webbench")) {
+  // Only include WebBench if no dataset filter or if webbench is selected
+  if (
+    isWebBenchTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webbench")
+  ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
     allTestcases.push(...buildWebBenchTestcases(currentModels));
-  } else if (isWebBenchTaskIncluded && datasetFilter && datasetFilter !== "webbench") {
+  } else if (
+    isWebBenchTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webbench"
+  ) {
     // Remove WebBench from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
   }
 
   // Only include OSWorld if no dataset filter or if osworld is selected
-  if (isOSWorldTaskIncluded && (!datasetFilter || datasetFilter === "osworld")) {
+  if (
+    isOSWorldTaskIncluded &&
+    (!datasetFilter || datasetFilter === "osworld")
+  ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
     allTestcases.push(...buildOSWorldTestcases(currentModels));
-  } else if (isOSWorldTaskIncluded && datasetFilter && datasetFilter !== "osworld") {
+  } else if (
+    isOSWorldTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "osworld"
+  ) {
     // Remove OSWorld from tasks to run if dataset filter excludes it
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
   }
