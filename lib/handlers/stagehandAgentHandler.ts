@@ -29,7 +29,7 @@ export class StagehandAgentHandler {
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
-    mcpTools?: ToolSet,
+    tools?: ToolSet,
   ) {
     this.stagehand = stagehand;
     this.logger = logger;
@@ -161,5 +161,23 @@ export class StagehandAgentHandler {
       logger: this.logger,
       storeActions,
     });
+  }
+  /**
+   * Set the screenshot collector for this agent handler
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setScreenshotCollector(collector: any): void {
+    this.screenshotCollector = collector;
+  }
+
+  /**
+   * Get the screenshot collector
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getScreenshotCollector(): any {
+    return this.screenshotCollector;
+  }
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
   }
 }

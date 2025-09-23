@@ -10,6 +10,8 @@ export const webbench: EvalFunction = async ({
   input,
   agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     const params = ((input && input.params) || {}) as {
       id?: string;
@@ -39,45 +41,24 @@ export const webbench: EvalFunction = async ({
 
     await stagehand.page.goto(params.url, { waitUntil: "domcontentloaded" });
 
-    // Start collecting screenshots in parallel
+    // Start collecting screenshots
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      maxScreenshots: 10, // Keep last 10 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+      maxScreenshots: 8, // Keep last 8 screenshots
     });
+
+    // Set the collector on the agent so it captures screenshots
+    if (agent.setScreenshotCollector) {
+      agent.setScreenshotCollector(screenshotCollector);
+    }
 
     screenshotCollector.start();
 
-    logger.log({
-      category: "webbench",
-      message: `Starting WebBench task ${params.id}`,
-      level: 1,
-      auxiliary: {
-        category: {
-          value: params.category || "unknown",
-          type: "string",
-        },
-        difficulty: {
-          value: params.difficulty || "unknown",
-          type: "string",
-        },
-        url: {
-          value: params.url,
-          type: "string",
-        },
-        task_preview: {
-          value: params.task.substring(0, 100) + "...",
-          type: "string",
-        },
-      },
-    });
-
     // Execute the task using the pre-initialized agent
-    const result = await agent.execute({
+    const agentResult = await agent.execute({
       instruction: params.task,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
-
-    // Stop collecting and get all screenshots
+    // Always stop collecting and get all screenshots, even on error
     const screenshots = screenshotCollector.stop();
 
     logger.log({
@@ -97,7 +78,7 @@ export const webbench: EvalFunction = async ({
           type: "string",
         },
         has_result: {
-          value: (!!result).toString(),
+          value: (!!agentResult).toString(),
           type: "string",
         },
       },
@@ -127,7 +108,7 @@ export const webbench: EvalFunction = async ({
       question: evalPrompt,
       screenshot: screenshots,
       agentReasoning:
-        result?.message ||
+        agentResult.message ||
         "no reasoning available, agent potentially hit step limit",
     });
 
@@ -137,32 +118,16 @@ export const webbench: EvalFunction = async ({
       task_id: params.id,
       category: params.category,
       difficulty: params.difficulty || "unknown",
+      screenshotCount: screenshots.length,
+      final_answer: agentResult?.message,
+      execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
-    logger.error({
-      category: "webbench",
-      level: 0,
-      message: `Unhandled error in WebBench task`,
-      auxiliary: {
-        error: {
-          value: error instanceof Error ? error.message : String(error),
-          type: "string",
-        },
-        trace: {
-          value: error instanceof Error && error.stack ? error.stack : "",
-          type: "string",
-        },
-      },
-    });
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
+    // Let the error propagate - the parent runner will handle cleanup
+    console.error(error);
+    throw error;
   }
 };

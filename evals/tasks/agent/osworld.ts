@@ -2,6 +2,7 @@ import { EvalFunction } from "@/types/evals";
 import type { OSWorldStagehandTask } from "../../datasets/osworld/types";
 import { Stagehand } from "@/dist";
 import { EvalLogger } from "../../logger";
+import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 import { z } from "zod/v3";
 
 export const osworld: EvalFunction = async ({
@@ -87,6 +88,18 @@ export const osworld: EvalFunction = async ({
     // Set timeout for task execution
     const timeout = params.timeout || 60000; // Default 60 seconds
 
+    // Start collecting screenshots
+    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
+      maxScreenshots: 8, // Keep last 8 screenshots
+    });
+
+    // Set the collector on the agent so it captures screenshots
+    if (agent.setScreenshotCollector) {
+      agent.setScreenshotCollector(screenshotCollector);
+    }
+
+    screenshotCollector.start();
+
     // Execute the task using the pre-initialized agent with timeout
     const executionPromise = agent.execute({
       instruction: params.instruction,
@@ -101,22 +114,14 @@ export const osworld: EvalFunction = async ({
       ),
     );
 
-    const result = await Promise.race([executionPromise, timeoutPromise]);
+    await Promise.race([executionPromise, timeoutPromise]);
+    // Always stop collecting and get all screenshots, even on error
+    const screenshots = screenshotCollector.stop();
 
     logger.log({
-      category: "osworld",
-      message: `Task ${params.id} execution completed`,
+      category: "evaluation",
+      message: `Collected ${screenshots.length} screenshots for evaluation`,
       level: 1,
-      auxiliary: {
-        task_id: {
-          value: params.id,
-          type: "string",
-        },
-        has_result: {
-          value: (!!result).toString(),
-          type: "string",
-        },
-      },
     });
 
     // Evaluate based on OSWorld evaluation type

@@ -912,54 +912,49 @@ export class Stagehand {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    setScreenshotCollector?: (collector: unknown) => void;
   } {
-    if (!options || !options.provider) {
-      const executionModel = options?.executionModel;
-      const systemInstructions = options?.instructions;
-
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          if (options?.integrations && !this.experimental) {
-            throw new StagehandError(
-              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
-            );
-          }
-
-          const executeOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-
-          if (this.usingAPI) {
-            const agentConfigForApi: AgentConfig = options;
-
-            return await this.apiClient.agentExecute(
-              agentConfigForApi,
-              executeOptions,
-            );
-          }
-
-          const tools = options?.integrations
-            ? await resolveTools(options?.integrations, options?.tools)
-            : (options?.tools ?? {});
-          return new StagehandAgentHandler(
-            this,
-            this.logger,
-            this.llmClient,
-            executionModel,
-            systemInstructions,
-            tools,
-          ).execute(executeOptions);
-        },
-      };
-    }
-
     this.log({
       category: "agent",
       message: "Creating agent instance",
       level: 1,
     });
+    let agentHandler: StagehandAgentHandler | CuaAgentHandler | undefined;
+    if (options?.integrations && !this.experimental) {
+      throw new StagehandError(
+        "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+      );
+    }
+    if (!options || !options.provider) {
+      const executionModel = options?.executionModel;
+      const systemInstructions = options?.instructions;
 
+      agentHandler = new StagehandAgentHandler(
+        this,
+        this.logger,
+        this.llmClient,
+        executionModel,
+        systemInstructions,
+        undefined,
+      );
+    } else {
+      agentHandler = new CuaAgentHandler(
+        this,
+        this.stagehandPage,
+        this.logger,
+        {
+          modelName: options.model,
+          clientOptions: options.options,
+          userProvidedInstructions:
+            options.instructions ??
+            `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
+          agentType: options.provider,
+        },
+        undefined,
+      );
+    }
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
         // Check if integrations are being used without experimental flag
@@ -973,22 +968,9 @@ export class Stagehand {
           ? await resolveTools(options?.integrations, options?.tools)
           : (options?.tools ?? {});
 
-        const agentHandler = new CuaAgentHandler(
-          this,
-          this.stagehandPage,
-          this.logger,
-          {
-            modelName: options.model,
-            clientOptions: options.options,
-            userProvidedInstructions:
-              options.instructions ??
-              `You are a helpful assistant that can use a web browser.
-        You are currently on the following page: ${this.stagehandPage.page.url()}.
-        Do not ask follow up questions, the user will trust your judgement.`,
-            agentType: options.provider,
-          },
-          tools,
-        );
+        if (agentHandler) {
+          agentHandler.setTools(tools);
+        }
 
         const executeOptions: AgentExecuteOptions =
           typeof instructionOrOptions === "string"
@@ -1009,25 +991,30 @@ export class Stagehand {
           if (!options.options) {
             options.options = {};
           }
+          if (options.provider) {
+            if (options.provider === "anthropic") {
+              options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+            } else if (options.provider === "openai") {
+              options.options.apiKey = process.env.OPENAI_API_KEY;
+            } else if (options.provider === "google") {
+              options.options.apiKey = process.env.GOOGLE_API_KEY;
+            }
 
-          if (options.provider === "anthropic") {
-            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
-          } else if (options.provider === "openai") {
-            options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "google") {
-            options.options.apiKey = process.env.GOOGLE_API_KEY;
-          }
-
-          if (!options.options.apiKey) {
-            throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
-            );
+            if (!options.options.apiKey) {
+              throw new StagehandError(
+                `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+              );
+            }
           }
 
           return await this.apiClient.agentExecute(options, executeOptions);
         }
 
         return await agentHandler.execute(executeOptions);
+      },
+      setScreenshotCollector: (collector: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        agentHandler.setScreenshotCollector(collector as any);
       },
     };
   }

@@ -23,13 +23,15 @@ export class CuaAgentHandler {
   private logger: (message: LogLine) => void;
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private screenshotCollector?: any;
 
   constructor(
     stagehand: Stagehand,
     stagehandPage: StagehandPage,
     logger: (message: LogLine) => void,
     options: AgentHandlerOptions,
-    tools: ToolSet,
+    tools?: ToolSet,
   ) {
     this.stagehand = stagehand;
     this.stagehandPage = stagehandPage;
@@ -44,7 +46,7 @@ export class CuaAgentHandler {
       options.modelName,
       options.clientOptions || {},
       options.userProvidedInstructions,
-      tools,
+      tools || {},
     );
 
     // Store the client
@@ -422,6 +424,11 @@ export class CuaAgentHandler {
         fullPage: false,
       });
 
+      // If we have a screenshot collector, add this screenshot to it
+      if (this.screenshotCollector) {
+        await this.screenshotCollector.addScreenshot(screenshot);
+      }
+
       // Convert to base64
       const base64Image = screenshot.toString("base64");
 
@@ -586,5 +593,29 @@ export class CuaAgentHandler {
   private get page() {
     // stagehand.page is the live proxy you already implemented
     return this.stagehand.page;
+  }
+
+  /**
+   * Set the screenshot collector for this agent handler
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setScreenshotCollector(collector: any): void {
+    this.screenshotCollector = collector;
+  }
+
+  /**
+   * Get the screenshot collector
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getScreenshotCollector(): any {
+    return this.screenshotCollector;
+  }
+
+  /**
+   * Set the tools for this agent handler
+   */
+  setTools(tools: ToolSet): void {
+    // Pass tools to the agent client
+    this.agentClient.setTools(tools);
   }
 }
