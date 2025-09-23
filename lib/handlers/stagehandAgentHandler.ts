@@ -20,8 +20,9 @@ export class StagehandAgentHandler {
   private llmClient: LLMClient;
   private executionModel?: string;
   private systemInstructions?: string;
-  private mcpTools?: ToolSet;
+  private tools?: ToolSet;
   private contextManager: ContextManager;
+  private screenshotCollector: unknown;
 
   constructor(
     stagehand: Stagehand,
@@ -36,7 +37,7 @@ export class StagehandAgentHandler {
     this.llmClient = llmClient;
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
-    this.mcpTools = mcpTools;
+    this.tools = tools;
     this.contextManager = new ContextManager(logger);
   }
 
@@ -66,7 +67,7 @@ export class StagehandAgentHandler {
         storeActions,
       );
       const tools = this.createTools(storeActions);
-      const allTools: ToolSet = { ...tools, ...this.mcpTools };
+      const allTools: ToolSet = { ...tools, ...this.tools };
       const messages: CoreMessage[] = [
         {
           role: "user",
