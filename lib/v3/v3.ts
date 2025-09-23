@@ -30,7 +30,7 @@ import { z } from "zod/v3";
 import type { ZodTypeAny, ZodObject } from "zod/v3";
 import type { BaseExtractParams, InlineFrom } from "@/lib/v3/types";
 import {
-  ObserveResult,
+  Action,
   ActResult,
   HistoryEntry,
   AgentConfig,
@@ -690,13 +690,13 @@ export class V3 {
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult>;
   async act(
-    observe: ObserveResult,
+    observe: Action,
     page?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult>;
 
   async act(
-    input: ActParams | ObserveResult | string,
+    input: ActParams | Action | string,
     pageArg?: AnyPage,
     opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
   ): Promise<ActResult> {
@@ -945,8 +945,8 @@ export class V3 {
   /**
    * Run an "observe" instruction through the ObserveHandler.
    */
-  async observe(): Promise<ObserveResult[]>;
-  async observe(params: ObserveParams): Promise<ObserveResult[]>;
+  async observe(): Promise<Action[]>;
+  async observe(params: ObserveParams): Promise<Action[]>;
   async observe(
     instruction: string,
     page?: AnyPage,
@@ -955,7 +955,7 @@ export class V3 {
       returnAction?: boolean;
       drawOverlay?: boolean;
     },
-  ): Promise<ObserveResult[]>;
+  ): Promise<Action[]>;
   async observe(
     params?: ObserveParams | string,
     pageArg?: AnyPage,
@@ -964,7 +964,7 @@ export class V3 {
       returnAction?: boolean;
       drawOverlay?: boolean;
     },
-  ): Promise<ObserveResult[]> {
+  ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.observeHandler) {
         throw new Error("V3 not initialized. Call init() before observe().");
@@ -1309,7 +1309,7 @@ export class V3 {
   }
 }
 
-function isObserveResult(v: unknown): v is ObserveResult {
+function isObserveResult(v: unknown): v is Action {
   return (
     !!v && typeof v === "object" && "selector" in (v as Record<string, unknown>)
   );

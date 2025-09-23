@@ -3,7 +3,7 @@ import { V3 } from "../../v3/v3";
 import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
-import { ObserveResult } from "../types/stagehand";
+import { Action } from "../types/stagehand";
 import { AnyPage } from "@/lib/v3/types";
 import { v3TestConfig } from "./v3.config";
 
@@ -16,7 +16,7 @@ import { v3TestConfig } from "./v3.config";
 type Case = {
   title: string;
   url: string;
-  action: ObserveResult;
+  action: Action;
   expectedSubstrings?: string[]; // check v3.extract().page_text contains these
 };
 

@@ -6,7 +6,7 @@ import { observe as runObserve } from "@/lib/inference";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "../types/context";
-import { ObserveResult } from "../types/stagehand";
+import { Action } from "../types/stagehand";
 import { v3Logger } from "@/lib/v3/logger";
 
 export class ObserveHandler {
@@ -46,7 +46,7 @@ export class ObserveHandler {
     this.onMetrics = onMetrics;
   }
 
-  async observe(params: ObserveHandlerParams): Promise<ObserveResult[]> {
+  async observe(params: ObserveHandlerParams): Promise<Action[]> {
     const { instruction, page, returnAction, fromAct } = params;
 
     const effectiveInstruction =

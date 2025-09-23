@@ -9,7 +9,7 @@ import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 import type { Page } from "../understudy/page";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "../types/context";
-import type { ObserveResult, ActResult } from "../types/stagehand";
+import type { Action, ActResult } from "../types/stagehand";
 import { buildActObservePrompt } from "@/lib/prompt";
 import { SupportedPlaywrightAction } from "../types/act";
 
@@ -106,7 +106,7 @@ export class ActHandler {
         arguments?: string[];
       }>;
 
-      const results: ObserveResult[] = raw
+      const results: Action[] = raw
         .map((e) => {
           if (
             !e.method ||
@@ -125,12 +125,12 @@ export class ActHandler {
               method: e.method,
               arguments: e.arguments,
               selector: `xpath=${trimmed}`,
-            } as ObserveResult;
+            } as Action;
           }
           // shadow-root path not supported here (match old behavior)
           return undefined;
         })
-        .filter((v): v is ObserveResult => v !== undefined);
+        .filter((v): v is Action => v !== undefined);
 
       if (results.length === 0) {
         v3Logger({
@@ -146,7 +146,7 @@ export class ActHandler {
       }
 
       // Use the first observed element and substitute variables
-      const chosen: ObserveResult = { ...results[0] } as ObserveResult;
+      const chosen: Action = { ...results[0] } as Action;
       if (variables && Array.isArray(chosen.arguments)) {
         chosen.arguments = chosen.arguments.map((arg: string) => {
           let out = arg;
@@ -186,7 +186,7 @@ export class ActHandler {
   }
 
   async actFromObserveResult(
-    observeResult: ObserveResult,
+    observeResult: Action,
     page: Page,
     domSettleTimeoutMs?: number,
   ): Promise<ActResult> {

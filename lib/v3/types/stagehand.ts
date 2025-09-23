@@ -53,7 +53,7 @@ export interface ObserveOptions {
   frameId?: string;
 }
 
-export interface ObserveResult {
+export interface Action {
   selector: string;
   description: string;
   backendNodeId?: number;

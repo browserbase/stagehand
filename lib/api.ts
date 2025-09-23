@@ -16,7 +16,7 @@ import {
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
-  ObserveResult,
+  Action,
 } from "./v3/types/stagehand";
 import { AgentExecuteOptions, AgentResult } from "@/lib/v3/types/agent";
 import {
@@ -115,7 +115,7 @@ export class StagehandAPI {
     return sessionResponseBody.data;
   }
 
-  async act(options: ActOptions | ObserveResult): Promise<ActResult> {
+  async act(options: ActOptions | Action): Promise<ActResult> {
     return this.execute<ActResult>({
       method: "act",
       args: { ...options },
@@ -138,8 +138,8 @@ export class StagehandAPI {
     });
   }
 
-  async observe(options?: ObserveOptions): Promise<ObserveResult[]> {
-    return this.execute<ObserveResult[]>({
+  async observe(options?: ObserveOptions): Promise<Action[]> {
+    return this.execute<Action[]>({
       method: "observe",
       args: { ...options },
     });
