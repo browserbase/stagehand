@@ -98,9 +98,6 @@ export const osworld: EvalFunction = async ({
       agent.setScreenshotCollector(screenshotCollector);
     }
 
-    let screenshots: Buffer[] = [];
-    let result;
-
     screenshotCollector.start();
 
     // Execute the task using the pre-initialized agent with timeout
@@ -117,9 +114,9 @@ export const osworld: EvalFunction = async ({
       ),
     );
 
-    result = await Promise.race([executionPromise, timeoutPromise]);
+    await Promise.race([executionPromise, timeoutPromise]);
     // Always stop collecting and get all screenshots, even on error
-    screenshots = screenshotCollector.stop();
+    const screenshots = screenshotCollector.stop();
 
     logger.log({
       category: "evaluation",
