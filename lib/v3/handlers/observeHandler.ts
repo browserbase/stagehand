@@ -47,7 +47,8 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, returnAction, fromAct, timeoutMs } = params;
+    const { instruction, page, returnAction, fromAct, timeoutMs, selector } =
+      params;
 
     const effectiveInstruction =
       instruction ??
@@ -67,8 +68,10 @@ export class ObserveHandler {
       });
 
       // Build the hybrid snapshot (a11y-centric text tree + lookup maps)
+      const focusSelector = selector?.replace(/^xpath=/i, "") ?? "";
       const snapshot = await captureHybridSnapshot(page, {
         experimental: this.experimental,
+        focusSelector: focusSelector || undefined,
       });
 
       const combinedTree = snapshot.combinedTree;

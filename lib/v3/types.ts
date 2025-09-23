@@ -204,6 +204,7 @@ export type ObserveParams = {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
+  selector?: string;
   returnAction?: boolean;
   drawOverlay?: boolean;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -215,6 +216,7 @@ export interface ObserveHandlerParams {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
+  selector?: string;
   returnAction?: boolean;
   drawOverlay?: boolean;
   fromAct?: boolean;

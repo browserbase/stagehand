@@ -18,7 +18,8 @@ export interface ActOptions {
 export interface ActResult {
   success: boolean;
   message: string;
-  action: string;
+  actionDescription: string;
+  actions: Action[];
 }
 
 export interface ExtractOptions<T extends z.AnyZodObject> {
@@ -44,6 +45,7 @@ export interface ObserveOptions {
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
+  selector?: string;
   /**
    * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
    */

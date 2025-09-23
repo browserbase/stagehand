@@ -977,6 +977,7 @@ export class V3 {
       timeoutMs?: number;
       returnAction?: boolean;
       drawOverlay?: boolean;
+      selector?: string;
     },
   ): Promise<Action[]>;
   async observe(
@@ -986,6 +987,7 @@ export class V3 {
       domSettleTimeoutMs?: number;
       timeoutMs?: number;
       returnAction?: boolean;
+      selector?: string;
       drawOverlay?: boolean;
     },
   ): Promise<Action[]> {
@@ -1003,6 +1005,7 @@ export class V3 {
           timeoutMs: opts?.timeoutMs,
           returnAction: opts?.returnAction,
           drawOverlay: opts?.drawOverlay,
+          selector: opts?.selector,
         };
       } else {
         effective = params || {};
@@ -1030,6 +1033,7 @@ export class V3 {
         returnAction: effective.returnAction,
         drawOverlay: effective.drawOverlay,
         fromAct: false,
+        selector: effective.selector,
         page,
       };
 
