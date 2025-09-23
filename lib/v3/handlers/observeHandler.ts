@@ -47,109 +47,123 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, returnAction, fromAct } = params;
+    const { instruction, page, returnAction, fromAct, timeoutMs } = params;
 
     const effectiveInstruction =
       instruction ??
       "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
-    v3Logger({
-      category: "observation",
-      message: "starting observation",
-      level: 1,
-      auxiliary: {
-        instruction: {
-          value: effectiveInstruction,
-          type: "string",
+    const doObserve = async (): Promise<Action[]> => {
+      v3Logger({
+        category: "observation",
+        message: "starting observation",
+        level: 1,
+        auxiliary: {
+          instruction: {
+            value: effectiveInstruction,
+            type: "string",
+          },
         },
-      },
-    });
+      });
 
-    // Build the hybrid snapshot (a11y-centric text tree + lookup maps)
-    const snapshot = await captureHybridSnapshot(page, {
-      experimental: this.experimental,
-    });
+      // Build the hybrid snapshot (a11y-centric text tree + lookup maps)
+      const snapshot = await captureHybridSnapshot(page, {
+        experimental: this.experimental,
+      });
 
-    const combinedTree = snapshot.combinedTree;
-    const combinedXpathMap = snapshot.combinedXpathMap ?? {};
+      const combinedTree = snapshot.combinedTree;
+      const combinedXpathMap = snapshot.combinedXpathMap ?? {};
 
-    v3Logger({
-      category: "observation",
-      message: "Got accessibility tree data",
-      level: 1,
-    });
+      v3Logger({
+        category: "observation",
+        message: "Got accessibility tree data",
+        level: 1,
+      });
 
-    // Call the LLM to propose actionable elements
-    const observationResponse = await runObserve({
-      instruction: effectiveInstruction,
-      domElements: combinedTree,
-      llmClient: this.llmClient,
-      requestId: "1234",
-      userProvidedInstructions: this.systemPrompt,
-      logger: v3Logger,
-      returnAction: returnAction ?? true,
-      logInferenceToFile: this.logInferenceToFile,
-      fromAct: !!fromAct,
-    });
+      // Call the LLM to propose actionable elements
+      const observationResponse = await runObserve({
+        instruction: effectiveInstruction,
+        domElements: combinedTree,
+        llmClient: this.llmClient,
+        requestId: "1234",
+        userProvidedInstructions: this.systemPrompt,
+        logger: v3Logger,
+        returnAction: returnAction ?? true,
+        logInferenceToFile: this.logInferenceToFile,
+        fromAct: !!fromAct,
+      });
 
-    const {
-      prompt_tokens = 0,
-      completion_tokens = 0,
-      inference_time_ms = 0,
-    } = observationResponse;
+      const {
+        prompt_tokens = 0,
+        completion_tokens = 0,
+        inference_time_ms = 0,
+      } = observationResponse;
 
-    // Update OBSERVE metrics from the LLM observation call
-    this.onMetrics?.(
-      V3FunctionName.OBSERVE,
-      prompt_tokens,
-      completion_tokens,
-      inference_time_ms,
-    );
+      // Update OBSERVE metrics from the LLM observation call
+      this.onMetrics?.(
+        V3FunctionName.OBSERVE,
+        prompt_tokens,
+        completion_tokens,
+        inference_time_ms,
+      );
 
-    // Map elementIds -> selectors via combinedXpathMap
-    const elementsWithSelectors = (
-      await Promise.all(
-        observationResponse.elements.map(async (element) => {
-          const { elementId, ...rest } = element; // rest may or may not have method/arguments
-          if (typeof elementId === "string" && elementId.includes("-")) {
-            const lookUpIndex = elementId as EncodedId;
-            const xpath = combinedXpathMap[lookUpIndex];
-            const trimmedXpath = trimTrailingTextNode(xpath);
-            if (!trimmedXpath) return undefined;
+      // Map elementIds -> selectors via combinedXpathMap
+      const elementsWithSelectors = (
+        await Promise.all(
+          observationResponse.elements.map(async (element) => {
+            const { elementId, ...rest } = element; // rest may or may not have method/arguments
+            if (typeof elementId === "string" && elementId.includes("-")) {
+              const lookUpIndex = elementId as EncodedId;
+              const xpath = combinedXpathMap[lookUpIndex];
+              const trimmedXpath = trimTrailingTextNode(xpath);
+              if (!trimmedXpath) return undefined;
 
+              return {
+                ...rest, // if method/arguments exist, they’re preserved; otherwise they’re absent
+                selector: `xpath=${trimmedXpath}`,
+              } as {
+                description: string;
+                method?: string;
+                arguments?: string[];
+                selector: string;
+              };
+            }
+            // shadow-root fallback:
             return {
-              ...rest, // if method/arguments exist, they’re preserved; otherwise they’re absent
-              selector: `xpath=${trimmedXpath}`,
-            } as {
-              description: string;
-              method?: string;
-              arguments?: string[];
-              selector: string;
+              description: "an element inside a shadow DOM",
+              method: "not-supported",
+              arguments: [],
+              selector: "not-supported",
             };
-          }
-          // shadow-root fallback:
-          return {
-            description: "an element inside a shadow DOM",
-            method: "not-supported",
-            arguments: [],
-            selector: "not-supported",
-          };
-        }),
-      )
-    ).filter(<T>(e: T | undefined): e is T => e !== undefined);
+          }),
+        )
+      ).filter(<T>(e: T | undefined): e is T => e !== undefined);
 
-    v3Logger({
-      category: "observation",
-      message: "found elements",
-      level: 1,
-      auxiliary: {
-        elements: {
-          value: JSON.stringify(elementsWithSelectors),
-          type: "object",
+      v3Logger({
+        category: "observation",
+        message: "found elements",
+        level: 1,
+        auxiliary: {
+          elements: {
+            value: JSON.stringify(elementsWithSelectors),
+            type: "object",
+          },
         },
-      },
-    });
+      });
 
-    return elementsWithSelectors;
+      return elementsWithSelectors;
+    };
+
+    if (!timeoutMs) return doObserve();
+
+    return await Promise.race([
+      doObserve(),
+      new Promise<Action[]>((_, reject) => {
+        setTimeout(
+          () => reject(new Error(`observe() timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
   }
 }
