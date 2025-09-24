@@ -36,7 +36,6 @@ function filterToolsByModelName(
   const filtered: ToolSet = { ...tools };
 
   if (isAnthropic && storeActions === false) {
-    console.log("isanthropic", isAnthropic, storeActions);
     // delete filtered.fillForm;
     return filtered;
   }
