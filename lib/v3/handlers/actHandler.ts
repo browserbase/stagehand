@@ -1,6 +1,9 @@
 // lib/v3/handlers/actHandler.ts
 import { ActHandlerParams, V3FunctionName } from "@/lib/v3/types";
-import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
+import {
+  captureHybridSnapshot,
+  diffCombinedTrees,
+} from "@/lib/v3/understudy/a11y/snapshot";
 import { act as actInference } from "@/lib/inference";
 import { v3Logger } from "@/lib/v3/logger";
 import { LLMClient } from "../llm/LLMClient";
@@ -10,7 +13,7 @@ import type { Page } from "../understudy/page";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { EncodedId } from "../types/context";
 import type { Action, ActResult } from "../types/stagehand";
-import { buildActPrompt } from "@/lib/prompt";
+import { buildActPrompt, buildStepTwoPrompt } from "@/lib/prompt";
 import { SupportedPlaywrightAction } from "../types/act";
 
 export class ActHandler {
@@ -154,12 +157,138 @@ export class ActHandler {
         });
       }
 
-      // Reuse self-heal aware path
-      return this.actFromObserveResult(
+      // First action (self-heal aware path)
+      const firstResult = await this.actFromObserveResult(
         chosen,
         page as Page,
         domSettleTimeoutMs,
       );
+
+      // If not two-step, return the first action result
+      const twoStep = !!(
+        actInferenceResponse as unknown as { twoStep?: boolean }
+      ).twoStep;
+      if (!twoStep) {
+        return firstResult;
+      }
+
+      // Take a new focused snapshot and observe again
+      const secondSnapshot = await captureHybridSnapshot(page as Page, {
+        experimental: true,
+      });
+      const combinedTree2 = secondSnapshot.combinedTree;
+
+      let diffedTree = diffCombinedTrees(combinedTree, combinedTree2);
+      if (!diffedTree.trim()) {
+        // Fallback: if no diff detected, use the fresh tree to avoid empty context
+        diffedTree = combinedTree2;
+      }
+
+      const combinedXpathMap2 = (secondSnapshot.combinedXpathMap ??
+        {}) as Record<EncodedId, string>;
+
+      const requestId2 =
+        (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
+        `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
+      const previousAction = `method: ${chosen.method}, description: ${chosen.description}, arguments: ${chosen.arguments}`;
+
+      const stepTwoInstructions = buildStepTwoPrompt(
+        instruction,
+        previousAction,
+        Object.values(SupportedPlaywrightAction).filter(
+          (
+            action,
+          ): action is Exclude<
+            SupportedPlaywrightAction,
+            SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN
+          > => action !== SupportedPlaywrightAction.SELECT_OPTION_FROM_DROPDOWN,
+        ),
+        variables,
+      );
+
+      const action2 = await actInference({
+        instruction: stepTwoInstructions,
+        domElements: diffedTree,
+        llmClient: this.llmClient,
+        requestId: requestId2,
+        userProvidedInstructions: this.systemPrompt,
+        logger: v3Logger,
+        logInferenceToFile: this.logInferenceToFile,
+      });
+      // Update ACT metrics for the second observation call
+      this.onMetrics?.(
+        V3FunctionName.ACT,
+        action2.prompt_tokens ?? 0,
+        action2.completion_tokens ?? 0,
+        action2.inference_time_ms ?? 0,
+      );
+
+      const raw2 = action2.element as
+        | {
+            elementId: string;
+            description: string;
+            method?: string;
+            arguments?: string[];
+          }
+        | undefined;
+
+      const result2: Action | undefined = (() => {
+        if (!raw2) return undefined;
+        const { elementId, description, method, arguments: args } = raw2;
+        if (!method || method === "not-supported" || !Array.isArray(args)) {
+          return undefined;
+        }
+        if (typeof elementId === "string" && elementId.includes("-")) {
+          const xp = combinedXpathMap2[elementId as EncodedId];
+          const trimmed = trimTrailingTextNode(xp);
+          if (!trimmed) return undefined;
+          return {
+            description,
+            method,
+            arguments: args,
+            selector: `xpath=${trimmed}`,
+          } as Action;
+        }
+        return undefined;
+      })();
+
+      if (!result2) {
+        // No second action found — return first result as-is
+        return firstResult;
+      }
+
+      const chosen2: Action = { ...result2 } as Action;
+      // Carry forward variables substitution for step 2 as well
+      if (variables && Array.isArray(chosen2.arguments)) {
+        chosen2.arguments = chosen2.arguments.map((arg: string) => {
+          let out = arg;
+          for (const [k, v] of Object.entries(variables)) {
+            const token = `%${k}%`;
+            out = out.split(token).join(String(v));
+          }
+          return out;
+        });
+      }
+
+      const secondResult = await this.actFromObserveResult(
+        chosen2,
+        page as Page,
+        domSettleTimeoutMs,
+      );
+
+      // Combine results
+      return {
+        success: firstResult.success && secondResult.success,
+        message: secondResult.success
+          ? `${firstResult.message} → ${secondResult.message}`
+          : `${firstResult.message} → ${secondResult.message}`,
+        actionDescription: firstResult.actionDescription,
+        actions: [
+          ...(firstResult.actions || []),
+          ...(secondResult.actions || []),
+        ],
+      };
     };
 
     // Hard timeout for entire act() call → reject on timeout (align with extract/observe)
