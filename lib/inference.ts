@@ -242,7 +242,6 @@ export async function observe({
   requestId,
   userProvidedInstructions,
   logger,
-  returnAction = false,
   logInferenceToFile = false,
   fromAct,
 }: {
@@ -252,7 +251,6 @@ export async function observe({
   requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
-  returnAction?: boolean;
   logInferenceToFile?: boolean;
   fromAct?: boolean;
 }) {
@@ -272,22 +270,18 @@ export async function observe({
             .describe(
               "a description of the accessible element and its purpose",
             ),
-          ...(returnAction
-            ? {
-                method: z
-                  .string()
-                  .describe(
-                    "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
-                  ),
-                arguments: z.array(
-                  z
-                    .string()
-                    .describe(
-                      "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
-                    ),
+            method: z
+              .string()
+              .describe(
+                "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+              ),
+            arguments: z.array(
+              z
+                .string()
+                .describe(
+                  "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
                 ),
-              }
-            : {}),
+            ),
         }),
       )
       .describe("an array of accessible elements that match the instruction"),
@@ -370,14 +364,9 @@ export async function observe({
       const base = {
         elementId: el.elementId,
         description: String(el.description),
+        method: String(el.method),
+        arguments: el.arguments,
       };
-      if (returnAction) {
-        return {
-          ...base,
-          method: String(el.method),
-          arguments: el.arguments,
-        };
-      }
       return base;
     }) ?? [];
 
