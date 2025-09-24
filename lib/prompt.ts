@@ -200,8 +200,8 @@ export function buildStagehandAgentSystemPrompt(
 
   const toolsSection = useAnthropicCustomizations
     ? `<tools>
-    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context (use sparingly)</tool>
-    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)</tool>
+    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context</tool>
+    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context</tool>
     <tool name="click">Click on an element (PREFERRED - more reliable when element is visible in viewport)</tool>
     <tool name="type">Type text into an element (PREFERRED - more reliable when element is visible in viewport)</tool>
     <tool name="act">Perform a specific atomic action (click, type, etc.) - ONLY use when element is in ariaTree but NOT visible in screenshot. Less reliable but can interact with out-of-viewport elements.</tool>
@@ -216,8 +216,8 @@ export function buildStagehandAgentSystemPrompt(
     ${searchToolLine}
   </tools>`
     : `<tools>
-    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context (use sparingly)</tool>
-    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)</tool>
+    <tool name="screenshot">Take a compressed JPEG screenshot for quick visual context</tool>
+    <tool name="ariaTree">Get an accessibility (ARIA) hybrid tree for full page context</tool>
     <tool name="act">Perform a specific atomic action (click, type)</tool>
     <tool name="keys">Press a keyboard key</tool>
     <tool name="fillForm">Fill out a form</tool>

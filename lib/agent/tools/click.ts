@@ -19,6 +19,7 @@ export const createClickTool = (stagehand: Stagehand) =>
     execute: async ({ describe, coordinates }) => {
       try {
         await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
+        await stagehand.page.waitForTimeout(50);
         await stagehand.page.mouse.click(coordinates[0], coordinates[1]);
         return { success: true, describe, coordinates };
       } catch {
