@@ -47,8 +47,7 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, fromAct, timeout, selector } =
-      params;
+    const { instruction, page, fromAct, timeout, selector } = params;
 
     const effectiveInstruction =
       instruction ??
