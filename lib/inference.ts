@@ -270,18 +270,18 @@ export async function observe({
             .describe(
               "a description of the accessible element and its purpose",
             ),
-            method: z
+          method: z
+            .string()
+            .describe(
+              "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+            ),
+          arguments: z.array(
+            z
               .string()
               .describe(
-                "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+                "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
               ),
-            arguments: z.array(
-              z
-                .string()
-                .describe(
-                  "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
-                ),
-            ),
+          ),
         }),
       )
       .describe("an array of accessible elements that match the instruction"),
