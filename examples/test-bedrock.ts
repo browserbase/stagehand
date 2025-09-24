@@ -56,16 +56,20 @@ async function testBedrockIntegration() {
   console.log(`🌍 Region: ${process.env.AWS_REGION || "us-east-1"}`);
 
   // Check authentication setup
-  const hasBearer = !!process.env.AWS_BEARER_TOKEN_BEDROCK;
-  const hasStandard = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+  // const hasBearer = !!process.env.AWS_BEARER_TOKEN_BEDROCK;
+  // const hasStandard = !!(
+  //   process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+  // );
 
-  if (!hasBearer && !hasStandard) {
-    console.error("❌ No AWS authentication found!");
-    console.error("💡 Set either AWS_BEARER_TOKEN_BEDROCK or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY");
-    process.exit(1);
-  }
+  // if (!hasBearer && !hasStandard) {
+  //   console.error("❌ No AWS authentication found!");
+  //   console.error(
+  //     "💡 Set either AWS_BEARER_TOKEN_BEDROCK or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY",
+  //   );
+  //   process.exit(1);
+  // }
 
-  console.log(`🔐 Auth: ${hasBearer ? "Bearer Token" : "AWS Credentials"}`);
+  // console.log(`🔐 Auth: ${hasBearer ? "Bearer Token" : "AWS Credentials"}`);
 
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -93,31 +97,40 @@ async function testBedrockIntegration() {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 Attempt ${attempt}/${maxRetries}: Trying page.act("click the link")`);
+        console.log(
+          `🔄 Attempt ${attempt}/${maxRetries}: Trying page.act("click the link")`,
+        );
         await page.act("click the link");
-        console.log(`✅ Click successful on attempt ${attempt} - URL: ${page.url()}`);
+        console.log(
+          `✅ Click successful on attempt ${attempt} - URL: ${page.url()}`,
+        );
         success = true;
         break;
       } catch (error) {
         lastError = error as Error;
-        console.log(`⚠️ Attempt ${attempt} failed: ${error.message.split('\n')[0]}`);
+        console.log(
+          `⚠️ Attempt ${attempt} failed: ${error.message.split("\n")[0]}`,
+        );
 
         if (attempt < maxRetries) {
           console.log(`🔄 Retrying in 1 second...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
     }
 
     if (!success) {
-      console.log(`❌ All ${maxRetries} attempts failed. Last error: ${lastError?.message}`);
+      console.log(
+        `❌ All ${maxRetries} attempts failed. Last error: ${lastError?.message}`,
+      );
       throw lastError;
     }
 
     await stagehand.close();
 
-    console.log("\n🎉 AWS Bedrock integration with OpenAI model is working perfectly!");
-
+    console.log(
+      "\n🎉 AWS Bedrock integration with OpenAI model is working perfectly!",
+    );
   } catch (error) {
     console.error("\n❌ Test failed:", error.message);
 
@@ -125,7 +138,10 @@ async function testBedrockIntegration() {
     if (error.message?.includes("You don't have access")) {
       console.error("💡 Enable model access in AWS Bedrock Console:");
       console.error("   https://console.aws.amazon.com/bedrock/");
-    } else if (error.message?.includes("credentials") || error.message?.includes("authentication")) {
+    } else if (
+      error.message?.includes("credentials") ||
+      error.message?.includes("authentication")
+    ) {
       console.error("💡 Check your AWS credentials in .env file");
     }
 

@@ -589,6 +589,11 @@ export function loadBedrockClientOptions(
         region,
       };
     } catch (error) {
+      logger({
+        category: "init",
+        message: `Error loading AWS Bedrock client options: ${error}`,
+        level: 0,
+      });
       return {
         region,
       };
