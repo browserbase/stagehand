@@ -11,7 +11,7 @@ export const wikipedia: EvalFunction = async ({
     await page.goto(`https://en.wikipedia.org/wiki/Baseball`);
     await v3.act({
       instruction: 'click the "hit and run" link in this article',
-      timeoutMs: 360_000,
+      timeout: 360_000,
     });
 
     const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
