@@ -32,18 +32,19 @@ function filterToolsByModelName(
   storeActions?: boolean,
 ): ToolSet {
   const normalized = (modelName || "").toLowerCase().trim();
-  const isAnthropic = normalized.startsWith("claude");
+  const isAnthropic = normalized.startsWith("anthropic");
   const filtered: ToolSet = { ...tools };
 
   if (isAnthropic && storeActions === false) {
-    delete filtered.fillForm;
+    console.log("isanthropic", isAnthropic, storeActions);
+    // delete filtered.fillForm;
     return filtered;
   }
-  delete filtered.dragAndDrop;
-  delete filtered.clickAndHold;
-  delete filtered.click;
-  delete filtered.type;
-  delete filtered.fillFormVision;
+  // delete filtered.dragAndDrop;
+  // delete filtered.clickAndHold;
+  // delete filtered.click;
+  // delete filtered.type;
+  // delete filtered.fillFormVision;
   return filtered;
 }
 
