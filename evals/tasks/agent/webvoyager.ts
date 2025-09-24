@@ -59,6 +59,8 @@ export const webvoyager: EvalFunction = async ({
   input,
   agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     const params = ((input && input.params) || {}) as {
       id?: string;
@@ -83,11 +85,15 @@ export const webvoyager: EvalFunction = async ({
 
     await stagehand.page.goto(params.web);
 
-    // Start collecting screenshots in parallel
+    // Start collecting screenshots
     const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      maxScreenshots: 10, // Keep last 10 screenshots
-      captureOnNavigation: true, // Also capture on page navigation
+      maxScreenshots: 8, // Keep last 8 screenshots
     });
+
+    // Set the collector on the agent so it captures screenshots
+    if (agent.setScreenshotCollector) {
+      agent.setScreenshotCollector(screenshotCollector);
+    }
 
     screenshotCollector.start();
 
@@ -95,8 +101,7 @@ export const webvoyager: EvalFunction = async ({
       instruction: params.ques,
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 50,
     });
-
-    // Stop collecting and get all screenshots
+    // Always stop collecting and get all screenshots, even on error
     const screenshots = screenshotCollector.stop();
 
     logger.log({
@@ -196,17 +201,15 @@ Today's date is ${new Date().toLocaleDateString()}`;
       groundTruthUsed: false,
       agentAnswer,
       screenshotCount: screenshots.length,
+      final_answer: agentResult?.message,
+      execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
   } catch (error) {
-    return {
-      _success: false,
-      error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
+    // Let the error propagate - the parent runner will handle cleanup
+    console.error(error);
+    throw error;
   }
 };

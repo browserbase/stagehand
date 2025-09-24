@@ -5,36 +5,38 @@ import {
   ActToolResult,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
+import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
-  private stagehandPage: StagehandPage;
+  private stagehand: Stagehand;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private executionModel?: string;
   private systemInstructions?: string;
-  private mcpTools?: ToolSet;
+  private tools?: ToolSet;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private screenshotCollector?: any;
 
   constructor(
-    stagehandPage: StagehandPage,
+    stagehand: Stagehand,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
-    mcpTools?: ToolSet,
+    tools?: ToolSet,
   ) {
-    this.stagehandPage = stagehandPage;
+    this.stagehand = stagehand;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
-    this.mcpTools = mcpTools;
+    this.tools = tools;
   }
 
   public async execute(
@@ -57,8 +59,8 @@ export class StagehandAgentHandler {
         options.instruction,
         this.systemInstructions,
       );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools };
+      const defaultTools = this.createTools();
+      const allTools = { ...defaultTools, ...this.tools };
       const messages: CoreMessage[] = [
         {
           role: "user",
@@ -239,9 +241,27 @@ For each action, provide clear reasoning about why you're taking that step.`;
   }
 
   private createTools() {
-    return createAgentTools(this.stagehandPage, {
+    return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
       logger: this.logger,
     });
+  }
+  /**
+   * Set the screenshot collector for this agent handler
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setScreenshotCollector(collector: any): void {
+    this.screenshotCollector = collector;
+  }
+
+  /**
+   * Get the screenshot collector
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getScreenshotCollector(): any {
+    return this.screenshotCollector;
+  }
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
   }
 }

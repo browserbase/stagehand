@@ -87,6 +87,10 @@ export class OpenAICUAClient extends AgentClient {
     this.actionHandler = handler;
   }
 
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
+  }
+
   /**
    * Execute a task with the OpenAI CUA
    * This is the main entry point for the agent

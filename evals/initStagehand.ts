@@ -117,7 +117,6 @@ export const initStagehand = async ({
   } else {
     agentConfig = {
       model: modelName,
-      executionModel: "google/gemini-2.5-flash",
     } as AgentConfig;
   }
 
