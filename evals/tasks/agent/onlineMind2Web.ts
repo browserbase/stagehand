@@ -92,7 +92,7 @@ export const onlineMind2Web: EvalFunction = async ({
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.confirmed_task}"? The task might be a bit outdated or impossible to complete, in those cases lean towards YES.`,
+      question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
       screenshot: screenshots,
       agentReasoning:
         agentResult.message ||

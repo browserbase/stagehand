@@ -191,11 +191,7 @@ export function buildStagehandAgentSystemPrompt(
 
   const useAnthropicCustomizations = isAnthropic && storeActions === false;
 
-  const hasSearch = process.env.EXA_API_KEY?.length > 0;
-
-  const searchToolLine = hasSearch
-    ? `\n    <tool name="search">Perform a web search and return results. Prefer this over navigating to Google and searching within the page for reliability and efficiency.</tool>`
-    : "";
+  const searchToolLine = "";
 
   const toolsSection = useAnthropicCustomizations
     ? `<tools>
@@ -209,7 +205,6 @@ export function buildStagehandAgentSystemPrompt(
     <tool name="fillForm">Fill out a form</tool>
     <tool name="think">Think about the task</tool>
     <tool name="extract">Extract structured data</tool>
-    <tool name="goto">Navigate to a URL</tool>
     <tool name="wait|navback|refresh">Control timing and navigation</tool>
     <tool name="scroll">Scroll the page x pixels up or down</tool>
     ${searchToolLine}
@@ -222,7 +217,6 @@ export function buildStagehandAgentSystemPrompt(
     <tool name="fillForm">Fill out a form</tool>
     <tool name="think">Think about the task</tool>
     <tool name="extract">Extract structured data</tool>
-    <tool name="goto">Navigate to a URL</tool>
     <tool name="wait|navback|refresh">Control timing and navigation</tool>
     <tool name="scroll">Scroll the page x pixels up or down</tool>
     ${searchToolLine}
@@ -270,10 +264,6 @@ export function buildStagehandAgentSystemPrompt(
       </secondary_tool>
     </step_1>
   </page_understanding_protocol>
-  <navigation>
-    <rule>If you are confident in the URL, navigate directly to it.</rule>
-    ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
-  </navigation>
   ${toolsSection}
   <strategy>
     <item>Always use ariaTree to understand the entire page very fast - it provides comprehensive context of all elements and their relationships.</item>
@@ -335,10 +325,6 @@ export function buildStagehandAgentSystemPrompt(
       </secondary_tool>
     </step_1>
   </page_understanding_protocol>
-  <navigation>
-    <rule>If you are confident in the URL, navigate directly to it.</rule>
-    ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
-  </navigation>
   ${toolsSection}
   <strategy>
     <item>Always use ariaTree to understand the entire page very fast - it provides comprehensive context of all elements and their relationships.</item>

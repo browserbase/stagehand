@@ -1,4 +1,4 @@
-import { createGotoTool } from "./goto";
+// import { createGotoTool } from "./goto";
 import { createActTool } from "./act";
 import { createScreenshotTool } from "./screenshot";
 import { createWaitTool } from "./wait";
@@ -12,7 +12,7 @@ import { thinkTool } from "./think";
 import { createClickTool } from "./click";
 import { createTypeTool } from "./type";
 import { createDragAndDropTool } from "./dragAndDrop";
-import { createSearchTool } from "./search";
+// import { createSearchTool } from "./search";
 import { createKeysTool } from "./keys";
 import { createClickAndHoldTool } from "./clickAndHold";
 import { Stagehand } from "../../index";
@@ -52,7 +52,7 @@ export function createAgentTools(
   options?: AgentToolOptions,
 ) {
   const executionModel = options?.executionModel;
-  const hasExaApiKey = process.env.EXA_API_KEY?.length > 0;
+  // const hasExaApiKey = process.env.EXA_API_KEY?.length > 0;
 
   const all = {
     act: createActTool(stagehand, executionModel),
@@ -65,12 +65,12 @@ export function createAgentTools(
     think: thinkTool,
     fillForm: createFillFormTool(stagehand, executionModel),
     fillFormVision: createFillFormVisionTool(stagehand),
-    goto: createGotoTool(stagehand),
+    // goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
     screenshot: createScreenshotTool(stagehand),
     scroll: createScrollTool(stagehand),
     wait: createWaitTool(),
-    ...(hasExaApiKey ? { search: createSearchTool() } : {}),
+    // ...(hasExaApiKey ? { search: createSearchTool() } : {}),
     keys: createKeysTool(stagehand),
     extract: createExtractTool(stagehand),
   } satisfies ToolSet;
@@ -90,12 +90,12 @@ export type AgentToolTypesMap = {
   think: typeof thinkTool;
   fillForm: ReturnType<typeof createFillFormTool>;
   fillFormVision: ReturnType<typeof createFillFormVisionTool>;
-  goto: ReturnType<typeof createGotoTool>;
+  // goto: ReturnType<typeof createGotoTool>;
   navback: ReturnType<typeof createNavBackTool>;
   screenshot: ReturnType<typeof createScreenshotTool>;
   scroll: ReturnType<typeof createScrollTool>;
   wait: ReturnType<typeof createWaitTool>;
-  search: ReturnType<typeof createSearchTool>;
+  // search: ReturnType<typeof createSearchTool>;
   keys: ReturnType<typeof createKeysTool>;
   extract: ReturnType<typeof createExtractTool>;
 };
