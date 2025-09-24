@@ -40,8 +40,10 @@ function patchImportMeta(filePath) {
     return;
   }
 
-  content = content.replace("var import_meta = {};", IMPORT_META_DECL);
-  content = content.replaceAll('"globalSetup.ts"', '"globalSetup.js"');
+  const importMetaPattern = /var import_meta = \{\};/g;
+  if (importMetaPattern.test(content)) {
+    content = content.replace(importMetaPattern, IMPORT_META_DECL);
+  }
   fs.writeFileSync(filePath, content, "utf8");
 }
 
