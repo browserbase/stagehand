@@ -687,18 +687,18 @@ export class V3 {
   async act(
     instruction: string,
     page?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+    opts?: { domSettleTimeoutMs?: number; timeout?: number },
   ): Promise<ActResult>;
   async act(
     observe: Action,
     page?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+    opts?: { domSettleTimeoutMs?: number; timeout?: number },
   ): Promise<ActResult>;
 
   async act(
     input: ActParams | Action | string,
     pageArg?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeoutMs?: number },
+    opts?: { domSettleTimeoutMs?: number; timeout?: number },
   ): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler)
@@ -710,7 +710,7 @@ export class V3 {
           instruction: input,
           page: pageArg,
           domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-          timeout: opts?.timeoutMs,
+          timeout: opts?.timeout,
         };
         return this.act(p);
       }
@@ -774,7 +774,7 @@ export class V3 {
           instruction: params.instruction,
           variables: params.variables,
           domSettleTimeoutMs: params.domSettleTimeoutMs,
-          timeoutMs: params.timeout,
+          timeout: params.timeout,
         },
         actResult,
       );
@@ -799,7 +799,7 @@ export class V3 {
     page?: AnyPage,
     opts?: {
       domSettleTimeoutMs?: number;
-      timeoutMs?: number;
+      timeout?: number;
       selector?: string;
     },
   ): Promise<z.infer<typeof defaultExtractSchema>>;
@@ -830,7 +830,7 @@ export class V3 {
       let params: ExtractParams<z.AnyZodObject> | undefined;
       let pageArg: AnyPage | undefined;
       let optsArg:
-        | { domSettleTimeoutMs?: number; timeoutMs?: number; selector?: string }
+        | { domSettleTimeoutMs?: number; timeout?: number; selector?: string }
         | undefined;
       if (fnArgs.length === 0) {
         params = undefined;
@@ -839,14 +839,14 @@ export class V3 {
         optsArg = fnArgs[2] as
           | {
               domSettleTimeoutMs?: number;
-              timeoutMs?: number;
+              timeout?: number;
               selector?: string;
             }
           | undefined;
         params = {
           instruction: fnArgs[0] as string,
           domSettleTimeoutMs: optsArg?.domSettleTimeoutMs,
-          timeout: optsArg?.timeoutMs,
+          timeout: optsArg?.timeout,
           selector: optsArg?.selector,
         } as ExtractParams<z.AnyZodObject>;
       } else {
@@ -956,7 +956,7 @@ export class V3 {
           // best-effort: log presence of schema (inline or explicit) without serializing instances
           hasSchema: !!params?.schema || hasInline,
           domSettleTimeoutMs: params?.domSettleTimeoutMs,
-          timeoutMs: params?.timeout,
+          timeout: params?.timeout,
         },
         result,
       );
@@ -974,9 +974,7 @@ export class V3 {
     page?: AnyPage,
     opts?: {
       domSettleTimeoutMs?: number;
-      timeoutMs?: number;
-      returnAction?: boolean;
-      drawOverlay?: boolean;
+      timeout?: number;
       selector?: string;
     },
   ): Promise<Action[]>;
@@ -985,10 +983,8 @@ export class V3 {
     pageArg?: AnyPage,
     opts?: {
       domSettleTimeoutMs?: number;
-      timeoutMs?: number;
-      returnAction?: boolean;
+      timeout?: number;
       selector?: string;
-      drawOverlay?: boolean;
     },
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
@@ -1002,9 +998,7 @@ export class V3 {
           instruction: params,
           page: pageArg,
           domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-          timeout: opts?.timeoutMs,
-          returnAction: opts?.returnAction,
-          drawOverlay: opts?.drawOverlay,
+          timeout: opts?.timeout,
           selector: opts?.selector,
         };
       } else {
@@ -1030,8 +1024,6 @@ export class V3 {
         instruction: effective.instruction,
         domSettleTimeoutMs: effective.domSettleTimeoutMs,
         timeout: effective.timeout,
-        returnAction: effective.returnAction,
-        drawOverlay: effective.drawOverlay,
         fromAct: false,
         selector: effective.selector,
         page,
@@ -1044,9 +1036,7 @@ export class V3 {
         {
           instruction: effective.instruction,
           domSettleTimeoutMs: effective.domSettleTimeoutMs,
-          timeoutMs: effective.timeout,
-          returnAction: effective.returnAction,
-          drawOverlay: effective.drawOverlay,
+          timeout: effective.timeout,
         },
         results,
       );
