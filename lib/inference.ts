@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { LogLine } from "./v3/types/log";
 import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
 import {
+  buildActSystemPrompt,
   buildExtractSystemPrompt,
   buildExtractUserPrompt,
   buildMetadataPrompt,
@@ -382,6 +383,134 @@ export async function observe({
 
   return {
     elements: parsedElements,
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    inference_time_ms: usageTimeMs,
+  };
+}
+
+export async function act({
+  instruction,
+  domElements,
+  llmClient,
+  requestId,
+  userProvidedInstructions,
+  logger,
+  logInferenceToFile = false,
+}: {
+  instruction: string;
+  domElements: string;
+  llmClient: LLMClient;
+  requestId: string;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+}) {
+  const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
+
+  const actSchema = z.object({
+    elementId: z
+      .string()
+      .describe(
+        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'.",
+      ),
+    description: z
+      .string()
+      .describe("a description of the accessible element and its purpose"),
+    method: z
+      .string()
+      .describe(
+        "the candidate method/action to interact with the element. Select one of the available Playwright interaction methods.",
+      ),
+    arguments: z.array(
+      z
+        .string()
+        .describe(
+          "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+        ),
+    ),
+  });
+
+  type ActResponse = z.infer<typeof actSchema>;
+
+  const messages: ChatMessage[] = [
+    buildActSystemPrompt(userProvidedInstructions),
+    buildObserveUserMessage(instruction, domElements),
+  ];
+
+  let callTimestamp = "";
+  let callFile = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      `act_summary`,
+      `act_call`,
+      {
+        requestId,
+        modelCall: "act",
+        messages,
+      },
+    );
+    callFile = fileName;
+    callTimestamp = timestamp;
+  }
+
+  const start = Date.now();
+  const rawResponse = await llmClient.createChatCompletion<ActResponse>({
+    options: {
+      messages,
+      response_model: {
+        schema: actSchema,
+        name: "act",
+      },
+      temperature: isGPT5 ? 1 : 0.1,
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+      requestId,
+    },
+    logger,
+  });
+  const end = Date.now();
+  const usageTimeMs = end - start;
+
+  const { data: actData, usage: actUsage } =
+    rawResponse as LLMParsedResponse<ActResponse>;
+  const promptTokens = actUsage?.prompt_tokens ?? 0;
+  const completionTokens = actUsage?.completion_tokens ?? 0;
+
+  let responseFile = "";
+  if (logInferenceToFile) {
+    const { fileName: responseFileName } = writeTimestampedTxtFile(
+      `act_summary`,
+      `act_response`,
+      {
+        requestId,
+        modelResponse: "act",
+        rawResponse: actData,
+      },
+    );
+    responseFile = responseFileName;
+
+    appendSummary("act", {
+      [`act_inference_type`]: "act",
+      timestamp: callTimestamp,
+      LLM_input_file: callFile,
+      LLM_output_file: responseFile,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      inference_time_ms: usageTimeMs,
+    });
+  }
+
+  const parsedElement = {
+    elementId: actData.elementId,
+    description: String(actData.description),
+    method: String(actData.method),
+    arguments: actData.arguments,
+  };
+
+  return {
+    element: parsedElement,
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     inference_time_ms: usageTimeMs,
