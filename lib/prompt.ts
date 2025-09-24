@@ -261,13 +261,13 @@ export function buildStagehandAgentSystemPrompt(
     <step_1>
       <title>UNDERSTAND THE PAGE</title>
       <primary_tool>
+        <name>screenshot</name>
+        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
+        </primary_tool>
+      <secondary_tool>
         <name>ariaTree</name>
         <usage>Get complete page context before taking actions</usage>
         <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-      </primary_tool>
-      <secondary_tool>
-        <name>screenshot</name>
-        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
       </secondary_tool>
     </step_1>
   </page_understanding_protocol>
@@ -277,7 +277,8 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-    <item>Always use ariaTree to understand the entire page very fast - it provides comprehensive context of all elements and their relationships.</item>
+    <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
+    <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>
     <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
@@ -326,13 +327,13 @@ export function buildStagehandAgentSystemPrompt(
     <step_1>
       <title>UNDERSTAND THE PAGE</title>
       <primary_tool>
+        <name>screenshot</name>
+        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
+        </primary_tool>
+      <secondary_tool>
         <name>ariaTree</name>
         <usage>Get complete page context before taking actions</usage>
         <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-      </primary_tool>
-      <secondary_tool>
-        <name>screenshot</name>
-        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
       </secondary_tool>
     </step_1>
   </page_understanding_protocol>
@@ -342,7 +343,8 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-    <item>Always use ariaTree to understand the entire page very fast - it provides comprehensive context of all elements and their relationships.</item>
+     <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
+    <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>
     <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
