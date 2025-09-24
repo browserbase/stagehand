@@ -19,6 +19,7 @@ export const createTypeTool = (stagehand: Stagehand) =>
     }),
     execute: async ({ describe, coordinates, text }) => {
       try {
+        await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
         await stagehand.page.mouse.click(coordinates[0], coordinates[1]);
         await stagehand.page.keyboard.type(text);
       } catch {
