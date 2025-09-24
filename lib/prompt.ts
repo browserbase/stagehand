@@ -144,10 +144,28 @@ Accessibility Tree: \n${domElements}\n`,
   };
 }
 
-/**
- * Builds the instruction for the observeAct method to find the most relevant element for an action
- */
-export function buildActObservePrompt(
+export function buildActSystemPrompt(
+  userProvidedInstructions?: string,
+): ChatMessage {
+  const actSystemPrompt = `
+You are helping the user automate the browser by finding elements based on what action the user wants to take on the page
+
+You will be given:
+1. a user defined instruction about what action to take
+2. a hierarchical accessibility tree showing the semantic structure of the page. The tree is a hybrid of the DOM and the accessibility tree.
+
+Return the element that matches the instruction if it exists. Otherwise, return an empty object.`;
+  const content = actSystemPrompt.replace(/\s+/g, " ");
+
+  return {
+    role: "system",
+    content: [content, buildUserInstructionsString(userProvidedInstructions)]
+      .filter(Boolean)
+      .join("\n\n"),
+  };
+}
+
+export function buildActPrompt(
   action: string,
   supportedActions: string[],
   variables?: Record<string, string>,
