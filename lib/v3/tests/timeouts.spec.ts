@@ -18,20 +18,20 @@ test.describe("V3 hard timeouts", () => {
   test("observe() enforces timeoutMs", async () => {
     // Tiny timeout to force the race to hit the timeout branch
     await expect(
-      v3.observe({ instruction: "find something", timeoutMs: 5 }),
+      v3.observe({ instruction: "find something", timeout: 5 }),
     ).rejects.toThrow(/timed out/i);
   });
 
   test("extract() enforces timeoutMs", async () => {
     const schema = z.object({ title: z.string().optional() });
     await expect(
-      v3.extract({ instruction: "Extract title", schema, timeoutMs: 5 }),
+      v3.extract({ instruction: "Extract title", schema, timeout: 5 }),
     ).rejects.toThrow(/timed out/i);
   });
 
   test("act() enforces timeoutMs", async () => {
     await expect(
-      v3.act({ instruction: "do nothing", timeoutMs: 5 }),
+      v3.act({ instruction: "do nothing", timeout: 5 }),
     ).rejects.toThrow(/timed out/i);
   });
 });

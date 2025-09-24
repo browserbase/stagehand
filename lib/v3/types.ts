@@ -128,7 +128,7 @@ export type ActParams = {
   modelClientOptions?: ClientOptions;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 };
 
@@ -138,7 +138,7 @@ export interface ActHandlerParams {
   modelClientOptions?: ClientOptions;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   page: Page;
 }
 
@@ -149,7 +149,7 @@ export interface BaseExtractParams<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
@@ -185,7 +185,7 @@ export interface ExtractHandlerParams<T extends z.AnyZodObject> {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   selector?: string;
   page: Page;
 }
@@ -203,7 +203,7 @@ export type ObserveParams = {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   selector?: string;
   returnAction?: boolean;
   drawOverlay?: boolean;
@@ -215,7 +215,7 @@ export interface ObserveHandlerParams {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
-  timeoutMs?: number;
+  timeout?: number;
   selector?: string;
   returnAction?: boolean;
   drawOverlay?: boolean;

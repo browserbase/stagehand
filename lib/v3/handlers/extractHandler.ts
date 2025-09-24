@@ -96,7 +96,7 @@ export class ExtractHandler {
   async extract<T extends z.AnyZodObject>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { page_text: string }> {
-    const { instruction, schema, page, selector, timeoutMs } = params;
+    const { instruction, schema, page, selector, timeout } = params;
 
     const doExtract = async (): Promise<z.infer<T> | { page_text: string }> => {
       // No-args → page text (parity with v2)
@@ -207,14 +207,14 @@ export class ExtractHandler {
 
       return output as z.infer<T>;
     };
-    if (!timeoutMs) return doExtract();
+    if (!timeout) return doExtract();
 
     return await Promise.race([
       doExtract(),
       new Promise<z.infer<T> | { page_text: string }>((_, reject) => {
         setTimeout(
-          () => reject(new Error(`extract() timed out after ${timeoutMs}ms`)),
-          timeoutMs,
+          () => reject(new Error(`extract() timed out after ${timeout}ms`)),
+          timeout,
         );
       }),
     ]);

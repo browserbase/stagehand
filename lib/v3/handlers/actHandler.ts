@@ -54,7 +54,7 @@ export class ActHandler {
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
-    const { instruction, page, variables, domSettleTimeoutMs, timeoutMs } =
+    const { instruction, page, variables, domSettleTimeoutMs, timeout } =
       params;
 
     const doObserveAndAct = async (): Promise<ActResult> => {
@@ -292,7 +292,7 @@ export class ActHandler {
     };
 
     // Hard timeout for entire act() call → reject on timeout (align with extract/observe)
-    if (!timeoutMs) {
+    if (!timeout) {
       return doObserveAndAct();
     }
 
@@ -300,8 +300,8 @@ export class ActHandler {
       doObserveAndAct(),
       new Promise<ActResult>((_, reject) => {
         setTimeout(
-          () => reject(new Error(`act() timed out after ${timeoutMs}ms`)),
-          timeoutMs,
+          () => reject(new Error(`act() timed out after ${timeout}ms`)),
+          timeout,
         );
       }),
     ]);

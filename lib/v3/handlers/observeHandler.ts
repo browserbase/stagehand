@@ -47,7 +47,7 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, returnAction, fromAct, timeoutMs, selector } =
+    const { instruction, page, returnAction, fromAct, timeout, selector } =
       params;
 
     const effectiveInstruction =
@@ -157,14 +157,14 @@ export class ObserveHandler {
       return elementsWithSelectors;
     };
 
-    if (!timeoutMs) return doObserve();
+    if (!timeout) return doObserve();
 
     return await Promise.race([
       doObserve(),
       new Promise<Action[]>((_, reject) => {
         setTimeout(
-          () => reject(new Error(`observe() timed out after ${timeoutMs}ms`)),
-          timeoutMs,
+          () => reject(new Error(`observe() timed out after ${timeout}ms`)),
+          timeout,
         );
       }),
     ]);
