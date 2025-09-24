@@ -1746,6 +1746,45 @@ function indentBlock(block: string, indent: string): string {
     .join("\n");
 }
 
+/**
+ * Return the lines that appear in `nextTree` but not in `prevTree`.
+ * Comparison is done line-by-line, ignoring leading whitespace in both trees.
+ * The returned block is re-indented so the minimal indent becomes column 0.
+ */
+export function diffCombinedTrees(prevTree: string, nextTree: string): string {
+  const prevSet = new Set(
+    (prevTree || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0),
+  );
+
+  const nextLines = (nextTree || "").split("\n");
+  const added: string[] = [];
+  for (const line of nextLines) {
+    const core = line.trim();
+    if (!core) continue;
+    if (!prevSet.has(core)) added.push(line);
+  }
+
+  if (added.length === 0) return "";
+
+  // Normalize indentation so the smallest indent becomes column 0
+  let minIndent = Infinity;
+  for (const l of added) {
+    if (!l.trim()) continue;
+    const m = l.match(/^\s*/);
+    const indentLen = m ? m[0]!.length : 0;
+    if (indentLen < minIndent) minIndent = indentLen;
+  }
+  if (!isFinite(minIndent)) minIndent = 0;
+
+  const out = added.map((l) =>
+    l.length >= minIndent ? l.slice(minIndent) : l,
+  );
+  return out.join("\n");
+}
+
 /* ------------------------------------------------------------------------------------------------
  * Session helpers (registry-backed via Page)
  * ----------------------------------------------------------------------------------------------*/
