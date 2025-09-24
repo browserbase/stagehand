@@ -180,17 +180,17 @@ export function buildStagehandAgentSystemPrompt(
   modelName: string,
   executionInstruction: string,
   systemInstructions?: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   storeActions: boolean = true,
 ): string {
   const localeDate = new Date().toLocaleDateString();
   const isoDate = new Date().toISOString();
   const cdata = (text: string) => `<![CDATA[${text}]]>`;
 
-  //const normalizedModel = (modelName || "").toLowerCase().trim();
-  //const isAnthropic = normalizedModel.startsWith("anthropic");
+  const normalizedModel = (modelName || "").toLowerCase().trim();
+  const isAnthropic =
+    normalizedModel.startsWith("anthropic") && storeActions === false;
 
-  const useAnthropicCustomizations = true;
+  const useAnthropicCustomizations = isAnthropic === false;
 
   const hasSearch = process.env.EXA_API_KEY?.length > 0;
 
