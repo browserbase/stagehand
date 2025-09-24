@@ -42,7 +42,7 @@ const StagehandConfig = {
   disablePino: true,
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
-    proxies:true,
+    proxies: true,
     browserSettings: {
       advancedStealth: true,
       os: "windows",
