@@ -429,6 +429,11 @@ export async function act({
           "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
         ),
     ),
+    twoStep: z
+      .boolean()
+      .describe(
+        "true if we will need to take another action after this. false otherwise",
+      ),
   });
 
   type ActResponse = z.infer<typeof actSchema>;
@@ -514,5 +519,6 @@ export async function act({
     prompt_tokens: promptTokens,
     completion_tokens: completionTokens,
     inference_time_ms: usageTimeMs,
+    twoStep: actData.twoStep,
   };
 }
