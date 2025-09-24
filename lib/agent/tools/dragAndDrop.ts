@@ -10,10 +10,10 @@ export const createDragAndDropTool = (stagehand: Stagehand) =>
       describe: z.string().describe("Describe the element to drag and drop"),
       startCoordinates: z
         .array(z.number())
-        .describe("The (x, y) coordinates to drag and drop"),
+        .describe("The (x, y) coordinates to start the drag and drop from"),
       endCoordinates: z
         .array(z.number())
-        .describe("The (x, y) coordinates to start the drag and drop"),
+        .describe("The (x, y) coordinates to end the drag and drop at"),
     }),
     execute: async ({ describe, startCoordinates, endCoordinates }) => {
       await stagehand.page.mouse.move(startCoordinates[0], startCoordinates[1]);
