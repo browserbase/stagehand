@@ -1032,3 +1032,4 @@ export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
 export * from "./llm/aisdk";
 export { connectToMCPServer };
+export { transformActions } from "./transformActions";

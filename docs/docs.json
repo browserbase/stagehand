@@ -60,7 +60,8 @@
           "best-practices/agent-fallbacks",
           "best-practices/prompting-best-practices",
           "best-practices/mcp-integrations",
-          "best-practices/speed-optimization"
+          "best-practices/speed-optimization",
+          "best-practices/diy-api"
         ]
       },
       {
