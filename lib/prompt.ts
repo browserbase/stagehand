@@ -188,7 +188,7 @@ export function buildStagehandAgentSystemPrompt(
 
   const normalizedModel = (modelName || "").toLowerCase().trim();
   const isAnthropic =
-    normalizedModel.startsWith("anthropic") && storeActions === false;
+    normalizedModel.startsWith("claude") && storeActions === false;
 
   const useAnthropicCustomizations = isAnthropic === false;
 
@@ -230,7 +230,9 @@ export function buildStagehandAgentSystemPrompt(
   </tools>`;
 
   const toolPriorityItem = useAnthropicCustomizations
-    ? `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability. Only use act when element is in ariaTree but not visible in screenshot.</item>`
+    ? `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability. Only use act when element is in ariaTree but not visible in screenshot.</item>
+       <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
+       <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>`
     : `<item>Tool selection priority: Use act tool for clicking and typing on a page</item>`;
 
   if (systemInstructions) {
@@ -277,8 +279,6 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-    <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
-    <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>
     <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
@@ -343,9 +343,7 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-     <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
-    <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>
-    <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
+     <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
     <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
     ${toolPriorityItem}
     <item>Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.</item>
