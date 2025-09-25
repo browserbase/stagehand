@@ -18,6 +18,6 @@ export const SCREENSHOT_TEXT_PLACEHOLDER = "[screenshot]";
 export const IMAGE_TEXT_PLACEHOLDER = "[image]";
 
 // Context manager thresholds
-export const CHECKPOINT_INTERVAL = 25;
+export const CHECKPOINT_INTERVAL = 50;
 export const RECENT_TOOLS_TO_KEEP = 10;
 export const SUMMARIZATION_THRESHOLD = 120000;
