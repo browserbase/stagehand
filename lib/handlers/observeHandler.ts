@@ -46,6 +46,7 @@ export class StagehandObserveHandler {
     drawOverlay,
     fromAct,
     iframes,
+    treeParser,
   }: {
     instruction: string;
     llmClient: LLMClient;
@@ -59,6 +60,7 @@ export class StagehandObserveHandler {
     drawOverlay?: boolean;
     fromAct?: boolean;
     iframes?: boolean;
+    treeParser?: (tree: string) => string;
   }) {
     if (!instruction) {
       instruction = `Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.`;
@@ -112,10 +114,13 @@ export class StagehandObserveHandler {
           discoveredIframes: frameNodes,
         })));
 
+    // Optionally transform the tree string before inference
+    const domElements = treeParser ? treeParser(combinedTree) : combinedTree;
+
     // No screenshot or vision-based annotation is performed
     const observationResponse = await observe({
       instruction,
-      domElements: combinedTree,
+      domElements,
       llmClient,
       requestId,
       userProvidedInstructions: this.userProvidedInstructions,

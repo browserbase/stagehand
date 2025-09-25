@@ -874,6 +874,7 @@ ${scriptContent} \
         useTextExtract,
         selector,
         iframes,
+        treeParser,
       } = options;
 
       if (this.api) {
@@ -923,6 +924,7 @@ ${scriptContent} \
           useTextExtract,
           selector,
           iframes,
+          treeParser,
         })
         .catch((e) => {
           this.stagehand.log({
@@ -983,6 +985,7 @@ ${scriptContent} \
         onlyVisible,
         drawOverlay,
         iframes,
+        treeParser,
       } = options;
 
       if (this.api) {
@@ -1038,6 +1041,7 @@ ${scriptContent} \
           onlyVisible,
           drawOverlay,
           iframes,
+          treeParser,
         })
         .catch((e) => {
           this.stagehand.log({

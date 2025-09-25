@@ -122,6 +122,11 @@ export interface ActOptions {
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
   iframes?: boolean;
+  /**
+   * Optional callback to transform the accessibility tree string before inference.
+   * Receives the tree string and must return a string.
+   */
+  treeParser?: (tree: string) => string;
   frameId?: string;
 }
 
@@ -143,6 +148,11 @@ export interface ExtractOptions<T extends z.AnyZodObject> {
   useTextExtract?: boolean;
   selector?: string;
   iframes?: boolean;
+  /**
+   * Optional callback to transform the accessibility tree string before inference.
+   * Receives the tree string and must return a string.
+   */
+  treeParser?: (tree: string) => string;
   frameId?: string;
 }
 
@@ -160,6 +170,11 @@ export interface ObserveOptions {
   onlyVisible?: boolean;
   drawOverlay?: boolean;
   iframes?: boolean;
+  /**
+   * Optional callback to transform the accessibility tree string before inference.
+   * Receives the tree string and must return a string.
+   */
+  treeParser?: (tree: string) => string;
   frameId?: string;
 }
 

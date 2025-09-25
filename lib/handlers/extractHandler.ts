@@ -55,6 +55,7 @@ export class StagehandExtractHandler {
     useTextExtract,
     selector,
     iframes,
+    treeParser,
   }: {
     instruction?: string;
     schema?: T;
@@ -66,6 +67,7 @@ export class StagehandExtractHandler {
     useTextExtract?: boolean;
     selector?: string;
     iframes?: boolean;
+    treeParser?: (tree: string) => string;
   } = {}): Promise<z.infer<T>> {
     const noArgsCalled = !instruction && !schema && !llmClient && !selector;
     if (noArgsCalled) {
@@ -94,6 +96,7 @@ export class StagehandExtractHandler {
       domSettleTimeoutMs,
       selector,
       iframes,
+      treeParser,
     });
   }
 
@@ -125,6 +128,7 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs,
     selector,
     iframes,
+    treeParser,
   }: {
     instruction: string;
     schema: T;
@@ -134,6 +138,7 @@ export class StagehandExtractHandler {
     domSettleTimeoutMs?: number;
     selector?: string;
     iframes?: boolean;
+    treeParser?: (tree: string) => string;
   }): Promise<z.infer<T>> {
     this.logger({
       category: "extraction",
@@ -195,10 +200,13 @@ export class StagehandExtractHandler {
     const [transformedSchema, urlFieldPaths] =
       transformUrlStringsToNumericIds(schema);
 
+    // Optionally transform the tree string before inference
+    const domElements = treeParser ? treeParser(outputString) : outputString;
+
     // call extract inference with transformed schema
     const extractionResponse = await extract({
       instruction,
-      domElements: outputString,
+      domElements,
       schema: transformedSchema,
       chunksSeen: 1,
       chunksTotal: 1,

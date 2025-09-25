@@ -261,6 +261,7 @@ export class StagehandActHandler {
         returnAction: true,
         fromAct: true,
         iframes: actionOrOptions?.iframes,
+        treeParser: actionOrOptions?.treeParser,
       });
 
       if (observeResults.length === 0) {
