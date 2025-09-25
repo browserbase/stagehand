@@ -229,14 +229,29 @@ export function buildStagehandAgentSystemPrompt(
     ${searchToolLine}
   </tools>`;
 
-  const toolPriorityItem = useAnthropicCustomizations
-    ? `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability. Only use act when element is in ariaTree but not visible in screenshot.</item>
-       <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
-       <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>`
-    : `<item>Tool selection priority: Use act tool for clicking and typing on a page</item>
-       <item>when interacting with an input, always use the act tool to type into the input, over clicking, and then typing into it</item>
-       <item>If an element is not visible in the screenshot, but present in the ariaTree, use the act tool interact with it directly. This eliminates the need to scroll to the element</item>
-    `;
+  // Build strategy items based on whether model is Anthropic or not
+  const strategyItems = isAnthropic
+    ? [
+        `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability.</item>`,
+        `<item>Always use screenshot to get proper grounding of the coordinates you want to type/click into.</item>`,
+        `<item>When interacting with an input, always use the type tool to type into the input, over clicking and then typing into it.</item>`,
+        `<item>Use ariaTree as a secondary tool when elements aren't visible in screenshot or to get full page context.</item>`,
+        `<item>Only use act when element is in ariaTree but NOT visible in screenshot.</item>`,
+      ]
+    : [
+        `<item>Tool selection priority: Use act tool for all clicking and typing on a page.</item>`,
+        `<item>Always check ariaTree first to understand full page content without scrolling - it shows all elements including those below the fold.</item>`,
+        `<item>When interacting with an input, always use the act tool to type into the input, over clicking and then typing.</item>`,
+        `<item>If an element is present in the ariaTree, use act to interact with it directly - this eliminates the need to scroll.</item>`,
+        `<item>Use screenshot for visual confirmation when needed, but rely primarily on ariaTree for element detection.</item>`,
+      ];
+
+  const strategySection = strategyItems.join("\n    ");
+
+  const commonStrategyItems = `
+    <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ${isAnthropic ? "screenshot or ariaTree" : "ariaTree"} instead - it's faster and more reliable.</item>
+    <item>Keep actions atomic and verify outcomes before proceeding.</item>
+    <item>For each action, provide clear reasoning about why you're taking that step.</item>`;
 
   const pageUnderstandingProtocol = isAnthropic
     ? `<page_understanding_protocol>
@@ -299,13 +314,8 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-    <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
-    <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
-    ${toolPriorityItem}
-    <item>Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.</item>
-    <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ariaTree instead - it's faster and more reliable.</item>
-    <item>Keep actions atomic and verify outcomes before proceeding.</item>
-    <item>For each action, provide clear reasoning about why you're taking that step.</item>
+    ${strategySection}
+    ${commonStrategyItems}
   </strategy>
   <roadblocks>
     <note>captchas, popups, etc.</note>
@@ -350,13 +360,8 @@ export function buildStagehandAgentSystemPrompt(
   </navigation>
   ${toolsSection}
   <strategy>
-     <item>Use ariaTree to find elements on the page without scrolling - it shows all page content including elements below the fold.</item>
-    <item>Only use scroll after checking ariaTree if you need to bring specific elements into view for interaction.</item>
-    ${toolPriorityItem}
-    <item>Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.</item>
-    <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ariaTree instead - it's faster and more reliable.</item>
-    <item>Keep actions atomic and verify outcomes before proceeding.</item>
-    <item>For each action, provide clear reasoning about why you're taking that step.</item>
+    ${strategySection}
+    ${commonStrategyItems}
   </strategy>
   <roadblocks>
     <note>captchas, popups, etc.</note>
