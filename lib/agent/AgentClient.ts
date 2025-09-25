@@ -4,6 +4,7 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "@/types/agent";
+import { ToolSet } from "ai/dist";
 
 /**
  * Abstract base class for agent clients
@@ -41,4 +42,6 @@ export abstract class AgentClient {
   abstract setActionHandler(
     handler: (action: AgentAction) => Promise<void>,
   ): void;
+
+  abstract setTools(tools: ToolSet): void;
 }

@@ -46,8 +46,12 @@ export interface ConstructorParams {
   /**
    * The parameters to use for creating a Browserbase session
    * See https://docs.browserbase.com/reference/api/create-a-session
+   * Note: projectId is optional here as it will use the main projectId parameter if not provided
    */
-  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  browserbaseSessionCreateParams?: Omit<
+    Browserbase.Sessions.SessionCreateParams,
+    "projectId"
+  > & { projectId?: string };
   /**
    * Enable caching of LLM responses
    * @default true
@@ -270,6 +274,12 @@ export interface AgentConfig {
    * The model to use for agent functionality
    */
   model?: string;
+  /**
+   * The model to use for tool execution (observe/act calls within agent tools).
+   * If not specified, inherits from the main model configuration.
+   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
+   */
+  executionModel?: string;
   /**
    * Custom instructions to provide to the agent
    */

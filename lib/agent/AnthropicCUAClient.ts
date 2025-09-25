@@ -88,6 +88,10 @@ export class AnthropicCUAClient extends AgentClient {
     this.actionHandler = handler;
   }
 
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
+  }
+
   /**
    * Execute a task with the Anthropic CUA
    * This is the main entry point for the agent

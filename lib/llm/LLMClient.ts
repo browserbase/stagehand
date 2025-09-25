@@ -7,6 +7,7 @@ import {
   experimental_transcribe,
   generateObject,
   generateText,
+  LanguageModel,
   streamObject,
   streamText,
 } from "ai";
@@ -122,4 +123,6 @@ export abstract class LLMClient {
   public embedMany = embedMany;
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
+
+  getLanguageModel?(): LanguageModel;
 }

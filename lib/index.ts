@@ -38,10 +38,10 @@ import { StagehandContext } from "./StagehandContext";
 import { StagehandPage } from "./StagehandPage";
 import { StagehandAPI } from "./api";
 import { scriptContent } from "./dom/build/scriptContent";
-import { StagehandAgentHandler } from "./handlers/agentHandler";
-import { StagehandOperatorHandler } from "./handlers/operatorHandler";
 import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
+import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
+import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
@@ -77,7 +77,7 @@ async function getBrowser(
   env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   headless: boolean = false,
   logger: (message: LogLine) => void,
-  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams,
+  browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"],
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
 ): Promise<BrowserResult> {
@@ -170,6 +170,7 @@ async function getBrowser(
           stagehand: "true",
         },
       });
+      // Final projectId used: browserbaseSessionCreateParams.projectId || projectId
 
       sessionId = session.id;
       connectUrl = session.connectUrl;
@@ -381,7 +382,7 @@ export class Stagehand {
   protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
-  private browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+  private browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"];
   public variables: { [key: string]: unknown };
   private contextPath?: string;
   public llmClient: LLMClient;
@@ -925,41 +926,49 @@ export class Stagehand {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    setScreenshotCollector?: (collector: unknown) => void;
   } {
-    if (!options || !options.provider) {
-      // use open operator agent
-
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          // Check if integrations are being used without experimental flag
-          if (options?.integrations && !this.experimental) {
-            throw new StagehandError(
-              "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
-            );
-          }
-
-          const tools = options?.integrations
-            ? await resolveTools(options?.integrations, options?.tools)
-            : (options?.tools ?? {});
-
-          // later we want to abstract this to a function that also performs filtration/ranking of tools
-          return new StagehandOperatorHandler(
-            this.stagehandPage,
-            this.logger,
-            this.llmClient,
-            tools,
-            this.logInferenceToFile,
-          ).execute(instructionOrOptions);
-        },
-      };
-    }
-
     this.log({
       category: "agent",
       message: "Creating agent instance",
       level: 1,
     });
+    let agentHandler: StagehandAgentHandler | CuaAgentHandler | undefined;
+    if (options?.integrations && !this.experimental) {
+      throw new StagehandError(
+        "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+      );
+    }
+    if (!options || !options.provider) {
+      const executionModel = options?.executionModel;
+      const systemInstructions = options?.instructions;
 
+      agentHandler = new StagehandAgentHandler(
+        this,
+        this.logger,
+        this.llmClient,
+        executionModel,
+        systemInstructions,
+        undefined,
+      );
+    } else {
+      agentHandler = new CuaAgentHandler(
+        this,
+        this.stagehandPage,
+        this.logger,
+        {
+          modelName: options.model,
+          clientOptions: options.options,
+          userProvidedInstructions:
+            options.instructions ??
+            `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
+          agentType: options.provider,
+        },
+        undefined,
+      );
+    }
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
         // Check if integrations are being used without experimental flag
@@ -973,22 +982,9 @@ export class Stagehand {
           ? await resolveTools(options?.integrations, options?.tools)
           : (options?.tools ?? {});
 
-        const agentHandler = new StagehandAgentHandler(
-          this,
-          this.stagehandPage,
-          this.logger,
-          {
-            modelName: options.model,
-            clientOptions: options.options,
-            userProvidedInstructions:
-              options.instructions ??
-              `You are a helpful assistant that can use a web browser.
-        You are currently on the following page: ${this.stagehandPage.page.url()}.
-        Do not ask follow up questions, the user will trust your judgement.`,
-            agentType: options.provider,
-          },
-          tools,
-        );
+        if (agentHandler) {
+          agentHandler.setTools(tools);
+        }
 
         const executeOptions: AgentExecuteOptions =
           typeof instructionOrOptions === "string"
@@ -1009,25 +1005,30 @@ export class Stagehand {
           if (!options.options) {
             options.options = {};
           }
+          if (options.provider) {
+            if (options.provider === "anthropic") {
+              options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+            } else if (options.provider === "openai") {
+              options.options.apiKey = process.env.OPENAI_API_KEY;
+            } else if (options.provider === "google") {
+              options.options.apiKey = process.env.GOOGLE_API_KEY;
+            }
 
-          if (options.provider === "anthropic") {
-            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
-          } else if (options.provider === "openai") {
-            options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "google") {
-            options.options.apiKey = process.env.GOOGLE_API_KEY;
-          }
-
-          if (!options.options.apiKey) {
-            throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
-            );
+            if (!options.options.apiKey) {
+              throw new StagehandError(
+                `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+              );
+            }
           }
 
           return await this.apiClient.agentExecute(options, executeOptions);
         }
 
         return await agentHandler.execute(executeOptions);
+      },
+      setScreenshotCollector: (collector: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        agentHandler.setScreenshotCollector(collector as any);
       },
     };
   }
@@ -1037,11 +1038,11 @@ export * from "../types/agent";
 export * from "../types/browser";
 export * from "../types/log";
 export * from "../types/model";
-export * from "../types/operator";
 export * from "../types/page";
 export * from "../types/playwright";
 export * from "../types/stagehand";
 export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
+export * from "./llm/aisdk";
 export { connectToMCPServer };

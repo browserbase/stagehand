@@ -114,6 +114,10 @@ export const initStagehand = async ({
       model: modelName,
       provider: modelName.startsWith("claude") ? "anthropic" : "openai",
     } as AgentConfig;
+  } else {
+    agentConfig = {
+      model: modelName,
+    } as AgentConfig;
   }
 
   const agent = stagehand.agent(agentConfig);

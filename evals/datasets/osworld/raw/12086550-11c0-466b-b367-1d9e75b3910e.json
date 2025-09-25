@@ -1,0 +1,48 @@
+{
+  "id": "12086550-11c0-466b-b367-1d9e75b3910e",
+  "snapshot": "chrome",
+  "instruction": "Computer, please navigate to the area in my browser settings where my passwords are stored. I want to check my login information for Etsy without revealing it just yet.",
+  "source": "https://www.quora.com/What-are-the-cool-tricks-to-use-Google-Chrome",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "google-chrome",
+          "--remote-debugging-port=1337"
+        ]
+      }
+    },
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "socat",
+          "tcp-listen:9222,fork",
+          "tcp:localhost:1337"
+        ]
+      }
+    }
+  ],
+  "trajectory": "trajectories/",
+  "related_apps": [
+    "chrome"
+  ],
+  "evaluator": {
+    "func": "is_expected_active_tab_approximate",
+    "result": {
+      "type": "active_url_from_accessTree",
+      "goto_prefix": ""
+    },
+    "expected": {
+      "type": "rule",
+      "rules": {
+        "type": "url",
+        "url": "chrome://password-manager/passwords"
+      }
+    }
+  },
+  "proxy": false,
+  "fixed_ip": false,
+  "possibility_of_env_change": "low"
+}

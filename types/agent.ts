@@ -1,7 +1,25 @@
 import { LogLine } from "./log";
+import { ObserveResult } from "./stagehand";
+
+export interface ActToolResult {
+  success: boolean;
+  action?: string;
+  error?: string;
+  isIframe?: boolean;
+  playwrightArguments?: ObserveResult | null;
+}
 
 export interface AgentAction {
   type: string;
+  reasoning?: string;
+  taskCompleted?: boolean;
+  action?: string;
+  // Tool-specific fields
+  timeMs?: number; // wait tool
+  pageText?: string; // ariaTree tool
+  pageUrl?: string; // ariaTree tool
+  instruction?: string; // various tools
+  playwrightArguments?: ObserveResult | null; // act tool
   [key: string]: unknown;
 }
 
@@ -150,4 +168,5 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
+  setScreenshotCollector?: (collector: unknown) => void;
 }
