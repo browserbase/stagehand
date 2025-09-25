@@ -1,5 +1,9 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { Buffer } from "buffer";
 import { v3Logger } from "@/lib/v3/logger";
 import type { Frame } from "./frame";
 import { executionContexts } from "./executionContextRegistry";
@@ -35,6 +39,128 @@ export class Locator {
   /** Return the owning Frame for this locator (typed accessor, no private access). */
   public getFrame(): Frame {
     return this.frame;
+  }
+
+  /**
+   * Set files on an <input type="file"> element.
+   *
+   * Mirrors Playwright's Locator.setInputFiles basics:
+   * - Accepts file path(s) or payload object(s) { name, mimeType, buffer }.
+   * - Uses CDP DOM.setFileInputFiles under the hood.
+   * - Best‑effort dispatches change/input via CDP (Chrome does by default).
+   * - Passing an empty array clears the selection.
+   */
+  public async setInputFiles(
+    files:
+      | string
+      | string[]
+      | {
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
+      | Array<{
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
+  ): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+
+    // Normalize to array
+    const items = Array.isArray(files)
+      ? (files as unknown[])
+      : [files as unknown];
+
+    const tempFiles: string[] = [];
+    const filePaths: string[] = [];
+
+    // Helper: normalize various buffer-like inputs to Node Buffer
+    const toBuffer = (data: unknown): Buffer => {
+      if (Buffer.isBuffer(data)) return data;
+      if (data instanceof Uint8Array) return Buffer.from(data);
+      if (typeof data === "string") return Buffer.from(data);
+      if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data));
+      throw new Error("Unsupported file payload buffer type");
+    };
+
+    try {
+      // Validate element is an <input type="file">
+      try {
+        const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+          "Runtime.callFunctionOn",
+          {
+            objectId,
+            functionDeclaration:
+              "function(){ try { return (this.tagName||'').toLowerCase()==='input' && String(this.type||'').toLowerCase()==='file'; } catch { return false; } }",
+            returnByValue: true,
+          },
+        );
+        const ok = Boolean(res.result.value);
+        if (!ok)
+          throw new Error('Target is not an <input type="file"> element');
+      } catch (e) {
+        throw new Error(
+          e instanceof Error
+            ? e.message
+            : "Unable to verify file input element",
+        );
+      }
+
+      // Build list of absolute file paths, creating temps for payloads
+      for (const it of items) {
+        if (typeof it === "string") {
+          filePaths.push(path.resolve(it));
+          continue;
+        }
+        if (
+          it &&
+          typeof it === "object" &&
+          "name" in it &&
+          "mimeType" in it &&
+          "buffer" in it
+        ) {
+          const payload = it as {
+            name: string;
+            mimeType: string;
+            buffer: ArrayBuffer | Uint8Array | Buffer | string;
+          };
+          const base = payload.name || "upload.bin";
+          const ext = path.extname(base);
+          const tmp = path.join(
+            os.tmpdir(),
+            `stagehand-upload-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`,
+          );
+          const buf = toBuffer(payload.buffer);
+          await fs.promises.writeFile(tmp, buf);
+          tempFiles.push(tmp);
+          filePaths.push(tmp);
+          continue;
+        }
+        throw new Error(
+          "Unsupported setInputFiles item – expected path or payload",
+        );
+      }
+
+      // Apply files via CDP
+      await session.send<never>("DOM.setFileInputFiles", {
+        objectId,
+        files: filePaths,
+      });
+    } finally {
+      // Cleanup: release element and remove any temporary files we created
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+      for (const p of tempFiles) {
+        try {
+          await fs.promises.unlink(p);
+        } catch {
+          // ignore
+        }
+      }
+    }
   }
 
   /**
