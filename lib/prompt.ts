@@ -233,7 +233,40 @@ export function buildStagehandAgentSystemPrompt(
     ? `<item>Tool selection priority: Use specific tools (click, type) when elements are visible in viewport for maximum reliability. Only use act when element is in ariaTree but not visible in screenshot.</item>
        <item>when interacting with an input, alwayse use the type tool to type into the input, over clicking, and then typing into it</item>
        <item>Always use screenshot to get a proper grounding of the coordinates you want to type / click into</item>`
-    : `<item>Tool selection priority: Use act tool for clicking and typing on a page</item>`;
+    : `<item>Tool selection priority: Use act tool for clicking and typing on a page</item>
+       <item>when interacting with an input, always use the act tool to type into the input, over clicking, and then typing into it</item>
+       <item>If an element is not visible in the screenshot, but present in the ariaTree, use the act tool interact with it directly. This eliminates the need to scroll to the element</item>
+    `;
+
+  const pageUnderstandingProtocol = isAnthropic
+    ? `<page_understanding_protocol>
+    <step_1>
+      <title>UNDERSTAND THE PAGE</title>
+      <primary_tool>
+        <name>screenshot</name>
+        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
+        </primary_tool>
+      <secondary_tool>
+        <name>ariaTree</name>
+        <usage>Get complete page context before taking actions</usage>
+        <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
+      </secondary_tool>
+    </step_1>
+  </page_understanding_protocol>`
+    : `<page_understanding_protocol>
+    <step_1>
+      <title>UNDERSTAND THE PAGE</title>
+      <primary_tool>
+        <name>ariaTree</name>
+        <usage>Get complete page context before taking actions</usage>
+        <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
+        </primary_tool>
+      <secondary_tool>
+        <name>screenshot</name>
+        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
+      </secondary_tool>
+    </step_1>
+  </page_understanding_protocol>`;
 
   if (systemInstructions) {
     return `<system>
@@ -259,20 +292,7 @@ export function buildStagehandAgentSystemPrompt(
     <item>When the task is complete, use the "close" tool with taskComplete: true</item>
     <item>If the task cannot be completed, use "close" with taskComplete: false</item>
   </guidelines>
-  <page_understanding_protocol>
-    <step_1>
-      <title>UNDERSTAND THE PAGE</title>
-      <primary_tool>
-        <name>screenshot</name>
-        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
-        </primary_tool>
-      <secondary_tool>
-        <name>ariaTree</name>
-        <usage>Get complete page context before taking actions</usage>
-        <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-      </secondary_tool>
-    </step_1>
-  </page_understanding_protocol>
+  ${pageUnderstandingProtocol}
   <navigation>
     <rule>If you are confident in the URL, navigate directly to it.</rule>
     ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
@@ -323,20 +343,7 @@ export function buildStagehandAgentSystemPrompt(
     <item>When the task is complete, use the "close" tool with taskComplete: true</item>
     <item>If the task cannot be completed, use "close" with taskComplete: false</item>
   </guidelines>
-  <page_understanding_protocol>
-    <step_1>
-      <title>UNDERSTAND THE PAGE</title>
-      <primary_tool>
-        <name>screenshot</name>
-        <usage>Visual confirmation when needed. Ideally after navigating to a new page.</usage>
-        </primary_tool>
-      <secondary_tool>
-        <name>ariaTree</name>
-        <usage>Get complete page context before taking actions</usage>
-        <benefit>Eliminates the need to scroll and provides full accessible content</benefit>
-      </secondary_tool>
-    </step_1>
-  </page_understanding_protocol>
+  ${pageUnderstandingProtocol}
   <navigation>
     <rule>If you are confident in the URL, navigate directly to it.</rule>
     ${hasSearch ? `<rule>If you are not confident in the URL, use the search tool to find it.</rule>` : ``}
