@@ -25,6 +25,14 @@ export interface UnderstudyMethodHandlerContext {
   domSettleTimeoutMs?: number;
 }
 
+// Normalize cases where the XPath is the root "/" to point to the HTML element.
+function normalizeRootXPath(input: string): string {
+  const s = String(input ?? "").trim();
+  if (s === "/") return "/html";
+  if (/^xpath=\/$/i.test(s)) return "xpath=/html";
+  return s;
+}
+
 export async function performUnderstudyMethod(
   page: Page,
   frame: Frame,
@@ -36,7 +44,7 @@ export async function performUnderstudyMethod(
   // Proactively wait for the DOM/network to be quiet before acting
   await waitForDomNetworkQuiet(frame, domSettleTimeoutMs);
 
-  const selectorRaw = rawXPath.trim();
+  const selectorRaw = normalizeRootXPath(rawXPath);
   // Unified resolver: supports '>>' hops and XPath across iframes
   const locator: Locator = await resolveLocatorWithHops(
     page,
