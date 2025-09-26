@@ -67,7 +67,7 @@ export function createAgentTools(
     fillFormVision: createFillFormVisionTool(stagehand),
     goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
-    screenshot: createScreenshotTool(stagehand),
+    screenshot: createScreenshotTool(stagehand, options?.mainModel),
     scroll: createScrollTool(stagehand),
     wait: createWaitTool(),
     ...(hasExaApiKey ? { search: createSearchTool() } : {}),
