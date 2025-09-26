@@ -197,6 +197,14 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).highlight(options);
   }
+  async sendClickEvent(options?: {
+    bubbles?: boolean;
+    cancelable?: boolean;
+    composed?: boolean;
+    detail?: number;
+  }) {
+    return (await this.real()).sendClickEvent(options);
+  }
   first() {
     return this;
   }
