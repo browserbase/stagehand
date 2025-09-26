@@ -210,6 +210,84 @@ export class Locator {
   }
 
   /**
+   * Highlight the element's bounding box using the CDP Overlay domain.
+   * - Scrolls element into view best-effort.
+   * - Shows a semi-transparent overlay briefly, then hides it.
+   */
+  public async highlight(options?: {
+    durationMs?: number;
+    borderColor?: { r: number; g: number; b: number; a?: number };
+    contentColor?: { r: number; g: number; b: number; a?: number };
+  }): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    const duration = Math.max(0, options?.durationMs ?? 800);
+
+    const borderColor = options?.borderColor ?? { r: 255, g: 0, b: 0, a: 0.9 };
+    const contentColor =
+      options?.contentColor ?? ({ r: 255, g: 200, b: 0, a: 0.2 } as const);
+
+    try {
+      await session.send("Overlay.enable").catch(() => {});
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+
+      // Prefer backendNodeId to keep highlight stable even if objectId is released.
+      await session.send("DOM.enable").catch(() => {});
+      let backendNodeId: Protocol.DOM.BackendNodeId | undefined;
+      try {
+        const { node } = await session.send<{ node: Protocol.DOM.Node }>(
+          "DOM.describeNode",
+          { objectId },
+        );
+        backendNodeId = node.backendNodeId as Protocol.DOM.BackendNodeId;
+      } catch {
+        backendNodeId = undefined;
+      }
+
+      const highlightConfig: Protocol.Overlay.HighlightConfig = {
+        showInfo: false,
+        showStyles: false,
+        showRulers: false,
+        showExtensionLines: false,
+        borderColor,
+        contentColor,
+      } as Protocol.Overlay.HighlightConfig;
+
+      const highlightOnce = async () => {
+        await session.send<never>("Overlay.highlightNode", {
+          ...(backendNodeId ? { backendNodeId } : { objectId }),
+          highlightConfig,
+        });
+      };
+
+      // Initial draw
+      await highlightOnce();
+
+      // Keep alive until duration elapses to resist overlay clears on mouse move/repaints
+      if (duration > 0) {
+        const start = Date.now();
+        const tick = Math.min(300, Math.max(100, Math.floor(duration / 50)));
+        while (Date.now() - start < duration) {
+          await new Promise((r) => setTimeout(r, tick));
+          try {
+            await highlightOnce();
+          } catch {
+            // ignore transient errors
+          }
+        }
+        await session.send<never>("Overlay.hideHighlight").catch(() => {});
+      }
+    } finally {
+      // Releasing objectId should not affect highlight when using backendNodeId.
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
    * Click the element at its visual center.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
