@@ -4,7 +4,7 @@ import { Schema, Type } from "@google/genai";
 import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
-import { ModelProvider } from "../types/model";
+import { ClientOptions, ModelProvider } from "../types/model";
 import { ZodPathSegments } from "../types/stagehand";
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
@@ -498,17 +498,33 @@ export function loadApiKeyFromEnv(
  * Loads Amazon Bedrock client configuration from environment variables.
  * Supports both AWS credentials and AWS Bedrock API key authentication.
  * @param logger Logger function for info/error messages
+ * @param modelClientOptions Existing model client options that may already have a region set
  * @returns Bedrock client options object or undefined if no authentication method is available
  */
 export function loadBedrockClientOptions(
   logger: (logLine: LogLine) => void,
+  modelClientOptions: ClientOptions = {},
 ): Record<string, unknown> | undefined {
   // Authentication precedence:
   // 1. Standard AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
   // 2. AWS Bedrock bearer token (AWS_BEARER_TOKEN_BEDROCK)
 
-  const region =
-    process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION || "us-east-1";
+  // Check if region is already set in modelClientOptions
+  let region = (modelClientOptions as Record<string, unknown>)
+    ?.region as string;
+
+  if (!region) {
+    region = process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION;
+
+    if (!region) {
+      region = "us-west-2";
+      logger({
+        category: "init",
+        message: "No region was set for Bedrock, defaulting to us-west-2",
+        level: 1,
+      });
+    }
+  }
 
   // Method 1: Check for standard AWS credentials first
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;

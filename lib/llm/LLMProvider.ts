@@ -100,7 +100,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
 export function getAISDKLanguageModel(
   subProvider: string,
   subModelName: string,
-  modelClientOptions?: ClientOptions,
+  modelClientOptions?: Record<string, unknown>,
 ) {
   if (modelClientOptions && Object.keys(modelClientOptions).length > 0) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
@@ -110,6 +110,7 @@ export function getAISDKLanguageModel(
         Object.keys(AISDKProvidersWithAPIKey),
       );
     }
+
     // Create the provider instance with the custom configuration options
     const provider = creator(modelClientOptions as Record<string, unknown>);
     // Get the specific model from the provider
@@ -168,7 +169,7 @@ export class LLMProvider {
       const languageModel = getAISDKLanguageModel(
         subProvider,
         subModelName,
-        clientOptions,
+        clientOptions as Record<string, unknown>,
       );
 
       return new AISdkClient({

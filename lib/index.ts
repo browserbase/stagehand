@@ -596,7 +596,10 @@ export class Stagehand {
 
         // Special handling for Amazon Bedrock's complex authentication
         if (provider === "bedrock") {
-          const bedrockOptions = loadBedrockClientOptions(this.logger);
+          const bedrockOptions = loadBedrockClientOptions(
+            this.logger,
+            modelClientOptions,
+          );
           this.modelClientOptions = {
             ...modelClientOptions,
             ...bedrockOptions,
