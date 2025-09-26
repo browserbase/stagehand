@@ -33,7 +33,7 @@ async function example(stagehand: Stagehand) {
 (async () => {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
-    verbose: 0,
+    verbose: 1,
     modelName: "openai/gpt-4.1",
   });
   await stagehand.init();
