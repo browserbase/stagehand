@@ -1,0 +1,35 @@
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v3";
+
+async function example(stagehand: Stagehand) {
+  const page = stagehand.context.pages()[0];
+  await page.goto(
+    "https://ambarc.github.io/web-element-test/stagehand-breaking-test.html",
+  );
+
+  await page
+    .deepLocator("/html/body/div[2]/div[3]/iframe/html/body/p")
+    .highlight({
+      durationMs: 5000,
+      contentColor: { r: 255, g: 0, b: 0 },
+    });
+
+  const { reason } = await stagehand.extract({
+    instruction: "extract the reason why script injection fails",
+    reason: z.string(),
+    // selector: "// body > div.test-container > div:nth-child(3) > iframe >> body > p:nth-child(3)",
+    selector: "/html/body/div[2]/div[3]/iframe/html/body/p[2]",
+  });
+  console.log(reason);
+}
+
+(async () => {
+  const stagehand = new Stagehand({
+    env: "LOCAL",
+    verbose: 0,
+    modelName: "openai/gpt-4.1",
+    logInferenceToFile: true,
+  });
+  await stagehand.init();
+  await example(stagehand);
+})();
