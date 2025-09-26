@@ -682,6 +682,33 @@ export class Page {
   async click(
     x: number,
     y: number,
+    options: {
+      button?: "left" | "right" | "middle";
+      clickCount?: number;
+      returnXpath: true;
+    },
+  ): Promise<string>;
+  async click(
+    x: number,
+    y: number,
+    options?: {
+      button?: "left" | "right" | "middle";
+      clickCount?: number;
+      returnXpath?: false;
+    },
+  ): Promise<void>;
+  async click(
+    x: number,
+    y: number,
+    options: {
+      button?: "left" | "right" | "middle";
+      clickCount?: number;
+      returnXpath: boolean;
+    },
+  ): Promise<void | string>;
+  async click(
+    x: number,
+    y: number,
     options?: {
       button?: "left" | "right" | "middle";
       clickCount?: number;
@@ -759,6 +786,27 @@ export class Page {
     y: number,
     deltaX: number,
     deltaY: number,
+    options: { returnXpath: true },
+  ): Promise<string>;
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    options?: { returnXpath?: false },
+  ): Promise<void>;
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    options: { returnXpath: boolean },
+  ): Promise<void | string>;
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
     options?: { returnXpath?: boolean },
   ): Promise<void | string> {
     let xpathResult: string | undefined;
@@ -796,6 +844,42 @@ export class Page {
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
    * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
    */
+  async dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options: {
+      button?: "left" | "right" | "middle";
+      steps?: number;
+      delay?: number;
+      returnXpath: true;
+    },
+  ): Promise<[string, string]>;
+  async dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options?: {
+      button?: "left" | "right" | "middle";
+      steps?: number;
+      delay?: number;
+      returnXpath?: false;
+    },
+  ): Promise<void>;
+  async dragAndDrop(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    options: {
+      button?: "left" | "right" | "middle";
+      steps?: number;
+      delay?: number;
+      returnXpath: boolean;
+    },
+  ): Promise<void | [string, string]>;
   async dragAndDrop(
     fromX: number,
     fromY: number,
