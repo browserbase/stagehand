@@ -719,22 +719,29 @@ export async function captureHybridSnapshot(
     return abs; // do not drop node; keep absolute as best effort
   }
 
-  // Build indices once per unique session
-  const uniqueSessions: CDPSessionLike[] = [];
-  const sessionToIndex = new Map<CDPSessionLike, SessionDomIndex>();
+  // Build indices once per unique session (keyed by stable session id)
+  const sessionToIndex = new Map<string, SessionDomIndex>();
+  const sessionById = new Map<string, CDPSessionLike>();
   for (const frameId of frames) {
     const sess = ownerSession(page, frameId);
-    if (!uniqueSessions.includes(sess)) uniqueSessions.push(sess);
+    const sid = sess.id ?? "root";
+    if (!sessionById.has(sid)) sessionById.set(sid, sess);
   }
-  for (const sess of uniqueSessions) {
+  for (const [sid, sess] of sessionById.entries()) {
     const idx = await buildSessionDomIndex(sess, pierce);
-    sessionToIndex.set(sess, idx);
+    sessionToIndex.set(sid, idx);
   }
 
   // Slice per-frame maps from session indices
   for (const frameId of frames) {
     const sess = ownerSession(page, frameId);
-    const idx = sessionToIndex.get(sess)!;
+    const sid = sess.id ?? "root";
+    let idx = sessionToIndex.get(sid);
+    // Ownership can change mid-snapshot (e.g., OOPIF adoption). Lazily build if missing.
+    if (!idx) {
+      idx = await buildSessionDomIndex(sess, pierce);
+      sessionToIndex.set(sid, idx);
+    }
 
     // Determine the document root for this frame within this session
     const parentId = parentByFrame.get(frameId);
