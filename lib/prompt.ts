@@ -251,7 +251,9 @@ export function buildStagehandAgentSystemPrompt(
   const commonStrategyItems = `
     <item>CRITICAL: Use extract ONLY when the task explicitly requires structured data output (e.g., "get job listings", "extract product details"). For reading page content or understanding elements, always use ${isAnthropic ? "screenshot or ariaTree" : "ariaTree"} instead - it's faster and more reliable.</item>
     <item>Keep actions atomic and verify outcomes before proceeding.</item>
-    <item>For each action, provide clear reasoning about why you're taking that step.</item>`;
+    <item>For each action, provide clear reasoning about why you're taking that step.</item>
+    <item>When you need to input text that could be entered character-by-character or through multiple separate inputs, prefer using the keys tool to type the entire sequence at once. This is more efficient for scenarios like verification codes split across multiple fields, or when virtual keyboards are present but direct typing would be faster.</item>
+    `;
 
   const pageUnderstandingProtocol = isAnthropic
     ? `<page_understanding_protocol>
