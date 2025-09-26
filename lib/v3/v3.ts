@@ -161,7 +161,7 @@ export class V3 {
     let prevTs: number | null = null;
     for (const entry of list) {
       if (prevTs !== null) {
-        const delay = Math.max(0, (entry.ts || 0) - prevTs);
+        const delay = Math.max(0, 0.5 * (entry.ts || 0) - prevTs);
         if (delay) await new Promise((r) => setTimeout(r, delay));
       }
       prevTs = entry.ts || Date.now();
