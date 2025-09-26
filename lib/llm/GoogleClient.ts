@@ -83,7 +83,7 @@ export class GoogleClient extends LLMClient {
       clientOptions.apiKey = loadApiKeyFromEnv("google_legacy", logger);
     }
     this.clientOptions = clientOptions;
-    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
+    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey as string });
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
