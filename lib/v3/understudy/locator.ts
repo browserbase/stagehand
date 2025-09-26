@@ -352,6 +352,62 @@ export class Locator {
   }
 
   /**
+   * Dispatch a DOM 'click' MouseEvent on the element itself.
+   * - Does not synthesize real pointer input; directly dispatches an event.
+   * - Useful for elements that rely on click handlers without needing hit-testing.
+   */
+  async sendClickEvent(options?: {
+    bubbles?: boolean;
+    cancelable?: boolean;
+    composed?: boolean;
+    detail?: number;
+  }): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    const bubbles = options?.bubbles ?? true;
+    const cancelable = options?.cancelable ?? true;
+    const composed = options?.composed ?? true;
+    const detail = options?.detail ?? 1;
+    try {
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+      await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: `
+            function(opts) {
+              try {
+                const ev = new MouseEvent('click', {
+                  bubbles: !!opts?.bubbles,
+                  cancelable: !!opts?.cancelable,
+                  composed: !!opts?.composed,
+                  detail: (typeof opts?.detail === 'number' ? opts.detail : 1),
+                  view: this?.ownerDocument?.defaultView || window
+                });
+                this.dispatchEvent(ev);
+              } catch (e) {
+                try { this.click(); } catch {}
+              }
+            }
+          `,
+          arguments: [
+            {
+              value: { bubbles, cancelable, composed, detail },
+            },
+          ],
+          returnByValue: true,
+        },
+      );
+    } finally {
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
    * Scroll the element vertically to a given percentage (0–100).
    * - If the element is <html> or <body>, scrolls the window/document.
    * - Otherwise, scrolls the element itself via element.scrollTo.
