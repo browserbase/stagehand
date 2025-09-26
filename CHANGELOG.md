@@ -1,5 +1,27 @@
 # @browserbasehq/stagehand
 
+## 2.5.1
+
+### Patch Changes
+
+- [#1082](https://github.com/browserbase/stagehand/pull/1082) [`8c0fd01`](https://github.com/browserbase/stagehand/commit/8c0fd01c965a809b96c026f4674685e6445bc7d4) Thanks [@tkattkat](https://github.com/tkattkat)! - Pass stagehand object to agent instead of stagehand page
+
+- [#1066](https://github.com/browserbase/stagehand/pull/1066) [`9daa584`](https://github.com/browserbase/stagehand/commit/9daa58477111e1470f2b618a898738b5e1967cb6) Thanks [@tkattkat](https://github.com/tkattkat)! - Add playwright arguments to agent execute response
+
+- [#1077](https://github.com/browserbase/stagehand/pull/1077) [`7f38b3a`](https://github.com/browserbase/stagehand/commit/7f38b3a3048ba28f81649c33c0d633c4853146bd) Thanks [@tkattkat](https://github.com/tkattkat)! - adds support for stagehand agent in the api
+
+- [#1032](https://github.com/browserbase/stagehand/pull/1032) [`bf2d0e7`](https://github.com/browserbase/stagehand/commit/bf2d0e79da744b6b2a82d60e1ad05ca9fa811488) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix for zod peer dependency support
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - Replace operator handler with base of new agent
+
+- [#1089](https://github.com/browserbase/stagehand/pull/1089) [`536f366`](https://github.com/browserbase/stagehand/commit/536f366f868d115ffa84c2c92124ae05400dd8be) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed info logs on api session create
+
+- [#1056](https://github.com/browserbase/stagehand/pull/1056) [`6a002b2`](https://github.com/browserbase/stagehand/commit/6a002b234dbf1ac7d1f180eeffdf66154fa7799b) Thanks [@chrisreadsf](https://github.com/chrisreadsf)! - remove need for duplicate project id if already passed to Stagehand
+
+- [#1090](https://github.com/browserbase/stagehand/pull/1090) [`8ff5c5a`](https://github.com/browserbase/stagehand/commit/8ff5c5a4b2050fc581240ae1befcdc0cf9195873) Thanks [@miguelg719](https://github.com/miguelg719)! - Improve failed act error logs
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - replace operator agent with scaffold for new stagehand agent
+
 ## 2.5.0
 
 ### Minor Changes
@@ -233,7 +255,6 @@
   We're thrilled to announce the release of Stagehand 2.0, bringing significant improvements to make browser automation more powerful, faster, and easier to use than ever before.
 
   ### 🚀 New Features
-
   - **Introducing `stagehand.agent`**: A powerful new way to integrate SOTA Computer use models or Browserbase's [Open Operator](https://operator.browserbase.com) into Stagehand with one line of code! Perfect for multi-step workflows and complex interactions. [Learn more](https://docs.stagehand.dev/concepts/agent)
   - **Lightning-fast `act` and `extract`**: Major performance improvements to make your automations run significantly faster.
   - **Enhanced Logging**: Better visibility into what's happening during automation with improved logging and debugging capabilities.
@@ -241,7 +262,6 @@
   - **Improved Error Handling**: More descriptive errors and better error recovery to help you debug issues faster.
 
   ### 🛠️ Developer Experience
-
   - **Better TypeScript Support**: Enhanced type definitions and better IDE integration
   - **Better Error Messages**: Clearer, more actionable error messages to help you debug faster
   - **Improved Caching**: More reliable action caching for better performance
@@ -502,7 +522,6 @@
 - [#316](https://github.com/browserbase/stagehand/pull/316) [`902e633`](https://github.com/browserbase/stagehand/commit/902e633e126a58b80b757ea0ecada01a7675a473) Thanks [@kamath](https://github.com/kamath)! - rename browserbaseResumeSessionID -> browserbaseSessionID
 
 - [#296](https://github.com/browserbase/stagehand/pull/296) [`f11da27`](https://github.com/browserbase/stagehand/commit/f11da27a20409c240ceeea2003d520f676def61a) Thanks [@kamath](https://github.com/kamath)! - - Deprecate fields in `init` in favor of constructor options
-
   - Deprecate `initFromPage` in favor of `browserbaseResumeSessionID` in constructor
   - Rename `browserBaseSessionCreateParams` -> `browserbaseSessionCreateParams`
 
