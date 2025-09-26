@@ -19,7 +19,7 @@ export const heal_simple_google_search: EvalFunction = async ({
       method: "fill",
     });
 
-    await v3.act("click the google search button");
+    await v3.act("press enter");
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
