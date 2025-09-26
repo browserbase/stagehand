@@ -1,4 +1,5 @@
 import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v3";
 
 /**
  * AWS Bedrock Integration Example for Stagehand
@@ -42,8 +43,8 @@ import { Stagehand } from "@browserbasehq/stagehand";
 async function runBedrockExample() {
   // Initialize Stagehand with AWS Bedrock
   const stagehand = new Stagehand({
-    env: "LOCAL",
-    modelName: "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    env: "BROWSERBASE",
+    modelName: "bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0",
     modelClientOptions: {
       region: "us-west-2", // Will use environment variables if not specified
     },
@@ -65,8 +66,11 @@ async function runBedrockExample() {
 
     // Extract structured data
     const pageInfo = await page.extract({
-      title: "The page title",
-      url: "The current URL",
+      instruction: "Extract the page title and text",
+      schema: z.object({
+        title: z.string(),
+        text: z.string(),
+      }),
     });
 
     console.log("📊 Extracted data:", pageInfo);
@@ -77,7 +81,7 @@ async function runBedrockExample() {
 
     console.log("✅ AWS Bedrock example completed successfully!");
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    console.error("❌ Error:", error);
 
     // Common troubleshooting hints
     if (error.message?.includes("access")) {
