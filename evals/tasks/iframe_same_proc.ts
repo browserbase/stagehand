@@ -20,7 +20,7 @@ export const iframe_same_proc: EvalFunction = async ({
     // we are properly traversing iframes
     await v3.act({
       instruction:
-        "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption playwright method.",
+        "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
     });
 
     const iframe = page.frameLocator("iframe");

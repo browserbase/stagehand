@@ -14,7 +14,7 @@ export const simple_google_search: EvalFunction = async ({
 
     await v3.act({ instruction: 'type "OpenAI" into the search bar' });
 
-    await v3.act("click the search button");
+    await v3.act("press enter");
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";

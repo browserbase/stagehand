@@ -21,11 +21,7 @@ export const custom_dropdown: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/",
     );
 
-    await v3.act("click the 'Select a Country' dropdown");
-
-    // we are expecting stagehand to click the dropdown to expand it,
-    // and therefore the available options should now be contained in the full
-    // a11y tree.
+    await v3.act("choose Canada from the 'Select a Country' dropdown");
 
     // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
     const extraction = await v3.extract();
