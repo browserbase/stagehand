@@ -6,17 +6,17 @@
 
 import dotenv from "dotenv";
 import { z } from "zod";
-import type { AvailableModel, ClientOptions } from "../lib/v3/types/model";
+import type { AvailableModel, ClientOptions } from "@/lib/v3";
 import type {
   EvaluateOptions,
   BatchAskOptions,
   EvaluationResult,
-} from "../lib/v3/types/evaluator";
+} from "@/lib/v3/types/evaluator";
 import { LLMParsedResponse } from "@/lib/inference";
-import { LLMResponse, LLMClient } from "../lib/v3/llm/LLMClient";
-import { LogLine } from "../lib/v3/types/log";
+import { LLMResponse, LLMClient } from "@/lib/v3";
+import { LogLine } from "@/lib/v3";
 import { V3 } from "@/lib/v3/v3";
-import { LLMProvider } from "../lib/v3/llm/LLMProvider";
+import { LLMProvider } from "@/lib/v3/llm/LLMProvider";
 
 dotenv.config();
 

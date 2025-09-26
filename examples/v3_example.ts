@@ -2,14 +2,13 @@ import { V3 } from "@browserbasehq/stagehand";
 
 async function example(v3: V3) {
   const page = v3.context.pages()[0];
-  await page.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-closed-shadow-dom/",
-  );
-  await page
-    .deepLocator(
-      "/html/body/shadow-host//section/iframe/html/body/main/section[1]/form/div/div[1]/input",
-    )
-    .fill("nunya");
+  await page.goto("https://github.com/microsoft/playwright/issues/30261");
+  await v3.act({
+    instruction: "scroll to the bottom of the page",
+    page: page,
+  });
+
+  // await page.locator("xpath=/html").scrollTo(100)
 }
 
 (async () => {
@@ -20,8 +19,9 @@ async function example(v3: V3) {
       downloadsPath: "downloads",
       acceptDownloads: true,
     },
-    verbose: 1,
-    modelName: "google/gemini-2.5-flash-lite",
+    verbose: 0,
+    modelName: "openai/gpt-4.1",
+    logInferenceToFile: false,
     // includeCursor: true,
   });
   await v3.init();

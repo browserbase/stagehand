@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel } from "../lib/v3/types/model";
+import { AvailableModel } from "@/lib/v3";
 import { filterByEvalName } from "./args";
 
 const ALL_EVAL_MODELS = [

@@ -1,5 +1,5 @@
 import process from "process";
-import { EvalCategorySchema } from "../lib/v3/types/evals";
+import { EvalCategorySchema } from "@/lib/v3/types/evals";
 import chalk from "chalk";
 import { dedent } from "./utils";
 
