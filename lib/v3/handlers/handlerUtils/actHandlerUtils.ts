@@ -146,6 +146,7 @@ const METHOD_HANDLER_MAP: Record<
   nextChunk: scrollToNextChunk,
   prevChunk: scrollToPreviousChunk,
   selectOptionFromDropdown: selectOption,
+  selectOption: selectOption,
 };
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
