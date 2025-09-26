@@ -185,19 +185,16 @@ export class StagehandAPI {
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
 
-    // Extract modelClientOptions from args if present
-    const modelClientOptions = (
-      args as { modelClientOptions?: Record<string, unknown> }
-    )?.modelClientOptions;
+    this.logger({
+      category: "execute",
+      message: `Executing ${method} with args: ${JSON.stringify(args)}`,
+      level: 1,
+    });
 
-    const response = await this.request(
-      url,
-      {
-        method: "POST",
-        body: JSON.stringify(args),
-      },
-      modelClientOptions,
-    );
+    const response = await this.request(url, {
+      method: "POST",
+      body: JSON.stringify(args),
+    });
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -256,7 +253,6 @@ export class StagehandAPI {
   private async request(
     path: string,
     options: RequestInit = {},
-    modelClientOptions?: Record<string, unknown>,
   ): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
@@ -269,12 +265,6 @@ export class StagehandAPI {
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
-
-    // Add modelClientOptions as a header if provided
-    if (modelClientOptions) {
-      defaultHeaders["x-model-client-options"] =
-        JSON.stringify(modelClientOptions);
-    }
 
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
