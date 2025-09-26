@@ -190,6 +190,13 @@ export class DeepLocatorDelegate {
   async backendNodeId() {
     return (await this.real()).backendNodeId();
   }
+  async highlight(options?: {
+    durationMs?: number;
+    borderColor?: { r: number; g: number; b: number; a?: number };
+    contentColor?: { r: number; g: number; b: number; a?: number };
+  }) {
+    return (await this.real()).highlight(options);
+  }
   first() {
     return this;
   }
