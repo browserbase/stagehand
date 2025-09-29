@@ -26,8 +26,6 @@ const defaultParametersSchema = z.object({
     .number()
     .min(1)
     .max(200)
-    .default(80)
-    .optional()
     .describe("Percentage of viewport height to scroll (1-200%, default: 80%)"),
   direction: z.enum(["up", "down"]).describe("Direction to scroll"),
 });
