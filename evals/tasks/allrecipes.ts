@@ -13,12 +13,8 @@ export const allrecipes: EvalFunction = async ({
       waitUntil: "domcontentloaded",
     });
 
-    await v3.act({
-      instruction: 'Type "chocolate chip cookies" in the search bar',
-    });
-    await v3.act({
-      instruction: "press enter",
-    });
+    await v3.act('Type "chocolate chip cookies" in the search bar');
+    await v3.act("press enter");
 
     const recipeDetails = await v3.extract(
       "Extract the title of the first recipe and the total number of ratings it has received.",

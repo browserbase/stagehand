@@ -3,8 +3,8 @@ import {
   InitState,
   PlaywrightPage,
   PuppeteerPage,
-  ActParams,
   ActHandlerParams,
+  ActOptions,
   ExtractHandlerParams,
   ObserveParams,
   ObserveHandlerParams,
@@ -680,45 +680,24 @@ export class V3 {
 
   /**
    * Run an "act" instruction through the ActHandler.
-   * Optional: narrow to a specific page (Playwright/Puppeteer).
+   *
+   * New API:
+   * - act(instruction: string, options?: ActOptions)
+   * - act(action: Action, options?: ActOptions)
    */
-  async act(params: ActParams): Promise<ActResult>;
-  async act(
-    instruction: string,
-    page?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeout?: number },
-  ): Promise<ActResult>;
-  async act(
-    observe: Action,
-    page?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeout?: number },
-  ): Promise<ActResult>;
+  async act(instruction: string, options?: ActOptions): Promise<ActResult>;
+  async act(action: Action, options?: ActOptions): Promise<ActResult>;
 
-  async act(
-    input: ActParams | Action | string,
-    pageArg?: AnyPage,
-    opts?: { domSettleTimeoutMs?: number; timeout?: number },
-  ): Promise<ActResult> {
+  async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler)
         throw new Error("V3 not initialized. Call init() before act().");
 
-      // String shorthand → ActParams
-      if (typeof input === "string") {
-        const p: ActParams = {
-          instruction: input,
-          page: pageArg,
-          domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-          timeout: opts?.timeout,
-        };
-        return this.act(p);
-      }
-
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
         let v3Page: Page;
-        if (pageArg) {
-          v3Page = await this.normalizeToV3Page(pageArg);
+        if (options?.page) {
+          v3Page = await this.normalizeToV3Page(options.page);
         } else {
           v3Page = await this.ctx!.awaitActivePage();
         }
@@ -728,52 +707,63 @@ export class V3 {
         const actResult = await this.actHandler.actFromObserveResult(
           { ...input, selector }, // ObserveResult
           v3Page, // V3 Page
-          opts?.domSettleTimeoutMs,
+          options?.domSettleTimeoutMs,
         );
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
           {
             observeResult: input,
-            domSettleTimeoutMs: opts?.domSettleTimeoutMs,
+            domSettleTimeoutMs: options?.domSettleTimeoutMs,
           },
           actResult,
         );
         return actResult;
       }
-      const params = input as ActParams;
+      // instruction path
+      if (typeof input !== "string" || !input.trim()) {
+        throw new Error(
+          "act(): instruction string is required unless passing an Action",
+        );
+      }
 
+      // Resolve page from options or default
       let page: Page;
-
-      if (params.page) {
-        if (params.page instanceof (await import("./understudy/page")).Page) {
-          // Already a V3 Page
-          page = params.page;
-        } else {
-          // Playwright / Puppeteer path: resolve → frameId → V3 Page
-          const frameId = await this.resolveTopFrameId(params.page);
+      if (options?.page) {
+        if (options.page instanceof (await import("./understudy/page")).Page) {
+          page = options.page as Page;
+        } else if (this.isPlaywrightPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
           page = this.ctx!.resolvePageByMainFrameId(frameId);
+        } else if (this.isPuppeteerPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
+          page = this.ctx!.resolvePageByMainFrameId(frameId);
+        } else if (this.isPatchrightPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
+          page = this.ctx!.resolvePageByMainFrameId(frameId);
+        } else {
+          throw new Error("Unsupported page object provided to act().");
         }
       } else {
         page = await this.ctx!.awaitActivePage();
       }
 
       const handlerParams: ActHandlerParams = {
-        instruction: params.instruction,
+        instruction: input,
         page: page!,
-        variables: params.variables,
-        domSettleTimeoutMs: params.domSettleTimeoutMs,
-        timeout: params.timeout,
+        variables: options?.variables,
+        domSettleTimeoutMs: options?.domSettleTimeoutMs,
+        timeout: options?.timeout,
       };
       const actResult = await this.actHandler.act(handlerParams);
       // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
         {
-          instruction: params.instruction,
-          variables: params.variables,
-          domSettleTimeoutMs: params.domSettleTimeoutMs,
-          timeout: params.timeout,
+          instruction: input,
+          variables: options?.variables,
+          domSettleTimeoutMs: options?.domSettleTimeoutMs,
+          timeout: options?.timeout,
         },
         actResult,
       );

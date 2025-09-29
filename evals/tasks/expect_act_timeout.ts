@@ -9,10 +9,7 @@ export const expect_act_timeout: EvalFunction = async ({
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://docs.stagehand.dev");
-    const result = await v3.act({
-      instruction: "search for 'Stagehand'",
-      timeout: 1_000,
-    });
+    const result = await v3.act("search for 'Stagehand'", { timeout: 1_000 });
 
     return {
       _success: !result.success,

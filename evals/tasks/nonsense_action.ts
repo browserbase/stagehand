@@ -10,9 +10,7 @@ export const nonsense_action: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.homedepot.com/");
 
-    const result = await v3.act({
-      instruction: "what is the capital of the moon?",
-    });
+    const result = await v3.act("what is the capital of the moon?");
 
     return {
       _success: !result.success, // We expect this to fail

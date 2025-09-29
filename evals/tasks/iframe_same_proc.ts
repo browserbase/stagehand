@@ -12,16 +12,13 @@ export const iframe_same_proc: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/",
     );
 
-    await v3.act({
-      instruction: "type 'stagehand' into the 'your name' field",
-    });
+    await v3.act("type 'stagehand' into the 'your name' field");
 
     // overly specific prompting is okay here. we are just trying to evaluate whether
     // we are properly traversing iframes
-    await v3.act({
-      instruction:
-        "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
-    });
+    await v3.act(
+      "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
+    );
 
     const iframe = page.frameLocator("iframe");
 

@@ -12,11 +12,8 @@ export const login: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/login/",
     );
 
-    await v3.act({
-      instruction: "type %nunya% into the username field",
-      variables: {
-        nunya: "business",
-      },
+    await v3.act("type %nunya% into the username field", {
+      variables: { nunya: "business" },
     });
 
     const xpath = "xpath=/html/body/main/form/div[1]/input";

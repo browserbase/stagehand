@@ -15,7 +15,7 @@ export const csr_in_spif: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-dom-in-spif/",
     );
-    await v3.act({ instruction: "click the button" });
+    await v3.act("click the button");
 
     const extraction = await v3.extract("extract the entire page text");
 

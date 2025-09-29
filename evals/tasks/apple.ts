@@ -10,20 +10,14 @@ export const apple: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.apple.com/iphone-16-pro/");
 
-    await v3.act({ instruction: "click on the buy button" });
-    await v3.act({ instruction: "select the Pro Max model" });
-    await v3.act({ instruction: "select the natural titanium color" });
-    await v3.act({ instruction: "select the 256GB storage option" });
-    await v3.act({
-      instruction: "click on the 'select a smartphone' trade-in option",
-    });
+    await v3.act("click on the buy button");
+    await v3.act("select the Pro Max model");
+    await v3.act("select the natural titanium color");
+    await v3.act("select the 256GB storage option");
+    await v3.act("click on the 'select a smartphone' trade-in option");
 
-    await v3.act({
-      instruction: "select the iPhone 13 mini model from the dropdown",
-    });
-    await v3.act({
-      instruction: "select the iPhone 13 mini is in good condition",
-    });
+    await v3.act("select the iPhone 13 mini model from the dropdown");
+    await v3.act("select the iPhone 13 mini is in good condition");
 
     const successMessageLocator = page.locator(
       'text="Good News. Your iPhone 13 mini qualifies for credit."',

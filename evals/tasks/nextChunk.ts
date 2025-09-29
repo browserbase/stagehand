@@ -11,7 +11,7 @@ export const nextChunk: EvalFunction = async ({
     await page.goto("https://www.apartments.com/san-francisco-ca/", {
       waitUntil: "domcontentloaded",
     });
-    await v3.act({ instruction: "click on the all filters button" });
+    await v3.act("click on the all filters button");
 
     const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
       const container = document.querySelector(
@@ -29,7 +29,7 @@ export const nextChunk: EvalFunction = async ({
       };
     });
 
-    await v3.act({ instruction: "scroll down one chunk on the filters modal" });
+    await v3.act("scroll down one chunk on the filters modal");
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 

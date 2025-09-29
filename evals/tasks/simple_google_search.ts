@@ -12,7 +12,7 @@ export const simple_google_search: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
     );
 
-    await v3.act({ instruction: 'type "OpenAI" into the search bar' });
+    await v3.act('type "OpenAI" into the search bar');
 
     await v3.act("press enter");
 

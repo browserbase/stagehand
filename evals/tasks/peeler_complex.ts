@@ -13,14 +13,13 @@ export const peeler_complex: EvalFunction = async ({
     await page.waitForLoadState("networkidle");
 
     await v3.act("find the button to close the popup");
-    await v3.act({
-      instruction: "search for %search_query%",
+    await v3.act("search for %search_query%", {
       variables: {
         search_query: "peeler",
       },
     });
 
-    await v3.act({ instruction: 'click on the first "OXO" brand peeler' });
+    await v3.act('click on the first "OXO" brand peeler');
 
     const { price } = await v3.extract(
       "get the price of the peeler",

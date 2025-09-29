@@ -15,10 +15,7 @@ export const createActTool = (v3: V3, executionModel?: string) =>
     }),
     execute: async ({ action }) => {
       try {
-        const result = await v3.act({
-          instruction: action,
-          modelName: executionModel,
-        });
+        const result = await v3.act(action, { modelName: executionModel });
         return {
           success: result.success ?? true,
           action: result?.actionDescription ?? action,

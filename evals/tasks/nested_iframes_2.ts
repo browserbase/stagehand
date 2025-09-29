@@ -12,9 +12,7 @@ export const nested_iframes_2: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes-2/",
     );
 
-    await v3.act({
-      instruction: "click the button called 'click me (inner 2)'",
-    });
+    await v3.act("click the button called 'click me (inner 2)'");
 
     const inner = page
       .frameLocator('iframe[src="iframe2.html"]')

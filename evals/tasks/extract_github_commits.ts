@@ -11,10 +11,9 @@ export const extract_github_commits: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/facebook/react");
 
-    await v3.act({
-      instruction:
-        "find commit history, generally described by the number of commits",
-    });
+    await v3.act(
+      "find commit history, generally described by the number of commits",
+    );
     const { commits } = await v3.extract(
       "Extract last 20 commits",
       z.object({

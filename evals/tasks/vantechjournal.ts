@@ -10,7 +10,7 @@ export const vantechjournal: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://vantechjournal.com");
 
-    await v3.act({ instruction: "click on page 'recommendations'" });
+    await v3.act("click on page 'recommendations'");
 
     const expectedUrl = "https://vantechjournal.com/recommendations";
     const currentUrl = await page.url();

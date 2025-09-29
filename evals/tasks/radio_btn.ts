@@ -12,7 +12,7 @@ export const radio_btn: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/paneer-pizza/",
     );
 
-    await v3.act({ instruction: "click the 'medium' option" });
+    await v3.act("click the 'medium' option");
 
     // confirm that the Medium radio is now checked
     const radioBtnClicked = await page

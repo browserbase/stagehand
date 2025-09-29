@@ -12,7 +12,7 @@ export const namespace_xpath: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/namespaced-xpath/",
     );
 
-    await v3.act({ instruction: "fill 'nunya' into the 'type here' form" });
+    await v3.act("fill 'nunya' into the 'type here' form");
 
     const inputValue = await page.locator("#ns-text").inputValue();
     // confirm that the form was filled

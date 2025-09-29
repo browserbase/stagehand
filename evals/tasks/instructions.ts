@@ -11,7 +11,7 @@ export const instructions: EvalFunction = async ({
 
     await page.goto("https://docs.browserbase.com/");
 
-    await v3.act({ instruction: "secret12345" });
+    await v3.act("secret12345");
 
     await page.waitForLoadState("domcontentloaded");
 

@@ -12,13 +12,9 @@ export const amazon_add_to_cart: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
     );
 
-    await v3.act({
-      instruction: "click the 'Add to Cart' button",
-    });
+    await v3.act("click the 'Add to Cart' button");
 
-    await v3.act({
-      instruction: "click the 'Proceed to checkout' button",
-    });
+    await v3.act("click the 'Proceed to checkout' button");
 
     const currentUrl = await page.url();
     const expectedUrl =
