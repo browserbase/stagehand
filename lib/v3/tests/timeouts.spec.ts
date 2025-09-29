@@ -17,9 +17,9 @@ test.describe("V3 hard timeouts", () => {
 
   test("observe() enforces timeoutMs", async () => {
     // Tiny timeout to force the race to hit the timeout branch
-    await expect(
-      v3.observe({ instruction: "find something", timeout: 5 }),
-    ).rejects.toThrow(/timed out/i);
+    await expect(v3.observe("find something", { timeout: 5 })).rejects.toThrow(
+      /timed out/i,
+    );
   });
 
   test("extract() enforces timeoutMs", async () => {

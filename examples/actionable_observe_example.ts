@@ -27,39 +27,35 @@ async function example() {
   let observation: Action;
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the 'all filters' button",
-  });
+  [observation] = await stagehand.observe("find the 'all filters' button");
   await stagehand.act(observation);
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the '1+' button in the 'beds' section",
-  });
+  [observation] = await stagehand.observe(
+    "find the '1+' button in the 'beds' section",
+  );
   await stagehand.act(observation);
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the 'apartments' button in the 'home type' section",
-  });
+  [observation] = await stagehand.observe(
+    "find the 'apartments' button in the 'home type' section",
+  );
   await stagehand.act(observation);
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the pet policy dropdown to click on.",
-  });
+  [observation] = await stagehand.observe(
+    "find the pet policy dropdown to click on.",
+  );
   await stagehand.act(observation);
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the 'Dog Friendly' option to click on",
-  });
+  [observation] = await stagehand.observe(
+    "find the 'Dog Friendly' option to click on",
+  );
   await stagehand.act(observation);
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  [observation] = await stagehand.observe({
-    instruction: "find the 'see results' section",
-  });
+  [observation] = await stagehand.observe("find the 'see results' section");
   await stagehand.act(observation);
 
   const currentUrl = await page.url();

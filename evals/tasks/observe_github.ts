@@ -12,10 +12,9 @@ export const observe_github: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/github/",
     );
 
-    const observations = await v3.observe({
-      instruction:
-        "find the scrollable element that holds the repos file tree.",
-    });
+    const observations = await v3.observe(
+      "find the scrollable element that holds the repos file tree.",
+    );
 
     if (observations.length === 0) {
       return {

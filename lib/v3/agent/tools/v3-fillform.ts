@@ -24,8 +24,7 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         .map((f) => f.action)
         .join(", ")}`;
 
-      const observeResults = await v3.observe({
-        instruction,
+      const observeResults = await v3.observe(instruction, {
         modelName: executionModel,
       });
 

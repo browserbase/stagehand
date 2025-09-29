@@ -10,9 +10,7 @@ export const observe_vantechjournal: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://vantechjournal.com/archive");
 
-    const observations = await v3.observe({
-      instruction: "Find the 'load more' link",
-    });
+    const observations = await v3.observe("Find the 'load more' link");
 
     if (observations.length === 0) {
       return {

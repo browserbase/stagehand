@@ -10,10 +10,9 @@ export const observe_taxes: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://file.1040.com/estimate/");
 
-    const observations = await v3.observe({
-      instruction:
-        "Find all the form input elements under the 'Income' section",
-    });
+    const observations = await v3.observe(
+      "Find all the form input elements under the 'Income' section",
+    );
 
     if (observations.length === 0) {
       return {
