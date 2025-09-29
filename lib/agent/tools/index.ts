@@ -54,9 +54,12 @@ export function createAgentTools(
   const executionModel = options?.executionModel;
   const hasExaApiKey = process.env.EXA_API_KEY?.length > 0;
 
+  const modelName = (options?.mainModel || "").toLowerCase().trim();
+  const isGpt5 = modelName.startsWith("gpt-5");
+
   const all = {
     act: createActTool(stagehand, executionModel),
-    ariaTree: createAriaTreeTool(stagehand),
+    ariaTree: createAriaTreeTool(stagehand, isGpt5),
     click: createClickTool(stagehand),
     clickAndHold: createClickAndHoldTool(stagehand),
     dragAndDrop: createDragAndDropTool(stagehand),
@@ -68,10 +71,10 @@ export function createAgentTools(
     goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
     screenshot: createScreenshotTool(stagehand, options?.mainModel),
-    scroll: createScrollTool(stagehand),
+    scroll: createScrollTool(stagehand, isGpt5),
     wait: createWaitTool(),
     ...(hasExaApiKey ? { search: createSearchTool() } : {}),
-    keys: createKeysTool(stagehand),
+    keys: createKeysTool(stagehand, isGpt5),
     extract: createExtractTool(stagehand),
   } satisfies ToolSet;
   return filterToolsByModelName(options?.mainModel, all, options?.storeActions);

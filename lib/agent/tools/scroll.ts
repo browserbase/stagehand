@@ -2,35 +2,63 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 import { Stagehand } from "../../index";
 
-export const createScrollTool = (stagehand: Stagehand) =>
-  tool({
+// Schema for models that support optional parameters well
+const defaultParametersSchema = z.object({
+  percentage: z
+    .number()
+    .min(1)
+    .max(200)
+    .default(80)
+    .optional()
+    .describe("Percentage of viewport height to scroll (1-200%, default: 80%)"),
+  direction: z.enum(["up", "down"]).describe("Direction to scroll"),
+  coordinates: z
+    .array(z.number())
+    .describe(
+      "the (x, y) coordinates to scroll inside of, if not provided, will scroll the page",
+    )
+    .optional(),
+});
+
+// Schema for GPT-5: make all parameters required
+const gpt5ParametersSchema = z.object({
+  percentage: z
+    .number()
+    .min(1)
+    .max(200)
+    .describe("Percentage of viewport height to scroll (1-200%, default: 80)"),
+  direction: z.enum(["up", "down"]).describe("Direction to scroll"),
+  coordinates: z
+    .array(z.number())
+    .describe(
+      "The (x, y) coordinates to scroll inside of. Use empty array [] to scroll the page itself.",
+    ),
+});
+
+export const createScrollTool = (stagehand: Stagehand, isGpt5 = false) => {
+  const parametersSchema = isGpt5
+    ? gpt5ParametersSchema
+    : defaultParametersSchema;
+
+  return tool({
     description:
       "Scroll the page by a percentage of the current viewport height. More dynamic and robust than fixed pixel amounts.",
-    parameters: z.object({
-      percentage: z
-        .number()
-        .min(1)
-        .max(200)
-        .default(80)
-        .optional()
-        .describe(
-          "Percentage of viewport height to scroll (1-200%, default: 80%)",
-        ),
-      direction: z.enum(["up", "down"]).describe("Direction to scroll"),
-      coordinates: z
-        .array(z.number())
-        .describe(
-          "the (x, y) coordinates to scroll inside of, if not provided, will scroll the page",
-        )
-        .optional(),
-    }),
-    execute: async ({ percentage = 80, direction, coordinates }) => {
+    parameters: parametersSchema as z.ZodType<{
+      percentage?: number;
+      direction: "up" | "down";
+      coordinates?: number[];
+    }>,
+    execute: async (params) => {
+      const percentage = params.percentage ?? 80;
+      const direction = params.direction;
+      const coordinates =
+        "coordinates" in params ? params.coordinates : undefined;
       const viewportHeight = await stagehand.page.evaluate(
         () => window.innerHeight,
       );
       const scrollDistance = Math.round((viewportHeight * percentage) / 100);
 
-      if (coordinates) {
+      if (coordinates && coordinates.length > 0) {
         await stagehand.page.mouse.move(coordinates[0], coordinates[1]);
       }
       await stagehand.page.mouse.wheel(
@@ -43,3 +71,4 @@ export const createScrollTool = (stagehand: Stagehand) =>
       };
     },
   });
+};

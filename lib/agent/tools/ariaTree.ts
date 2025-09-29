@@ -2,18 +2,35 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 import { Stagehand } from "../../index";
 
-export const createAriaTreeTool = (stagehand: Stagehand) =>
-  tool({
+// Schema for models that support optional parameters well
+const defaultParametersSchema = z.object({
+  chunkNumber: z
+    .number()
+    .optional()
+    .describe(
+      "The chunk number to retrieve (1-based). If not provided, returns the first chunk.",
+    ),
+});
+
+// Schema for GPT-5: make chunkNumber explicitly required (no optional/default)
+// GPT-5 requires all properties to be in the 'required' array
+const gpt5ParametersSchema = z.object({
+  chunkNumber: z
+    .number()
+    .describe(
+      "The chunk number to retrieve (1-based). Use 1 for the first chunk.",
+    ),
+});
+
+export const createAriaTreeTool = (stagehand: Stagehand, isGpt5 = false) => {
+  const parametersSchema = isGpt5
+    ? gpt5ParametersSchema
+    : defaultParametersSchema;
+
+  return tool({
     description:
       "gets the accessibility (ARIA) tree from the current page in chunks. this is useful for understanding the page structure and accessibility features. it provides full context of what is on the page, broken into manageable chunks. if no chunk number is specified, returns the first chunk with metadata about total chunks available.",
-    parameters: z.object({
-      chunkNumber: z
-        .number()
-        .optional()
-        .describe(
-          "The chunk number to retrieve (1-based). If not provided, returns the first chunk.",
-        ),
-    }),
+    parameters: parametersSchema,
     execute: async ({ chunkNumber = 1 }) => {
       try {
         const { page_text } = await stagehand.page.extract();
@@ -66,3 +83,4 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
       }
     },
   });
+};
