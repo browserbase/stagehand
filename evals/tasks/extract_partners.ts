@@ -11,13 +11,11 @@ export const extract_partners: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://ramp.com");
 
-    await v3.act({ instruction: "scroll to the bottom of the page" });
+    await v3.act("scroll to the bottom of the page");
 
-    await v3.act({ instruction: "Close the popup." });
+    await v3.act("Close the popup.");
 
-    await v3.act({
-      instruction: "click on the link that leads to the partners page.",
-    });
+    await v3.act("click on the link that leads to the partners page.");
 
     const partners = await v3.extract(
       `Extract all of the partner categories on the page.`,

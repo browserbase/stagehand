@@ -12,7 +12,7 @@ export const ionwave: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/",
     );
 
-    await v3.act({ instruction: 'Click on "Closed Bids"' });
+    await v3.act('Click on "Closed Bids"');
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/closed-bids.html";

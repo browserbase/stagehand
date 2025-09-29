@@ -12,7 +12,7 @@ export const tab_handling: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/",
     );
 
-    await v3.act({ instruction: "click the button to open the other page" });
+    await v3.act("click the button to open the other page");
 
     const pages = v3.context.pages();
     const page1 = pages[0];

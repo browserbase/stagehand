@@ -15,7 +15,7 @@ export const oopif_in_osr: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
     );
-    await v3.act({ instruction: "fill 'nunya' into the first name field" });
+    await v3.act("fill 'nunya' into the first name field");
 
     const extraction = await v3.extract("extract the entire page text");
 

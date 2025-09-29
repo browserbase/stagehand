@@ -29,7 +29,7 @@ export const prevChunk: EvalFunction = async ({
       };
     });
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    await v3.act({ instruction: "scroll up one chunk" });
+    await v3.act("scroll up one chunk");
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 

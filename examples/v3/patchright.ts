@@ -11,10 +11,7 @@ async function example(stagehand: Stagehand) {
   const prPage = prContext.pages()[0];
   await prPage.goto("https://github.com/microsoft/playwright/issues/30261");
 
-  await stagehand.act({
-    instruction: "scroll to the bottom of the page",
-    page: prPage,
-  });
+  await stagehand.act("scroll to the bottom of the page", { page: prPage });
 
   const reason = await stagehand.extract(
     "extract the reason why playwright doesn't expose frame IDs",

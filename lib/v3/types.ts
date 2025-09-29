@@ -122,15 +122,14 @@ export type PuppeteerPage = import("puppeteer-core").Page;
 
 export type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 
-export type ActParams = {
-  instruction: string;
+export interface ActOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-};
+}
 
 export interface ActHandlerParams {
   instruction: string;

@@ -10,9 +10,7 @@ export const stock_x: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://stockx.com/air-jordan-3-retro-black-cement-2024");
 
-    await v3.act({
-      instruction: "click on Jordan 3 Retro Crimson in the related products",
-    });
+    await v3.act("click on Jordan 3 Retro Crimson in the related products");
 
     const currentUrl = await page.url();
     const expectedUrlPrefix = "https://stockx.com/jordan-3-retro-crimson";

@@ -15,13 +15,9 @@ async function example() {
   const page = stagehand.context.pages()[0];
   await page.goto("https://docs.browserbase.com/");
 
-  await stagehand.act({
-    instruction: "secret12345",
-  });
+  await stagehand.act("secret12345");
 
-  await stagehand.act({
-    instruction: "search for 'how to use browserbase'",
-  });
+  await stagehand.act("search for 'how to use browserbase'");
 
   await stagehand.close();
 }

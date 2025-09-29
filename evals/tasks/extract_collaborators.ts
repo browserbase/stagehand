@@ -10,9 +10,9 @@ export const extract_collaborators: EvalFunction = async ({
   try {
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/facebook/react");
-    await v3.act({ instruction: "find and click the contributors section" });
+    await v3.act("find and click the contributors section");
 
-    await v3.act({ instruction: "scroll halfway down the page" });
+    await v3.act("scroll halfway down the page");
 
     const { contributors } = await v3.extract(
       "Extract top 5 contributors of this repository",

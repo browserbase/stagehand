@@ -9,8 +9,7 @@ export const wikipedia: EvalFunction = async ({
   try {
     const page = v3.context.pages()[0];
     await page.goto(`https://en.wikipedia.org/wiki/Baseball`);
-    await v3.act({
-      instruction: 'click the "hit and run" link in this article',
+    await v3.act('click the "hit and run" link in this article', {
       timeout: 360_000,
     });
 

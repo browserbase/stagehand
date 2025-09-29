@@ -17,14 +17,13 @@ export const ted_talk: EvalFunction = async ({
       },
     );
 
-    await v3.act({ instruction: "scroll 10% down the page" });
+    await v3.act("scroll 10% down the page");
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    await v3.act({
-      instruction:
-        "Click the link that takes you to the page about the 'Culture' topic",
-    });
+    await v3.act(
+      "Click the link that takes you to the page about the 'Culture' topic",
+    );
 
     const playlists = await v3.extract(
       "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",

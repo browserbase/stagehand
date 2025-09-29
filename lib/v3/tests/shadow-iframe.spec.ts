@@ -69,7 +69,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
 
   try {
     await page.goto(c.url);
-    await v3.act(c.action, page);
+    await v3.act(c.action, { page });
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });
     const text = extraction.page_text ?? "";

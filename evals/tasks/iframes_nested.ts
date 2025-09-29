@@ -12,7 +12,7 @@ export const iframes_nested: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/",
     );
 
-    await v3.act({ instruction: "type 'stagehand' into the 'username' field" });
+    await v3.act("type 'stagehand' into the 'username' field");
 
     const inner = page
       .frameLocator("iframe.lvl1") // level 1

@@ -13,7 +13,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
       "https://www.cbisland.com/blog/10-snowshoeing-adventures-on-cape-breton-island/",
     );
 
-    await v3.act({ instruction: "accept the cookies" });
+    await v3.act("accept the cookies");
 
     const snowshoeing_regions = await v3.extract(
       "Extract all the snowshoeing regions and the names of the trails within each region.",

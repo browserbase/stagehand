@@ -11,9 +11,7 @@ export const wichita: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.wichitafallstx.gov/Bids.aspx");
 
-    await v3.act({
-      instruction: 'Click on "Show Closed/Awarded/Cancelled bids"',
-    });
+    await v3.act('Click on "Show Closed/Awarded/Cancelled bids"');
 
     const result = await v3.extract(
       "Extract the total number of bids that the search produced.",

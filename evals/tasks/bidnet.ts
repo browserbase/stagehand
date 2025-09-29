@@ -10,7 +10,7 @@ export const bidnet: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.bidnetdirect.com/");
 
-    await v3.act({ instruction: 'Click on the "Construction" keyword' });
+    await v3.act('Click on the "Construction" keyword');
 
     const expectedUrl =
       "https://www.bidnetdirect.com/public/solicitations/open?keywords=Construction";

@@ -11,7 +11,7 @@ export const scroll_50: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
-    await v3.act({ instruction: "Scroll 50% down the page" });
+    await v3.act("Scroll 50% down the page");
 
     await new Promise((resolve) => setTimeout(resolve, 5000));
 

@@ -11,7 +11,7 @@ export const iframe_scroll: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc-scroll/",
     );
-    await v3.act({ instruction: "scroll down 50% inside the iframe" });
+    await v3.act("scroll down 50% inside the iframe");
 
     const frames = page.frames();
     const frame = frames[1];

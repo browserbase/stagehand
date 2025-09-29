@@ -15,7 +15,7 @@ export const spif_in_osr: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-open-shadow-dom/",
     );
-    await v3.act({ instruction: "click the button" });
+    await v3.act("click the button");
 
     const extraction = await v3.extract("extract the entire page text");
 

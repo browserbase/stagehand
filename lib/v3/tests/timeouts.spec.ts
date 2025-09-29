@@ -30,8 +30,8 @@ test.describe("V3 hard timeouts", () => {
   });
 
   test("act() enforces timeoutMs", async () => {
-    await expect(
-      v3.act({ instruction: "do nothing", timeout: 5 }),
-    ).rejects.toThrow(/timed out/i);
+    await expect(v3.act("do nothing", { timeout: 5 })).rejects.toThrow(
+      /timed out/i,
+    );
   });
 });

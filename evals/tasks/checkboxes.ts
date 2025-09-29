@@ -12,9 +12,9 @@ export const checkboxes: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
     );
 
-    await v3.act({ instruction: "click the 'baseball' option" });
+    await v3.act("click the 'baseball' option");
 
-    await v3.act({ instruction: "click the 'netball' option" });
+    await v3.act("click the 'netball' option");
 
     const baseballChecked = await page
       .locator('input[type="checkbox"][name="sports"][value="baseball"]')

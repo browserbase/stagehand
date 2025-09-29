@@ -16,7 +16,7 @@ export const extract_jstor_news: EvalFunction = async ({
         waitUntil: "load",
       },
     );
-    await v3.act({ instruction: "close the cookie" });
+    await v3.act("close the cookie");
 
     const result = await v3.extract(
       "Extract ALL the news report titles and their dates.",

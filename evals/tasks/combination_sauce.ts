@@ -19,11 +19,11 @@ export const combination_sauce: EvalFunction = async ({
       }),
     );
 
-    await v3.act({ instruction: `enter username 'standard_user'` });
+    await v3.act(`enter username 'standard_user'`);
 
-    await v3.act({ instruction: `enter password '${password}'` });
+    await v3.act(`enter password '${password}'`);
 
-    await v3.act({ instruction: "click on 'login'" });
+    await v3.act("click on 'login'");
 
     const observations = await v3.observe({
       instruction: "find all the 'add to cart' buttons",

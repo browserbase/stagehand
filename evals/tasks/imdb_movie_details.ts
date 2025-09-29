@@ -12,7 +12,7 @@ export const imdb_movie_details: EvalFunction = async ({
     await page.goto("https://www.imdb.com/title/tt0111161/", {
       waitUntil: "domcontentloaded",
     });
-    await v3.act({ instruction: "click on the movie ratings" });
+    await v3.act("click on the movie ratings");
 
     const movieDetails = await v3.extract(
       "Extract the list of countries with the most ratings.",

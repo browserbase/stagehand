@@ -12,10 +12,10 @@ export const multi_tab: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/",
     );
 
-    await v3.act({ instruction: "click the button to open the other page" });
-    await v3.act({ instruction: "click the button to open the other page" });
-    await v3.act({ instruction: "click the button to open the other page" });
-    await v3.act({ instruction: "click the button to open the other page" });
+    await v3.act("click the button to open the other page");
+    await v3.act("click the button to open the other page");
+    await v3.act("click the button to open the other page");
+    await v3.act("click the button to open the other page");
     let activePage = await v3.context.awaitActivePage();
 
     let currentPageUrl = await activePage.url();
@@ -35,10 +35,7 @@ export const multi_tab: EvalFunction = async ({
     // try acting on the first page again
     const pages = v3.context.pages();
     const page1 = pages[0];
-    await v3.act({
-      instruction: "click the button to open the other page",
-      page: page1,
-    });
+    await v3.act("click the button to open the other page", { page: page1 });
 
     activePage = await v3.context.awaitActivePage();
     currentPageUrl = await activePage.url();

@@ -11,11 +11,9 @@ export const costar: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.costar.com/");
 
-    await v3.act({ instruction: "click on the first article" });
+    await v3.act("click on the first article");
 
-    await v3.act({
-      instruction: "click on the learn more button for the first job",
-    });
+    await v3.act("click on the learn more button for the first job");
 
     const articleTitle = await v3.extract(
       "extract the title of the article",

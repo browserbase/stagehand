@@ -13,7 +13,7 @@ export const sciquest: EvalFunction = async ({
       "https://bids.sciquest.com/apps/Router/PublicEvent?tab=PHX_NAV_SourcingAllOpps&CustomerOrg=StateOfUtah",
     );
 
-    await v3.act({ instruction: 'Click on the "Closed" tab' });
+    await v3.act('Click on the "Closed" tab');
 
     const result = await v3.extract(
       "Extract the total number of results that the search produced. Not the number of results displayed on the page.",

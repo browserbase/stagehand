@@ -15,7 +15,7 @@ export const csr_in_oopif: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-root-in-oopif/",
     );
-    await v3.act({ instruction: "click the button" });
+    await v3.act("click the button");
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const extraction = await v3.extract("extract the entire page text");
