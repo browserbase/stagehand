@@ -13,10 +13,9 @@ export const extract_zillow: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/zillow/",
     );
 
-    const real_estate_listings = await v3.extract({
-      instruction:
-        "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
-      schema: z.object({
+    const real_estate_listings = await v3.extract(
+      "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
+      z.object({
         listings: z.array(
           z.object({
             price: z.string().describe("The price of the home"),
@@ -24,7 +23,7 @@ export const extract_zillow: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     await v3.close();
     const listings = real_estate_listings.listings;

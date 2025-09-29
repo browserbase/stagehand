@@ -16,9 +16,9 @@ export const extract_hamilton_weather: EvalFunction = async ({
     const xpath =
       "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
-    const weatherData = await v3.extract({
-      instruction: "extract the weather data for Sun, Feb 23 at 11PM",
-      schema: z.object({
+    const weatherData = await v3.extract(
+      "extract the weather data for Sun, Feb 23 at 11PM",
+      z.object({
         temperature: z.string(),
         weather_description: z.string(),
         wind: z.string(),
@@ -26,8 +26,8 @@ export const extract_hamilton_weather: EvalFunction = async ({
         barometer: z.string(),
         visibility: z.string(),
       }),
-      selector: xpath,
-    });
+      { selector: xpath },
+    );
 
     // Define the expected weather data
     const expectedWeatherData = {

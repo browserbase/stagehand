@@ -15,9 +15,9 @@ export const extract_github_commits: EvalFunction = async ({
       instruction:
         "find commit history, generally described by the number of commits",
     });
-    const { commits } = await v3.extract({
-      instruction: "Extract last 20 commits",
-      schema: z.object({
+    const { commits } = await v3.extract(
+      "Extract last 20 commits",
+      z.object({
         commits: z.array(
           z.object({
             commit_message: z.string(),
@@ -26,7 +26,7 @@ export const extract_github_commits: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     logger.log({
       message: "Extracted commits",

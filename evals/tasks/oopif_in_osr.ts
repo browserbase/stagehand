@@ -17,9 +17,7 @@ export const oopif_in_osr: EvalFunction = async ({
     );
     await v3.act({ instruction: "fill 'nunya' into the first name field" });
 
-    const extraction = await v3.extract({
-      instruction: "extract the entire page text",
-    });
+    const extraction = await v3.extract("extract the entire page text");
 
     const pageText = extraction.extraction;
 

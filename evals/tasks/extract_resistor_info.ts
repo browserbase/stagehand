@@ -14,16 +14,15 @@ export const extract_resistor_info: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/resistor/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
+      z.object({
         manufacturer_standard_lead_time: z.string(),
         tolerance_percentage: z.string(),
         resistance: z.string(),
         operating_temperature_range: z.string(),
       }),
-    });
+    );
 
     const {
       manufacturer_standard_lead_time,

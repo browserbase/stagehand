@@ -14,9 +14,9 @@ export const extract_collaborators: EvalFunction = async ({
 
     await v3.act({ instruction: "scroll halfway down the page" });
 
-    const { contributors } = await v3.extract({
-      instruction: "Extract top 5 contributors of this repository",
-      schema: z.object({
+    const { contributors } = await v3.extract(
+      "Extract top 5 contributors of this repository",
+      z.object({
         contributors: z.array(
           z.object({
             github_username: z
@@ -26,7 +26,7 @@ export const extract_collaborators: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const EXPECTED_CONTRIBUTORS = [
       "zpao",

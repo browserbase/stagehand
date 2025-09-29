@@ -5,7 +5,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { AvailableModel, ClientOptions } from "../types/model";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { extract as runExtract } from "@/lib/inference";
-import { pageTextSchema } from "../types";
+import { defaultExtractSchema, pageTextSchema } from "../types";
 import { injectUrls, transformSchema } from "@/lib/utils";
 import { EncodedId } from "../types/context";
 import { ZodPathSegments } from "../types/stagehand";
@@ -21,28 +21,10 @@ import { v3Logger } from "@/lib/v3/logger";
  *   2. An array of {@link ZodPathSegments} objects representing all the replaced URL fields,
  *      with each path segment showing where in the schema the replacement occurred.
  */
-export function transformUrlStringsToNumericIds<
-  T extends z.ZodObject<z.ZodRawShape>,
->(schema: T): [T, ZodPathSegments[]] {
-  const shape = schema._def.shape();
-  const newShape: Record<string, ZodTypeAny> = {};
-  const urlPaths: ZodPathSegments[] = [];
-  let changed = false;
-
-  for (const [key, value] of Object.entries(shape)) {
-    const [childTransformed, childPaths] = transformSchema(value, [key]);
-    newShape[key] = childTransformed;
-    if (childTransformed !== value) {
-      changed = true;
-    }
-    if (childPaths.length > 0) {
-      childPaths.forEach((cp) => {
-        urlPaths.push({ segments: [key, ...cp.segments] });
-      });
-    }
-  }
-
-  const finalSchema = changed ? z.object(newShape) : schema;
+export function transformUrlStringsToNumericIds<T extends ZodTypeAny>(
+  schema: T,
+): [T, ZodPathSegments[]] {
+  const [finalSchema, urlPaths] = transformSchema(schema, []);
   return [finalSchema as T, urlPaths];
 }
 
@@ -93,7 +75,7 @@ export class ExtractHandler {
     this.onMetrics = onMetrics;
   }
 
-  async extract<T extends z.AnyZodObject>(
+  async extract<T extends ZodTypeAny>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { page_text: string }> {
     const { instruction, schema, page, selector, timeout } = params;
@@ -111,6 +93,12 @@ export class ExtractHandler {
         const result = { page_text: snap.combinedTree };
         // Validate via the same schema used in v2
         return pageTextSchema.parse(result);
+      }
+
+      if (!instruction && schema) {
+        throw new Error(
+          "extract() requires an instruction when a schema is provided.",
+        );
       }
 
       const focusSelector = selector?.replace(/^xpath=/, "") ?? "";
@@ -133,14 +121,20 @@ export class ExtractHandler {
           : undefined,
       });
 
-      if (!schema || !instruction) {
-        throw new Error(
-          "extract() requires both `instruction` and `schema` in V3.",
-        );
-      }
+      // Normalize schema: if instruction provided without schema, use defaultExtractSchema
+      const baseSchema: ZodTypeAny = (schema ??
+        defaultExtractSchema) as ZodTypeAny;
+      // Ensure we pass an object schema into inference; wrap non-object schemas
+      const isObjectSchema = !!(
+        baseSchema as unknown as { _def?: { shape?: unknown } }
+      )._def?.shape;
+      const WRAP_KEY = "value" as const;
+      const objectSchema = isObjectSchema
+        ? (baseSchema as unknown as z.ZodObject<z.ZodRawShape>)
+        : z.object({ [WRAP_KEY]: baseSchema });
 
       const [transformedSchema, urlFieldPaths] =
-        transformUrlStringsToNumericIds(schema);
+        transformUrlStringsToNumericIds(objectSchema);
 
       const requestId =
         (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
@@ -149,7 +143,7 @@ export class ExtractHandler {
       const extractionResponse = (await runExtract({
         instruction,
         domElements: combinedTree,
-        schema: transformedSchema,
+        schema: transformedSchema as z.ZodObject<z.ZodRawShape>,
         chunksSeen: 1,
         chunksTotal: 1,
         llmClient: this.llmClient,
@@ -157,15 +151,16 @@ export class ExtractHandler {
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
-      })) as ExtractionResponse<T>;
+      })) as ExtractionResponse<z.ZodObject<z.ZodRawShape>>;
 
       const {
         metadata: { completed },
         prompt_tokens,
         completion_tokens,
         inference_time_ms,
-        ...output
+        ...rest
       } = extractionResponse;
+      let output: unknown = rest;
 
       v3Logger({
         category: "extraction",
@@ -199,10 +194,15 @@ export class ExtractHandler {
         {}) as Record<EncodedId, string>;
       for (const { segments } of urlFieldPaths) {
         injectUrls(
-          output as unknown as Record<string, unknown>,
+          output as Record<string, unknown>,
           segments,
-          idToUrl,
+          idToUrl as unknown as Record<string, string>,
         );
+      }
+
+      // If we wrapped a non-object schema, unwrap the value
+      if (!isObjectSchema && output && typeof output === "object") {
+        output = (output as Record<string, unknown>)[WRAP_KEY];
       }
 
       return output as z.infer<T>;

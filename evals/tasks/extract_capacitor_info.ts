@@ -14,14 +14,14 @@ export const extract_capacitor_info: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/capacitor/",
     );
 
-    const result = await v3.extract({
-      instruction: "Extract the ECCN Code, RoHS Status, and Impedance.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the ECCN Code, RoHS Status, and Impedance.",
+      z.object({
         ECCN_code: z.string(),
         RoHS_Status: z.string(),
         Impedance: z.string(),
       }),
-    });
+    );
 
     const { ECCN_code, RoHS_Status, Impedance } = result;
 

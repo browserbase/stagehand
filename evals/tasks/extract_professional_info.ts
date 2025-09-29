@@ -14,15 +14,14 @@ export const extract_professional_info: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract the list of Practices, phone number, and fax number of the professional.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the list of Practices, phone number, and fax number of the professional.",
+      z.object({
         practices: z.array(z.string()),
         phone: z.string(),
         fax: z.string(),
       }),
-    });
+    );
 
     await v3.close();
 

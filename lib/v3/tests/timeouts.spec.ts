@@ -25,7 +25,7 @@ test.describe("V3 hard timeouts", () => {
   test("extract() enforces timeoutMs", async () => {
     const schema = z.object({ title: z.string().optional() });
     await expect(
-      v3.extract({ instruction: "Extract title", schema, timeout: 5 }),
+      v3.extract("Extract title", schema, { timeout: 5 }),
     ).rejects.toThrow(/timed out/i);
   });
 

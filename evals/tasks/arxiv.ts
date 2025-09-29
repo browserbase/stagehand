@@ -15,9 +15,9 @@ export const arxiv: EvalFunction = async ({
 
     await v3.act("hit enter");
 
-    const paper_links = await v3.extract({
-      instruction: "extract the titles and links for two papers",
-      schema: z.object({
+    const paper_links = await v3.extract(
+      "extract the titles and links for two papers",
+      z.object({
         papers: z
           .array(
             z.object({
@@ -27,7 +27,7 @@ export const arxiv: EvalFunction = async ({
           )
           .describe("list of papers"),
       }),
-    });
+    );
 
     if (
       !paper_links ||
@@ -46,9 +46,9 @@ export const arxiv: EvalFunction = async ({
     for (const paper of paper_links.papers) {
       if (paper.link) {
         await page.goto(paper.link);
-        const abstract = await v3.extract({
-          instruction: "extract details of the paper from the abstract",
-          schema: z.object({
+        const abstract = await v3.extract(
+          "extract details of the paper from the abstract",
+          z.object({
             category: z
               .string()
               .describe(
@@ -81,7 +81,7 @@ export const arxiv: EvalFunction = async ({
               )
               .nullable(),
           }),
-        });
+        );
 
         papers.push({
           title: paper.title,

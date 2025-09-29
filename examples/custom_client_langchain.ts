@@ -23,12 +23,12 @@ async function example() {
   const page = stagehand.context.pages()[0];
   await page.goto("https://news.ycombinator.com");
 
-  const { story } = await stagehand.extract({
-    instruction: "extract the top story on the page",
-    schema: z.object({
+  const { story } = await stagehand.extract(
+    "extract the title of the top story on the page",
+    z.object({
       story: z.string().describe("the top story on the page"),
     }),
-  });
+  );
 
   console.log("The top story is:", story);
 

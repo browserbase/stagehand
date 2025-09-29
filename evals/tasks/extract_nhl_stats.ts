@@ -17,15 +17,14 @@ export const extract_nhl_stats: EvalFunction = async ({
       },
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
+      z.object({
         name: z.string(),
         num_goals: z.string(),
         team: z.string(),
       }),
-    });
+    );
 
     const { name, num_goals, team } = result;
 

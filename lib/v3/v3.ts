@@ -13,7 +13,7 @@ import {
   PatchrightPage,
   AnyPage,
   LocalBrowserLaunchOptions,
-  ExtractParams,
+  ExtractOptions,
 } from "@/lib/v3/types";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
@@ -27,8 +27,7 @@ import { LLMProvider } from "./llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
-import type { ZodTypeAny, ZodObject } from "zod/v3";
-import type { BaseExtractParams, InlineFrom } from "@/lib/v3/types";
+import type { ZodTypeAny } from "zod/v3";
 import {
   Action,
   ActResult,
@@ -785,85 +784,73 @@ export class V3 {
   /**
    * Run an "extract" instruction through the ExtractHandler.
    *
-   * Overloads mirror StagehandPage.extract typing:
-   * - No args → returns page text shape.
-   * - String or options → defaults schema to defaultExtractSchema unless provided.
+   * Accepted forms:
+   * - extract() → page_text
+   * - extract(options) → page_text
+   * - extract(instruction) → defaultExtractSchema
+   * - extract(instruction, schema) → schema-inferred
+   * - extract(instruction, schema, options)
    */
 
   async extract(): Promise<z.infer<typeof pageTextSchema>>;
-  async extract(params: {
-    page: AnyPage;
-  }): Promise<z.infer<typeof pageTextSchema>>;
+  async extract(
+    options: ExtractOptions,
+  ): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
     instruction: string,
-    page?: AnyPage,
-    opts?: {
-      domSettleTimeoutMs?: number;
-      timeout?: number;
-      selector?: string;
-    },
+    options?: ExtractOptions,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
-  async extract(
-    params: { instruction: string } & Omit<
-      BaseExtractParams<z.AnyZodObject>,
-      "instruction" | "schema"
-    >,
-  ): Promise<z.infer<typeof defaultExtractSchema>>;
-  async extract<T extends z.AnyZodObject>(
-    params: { instruction: string; schema: T } & Omit<
-      BaseExtractParams<T>,
-      "instruction" | "schema"
-    >,
+  async extract<T extends ZodTypeAny>(
+    instruction: string,
+    schema: T,
+    options?: ExtractOptions,
   ): Promise<z.infer<T>>;
-  // Inline Zod fields at top level; infer from any P by picking Zod fields (excluding base keys)
-  async extract<P extends Record<string, unknown>>(
-    params: { instruction: string } & P &
-      Omit<BaseExtractParams<z.AnyZodObject>, "instruction" | "schema">,
-  ): Promise<z.infer<ZodObject<InlineFrom<P>>>>;
 
-  async extract(...fnArgs: unknown[]): Promise<unknown> {
+  async extract(
+    a?: string | ExtractOptions,
+    b?: ZodTypeAny | ExtractOptions,
+    c?: ExtractOptions,
+  ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
         throw new Error("V3 not initialized. Call init() before extract().");
       }
 
-      let params: ExtractParams<z.AnyZodObject> | undefined;
-      let pageArg: AnyPage | undefined;
-      let optsArg:
-        | { domSettleTimeoutMs?: number; timeout?: number; selector?: string }
-        | undefined;
-      if (fnArgs.length === 0) {
-        params = undefined;
-      } else if (typeof fnArgs[0] === "string") {
-        pageArg = fnArgs[1] as AnyPage | undefined;
-        optsArg = fnArgs[2] as
-          | {
-              domSettleTimeoutMs?: number;
-              timeout?: number;
-              selector?: string;
-            }
-          | undefined;
-        params = {
-          instruction: fnArgs[0] as string,
-          domSettleTimeoutMs: optsArg?.domSettleTimeoutMs,
-          timeout: optsArg?.timeout,
-          selector: optsArg?.selector,
-        } as ExtractParams<z.AnyZodObject>;
+      // Normalize args
+      let instruction: string | undefined;
+      let schema: ZodTypeAny | undefined;
+      let options: ExtractOptions | undefined;
+
+      if (typeof a === "string") {
+        instruction = a;
+        const isZodSchema = (val: unknown): val is ZodTypeAny =>
+          !!val &&
+          typeof val === "object" &&
+          "parse" in val &&
+          "safeParse" in val;
+        if (isZodSchema(b)) {
+          schema = b as ZodTypeAny;
+          options = c as ExtractOptions | undefined;
+        } else {
+          options = b as ExtractOptions | undefined;
+        }
       } else {
-        params = fnArgs[0] as ExtractParams<z.AnyZodObject>;
+        // a is options or undefined
+        options = (a as ExtractOptions) || undefined;
       }
 
+      if (!instruction && schema) {
+        throw new Error("extract(): schema provided without instruction");
+      }
+
+      // If instruction without schema → defaultExtractSchema
+      const effectiveSchema =
+        instruction && !schema ? defaultExtractSchema : schema;
+
+      // Resolve page from options or use active page
       let page: Page;
-      if (params?.page) {
-        if (params.page instanceof (await import("./understudy/page")).Page) {
-          // Already a V3 Page
-          page = params.page;
-        } else {
-          // Playwright / Puppeteer path: resolve → frameId → V3 Page
-          const frameId = await this.resolveTopFrameId(params.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        }
-      } else if (pageArg) {
+      const pageArg: AnyPage | undefined = options?.page;
+      if (pageArg) {
         if (pageArg instanceof (await import("./understudy/page")).Page) {
           page = pageArg as Page;
         } else if (this.isPlaywrightPage(pageArg)) {
@@ -882,81 +869,29 @@ export class V3 {
         page = await this.ctx!.awaitActivePage();
       }
 
-      const baseKeys = new Set([
-        "instruction",
-        "schema",
-        "modelName",
-        "modelClientOptions",
-        "domSettleTimeoutMs",
-        "selector",
-        "page",
-      ]);
-
-      // Collect inline top-level Zod fields into an object shape
-      const inlineShape: Record<string, ZodTypeAny> = {};
-      const isZodSchema = (val: unknown): val is ZodTypeAny => {
-        if (!val || typeof val !== "object") return false;
-        const obj = val as {
-          _def?: unknown;
-          parse?: unknown;
-          safeParse?: unknown;
-        };
-        return (
-          "_def" in obj &&
-          typeof obj.parse === "function" &&
-          typeof obj.safeParse === "function"
-        );
-      };
-      if (params && typeof params === "object") {
-        for (const [k, v] of Object.entries(
-          params as Record<string, unknown>,
-        )) {
-          if (baseKeys.has(k)) continue;
-          if (isZodSchema(v)) inlineShape[k] = v;
-        }
-      }
-
-      const hasInline = Object.keys(inlineShape).length > 0;
-      const noArgs = !params?.instruction && !params?.schema && !hasInline;
-      const onlyInstruction =
-        !!params?.instruction && !params?.schema && !hasInline;
-
-      let effectiveSchema: z.AnyZodObject | undefined;
-      if (noArgs) {
-        effectiveSchema = undefined;
-      } else if (onlyInstruction) {
-        effectiveSchema = defaultExtractSchema as unknown as z.AnyZodObject;
-      } else if (hasInline) {
-        const inlineObj = z.object(inlineShape);
-        effectiveSchema = params?.schema
-          ? (params.schema as z.AnyZodObject).extend(inlineObj.shape)
-          : (inlineObj as unknown as z.AnyZodObject);
-      } else {
-        effectiveSchema = params?.schema as z.AnyZodObject | undefined;
-      }
-
-      const handlerParams: ExtractHandlerParams<z.AnyZodObject> = {
-        instruction: params?.instruction,
-        schema: effectiveSchema as z.AnyZodObject,
-        modelName: params?.modelName,
-        modelClientOptions: params?.modelClientOptions,
-        domSettleTimeoutMs: params?.domSettleTimeoutMs,
-        timeout: params?.timeout,
-        selector: params?.selector,
+      const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
+        instruction,
+        schema: effectiveSchema as unknown as ZodTypeAny | undefined,
+        modelName: options?.modelName,
+        modelClientOptions: options?.modelClientOptions,
+        domSettleTimeoutMs: options?.domSettleTimeoutMs,
+        timeout: options?.timeout,
+        selector: options?.selector,
         page: page!,
       };
 
       const result =
-        await this.extractHandler.extract<z.AnyZodObject>(handlerParams);
-      // history: record extract call (omit page object and raw schema instance to avoid heavy serialization)
+        await this.extractHandler.extract<ZodTypeAny>(handlerParams);
+
+      // history: record extract call (omit page object and raw schema instance)
       this.addToHistory(
         "extract",
         {
-          instruction: params?.instruction,
-          // best-effort: log presence of schema (inline or explicit) without serializing instances
-          hasSchema: !!params?.schema || hasInline,
-          domSettleTimeoutMs: params?.domSettleTimeoutMs,
-          timeout: params?.timeout,
+          instruction,
+          hasSchema: Boolean(effectiveSchema),
+          domSettleTimeoutMs: options?.domSettleTimeoutMs,
+          timeout: options?.timeout,
+          selector: options?.selector,
         },
         result,
       );

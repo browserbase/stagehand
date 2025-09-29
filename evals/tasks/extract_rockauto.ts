@@ -13,18 +13,17 @@ export const extract_rockauto: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
-    const result = await v3.extract({
-      instruction:
-        "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
+    const result = await v3.extract(
+      "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
         "Do not include the manufacturer name. Do not include products from the premium category.",
-      schema: z.object({
+      z.object({
         coolant_products: z.array(
           z.object({
             part_number: z.string(),
           }),
         ),
       }),
-    });
+    );
 
     const coolantProducts = result.coolant_products;
     const expectedPartNumbers = [

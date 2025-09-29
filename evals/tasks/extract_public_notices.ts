@@ -15,10 +15,9 @@ export const extract_public_notices: EvalFunction = async ({
       { waitUntil: "load" },
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
+      z.object({
         public_notices: z.array(
           z.object({
             notice_description: z
@@ -37,7 +36,7 @@ export const extract_public_notices: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const publicNotices = result.public_notices;
     const expectedLength = 24;

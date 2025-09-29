@@ -15,10 +15,9 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
 
     await v3.act({ instruction: "accept the cookies" });
 
-    const snowshoeing_regions = await v3.extract({
-      instruction:
-        "Extract all the snowshoeing regions and the names of the trails within each region.",
-      schema: z.object({
+    const snowshoeing_regions = await v3.extract(
+      "Extract all the snowshoeing regions and the names of the trails within each region.",
+      z.object({
         snowshoeing_regions: z.array(
           z.object({
             region_name: z
@@ -34,7 +33,7 @@ export const extract_snowshoeing_destinations: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     logger.log({
       message: "Extracted destinations and trails",

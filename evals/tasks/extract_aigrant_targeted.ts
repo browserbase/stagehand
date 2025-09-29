@@ -13,13 +13,13 @@ export const extract_aigrant_targeted: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
     const selector = "/html/body/div/ul[5]/li[28]";
-    const company = await v3.extract({
-      instruction: "Extract the company name.",
-      schema: z.object({
+    const company = await v3.extract(
+      "Extract the company name.",
+      z.object({
         company_name: z.string(),
       }),
-      selector: selector,
-    });
+      { selector: selector },
+    );
 
     const companyName = company.company_name;
 

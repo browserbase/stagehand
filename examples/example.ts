@@ -8,9 +8,9 @@ async function example(stagehand: Stagehand) {
   await page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
   );
-  const { extraction } = await stagehand.extract({
-    instruction: "grab the content from inside the iframe",
-  });
+  const { extraction } = await stagehand.extract(
+    "grab the content from inside the iframe",
+  );
   console.log(extraction);
 }
 
