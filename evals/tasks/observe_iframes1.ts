@@ -12,9 +12,7 @@ export const observe_iframes1: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
     );
 
-    const observations = await v3.observe({
-      instruction: "find the main header of the page",
-    });
+    const observations = await v3.observe("find the main header of the page");
 
     if (observations.length === 0) {
       return {

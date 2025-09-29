@@ -11,8 +11,7 @@ async function example(stagehand: Stagehand) {
 
   await ppPage.goto("https://www.browserbase.com/blog");
 
-  const actions = await stagehand.observe({
-    instruction: "find the next page button",
+  const actions = await stagehand.observe("find the next page button", {
     page: ppPage,
   });
 

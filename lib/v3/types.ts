@@ -169,15 +169,14 @@ export const pageTextSchema = z.object({
   page_text: z.string(),
 });
 
-export type ObserveParams = {
-  instruction?: string;
+export interface ObserveOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-};
+}
 
 export interface ObserveHandlerParams {
   instruction?: string;

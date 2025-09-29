@@ -11,17 +11,17 @@ export const observe_simple_google_search: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/",
     );
-    const observation1 = await v3.observe({
-      instruction: "Find the search bar and type 'OpenAI'",
-    });
+    const observation1 = await v3.observe(
+      "Find the search bar and type 'OpenAI'",
+    );
 
     if (observation1.length > 0) {
       const action1 = observation1[0];
       await v3.act(action1);
     }
-    const observation2 = await v3.observe({
-      instruction: "Click the search button in the suggestions dropdown",
-    });
+    const observation2 = await v3.observe(
+      "Click the search button in the suggestions dropdown",
+    );
 
     if (observation2.length > 0) {
       const action2 = observation2[0];

@@ -25,9 +25,7 @@ export const combination_sauce: EvalFunction = async ({
 
     await v3.act("click on 'login'");
 
-    const observations = await v3.observe({
-      instruction: "find all the 'add to cart' buttons",
-    });
+    const observations = await v3.observe("find all the 'add to cart' buttons");
 
     const url = await page.url();
 

@@ -14,9 +14,7 @@ export const observe_iframes2: EvalFunction = async ({
 
     let observations: Action[];
     try {
-      observations = await v3.observe({
-        instruction: "find the main header of the page",
-      });
+      observations = await v3.observe("find the main header of the page");
     } catch (err) {
       return {
         _success: false,

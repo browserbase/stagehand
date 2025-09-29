@@ -6,8 +6,8 @@ import {
   ActHandlerParams,
   ActOptions,
   ExtractHandlerParams,
-  ObserveParams,
   ObserveHandlerParams,
+  ObserveOptions,
   V3Metrics,
   V3FunctionName,
   PatchrightPage,
@@ -893,64 +893,59 @@ export class V3 {
    * Run an "observe" instruction through the ObserveHandler.
    */
   async observe(): Promise<Action[]>;
-  async observe(params: ObserveParams): Promise<Action[]>;
+  async observe(options: ObserveOptions): Promise<Action[]>;
   async observe(
     instruction: string,
-    page?: AnyPage,
-    opts?: {
-      domSettleTimeoutMs?: number;
-      timeout?: number;
-      selector?: string;
-    },
+    options?: ObserveOptions,
   ): Promise<Action[]>;
   async observe(
-    params?: ObserveParams | string,
-    pageArg?: AnyPage,
-    opts?: {
-      domSettleTimeoutMs?: number;
-      timeout?: number;
-      selector?: string;
-    },
+    a?: string | ObserveOptions,
+    b?: ObserveOptions,
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.observeHandler) {
         throw new Error("V3 not initialized. Call init() before observe().");
       }
 
-      let effective: ObserveParams;
-      if (typeof params === "string") {
-        effective = {
-          instruction: params,
-          page: pageArg,
-          domSettleTimeoutMs: opts?.domSettleTimeoutMs,
-          timeout: opts?.timeout,
-          selector: opts?.selector,
-        };
+      // Normalize args
+      let instruction: string | undefined;
+      let options: ObserveOptions | undefined;
+      if (typeof a === "string") {
+        instruction = a;
+        options = b;
       } else {
-        effective = params || {};
+        options = a as ObserveOptions | undefined;
       }
 
       // Resolve to our internal Page type
       let page: Page;
-      if (effective.page) {
-        if (
-          effective.page instanceof (await import("./understudy/page")).Page
-        ) {
-          page = effective.page;
-        } else {
-          const frameId = await this.resolveTopFrameId(effective.page);
+      if (options?.page) {
+        if (options.page instanceof (await import("./understudy/page")).Page) {
+          page = options.page as Page;
+        } else if (this.isPlaywrightPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
           page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else if (this.isPuppeteerPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else if (this.isPatchrightPage(options.page)) {
+          const frameId = await this.resolveTopFrameId(options.page);
+          page = this.ctx.resolvePageByMainFrameId(frameId);
+        } else {
+          throw new Error("Unsupported page object provided to observe().");
         }
       } else {
         page = await this.ctx!.awaitActivePage();
       }
 
       const handlerParams: ObserveHandlerParams = {
-        instruction: effective.instruction,
-        domSettleTimeoutMs: effective.domSettleTimeoutMs,
-        timeout: effective.timeout,
+        instruction,
+        modelName: options?.modelName,
+        modelClientOptions: options?.modelClientOptions,
+        domSettleTimeoutMs: options?.domSettleTimeoutMs,
+        timeout: options?.timeout,
         fromAct: false,
-        selector: effective.selector,
+        selector: options?.selector,
         page,
       };
 
@@ -959,9 +954,9 @@ export class V3 {
       this.addToHistory(
         "observe",
         {
-          instruction: effective.instruction,
-          domSettleTimeoutMs: effective.domSettleTimeoutMs,
-          timeout: effective.timeout,
+          instruction,
+          domSettleTimeoutMs: options?.domSettleTimeoutMs,
+          timeout: options?.timeout,
         },
         results,
       );

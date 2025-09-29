@@ -10,10 +10,9 @@ export const observe_yc_startup: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.ycombinator.com/companies");
 
-    const observations = await v3.observe({
-      instruction:
-        "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
-    });
+    const observations = await v3.observe(
+      "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
+    );
 
     if (observations.length === 0) {
       return {

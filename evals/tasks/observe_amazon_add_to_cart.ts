@@ -12,9 +12,9 @@ export const observe_amazon_add_to_cart: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
     );
 
-    const observations1 = await v3.observe({
-      instruction: "Find and click the 'Add to Cart' button",
-    });
+    const observations1 = await v3.observe(
+      "Find and click the 'Add to Cart' button",
+    );
 
     // Example of using performPlaywrightMethod if you have the xpath
     if (observations1.length > 0) {
@@ -22,9 +22,9 @@ export const observe_amazon_add_to_cart: EvalFunction = async ({
       await v3.act(action1);
     }
 
-    const observations2 = await v3.observe({
-      instruction: "Find and click the 'Proceed to checkout' button",
-    });
+    const observations2 = await v3.observe(
+      "Find and click the 'Proceed to checkout' button",
+    );
 
     // Example of using performPlaywrightMethod if you have the xpath
     if (observations2.length > 0) {
