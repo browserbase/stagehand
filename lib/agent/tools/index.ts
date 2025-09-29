@@ -26,16 +26,10 @@ export interface AgentToolOptions {
   storeActions?: boolean;
 }
 
-function filterToolsByModelName(
-  modelName: string | undefined,
-  tools: ToolSet,
-  storeActions?: boolean,
-): ToolSet {
-  const normalized = (modelName || "").toLowerCase().trim();
-  const isAnthropic = normalized.startsWith("claude") && storeActions === false;
+function filterToolsByModelName(tools: ToolSet, isClaude: boolean): ToolSet {
   const filtered: ToolSet = { ...tools };
 
-  if (isAnthropic) {
+  if (isClaude) {
     delete filtered.fillForm;
     return filtered;
   }
@@ -54,8 +48,11 @@ export function createAgentTools(
   const executionModel = options?.executionModel;
   const hasExaApiKey = process.env.EXA_API_KEY?.length > 0;
 
+  // Detect model characteristics for tool configuration (defined once here)
   const modelName = (options?.mainModel || "").toLowerCase().trim();
+  const storeActions = options?.storeActions;
   const isGpt5 = modelName.startsWith("gpt-5");
+  const isClaude = modelName.startsWith("claude") && storeActions === false;
 
   const all = {
     act: createActTool(stagehand, executionModel),
@@ -71,13 +68,13 @@ export function createAgentTools(
     goto: createGotoTool(stagehand),
     navback: createNavBackTool(stagehand),
     screenshot: createScreenshotTool(stagehand, options?.mainModel),
-    scroll: createScrollTool(stagehand, isGpt5),
+    scroll: createScrollTool(stagehand, isClaude),
     wait: createWaitTool(),
     ...(hasExaApiKey ? { search: createSearchTool() } : {}),
     keys: createKeysTool(stagehand, isGpt5),
     extract: createExtractTool(stagehand),
   } satisfies ToolSet;
-  return filterToolsByModelName(options?.mainModel, all, options?.storeActions);
+  return filterToolsByModelName(all, isClaude);
 }
 
 export type AgentTools = ReturnType<typeof createAgentTools>;

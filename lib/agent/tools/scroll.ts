@@ -2,8 +2,8 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 import { Stagehand } from "../../index";
 
-// Schema for models that support optional parameters well
-const defaultParametersSchema = z.object({
+// Schema for Claude CUA models - includes coordinates parameter for precise scrolling
+const claudeParametersSchema = z.object({
   percentage: z
     .number()
     .min(1)
@@ -20,24 +20,21 @@ const defaultParametersSchema = z.object({
     .optional(),
 });
 
-// Schema for GPT-5: make all parameters required
-const gpt5ParametersSchema = z.object({
+// Schema for non-Claude models - no coordinates parameter
+const defaultParametersSchema = z.object({
   percentage: z
     .number()
     .min(1)
     .max(200)
-    .describe("Percentage of viewport height to scroll (1-200%, default: 80)"),
+    .default(80)
+    .optional()
+    .describe("Percentage of viewport height to scroll (1-200%, default: 80%)"),
   direction: z.enum(["up", "down"]).describe("Direction to scroll"),
-  coordinates: z
-    .array(z.number())
-    .describe(
-      "The (x, y) coordinates to scroll inside of. Use empty array [] to scroll the page itself.",
-    ),
 });
 
-export const createScrollTool = (stagehand: Stagehand, isGpt5 = false) => {
-  const parametersSchema = isGpt5
-    ? gpt5ParametersSchema
+export const createScrollTool = (stagehand: Stagehand, isClaude = false) => {
+  const parametersSchema = isClaude
+    ? claudeParametersSchema
     : defaultParametersSchema;
 
   return tool({
