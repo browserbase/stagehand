@@ -16,9 +16,7 @@ export const spif_in_csr: EvalFunction = async ({
     );
     await v3.act({ instruction: "click the button" });
 
-    const extraction = await v3.extract({
-      instruction: "extract the entire page text",
-    });
+    const extraction = await v3.extract("extract the entire page text");
 
     const pageText = extraction.extraction;
 

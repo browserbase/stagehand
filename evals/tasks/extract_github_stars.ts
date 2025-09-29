@@ -11,12 +11,12 @@ export const extract_github_stars: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://github.com/facebook/react");
 
-    const { stars } = await v3.extract({
-      instruction: "Extract the number of stars for the project",
-      schema: z.object({
+    const { stars } = await v3.extract(
+      "Extract the number of stars for the project",
+      z.object({
         stars: z.number().describe("the number of stars for the project"),
       }),
-    });
+    );
 
     const expectedStarsString = await page
       .locator("#repo-stars-counter-star")

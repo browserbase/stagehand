@@ -17,10 +17,9 @@ export const extract_recipe: EvalFunction = async ({
     );
 
     const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-    const recipeDetails = await v3.extract({
-      instruction:
-        "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
-      schema: z.object({
+    const recipeDetails = await v3.extract(
+      "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
+      z.object({
         tablespoons_olive_oil: z
           .number()
           .describe(
@@ -32,9 +31,8 @@ export const extract_recipe: EvalFunction = async ({
             "the number of teaspoons of lemon juice needed for the mushroom pan sauce",
           ),
       }),
-
-      selector: selector,
-    });
+      { selector: selector },
+    );
 
     const { tablespoons_olive_oil, teaspoons_lemon_juice } = recipeDetails;
     const expectedTablespoons = 2;

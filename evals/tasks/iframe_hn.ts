@@ -13,12 +13,12 @@ export const iframe_hn: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
     );
 
-    const result = await v3.extract({
-      instruction: "extract the title of the first hackernews story",
-      schema: z.object({
+    const result = await v3.extract(
+      "extract the title of the first hackernews story",
+      z.object({
         story_title: z.string(),
       }),
-    });
+    );
 
     const title = result.story_title.toLowerCase();
     const expectedTitleSubstring = "overengineered anchor links";

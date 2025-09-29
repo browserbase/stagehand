@@ -12,10 +12,9 @@ export const extract_aigrant_companies: EvalFunction = async ({
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
     );
-    const companyList = await v3.extract({
-      instruction:
-        "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
-      schema: z.object({
+    const companyList = await v3.extract(
+      "Extract all companies that received the AI grant and group them with their batch numbers as an array of objects. Each object should contain the company name and its corresponding batch number.",
+      z.object({
         companies: z.array(
           z.object({
             company: z.string(),
@@ -23,7 +22,7 @@ export const extract_aigrant_companies: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
     const companies = companyList.companies;
     const expectedLength = 91;
 

@@ -14,10 +14,9 @@ export const extract_area_codes: EvalFunction = async ({
       { waitUntil: "domcontentloaded" },
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
+      z.object({
         primary_center_list: z.array(
           z.object({
             zone_name: z
@@ -38,7 +37,7 @@ export const extract_area_codes: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const primaryCenterList = result.primary_center_list;
     const expectedLength = 56;

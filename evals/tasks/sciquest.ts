@@ -15,13 +15,12 @@ export const sciquest: EvalFunction = async ({
 
     await v3.act({ instruction: 'Click on the "Closed" tab' });
 
-    const result = await v3.extract({
-      instruction:
-        "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the total number of results that the search produced. Not the number of results displayed on the page.",
+      z.object({
         total_results: z.string(),
       }),
-    });
+    );
 
     const { total_results } = result;
 

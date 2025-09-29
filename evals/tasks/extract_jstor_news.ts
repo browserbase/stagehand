@@ -18,9 +18,9 @@ export const extract_jstor_news: EvalFunction = async ({
     );
     await v3.act({ instruction: "close the cookie" });
 
-    const result = await v3.extract({
-      instruction: "Extract ALL the news report titles and their dates.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract ALL the news report titles and their dates.",
+      z.object({
         reports: z.array(
           z.object({
             report_name: z
@@ -32,7 +32,7 @@ export const extract_jstor_news: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const reports = result.reports;
     const expectedLength = 10;

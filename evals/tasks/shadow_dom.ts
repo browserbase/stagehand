@@ -12,9 +12,7 @@ export const shadow_dom: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
     );
     await v3.act("click the button");
-    const extraction = await v3.extract({
-      instruction: "extract the page text",
-    });
+    const extraction = await v3.extract("extract the page text");
 
     const pageText = extraction.extraction;
 

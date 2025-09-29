@@ -142,10 +142,7 @@ export interface ActHandlerParams {
   page: Page;
 }
 
-// Base extract params (without inline schema fields)
-export interface BaseExtractParams<T extends z.AnyZodObject> {
-  instruction?: string;
-  schema?: T;
+export interface ExtractOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   domSettleTimeoutMs?: number;
@@ -154,32 +151,7 @@ export interface BaseExtractParams<T extends z.AnyZodObject> {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
-// Allow callers to supply top-level inline Zod fields alongside instruction, e.g.:
-// v3.extract({ instruction: "...", title: z.string(), url: z.string().url() })
-// This index signature explicitly excludes known base keys to avoid type collisions.
-export type ExtractParams<T extends z.AnyZodObject> = BaseExtractParams<T> & {
-  [K in Exclude<string, keyof BaseExtractParams<T>>]?: ZodTypeAny;
-};
-
-// Public helper type for inline schema fields (excludes base extract keys)
-export type InlineSchemaShape<T extends z.AnyZodObject = z.AnyZodObject> = {
-  [K in Exclude<string, keyof BaseExtractParams<T>>]?: ZodTypeAny;
-};
-
-// Utility: pick only the inline Zod fields from a params object P,
-// excluding base extract keys and instruction/schema.
-export type InlineFrom<P> = {
-  [K in keyof P as K extends
-    | keyof BaseExtractParams<z.AnyZodObject>
-    | "instruction"
-    | "schema"
-    ? never
-    : P[K] extends ZodTypeAny
-      ? K
-      : never]: P[K] extends ZodTypeAny ? P[K] : never;
-};
-
-export interface ExtractHandlerParams<T extends z.AnyZodObject> {
+export interface ExtractHandlerParams<T extends ZodTypeAny> {
   instruction?: string;
   schema?: T;
   modelName?: AvailableModel;

@@ -15,10 +15,9 @@ export const extract_memorial_healthcare: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
-      schema: z.object({
+    const result = await v3.extract(
+      "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
+      z.object({
         health_centers: z.array(
           z.object({
             name: z.string(),
@@ -27,7 +26,7 @@ export const extract_memorial_healthcare: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const health_centers: Array<
       Partial<{ name: string; phone_number: string; address: string }>

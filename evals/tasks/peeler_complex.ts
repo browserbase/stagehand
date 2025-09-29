@@ -22,10 +22,10 @@ export const peeler_complex: EvalFunction = async ({
 
     await v3.act({ instruction: 'click on the first "OXO" brand peeler' });
 
-    const { price } = await v3.extract({
-      instruction: "get the price of the peeler",
-      schema: z.object({ price: z.number().nullable() }),
-    });
+    const { price } = await v3.extract(
+      "get the price of the peeler",
+      z.object({ price: z.number().nullable() }),
+    );
 
     return {
       _success: price === 11.99,

@@ -13,10 +13,9 @@ export const extract_jfk_links: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/jfk/",
     );
 
-    const extraction = await v3.extract({
-      instruction:
-        "extract all the record file name and their corresponding links",
-      schema: z.object({
+    const extraction = await v3.extract(
+      "extract all the record file name and their corresponding links",
+      z.object({
         records: z.array(
           z.object({
             file_name: z.string().describe("the file name of the record"),
@@ -24,7 +23,7 @@ export const extract_jfk_links: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     // The list of records we expect to see
     const expectedRecords = [

@@ -13,10 +13,9 @@ export const extract_staff_members: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "extract a list of ALL the staff members on this page, with their name and their job title",
-      schema: z.object({
+    const result = await v3.extract(
+      "extract a list of ALL the staff members on this page, with their name and their job title",
+      z.object({
         staff_members: z.array(
           z.object({
             name: z.string(),
@@ -24,7 +23,7 @@ export const extract_staff_members: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const staff_members = result.staff_members;
 

@@ -14,16 +14,16 @@ async function example(stagehand: Stagehand) {
   await pwPage2.goto("https://docs.stagehand.dev/configuration/observability");
 
   const [page1Extraction, page2Extraction] = await Promise.all([
-    stagehand.extract({
-      instruction: "extract the names of the four stagehand primitives",
-      primitives: z.array(z.string()),
-      page: pwPage1,
-    }),
-    stagehand.extract({
-      instruction: "extract the list of session dashboard features",
-      features: z.array(z.string()),
-      page: pwPage2,
-    }),
+    stagehand.extract(
+      "extract the names of the four stagehand primitives",
+      z.array(z.string()),
+      { page: pwPage1 },
+    ),
+    stagehand.extract(
+      "extract the list of session dashboard features",
+      z.array(z.string()),
+      { page: pwPage2 },
+    ),
   ]);
 
   console.log(page1Extraction);

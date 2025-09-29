@@ -27,9 +27,9 @@ async function example() {
   await page.goto("https://news.ycombinator.com");
   await stagehand.act("click on the 'new' link");
 
-  const headlines = await stagehand.extract({
-    instruction: "Extract the top 3 stories from the Hacker News homepage.",
-    schema: z.object({
+  const headlines = await stagehand.extract(
+    "Extract the top 3 stories from the Hacker News homepage.",
+    z.object({
       stories: z.array(
         z.object({
           title: z.string(),
@@ -38,7 +38,7 @@ async function example() {
         }),
       ),
     }),
-  });
+  );
 
   console.log(headlines);
 

@@ -20,16 +20,15 @@ export const allrecipes: EvalFunction = async ({
       instruction: "press enter",
     });
 
-    const recipeDetails = await v3.extract({
-      instruction:
-        "Extract the title of the first recipe and the total number of ratings it has received.",
-      schema: z.object({
+    const recipeDetails = await v3.extract(
+      "Extract the title of the first recipe and the total number of ratings it has received.",
+      z.object({
         title: z.string().describe("Title of the recipe"),
         total_ratings: z
           .string()
           .describe("Total number of ratings for the recipe"),
       }),
-    });
+    );
 
     const { title, total_ratings } = recipeDetails;
     const expectedTitle = "Best Chocolate Chip Cookies";

@@ -13,12 +13,12 @@ export const extract_single_link: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
     );
 
-    const extraction = await v3.extract({
-      instruction: "extract the link to the 'contact us' page",
-      schema: z.object({
+    const extraction = await v3.extract(
+      "extract the link to the 'contact us' page",
+      z.object({
         link: z.string().url(),
       }),
-    });
+    );
     const extractedLink = extraction.link;
     const expectedLink =
       "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/#contact";

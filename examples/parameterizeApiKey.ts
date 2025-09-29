@@ -25,13 +25,13 @@ async function example() {
   const page = stagehand.context.pages()[0];
   await page.goto("https://github.com/browserbase/stagehand");
   await stagehand.act({ instruction: "click on the contributors" });
-  const contributor = await stagehand.extract({
-    instruction: "extract the top contributor",
-    schema: z.object({
+  const contributor = await stagehand.extract(
+    "extract the top contributor",
+    z.object({
       username: z.string(),
       url: z.string(),
     }),
-  });
+  );
   console.log(`Our favorite contributor is ${contributor.username}`);
 }
 

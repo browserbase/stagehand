@@ -14,15 +14,14 @@ export const extract_baptist_health: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract the address, phone number, and fax number of the healthcare location.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the address, phone number, and fax number of the healthcare location.",
+      z.object({
         address: z.string(),
         phone: z.string(),
         fax: z.string(),
       }),
-    });
+    );
 
     const { address, phone, fax } = result;
     const expected = {

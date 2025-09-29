@@ -13,10 +13,9 @@ export const extract_csa: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/csa/",
     );
 
-    const result = await v3.extract({
-      instruction:
-        "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
+      z.object({
         publications: z.array(
           z.object({
             publication_date: z.string(),
@@ -26,7 +25,7 @@ export const extract_csa: EvalFunction = async ({
           }),
         ),
       }),
-    });
+    );
 
     const publications = result.publications;
     const expectedLength = 14;

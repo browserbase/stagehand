@@ -13,14 +13,13 @@ export const extract_geniusee: EvalFunction = async ({
       "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
     );
     const selector = "/html/body/main/div[2]/div[2]/div[2]/table";
-    const scalability = await v3.extract({
-      instruction:
-        "Extract the scalability comment in the table for Gemini (Google)",
-      schema: z.object({
+    const scalability = await v3.extract(
+      "Extract the scalability comment in the table for Gemini (Google)",
+      z.object({
         scalability: z.string(),
       }),
-      selector: selector,
-    });
+      { selector: selector },
+    );
 
     const scalabilityComment = scalability.scalability;
 

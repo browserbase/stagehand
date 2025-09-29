@@ -11,13 +11,13 @@ export const combination_sauce: EvalFunction = async ({
     const page = v3.context.pages()[0];
     await page.goto("https://www.saucedemo.com/");
 
-    const { usernames, password } = await v3.extract({
-      instruction: "extract the accepted usernames and the password for login",
-      schema: z.object({
+    const { usernames, password } = await v3.extract(
+      "extract the accepted usernames and the password for login",
+      z.object({
         usernames: z.array(z.string()).describe("the accepted usernames"),
         password: z.string().describe("the password for login"),
       }),
-    });
+    );
 
     await v3.act({ instruction: `enter username 'standard_user'` });
 

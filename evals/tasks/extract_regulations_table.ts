@@ -16,10 +16,9 @@ export const extract_regulations_table: EvalFunction = async ({
     const xpath =
       "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
 
-    const allottees = await v3.extract({
-      instruction:
-        "Extract ALL of the Allottees and their corresponding name, area, and area code.",
-      schema: z.object({
+    const allottees = await v3.extract(
+      "Extract ALL of the Allottees and their corresponding name, area, and area code.",
+      z.object({
         allottee_list: z.array(
           z.object({
             allottee_name: z.string(),
@@ -29,9 +28,8 @@ export const extract_regulations_table: EvalFunction = async ({
           }),
         ),
       }),
-
-      selector: xpath,
-    });
+      { selector: xpath },
+    );
 
     // Define the expected weather data
     const allottees_expected_first = {

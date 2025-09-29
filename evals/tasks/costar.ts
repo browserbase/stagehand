@@ -17,12 +17,12 @@ export const costar: EvalFunction = async ({
       instruction: "click on the learn more button for the first job",
     });
 
-    const articleTitle = await v3.extract({
-      instruction: "extract the title of the article",
-      schema: z.object({
+    const articleTitle = await v3.extract(
+      "extract the title of the article",
+      z.object({
         title: z.string().describe("the title of the article").nullable(),
       }),
-    });
+    );
 
     logger.log({
       message: "got article title",

@@ -15,14 +15,14 @@ export const homedepot: EvalFunction = async ({
     await v3.act("click on the best selling gas grill");
     await v3.act("click on the Product Details");
 
-    const productSpecs = await v3.extract({
-      instruction: "Extract the Primary exact Burner BTU of the product",
-      schema: z.object({
+    const productSpecs = await v3.extract(
+      "Extract the Primary exact Burner BTU of the product",
+      z.object({
         productSpecs: z.object({
           burnerBTU: z.number().describe("Primary Burner BTU exact value"),
         }),
       }),
-    });
+    );
 
     logger.log({
       message: `gas grill primary burner BTU`,

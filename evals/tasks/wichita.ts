@@ -15,12 +15,12 @@ export const wichita: EvalFunction = async ({
       instruction: 'Click on "Show Closed/Awarded/Cancelled bids"',
     });
 
-    const result = await v3.extract({
-      instruction: "Extract the total number of bids that the search produced.",
-      schema: z.object({
+    const result = await v3.extract(
+      "Extract the total number of bids that the search produced.",
+      z.object({
         total_results: z.string(),
       }),
-    });
+    );
 
     const { total_results } = result;
 

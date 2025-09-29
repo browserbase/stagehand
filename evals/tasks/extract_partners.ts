@@ -19,11 +19,9 @@ export const extract_partners: EvalFunction = async ({
       instruction: "click on the link that leads to the partners page.",
     });
 
-    const partners = await v3.extract({
-      instruction: `
-      Extract all of the partner categories on the page.
-    `,
-      schema: z.object({
+    const partners = await v3.extract(
+      `Extract all of the partner categories on the page.`,
+      z.object({
         partners: z.array(
           z.object({
             partner_category: z.string().describe("The partner category"),
@@ -34,7 +32,7 @@ export const extract_partners: EvalFunction = async ({
           .optional()
           .describe("Any explanation about partner listing or absence thereof"),
       }),
-    });
+    );
 
     const expectedPartners = [
       "Accounting Partners",

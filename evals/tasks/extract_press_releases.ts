@@ -28,11 +28,10 @@ export const extract_press_releases: EvalFunction = async ({
     );
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    const rawResult = await v3.extract({
-      instruction:
-        "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
+    const rawResult = await v3.extract(
+      "extract the title and corresponding publish date of EACH AND EVERY press releases on this page. DO NOT MISS ANY PRESS RELEASES.",
       schema,
-    });
+    );
 
     const parsed = schema.parse(rawResult);
     const { items } = parsed;

@@ -26,10 +26,9 @@ export const ted_talk: EvalFunction = async ({
         "Click the link that takes you to the page about the 'Culture' topic",
     });
 
-    const playlists = await v3.extract({
-      instruction:
-        "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
-      schema: z.object({
+    const playlists = await v3.extract(
+      "Extract the video playlist titles and the number of talks in each playlist. This info is in the Video Playlists about Culture section of the webpage.",
+      z.object({
         playlists: z
           .array(
             z.object({
@@ -39,7 +38,7 @@ export const ted_talk: EvalFunction = async ({
           )
           .describe("List of culture video playlists"),
       }),
-    });
+    );
 
     const expectedPlaylists = [
       {

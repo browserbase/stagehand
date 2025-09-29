@@ -16,11 +16,11 @@ async function example(stagehand: Stagehand) {
     page: prPage,
   });
 
-  const { reason } = await stagehand.extract({
-    instruction: "extract the reason why playwright doesn't expose frame IDs",
-    reason: z.string(),
+  const reason = await stagehand.extract(
+    "extract the reason why playwright doesn't expose frame IDs",
+    z.string(),
     // page arg not required
-  });
+  );
   console.log(reason);
 }
 

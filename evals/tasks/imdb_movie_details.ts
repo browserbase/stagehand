@@ -14,14 +14,14 @@ export const imdb_movie_details: EvalFunction = async ({
     });
     await v3.act({ instruction: "click on the movie ratings" });
 
-    const movieDetails = await v3.extract({
-      instruction: "Extract the list of countries with the most ratings.",
-      schema: z.object({
+    const movieDetails = await v3.extract(
+      "Extract the list of countries with the most ratings.",
+      z.object({
         countries: z
           .array(z.string())
           .describe("List of countries with the most ratings"),
       }),
-    });
+    );
 
     const expectedCountries = [
       "United States",
