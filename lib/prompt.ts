@@ -99,15 +99,11 @@ export function buildMetadataSystemPrompt(): ChatMessage {
 export function buildMetadataPrompt(
   instruction: string,
   extractionResponse: object,
-  chunksSeen: number,
-  chunksTotal: number,
 ): ChatMessage {
   return {
     role: "user",
     content: `Instruction: ${instruction}
-Extracted content: ${JSON.stringify(extractionResponse, null, 2)}
-chunksSeen: ${chunksSeen}
-chunksTotal: ${chunksTotal}`,
+Extracted content: ${JSON.stringify(extractionResponse, null, 2)}`,
   };
 }
 

@@ -140,8 +140,6 @@ export class ExtractHandler {
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as z.ZodObject<z.ZodRawShape>,
-        chunksSeen: 1,
-        chunksTotal: 1,
         llmClient: this.llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
