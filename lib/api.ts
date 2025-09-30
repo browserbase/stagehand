@@ -188,7 +188,7 @@ export class StagehandAPI {
     this.logger({
       category: "execute",
       message: `Executing ${method} with args: ${JSON.stringify(args)}`,
-      level: 1,
+      level: 2,
     });
 
     const response = await this.request(url, {

@@ -1,6 +1,5 @@
 import { CreateChatCompletionResponseError } from "@/types/stagehandErrors";
-import type { ClientOptions } from "openai";
-import OpenAI from "openai";
+import OpenAI, { type ClientOptions } from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { LogLine } from "../../types/log";
 import { AvailableModel } from "../../types/model";

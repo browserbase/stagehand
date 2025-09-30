@@ -452,7 +452,7 @@ export const providerEnvVarMap: Partial<
   perplexity: "PERPLEXITY_API_KEY",
   azure: "AZURE_API_KEY",
   xai: "XAI_API_KEY",
-  bedrock: "AWS_BEARER_TOKEN_BEDROCK", // Primary API key method for Bedrock
+  bedrock: "AWS_BEARER_TOKEN_BEDROCK",
   google_legacy: "GOOGLE_API_KEY",
 };
 
