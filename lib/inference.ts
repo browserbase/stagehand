@@ -35,8 +35,6 @@ export async function extract({
   domElements,
   schema,
   llmClient,
-  chunksSeen,
-  chunksTotal,
   logger,
   userProvidedInstructions,
   logInferenceToFile = false,
@@ -45,8 +43,6 @@ export async function extract({
   domElements: string;
   schema: z.ZodObject<z.ZodRawShape>;
   llmClient: LLMClient;
-  chunksSeen: number;
-  chunksTotal: number;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -136,7 +132,7 @@ export async function extract({
 
   const metadataCallMessages: ChatMessage[] = [
     buildMetadataSystemPrompt(),
-    buildMetadataPrompt(instruction, extractedData, chunksSeen, chunksTotal),
+    buildMetadataPrompt(instruction, extractedData),
   ];
 
   let metadataCallFile = "";
