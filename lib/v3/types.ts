@@ -126,7 +126,6 @@ export interface ActOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   variables?: Record<string, string>;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
@@ -136,7 +135,6 @@ export interface ActHandlerParams {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
   variables?: Record<string, string>;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   page: Page;
 }
@@ -144,7 +142,6 @@ export interface ActHandlerParams {
 export interface ExtractOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -155,7 +152,6 @@ export interface ExtractHandlerParams<T extends ZodTypeAny> {
   schema?: T;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   selector?: string;
   page: Page;
@@ -172,7 +168,6 @@ export const pageTextSchema = z.object({
 export interface ObserveOptions {
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -182,10 +177,8 @@ export interface ObserveHandlerParams {
   instruction?: string;
   modelName?: AvailableModel;
   modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
   timeout?: number;
   selector?: string;
-  fromAct?: boolean;
   page: Page;
 }
 
