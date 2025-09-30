@@ -243,7 +243,6 @@ export async function observe({
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
-  fromAct,
 }: {
   instruction: string;
   domElements: string;
@@ -252,7 +251,6 @@ export async function observe({
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
-  fromAct?: boolean;
 }) {
   const isGPT5 = llmClient.modelName.includes("gpt-5"); // TODO: remove this as we update support for gpt-5 configuration options
 
@@ -294,16 +292,15 @@ export async function observe({
     buildObserveUserMessage(instruction, domElements),
   ];
 
-  const filePrefix = fromAct ? "act" : "observe";
   let callTimestamp = "";
   let callFile = "";
   if (logInferenceToFile) {
     const { fileName, timestamp } = writeTimestampedTxtFile(
-      `${filePrefix}_summary`,
-      `${filePrefix}_call`,
+      `observe_summary`,
+      `observe_call`,
       {
         requestId,
-        modelCall: filePrefix,
+        modelCall: "observe",
         messages,
       },
     );
@@ -338,18 +335,18 @@ export async function observe({
   let responseFile = "";
   if (logInferenceToFile) {
     const { fileName: responseFileName } = writeTimestampedTxtFile(
-      `${filePrefix}_summary`,
-      `${filePrefix}_response`,
+      `observe_summary`,
+      `observe_response`,
       {
         requestId,
-        modelResponse: filePrefix,
+        modelResponse: "observe",
         rawResponse: observeData,
       },
     );
     responseFile = responseFileName;
 
-    appendSummary(filePrefix, {
-      [`${filePrefix}_inference_type`]: filePrefix,
+    appendSummary("observe", {
+      [`observe_inference_type`]: "observe",
       timestamp: callTimestamp,
       LLM_input_file: callFile,
       LLM_output_file: responseFile,

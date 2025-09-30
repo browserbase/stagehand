@@ -47,7 +47,7 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, fromAct, timeout, selector } = params;
+    const { instruction, page, timeout, selector } = params;
 
     const effectiveInstruction =
       instruction ??
@@ -91,7 +91,6 @@ export class ObserveHandler {
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
-        fromAct: !!fromAct,
       });
 
       const {

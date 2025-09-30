@@ -54,8 +54,7 @@ export class ActHandler {
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
-    const { instruction, page, variables, domSettleTimeoutMs, timeout } =
-      params;
+    const { instruction, page, variables, timeout } = params;
 
     const doObserveAndAct = async (): Promise<ActResult> => {
       const snapshot = await captureHybridSnapshot(page as Page, {
@@ -158,11 +157,7 @@ export class ActHandler {
       }
 
       // First action (self-heal aware path)
-      const firstResult = await this.actFromObserveResult(
-        chosen,
-        page as Page,
-        domSettleTimeoutMs,
-      );
+      const firstResult = await this.actFromObserveResult(chosen, page as Page);
 
       // If not two-step, return the first action result
       const twoStep = !!(
@@ -274,7 +269,6 @@ export class ActHandler {
       const secondResult = await this.actFromObserveResult(
         chosen2,
         page as Page,
-        domSettleTimeoutMs,
       );
 
       // Combine results

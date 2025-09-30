@@ -707,14 +707,12 @@ export class V3 {
         const actResult = await this.actHandler.actFromObserveResult(
           { ...input, selector }, // ObserveResult
           v3Page, // V3 Page
-          options?.domSettleTimeoutMs,
         );
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
           {
             observeResult: input,
-            domSettleTimeoutMs: options?.domSettleTimeoutMs,
           },
           actResult,
         );
@@ -752,7 +750,6 @@ export class V3 {
         instruction: input,
         page: page!,
         variables: options?.variables,
-        domSettleTimeoutMs: options?.domSettleTimeoutMs,
         timeout: options?.timeout,
       };
       const actResult = await this.actHandler.act(handlerParams);
@@ -762,7 +759,6 @@ export class V3 {
         {
           instruction: input,
           variables: options?.variables,
-          domSettleTimeoutMs: options?.domSettleTimeoutMs,
           timeout: options?.timeout,
         },
         actResult,
@@ -864,7 +860,6 @@ export class V3 {
         schema: effectiveSchema as unknown as ZodTypeAny | undefined,
         modelName: options?.modelName,
         modelClientOptions: options?.modelClientOptions,
-        domSettleTimeoutMs: options?.domSettleTimeoutMs,
         timeout: options?.timeout,
         selector: options?.selector,
         page: page!,
@@ -879,7 +874,6 @@ export class V3 {
         {
           instruction,
           hasSchema: Boolean(effectiveSchema),
-          domSettleTimeoutMs: options?.domSettleTimeoutMs,
           timeout: options?.timeout,
           selector: options?.selector,
         },
@@ -942,9 +936,7 @@ export class V3 {
         instruction,
         modelName: options?.modelName,
         modelClientOptions: options?.modelClientOptions,
-        domSettleTimeoutMs: options?.domSettleTimeoutMs,
         timeout: options?.timeout,
-        fromAct: false,
         selector: options?.selector,
         page,
       };
@@ -955,7 +947,6 @@ export class V3 {
         "observe",
         {
           instruction,
-          domSettleTimeoutMs: options?.domSettleTimeoutMs,
           timeout: options?.timeout,
         },
         results,
