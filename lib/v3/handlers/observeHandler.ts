@@ -87,7 +87,6 @@ export class ObserveHandler {
         instruction: effectiveInstruction,
         domElements: combinedTree,
         llmClient: this.llmClient,
-        requestId: "1234",
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,

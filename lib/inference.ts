@@ -37,7 +37,6 @@ export async function extract({
   llmClient,
   chunksSeen,
   chunksTotal,
-  requestId,
   logger,
   userProvidedInstructions,
   logInferenceToFile = false,
@@ -48,7 +47,6 @@ export async function extract({
   llmClient: LLMClient;
   chunksSeen: number;
   chunksTotal: number;
-  requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -84,7 +82,6 @@ export async function extract({
       "extract_summary",
       "extract_call",
       {
-        requestId,
         modelCall: "extract",
         messages: extractCallMessages,
       },
@@ -106,7 +103,6 @@ export async function extract({
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
-        requestId,
       },
       logger,
     });
@@ -121,7 +117,6 @@ export async function extract({
       "extract_summary",
       "extract_response",
       {
-        requestId,
         modelResponse: "extract",
         rawResponse: extractedData,
       },
@@ -151,7 +146,6 @@ export async function extract({
       "extract_summary",
       "metadata_call",
       {
-        requestId,
         modelCall: "metadata",
         messages: metadataCallMessages,
       },
@@ -173,7 +167,6 @@ export async function extract({
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
-        requestId,
       },
       logger,
     });
@@ -193,7 +186,6 @@ export async function extract({
       "extract_summary",
       "metadata_response",
       {
-        requestId,
         modelResponse: "metadata",
         completed: metadataResponseCompleted,
         progress: metadataResponseProgress,
@@ -239,7 +231,6 @@ export async function observe({
   instruction,
   domElements,
   llmClient,
-  requestId,
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
@@ -247,7 +238,6 @@ export async function observe({
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
-  requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -299,7 +289,6 @@ export async function observe({
       `observe_summary`,
       `observe_call`,
       {
-        requestId,
         modelCall: "observe",
         messages,
       },
@@ -320,7 +309,6 @@ export async function observe({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      requestId,
     },
     logger,
   });
@@ -338,7 +326,6 @@ export async function observe({
       `observe_summary`,
       `observe_response`,
       {
-        requestId,
         modelResponse: "observe",
         rawResponse: observeData,
       },
@@ -379,7 +366,6 @@ export async function act({
   instruction,
   domElements,
   llmClient,
-  requestId,
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
@@ -387,7 +373,6 @@ export async function act({
   instruction: string;
   domElements: string;
   llmClient: LLMClient;
-  requestId: string;
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
@@ -436,7 +421,6 @@ export async function act({
       `act_summary`,
       `act_call`,
       {
-        requestId,
         modelCall: "act",
         messages,
       },
@@ -457,7 +441,6 @@ export async function act({
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      requestId,
     },
     logger,
   });
@@ -475,7 +458,6 @@ export async function act({
       `act_summary`,
       `act_response`,
       {
-        requestId,
         modelResponse: "act",
         rawResponse: actData,
       },

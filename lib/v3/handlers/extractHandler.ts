@@ -136,10 +136,6 @@ export class ExtractHandler {
       const [transformedSchema, urlFieldPaths] =
         transformUrlStringsToNumericIds(objectSchema);
 
-      const requestId =
-        (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-        `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-
       const extractionResponse = (await runExtract({
         instruction,
         domElements: combinedTree,
@@ -147,7 +143,6 @@ export class ExtractHandler {
         chunksSeen: 1,
         chunksTotal: 1,
         llmClient: this.llmClient,
-        requestId,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
