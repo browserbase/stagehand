@@ -147,13 +147,13 @@ const pageText = await page.extract();
 ```
 
 ```python Python
-page_text = await page.extract()
+pageText = await page.extract()
 ```
 </CodeGroup>
 
 Output schema:
 ```Example
-{ page_text: string }
+{ pageText: string }
 ```
 
 Calling `extract` with no parameters will return hierarchical tree representation of the root DOM. This will not be passed through an LLM. It will look something like this:

@@ -17,7 +17,7 @@ type Case = {
   title: string;
   url: string;
   action: Action;
-  expectedSubstrings?: string[]; // check v3.extract().page_text contains these
+  expectedSubstrings?: string[]; // check v3.extract().pageText contains these
 };
 
 type Framework = "v3" | "puppeteer" | "playwright" | "patchright";
@@ -72,11 +72,11 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     await v3.act(c.action, { page });
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });
-    const text = extraction.page_text ?? "";
+    const text = extraction.pageText ?? "";
     for (const s of c.expectedSubstrings) {
       expect(
         text.includes(s),
-        `expected page_text to include substring: ${s}`,
+        `expected pageText to include substring: ${s}`,
       ).toBeTruthy();
     }
   } finally {

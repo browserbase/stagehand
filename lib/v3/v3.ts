@@ -771,8 +771,8 @@ export class V3 {
    * Run an "extract" instruction through the ExtractHandler.
    *
    * Accepted forms:
-   * - extract() → page_text
-   * - extract(options) → page_text
+   * - extract() → pageText
+   * - extract(options) → pageText
    * - extract(instruction) → defaultExtractSchema
    * - extract(instruction, schema) → schema-inferred
    * - extract(instruction, schema, options)

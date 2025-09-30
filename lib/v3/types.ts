@@ -162,7 +162,7 @@ export const defaultExtractSchema = z.object({
 });
 
 export const pageTextSchema = z.object({
-  page_text: z.string(),
+  pageText: z.string(),
 });
 
 export interface ObserveOptions {

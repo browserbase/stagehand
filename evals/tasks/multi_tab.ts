@@ -54,7 +54,7 @@ export const multi_tab: EvalFunction = async ({
     const page2text = await v3.extract({ page: activePage });
     const expectedPage2text = "You've made it to page 2";
 
-    if (page2text.page_text.includes(expectedPage2text)) {
+    if (page2text.pageText.includes(expectedPage2text)) {
       return {
         _success: true,
         debugUrl,
@@ -64,7 +64,7 @@ export const multi_tab: EvalFunction = async ({
     }
     return {
       _success: false,
-      message: `extracted page text: ${page2text.page_text} does not match expected page text: ${expectedPage2text}`,
+      message: `extracted page text: ${page2text.pageText} does not match expected page text: ${expectedPage2text}`,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

@@ -23,8 +23,8 @@ export const tab_handling: EvalFunction = async ({
     // extract all the text from the second page
     const extraction2 = await v3.extract({ page: page2 });
 
-    const extraction1Success = extraction1.page_text.includes("Welcome!");
-    const extraction2Success = extraction2.page_text.includes(
+    const extraction1Success = extraction1.pageText.includes("Welcome!");
+    const extraction2Success = extraction2.pageText.includes(
       "You’re on the other page",
     );
 

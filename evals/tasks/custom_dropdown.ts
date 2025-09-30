@@ -25,7 +25,7 @@ export const custom_dropdown: EvalFunction = async ({
 
     // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
     const extraction = await v3.extract();
-    const fullTree = extraction.page_text;
+    const fullTree = extraction.pageText;
 
     if (fullTree.includes("Canada")) {
       return {
