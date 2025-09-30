@@ -72,16 +72,11 @@ export class ActHandler {
         variables,
       );
 
-      const requestId =
-        (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-        `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-
       // Always ask for an action
       const actInferenceResponse = await actInference({
         instruction: observeActInstruction,
         domElements: combinedTree,
         llmClient: this.llmClient,
-        requestId,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -182,10 +177,6 @@ export class ActHandler {
       const combinedXpathMap2 = (secondSnapshot.combinedXpathMap ??
         {}) as Record<EncodedId, string>;
 
-      const requestId2 =
-        (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-        `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-
       const previousAction = `method: ${chosen.method}, description: ${chosen.description}, arguments: ${chosen.arguments}`;
 
       const stepTwoInstructions = buildStepTwoPrompt(
@@ -206,7 +197,6 @@ export class ActHandler {
         instruction: stepTwoInstructions,
         domElements: diffedTree,
         llmClient: this.llmClient,
-        requestId: requestId2,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -388,15 +378,10 @@ export class ActHandler {
             {},
           );
 
-          const requestId =
-            (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-            `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-
           const actInferenceResponse = await actInference({
             instruction,
             domElements: combinedTree,
             llmClient: this.llmClient,
-            requestId,
             userProvidedInstructions: this.systemPrompt,
             logger: v3Logger,
             logInferenceToFile: this.logInferenceToFile,
