@@ -77,10 +77,10 @@ export class ExtractHandler {
 
   async extract<T extends ZodTypeAny>(
     params: ExtractHandlerParams<T>,
-  ): Promise<z.infer<T> | { page_text: string }> {
+  ): Promise<z.infer<T> | { pageText: string }> {
     const { instruction, schema, page, selector, timeout } = params;
 
-    const doExtract = async (): Promise<z.infer<T> | { page_text: string }> => {
+    const doExtract = async (): Promise<z.infer<T> | { pageText: string }> => {
       // No-args → page text (parity with v2)
       const noArgs = !instruction && !schema;
       if (noArgs) {
@@ -90,7 +90,7 @@ export class ExtractHandler {
           focusSelector: focusSelector || undefined,
         });
 
-        const result = { page_text: snap.combinedTree };
+        const result = { pageText: snap.combinedTree };
         // Validate via the same schema used in v2
         return pageTextSchema.parse(result);
       }
@@ -204,7 +204,7 @@ export class ExtractHandler {
 
     return await Promise.race([
       doExtract(),
-      new Promise<z.infer<T> | { page_text: string }>((_, reject) => {
+      new Promise<z.infer<T> | { pageText: string }>((_, reject) => {
         setTimeout(
           () => reject(new Error(`extract() timed out after ${timeout}ms`)),
           timeout,
