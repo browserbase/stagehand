@@ -66,11 +66,11 @@ process.on("unhandledRejection", (reason) => {
  */
 const MAX_CONCURRENCY = process.env.EVAL_MAX_CONCURRENCY
   ? parseInt(process.env.EVAL_MAX_CONCURRENCY, 10)
-  : 3;
+  : 5;
 
 const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   ? parseInt(process.env.EVAL_TRIAL_COUNT, 10)
-  : 3;
+  : 1;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
 
