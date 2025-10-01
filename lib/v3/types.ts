@@ -91,6 +91,8 @@ export interface V3Options {
 
   /** Show a visual cursor overlay that follows our mouse events. */
   includeCursor?: boolean;
+  /** Directory used to persist cached actions for act(). */
+  cacheDir?: string;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */

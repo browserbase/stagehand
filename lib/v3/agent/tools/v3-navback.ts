@@ -11,6 +11,10 @@ export const createNavBackTool = (v3: V3) =>
     execute: async () => {
       const page = await v3.context.awaitActivePage();
       await page.goBack({ waitUntil: "domcontentloaded" });
+      v3.recordAgentReplayStep({
+        type: "navback",
+        waitUntil: "domcontentloaded",
+      });
       return { success: true };
     },
   });

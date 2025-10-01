@@ -13,30 +13,28 @@ import chalk from "chalk";
 // Load environment variables
 dotenv.config();
 
-const INSTRUCTION =
-  "go to the browserbase/stagehand github repo and extract the username of the all time top contributor";
-
 async function main() {
   console.log(`\n${chalk.bold("Stagehand 🤘 Operator Example")}\n`);
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
     env: "LOCAL",
-    verbose: 1,
+    verbose: 2,
+    cacheDir: "stagehand-agent-cache",
+    logInferenceToFile: false,
   });
 
   await stagehand.init();
 
   try {
-    const agent = stagehand.agent({
-      model: "computer-use-preview",
-      provider: "openai",
-    });
+    const page = stagehand.context.pages()[0];
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
+    );
+    const agent = stagehand.agent();
 
-    // Execute the agent
-    console.log(`${chalk.cyan("↳")} Instruction: ${INSTRUCTION}`);
     const result = await agent.execute({
-      instruction: INSTRUCTION,
+      instruction: "click the button",
       maxSteps: 20,
     });
 
@@ -47,7 +45,7 @@ async function main() {
   } catch (error) {
     console.log(`${chalk.red("✗")} Error: ${error}`);
   } finally {
-    await stagehand.close();
+    // await stagehand.close();
   }
 }
 

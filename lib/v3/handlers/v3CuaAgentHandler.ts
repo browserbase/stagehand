@@ -4,8 +4,6 @@ import {
   AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
-  KeyPressActionStashEntry,
-  TypeActionStashEntry,
 } from "../types/agent";
 import { LogLine } from "../types/log";
 import { V3 } from "@/lib/v3/v3";
@@ -15,6 +13,7 @@ import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { V3FunctionName } from "@/lib/v3/types";
 import { ToolSet } from "ai";
 import { computeActiveElementXpath } from "@/lib/v3/understudy/a11y/snapshot";
+import type { Action } from "../types/stagehand";
 
 export class V3CuaAgentHandler {
   private v3: V3;
@@ -142,8 +141,6 @@ export class V3CuaAgentHandler {
     }
 
     const start = Date.now();
-    // Reset global stash for this run
-    this.v3.clearActionStash();
     const result = await this.agent.execute({ options, logger: this.logger });
     const inferenceTimeMs = Date.now() - start;
     if (result.usage) {
@@ -161,94 +158,136 @@ export class V3CuaAgentHandler {
     action: AgentAction,
   ): Promise<ActionExecutionResult> {
     const page = await this.v3.context.awaitActivePage();
-    const wantXpath = Boolean(
-      this.options.stashActions ||
-        this.options.clientOptions?.stashActions ||
-        this.options.clientOptions?.returnXpathForActions,
-    );
+    const recording = this.v3.isAgentReplayActive();
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
-        const xpath = await page.click(x as number, y as number, {
-          button: (button as "left" | "right" | "middle") ?? "left",
-          clickCount: (clickCount as number) ?? 1,
-          returnXpath: wantXpath,
-        });
-        if (wantXpath)
-          this.v3.recordActionStash({
-            type: "click",
-            xpath: String(xpath ?? ""),
-            ts: Date.now(),
+        if (recording) {
+          const xpath = await page.click(x as number, y as number, {
+            button: (button as "left" | "right" | "middle") ?? "left",
+            clickCount: (clickCount as number) ?? 1,
+            returnXpath: true,
           });
+          const normalized = this.ensureXPath(xpath);
+          if (normalized) {
+            const stagehandAction: Action = {
+              selector: normalized,
+              description: this.describePointerAction("click", x, y),
+              method: "click",
+              arguments: [],
+            };
+            this.recordCuaActStep(
+              action,
+              [stagehandAction],
+              stagehandAction.description,
+            );
+          }
+        } else {
+          await page.click(x as number, y as number, {
+            button: (button as "left" | "right" | "middle") ?? "left",
+            clickCount: (clickCount as number) ?? 1,
+          });
+        }
         return { success: true };
       }
       case "double_click":
       case "doubleClick": {
         const { x, y } = action;
-        const xpath = await page.click(x as number, y as number, {
-          button: "left",
-          clickCount: 2,
-          returnXpath: wantXpath,
-        });
-        if (wantXpath)
-          this.v3.recordActionStash({
-            type: "doubleClick",
-            xpath: String(xpath ?? ""),
-            ts: Date.now(),
+        if (recording) {
+          const xpath = await page.click(x as number, y as number, {
+            button: "left",
+            clickCount: 2,
+            returnXpath: true,
           });
+          const normalized = this.ensureXPath(xpath);
+          if (normalized) {
+            const stagehandAction: Action = {
+              selector: normalized,
+              description: this.describePointerAction("double click", x, y),
+              method: "doubleClick",
+              arguments: [],
+            };
+            this.recordCuaActStep(
+              action,
+              [stagehandAction],
+              stagehandAction.description,
+            );
+          }
+        } else {
+          await page.click(x as number, y as number, {
+            button: "left",
+            clickCount: 2,
+          });
+        }
         return { success: true };
       }
       case "type": {
         const { text } = action;
         await page.type(String(text ?? ""));
-        if (wantXpath) {
+        if (recording) {
           const xpath = await computeActiveElementXpath(page);
-          this.v3.recordActionStash({
-            type: "type",
-            text: String(text ?? ""),
-            xpath: String(xpath ?? ""),
-            ts: Date.now(),
-          } as TypeActionStashEntry);
+          const normalized = this.ensureXPath(xpath);
+          if (normalized) {
+            const stagehandAction: Action = {
+              selector: normalized,
+              description: this.describeTypeAction(String(text ?? "")),
+              method: "type",
+              arguments: [String(text ?? "")],
+            };
+            this.recordCuaActStep(
+              action,
+              [stagehandAction],
+              stagehandAction.description,
+            );
+          }
         }
         return { success: true };
       }
       case "keypress": {
         const { keys } = action;
-        if (Array.isArray(keys)) {
-          for (const k of keys) {
-            const mapped = mapKeyToPlaywright(String(k));
-            await page.keyPress(mapped);
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        const stagehandActions: Action[] = [];
+        for (const rawKey of keyList) {
+          const mapped = mapKeyToPlaywright(String(rawKey ?? ""));
+          await page.keyPress(mapped);
+          if (recording) {
+            stagehandActions.push({
+              selector: "xpath=/html",
+              description: `press ${mapped}`,
+              method: "press",
+              arguments: [mapped],
+            });
           }
         }
-        if (wantXpath) {
-          const mappedJoined = Array.isArray(keys)
-            ? keys.map((k) => mapKeyToPlaywright(String(k))).join(",")
-            : mapKeyToPlaywright(String(keys ?? ""));
-          this.v3.recordActionStash({
-            type: "keyPress",
-            keys: mappedJoined,
-            ts: Date.now(),
-          } as KeyPressActionStashEntry);
+        if (recording && stagehandActions.length > 0) {
+          this.recordCuaActStep(
+            action,
+            stagehandActions,
+            stagehandActions
+              .map((a) => a.description)
+              .filter(Boolean)
+              .join(", ") || "keypress",
+          );
         }
         return { success: true };
       }
       case "scroll": {
         const { x, y, scroll_x = 0, scroll_y = 0 } = action;
-        const xpath = await page.scroll(
+        await page.scroll(
           (x as number) ?? 0,
           (y as number) ?? 0,
           (scroll_x as number) ?? 0,
           (scroll_y as number) ?? 0,
-          { returnXpath: wantXpath },
         );
-        if (wantXpath)
-          this.v3.recordActionStash({
-            type: "scroll",
-            xpath: String(xpath ?? ""),
-            dx: (scroll_x as number) ?? 0,
-            dy: (scroll_y as number) ?? 0,
-            ts: Date.now(),
-          });
+        this.v3.recordAgentReplayStep({
+          type: "scroll",
+          deltaX: Number(scroll_x ?? 0),
+          deltaY: Number(scroll_y ?? 0),
+          anchor:
+            typeof x === "number" && typeof y === "number"
+              ? { x: Math.round(x), y: Math.round(y) }
+              : undefined,
+        });
         return { success: true };
       }
       case "drag": {
@@ -256,18 +295,32 @@ export class V3CuaAgentHandler {
         if (Array.isArray(path) && path.length >= 2) {
           const start = path[0];
           const end = path[path.length - 1];
-          const xps = await page.dragAndDrop(start.x, start.y, end.x, end.y, {
-            steps: Math.min(20, Math.max(5, path.length)),
-            delay: 10,
-            returnXpath: wantXpath,
-          });
-          if (wantXpath) {
+          if (recording) {
+            const xps = await page.dragAndDrop(start.x, start.y, end.x, end.y, {
+              steps: Math.min(20, Math.max(5, path.length)),
+              delay: 10,
+              returnXpath: true,
+            });
             const [fromXpath, toXpath] = (xps as [string, string]) || ["", ""];
-            this.v3.recordActionStash({
-              type: "dragAndDrop",
-              fromXpath,
-              toXpath,
-              ts: Date.now(),
+            const from = this.ensureXPath(fromXpath);
+            const to = this.ensureXPath(toXpath);
+            if (from && to) {
+              const stagehandAction: Action = {
+                selector: from,
+                description: this.describeDragAction(),
+                method: "dragAndDrop",
+                arguments: [to],
+              };
+              this.recordCuaActStep(
+                action,
+                [stagehandAction],
+                stagehandAction.description,
+              );
+            }
+          } else {
+            await page.dragAndDrop(start.x, start.y, end.x, end.y, {
+              steps: Math.min(20, Math.max(5, path.length)),
+              delay: 10,
             });
           }
         }
@@ -280,6 +333,9 @@ export class V3CuaAgentHandler {
       case "wait": {
         const time = action?.timeMs ?? 1000;
         await new Promise((r) => setTimeout(r, time));
+        if (time > 0 && recording) {
+          this.v3.recordAgentReplayStep({ type: "wait", timeMs: Number(time) });
+        }
         return { success: true };
       }
       case "screenshot": {
@@ -297,6 +353,67 @@ export class V3CuaAgentHandler {
           error: `Unknown action ${String(action.type)}`,
         };
     }
+  }
+
+  private ensureXPath(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return trimmed.startsWith("xpath=") ? trimmed : `xpath=${trimmed}`;
+  }
+
+  private describePointerAction(kind: string, x: unknown, y: unknown): string {
+    const nx = Number(x);
+    const ny = Number(y);
+    if (Number.isFinite(nx) && Number.isFinite(ny)) {
+      return `${kind} at (${Math.round(nx)}, ${Math.round(ny)})`;
+    }
+    return kind;
+  }
+
+  private describeTypeAction(text: string): string {
+    const snippet = text.length > 30 ? `${text.slice(0, 27)}...` : text;
+    return `type "${snippet}"`;
+  }
+
+  private describeDragAction(): string {
+    return "drag and drop";
+  }
+
+  private buildInstructionFallback(
+    agentAction: AgentAction,
+    fallback: string,
+  ): string {
+    const raw =
+      (typeof agentAction.action === "string" && agentAction.action.trim()) ||
+      (typeof agentAction.reasoning === "string" &&
+        agentAction.reasoning.trim());
+    return raw && raw.length > 0 ? raw : fallback;
+  }
+
+  private recordCuaActStep(
+    agentAction: AgentAction,
+    stagehandActions: Action[],
+    fallback: string,
+  ): void {
+    if (!stagehandActions.length) return;
+    const instruction = this.buildInstructionFallback(agentAction, fallback);
+    const description = stagehandActions[0]?.description || instruction;
+    const actions = stagehandActions.map((act) => ({
+      ...act,
+      description: act.description || description,
+    }));
+    this.v3.recordAgentReplayStep({
+      type: "act",
+      instruction,
+      actions,
+      actionDescription: description,
+      message:
+        typeof agentAction.reasoning === "string" &&
+        agentAction.reasoning.trim().length > 0
+          ? agentAction.reasoning.trim()
+          : undefined,
+    });
   }
 
   private async updateClientViewport(): Promise<void> {

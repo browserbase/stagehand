@@ -12,6 +12,7 @@ export const createGotoTool = (v3: V3) =>
       try {
         const page = await v3.context.awaitActivePage();
         await page.goto(url, { waitUntil: "load" });
+        v3.recordAgentReplayStep({ type: "goto", url, waitUntil: "load" });
         return { success: true, url };
       } catch (error) {
         return { success: false, error: error?.message ?? String(error) };
