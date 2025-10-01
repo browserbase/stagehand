@@ -54,6 +54,26 @@ export class StagehandAgentHandler {
     let completed = false;
     const collectedReasoning: string[] = [];
 
+    this.logger({
+      category: "agent",
+      message: `Executing agent task: ${options.instruction}`,
+      level: 1,
+      auxiliary: {
+        maxSteps: {
+          value: String(maxSteps),
+          type: "integer",
+        },
+        hasSystemInstructions: {
+          value: String(!!this.systemInstructions),
+          type: "boolean",
+        },
+        hasCustomTools: {
+          value: String(!!this.tools),
+          type: "boolean",
+        },
+      },
+    });
+
     try {
       const systemPrompt = this.buildSystemPrompt(
         options.instruction,
@@ -61,6 +81,27 @@ export class StagehandAgentHandler {
       );
       const defaultTools = this.createTools();
       const allTools = { ...defaultTools, ...this.tools };
+
+      this.logger({
+        category: "agent",
+        message: "Initialized agent configuration",
+        level: 2,
+        auxiliary: {
+          systemPromptLength: {
+            value: String(systemPrompt.length),
+            type: "integer",
+          },
+          toolCount: {
+            value: String(Object.keys(allTools).length),
+            type: "integer",
+          },
+          tools: {
+            value: Object.keys(allTools).join(", "),
+            type: "string",
+          },
+        },
+      });
+
       const messages: CoreMessage[] = [
         {
           role: "user",
@@ -99,12 +140,6 @@ export class StagehandAgentHandler {
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
-          this.logger({
-            category: "agent",
-            message: `Step finished: ${event.finishReason}`,
-            level: 2,
-          });
-
           if (event.toolCalls && event.toolCalls.length > 0) {
             for (let i = 0; i < event.toolCalls.length; i++) {
               const toolCall = event.toolCalls[i];
@@ -114,10 +149,26 @@ export class StagehandAgentHandler {
                 collectedReasoning.push(event.text);
                 this.logger({
                   category: "agent",
-                  message: `reasoning: ${event.text}`,
+                  message: `Agent Reasoning: ${event.text}`,
                   level: 1,
                 });
               }
+
+              this.logger({
+                category: "agent",
+                message: `Agent calling tool: ${toolCall.toolName}`,
+                level: 1,
+                auxiliary: {
+                  toolName: {
+                    value: toolCall.toolName,
+                    type: "string",
+                  },
+                  arguments: {
+                    value: JSON.stringify(args),
+                    type: "object",
+                  },
+                },
+              });
 
               if (toolCall.toolName === "close") {
                 completed = true;
@@ -169,6 +220,12 @@ export class StagehandAgentHandler {
 
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
+
+      this.logger({
+        category: "agent",
+        message: `Agent task ${completed ? "completed" : "finished"}`,
+        level: 1,
+      });
 
       return {
         success: completed,
