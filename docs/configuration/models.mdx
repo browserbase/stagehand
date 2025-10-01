@@ -36,6 +36,7 @@ OPENAI_API_KEY=your_openai_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
 GOOGLE_API_KEY=your_google_key_here
 GROQ_API_KEY=your_groq_key_here
+CEREBRAS_API_KEY=your_cerebras_key_here
 ```
 </CodeGroup>
 
@@ -151,7 +152,78 @@ stagehand = Stagehand(
 ```
 </CodeGroup>
 </Tab>
+
+<Tab title="Cerebras">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  modelName: "cerebras-gpt-oss-120b",
+  modelClientOptions: {
+    apiKey: process.env.CEREBRAS_API_KEY,
+  },
+});
+```
+```python Python
+import os
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    model_name="cerebras-gpt-oss-120b",
+    model_api_key=os.getenv("CEREBRAS_API_KEY")
+)
+```
+</CodeGroup>
+</Tab>
 </Tabs>
+
+## Cerebras Models
+
+Cerebras provides high-speed inference with competitive pricing for Llama models. Their infrastructure is optimized for fast token generation, making them ideal for development and high-throughput automation tasks.
+
+### Available Models
+
+| Model | Size | Best For | Speed |
+|-------|------|----------|-------|
+| `cerebras-llama-3.3-70b` | 70B parameters | Complex reasoning, production | Fast |
+| `cerebras-llama-3.1-8b` | 8B parameters | Development, simple tasks | Very Fast |
+| `cerebras-qwen-3-32b` | 32B parameters | Balanced performance, general use | Fast |
+| `cerebras-qwen-3-235b-a22b-instruct-2507` | 235B parameters | Advanced reasoning, complex tasks | Medium |
+| `cerebras-qwen-3-235b-a22b-thinking-2507` | 235B parameters | Deep reasoning, problem solving | Medium |
+| `cerebras-qwen-3-coder-480b` | 480B parameters | Code generation, programming tasks | Medium |
+| `cerebras-llama-4-maverick-17b-128e-instruct` | 17B parameters | Instruction following, fast inference | Very Fast |
+| `cerebras-llama-4-scout-17b-16e-instruct` | 17B parameters | Scouting, exploration tasks | Very Fast |
+| `cerebras-gpt-oss-120b` | 120B parameters | Open source GPT alternative | Fast |
+
+### Cerebras Configuration
+
+Cerebras models use a custom client that handles the API authentication and model name transformation:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { CerebrasClient } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  llmClient: new CerebrasClient({
+    modelName: "cerebras-qwen-3-32b",
+    clientOptions: {
+      apiKey: process.env.CEREBRAS_API_KEY,
+    },
+    logger: (message) => console.log(message),
+  }),
+});
+```
+
+### Getting Started with Cerebras
+
+1. **Get API Key**: Sign up at [Cerebras Cloud](https://www.cerebras.net/) and obtain your API key
+2. **Set Environment Variable**: Add `CEREBRAS_API_KEY=your_key_here` to your `.env` file
+3. **Choose Model**: Select from the available models:
+   - **Fast & Simple**: `cerebras-llama-3.1-8b`, `cerebras-llama-4-scout-17b-16e-instruct`
+   - **Balanced**: `cerebras-qwen-3-32b`, `cerebras-llama-3.3-70b`
+   - **Advanced**: `cerebras-qwen-3-235b-a22b-instruct-2507`, `cerebras-qwen-3-coder-480b`
+4. **Configure Client**: Use the CerebrasClient for optimal performance
 
 ## Custom LLM Integration
 
@@ -248,6 +320,7 @@ For each provider, use their latest models that meet these requirements. Some ex
 - **OpenAI**: GPT-4 series or newer
 - **Anthropic**: Claude 3 series or newer 
 - **Google**: Gemini 2 series or newer
+- **Cerebras**: Llama 3.1+ series (both 8B and 70B models supported)
 - **Other providers**: Latest models with structured output support
 
 **Note**: Avoid base language models without structured output capabilities or fine-tuning for instruction following. When in doubt, check our [Model Evaluation](https://www.stagehand.dev/evals) page for up-to-date recommendations.
