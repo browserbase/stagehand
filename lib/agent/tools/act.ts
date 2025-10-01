@@ -8,15 +8,27 @@ export const createActTool = (stagehand: Stagehand, executionModel?: string) =>
     description: "Perform an action on the page (click, type)",
     parameters: z.object({
       action: z.string()
-        .describe(`Describe what to click, or type within in a short, specific phrase that mentions the element type. 
+        .describe(`Describe the click, type, fill, scroll action within in a short, specific phrase that mentions the element type. 
           Examples:
           - "click the Login button"
           - "click the language dropdown"
           - type "John" into the first name input
-          - type "Doe" into the last name input`),
+          - type "Doe" into the last name input.
+          When attempting to fill a field you can say 'fill the field x with the value y'.`),
     }),
     execute: async ({ action }) => {
       try {
+        stagehand.logger({
+          category: "agent",
+          message: `Agent calling tool: act`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: action,
+              type: "string",
+            },
+          },
+        });
         const builtPrompt = buildActObservePrompt(
           action,
           Object.values(SupportedPlaywrightAction),

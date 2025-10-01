@@ -49,6 +49,17 @@ export const createFillFormTool = (
     }),
 
     execute: async ({ fields }) => {
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: fillForm`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify(fields),
+            type: "object",
+          },
+        },
+      });
       const instruction = `Return observation results for the following actions: ${fields
         .map((field) => field.action)
         .join(", ")}`;

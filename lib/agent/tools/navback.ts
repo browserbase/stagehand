@@ -9,6 +9,11 @@ export const createNavBackTool = (stagehand: Stagehand) =>
       reasoning: z.string().describe("Why you're going back"),
     }),
     execute: async () => {
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: navback`,
+        level: 1,
+      });
       await stagehand.page.goBack();
       return { success: true };
     },

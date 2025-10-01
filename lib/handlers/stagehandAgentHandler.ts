@@ -154,30 +154,15 @@ export class StagehandAgentHandler {
                 });
               }
 
-              this.logger({
-                category: "agent",
-                message: `Agent calling tool: ${toolCall.toolName}`,
-                level: 1,
-                auxiliary: {
-                  toolName: {
-                    value: toolCall.toolName,
-                    type: "string",
-                  },
-                  arguments: {
-                    value: JSON.stringify(args),
-                    type: "object",
-                  },
-                },
-              });
-
               if (toolCall.toolName === "close") {
                 completed = true;
-                if (args?.taskComplete) {
-                  const closeReasoning = args.reasoning as string;
+                const { success, reasoning } = args;
+                if (success) {
+                  const closeReasoning = reasoning as string;
                   const allReasoning = collectedReasoning.join(" ");
                   finalMessage = closeReasoning
                     ? `${allReasoning} ${closeReasoning}`.trim()
-                    : allReasoning || "Task completed successfully";
+                    : allReasoning || `Task completed with success: ${success}`;
                 }
               }
 
@@ -201,7 +186,7 @@ export class StagehandAgentHandler {
                 reasoning: event.text || undefined,
                 taskCompleted:
                   toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
+                    ? (args?.success as boolean)
                     : false,
                 ...args,
                 ...getPlaywrightArguments(),
@@ -278,13 +263,13 @@ IMPORTANT GUIDELINES:
 1. Always start by understanding the current page state
 2. Use the screenshot tool to verify page state when needed
 3. Use appropriate tools for each action
-4. When the task is complete, use the "close" tool with taskComplete: true
-5. If the task cannot be completed, use "close" with taskComplete: false
+4. When the task is complete, use the "close" tool with success: true
+5. If the task cannot be completed, use "close" with success: false
 
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
 - ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
-- act: Perform a specific atomic action (click, type, etc.)
+- act: Perform a specific atomic action (click, type, etc.). For filling a field, you can say 'fill the field x with the value y'.
 - extract: Extract structured data
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
