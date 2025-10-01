@@ -237,7 +237,8 @@ STRATEGY:
 - Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
 - Keep actions atomic and verify outcomes before proceeding.
 
-For each action, provide clear reasoning about why you're taking that step.`;
+For each action, provide clear reasoning about why you're taking that step.
+Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url}.`;
   }
 
   private createTools() {
