@@ -29,7 +29,7 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
     navback: createNavBackTool(v3),
     screenshot: createScreenshotTool(v3),
     scroll: createScrollTool(v3),
-    wait: createWaitTool(),
+    wait: createWaitTool(v3),
   };
 }
 

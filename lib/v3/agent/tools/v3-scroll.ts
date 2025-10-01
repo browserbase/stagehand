@@ -20,6 +20,12 @@ export const createScrollTool = (v3: V3) =>
       const cy = Math.max(0, Math.floor(h / 2));
       const deltaY = direction === "up" ? -Math.abs(pixels) : Math.abs(pixels);
       await page.scroll(cx, cy, 0, deltaY);
+      v3.recordAgentReplayStep({
+        type: "scroll",
+        deltaX: 0,
+        deltaY,
+        anchor: { x: cx, y: cy },
+      });
       return { success: true, pixels };
     },
   });

@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import type { V3 } from "@/lib/v3/v3";
+import type { Action } from "@/lib/v3/types/stagehand";
 
 export const createActTool = (v3: V3, executionModel?: string) =>
   tool({
@@ -16,6 +17,14 @@ export const createActTool = (v3: V3, executionModel?: string) =>
     execute: async ({ action }) => {
       try {
         const result = await v3.act(action, { modelName: executionModel });
+        const actions = (result.actions as Action[] | undefined) ?? [];
+        v3.recordAgentReplayStep({
+          type: "act",
+          instruction: action,
+          actions,
+          actionDescription: result.actionDescription,
+          message: result.message,
+        });
         return {
           success: result.success ?? true,
           action: result?.actionDescription ?? action,

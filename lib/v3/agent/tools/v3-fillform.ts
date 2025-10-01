@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import type { V3 } from "@/lib/v3/v3";
+import type { Action } from "@/lib/v3/types/stagehand";
 
 export const createFillFormTool = (v3: V3, executionModel?: string) =>
   tool({
@@ -29,10 +30,20 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
       });
 
       const completed = [] as unknown[];
+      const replayableActions: Action[] = [];
       for (const res of observeResults) {
         const actResult = await v3.act(res);
         completed.push(actResult);
+        if (Array.isArray(actResult.actions)) {
+          replayableActions.push(...(actResult.actions as Action[]));
+        }
       }
+      v3.recordAgentReplayStep({
+        type: "fillForm",
+        fields,
+        observeResults,
+        actions: replayableActions,
+      });
       return { success: true, actions: completed };
     },
   });

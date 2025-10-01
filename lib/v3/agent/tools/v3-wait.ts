@@ -1,7 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
+import type { V3 } from "@/lib/v3/v3";
 
-export const createWaitTool = () =>
+export const createWaitTool = (v3: V3) =>
   tool({
     description: "Wait for a specified time",
     parameters: z.object({
@@ -9,6 +10,9 @@ export const createWaitTool = () =>
     }),
     execute: async ({ timeMs }) => {
       await new Promise((resolve) => setTimeout(resolve, timeMs));
+      if (timeMs > 0) {
+        v3.recordAgentReplayStep({ type: "wait", timeMs });
+      }
       return { success: true, waited: timeMs };
     },
   });

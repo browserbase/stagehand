@@ -49,12 +49,23 @@ import process from "process";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { createHash } from "crypto";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "./mcp/utils";
 import { defaultExtractSchema, pageTextSchema } from "./types";
-import type { ActionStashEntry } from "./types/agent";
-import { performUnderstudyMethod } from "@/lib/v3/handlers/handlerUtils/actHandlerUtils";
+import type {
+  CachedActEntry,
+  AgentReplayStep,
+  AgentReplayActStep,
+  AgentReplayFillFormStep,
+  AgentReplayGotoStep,
+  AgentReplayScrollStep,
+  AgentReplayWaitStep,
+  AgentReplayNavBackStep,
+  CachedAgentEntry,
+  SanitizedAgentExecuteOptions,
+} from "./types/cache";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 dotenv.config({ path: ".env" });
@@ -99,7 +110,8 @@ export class V3 {
   private readonly instanceId: string;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
-  private _actionStash: ActionStashEntry[] = [];
+  private cacheDir?: string;
+  private _agentReplayRecording: AgentReplayStep[] | null = null;
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -127,98 +139,46 @@ export class V3 {
     return Promise.resolve(this.v3Metrics);
   }
 
-  /**
-   * Async getter for the current action stash as a read-only copy.
-   */
-  public async actionStash(): Promise<ReadonlyArray<ActionStashEntry>> {
-    return Object.freeze([...this._actionStash]);
+  private cloneForCache<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
   }
 
-  /**
-   * Clear the internal action stash.
-   */
-  public clearActionStash(): void {
-    this._actionStash = [];
+  private beginAgentReplayRecording(): void {
+    this._agentReplayRecording = [];
   }
 
-  /**
-   * Append an entry to the action stash.
-   */
-  public recordActionStash(entry: ActionStashEntry): void {
-    this._actionStash.push(entry);
+  private endAgentReplayRecording(): AgentReplayStep[] {
+    if (!this._agentReplayRecording) return [];
+    const steps = this.cloneForCache(this._agentReplayRecording);
+    this._agentReplayRecording = null;
+    return steps;
   }
 
-  /**
-   * Replay a sequence of stashed coordinate-based actions using their XPaths.
-   * - click/doubleClick: resolves XPath → element and clicks it.
-   * - scroll: scrolls the element into view.
-   * - dragAndDrop: resolves both endpoints and performs a drag between them.
-   */
-  public async replay(stash: ReadonlyArray<ActionStashEntry>): Promise<void> {
-    const page = await this.context.awaitActivePage();
-    const list = [...stash].sort((a, b) => (a.ts || 0) - (b.ts || 0));
-    let prevTs: number | null = null;
-    for (const entry of list) {
-      if (prevTs !== null) {
-        const delay = Math.max(0, 0.5 * (entry.ts || 0) - prevTs);
-        if (delay) await new Promise((r) => setTimeout(r, delay));
-      }
-      prevTs = entry.ts || Date.now();
-      if (entry.type === "click") {
-        await performUnderstudyMethod(
-          page,
-          page.mainFrame(),
-          "click",
-          entry.xpath,
-          [],
-        );
-      } else if (entry.type === "doubleClick") {
-        await performUnderstudyMethod(
-          page,
-          page.mainFrame(),
-          "doubleClick",
-          entry.xpath,
-          [],
-        );
-      } else if (entry.type === "scroll") {
-        await performUnderstudyMethod(
-          page,
-          page.mainFrame(),
-          "scrollByPixelOffset",
-          entry.xpath,
-          [entry.dx, entry.dy],
-        );
-      } else if (entry.type === "dragAndDrop") {
-        await performUnderstudyMethod(
-          page,
-          page.mainFrame(),
-          "dragAndDrop",
-          entry.fromXpath,
-          [entry.toXpath],
-        );
-      } else if (entry.type === "type") {
-        await performUnderstudyMethod(
-          page,
-          page.mainFrame(),
-          "type",
-          entry.xpath,
-          [entry.text],
-        );
-      } else if (entry.type === "keyPress") {
-        const parts = String(entry.keys || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        for (const k of parts) {
-          await performUnderstudyMethod(
-            page,
-            page.mainFrame(),
-            "press",
-            "xpath=/html", // global
-            [k],
-          );
-        }
-      }
+  private discardAgentReplayRecording(): void {
+    this._agentReplayRecording = null;
+  }
+
+  private isAgentReplayRecording(): boolean {
+    return Array.isArray(this._agentReplayRecording);
+  }
+
+  public isAgentReplayActive(): boolean {
+    return this.isAgentReplayRecording();
+  }
+
+  public recordAgentReplayStep(step: AgentReplayStep): void {
+    if (!this.isAgentReplayRecording()) return;
+    try {
+      this._agentReplayRecording!.push(this.cloneForCache(step));
+    } catch (err) {
+      this.logger({
+        category: "cache",
+        message: "failed to record agent replay step",
+        level: 2,
+        auxiliary: {
+          error: { value: String(err), type: "string" },
+        },
+      });
     }
   }
 
@@ -331,6 +291,25 @@ export class V3 {
         this.modelClientOptions,
       );
     }
+
+    if (opts.cacheDir) {
+      const resolvedCacheDir = path.resolve(opts.cacheDir);
+      try {
+        fs.mkdirSync(resolvedCacheDir, { recursive: true });
+        this.cacheDir = resolvedCacheDir;
+      } catch (err) {
+        this.logger({
+          category: "cache",
+          message: `unable to initialize act cache directory: ${resolvedCacheDir}`,
+          level: 1,
+          auxiliary: {
+            error: { value: String(err), type: "string" },
+          },
+        });
+        this.cacheDir = undefined;
+      }
+    }
+
     this.opts = opts;
     // Track instance for global process guard handling
     V3._instances.add(this);
@@ -746,6 +725,52 @@ export class V3 {
         page = await this.ctx!.awaitActivePage();
       }
 
+      let cacheKey: string | undefined;
+      let pageUrlForCache: string | undefined;
+      const canUseCache =
+        !!this.cacheDir &&
+        typeof input === "string" &&
+        !this.isAgentReplayRecording();
+      if (canUseCache) {
+        pageUrlForCache = await this.safeGetPageUrl(page);
+        cacheKey = this.buildActCacheKey(
+          input,
+          pageUrlForCache,
+          options?.variables,
+        );
+        const cachedEntry = await this.readActCacheEntry(cacheKey);
+        if (cachedEntry) {
+          this.logger({
+            category: "cache",
+            message: "act cache hit",
+            level: 1,
+            auxiliary: {
+              instruction: { value: input, type: "string" },
+              url: {
+                value: pageUrlForCache ?? "",
+                type: "string",
+              },
+            },
+          });
+          const replayResult = await this.replayCachedActions(
+            cachedEntry,
+            page,
+            options?.timeout,
+          );
+          this.addToHistory(
+            "act",
+            {
+              instruction: input,
+              variables: options?.variables,
+              timeout: options?.timeout,
+              cacheHit: true,
+            },
+            replayResult,
+          );
+          return replayResult;
+        }
+      }
+
       const handlerParams: ActHandlerParams = {
         instruction: input,
         page: page!,
@@ -763,6 +788,33 @@ export class V3 {
         },
         actResult,
       );
+
+      if (
+        cacheKey &&
+        pageUrlForCache !== undefined &&
+        actResult.success &&
+        Array.isArray(actResult.actions) &&
+        actResult.actions.length > 0
+      ) {
+        await this.writeActCacheEntry(cacheKey, {
+          version: 1,
+          instruction: input.trim(),
+          url: pageUrlForCache,
+          variables: options?.variables ?? {},
+          actions: actResult.actions,
+          actionDescription: actResult.actionDescription,
+          message: actResult.message,
+        });
+        this.logger({
+          category: "cache",
+          message: "act cache stored",
+          level: 2,
+          auxiliary: {
+            instruction: { value: input, type: "string" },
+            url: { value: pageUrlForCache, type: "string" },
+          },
+        });
+      }
       return actResult;
     });
   }
@@ -1166,6 +1218,407 @@ export class V3 {
     throw new Error("Unsupported page object.");
   }
 
+  private buildActCacheKey(
+    instruction: string,
+    url: string,
+    variables?: Record<string, string>,
+  ): string {
+    const payload = JSON.stringify({
+      instruction: instruction.trim(),
+      url,
+      variables: variables ?? {},
+    });
+    return createHash("sha256").update(payload).digest("hex");
+  }
+
+  private async safeGetPageUrl(page: Page): Promise<string> {
+    try {
+      return await page.url();
+    } catch {
+      return "";
+    }
+  }
+
+  private async readActCacheEntry(
+    cacheKey: string,
+  ): Promise<CachedActEntry | null> {
+    if (!this.cacheDir) return null;
+    const filePath = path.join(this.cacheDir, `${cacheKey}.json`);
+    try {
+      const raw = await fs.promises.readFile(filePath, "utf8");
+      const parsed = JSON.parse(raw) as CachedActEntry;
+      if (parsed?.version !== 1) return null;
+      if (!Array.isArray(parsed.actions) || parsed.actions.length === 0) {
+        return null;
+      }
+      if (!parsed.variables || typeof parsed.variables !== "object") {
+        parsed.variables = {};
+      }
+      return parsed;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== "ENOENT") {
+        this.logger({
+          category: "cache",
+          message: `failed to read act cache entry: ${filePath}`,
+          level: 2,
+          auxiliary: {
+            error: { value: String(err), type: "string" },
+          },
+        });
+      }
+      return null;
+    }
+  }
+
+  private async writeActCacheEntry(
+    cacheKey: string,
+    entry: CachedActEntry,
+  ): Promise<void> {
+    if (!this.cacheDir) return;
+    const dir = this.cacheDir;
+    try {
+      await fs.promises.mkdir(dir, { recursive: true });
+      const filePath = path.join(dir, `${cacheKey}.json`);
+      await fs.promises.writeFile(
+        filePath,
+        JSON.stringify(entry, null, 2),
+        "utf8",
+      );
+    } catch (err) {
+      this.logger({
+        category: "cache",
+        message: "failed to write act cache entry",
+        level: 1,
+        auxiliary: {
+          error: { value: String(err), type: "string" },
+        },
+      });
+    }
+  }
+
+  private sanitizeAgentExecuteOptions(
+    options?: AgentExecuteOptions,
+  ): SanitizedAgentExecuteOptions {
+    if (!options) return {};
+    const sanitized: SanitizedAgentExecuteOptions = {};
+    if (typeof options.maxSteps === "number")
+      sanitized.maxSteps = options.maxSteps;
+    if (typeof options.autoScreenshot === "boolean")
+      sanitized.autoScreenshot = options.autoScreenshot;
+    if (typeof options.waitBetweenActions === "number")
+      sanitized.waitBetweenActions = options.waitBetweenActions;
+    if (typeof options.context === "string" && options.context.trim())
+      sanitized.context = options.context.trim();
+    return sanitized;
+  }
+
+  private buildAgentCacheSignature(agentOptions?: AgentConfig): string {
+    const toolKeys = agentOptions?.tools
+      ? Object.keys(agentOptions.tools).sort()
+      : undefined;
+    const integrationSignatures = agentOptions?.integrations
+      ? agentOptions.integrations.map((integration) =>
+          typeof integration === "string" ? integration : "client",
+        )
+      : undefined;
+    return JSON.stringify({
+      v3Model: this.modelName,
+      systemPrompt: this.opts.systemPrompt ?? "",
+      agent: {
+        provider: agentOptions?.provider ?? null,
+        model: agentOptions?.model ?? null,
+        executionModel: agentOptions?.executionModel ?? null,
+        instructions: agentOptions?.instructions ?? null,
+        toolKeys,
+        integrations: integrationSignatures,
+      },
+    });
+  }
+
+  private buildAgentCacheKey(
+    instruction: string,
+    startUrl: string,
+    options: SanitizedAgentExecuteOptions,
+    configSignature: string,
+  ): string {
+    const payload = {
+      instruction: instruction.trim(),
+      startUrl,
+      options,
+      configSignature,
+    };
+    return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+  }
+
+  private async readAgentCacheEntry(
+    cacheKey: string,
+  ): Promise<CachedAgentEntry | null> {
+    if (!this.cacheDir) return null;
+    const filePath = path.join(this.cacheDir, `agent-${cacheKey}.json`);
+    try {
+      const raw = await fs.promises.readFile(filePath, "utf8");
+      const parsed = JSON.parse(raw) as CachedAgentEntry;
+      if (parsed?.version !== 1) return null;
+      return parsed;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== "ENOENT") {
+        this.logger({
+          category: "cache",
+          message: `failed to read agent cache entry: ${filePath}`,
+          level: 1,
+          auxiliary: {
+            error: { value: String(err), type: "string" },
+          },
+        });
+      }
+      return null;
+    }
+  }
+
+  private async writeAgentCacheEntry(
+    cacheKey: string,
+    entry: CachedAgentEntry,
+  ): Promise<void> {
+    if (!this.cacheDir) return;
+    try {
+      await fs.promises.mkdir(this.cacheDir, { recursive: true });
+      const filePath = path.join(this.cacheDir, `agent-${cacheKey}.json`);
+      await fs.promises.writeFile(
+        filePath,
+        JSON.stringify(this.cloneForCache(entry), null, 2),
+        "utf8",
+      );
+    } catch (err) {
+      this.logger({
+        category: "cache",
+        message: "failed to write agent cache entry",
+        level: 1,
+        auxiliary: {
+          error: { value: String(err), type: "string" },
+        },
+      });
+    }
+  }
+
+  private async replayAgentCacheEntry(
+    entry: CachedAgentEntry,
+  ): Promise<AgentResult | null> {
+    if (!this.ctx || !this.actHandler) return null;
+    try {
+      for (const step of entry.steps ?? []) {
+        await this.executeAgentReplayStep(step);
+      }
+      const result = this.cloneForCache(entry.result);
+      result.metadata = {
+        ...(result.metadata ?? {}),
+        cacheHit: true,
+        cacheTimestamp: entry.timestamp,
+      };
+      return result;
+    } catch (err) {
+      this.logger({
+        category: "cache",
+        message: "agent cache replay failed",
+        level: 1,
+        auxiliary: {
+          error: { value: String(err), type: "string" },
+        },
+      });
+      return null;
+    }
+  }
+
+  private async executeAgentReplayStep(step: AgentReplayStep): Promise<void> {
+    switch (step.type) {
+      case "act":
+        await this.replayAgentActStep(step as AgentReplayActStep);
+        return;
+      case "fillForm":
+        await this.replayAgentFillFormStep(step as AgentReplayFillFormStep);
+        return;
+      case "goto":
+        await this.replayAgentGotoStep(step as AgentReplayGotoStep);
+        return;
+      case "scroll":
+        await this.replayAgentScrollStep(step as AgentReplayScrollStep);
+        return;
+      case "wait":
+        await this.replayAgentWaitStep(step as AgentReplayWaitStep);
+        return;
+      case "navback":
+        await this.replayAgentNavBackStep(step as AgentReplayNavBackStep);
+        return;
+      case "close":
+      case "extract":
+      case "screenshot":
+      case "ariaTree":
+        return;
+      default:
+        // Non-mutating tools (screenshot, extract, etc.) are skipped during replay
+        this.logger({
+          category: "cache",
+          message: `agent cache skipping step type: ${step.type}`,
+          level: 2,
+        });
+    }
+  }
+
+  private async replayAgentActStep(step: AgentReplayActStep): Promise<void> {
+    if (!this.actHandler)
+      throw new Error("V3 not initialized. Call init() before agent replay.");
+    const actions = Array.isArray(step.actions) ? step.actions : [];
+    if (actions.length > 0) {
+      const page = await this.ctx!.awaitActivePage();
+      for (const action of actions) {
+        await this.actHandler.actFromObserveResult(action, page);
+      }
+      return;
+    }
+    await this.act(step.instruction, { timeout: step.timeout });
+  }
+
+  private async replayAgentFillFormStep(
+    step: AgentReplayFillFormStep,
+  ): Promise<void> {
+    if (!this.actHandler)
+      throw new Error("V3 not initialized. Call init() before agent replay.");
+    const actions =
+      Array.isArray(step.actions) && step.actions.length > 0
+        ? step.actions
+        : (step.observeResults ?? []);
+    if (!Array.isArray(actions) || actions.length === 0) return;
+    const page = await this.ctx!.awaitActivePage();
+    for (const action of actions) {
+      await this.actHandler.actFromObserveResult(action, page);
+    }
+  }
+
+  private async replayAgentGotoStep(step: AgentReplayGotoStep): Promise<void> {
+    const page = await this.ctx!.awaitActivePage();
+    await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
+  }
+
+  private async replayAgentScrollStep(
+    step: AgentReplayScrollStep,
+  ): Promise<void> {
+    const page = await this.ctx!.awaitActivePage();
+    let anchor = step.anchor;
+    if (!anchor) {
+      anchor = await page
+        .mainFrame()
+        .evaluate<{ x: number; y: number }>(() => ({
+          x: Math.max(0, Math.floor(window.innerWidth / 2)),
+          y: Math.max(0, Math.floor(window.innerHeight / 2)),
+        }));
+    }
+    const deltaX = step.deltaX ?? 0;
+    const deltaY = step.deltaY ?? 0;
+    await page.scroll(
+      Math.round(anchor.x ?? 0),
+      Math.round(anchor.y ?? 0),
+      deltaX,
+      deltaY,
+    );
+  }
+
+  private async replayAgentWaitStep(step: AgentReplayWaitStep): Promise<void> {
+    if (!step.timeMs || step.timeMs <= 0) return;
+    await new Promise((resolve) => setTimeout(resolve, step.timeMs));
+  }
+
+  private async replayAgentNavBackStep(
+    step: AgentReplayNavBackStep,
+  ): Promise<void> {
+    const page = await this.ctx!.awaitActivePage();
+    await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
+  }
+
+  private async replayCachedActions(
+    entry: CachedActEntry,
+    page: Page,
+    timeout?: number,
+  ): Promise<ActResult> {
+    if (!this.actHandler) {
+      throw new Error("V3 not initialized. Call init() before act().");
+    }
+
+    const execute = async (): Promise<ActResult> => {
+      const actionResults: ActResult[] = [];
+      for (const action of entry.actions) {
+        const result = await this.actHandler!.actFromObserveResult(
+          action,
+          page,
+        );
+        actionResults.push(result);
+        if (!result.success) {
+          break;
+        }
+      }
+
+      if (actionResults.length === 0) {
+        return {
+          success: false,
+          message: "Failed to perform act: cached entry has no actions",
+          actionDescription: entry.actionDescription ?? entry.instruction,
+          actions: [],
+        };
+      }
+
+      const success = actionResults.every((r) => r.success);
+      const actions = actionResults.flatMap((r) => r.actions ?? []);
+      const message =
+        actionResults
+          .map((r) => r.message)
+          .filter((m) => m && m.trim().length > 0)
+          .join(" → ") ||
+        entry.message ||
+        `Replayed ${entry.actions.length} cached action${
+          entry.actions.length === 1 ? "" : "s"
+        }.`;
+      const actionDescription =
+        entry.actionDescription ||
+        actionResults[actionResults.length - 1]?.actionDescription ||
+        entry.actions[entry.actions.length - 1]?.description ||
+        entry.instruction;
+      return {
+        success,
+        message,
+        actionDescription,
+        actions,
+      };
+    };
+
+    return await this.runWithActTimeout(execute, timeout);
+  }
+
+  private async runWithActTimeout<T>(
+    run: () => Promise<T>,
+    timeout?: number,
+  ): Promise<T> {
+    if (!timeout) {
+      return await run();
+    }
+
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`act() timed out after ${timeout}ms`));
+      }, timeout);
+
+      void run().then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  }
+
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
@@ -1183,6 +1636,7 @@ export class V3 {
 
     // If a CUA provider is specified, use the CUA path
     if (options?.provider) {
+      const agentConfigSignature = this.buildAgentCacheSignature(options);
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
@@ -1208,12 +1662,104 @@ export class V3 {
               },
               tools,
             );
-            return handler.execute(instructionOrOptions);
+
+            const resolvedOptions: AgentExecuteOptions =
+              typeof instructionOrOptions === "string"
+                ? { instruction: instructionOrOptions }
+                : instructionOrOptions;
+            const instruction = resolvedOptions.instruction.trim();
+
+            const shouldAttemptCache =
+              !!this.cacheDir && instruction.length > 0;
+            const sanitizedOptions =
+              this.sanitizeAgentExecuteOptions(resolvedOptions);
+
+            let cacheKey: string | undefined;
+            let startUrl: string | undefined;
+            if (shouldAttemptCache) {
+              const startPage = await this.ctx!.awaitActivePage();
+              startUrl = await this.safeGetPageUrl(startPage);
+              cacheKey = this.buildAgentCacheKey(
+                instruction,
+                startUrl,
+                sanitizedOptions,
+                agentConfigSignature,
+              );
+              const cachedEntry = await this.readAgentCacheEntry(cacheKey);
+              if (cachedEntry) {
+                this.logger({
+                  category: "cache",
+                  message: "agent cache hit",
+                  level: 1,
+                  auxiliary: {
+                    instruction: { value: instruction, type: "string" },
+                    url: { value: startUrl, type: "string" },
+                  },
+                });
+                const replayed = await this.replayAgentCacheEntry(cachedEntry);
+                if (replayed) {
+                  return replayed;
+                }
+              }
+            }
+
+            let agentSteps: AgentReplayStep[] = [];
+            let recording = false;
+            if (shouldAttemptCache) {
+              this.beginAgentReplayRecording();
+              recording = true;
+            }
+
+            try {
+              const result = await handler.execute(instructionOrOptions);
+              if (recording) {
+                agentSteps = this.endAgentReplayRecording();
+              }
+
+              if (
+                shouldAttemptCache &&
+                cacheKey &&
+                startUrl !== undefined &&
+                result.success &&
+                agentSteps.length > 0
+              ) {
+                await this.writeAgentCacheEntry(cacheKey, {
+                  version: 1,
+                  instruction,
+                  startUrl,
+                  options: sanitizedOptions,
+                  configSignature: agentConfigSignature,
+                  steps: agentSteps,
+                  result: this.cloneForCache(result),
+                  timestamp: new Date().toISOString(),
+                });
+                this.logger({
+                  category: "cache",
+                  message: "agent cache stored",
+                  level: 2,
+                  auxiliary: {
+                    instruction: { value: instruction, type: "string" },
+                    steps: { value: String(agentSteps.length), type: "string" },
+                  },
+                });
+              }
+
+              return result;
+            } catch (err) {
+              if (recording) this.discardAgentReplayRecording();
+              throw err;
+            } finally {
+              if (recording) {
+                this.discardAgentReplayRecording();
+              }
+            }
           }),
       };
     }
 
     // Default: AISDK tools-based agent
+    const agentConfigSignature = this.buildAgentCacheSignature(options);
+
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
@@ -1235,7 +1781,99 @@ export class V3 {
             options?.instructions,
             tools,
           );
-          return handler.execute(instructionOrOptions);
+
+          const resolvedOptions: AgentExecuteOptions =
+            typeof instructionOrOptions === "string"
+              ? { instruction: instructionOrOptions }
+              : instructionOrOptions;
+          const instruction = resolvedOptions.instruction.trim();
+
+          const shouldAttemptCache = !!this.cacheDir && instruction.length > 0;
+          const sanitizedOptions =
+            this.sanitizeAgentExecuteOptions(resolvedOptions);
+
+          let cacheKey: string | undefined;
+          let startUrl: string | undefined;
+          if (shouldAttemptCache) {
+            const startPage = await this.ctx!.awaitActivePage();
+            startUrl = await this.safeGetPageUrl(startPage);
+            cacheKey = this.buildAgentCacheKey(
+              instruction,
+              startUrl,
+              sanitizedOptions,
+              agentConfigSignature,
+            );
+            const cachedEntry = await this.readAgentCacheEntry(cacheKey);
+            if (cachedEntry) {
+              this.logger({
+                category: "cache",
+                message: "agent cache hit",
+                level: 1,
+                auxiliary: {
+                  instruction: { value: instruction, type: "string" },
+                  url: { value: startUrl, type: "string" },
+                },
+              });
+              const replayed = await this.replayAgentCacheEntry(cachedEntry);
+              if (replayed) {
+                return replayed;
+              }
+            }
+          }
+
+          let agentSteps: AgentReplayStep[] = [];
+          let recording = false;
+          if (shouldAttemptCache) {
+            this.beginAgentReplayRecording();
+            recording = true;
+          }
+
+          try {
+            const result = await handler.execute(instructionOrOptions);
+            if (recording) {
+              agentSteps = this.endAgentReplayRecording();
+            }
+
+            if (
+              shouldAttemptCache &&
+              cacheKey &&
+              startUrl !== undefined &&
+              result.success &&
+              agentSteps.length > 0
+            ) {
+              await this.writeAgentCacheEntry(cacheKey, {
+                version: 1,
+                instruction,
+                startUrl,
+                options: sanitizedOptions,
+                configSignature: agentConfigSignature,
+                steps: agentSteps,
+                result: this.cloneForCache(result),
+                timestamp: new Date().toISOString(),
+              });
+              this.logger({
+                category: "cache",
+                message: "agent cache stored",
+                level: 2,
+                auxiliary: {
+                  instruction: { value: instruction, type: "string" },
+                  steps: {
+                    value: String(agentSteps.length),
+                    type: "string",
+                  },
+                },
+              });
+            }
+
+            return result;
+          } catch (err) {
+            if (recording) this.discardAgentReplayRecording();
+            throw err;
+          } finally {
+            if (recording) {
+              this.discardAgentReplayRecording();
+            }
+          }
         }),
     };
   }
