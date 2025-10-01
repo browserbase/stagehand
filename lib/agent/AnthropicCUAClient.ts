@@ -13,6 +13,7 @@ import { LogLine } from "@/types/log";
 import { AgentScreenshotProviderError } from "@/types/stagehandErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentClient } from "./AgentClient";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { compressConversationImages } from "./utils/imageCompression";
@@ -275,6 +276,12 @@ export class AnthropicCUAClient extends AgentClient {
               level: 2,
             });
             stepActions.push(action);
+          } else if (this.tools && toolUseItem.name in this.tools) {
+            stepActions.push({
+              type: "custom_tool",
+              tool: toolUseItem.name,
+              input: toolUseItem.input,
+            } as AgentAction);
           }
         } else if (block.type === "text") {
           // Safe to cast here since we've verified it's a text block
@@ -436,17 +443,16 @@ export class AnthropicCUAClient extends AgentClient {
       if (this.tools && Object.keys(this.tools).length > 0) {
         const customTools = Object.entries(this.tools).map(([name, tool]) => {
           // Convert Zod schema to proper JSON schema format for Anthropic
-          let inputSchema = tool.parameters;
+          const jsonSchema = zodToJsonSchema(tool.parameters) as {
+            properties?: Record<string, unknown>;
+            required?: string[];
+          };
 
-          // Ensure the schema has the required 'type' field at root level
-          if (typeof inputSchema === "object" && inputSchema !== null) {
-            if (!("type" in inputSchema)) {
-              inputSchema = {
-                type: "object",
-                ...inputSchema,
-              };
-            }
-          }
+          const inputSchema = {
+            type: "object",
+            properties: jsonSchema.properties || {},
+            required: jsonSchema.required || [],
+          };
 
           return {
             name,
@@ -890,6 +896,8 @@ export class AnthropicCUAClient extends AgentClient {
           type: name,
           params: input,
         };
+      } else if (this.tools && name in this.tools) {
+        return null;
       }
 
       console.warn(`Unknown tool name: ${name}`);
