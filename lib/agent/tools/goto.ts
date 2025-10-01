@@ -10,6 +10,17 @@ export const createGotoTool = (stagehand: Stagehand) =>
     }),
     execute: async ({ url }) => {
       try {
+        stagehand.logger({
+          category: "agent",
+          message: `Agent calling tool: goto`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: url,
+              type: "string",
+            },
+          },
+        });
         await stagehand.page.goto(url, { waitUntil: "load" });
         return { success: true, url };
       } catch (error) {

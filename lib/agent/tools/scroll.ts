@@ -10,6 +10,17 @@ export const createScrollTool = (stagehand: Stagehand) =>
       direction: z.enum(["up", "down"]).describe("Direction to scroll"),
     }),
     execute: async ({ pixels, direction }) => {
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ pixels, direction }),
+            type: "object",
+          },
+        },
+      });
       await stagehand.page.mouse.wheel(
         0,
         direction === "up" ? -pixels : pixels,

@@ -6,11 +6,11 @@ export const createCloseTool = () =>
     description: "Complete the task and close",
     parameters: z.object({
       reasoning: z.string().describe("Summary of what was accomplished"),
-      taskComplete: z
+      success: z
         .boolean()
-        .describe("Whether the task was completed successfully"),
+        .describe("Whether the full goal of the task was a success or not"),
     }),
-    execute: async ({ reasoning, taskComplete }) => {
-      return { success: true, reasoning, taskComplete };
+    execute: async ({ reasoning, success }) => {
+      return { success, reasoning };
     },
   });

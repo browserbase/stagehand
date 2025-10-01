@@ -8,6 +8,11 @@ export const createAriaTreeTool = (stagehand: Stagehand) =>
       "gets the accessibility (ARIA) tree from the current page. this is useful for understanding the page structure and accessibility features. it should provide full context of what is on the page",
     parameters: z.object({}),
     execute: async () => {
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: ariaTree`,
+        level: 1,
+      });
       const { page_text } = await stagehand.page.extract();
       const pageUrl = stagehand.page.url();
 

@@ -8,6 +8,11 @@ export const createScreenshotTool = (stagehand: Stagehand) =>
       "Takes a screenshot of the current page. Use this tool to learn where you are on the page, or to get context of elements on the page",
     parameters: z.object({}),
     execute: async () => {
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: screenshot`,
+        level: 1,
+      });
       const screenshotBuffer = await stagehand.page.screenshot({
         fullPage: false,
         type: "jpeg",
