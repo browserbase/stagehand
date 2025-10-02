@@ -72,7 +72,7 @@ export class UnsupportedAISDKModelProviderError extends StagehandError {
 export class InvalidAISDKModelFormatError extends StagehandError {
   constructor(modelName: string) {
     super(
-      `${modelName} does not follow correct format for specifying aiSDK models. Please define your modelName as 'provider/model-name'. For example: \`modelName: 'openai/gpt-4o-mini'\``,
+      `${modelName} does not follow correct format for specifying aiSDK models. Please define your model as 'provider/model-name'. For example: \`model: 'openai/gpt-4o-mini'\``,
     );
   }
 }

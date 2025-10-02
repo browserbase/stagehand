@@ -46,6 +46,10 @@ export type ModelProvider =
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 
+export type ModelConfiguration =
+  | AvailableModel
+  | (ClientOptions & { modelName: AvailableModel });
+
 export interface AnthropicJsonSchemaObject {
   definitions?: {
     MySchema?: { properties?: Record<string, unknown>; required?: string[] };

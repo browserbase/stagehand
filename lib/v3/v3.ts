@@ -68,6 +68,38 @@ import type {
 } from "./types/cache";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
+
+type ResolvedModelConfiguration = {
+  modelName: AvailableModel;
+  clientOptions?: ClientOptions;
+};
+
+function resolveModelConfiguration(
+  model?: V3Options["model"],
+): ResolvedModelConfiguration {
+  if (!model) {
+    return { modelName: DEFAULT_MODEL_NAME };
+  }
+
+  if (typeof model === "string") {
+    return { modelName: model as AvailableModel };
+  }
+
+  if (model && typeof model === "object") {
+    const { modelName, ...clientOptions } = model;
+    if (!modelName) {
+      throw new Error(
+        "model.modelName is required when providing client options.",
+      );
+    }
+    return {
+      modelName,
+      clientOptions: clientOptions as ClientOptions,
+    };
+  }
+
+  return { modelName: DEFAULT_MODEL_NAME };
+}
 dotenv.config({ path: ".env" });
 
 /**
@@ -267,23 +299,30 @@ export class V3 {
         // ignore
       }
     }
-    this.modelName = opts.modelName ?? DEFAULT_MODEL_NAME;
+    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
+    this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(this.logger);
+    const baseClientOptions: ClientOptions = clientOptions
+      ? ({ ...clientOptions } as ClientOptions)
+      : ({} as ClientOptions);
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
-      this.modelClientOptions = opts.modelClientOptions ?? {};
+      this.modelClientOptions = baseClientOptions;
     } else {
       // Ensure API key is set
-      let apiKey = opts.modelClientOptions?.apiKey;
+      let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
       if (!apiKey) {
         apiKey = loadApiKeyFromEnv(
           this.modelName.split("/")[0], // "openai", "anthropic", etc
           this.logger,
         );
       }
-      this.modelClientOptions = { ...opts.modelClientOptions, apiKey };
+      this.modelClientOptions = {
+        ...baseClientOptions,
+        apiKey,
+      } as ClientOptions;
 
       // Get the default client for this model
       this.llmClient = this.llmProvider.getClient(
@@ -910,8 +949,7 @@ export class V3 {
       const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
         instruction,
         schema: effectiveSchema as unknown as ZodTypeAny | undefined,
-        modelName: options?.modelName,
-        modelClientOptions: options?.modelClientOptions,
+        model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
         page: page!,
@@ -986,8 +1024,7 @@ export class V3 {
 
       const handlerParams: ObserveHandlerParams = {
         instruction,
-        modelName: options?.modelName,
-        modelClientOptions: options?.modelClientOptions,
+        model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
         page,

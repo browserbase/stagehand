@@ -25,7 +25,7 @@ async function example(stagehand: Stagehand) {
 (async () => {
   const stagehand = new Stagehand({
     env: "LOCAL",
-    modelName: "openai/gpt-4.1",
+    model: "openai/gpt-4.1",
     verbose: 1,
     logInferenceToFile: true,
   });

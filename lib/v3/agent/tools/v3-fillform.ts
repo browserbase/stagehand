@@ -25,9 +25,10 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         .map((f) => f.action)
         .join(", ")}`;
 
-      const observeResults = await v3.observe(instruction, {
-        modelName: executionModel,
-      });
+      const observeOptions = executionModel
+        ? { model: executionModel }
+        : undefined;
+      const observeResults = await v3.observe(instruction, observeOptions);
 
       const completed = [] as unknown[];
       const replayableActions: Action[] = [];

@@ -11,15 +11,10 @@ async function example(v3: V3) {
 (async () => {
   const v3 = new V3({
     env: "LOCAL",
-    localBrowserLaunchOptions: {
-      headless: false,
-      downloadsPath: "downloads",
-      acceptDownloads: true,
-    },
-    verbose: 0,
-    modelName: "openai/gpt-4.1",
+    verbose: 2,
     logInferenceToFile: false,
-    // includeCursor: true,
+    model: "openai/gpt-4.1",
+    cacheDir: "stagehand-act-cache",
   });
   await v3.init();
   await example(v3);

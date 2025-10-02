@@ -15,8 +15,8 @@ async function example() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 1,
-    modelName: "gpt-4o",
-    modelClientOptions: {
+    model: {
+      modelName: "gpt-4o",
       apiKey: process.env.USE_OPENAI_API_KEY,
     },
   });

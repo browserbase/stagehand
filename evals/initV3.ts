@@ -7,7 +7,11 @@
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
-import type { AvailableModel, ClientOptions } from "@/lib/v3";
+import type {
+  AvailableModel,
+  ClientOptions,
+  ModelConfiguration,
+} from "@/lib/v3";
 import type { LLMClient } from "@/lib/v3";
 import { V3 } from "@/lib/v3/v3";
 import type { AgentInstance } from "@/lib/v3";
@@ -65,10 +69,6 @@ export async function initV3({
 
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
-  let v3ClientOpts: {
-    modelClientOptions?: ClientOptions;
-    llmClient?: LLMClient;
-  } = {};
   if (isCUA) {
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
@@ -83,13 +83,17 @@ export async function initV3({
       throw new Error(
         "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GOOGLE_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",
       );
-    // For CUA, avoid injecting an external llmClient bound to a different model; let V3 pick from env
-    v3ClientOpts = {};
-  } else {
-    v3ClientOpts = { modelClientOptions, llmClient };
   }
 
-  const v3 = new V3({
+  const resolvedModelConfig: ModelConfiguration =
+    !isCUA && modelClientOptions
+      ? ({
+          ...modelClientOptions,
+          modelName: internalModel,
+        } as ModelConfiguration)
+      : internalModel;
+
+  const v3Options: V3Options = {
     env,
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
@@ -99,8 +103,7 @@ export async function initV3({
         configOverrides?.localBrowserLaunchOptions?.args ??
         configOverrides?.chromeFlags,
     },
-    modelName: internalModel,
-    ...v3ClientOpts,
+    model: resolvedModelConfig,
     experimental:
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental
@@ -113,7 +116,13 @@ export async function initV3({
     selfHeal: true,
     disablePino: true,
     logger: logger.log.bind(logger),
-  });
+  };
+
+  if (!isCUA && llmClient) {
+    v3Options.llmClient = llmClient;
+  }
+
+  const v3 = new V3(v3Options);
 
   // Associate the logger with the V3 instance
   logger.init(v3);

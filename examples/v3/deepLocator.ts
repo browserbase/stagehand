@@ -23,7 +23,7 @@ async function example(stagehand: Stagehand) {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 0,
-    modelName: "openai/gpt-4.1",
+    model: "openai/gpt-4.1",
   });
   await stagehand.init();
   await example(stagehand);
