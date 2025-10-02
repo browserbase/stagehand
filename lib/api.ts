@@ -48,7 +48,6 @@ export class StagehandAPI {
 
   async init({
     modelName,
-    modelApiKey,
     domSettleTimeoutMs,
     verbose,
     debugDom,
@@ -59,11 +58,6 @@ export class StagehandAPI {
     browserbaseSessionCreateParams,
     browserbaseSessionID,
   }: StartSessionParams): Promise<StartSessionResult> {
-    if (!modelApiKey) {
-      throw new StagehandAPIError("modelApiKey is required");
-    }
-    this.modelApiKey = modelApiKey;
-
     const region = browserbaseSessionCreateParams?.region;
     if (region && region !== "us-west-2") {
       return { sessionId: browserbaseSessionID ?? null, available: false };
@@ -190,6 +184,12 @@ export class StagehandAPI {
     const urlParams = new URLSearchParams(params as Record<string, string>);
     const queryString = urlParams.toString();
     const url = `/sessions/${this.sessionId}/${method}${queryString ? `?${queryString}` : ""}`;
+
+    this.logger({
+      category: "execute",
+      message: `Executing ${method} with args: ${JSON.stringify(args)}`,
+      level: 2,
+    });
 
     const response = await this.request(url, {
       method: "POST",

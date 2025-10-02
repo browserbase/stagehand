@@ -1,3 +1,8 @@
+import {
+  CreateChatCompletionResponseError,
+  StagehandError,
+  ZodSchemaValidationError,
+} from "@/types/stagehandErrors";
 import OpenAI, { ClientOptions } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import {
@@ -21,11 +26,6 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import {
-  CreateChatCompletionResponseError,
-  StagehandError,
-  ZodSchemaValidationError,
-} from "@/types/stagehandErrors";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;

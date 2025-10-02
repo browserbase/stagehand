@@ -747,6 +747,7 @@ ${scriptContent} \
             const result = await this.api.act({
               ...observeResult,
               frameId: this.rootFrameId,
+              modelClientOptions: this.stagehand["modelClientOptions"],
             });
             this.stagehand.addToHistory("act", observeResult, result);
             return result;
@@ -783,6 +784,7 @@ ${scriptContent} \
           frameId: this.rootFrameId,
           modelClientOptions:
             modelClientOptions || this.stagehand["modelClientOptions"],
+          modelName: modelName || this.stagehand["modelName"],
         };
         const result = await this.api.act(opts);
         this.stagehand.addToHistory("act", actionOrOptions, result);
@@ -844,7 +846,10 @@ ${scriptContent} \
       if (!instructionOrOptions) {
         let result: ExtractResult<T>;
         if (this.api) {
-          result = await this.api.extract<T>({ frameId: this.rootFrameId });
+          result = await this.api.extract<T>({
+            frameId: this.rootFrameId,
+            modelClientOptions: this.stagehand["modelClientOptions"],
+          });
         } else {
           result = await this.extractHandler.extract();
         }
@@ -882,6 +887,7 @@ ${scriptContent} \
           frameId: this.rootFrameId,
           modelClientOptions:
             modelClientOptions || this.stagehand["modelClientOptions"],
+          modelName: modelName || this.stagehand["modelName"],
         };
         const result = await this.api.extract<T>(opts);
         this.stagehand.addToHistory("extract", instructionOrOptions, result);
@@ -991,6 +997,7 @@ ${scriptContent} \
           frameId: this.rootFrameId,
           modelClientOptions:
             modelClientOptions || this.stagehand["modelClientOptions"],
+          modelName: modelName || this.stagehand["modelName"],
         };
         const result = await this.api.observe(opts);
         this.stagehand.addToHistory("observe", instructionOrOptions, result);

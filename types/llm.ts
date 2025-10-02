@@ -9,6 +9,6 @@ export interface LLMTool {
 
 export type AISDKProvider = (modelName: string) => LanguageModel;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
-export type AISDKCustomProvider = (options: {
-  apiKey: string;
-}) => AISDKProvider;
+export type AISDKCustomProvider = (
+  options: Record<string, unknown>,
+) => AISDKProvider;
