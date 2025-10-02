@@ -128,6 +128,7 @@ export class V3 {
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
+  private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
@@ -304,6 +305,7 @@ export class V3 {
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(this.logger);
+    this.domSettleTimeoutMs = opts.domSettleTimeout;
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
@@ -464,6 +466,7 @@ export class V3 {
             completionTokens,
             inferenceTimeMs,
           ),
+        this.domSettleTimeoutMs,
       );
       this.extractHandler = new ExtractHandler(
         this.llmClient,
@@ -725,6 +728,7 @@ export class V3 {
         const actResult = await this.actHandler.actFromObserveResult(
           { ...input, selector }, // ObserveResult
           v3Page, // V3 Page
+          this.domSettleTimeoutMs,
         );
         // history: record ObserveResult-based act call
         this.addToHistory(
@@ -795,6 +799,7 @@ export class V3 {
             cachedEntry,
             page,
             options?.timeout,
+            this.domSettleTimeoutMs,
           );
           this.addToHistory(
             "act",
@@ -1509,7 +1514,11 @@ export class V3 {
     if (actions.length > 0) {
       const page = await this.ctx!.awaitActivePage();
       for (const action of actions) {
-        await this.actHandler.actFromObserveResult(action, page);
+        await this.actHandler.actFromObserveResult(
+          action,
+          page,
+          this.domSettleTimeoutMs,
+        );
       }
       return;
     }
@@ -1528,7 +1537,11 @@ export class V3 {
     if (!Array.isArray(actions) || actions.length === 0) return;
     const page = await this.ctx!.awaitActivePage();
     for (const action of actions) {
-      await this.actHandler.actFromObserveResult(action, page);
+      await this.actHandler.actFromObserveResult(
+        action,
+        page,
+        this.domSettleTimeoutMs,
+      );
     }
   }
 
@@ -1576,6 +1589,7 @@ export class V3 {
     entry: CachedActEntry,
     page: Page,
     timeout?: number,
+    domSettleTimeoutMs?: number,
   ): Promise<ActResult> {
     if (!this.actHandler) {
       throw new Error("V3 not initialized. Call init() before act().");
@@ -1587,6 +1601,7 @@ export class V3 {
         const result = await this.actHandler!.actFromObserveResult(
           action,
           page,
+          domSettleTimeoutMs,
         );
         actionResults.push(result);
         if (!result.success) {

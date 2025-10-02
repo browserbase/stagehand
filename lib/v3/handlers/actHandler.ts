@@ -29,6 +29,7 @@ export class ActHandler {
     completionTokens: number,
     inferenceTimeMs: number,
   ) => void;
+  private readonly defaultDomSettleTimeoutMs?: number;
 
   constructor(
     llmClient: LLMClient,
@@ -43,6 +44,7 @@ export class ActHandler {
       completionTokens: number,
       inferenceTimeMs: number,
     ) => void,
+    defaultDomSettleTimeoutMs?: number,
   ) {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
@@ -51,6 +53,7 @@ export class ActHandler {
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.selfHeal = !!selfHeal;
     this.onMetrics = onMetrics;
+    this.defaultDomSettleTimeoutMs = defaultDomSettleTimeoutMs;
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
@@ -152,7 +155,11 @@ export class ActHandler {
       }
 
       // First action (self-heal aware path)
-      const firstResult = await this.actFromObserveResult(chosen, page as Page);
+      const firstResult = await this.actFromObserveResult(
+        chosen,
+        page as Page,
+        this.defaultDomSettleTimeoutMs,
+      );
 
       // If not two-step, return the first action result
       const twoStep = !!(
@@ -259,6 +266,7 @@ export class ActHandler {
       const secondResult = await this.actFromObserveResult(
         chosen2,
         page as Page,
+        this.defaultDomSettleTimeoutMs,
       );
 
       // Combine results
@@ -296,6 +304,7 @@ export class ActHandler {
     page: Page,
     domSettleTimeoutMs?: number,
   ): Promise<ActResult> {
+    const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
     const method = action.method?.trim();
     if (!method || method === "not-supported") {
       v3Logger({
@@ -324,7 +333,7 @@ export class ActHandler {
         method,
         action.selector,
         args,
-        domSettleTimeoutMs,
+        settleTimeout,
       );
       return {
         success: true,
@@ -421,7 +430,7 @@ export class ActHandler {
             method,
             newSelector,
             args,
-            domSettleTimeoutMs,
+            settleTimeout,
           );
 
           return {
