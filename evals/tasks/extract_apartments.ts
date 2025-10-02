@@ -16,7 +16,7 @@ export const extract_apartments: EvalFunction = async ({
         listings: z.array(
           z.object({
             price: z.string().describe("The price of the listing"),
-            trails: z.string().describe("The address of the listing"),
+            address: z.string().describe("The address of the listing"),
           }),
         ),
       }),
