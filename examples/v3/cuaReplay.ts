@@ -11,7 +11,7 @@ async function main() {
 
   const startPage = v3.context.pages()[0];
   await startPage.goto(
-    "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+    "https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/",
   );
   const agent = v3.agent({
     model: "claude-sonnet-4-20250514",
@@ -19,7 +19,7 @@ async function main() {
   });
 
   const result = await agent.execute({
-    instruction: "scroll down and click on the last hn story",
+    instruction: "drag 'text' to zone A.",
     maxSteps: 20,
   });
 
