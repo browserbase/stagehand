@@ -280,7 +280,7 @@ STRATEGY:
 - Keep actions atomic and verify outcomes before proceeding.
 
 For each action, provide clear reasoning about why you're taking that step.
-Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url}.`;
+Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url()}.`;
   }
 
   private createTools() {
