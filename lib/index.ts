@@ -931,11 +931,13 @@ export class Stagehand {
     ) => Promise<AgentResult>;
     setScreenshotCollector?: (collector: unknown) => void;
   } {
-    this.log({
-      category: "agent",
-      message: "Creating agent instance",
-      level: 1,
-    });
+    if (!this.usingAPI) {
+      this.log({
+        category: "agent",
+        message: "Creating agent instance",
+        level: 1,
+      });
+    }
     let agentHandler: StagehandAgentHandler | CuaAgentHandler | undefined;
     if (options?.integrations && !this.experimental) {
       throw new StagehandError(
