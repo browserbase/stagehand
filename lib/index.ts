@@ -1008,7 +1008,10 @@ export class Stagehand {
           }
 
           if (!options.options) {
-            options.options = {};
+            options.options = this.modelClientOptions as Record<
+              string,
+              unknown
+            >;
           }
           if (options.provider) {
             if (options.provider === "anthropic") {
