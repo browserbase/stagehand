@@ -92,6 +92,7 @@ export interface V3Options {
   includeCursor?: boolean;
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
+  domSettleTimeout?: number;
 }
 
 /** Narrow shape we rely on from Browserbase session creation */
