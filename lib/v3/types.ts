@@ -1,7 +1,7 @@
 import { LaunchedChrome } from "chrome-launcher";
 import Browserbase from "@browserbasehq/sdk";
 import { Page } from "./understudy/page";
-import { AvailableModel, ClientOptions } from "../v3/types/model";
+import { ModelConfiguration } from "../v3/types/model";
 import { LLMClient } from "./llm/LLMClient";
 import { z } from "zod/v3";
 import type { ZodTypeAny } from "zod/v3";
@@ -76,8 +76,7 @@ export interface V3Options {
   // Local Chromium (optional)
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
 
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   llmClient?: LLMClient; // allow user to pass their own
   systemPrompt?: string;
   logInferenceToFile?: boolean;
@@ -125,8 +124,7 @@ export type PuppeteerPage = import("puppeteer-core").Page;
 export type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 
 export interface ActOptions {
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   variables?: Record<string, string>;
   timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -134,16 +132,14 @@ export interface ActOptions {
 
 export interface ActHandlerParams {
   instruction: string;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   variables?: Record<string, string>;
   timeout?: number;
   page: Page;
 }
 
 export interface ExtractOptions {
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -152,8 +148,7 @@ export interface ExtractOptions {
 export interface ExtractHandlerParams<T extends ZodTypeAny> {
   instruction?: string;
   schema?: T;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
   page: Page;
@@ -168,8 +163,7 @@ export const pageTextSchema = z.object({
 });
 
 export interface ObserveOptions {
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
@@ -177,8 +171,7 @@ export interface ObserveOptions {
 
 export interface ObserveHandlerParams {
   instruction?: string;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   timeout?: number;
   selector?: string;
   page: Page;

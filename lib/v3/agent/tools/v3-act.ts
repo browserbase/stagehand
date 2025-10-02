@@ -16,7 +16,8 @@ export const createActTool = (v3: V3, executionModel?: string) =>
     }),
     execute: async ({ action }) => {
       try {
-        const result = await v3.act(action, { modelName: executionModel });
+        const options = executionModel ? { model: executionModel } : undefined;
+        const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];
         v3.recordAgentReplayStep({
           type: "act",

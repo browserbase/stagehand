@@ -20,7 +20,7 @@ async function example(stagehand: Stagehand) {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 0,
-    modelName: "google/gemini-2.5-flash",
+    model: "google/gemini-2.5-flash",
   });
   await stagehand.init();
   await example(stagehand);

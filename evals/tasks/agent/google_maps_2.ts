@@ -33,7 +33,7 @@ export const google_maps_2: EvalFunction = async ({
           .number()
           .describe("The distance between the two destinations in km"),
       }),
-      { modelName: "google/gemini-2.5-flash" as AvailableModel },
+      { model: "google/gemini-2.5-flash" as AvailableModel },
     );
 
     if (result.evaluation !== "YES" && result.evaluation !== "NO") {

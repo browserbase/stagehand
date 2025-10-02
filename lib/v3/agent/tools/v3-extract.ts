@@ -44,7 +44,7 @@ export const createExtractTool = (
           ? evaluateZodSchema(schema, logger)
           : undefined;
         const result = await v3.extract(instruction, parsedSchema, {
-          modelName: executionModel,
+          ...(executionModel ? { model: executionModel } : {}),
           selector,
         });
         return { success: true, result };

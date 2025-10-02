@@ -2,12 +2,11 @@ import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
 import { ToolSet } from "ai";
 import { z } from "zod/v3";
 import { AgentProviderType } from "./agent";
-import { AvailableModel, ClientOptions } from "./model";
+import { ModelConfiguration } from "./model";
 
 export interface ActOptions {
   action: string;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
@@ -25,8 +24,7 @@ export interface ActResult {
 export interface ExtractOptions<T extends z.AnyZodObject> {
   instruction?: string;
   schema?: T;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   domSettleTimeoutMs?: number;
   /**
    * @deprecated The `useTextExtract` parameter has no effect in this version of Stagehand and will be removed in later versions.
@@ -41,8 +39,7 @@ export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
 
 export interface ObserveOptions {
   instruction?: string;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
+  model?: ModelConfiguration;
   domSettleTimeoutMs?: number;
   returnAction?: boolean;
   selector?: string;
