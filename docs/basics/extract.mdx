@@ -36,7 +36,7 @@ Here is how an `extract` call might look for a single object:
 
 <CodeGroup>
 ```typescript TypeScript
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const item = await page.extract({
   instruction: "extract the price of the item",
@@ -70,7 +70,7 @@ Here is how an `extract` call might look for a list of objects.
 
 <CodeGroup>
 ```typescript TypeScript
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const apartments = await page.extract({
   instruction:
@@ -188,7 +188,7 @@ You can provide additional context to your schema to help the model extract the 
 
 <CodeGroup>
 ```typescript TypeScript
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const apartments = await page.extract({
  instruction:
@@ -233,7 +233,7 @@ Here is how an `extract` call might look for extracting a link or URL. This also
 
 <CodeGroup>
 ```typescript TypeScript
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const extraction = await page.extract({
   instruction: "extract the link to the 'contact us' page",
