@@ -1,17 +1,15 @@
 import {
+  ActToolResult,
   AgentAction,
   AgentExecuteOptions,
   AgentResult,
-  ActToolResult,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { LLMClient } from "../llm/LLMClient";
-import { CoreMessage, wrapLanguageModel } from "ai";
-import { LanguageModel } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
+import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
 import { createAgentTools } from "../agent/tools";
-import { ToolSet } from "ai";
+import { processMessages } from "../agent/utils/messageProcessing";
 import { Stagehand } from "../index";
+import { LLMClient } from "../llm/LLMClient";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
