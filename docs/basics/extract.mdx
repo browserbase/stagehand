@@ -206,7 +206,7 @@ const apartments = await page.extract({
 ```
 
 ```python Python
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class Apartment(BaseModel):
     address: str = Field(..., description="the address of the apartment")
