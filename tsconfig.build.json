@@ -1,0 +1,21 @@
+﻿{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "noEmit": false,
+    "stripInternal": false
+  },
+  "include": [
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "types/evals.ts",
+    "evals/**"
+  ]
+}
