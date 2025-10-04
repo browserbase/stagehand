@@ -1,5 +1,33 @@
 # @browserbasehq/stagehand
 
+## 2.5.1
+
+### Patch Changes
+
+- [#1082](https://github.com/browserbase/stagehand/pull/1082) [`8c0fd01`](https://github.com/browserbase/stagehand/commit/8c0fd01c965a809b96c026f4674685e6445bc7d4) Thanks [@tkattkat](https://github.com/tkattkat)! - Pass stagehand object to agent instead of stagehand page
+
+- [#1104](https://github.com/browserbase/stagehand/pull/1104) [`a1ad06c`](https://github.com/browserbase/stagehand/commit/a1ad06c5398db10db7a2a83075b808dc63a963f7) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix logging for stagehand agent
+
+- [#1066](https://github.com/browserbase/stagehand/pull/1066) [`9daa584`](https://github.com/browserbase/stagehand/commit/9daa58477111e1470f2b618a898738b5e1967cb6) Thanks [@tkattkat](https://github.com/tkattkat)! - Add playwright arguments to agent execute response
+
+- [#1077](https://github.com/browserbase/stagehand/pull/1077) [`7f38b3a`](https://github.com/browserbase/stagehand/commit/7f38b3a3048ba28f81649c33c0d633c4853146bd) Thanks [@tkattkat](https://github.com/tkattkat)! - adds support for stagehand agent in the api
+
+- [#1032](https://github.com/browserbase/stagehand/pull/1032) [`bf2d0e7`](https://github.com/browserbase/stagehand/commit/bf2d0e79da744b6b2a82d60e1ad05ca9fa811488) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix for zod peer dependency support
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - Replace operator handler with base of new agent
+
+- [#1089](https://github.com/browserbase/stagehand/pull/1089) [`536f366`](https://github.com/browserbase/stagehand/commit/536f366f868d115ffa84c2c92124ae05400dd8be) Thanks [@miguelg719](https://github.com/miguelg719)! - Fixed info logs on api session create
+
+- [#1103](https://github.com/browserbase/stagehand/pull/1103) [`889cb6c`](https://github.com/browserbase/stagehand/commit/889cb6cec27f0fc07286a9263bdc4d559149a037) Thanks [@tkattkat](https://github.com/tkattkat)! - patch custom tool support in anthropic cua client
+
+- [#1056](https://github.com/browserbase/stagehand/pull/1056) [`6a002b2`](https://github.com/browserbase/stagehand/commit/6a002b234dbf1ac7d1f180eeffdf66154fa7799b) Thanks [@chrisreadsf](https://github.com/chrisreadsf)! - remove need for duplicate project id if already passed to Stagehand
+
+- [#1090](https://github.com/browserbase/stagehand/pull/1090) [`8ff5c5a`](https://github.com/browserbase/stagehand/commit/8ff5c5a4b2050fc581240ae1befcdc0cf9195873) Thanks [@miguelg719](https://github.com/miguelg719)! - Improve failed act error logs
+
+- [#1014](https://github.com/browserbase/stagehand/pull/1014) [`6966201`](https://github.com/browserbase/stagehand/commit/6966201e2511eb897132d237d0b7712b48b3c7ab) Thanks [@tkattkat](https://github.com/tkattkat)! - replace operator agent with scaffold for new stagehand agent
+
+- [#1102](https://github.com/browserbase/stagehand/pull/1102) [`a99aa48`](https://github.com/browserbase/stagehand/commit/a99aa48936ae3ce113172bce673809eaf5ef7ac1) Thanks [@miguelg719](https://github.com/miguelg719)! - Add current page and date context to agent
+
 ## 2.5.0
 
 ### Minor Changes
