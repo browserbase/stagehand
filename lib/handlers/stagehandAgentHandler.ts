@@ -1,17 +1,15 @@
 import {
+  ActToolResult,
   AgentAction,
   AgentExecuteOptions,
   AgentResult,
-  ActToolResult,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { LLMClient } from "../llm/LLMClient";
-import { CoreMessage, wrapLanguageModel } from "ai";
-import { LanguageModel } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
+import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
 import { createAgentTools } from "../agent/tools";
-import { ToolSet } from "ai";
+import { processMessages } from "../agent/utils/messageProcessing";
 import { Stagehand } from "../index";
+import { LLMClient } from "../llm/LLMClient";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -280,7 +278,7 @@ STRATEGY:
 - Keep actions atomic and verify outcomes before proceeding.
 
 For each action, provide clear reasoning about why you're taking that step.
-Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url}.`;
+Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url()}.`;
   }
 
   private createTools() {

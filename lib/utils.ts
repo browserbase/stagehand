@@ -4,7 +4,7 @@ import { Schema, Type } from "@google/genai";
 import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
 import { ObserveResult, Page } from ".";
 import { LogLine } from "../types/log";
-import { ModelProvider } from "../types/model";
+import { ClientOptions, ModelProvider } from "../types/model";
 import { ZodPathSegments } from "../types/stagehand";
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
@@ -463,6 +463,7 @@ export const providerEnvVarMap: Partial<
   perplexity: "PERPLEXITY_API_KEY",
   azure: "AZURE_API_KEY",
   xai: "XAI_API_KEY",
+  bedrock: "AWS_BEARER_TOKEN_BEDROCK",
   google_legacy: "GOOGLE_API_KEY",
 };
 
@@ -498,6 +499,153 @@ export function loadApiKeyFromEnv(
   logger({
     category: "init",
     message: `API key for ${provider} not found in environment variable ${envVarName}`,
+    level: 0,
+  });
+
+  return undefined;
+}
+
+/**
+ * Loads Amazon Bedrock client configuration from modelClientOptions and environment variables.
+ * Supports both AWS credentials and AWS Bedrock API key authentication.
+ * Credential precedence: modelClientOptions first, then environment variables.
+ * @param logger Logger function for info/error messages
+ * @param modelClientOptions Model client options that may contain AWS credentials (accessKeyId, secretAccessKey, sessionToken, bearerToken) and region
+ * @returns Bedrock client options object or undefined if no authentication method is available
+ */
+export function loadBedrockClientOptions(
+  logger: (logLine: LogLine) => void,
+  modelClientOptions: ClientOptions = {},
+): Record<string, unknown> | undefined {
+  // Authentication precedence:
+  // 1. modelClientOptions values first
+  // 2. Standard AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+  // 3. AWS Bedrock bearer token (AWS_BEARER_TOKEN_BEDROCK)
+
+  const modelClientOptionsRecord = modelClientOptions as Record<
+    string,
+    unknown
+  >;
+
+  // Check if region is already set in modelClientOptions
+  let region = modelClientOptionsRecord?.region as string;
+
+  if (!region) {
+    region = process.env.AWS_DEFAULT_REGION || process.env.AWS_REGION;
+
+    if (!region) {
+      region = "us-west-2";
+      logger({
+        category: "init",
+        message: "No region was set for Bedrock, defaulting to us-west-2",
+        level: 1,
+      });
+    }
+  }
+
+  // Method 1: Check for standard AWS credentials - prioritize modelClientOptions
+  const accessKeyId =
+    (modelClientOptionsRecord?.accessKeyId as string) ||
+    process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey =
+    (modelClientOptionsRecord?.secretAccessKey as string) ||
+    process.env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken =
+    (modelClientOptionsRecord?.sessionToken as string) ||
+    process.env.AWS_SESSION_TOKEN;
+
+  if (accessKeyId && secretAccessKey) {
+    logger({
+      category: "init",
+      message: "Using AWS credentials for Bedrock authentication",
+      level: 1,
+    });
+
+    const config: Record<string, unknown> = {
+      accessKeyId,
+      secretAccessKey,
+      region,
+    };
+
+    // Add session token if present (for temporary credentials)
+    if (sessionToken && sessionToken.length > 0) {
+      config.sessionToken = sessionToken;
+    }
+
+    return config;
+  }
+
+  // Method 2: Handle AWS Bedrock bearer token - prioritize modelClientOptions
+  const bearerToken =
+    (modelClientOptionsRecord?.bearerToken as string) ||
+    process.env.AWS_BEARER_TOKEN_BEDROCK;
+  if (bearerToken && bearerToken.length > 0) {
+    logger({
+      category: "init",
+      message: "Using AWS Bedrock bearer token authentication",
+      level: 1,
+    });
+
+    try {
+      // Extract region and credentials from the bearer token
+      const base64Token = bearerToken.replace(/^bedrock-api-key-/, "");
+      const decodedUrl = Buffer.from(base64Token, "base64").toString("utf-8");
+
+      // Add https:// protocol if missing
+      const fullUrl = decodedUrl.startsWith("http")
+        ? decodedUrl
+        : `https://${decodedUrl}`;
+      const url = new URL(fullUrl);
+      const params = url.searchParams;
+
+      const credential = params.get("X-Amz-Credential");
+      const securityToken = params.get("X-Amz-Security-Token");
+
+      if (credential && securityToken) {
+        const credentialParts = credential.split("/");
+        if (credentialParts.length >= 4) {
+          const tokenAccessKeyId = credentialParts[0];
+          const tokenRegion = credentialParts[2];
+          const decodedSessionToken = decodeURIComponent(securityToken);
+
+          // Use both direct credentials and credential provider for compatibility
+          const config: Record<string, unknown> = {
+            region: tokenRegion || region,
+            accessKeyId: tokenAccessKeyId,
+            secretAccessKey: "dummy-secret-key", // Bearer tokens handle auth differently, but SDK requires this
+            sessionToken: decodedSessionToken,
+            credentialProvider: async () => ({
+              accessKeyId: tokenAccessKeyId,
+              secretAccessKey: "dummy-secret-key",
+              sessionToken: decodedSessionToken,
+            }),
+          };
+
+          return config;
+        }
+      }
+
+      // If parsing fails, return minimal config and let AWS SDK handle it
+      return {
+        region,
+      };
+    } catch (error) {
+      logger({
+        category: "init",
+        message: `Error loading AWS Bedrock client options: ${error}`,
+        level: 0,
+      });
+      return {
+        region,
+      };
+    }
+  }
+
+  // No authentication method found
+  logger({
+    category: "init",
+    message:
+      "No Amazon Bedrock authentication credentials found. Please provide credentials via modelClientOptions (accessKeyId/secretAccessKey or bearerToken) or environment variables (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or AWS_BEARER_TOKEN_BEDROCK)",
     level: 0,
   });
 

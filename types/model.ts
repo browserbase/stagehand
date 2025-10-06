@@ -44,7 +44,10 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
+export type ClientOptions =
+  | Record<string, unknown>
+  | OpenAIClientOptions
+  | AnthropicClientOptions;
 
 export interface AnthropicJsonSchemaObject {
   definitions?: {

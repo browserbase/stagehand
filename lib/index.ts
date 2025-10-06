@@ -45,7 +45,11 @@ import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
-import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
+import {
+  isRunningInBun,
+  loadApiKeyFromEnv,
+  loadBedrockClientOptions,
+} from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -588,28 +592,41 @@ export class Stagehand {
     if (!modelClientOptions?.apiKey) {
       // If no API key is provided, try to load it from the environment
       if (LLMProvider.getModelProvider(this.modelName) === "aisdk") {
-        modelApiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0],
-          this.logger,
-        );
+        const provider = this.modelName.split("/")[0];
+
+        // Special handling for Amazon Bedrock's complex authentication
+        if (provider === "bedrock") {
+          const bedrockOptions = loadBedrockClientOptions(
+            this.logger,
+            modelClientOptions,
+          );
+          this.modelClientOptions = {
+            ...modelClientOptions,
+            ...bedrockOptions,
+          };
+        } else {
+          // Standard single API key handling for other AISDK providers
+          modelApiKey = loadApiKeyFromEnv(provider, this.logger);
+          this.modelClientOptions = {
+            ...modelClientOptions,
+            apiKey: modelApiKey,
+          };
+        }
       } else {
         // Temporary add for legacy providers
         modelApiKey =
           LLMProvider.getModelProvider(this.modelName) === "openai"
-            ? process.env.OPENAI_API_KEY ||
-              this.llmClient?.clientOptions?.apiKey
+            ? process.env.OPENAI_API_KEY
             : LLMProvider.getModelProvider(this.modelName) === "anthropic"
-              ? process.env.ANTHROPIC_API_KEY ||
-                this.llmClient?.clientOptions?.apiKey
+              ? process.env.ANTHROPIC_API_KEY
               : LLMProvider.getModelProvider(this.modelName) === "google"
-                ? process.env.GOOGLE_API_KEY ||
-                  this.llmClient?.clientOptions?.apiKey
+                ? process.env.GOOGLE_API_KEY
                 : undefined;
+        this.modelClientOptions = {
+          ...modelClientOptions,
+          apiKey: modelApiKey,
+        };
       }
-      this.modelClientOptions = {
-        ...modelClientOptions,
-        apiKey: modelApiKey,
-      };
     } else {
       this.modelClientOptions = modelClientOptions;
     }
@@ -757,7 +774,7 @@ export class Stagehand {
         logger: this.logger,
       });
 
-      const modelApiKey = this.modelClientOptions?.apiKey;
+      const modelApiKey = this.modelClientOptions?.apiKey as string;
       const { sessionId, available } = await this.apiClient.init({
         modelName: this.modelName,
         modelApiKey: modelApiKey,
@@ -914,11 +931,13 @@ export class Stagehand {
     ) => Promise<AgentResult>;
     setScreenshotCollector?: (collector: unknown) => void;
   } {
-    this.log({
-      category: "agent",
-      message: "Creating agent instance",
-      level: 1,
-    });
+    if (!this.usingAPI) {
+      this.log({
+        category: "agent",
+        message: "Creating agent instance",
+        level: 1,
+      });
+    }
     let agentHandler: StagehandAgentHandler | CuaAgentHandler | undefined;
     if (options?.integrations && !this.experimental) {
       throw new StagehandError(
@@ -989,7 +1008,10 @@ export class Stagehand {
           }
 
           if (!options.options) {
-            options.options = {};
+            options.options = this.modelClientOptions as Record<
+              string,
+              unknown
+            >;
           }
           if (options.provider) {
             if (options.provider === "anthropic") {
