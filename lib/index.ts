@@ -914,90 +914,49 @@ export class Stagehand {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
-    stream: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<StreamTextResult<AgentTools & ToolSet, never>>;
-    stop: () => void;
+    setScreenshotCollector?: (collector: unknown) => void;
   } {
-    if (!options || !options.provider) {
-      const executionModel = options?.executionModel;
-      const systemInstructions = options?.instructions;
-      let abortController = new AbortController();
-
-      const ensureIntegrationsAllowed = () => {
-        if (options?.integrations && !this.experimental) {
-          throw new StagehandError(
-            "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
-          );
-        }
-      };
-
-      const getTools = async () =>
-        options?.integrations
-          ? await resolveTools(options?.integrations, options?.tools)
-          : (options?.tools ?? {});
-
-      const ensureAbortSignal = () => {
-        if (abortController.signal.aborted) {
-          abortController = new AbortController();
-        }
-        return abortController.signal;
-      };
-
-      const normalizeOptionsWithAbort = (
-        instructionOrOptions: string | AgentExecuteOptions,
-      ): AgentExecuteOptions & { abortSignal: AbortSignal } => {
-        const signal = ensureAbortSignal();
-        return typeof instructionOrOptions === "string"
-          ? { instruction: instructionOrOptions, abortSignal: signal }
-          : {
-              ...instructionOrOptions,
-              abortSignal: instructionOrOptions.abortSignal || signal,
-            };
-      };
-
-      const createHandler = (tools: ToolSet) =>
-        new StagehandAgentHandler(
-          this.stagehandPage,
-          this.logger,
-          this.llmClient,
-          executionModel,
-          systemInstructions,
-          tools,
-        );
-
-      return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
-          ensureIntegrationsAllowed();
-          const tools = await getTools();
-          const execOptions = normalizeOptionsWithAbort(instructionOrOptions);
-          return createHandler(tools).execute(execOptions);
-        },
-        stream: async (
-          instructionOrOptions: string | AgentExecuteOptions,
-        ): Promise<StreamTextResult<AgentTools & ToolSet, never>> => {
-          ensureIntegrationsAllowed();
-          const tools = await getTools();
-          const streamOptions = normalizeOptionsWithAbort(instructionOrOptions);
-          return createHandler(tools).stream(streamOptions);
-        },
-        stop: () => {
-          this.log({
-            category: "agent",
-            message: "Stopping agent execution",
-            level: 1,
-          });
-          abortController.abort();
-        },
-      };
-    }
-
     this.log({
       category: "agent",
       message: "Creating agent instance",
       level: 1,
     });
+    let agentHandler: StagehandAgentHandler | CuaAgentHandler | undefined;
+    if (options?.integrations && !this.experimental) {
+      throw new StagehandError(
+        "MCP integrations are an experimental feature. Please enable experimental mode by setting experimental: true in the Stagehand constructor params.",
+      );
+    }
+    if (!options || !options.provider) {
+      const executionModel = options?.executionModel;
+      const systemInstructions = options?.instructions;
 
+      agentHandler = new StagehandAgentHandler(
+        this,
+        this.logger,
+        this.llmClient,
+        executionModel,
+        systemInstructions,
+        undefined,
+      );
+    } else {
+      agentHandler = new CuaAgentHandler(
+        this,
+        this.stagehandPage,
+        this.logger,
+        {
+          modelName: options.model,
+          clientOptions: options.options,
+          userProvidedInstructions:
+            options.instructions ??
+            `You are a helpful assistant that can use a web browser.
+      You are currently on the following page: ${this.stagehandPage.page.url()}.
+      Do not ask follow up questions, the user will trust your judgement.`,
+          agentType: options.provider,
+        },
+        undefined,
+      );
+    }
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) => {
         // Check if integrations are being used without experimental flag
@@ -1011,22 +970,9 @@ export class Stagehand {
           ? await resolveTools(options?.integrations, options?.tools)
           : (options?.tools ?? {});
 
-        const agentHandler = new CuaAgentHandler(
-          this,
-          this.stagehandPage,
-          this.logger,
-          {
-            modelName: options.model,
-            clientOptions: options.options,
-            userProvidedInstructions:
-              options.instructions ??
-              `You are a helpful assistant that can use a web browser.
-        You are currently on the following page: ${this.stagehandPage.page.url()}.
-        Do not ask follow up questions, the user will trust your judgement.`,
-            agentType: options.provider,
-          },
-          tools,
-        );
+        if (agentHandler) {
+          agentHandler.setTools(tools);
+        }
 
         const executeOptions: AgentExecuteOptions =
           typeof instructionOrOptions === "string"
@@ -1047,19 +993,20 @@ export class Stagehand {
           if (!options.options) {
             options.options = {};
           }
+          if (options.provider) {
+            if (options.provider === "anthropic") {
+              options.options.apiKey = process.env.ANTHROPIC_API_KEY;
+            } else if (options.provider === "openai") {
+              options.options.apiKey = process.env.OPENAI_API_KEY;
+            } else if (options.provider === "google") {
+              options.options.apiKey = process.env.GOOGLE_API_KEY;
+            }
 
-          if (options.provider === "anthropic") {
-            options.options.apiKey = process.env.ANTHROPIC_API_KEY;
-          } else if (options.provider === "openai") {
-            options.options.apiKey = process.env.OPENAI_API_KEY;
-          } else if (options.provider === "google") {
-            options.options.apiKey = process.env.GOOGLE_API_KEY;
-          }
-
-          if (!options.options.apiKey) {
-            throw new StagehandError(
-              `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
-            );
+            if (!options.options.apiKey) {
+              throw new StagehandError(
+                `API key not found for \`${options.provider}\` provider. Please set the ${options.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"} environment variable or pass an apiKey in the options object.`,
+              );
+            }
           }
 
           return await this.apiClient.agentExecute(options, executeOptions);
@@ -1067,17 +1014,9 @@ export class Stagehand {
 
         return await agentHandler.execute(executeOptions);
       },
-      stream: async () => {
-        throw new StagehandError(
-          "Stream method is only available when using AI SDK models (e.g., openai/gpt-4o-mini). Please create an agent without specifying a provider to use the stream method.",
-        );
-      },
-      stop: () => {
-        this.log({
-          category: "agent",
-          message: "Stop is not supported for legacy providers",
-          level: 0,
-        });
+      setScreenshotCollector: (collector: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        agentHandler.setScreenshotCollector(collector as any);
       },
     };
   }

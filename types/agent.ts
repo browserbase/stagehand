@@ -181,4 +181,5 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
+  setScreenshotCollector?: (collector: unknown) => void;
 }

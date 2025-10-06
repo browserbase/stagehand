@@ -10,11 +10,12 @@ import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 
 // Map model names to their provider types
-const modelToAgentProviderMap: Record<string, AgentType> = {
+export const modelToAgentProviderMap: Record<string, AgentType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
+  "claude-sonnet-4-5-20250929": "anthropic",
 };
 
 /**

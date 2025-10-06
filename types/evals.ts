@@ -17,15 +17,37 @@ export type StagehandInitResult = {
   agent: AgentInstance;
 };
 
-export type EvalFunction = (
-  taskInput: StagehandInitResult & { input: EvalInput },
-) => Promise<{
+export enum ErrorType {
+  TIMEOUT = "timeout",
+  NETWORK = "network",
+  AGENT_FAILURE = "agent_failure",
+  EVALUATION_ERROR = "evaluation_error",
+  SETUP_ERROR = "setup_error",
+  PARSING_ERROR = "parsing_error",
+  ANTIBOT = "bot_detected",
+  UNKNOWN = "unknown",
+}
+
+export interface EvalOutput {
   _success: boolean;
   logs: LogLine[];
   debugUrl: string;
   sessionUrl: string;
   error?: unknown;
-}>;
+  error_type?: ErrorType;
+  error_message?: string;
+  error_stack?: string;
+  execution_time?: number;
+  agent_steps?: number;
+  final_answer?: string;
+  reasoning?: string;
+  observations?: string | unknown; // Allow both string and arrays for backward compatibility
+  [key: string]: unknown; // Allow additional fields for flexibility
+}
+
+export type EvalFunction = (
+  taskInput: StagehandInitResult & { input: EvalInput },
+) => Promise<EvalOutput>;
 
 export const EvalCategorySchema = z.enum([
   "observe",
@@ -49,16 +71,23 @@ export interface EvalInput {
   params?: Record<string, unknown>;
 }
 
+export interface TestcaseMetadata {
+  model: AvailableModel;
+  test: string;
+  category?: string;
+  dataset?: string;
+  dataset_id?: string;
+  dataset_level?: string | number;
+  dataset_category?: string;
+  [key: string]: unknown;
+}
+
 export interface Testcase
-  extends EvalCase<
-    EvalInput,
-    unknown,
-    { model: AvailableModel; test: string; categories?: string[] }
-  > {
+  extends EvalCase<EvalInput, unknown, TestcaseMetadata> {
   input: EvalInput;
   name: string;
   tags: string[];
-  metadata: { model: AvailableModel; test: string; categories?: string[] };
+  metadata: TestcaseMetadata;
   expected: unknown;
 }
 
