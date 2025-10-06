@@ -22,13 +22,6 @@ async function example(stagehand: Stagehand) {
   });
   await agent.execute({
     instruction: "search for 'API' on the documentation",
-    onStepFinish: (step) => {
-      stagehand.logger({
-        category: "agent",
-        message: `step finish: ${step}`,
-        level: 1,
-      });
-    },
   });
 }
 
