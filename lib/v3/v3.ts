@@ -130,6 +130,7 @@ export class V3 {
   private llmProvider: LLMProvider;
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
+  public browserbaseSessionId?: string;
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
@@ -610,6 +611,7 @@ export class V3 {
           createdTempProfile: createdTemp,
           preserveUserDataDir: !!lbo.preserveUserDataDir,
         };
+        this.browserbaseSessionId = undefined;
 
         // Post-connect settings (downloads and viewport) if provided
         await this._applyPostConnectLocalOptions(lbo);
@@ -630,6 +632,9 @@ export class V3 {
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+        this.browserbaseSessionId = sessionId;
+
+        await this._ensureBrowserbaseDownloadsEnabled();
 
         try {
           const resumed = !!this.opts.browserbaseSessionID;
@@ -694,6 +699,20 @@ export class V3 {
           })
           .catch(() => {});
       }
+    } catch {
+      // best-effort only
+    }
+  }
+
+  private async _ensureBrowserbaseDownloadsEnabled(): Promise<void> {
+    const conn = this.ctx?.conn;
+    if (!conn) return;
+    try {
+      await conn.send("Browser.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: "downloads",
+        eventsEnabled: true,
+      });
     } catch {
       // best-effort only
     }
@@ -1110,6 +1129,7 @@ export class V3 {
       this.state = { kind: "UNINITIALIZED" };
       this.ctx = null;
       this._isClosing = false;
+      this.browserbaseSessionId = undefined;
       try {
         unbindInstanceLogger(this.instanceId);
       } catch {
