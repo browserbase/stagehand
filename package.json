@@ -1,6 +1,6 @@
 {
-  "name": "@browserbasehq/stagehand",
-  "version": "2.5.0",
+  "name": "@browserbasehq/orca",
+  "version": "3.0.0-preview.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -33,7 +33,11 @@
     "release-canary": "pnpm run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "files": [
-    "dist/**"
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/lib",
+    "dist/types",
+    "dist/stagehand.config.d.ts"
   ],
   "keywords": [],
   "author": "Browserbase",
