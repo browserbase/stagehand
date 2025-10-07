@@ -290,7 +290,7 @@ export class AnthropicCUAClient extends AgentClient {
 
           logger({
             category: "agent",
-            message: `Found text block: ${textBlock.text.substring(0, 50)}...`,
+            message: `Found text block: ${textBlock.text}`,
             level: 2,
           });
         } else {
