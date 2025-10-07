@@ -20,9 +20,10 @@ test.describe("downloads on browserbase", () => {
   test("downloaded pdf is available via downloads api", async () => {
     // Tiny timeout to force the race to hit the timeout branch
     const page = v3.context.pages()[0];
-    await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/download-on-click/")
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/download-on-click/",
+    );
     await page.locator("/html/body/button").click();
-
 
     await expect(async () => {
       const bb = new Browserbase();
@@ -37,9 +38,7 @@ test.describe("downloads on browserbase", () => {
 
       const zip = new AdmZip(Buffer.from(await zipBuffer.arrayBuffer()));
       const zipEntries = zip.getEntries();
-      const pdfEntry = zipEntries.find((entry) =>
-        pdfRe.test(entry.entryName),
-      );
+      const pdfEntry = zipEntries.find((entry) => pdfRe.test(entry.entryName));
 
       if (!pdfEntry) {
         throw new Error(

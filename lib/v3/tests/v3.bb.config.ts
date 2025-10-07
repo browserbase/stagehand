@@ -20,7 +20,9 @@ export const v3BBTestConfig: V3Options = {
   logger: (line: LogLine) => console.log(line),
 };
 
-export function getV3BBTestConfig(overrides: Partial<V3Options> = {}): V3Options {
+export function getV3BBTestConfig(
+  overrides: Partial<V3Options> = {},
+): V3Options {
   return { ...v3BBTestConfig, ...overrides };
 }
 
