@@ -29,7 +29,7 @@ async function main() {
       provider: "google",
       // For Anthropic, use claude-sonnet-4-20250514 or claude-sonnet-4-5-20250929
       // For OpenAI, use computer-use-preview-03-11
-      model: "computer-use-preview-10-2025",
+      model: "gemini-2.5-computer-use-preview-10-2025",
       instructions: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement.`,
