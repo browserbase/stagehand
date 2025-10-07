@@ -36,7 +36,7 @@ Use computer use agents with specialized models from OpenAI, Anthropic, or Googl
 ```typescript TypeScript
 const agent = stagehand.agent({
   provider: "google",
-  model: "gemini-2.5-computer-use-preview",
+  model: "gemini-2.5-computer-use-preview-10-2025",
   instructions: "You are a helpful assistant that can use a web browser.",
   options: {
     apiKey: process.env.GOOGLE_API_KEY,
@@ -48,7 +48,7 @@ await agent.execute("apply for a job at Browserbase")
 ```python Python
 agent = stagehand.agent({
     "provider": "google",
-    "model": "gemini-2.5-computer-use-preview",
+    "model": "gemini-2.5-computer-use-preview-10-2025",
     "instructions": "You are a helpful assistant that can use a web browser.",
     "options": {
       "apiKey": os.getenv("GOOGLE_API_KEY"),
@@ -78,7 +78,7 @@ Agents can be enhanced with external tools and services through MCP (Model Conte
 ```typescript TypeScript (Pass URL)
 const agent = stagehand.agent({
   provider: "google",
-  model: "gemini-2.5-computer-use-preview",
+  model: "gemini-2.5-computer-use-preview-10-2025",
   integrations: [
     `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
   ],
@@ -100,7 +100,7 @@ const supabaseClient = await connectToMCPServer(
 
 const agent = stagehand.agent({
   provider: "google",
-  model: "gemini-2.5-computer-use-preview",
+  model: "gemini-2.5-computer-use-preview-10-2025",
   integrations: [supabaseClient],
   instructions: `You can interact with Supabase databases. Use these tools to store and retrieve data.`,
   options: {
@@ -123,7 +123,7 @@ Stagehand uses a 1024x768 viewport by default (the optimal size for Computer Use
 
 ## Available Models
 
-Use specialized computer use models (e.g., `gemini-2.5-computer-use-preview` from Google or `claude-sonnet-4-20250514` from Anthropic)
+Use specialized computer use models (e.g., `gemini-2.5-computer-use-preview-10-2025` from Google or `claude-sonnet-4-20250514` from Anthropic)
 
 <Card title="Available Models" icon="robot" href="/configuration/models">
   Check out the guide on how to use different models with Stagehand.
