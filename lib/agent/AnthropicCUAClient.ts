@@ -29,7 +29,7 @@ export class AnthropicCUAClient extends AgentClient {
   private baseURL?: string;
   private client: Anthropic;
   public lastMessageId?: string;
-  private currentViewport = { width: 1024, height: 768 };
+  private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
@@ -290,7 +290,7 @@ export class AnthropicCUAClient extends AgentClient {
 
           logger({
             category: "agent",
-            message: `Found text block: ${textBlock.text.substring(0, 50)}...`,
+            message: `Found text block: ${textBlock.text}`,
             level: 2,
           });
         } else {

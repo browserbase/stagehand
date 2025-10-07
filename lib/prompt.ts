@@ -209,3 +209,14 @@ ${goal}
 6. Only use \`close\` when the task is genuinely complete or impossible to achieve`,
   };
 }
+
+export function buildGoogleCUASystemPrompt(): ChatMessage {
+  return {
+    role: "system",
+    content: `You are a general-purpose browser agent whose job is to accomplish the user's goal.
+Today's date is ${new Date().toISOString().split("T")[0]}.
+You have access to a search tool; however, in most cases you should operate within the page/url the user has provided. ONLY use the search tool if you're stuck or the task is impossible to complete within the current page.
+You will be given a goal and a list of steps that have been taken so far. Avoid requesting the user for input as much as possible. Good luck!
+`,
+  };
+}

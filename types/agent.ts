@@ -49,6 +49,7 @@ export interface AgentOptions {
   autoScreenshot?: boolean;
   waitBetweenActions?: number;
   context?: string;
+  highlightCursor?: boolean;
 }
 
 export interface AgentExecuteOptions extends AgentOptions {
@@ -60,7 +61,7 @@ export interface AgentExecuteOptions extends AgentOptions {
   onChunk?: StreamTextOnChunkCallback<AgentTools & ToolSet>;
 }
 
-export type AgentProviderType = "openai" | "anthropic";
+export type AgentProviderType = "openai" | "anthropic" | "google";
 
 export interface AgentClientOptions {
   apiKey: string;
@@ -70,7 +71,7 @@ export interface AgentClientOptions {
   [key: string]: unknown;
 }
 
-export type AgentType = "openai" | "anthropic";
+export type AgentType = "openai" | "anthropic" | "google";
 
 export interface AgentExecutionOptions {
   options: AgentExecuteOptions;

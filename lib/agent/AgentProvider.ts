@@ -8,6 +8,7 @@ import { ToolSet } from "ai/dist";
 import { AgentClient } from "./AgentClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";
+import { GoogleCUAClient } from "./GoogleCUAClient";
 
 // Map model names to their provider types
 export const modelToAgentProviderMap: Record<string, AgentType> = {
@@ -16,6 +17,7 @@ export const modelToAgentProviderMap: Record<string, AgentType> = {
   "claude-3-7-sonnet-latest": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
   "claude-sonnet-4-5-20250929": "anthropic",
+  "gemini-2.5-computer-use-preview-10-2025": "google",
 };
 
 /**
@@ -64,9 +66,16 @@ export class AgentProvider {
             clientOptions,
             tools,
           );
+        case "google":
+          return new GoogleCUAClient(
+            type,
+            modelName,
+            userProvidedInstructions,
+            clientOptions,
+          );
         default:
           throw new UnsupportedModelProviderError(
-            ["openai", "anthropic"],
+            ["openai", "anthropic", "google"],
             "Computer Use Agent",
           );
       }

@@ -175,7 +175,7 @@ export interface LocalBrowserLaunchOptions {
   args?: string[];
   chromiumSandbox?: boolean;
   devtools?: boolean;
-  env?: Record<string, string | number | boolean>;
+  env?: { [key: string]: string | undefined };
   executablePath?: string;
   handleSIGHUP?: boolean;
   handleSIGINT?: boolean;

@@ -26,16 +26,16 @@ const StagehandConfig: ConstructorParams = {
     browserSettings: {
       blockAds: true,
       viewport: {
-        width: 1024,
-        height: 768,
+        width: 1288,
+        height: 711,
       },
     },
   },
   localBrowserLaunchOptions: {
     headless: false,
     viewport: {
-      width: 1024,
-      height: 768,
+      width: 1288,
+      height: 711,
     },
   } /* Configuration options for the local browser */,
   experimental: false, // Enable experimental features
