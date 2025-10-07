@@ -24,13 +24,10 @@ const StagehandConfig: ConstructorParams = {
   browserbaseSessionCreateParams: {
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
     browserSettings: {
-      advancedStealth: true,
       blockAds: true,
-      // @ts-expect-error - os is not a valid property in the BrowserSettings type
-      os: "windows",
       viewport: {
-        width: 2560,
-        height: 1440,
+        width: 1288,
+        height: 711,
       },
     },
   },
