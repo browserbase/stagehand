@@ -41,6 +41,7 @@ export interface AgentOptions {
   autoScreenshot?: boolean;
   waitBetweenActions?: number;
   context?: string;
+  highlightCursor?: boolean;
 }
 
 export interface AgentExecuteOptions extends AgentOptions {
