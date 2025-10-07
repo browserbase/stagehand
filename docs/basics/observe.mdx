@@ -109,13 +109,15 @@ const { data } = await page.extract({
 });
 ```
 ```python Python
-# Use observe to validate elements before extraction
-[ table ] = await page.observe("Find the data table")
+# Use observe to find the specific section (table, form, list, etc.)
+tables = await page.observe("Find the data table")
+table = tables[0]  # Get the first suggestion
 
+# Extract data using the selector to minimize context
 extraction = await page.extract(
-  "Extract data from the table",
-  schema=Data, # Pydantic schema
-  selector=table.selector # Reduce context scope needed for extraction
+    "Extract data from the table",
+    schema=TableData,  # Pydantic schema
+    selector=table.selector  # Focus extraction on just this table
 )
 ```
 </CodeGroup>
