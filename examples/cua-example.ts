@@ -18,8 +18,6 @@ async function main() {
   // Initialize Stagehand
   const stagehand = new Stagehand({
     ...StagehandConfig,
-    // useAPI: false
-    env: "LOCAL",
   });
   await stagehand.init();
 
