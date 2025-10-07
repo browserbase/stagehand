@@ -435,6 +435,20 @@ export class AnthropicCUAClient extends AgentClient {
             display_height_px: this.currentViewport.height,
             display_number: 1,
           },
+          {
+            name: "goto",
+            description: "Navigate to a specific URL",
+            input_schema: {
+              type: "object",
+              properties: {
+                url: {
+                  type: "string",
+                  description: "The URL to navigate to",
+                },
+              },
+              required: ["url"],
+            },
+          },
         ],
         betas: ["computer-use-2025-01-24"],
       };
@@ -585,9 +599,16 @@ export class AnthropicCUAClient extends AgentClient {
             level: 2,
           });
         } else {
-          // Handle custom tools
+          // Handle custom tools and built-in tools like goto
           let toolResult = "Tool executed successfully";
-          if (this.tools && item.name in this.tools) {
+          if (item.name === "goto") {
+            try {
+              const url = item.input.url;
+              toolResult = `Successfully navigated to ${url}`;
+            } catch (error) {
+              toolResult = `Error with goto: ${error instanceof Error ? error.message : String(error)}`;
+            }
+          } else if (this.tools && item.name in this.tools) {
             try {
               const tool = this.tools[item.name];
 
@@ -890,6 +911,12 @@ export class AnthropicCUAClient extends AgentClient {
             ...input,
           };
         }
+      } else if (name === "goto") {
+        return {
+          type: "function",
+          name: "goto",
+          arguments: { url: input.url },
+        };
       } else if (name === "str_replace_editor" || name === "bash") {
         // For editor or bash tools
         return {
