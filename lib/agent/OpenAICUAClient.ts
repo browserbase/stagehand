@@ -24,7 +24,7 @@ export class OpenAICUAClient extends AgentClient {
   private baseURL: string;
   private client: OpenAI;
   public lastResponseId?: string;
-  private currentViewport = { width: 1024, height: 768 };
+  private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;

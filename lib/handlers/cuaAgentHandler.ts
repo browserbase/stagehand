@@ -211,32 +211,16 @@ export class CuaAgentHandler {
         case "click": {
           const { x, y, button = "left" } = action;
           // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
+          // await this.updateCursorPosition(x as number, y as number);
           // Animate the click
-          await this.animateClick(x as number, y as number);
+          // await this.animateClick(x as number, y as number);
           // Small delay to see the animation
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          await new Promise((resolve) => setTimeout(resolve, 200));
           // Perform the actual click
           await this.page.mouse.click(x as number, y as number, {
             button: button as "left" | "right",
           });
-          return { success: true };
-        }
 
-        case "double_click": {
-          const { x, y } = action;
-          // Update cursor position first
-          await this.updateCursorPosition(x as number, y as number);
-          // Animate the click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          // Animate the second click
-          await this.animateClick(x as number, y as number);
-          // Small delay to see the animation
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          // Perform the actual double click
-          await this.page.mouse.dblclick(x as number, y as number);
           return { success: true };
         }
 
@@ -258,6 +242,19 @@ export class CuaAgentHandler {
           return { success: true };
         }
 
+        case "tripleClick": {
+          const { x, y } = action;
+          // Update cursor position first
+          await this.updateCursorPosition(x as number, y as number);
+          // Animate the click
+          await this.animateClick(x as number, y as number);
+          // Small delay to see the animation
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          await this.page.mouse.click(x as number, y as number, {
+            clickCount: 3,
+          });
+          return { success: true };
+        }
         case "type": {
           const { text } = action;
           await this.page.keyboard.type(text as string);
@@ -267,23 +264,16 @@ export class CuaAgentHandler {
         case "keypress": {
           const { keys } = action;
           if (Array.isArray(keys)) {
-            for (const key of keys) {
-              const mappedKey = mapKeyToPlaywright(key);
-              await this.page.keyboard.press(mappedKey);
-            }
+            await this.page.keyboard.press(keys.join("+"));
           }
           return { success: true };
         }
 
         case "scroll": {
           const { x, y, scroll_x = 0, scroll_y = 0 } = action;
-          // First move to the position
+          // Move to the position and use mouse wheel to scroll the element/area under cursor
           await this.page.mouse.move(x as number, y as number);
-          // Then scroll
-          await this.page.evaluate(
-            ({ scrollX, scrollY }) => window.scrollBy(scrollX, scrollY),
-            { scrollX: scroll_x as number, scrollY: scroll_y as number },
-          );
+          await this.page.mouse.wheel(scroll_x as number, scroll_y as number);
           return { success: true };
         }
 
@@ -391,10 +381,10 @@ export class CuaAgentHandler {
   }
 
   private updateClientViewport(): void {
-    const viewportSize = this.page.viewportSize();
-    if (viewportSize) {
-      this.agentClient.setViewport(viewportSize.width, viewportSize.height);
-    }
+    // const viewportSize = this.page.viewportSize();
+    // if (viewportSize) {
+    //   this.agentClient.setViewport(viewportSize.width, viewportSize.height);
+    // }
   }
 
   private updateClientUrl(): void {
@@ -454,86 +444,75 @@ export class CuaAgentHandler {
    */
   private async injectCursor(): Promise<void> {
     try {
-      // Define constants for cursor and highlight element IDs
-      const CURSOR_ID = "stagehand-cursor";
-      const HIGHLIGHT_ID = "stagehand-highlight";
-
-      // Check if cursor already exists
-      const cursorExists = await this.page.evaluate((id: string) => {
-        return !!document.getElementById(id);
-      }, CURSOR_ID);
-
-      if (cursorExists) {
-        return;
-      }
-
-      // Inject cursor and highlight elements
-      await this.page.evaluate(`
-        (function(cursorId, highlightId) {
-          // Create cursor element
-          const cursor = document.createElement('div');
-          cursor.id = cursorId;
-          
-          // Use the provided SVG for a custom cursor
-          cursor.innerHTML = \`
-          <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 28 28" width="28" height="28">
-            <polygon fill="#000000" points="9.2,7.3 9.2,18.5 12.2,15.6 12.6,15.5 17.4,15.5"/>
-            <rect x="12.5" y="13.6" transform="matrix(0.9221 -0.3871 0.3871 0.9221 -5.7605 6.5909)" width="2" height="8" fill="#000000"/>
-          </svg>
-          \`;
-          
-          // Style the cursor
-          cursor.style.position = 'absolute';
-          cursor.style.top = '0';
-          cursor.style.left = '0';
-          cursor.style.width = '28px';
-          cursor.style.height = '28px';
-          cursor.style.pointerEvents = 'none';
-          cursor.style.zIndex = '9999999';
-          cursor.style.transform = 'translate(-4px, -4px)'; // Adjust to align the pointer tip
-          
-          // Create highlight element for click animation
-          const highlight = document.createElement('div');
-          highlight.id = highlightId;
-          highlight.style.position = 'absolute';
-          highlight.style.width = '20px';
-          highlight.style.height = '20px';
-          highlight.style.borderRadius = '50%';
-          highlight.style.backgroundColor = 'rgba(66, 134, 244, 0)';
-          highlight.style.transform = 'translate(-50%, -50%) scale(0)';
-          highlight.style.pointerEvents = 'none';
-          highlight.style.zIndex = '9999998';
-          highlight.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
-          highlight.style.opacity = '0';
-          
-          // Add elements to the document
-          document.body.appendChild(cursor);
-          document.body.appendChild(highlight);
-          
-          // Add a function to update cursor position
-          window.__updateCursorPosition = function(x, y) {
-            if (cursor) {
-              cursor.style.transform = \`translate(\${x - 4}px, \${y - 4}px)\`;
-            }
-          };
-          
-          // Add a function to animate click
-          window.__animateClick = function(x, y) {
-            if (highlight) {
-              highlight.style.left = \`\${x}px\`;
-              highlight.style.top = \`\${y}px\`;
-              highlight.style.transform = 'translate(-50%, -50%) scale(1)';
-              highlight.style.opacity = '1';
-              
-              setTimeout(() => {
-                highlight.style.transform = 'translate(-50%, -50%) scale(0)';
-                highlight.style.opacity = '0';
-              }, 300);
-            }
-          };
-        })('${CURSOR_ID}', '${HIGHLIGHT_ID}');
-      `);
-
+      // // Define constants for cursor and highlight element IDs
+      // const CURSOR_ID = "stagehand-cursor";
+      // const HIGHLIGHT_ID = "stagehand-highlight";
+      // // Check if cursor already exists
+      // const cursorExists = await this.page.evaluate((id: string) => {
+      //   return !!document.getElementById(id);
+      // }, CURSOR_ID);
+      // if (cursorExists) {
+      //   return;
+      // }
+      // // Inject cursor and highlight elements
+      // await this.page.evaluate(`
+      //   (function(cursorId, highlightId) {
+      //     // Create cursor element
+      //     const cursor = document.createElement('div');
+      //     cursor.id = cursorId;
+      //     // Use the provided SVG for a custom cursor
+      //     cursor.innerHTML = \`
+      //     <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 28 28" width="28" height="28">
+      //       <polygon fill="#000000" points="9.2,7.3 9.2,18.5 12.2,15.6 12.6,15.5 17.4,15.5"/>
+      //       <rect x="12.5" y="13.6" transform="matrix(0.9221 -0.3871 0.3871 0.9221 -5.7605 6.5909)" width="2" height="8" fill="#000000"/>
+      //     </svg>
+      //     \`;
+      //     // Style the cursor
+      //     cursor.style.position = 'absolute';
+      //     cursor.style.top = '0';
+      //     cursor.style.left = '0';
+      //     cursor.style.width = '28px';
+      //     cursor.style.height = '28px';
+      //     cursor.style.pointerEvents = 'none';
+      //     cursor.style.zIndex = '9999999';
+      //     cursor.style.transform = 'translate(-4px, -4px)'; // Adjust to align the pointer tip
+      //     // Create highlight element for click animation
+      //     const highlight = document.createElement('div');
+      //     highlight.id = highlightId;
+      //     highlight.style.position = 'absolute';
+      //     highlight.style.width = '20px';
+      //     highlight.style.height = '20px';
+      //     highlight.style.borderRadius = '50%';
+      //     highlight.style.backgroundColor = 'rgba(66, 134, 244, 0)';
+      //     highlight.style.transform = 'translate(-50%, -50%) scale(0)';
+      //     highlight.style.pointerEvents = 'none';
+      //     highlight.style.zIndex = '9999998';
+      //     highlight.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+      //     highlight.style.opacity = '0';
+      //     // Add elements to the document
+      //     document.body.appendChild(cursor);
+      //     document.body.appendChild(highlight);
+      //     // Add a function to update cursor position
+      //     window.__updateCursorPosition = function(x, y) {
+      //       if (cursor) {
+      //         cursor.style.transform = \`translate(\${x - 4}px, \${y - 4}px)\`;
+      //       }
+      //     };
+      //     // Add a function to animate click
+      //     window.__animateClick = function(x, y) {
+      //       if (highlight) {
+      //         highlight.style.left = \`\${x}px\`;
+      //         highlight.style.top = \`\${y}px\`;
+      //         highlight.style.transform = 'translate(-50%, -50%) scale(1)';
+      //         highlight.style.opacity = '1';
+      //         setTimeout(() => {
+      //           highlight.style.transform = 'translate(-50%, -50%) scale(0)';
+      //           highlight.style.opacity = '0';
+      //         }, 300);
+      //       }
+      //     };
+      //   })('${CURSOR_ID}', '${HIGHLIGHT_ID}');
+      // `);
       this.logger({
         category: "agent",
         message: "Cursor injected for visual feedback",
@@ -553,16 +532,21 @@ export class CuaAgentHandler {
    */
   private async updateCursorPosition(x: number, y: number): Promise<void> {
     try {
-      await this.page.evaluate(
-        ({ x, y }) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((window as any).__updateCursorPosition) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any).__updateCursorPosition(x, y);
-          }
-        },
-        { x, y },
-      );
+      // await this.page.evaluate(
+      //   ({ x, y }) => {
+      //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      //     if ((window as any).__updateCursorPosition) {
+      //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      //       (window as any).__updateCursorPosition(x, y);
+      //     }
+      //   },
+      //   { x, y },
+      // );
+      this.logger({
+        category: "agent",
+        message: `Updating cursor position to ${x}, ${y}`,
+        level: 2,
+      });
     } catch {
       // Silently fail if cursor update fails
       // This is not critical functionality
@@ -572,24 +556,19 @@ export class CuaAgentHandler {
   /**
    * Animate a click at the given position
    */
-  private async animateClick(x: number, y: number): Promise<void> {
+  private async animateClick(_x: number, _y: number): Promise<void> {
     try {
-      await this.page.evaluate(
-        ({ x, y }) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((window as any).__animateClick) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any).__animateClick(x, y);
-          }
-        },
-        { x, y },
-      );
+      //leave empty for now
+      this.logger({
+        category: "agent",
+        message: `Animating click at ${_x}, ${_y}`,
+        level: 2,
+      });
     } catch {
       // Silently fail if animation fails
       // This is not critical functionality
     }
   }
-
   private get page() {
     // stagehand.page is the live proxy you already implemented
     return this.stagehand.page;

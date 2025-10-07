@@ -282,8 +282,8 @@ async function getBrowser(
       acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
       headless: localBrowserLaunchOptions?.headless ?? headless,
       viewport: {
-        width: localBrowserLaunchOptions?.viewport?.width ?? 1024,
-        height: localBrowserLaunchOptions?.viewport?.height ?? 768,
+        width: localBrowserLaunchOptions?.viewport?.width ?? 1288,
+        height: localBrowserLaunchOptions?.viewport?.height ?? 711,
       },
       locale: localBrowserLaunchOptions?.locale ?? "en-US",
       timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
@@ -997,7 +997,8 @@ export class Stagehand {
             } else if (options.provider === "openai") {
               options.options.apiKey = process.env.OPENAI_API_KEY;
             } else if (options.provider === "google") {
-              options.options.apiKey = process.env.GOOGLE_API_KEY;
+              options.options.apiKey =
+                process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
             }
 
             if (!options.options.apiKey) {
