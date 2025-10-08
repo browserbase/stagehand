@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.2
+
+### Patch Changes
+
+- [#1114](https://github.com/browserbase/stagehand/pull/1114) [`c0fbc51`](https://github.com/browserbase/stagehand/commit/c0fbc51a4b7e0b803af254501d2f89473124f0dc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - configure default viewport when running on browserbase
+
 ## 2.5.1
 
 ### Patch Changes
