@@ -45,6 +45,7 @@ import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
+import { applyDefaultBrowserSettingsViewport } from "./browserbaseDefaults";
 import { isRunningInBun, loadApiKeyFromEnv } from "./utils";
 
 dotenv.config({ path: ".env" });
@@ -158,11 +159,14 @@ async function getBrowser(
         );
       }
 
+      const sessionCreateParams = applyDefaultBrowserSettingsViewport(
+        browserbaseSessionCreateParams,
+      );
       const session = await browserbase.sessions.create({
         projectId,
-        ...browserbaseSessionCreateParams,
+        ...sessionCreateParams,
         userMetadata: {
-          ...(browserbaseSessionCreateParams?.userMetadata || {}),
+          ...(sessionCreateParams?.userMetadata || {}),
           stagehand: "true",
         },
       });
@@ -642,7 +646,9 @@ export class Stagehand {
 
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = localBrowserLaunchOptions?.headless ?? false;
-    this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
+    this.browserbaseSessionCreateParams = applyDefaultBrowserSettingsViewport(
+      browserbaseSessionCreateParams,
+    );
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
 
