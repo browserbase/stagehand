@@ -646,9 +646,7 @@ export class Stagehand {
 
     this.domSettleTimeoutMs = domSettleTimeoutMs ?? 30_000;
     this.headless = localBrowserLaunchOptions?.headless ?? false;
-    this.browserbaseSessionCreateParams = applyDefaultBrowserSettingsViewport(
-      browserbaseSessionCreateParams,
-    );
+    this.browserbaseSessionCreateParams = browserbaseSessionCreateParams;
     this.browserbaseSessionID = browserbaseSessionID;
     this.userProvidedInstructions = systemPrompt;
 
