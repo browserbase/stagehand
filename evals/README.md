@@ -15,7 +15,7 @@ pnpm run build:cli
 The evals CLI provides a clean, intuitive interface for running evaluations:
 
 ```bash
-pnpm evals <command> <target> [options]
+evals <command> <target> [options]
 ```
 
 ## Commands
@@ -26,18 +26,18 @@ Run custom evals or external benchmarks.
 
 ```bash
 # Run all custom evals
-pnpm evals run all
+evals run all
 
 # Run specific category
-pnpm evals run act
-pnpm evals run extract
-pnpm evals run observe
+evals run act
+evals run extract
+evals run observe
 
 # Run specific eval by name
-pnpm evals run extract/extract_text
+evals run extract/extract_text
 
 # Run external benchmarks
-pnpm evals run benchmark:gaia
+evals run benchmark:gaia
 ```
 
 ### `list` - View available evals
@@ -46,10 +46,10 @@ List all available evaluations and benchmarks.
 
 ```bash
 # List all categories and benchmarks
-pnpm evals list
+evals list
 
 # Show detailed task list
-pnpm evals list --detailed
+evals list --detailed
 ```
 
 ### `config` - Manage defaults
@@ -58,22 +58,22 @@ Configure default settings for all eval runs.
 
 ```bash
 # View current configuration
-pnpm evals config
+evals config
 
 # Set default values
-pnpm evals config set env browserbase
-pnpm evals config set trials 5
-pnpm evals config set concurrency 10
+evals config set env browserbase
+evals config set trials 5
+evals config set concurrency 10
 
 # Reset to defaults
-pnpm evals config reset
-pnpm evals config reset trials  # Reset specific key
+evals config reset
+evals config reset trials  # Reset specific key
 ```
 
 ### `help` - Show help
 
 ```bash
-pnpm evals help
+evals help
 ```
 
 ## Options
@@ -99,26 +99,26 @@ pnpm evals help
 
 ```bash
 # Run with custom settings
-pnpm evals run act -e browserbase -t 5 -c 10
+evals run act -e browserbase -t 5 -c 10
 
 # Run with specific model
-pnpm evals run observe -m gpt-4o -p openai
+evals run observe -m gpt-4o -p openai
 
 # Run using API
-pnpm evals run extract --api
+evals run extract --api
 ```
 
 ### Running Benchmarks
 
 ```bash
 # WebBench with filters
-pnpm evals run b:webbench -l 10 -f difficulty=easy -f category=READ
+evals run b:webbench -l 10 -f difficulty=easy -f category=READ
 
 # GAIA with sampling
-pnpm evals run b:gaia -s 100 -l 25 -f level=1
+evals run b:gaia -s 100 -l 25 -f level=1
 
 # WebVoyager with limit
-pnpm evals run b:webvoyager -l 50
+evals run b:webvoyager -l 50
 ```
 
 ## Available Benchmarks
@@ -176,7 +176,7 @@ While the CLI reduces the need for environment variables, some are still support
 
 1. Create your eval file in `evals/tasks/<category>/`
 2. Add it to `evals.config.json` under the `tasks` array
-3. Run with: `pnpm evals run <category>/<eval_name>`
+3. Run with: `evals run <category>/<eval_name>`
 
 ## Troubleshooting
 

@@ -382,11 +382,29 @@ export function injectUrls(
   idToUrlMapping: Record<string, string>,
 ): void {
   if (path.length === 0) return;
+  const toId = (value: unknown): string | undefined => {
+    if (typeof value === "number") {
+      return String(value);
+    }
+    if (typeof value === "string" && ID_PATTERN.test(value)) {
+      return value;
+    }
+    return undefined;
+  };
   const [key, ...rest] = path;
 
   if (key === "*") {
     if (Array.isArray(obj)) {
-      for (const item of obj) injectUrls(item, rest, idToUrlMapping);
+      if (rest.length === 0) {
+        for (let i = 0; i < obj.length; i += 1) {
+          const id = toId(obj[i]);
+          if (id !== undefined) {
+            obj[i] = idToUrlMapping[id] ?? "";
+          }
+        }
+      } else {
+        for (const item of obj) injectUrls(item, rest, idToUrlMapping);
+      }
     }
     return;
   }
@@ -395,14 +413,7 @@ export function injectUrls(
     const record = obj as Record<string | number, unknown>;
     if (path.length === 1) {
       const fieldValue = record[key];
-
-      const id =
-        typeof fieldValue === "number"
-          ? String(fieldValue)
-          : typeof fieldValue === "string" && ID_PATTERN.test(fieldValue)
-            ? fieldValue
-            : undefined;
-
+      const id = toId(fieldValue);
       if (id !== undefined) {
         record[key] = idToUrlMapping[id] ?? "";
       }

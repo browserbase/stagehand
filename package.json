@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "2.5.0",
+  "version": "2.5.2",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -76,7 +76,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
-    "@google/genai": "^0.8.0",
+    "@google/genai": "^1.22.0",
     "@modelcontextprotocol/sdk": "^1.17.2",
     "ai": "^4.3.9",
     "devtools-protocol": "^0.0.1464554",

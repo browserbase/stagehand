@@ -24,7 +24,7 @@ export class OpenAICUAClient extends AgentClient {
   private baseURL: string;
   private client: OpenAI;
   public lastResponseId?: string;
-  private currentViewport = { width: 1024, height: 768 };
+  private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
@@ -227,6 +227,11 @@ export class OpenAICUAClient extends AgentClient {
       for (const item of output) {
         if (item.type === "reasoning") {
           this.reasoningItems.set(item.id, item);
+          logger({
+            category: "agent",
+            message: `Reasoning: ${String(item.content || "")}`,
+            level: 1,
+          });
         }
       }
 
@@ -234,17 +239,37 @@ export class OpenAICUAClient extends AgentClient {
       const stepActions: AgentAction[] = [];
       for (const item of output) {
         if (item.type === "computer_call" && this.isComputerCallItem(item)) {
+          logger({
+            category: "agent",
+            message: `Found computer_call: ${item.action.type}, call_id: ${item.call_id}`,
+            level: 2,
+          });
           const action = this.convertComputerCallToAction(item);
           if (action) {
             stepActions.push(action);
+            logger({
+              category: "agent",
+              message: `Converted computer_call to action: ${action.type}`,
+              level: 2,
+            });
           }
         } else if (
           item.type === "function_call" &&
           this.isFunctionCallItem(item)
         ) {
+          logger({
+            category: "agent",
+            message: `Found function_call: ${item.name}, call_id: ${item.call_id}`,
+            level: 2,
+          });
           const action = this.convertFunctionCallToAction(item);
           if (action) {
             stepActions.push(action);
+            logger({
+              category: "agent",
+              message: `Converted function_call to action: ${action.type}`,
+              level: 2,
+            });
           }
         }
       }
@@ -253,10 +278,20 @@ export class OpenAICUAClient extends AgentClient {
       let message = "";
       for (const item of output) {
         if (item.type === "message") {
+          logger({
+            category: "agent",
+            message: `Found message block`,
+            level: 2,
+          });
           if (item.content && Array.isArray(item.content)) {
             for (const content of item.content) {
               if (content.type === "output_text" && content.text) {
                 message += content.text + "\n";
+                logger({
+                  category: "agent",
+                  message: `Message text: ${String(content.text || "")}`,
+                  level: 1,
+                });
               }
             }
           }
@@ -416,6 +451,11 @@ export class OpenAICUAClient extends AgentClient {
           const action = this.convertComputerCallToAction(item);
 
           if (action && this.actionHandler) {
+            logger({
+              category: "agent",
+              message: `Executing computer action: ${action.type}`,
+              level: 1,
+            });
             await this.actionHandler(action);
           }
 
@@ -431,6 +471,12 @@ export class OpenAICUAClient extends AgentClient {
               image_url: screenshot,
             },
           } as ResponseInputItem;
+
+          logger({
+            category: "agent",
+            message: `Added computer_call_output for call_id: ${item.call_id}`,
+            level: 2,
+          });
 
           // Add current URL if available
           if (this.currentUrl) {

@@ -70,6 +70,22 @@ export const createExtractTool = (
     }),
     execute: async ({ instruction, schema }) => {
       try {
+        stagehand.logger({
+          category: "agent",
+          message: `Agent calling tool: extract`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: instruction,
+              type: "string",
+            },
+            // TODO: check if we want to log this
+            schema: {
+              value: schema,
+              type: "object",
+            },
+          },
+        });
         // Evaluate the schema string to get the actual Zod schema
         const zodSchema = evaluateZodSchema(schema, logger);
 

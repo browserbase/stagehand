@@ -39,13 +39,14 @@ export interface AgentOptions {
    * Claude-optimized toolset and prompts.
    */
   storeActions?: boolean;
+  highlightCursor?: boolean;
 }
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
 }
 
-export type AgentProviderType = "openai" | "anthropic";
+export type AgentProviderType = "openai" | "anthropic" | "google";
 
 export interface AgentClientOptions {
   apiKey: string;
@@ -55,7 +56,7 @@ export interface AgentClientOptions {
   [key: string]: unknown;
 }
 
-export type AgentType = "openai" | "anthropic";
+export type AgentType = "openai" | "anthropic" | "google";
 
 export interface AgentExecutionOptions {
   options: AgentExecuteOptions;
