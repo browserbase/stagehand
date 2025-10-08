@@ -1505,7 +1505,7 @@ function decorateRoles(
       : false;
     const tag = encodedId ? opts.tagNameMap[encodedId] : undefined;
     const isHtmlElement = tag === "html";
-    if (domIsScrollable || isHtmlElement) {
+    if ((domIsScrollable || isHtmlElement) && tag !== "#document") {
       const tagLabel = tag && tag.startsWith("#") ? tag.slice(1) : tag;
       role = tagLabel
         ? `scrollable, ${tagLabel}`
