@@ -6,7 +6,7 @@ export type BrowserbaseSessionCreateParams = Omit<
 > & { projectId?: string };
 
 export const DEFAULT_BROWSERBASE_VIEWPORT = {
-  width: 2000,
+  width: 1288,
   height: 711,
 } as const;
 
