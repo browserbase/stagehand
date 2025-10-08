@@ -55,7 +55,7 @@ export function processStepFinishEvent(
       }
       if (typedToolCall.toolName === "close") {
         completed = true;
-        if (typedToolCall.args?.taskComplete) {
+        if (typedToolCall.args?.success) {
           const closeReasoning = typedToolCall.args.reasoning;
           const allReasoning = priorReasoning.join(" ");
           finalMessage = closeReasoning

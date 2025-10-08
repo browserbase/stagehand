@@ -65,8 +65,8 @@ export function mapToolResultToActions({
       type: toolCallName,
       reasoning,
       taskCompleted:
-        toolCallName === "close" && args && "taskComplete" in args
-          ? args.taskComplete
+        toolCallName === "close" && args && "success" in args
+          ? args.success
           : false,
       ...args,
     },
