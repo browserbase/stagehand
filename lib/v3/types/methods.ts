@@ -129,10 +129,3 @@ export enum SupportedPlaywrightAction {
   PREV_CHUNK = "prevChunk",
   SELECT_OPTION_FROM_DROPDOWN = "selectOptionFromDropdown",
 }
-
-export interface HistoryEntry {
-  method: "act" | "extract" | "observe" | "navigate";
-  parameters: unknown;
-  result: unknown;
-  timestamp: string;
-}
