@@ -1,71 +1,69 @@
-import {
-  V3Options,
-  InitState,
-  PlaywrightPage,
-  PuppeteerPage,
-  ActHandlerParams,
-  ActOptions,
-  ExtractHandlerParams,
-  ObserveHandlerParams,
-  ObserveOptions,
-  V3Metrics,
-  V3FunctionName,
-  PatchrightPage,
-  AnyPage,
-  LocalBrowserLaunchOptions,
-  ExtractOptions,
-} from "@/lib/v3/types";
+import { createHash } from "crypto";
+import dotenv from "dotenv";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import process from "process";
+import type { ZodTypeAny } from "zod/v3";
+import { z } from "zod/v3";
+import { loadApiKeyFromEnv } from "../utils";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
-import { V3Context } from "@/lib/v3/understudy/context";
-import { Page } from "./understudy/page";
-import { LLMClient } from "./llm/LLMClient";
-import { AvailableModel } from "./types/model";
-import { ClientOptions } from "./types/model";
-import { LLMProvider } from "./llm/LLMProvider";
-import { loadApiKeyFromEnv } from "@/lib/utils";
-import dotenv from "dotenv";
-import { z } from "zod/v3";
-import type { ZodTypeAny } from "zod/v3";
-import {
-  Action,
-  ActResult,
-  defaultExtractSchema,
-  HistoryEntry,
-  pageTextSchema,
-} from "./types/methods";
-import { AgentExecuteOptions, AgentResult, AgentConfig } from "./types/agent";
-import {
-  initV3Logger,
-  bindInstanceLogger,
-  unbindInstanceLogger,
-  withInstanceLogContext,
-  v3Logger,
-} from "./logger";
-import { LogLine } from "./types/logs";
-import { launchLocalChrome } from "./launch/local";
+import { V3AgentHandler } from "./handlers/v3AgentHandler";
+import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
 import { createBrowserbaseSession } from "./launch/browserbase";
-import process from "process";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { createHash } from "crypto";
-import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
-import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
+import { launchLocalChrome } from "./launch/local";
+import { LLMClient } from "./llm/LLMClient";
+import { LLMProvider } from "./llm/LLMProvider";
+import {
+  bindInstanceLogger,
+  initV3Logger,
+  unbindInstanceLogger,
+  v3Logger,
+  withInstanceLogContext,
+} from "./logger";
 import { resolveTools } from "./mcp/utils";
+import { AgentConfig, AgentExecuteOptions, AgentResult } from "./types/agent";
 import type {
-  CachedActEntry,
-  AgentReplayStep,
   AgentReplayActStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
-  AgentReplayScrollStep,
-  AgentReplayWaitStep,
   AgentReplayNavBackStep,
+  AgentReplayScrollStep,
+  AgentReplayStep,
+  AgentReplayWaitStep,
+  CachedActEntry,
   CachedAgentEntry,
   SanitizedAgentExecuteOptions,
 } from "./types/cache";
+import { InitState } from "./types/internal";
+import { LogLine } from "./types/logs";
+import {
+  ActHandlerParams,
+  Action,
+  ActOptions,
+  ActResult,
+  defaultExtractSchema,
+  ExtractHandlerParams,
+  ExtractOptions,
+  HistoryEntry,
+  ObserveHandlerParams,
+  ObserveOptions,
+  pageTextSchema,
+  V3FunctionName,
+} from "./types/methods";
+import { V3Metrics } from "./types/metrics";
+import { AvailableModel, ClientOptions } from "./types/model";
+import { LocalBrowserLaunchOptions, V3Options } from "./types/options";
+import {
+  AnyPage,
+  PatchrightPage,
+  PlaywrightPage,
+  PuppeteerPage,
+} from "./types/page";
+import { V3Context } from "./understudy/context";
+import { Page } from "./understudy/page";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 
@@ -895,22 +893,22 @@ export class V3 {
 
   async extract(): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
-    options: ExtractOptions<typeof pageTextSchema>,
+    options: ExtractOptions,
   ): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
     instruction: string,
-    options?: ExtractOptions<typeof defaultExtractSchema>,
+    options?: ExtractOptions,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
   async extract<T extends ZodTypeAny>(
     instruction: string,
     schema: T,
-    options?: ExtractOptions<z.AnyZodObject>,
+    options?: ExtractOptions,
   ): Promise<z.infer<T>>;
 
   async extract(
-    a?: string | ExtractOptions<z.AnyZodObject>,
-    b?: ZodTypeAny | ExtractOptions<z.AnyZodObject>,
-    c?: ExtractOptions<z.AnyZodObject>,
+    a?: string | ExtractOptions,
+    b?: ZodTypeAny | ExtractOptions,
+    c?: ExtractOptions,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
@@ -920,7 +918,7 @@ export class V3 {
       // Normalize args
       let instruction: string | undefined;
       let schema: ZodTypeAny | undefined;
-      let options: ExtractOptions<z.AnyZodObject> | undefined;
+      let options: ExtractOptions | undefined;
 
       if (typeof a === "string") {
         instruction = a;
@@ -931,13 +929,13 @@ export class V3 {
           "safeParse" in val;
         if (isZodSchema(b)) {
           schema = b as ZodTypeAny;
-          options = c as ExtractOptions<z.AnyZodObject> | undefined;
+          options = c as ExtractOptions | undefined;
         } else {
-          options = b as ExtractOptions<z.AnyZodObject> | undefined;
+          options = b as ExtractOptions | undefined;
         }
       } else {
         // a is options or undefined
-        options = (a as ExtractOptions<z.AnyZodObject>) || undefined;
+        options = (a as ExtractOptions) || undefined;
       }
 
       if (!instruction && schema) {

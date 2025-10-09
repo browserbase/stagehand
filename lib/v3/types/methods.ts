@@ -8,11 +8,7 @@ import { ModelConfiguration } from "./model";
 export interface ActOptions {
   model?: ModelConfiguration;
   variables?: Record<string, string>;
-  domSettleTimeoutMs?: number;
-  timeoutMs?: number;
   timeout?: number;
-  iframes?: boolean;
-  frameId?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
@@ -24,21 +20,6 @@ export interface ActResult {
 }
 
 export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
-
-export interface ObserveOptions {
-  instruction?: string;
-  model?: ModelConfiguration;
-  domSettleTimeoutMs?: number;
-  returnAction?: boolean;
-  selector?: string;
-  /**
-   * @deprecated The `onlyVisible` parameter has no effect in this version of Stagehand and will be removed in later versions.
-   */
-  onlyVisible?: boolean;
-  drawOverlay?: boolean;
-  iframes?: boolean;
-  frameId?: string;
-}
 
 export interface Action {
   selector: string;
@@ -63,19 +44,10 @@ export interface ActHandlerParams {
   page: Page;
 }
 
-export interface ExtractOptions<T extends z.AnyZodObject> {
-  instruction?: string;
-  schema?: T;
+export interface ExtractOptions {
   model?: ModelConfiguration;
-  domSettleTimeoutMs?: number;
-  /**
-   * @deprecated The `useTextExtract` parameter has no effect in this version of Stagehand and will be removed in later versions.
-   */
-  useTextExtract?: boolean;
-  selector?: string;
-  iframes?: boolean;
-  frameId?: string;
   timeout?: number;
+  selector?: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 

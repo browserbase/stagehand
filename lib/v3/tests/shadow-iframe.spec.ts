@@ -4,7 +4,7 @@ import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
 import { Action } from "../types/methods";
-import { AnyPage } from "@/lib/v3/types";
+import { AnyPage } from "@/lib/v3/types/page";
 import { v3TestConfig } from "./v3.config";
 
 /**

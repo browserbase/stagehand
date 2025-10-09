@@ -3,8 +3,8 @@ import type { AvailableModel } from "./model";
 import type { LogLine } from "./logs";
 import type { AgentInstance } from "./agent";
 import type { EvalCase } from "braintrust";
-import type { V3 } from "@/lib/v3/v3";
-import { EvalLogger } from "@/evals/logger";
+import type { V3 } from "../v3";
+import { EvalLogger } from "../../../evals/logger";
 
 export type StagehandInitResult = {
   v3?: V3;
