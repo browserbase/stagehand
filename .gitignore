@@ -10,7 +10,6 @@ screenshot.png
 downloads/
 dist/
 evals/**/public
-lib/dom/build/
 evals/public
 *.tgz
 evals/playground.ts
@@ -21,3 +20,4 @@ evals/deterministic/tests/BrowserContext/tmp-test.har
 lib/version.ts
 /examples/inference_summary
 /inference_summary
+/lib/v3/dom/build
