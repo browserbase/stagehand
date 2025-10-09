@@ -1,4 +1,4 @@
-import { LLMTool } from "../types/llm";
+import { LLMTool } from "../types/model";
 import {
   embed,
   embedMany,
@@ -12,7 +12,7 @@ import {
   streamText,
 } from "ai";
 import { ZodType } from "zod/v3";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel, ClientOptions } from "../types/model";
 
 export interface ChatMessage {

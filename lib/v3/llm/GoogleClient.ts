@@ -10,7 +10,7 @@ import {
   Type,
 } from "@google/genai";
 
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel, ClientOptions } from "../types/model";
 import {
   validateZodSchema,

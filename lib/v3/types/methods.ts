@@ -6,13 +6,14 @@ import { Page } from "../understudy/page";
 import { ModelConfiguration } from "./model";
 
 export interface ActOptions {
-  action: string;
   model?: ModelConfiguration;
   variables?: Record<string, string>;
   domSettleTimeoutMs?: number;
   timeoutMs?: number;
+  timeout?: number;
   iframes?: boolean;
   frameId?: string;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
 export interface ActResult {
@@ -54,13 +55,6 @@ export interface HistoryEntry {
   timestamp: string;
 }
 
-export interface ActOptions {
-  model?: ModelConfiguration;
-  variables?: Record<string, string>;
-  timeout?: number;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-}
-
 export interface ActHandlerParams {
   instruction: string;
   model?: ModelConfiguration;
@@ -69,10 +63,19 @@ export interface ActHandlerParams {
   page: Page;
 }
 
-export interface ExtractOptions {
+export interface ExtractOptions<T extends z.AnyZodObject> {
+  instruction?: string;
+  schema?: T;
   model?: ModelConfiguration;
-  timeout?: number;
+  domSettleTimeoutMs?: number;
+  /**
+   * @deprecated The `useTextExtract` parameter has no effect in this version of Stagehand and will be removed in later versions.
+   */
+  useTextExtract?: boolean;
   selector?: string;
+  iframes?: boolean;
+  frameId?: string;
+  timeout?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 

@@ -1,7 +1,7 @@
 import type { ClientOptions } from "openai";
 import OpenAI from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel } from "../types/model";
 import {
   ChatMessage,

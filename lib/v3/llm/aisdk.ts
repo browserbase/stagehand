@@ -12,7 +12,7 @@ import {
   ToolSet,
 } from "ai";
 import { ChatCompletion } from "openai/resources";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel } from "../types/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 

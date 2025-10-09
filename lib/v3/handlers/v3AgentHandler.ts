@@ -1,5 +1,5 @@
 import { AgentAction, AgentExecuteOptions, AgentResult } from "../types/agent";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";

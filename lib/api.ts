@@ -7,17 +7,17 @@ import {
   StartSessionParams,
   StartSessionResult,
 } from "./v3/types/api";
-import { LogLine } from "./v3/types/log";
-import { GotoOptions } from "./v3/types/playwright";
+import { LogLine } from "./v3/types/logs";
+import { GotoOptions } from "./v3/types/page";
 import {
   ActOptions,
   ActResult,
-  AgentConfig,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
   Action,
-} from "./v3/types/stagehand";
+} from "./v3/types/methods";
+import { AgentConfig } from "./v3/types/agent";
 import { AgentExecuteOptions, AgentResult } from "@/lib/v3/types/agent";
 import {
   StagehandAPIUnauthorizedError,

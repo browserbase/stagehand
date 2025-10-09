@@ -1,5 +1,5 @@
 import { EvalFunction } from "@/lib/v3/types/evals";
-import { Action } from "@/lib/v3/types/stagehand";
+import { Action } from "@/lib/v3/types/methods";
 
 export const observe_iframes2: EvalFunction = async ({
   logger,

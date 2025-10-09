@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import {
   AgentAction,
   AgentResult,

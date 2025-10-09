@@ -6,7 +6,7 @@ import {
   Tool,
 } from "@anthropic-ai/sdk/resources";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AnthropicJsonSchemaObject, AvailableModel } from "../types/model";
 import {
   CreateChatCompletionOptions,

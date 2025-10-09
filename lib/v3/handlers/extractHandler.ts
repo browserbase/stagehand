@@ -7,7 +7,7 @@ import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { extract as runExtract } from "@/lib/inference";
 import { defaultExtractSchema, pageTextSchema } from "../types";
 import { injectUrls, transformSchema } from "@/lib/utils";
-import { EncodedId } from "../types/context";
+import { EncodedId } from "../types/internal";
 import { ZodPathSegments } from "../types/internal";
 import { v3Logger } from "@/lib/v3/logger";
 

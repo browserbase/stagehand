@@ -1,10 +1,9 @@
-import { ID_PATTERN } from "./v3/types/context";
 import { ZodSchemaValidationError } from "./v3/types/sdkErrors";
 import { Schema, Type } from "@google/genai";
 import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
-import { LogLine } from "./v3/types/log";
+import { LogLine } from "./v3/types/logs";
 import { ModelProvider } from "./v3/types/model";
-import { ZodPathSegments } from "./v3/types/stagehand";
+import { ZodPathSegments } from "./v3/types/internal";
 
 const ID_PATTERN = /^\d+-\d+$/;
 

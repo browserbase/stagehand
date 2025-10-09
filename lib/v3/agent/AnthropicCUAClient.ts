@@ -9,7 +9,7 @@ import {
   AnthropicToolResult,
   ToolUseItem,
 } from "../types/agent";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AgentScreenshotProviderError } from "../types/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";

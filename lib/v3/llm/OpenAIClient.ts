@@ -10,7 +10,7 @@ import {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
 import zodToJsonSchema from "zod-to-json-schema";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel } from "../types/model";
 import { validateZodSchema } from "../../utils";
 import {

@@ -5,7 +5,7 @@ import {
   AgentHandlerOptions,
   AgentResult,
 } from "../types/agent";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { V3 } from "@/lib/v3/v3";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";

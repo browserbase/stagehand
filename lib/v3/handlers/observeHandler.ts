@@ -5,7 +5,7 @@ import { LLMClient } from "../llm/LLMClient";
 import { observe as runObserve } from "@/lib/inference";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { trimTrailingTextNode } from "@/lib/utils";
-import { EncodedId } from "../types/context";
+import { EncodedId } from "../types/internal";
 import { Action } from "../types/methods";
 import { v3Logger } from "@/lib/v3/logger";
 

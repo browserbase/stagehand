@@ -3,7 +3,12 @@ import { act as actInference } from "@/lib/inference";
 import { buildActPrompt, buildStepTwoPrompt } from "@/lib/prompt";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { v3Logger } from "@/lib/v3/logger";
-import { ActHandlerParams, V3FunctionName } from "@/lib/v3/types/methods";
+import {
+  ActHandlerParams,
+  V3FunctionName,
+  ActResult,
+  Action,
+} from "@/lib/v3/types/methods";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,

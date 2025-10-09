@@ -28,7 +28,13 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
 import type { ZodTypeAny } from "zod/v3";
-import { Action, ActResult, HistoryEntry } from "./types/methods";
+import {
+  Action,
+  ActResult,
+  defaultExtractSchema,
+  HistoryEntry,
+  pageTextSchema,
+} from "./types/methods";
 import { AgentExecuteOptions, AgentResult, AgentConfig } from "./types/agent";
 import {
   initV3Logger,
@@ -37,7 +43,7 @@ import {
   withInstanceLogContext,
   v3Logger,
 } from "./logger";
-import { LogLine } from "./types/log";
+import { LogLine } from "./types/logs";
 import { launchLocalChrome } from "./launch/local";
 import { createBrowserbaseSession } from "./launch/browserbase";
 import process from "process";
@@ -48,7 +54,6 @@ import { createHash } from "crypto";
 import { V3AgentHandler } from "@/lib/v3/handlers/v3AgentHandler";
 import { V3CuaAgentHandler } from "@/lib/v3/handlers/v3CuaAgentHandler";
 import { resolveTools } from "./mcp/utils";
-import { defaultExtractSchema, pageTextSchema } from "./types";
 import type {
   CachedActEntry,
   AgentReplayStep,
@@ -890,22 +895,22 @@ export class V3 {
 
   async extract(): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
-    options: ExtractOptions,
+    options: ExtractOptions<typeof pageTextSchema>,
   ): Promise<z.infer<typeof pageTextSchema>>;
   async extract(
     instruction: string,
-    options?: ExtractOptions,
+    options?: ExtractOptions<typeof defaultExtractSchema>,
   ): Promise<z.infer<typeof defaultExtractSchema>>;
   async extract<T extends ZodTypeAny>(
     instruction: string,
     schema: T,
-    options?: ExtractOptions,
+    options?: ExtractOptions<z.AnyZodObject>,
   ): Promise<z.infer<T>>;
 
   async extract(
-    a?: string | ExtractOptions,
-    b?: ZodTypeAny | ExtractOptions,
-    c?: ExtractOptions,
+    a?: string | ExtractOptions<z.AnyZodObject>,
+    b?: ZodTypeAny | ExtractOptions<z.AnyZodObject>,
+    c?: ExtractOptions<z.AnyZodObject>,
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
@@ -915,7 +920,7 @@ export class V3 {
       // Normalize args
       let instruction: string | undefined;
       let schema: ZodTypeAny | undefined;
-      let options: ExtractOptions | undefined;
+      let options: ExtractOptions<z.AnyZodObject> | undefined;
 
       if (typeof a === "string") {
         instruction = a;
@@ -926,13 +931,13 @@ export class V3 {
           "safeParse" in val;
         if (isZodSchema(b)) {
           schema = b as ZodTypeAny;
-          options = c as ExtractOptions | undefined;
+          options = c as ExtractOptions<z.AnyZodObject> | undefined;
         } else {
-          options = b as ExtractOptions | undefined;
+          options = b as ExtractOptions<z.AnyZodObject> | undefined;
         }
       } else {
         // a is options or undefined
-        options = (a as ExtractOptions) || undefined;
+        options = (a as ExtractOptions<z.AnyZodObject>) || undefined;
       }
 
       if (!instruction && schema) {

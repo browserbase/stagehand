@@ -1,16 +1,16 @@
-import { AgentType } from "../types/agent";
-import { LogLine } from "../types/log";
+import { ToolSet } from "ai/dist";
+import { AgentProviderType } from "../types/agent";
+import { LogLine } from "../types/logs";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
 } from "../types/sdkErrors";
-import { ToolSet } from "ai/dist";
 import { AgentClient } from "./AgentClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";
 
 // Map model names to their provider types
-const modelToAgentProviderMap: Record<string, AgentType> = {
+const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
@@ -81,7 +81,7 @@ export class AgentProvider {
     }
   }
 
-  static getAgentProvider(modelName: string): AgentType {
+  static getAgentProvider(modelName: string): AgentProviderType {
     // First check the exact model name in the map
     if (modelName in modelToAgentProviderMap) {
       return modelToAgentProviderMap[modelName];

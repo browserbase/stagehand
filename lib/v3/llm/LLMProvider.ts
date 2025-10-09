@@ -3,7 +3,7 @@ import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
 } from "../types/sdkErrors";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/logs";
 import { AvailableModel, ClientOptions, ModelProvider } from "../types/model";
 import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
@@ -24,7 +24,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider";
-import { AISDKProvider, AISDKCustomProvider } from "../types/llm";
+import { AISDKProvider, AISDKCustomProvider } from "../types/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,

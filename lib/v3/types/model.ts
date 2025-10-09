@@ -3,6 +3,17 @@ import { LanguageModel } from "ai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 import z from "zod/v3";
 
+export type AnthropicJsonSchemaObject = {
+  definitions?: {
+    MySchema?: {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+  properties?: Record<string, unknown>;
+  required?: string[];
+} & Record<string, unknown>;
+
 export interface LLMTool {
   type: "function";
   name: string;
