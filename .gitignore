@@ -22,3 +22,4 @@ evals/deterministic/tests/BrowserContext/tmp-test.har
 packages/core/lib/version.ts
 /examples/inference_summary
 /inference_summary
+.turbo

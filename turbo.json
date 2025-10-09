@@ -1,0 +1,98 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": [
+    "tsconfig.json",
+    ".env"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        "lib/dom/build/**",
+        "lib/v3/dom/build/**",
+        "lib/version.ts"
+      ],
+      "inputs": [
+        "lib/**/*.ts",
+        "lib/**/*.tsx",
+        "lib/**/*.js",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "build-dom-scripts": {
+      "outputs": [
+        "lib/dom/build/**",
+        "lib/v3/dom/build/**"
+      ],
+      "inputs": [
+        "lib/v3/dom/**/*.ts"
+      ]
+    },
+    "build-js": {
+      "dependsOn": ["build-dom-scripts"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "lib/**/*.ts",
+        "lib/**/*.tsx"
+      ]
+    },
+    "build:cli": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "inputs": [
+        "cli.ts",
+        "evals.config.json"
+      ]
+    },
+    "gen-version": {
+      "outputs": ["packages/core/lib/version.ts"],
+      "inputs": ["package.json", "scripts/gen-version.ts"]
+    },
+    "lint": {
+      "outputs": [],
+      "inputs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        ".eslintrc*",
+        ".prettierrc*"
+      ]
+    },
+    "format": {
+      "outputs": [],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "inputs": [
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ]
+    },
+    "e2e": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "playwright-report/**",
+        "test-results/**"
+      ],
+      "cache": false
+    },
+    "evals": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "cache": false
+    },
+    "docs": {
+      "persistent": true,
+      "cache": false
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
+    }
+  }
+}

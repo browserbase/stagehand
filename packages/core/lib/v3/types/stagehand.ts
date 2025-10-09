@@ -1,4 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ToolSet } from "ai";
 import { z } from "zod/v3";
 import { AgentProviderType } from "./agent";
