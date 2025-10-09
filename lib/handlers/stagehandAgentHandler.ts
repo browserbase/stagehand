@@ -54,6 +54,8 @@ export class StagehandAgentHandler {
     let completed = false;
     const collectedReasoning: string[] = [];
 
+    let currentPageUrl = this.stagehand.page.url();
+
     this.logger({
       category: "agent",
       message: `Executing agent task: ${options.instruction}`,
@@ -184,6 +186,7 @@ export class StagehandAgentHandler {
               const action: AgentAction = {
                 type: toolCall.toolName,
                 reasoning: event.text || undefined,
+                pageUrl: currentPageUrl,
                 taskCompleted:
                   toolCall.toolName === "close"
                     ? (args?.success as boolean)
@@ -194,6 +197,7 @@ export class StagehandAgentHandler {
 
               actions.push(action);
             }
+            currentPageUrl = this.stagehand.page.url();
           }
         },
       });
