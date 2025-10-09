@@ -100,7 +100,7 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ## Getting Started
 
-Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) for more information:
+Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/first-steps/quickstart) for more information:
 
 ```bash
 npx create-browser-app
