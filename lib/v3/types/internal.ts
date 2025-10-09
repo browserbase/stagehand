@@ -1,11 +1,6 @@
 import Browserbase from "@browserbasehq/sdk";
 import { LaunchedChrome } from "chrome-launcher";
 
-/** Narrow shape we rely on from /json/version */
-export interface JsonVersionResponse {
-  webSocketDebuggerUrl: string;
-}
-
 export type InitState =
   | { kind: "UNINITIALIZED" }
   | {

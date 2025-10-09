@@ -39,14 +39,6 @@ export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
 }
 
-export interface AgentClientOptions {
-  apiKey: string;
-  organization?: string;
-  baseURL?: string;
-  defaultMaxSteps?: number;
-  [key: string]: unknown;
-}
-
 export type AgentType = "openai" | "anthropic" | "google";
 
 export interface AgentExecutionOptions {
