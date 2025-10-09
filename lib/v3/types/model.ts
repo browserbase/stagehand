@@ -1,7 +1,6 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
 import { LanguageModel } from "ai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
-import z from "zod/v3";
 
 export type AnthropicJsonSchemaObject = {
   definitions?: {
