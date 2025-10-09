@@ -1,6 +1,6 @@
 import fs from "fs";
 import { tasksByName } from "../taskConfig";
-import type { SummaryResult } from "../../lib/v3/types/evals";
+import type { SummaryResult } from "../../lib/v3/types/public/evals";
 
 export const generateSummary = async (
   results: SummaryResult[],

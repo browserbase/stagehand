@@ -3,7 +3,7 @@ import {
   AgentResult,
   AgentType,
   AgentExecutionOptions,
-} from "../types/agent";
+} from "../types/public/agent";
 
 /**
  * Abstract base class for agent clients

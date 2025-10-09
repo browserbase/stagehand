@@ -1,5 +1,5 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
-import { Action } from "@/lib/v3/types/stagehand";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
+import { Action } from "@/lib/v3/types/public/methods";
 
 export const no_js_click: EvalFunction = async ({
   debugUrl,

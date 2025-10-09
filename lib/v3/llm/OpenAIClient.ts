@@ -10,8 +10,8 @@ import {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
 import zodToJsonSchema from "zod-to-json-schema";
-import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import { AvailableModel } from "../types/public/model";
 import { validateZodSchema } from "../../utils";
 import {
   ChatCompletionOptions,
@@ -24,7 +24,7 @@ import {
   CreateChatCompletionResponseError,
   StagehandError,
   ZodSchemaValidationError,
-} from "../types/stagehandErrors";
+} from "../types/public/sdkErrors";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;

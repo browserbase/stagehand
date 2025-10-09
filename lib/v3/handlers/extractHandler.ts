@@ -1,15 +1,15 @@
 // lib/v3/handlers/extractHandler.ts
-import { z, ZodTypeAny } from "zod/v3";
-import { ExtractHandlerParams, V3FunctionName } from "@/lib/v3/types";
-import { LLMClient } from "../llm/LLMClient";
-import { AvailableModel, ClientOptions } from "../types/model";
-import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { extract as runExtract } from "@/lib/inference";
-import { defaultExtractSchema, pageTextSchema } from "../types";
 import { injectUrls, transformSchema } from "@/lib/utils";
-import { EncodedId } from "../types/context";
-import { ZodPathSegments } from "../types/stagehand";
 import { v3Logger } from "@/lib/v3/logger";
+import { V3FunctionName } from "@/lib/v3/types/public/methods";
+import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
+import { z, ZodTypeAny } from "zod/v3";
+import { LLMClient } from "../llm/LLMClient";
+import { ExtractHandlerParams } from "../types/private/handlers";
+import { EncodedId, ZodPathSegments } from "../types/private/internal";
+import { defaultExtractSchema, pageTextSchema } from "../types/public/methods";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and

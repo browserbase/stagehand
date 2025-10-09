@@ -1,10 +1,11 @@
-import { ID_PATTERN } from "./v3/types/context";
-import { ZodSchemaValidationError } from "./v3/types/stagehandErrors";
+import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
 import { Schema, Type } from "@google/genai";
 import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
-import { LogLine } from "./v3/types/log";
-import { ModelProvider } from "./v3/types/model";
-import { ZodPathSegments } from "./v3/types/stagehand";
+import { LogLine } from "./v3/types/public/logs";
+import { ModelProvider } from "./v3/types/public/model";
+import { ZodPathSegments } from "./v3/types/private/internal";
+
+const ID_PATTERN = /^\d+-\d+$/;
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   const result = schema.safeParse(data);

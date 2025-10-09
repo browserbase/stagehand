@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 import { V3Evaluator } from "../../v3Evaluator";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
