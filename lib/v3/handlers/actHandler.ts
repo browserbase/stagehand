@@ -3,20 +3,20 @@ import { act as actInference } from "@/lib/inference";
 import { buildActPrompt, buildStepTwoPrompt } from "@/lib/prompt";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { v3Logger } from "@/lib/v3/logger";
+import { ActHandlerParams } from "@/lib/v3/types/private/handlers";
 import {
-  ActHandlerParams,
-  V3FunctionName,
   ActResult,
   Action,
-} from "@/lib/v3/types/methods";
+  V3FunctionName,
+} from "@/lib/v3/types/public/methods";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
 } from "@/lib/v3/understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
-import { EncodedId } from "../types/internal";
-import { SupportedPlaywrightAction } from "../types/methods";
-import { AvailableModel, ClientOptions } from "../types/model";
+import { SupportedPlaywrightAction } from "../types/private";
+import { EncodedId } from "../types/private/internal";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 import type { Page } from "../understudy/page";
 import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 

@@ -8,9 +8,9 @@ import {
   AnthropicTextBlock,
   AnthropicToolResult,
   ToolUseItem,
-} from "../types/agent";
-import { LogLine } from "../types/logs";
-import { AgentScreenshotProviderError } from "../types/sdkErrors";
+} from "../types/public/agent";
+import { LogLine } from "../types/public/logs";
+import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { AgentClient } from "./AgentClient";

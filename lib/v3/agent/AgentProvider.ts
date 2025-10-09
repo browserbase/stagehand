@@ -1,10 +1,10 @@
 import { ToolSet } from "ai/dist";
-import { AgentProviderType } from "../types/agent";
-import { LogLine } from "../types/logs";
+import { AgentProviderType } from "../types/public/agent";
+import { LogLine } from "../types/public/logs";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/sdkErrors";
+} from "../types/public/sdkErrors";
 import { AgentClient } from "./AgentClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";
 import { OpenAICUAClient } from "./OpenAICUAClient";

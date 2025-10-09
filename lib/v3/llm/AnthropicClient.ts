@@ -6,14 +6,17 @@ import {
   Tool,
 } from "@anthropic-ai/sdk/resources";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { LogLine } from "../types/logs";
-import { AnthropicJsonSchemaObject, AvailableModel } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import {
+  AnthropicJsonSchemaObject,
+  AvailableModel,
+} from "../types/public/model";
 import {
   CreateChatCompletionOptions,
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "../types/sdkErrors";
+import { CreateChatCompletionResponseError } from "../types/public/sdkErrors";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;

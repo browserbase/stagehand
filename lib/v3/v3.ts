@@ -24,7 +24,17 @@ import {
   withInstanceLogContext,
 } from "./logger";
 import { resolveTools } from "./mcp/utils";
-import { AgentConfig, AgentExecuteOptions, AgentResult } from "./types/agent";
+import {
+  ActHandlerParams,
+  ExtractHandlerParams,
+  ObserveHandlerParams,
+} from "./types/private/handlers";
+import { InitState } from "./types/private/internal";
+import {
+  AgentConfig,
+  AgentExecuteOptions,
+  AgentResult,
+} from "./types/public/agent";
 import type {
   AgentReplayActStep,
   AgentReplayFillFormStep,
@@ -36,32 +46,28 @@ import type {
   CachedActEntry,
   CachedAgentEntry,
   SanitizedAgentExecuteOptions,
-} from "./types/cache";
-import { InitState } from "./types/internal";
-import { LogLine } from "./types/logs";
+} from "./types/public/cache";
+import { LogLine } from "./types/public/logs";
 import {
-  ActHandlerParams,
   Action,
   ActOptions,
   ActResult,
   defaultExtractSchema,
-  ExtractHandlerParams,
   ExtractOptions,
   HistoryEntry,
-  ObserveHandlerParams,
   ObserveOptions,
   pageTextSchema,
   V3FunctionName,
-} from "./types/methods";
-import { V3Metrics } from "./types/metrics";
-import { AvailableModel, ClientOptions } from "./types/model";
-import { LocalBrowserLaunchOptions, V3Options } from "./types/options";
+} from "./types/public/methods";
+import { V3Metrics } from "./types/public/metrics";
+import { AvailableModel, ClientOptions } from "./types/public/model";
+import { LocalBrowserLaunchOptions, V3Options } from "./types/public/options";
 import {
   AnyPage,
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-} from "./types/page";
+} from "./types/public/page";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 

@@ -1,4 +1,4 @@
-import { Page } from "../understudy/page";
+import { Page } from "../../understudy/page";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";

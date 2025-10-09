@@ -2,12 +2,13 @@
 import { observe as runObserve } from "@/lib/inference";
 import { trimTrailingTextNode } from "@/lib/utils";
 import { v3Logger } from "@/lib/v3/logger";
-import { ObserveHandlerParams, V3FunctionName } from "@/lib/v3/types/methods";
+import { V3FunctionName } from "@/lib/v3/types/public/methods";
 import { captureHybridSnapshot } from "@/lib/v3/understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
-import { EncodedId } from "../types/internal";
-import { Action } from "../types/methods";
-import { AvailableModel, ClientOptions } from "../types/model";
+import { ObserveHandlerParams } from "../types/private/handlers";
+import { EncodedId } from "../types/private/internal";
+import { Action } from "../types/public/methods";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;

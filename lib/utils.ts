@@ -1,9 +1,9 @@
-import { ZodSchemaValidationError } from "./v3/types/sdkErrors";
+import { ZodSchemaValidationError } from "./v3/types/public/sdkErrors";
 import { Schema, Type } from "@google/genai";
 import { ZodFirstPartyTypeKind as Kind, z, ZodTypeAny } from "zod/v3";
-import { LogLine } from "./v3/types/logs";
-import { ModelProvider } from "./v3/types/model";
-import { ZodPathSegments } from "./v3/types/internal";
+import { LogLine } from "./v3/types/public/logs";
+import { ModelProvider } from "./v3/types/public/model";
+import { ZodPathSegments } from "./v3/types/private/internal";
 
 const ID_PATTERN = /^\d+-\d+$/;
 

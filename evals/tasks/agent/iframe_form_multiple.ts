@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const iframe_form_multiple: EvalFunction = async ({

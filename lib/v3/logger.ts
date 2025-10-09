@@ -1,4 +1,4 @@
-import type { LogLine } from "./types/logs";
+import type { LogLine } from "./types/public/logs";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /**

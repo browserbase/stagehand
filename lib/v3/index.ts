@@ -3,5 +3,5 @@ export { V3 as Stagehand } from "./v3";
 
 // Re-export common V3 types for consumers
 export * from "./llm/LLMClient";
-export * from "./types";
+export * from "./types/public";
 export { connectToMCPServer } from "../v3/mcp/connection";

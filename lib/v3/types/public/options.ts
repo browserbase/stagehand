@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { LLMClient } from "../llm/LLMClient";
+import { LLMClient } from "../../llm/LLMClient";
 import { ModelConfiguration } from "./model";
 import { LogLine } from "./logs";
 

@@ -1,9 +1,9 @@
-import { LogLine } from "../types/logs";
+import { LogLine } from "../types/public/logs";
 import {
   AgentExecuteOptions,
   AgentResult,
   AgentExecutionOptions,
-} from "../types/agent";
+} from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 
 /**

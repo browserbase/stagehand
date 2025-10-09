@@ -2,9 +2,13 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/sdkErrors";
-import { LogLine } from "../types/logs";
-import { AvailableModel, ClientOptions, ModelProvider } from "../types/model";
+} from "../types/public/sdkErrors";
+import { LogLine } from "../types/public/logs";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelProvider,
+} from "../types/public/model";
 import { AISdkClient } from "./aisdk";
 import { AnthropicClient } from "./AnthropicClient";
 import { CerebrasClient } from "./CerebrasClient";
@@ -24,7 +28,7 @@ import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider";
-import { AISDKProvider, AISDKCustomProvider } from "../types/model";
+import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,

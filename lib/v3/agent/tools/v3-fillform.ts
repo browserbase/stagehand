@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import type { V3 } from "@/lib/v3/v3";
-import type { Action } from "@/lib/v3/types/methods";
+import type { Action } from "@/lib/v3/types/public/methods";
 
 export const createFillFormTool = (v3: V3, executionModel?: string) =>
   tool({

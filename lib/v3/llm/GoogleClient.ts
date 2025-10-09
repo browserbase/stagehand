@@ -10,8 +10,8 @@ import {
   Type,
 } from "@google/genai";
 
-import { LogLine } from "../types/logs";
-import { AvailableModel, ClientOptions } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 import {
   validateZodSchema,
   toGeminiSchema,
@@ -28,7 +28,7 @@ import {
 import {
   CreateChatCompletionResponseError,
   StagehandError,
-} from "../types/sdkErrors";
+} from "../types/public/sdkErrors";
 
 // Mapping from generic roles to Gemini roles
 const roleMap: { [key in ChatMessage["role"]]: string } = {
