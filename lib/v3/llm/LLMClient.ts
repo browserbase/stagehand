@@ -1,4 +1,4 @@
-import { LLMTool } from "../types/llm";
+import { LLMTool } from "../types/public/model";
 import {
   embed,
   embedMany,
@@ -12,8 +12,8 @@ import {
   streamText,
 } from "ai";
 import { ZodType } from "zod/v3";
-import { LogLine } from "../types/log";
-import { AvailableModel, ClientOptions } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";

@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 
 export const simple_google_search: EvalFunction = async ({
   debugUrl,

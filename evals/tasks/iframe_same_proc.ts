@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 
 export const iframe_same_proc: EvalFunction = async ({
   debugUrl,

@@ -3,8 +3,8 @@ import { V3 } from "../../v3/v3";
 import puppeteer from "puppeteer-core";
 import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
-import { Action } from "../types/stagehand";
-import { AnyPage } from "@/lib/v3/types";
+import { Action } from "../types/public/methods";
+import { AnyPage } from "@/lib/v3/types/public/page";
 import { v3TestConfig } from "./v3.config";
 
 /**

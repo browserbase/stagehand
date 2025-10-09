@@ -1,5 +1,5 @@
-import path from "path";
 import fs from "fs";
+import path from "path";
 
 /**
  * Create (or ensure) a parent directory named "inference_summary".

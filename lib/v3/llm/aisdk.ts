@@ -12,8 +12,8 @@ import {
   ToolSet,
 } from "ai";
 import { ChatCompletion } from "openai/resources";
-import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AISdkClient extends LLMClient {

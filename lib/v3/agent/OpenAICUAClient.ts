@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { LogLine } from "../types/log";
+import { LogLine } from "../types/public/logs";
 import {
   AgentAction,
   AgentResult,
@@ -9,9 +9,9 @@ import {
   ResponseItem,
   ComputerCallItem,
   FunctionCallItem,
-} from "../types/agent";
+} from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/stagehandErrors";
+import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import { ToolSet } from "ai/dist";
 
 /**

@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 import { z } from "zod/v3";
 
 export const extract_rockauto: EvalFunction = async ({

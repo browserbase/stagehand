@@ -1,6 +1,6 @@
 import { ZodError } from "zod/v3";
 // Avoid .js extension so tsup/esbuild resolves TS source
-import { STAGEHAND_VERSION } from "../../version";
+import { STAGEHAND_VERSION } from "../../../version";
 
 export class StagehandError extends Error {
   constructor(message: string) {

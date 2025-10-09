@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 
 export const amazon_add_to_cart: EvalFunction = async ({
   logger,

@@ -1,5 +1,5 @@
 import { V3Evaluator } from "@/evals/v3Evaluator";
-import { EvalFunction } from "@/lib/v3/types/evals";
+import { EvalFunction } from "@/lib/v3/types/public/evals";
 
 export const all_recipes: EvalFunction = async ({
   debugUrl,

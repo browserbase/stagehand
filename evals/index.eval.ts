@@ -23,9 +23,13 @@ import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel } from "braintrust";
-import { SummaryResult, Testcase, EvalInput } from "@/lib/v3/types/evals";
+import {
+  SummaryResult,
+  Testcase,
+  EvalInput,
+} from "@/lib/v3/types/public/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@/lib/v3/types/model";
+import { AvailableModel } from "@/lib/v3/types/public/model";
 import { LLMClient } from "@/lib/v3/llm/LLMClient";
 import { env } from "./env";
 import dotenv from "dotenv";

@@ -2,7 +2,7 @@ import {
   AnthropicMessage,
   AnthropicContentBlock,
   AnthropicToolResult,
-} from "../../types/agent";
+} from "../../types/public/agent";
 
 export type ResponseInputItem = AnthropicMessage | AnthropicToolResult;
 

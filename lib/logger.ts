@@ -1,5 +1,5 @@
 import pino from "pino";
-import { LogLine } from "./v3/types/log";
+import { LogLine } from "./v3/types/public/logs";
 
 // Map our existing levels to Pino's standard levels
 const levelMapping: Record<number, pino.Level> = {
