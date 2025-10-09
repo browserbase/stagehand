@@ -26,7 +26,7 @@ import {
   StagehandServerError,
   StagehandResponseBodyError,
   StagehandResponseParseError,
-} from "./v3/types/stagehandApiErrors";
+} from "./v3/types/apiErrors";
 import makeFetchCookie from "fetch-cookie";
 import { STAGEHAND_VERSION } from "./version";
 

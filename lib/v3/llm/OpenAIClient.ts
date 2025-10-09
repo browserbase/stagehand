@@ -24,7 +24,7 @@ import {
   CreateChatCompletionResponseError,
   StagehandError,
   ZodSchemaValidationError,
-} from "../types/stagehandErrors";
+} from "../types/sdkErrors";
 
 export class OpenAIClient extends LLMClient {
   public type = "openai" as const;

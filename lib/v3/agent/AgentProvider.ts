@@ -3,7 +3,7 @@ import { LogLine } from "../types/log";
 import {
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/stagehandErrors";
+} from "../types/sdkErrors";
 import { ToolSet } from "ai/dist";
 import { AgentClient } from "./AgentClient";
 import { AnthropicCUAClient } from "./AnthropicCUAClient";

@@ -13,7 +13,7 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "../types/stagehandErrors";
+import { CreateChatCompletionResponseError } from "../types/sdkErrors";
 
 export class AnthropicClient extends LLMClient {
   public type = "anthropic" as const;

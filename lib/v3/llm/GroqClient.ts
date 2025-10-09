@@ -9,7 +9,7 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "../types/stagehandErrors";
+import { CreateChatCompletionResponseError } from "../types/sdkErrors";
 
 export class GroqClient extends LLMClient {
   public type = "groq" as const;

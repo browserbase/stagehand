@@ -1,4 +1,6 @@
-import { LogLine } from "./log";
+import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
+import { ToolSet } from "ai";
+import { LogLine } from "./logs";
 
 export interface AgentAction {
   type: string;
@@ -158,4 +160,41 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
+}
+
+/**
+ * Configuration for agent functionality
+ */
+export interface AgentConfig {
+  /**
+   * The provider to use for agent functionality
+   */
+  provider?: AgentProviderType;
+  /**
+   * The model to use for agent functionality
+   */
+  model?: string;
+  /**
+   * The model to use for tool execution (observe/act calls within agent tools).
+   * If not specified, inherits from the main model configuration.
+   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
+   */
+  executionModel?: string;
+  /**
+   * Custom instructions to provide to the agent
+   */
+  instructions?: string;
+
+  /**
+   * Additional options to pass to the agent client
+   */
+  options?: Record<string, unknown>;
+  /**
+   * MCP integrations - Array of Client objects
+   */
+  integrations?: (Client | string)[];
+  /**
+   * Tools passed to the agent client
+   */
+  tools?: ToolSet;
 }

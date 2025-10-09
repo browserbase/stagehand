@@ -2,7 +2,7 @@ import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
   UnsupportedModelProviderError,
-} from "../types/stagehandErrors";
+} from "../types/sdkErrors";
 import { LogLine } from "../types/log";
 import { AvailableModel, ClientOptions, ModelProvider } from "../types/model";
 import { AISdkClient } from "./aisdk";

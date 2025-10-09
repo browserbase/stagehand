@@ -28,13 +28,8 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 import { z } from "zod/v3";
 import type { ZodTypeAny } from "zod/v3";
-import {
-  Action,
-  ActResult,
-  HistoryEntry,
-  AgentConfig,
-} from "./types/stagehand";
-import { AgentExecuteOptions, AgentResult } from "./types/agent";
+import { Action, ActResult, HistoryEntry } from "./types/methods";
+import { AgentExecuteOptions, AgentResult, AgentConfig } from "./types/agent";
 import {
   initV3Logger,
   bindInstanceLogger,

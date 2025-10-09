@@ -1,5 +1,5 @@
 import type { AgentResult } from "@/lib/v3/types/agent";
-import type { Action } from "@/lib/v3/types/stagehand";
+import type { Action } from "@/lib/v3/types/methods";
 import type { LoadState } from "@/lib/v3/types";
 
 export interface CachedActEntry {

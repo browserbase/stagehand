@@ -28,7 +28,7 @@ import {
 import {
   CreateChatCompletionResponseError,
   StagehandError,
-} from "../types/stagehandErrors";
+} from "../types/sdkErrors";
 
 // Mapping from generic roles to Gemini roles
 const roleMap: { [key in ChatMessage["role"]]: string } = {

@@ -1,6 +1,20 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
+import { LanguageModel } from "ai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
-import { z } from "zod/v3";
+import z from "zod/v3";
+
+export interface LLMTool {
+  type: "function";
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export type AISDKProvider = (modelName: string) => LanguageModel;
+// Represents a function that takes options (like apiKey) and returns an AISDKProvider
+export type AISDKCustomProvider = (options: {
+  apiKey: string;
+}) => AISDKProvider;
 
 export const AvailableModelSchema = z.enum([
   "gpt-4.1",
@@ -49,11 +63,3 @@ export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 export type ModelConfiguration =
   | AvailableModel
   | (ClientOptions & { modelName: AvailableModel });
-
-export interface AnthropicJsonSchemaObject {
-  definitions?: {
-    MySchema?: { properties?: Record<string, unknown>; required?: string[] };
-  };
-  properties?: Record<string, unknown>;
-  required?: string[];
-}

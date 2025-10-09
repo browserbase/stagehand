@@ -9,7 +9,7 @@ import {
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "../types/stagehandErrors";
+import { CreateChatCompletionResponseError } from "../types/sdkErrors";
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;

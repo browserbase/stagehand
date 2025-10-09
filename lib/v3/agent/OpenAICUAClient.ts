@@ -11,7 +11,7 @@ import {
   FunctionCallItem,
 } from "../types/agent";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/stagehandErrors";
+import { AgentScreenshotProviderError } from "../types/sdkErrors";
 import { ToolSet } from "ai/dist";
 
 /**

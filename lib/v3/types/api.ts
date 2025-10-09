@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { LogLine } from "./log";
+import { LogLine } from "./logs";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;

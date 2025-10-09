@@ -1,7 +1,7 @@
 import { z } from "zod/v3";
-import type { AvailableModel } from "../types/model";
-import type { LogLine } from "../types/log";
-import type { AgentInstance } from "../types/agent";
+import type { AvailableModel } from "./model";
+import type { LogLine } from "./logs";
+import type { AgentInstance } from "./agent";
 import type { EvalCase } from "braintrust";
 import type { V3 } from "@/lib/v3/v3";
 import { EvalLogger } from "@/evals/logger";

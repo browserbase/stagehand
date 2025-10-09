@@ -13,7 +13,7 @@ import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import { V3FunctionName } from "@/lib/v3/types";
 import { ToolSet } from "ai";
 import { computeActiveElementXpath } from "@/lib/v3/understudy/a11y/snapshot";
-import type { Action } from "../types/stagehand";
+import type { Action } from "../types/methods";
 
 export class V3CuaAgentHandler {
   private v3: V3;
