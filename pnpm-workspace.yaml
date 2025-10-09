@@ -1,6 +1,4 @@
 packages:
-  - "./"
-  - "lib"
-  - "examples"
-  - "evals"
-  - "docs"
+  - "packages/core"
+  - "packages/evals"
+  - "packages/docs"

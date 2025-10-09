@@ -1,0 +1,18 @@
+{
+  "name": "@browserbasehq/stagehand-examples",
+  "version": "1.0.9",
+  "private": true,
+  "description": "Example scripts for Stagehand",
+  "main": "./",
+  "scripts": {
+    "build": "pnpm --filter @browserbasehq/orca run build",
+    "start": "pnpm run build && sh -c 'if [ -n \"$1\" ]; then tsx \"$1.ts\"; else tsx example.ts; fi' --"
+  },
+  "dependencies": {
+    "@browserbasehq/orca": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5",
+    "jszip": "^3.10.1"
+  }
+}
