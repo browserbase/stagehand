@@ -11,7 +11,10 @@ const wantsMan: boolean = args.some((a) => /^(?:--?)?man$/i.test(a));
 
 // Skip build if just showing help
 if (!wantsHelp && !wantsMan) {
-  const build = spawnSync("pnpm", ["run", "build"], { stdio: "inherit", cwd: "../.." });
+  const build = spawnSync("pnpm", ["run", "build"], {
+    stdio: "inherit",
+    cwd: "../..",
+  });
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
 
