@@ -12,7 +12,11 @@ export type StagehandInitResult = {
   logger: {
     log: (message: LogLine) => void;
     logBraintrustData: (name: string, data: unknown) => void;
-    getInferenceSummary: () => { totalInputTokens: number; totalOutputTokens: number; totalMs: number };
+    getInferenceSummary: () => {
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalMs: number;
+    };
   };
   debugUrl: string;
   sessionUrl: string;
