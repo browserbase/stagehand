@@ -70,6 +70,7 @@ import {
 } from "./types/public/page";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
+import { StagehandAPI } from "./api";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 
@@ -150,6 +151,7 @@ export class V3 {
   private static _instances: Set<V3> = new Set();
   private cacheDir?: string;
   private _agentReplayRecording: AgentReplayStep[] | null = null;
+  private api: StagehandAPI;
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -503,177 +505,181 @@ export class V3 {
             inferenceTimeMs,
           ),
       );
-      if (this.opts.env === "LOCAL") {
-        // chrome-launcher conditionally adds --headless when the environment variable
-        // HEADLESS is set, without parsing its value.
-        // if it is not equal to true, then we delete it from the process
-        const envHeadless = process.env.HEADLESS;
-        if (envHeadless !== undefined) {
-          const normalized = envHeadless.trim().toLowerCase();
-          if (normalized !== "true") {
-            delete process.env.HEADLESS;
+      switch (this.opts.env) {
+        case "LOCAL": {
+          // chrome-launcher conditionally adds --headless when the environment variable
+          // HEADLESS is set, without parsing its value.
+          // if it is not equal to true, then we delete it from the process
+          const envHeadless = process.env.HEADLESS;
+          if (envHeadless !== undefined) {
+            const normalized = envHeadless.trim().toLowerCase();
+            if (normalized !== "true") {
+              delete process.env.HEADLESS;
+            }
           }
-        }
-        const lbo: LocalBrowserLaunchOptions =
-          this.opts.localBrowserLaunchOptions ?? {};
+          const lbo: LocalBrowserLaunchOptions =
+            this.opts.localBrowserLaunchOptions ?? {};
 
-        // If a CDP URL is provided, attach instead of launching.
-        if (lbo.cdpUrl) {
-          this.ctx = await V3Context.create(lbo.cdpUrl, {
+          // If a CDP URL is provided, attach instead of launching.
+          if (lbo.cdpUrl) {
+            this.ctx = await V3Context.create(lbo.cdpUrl, {
+              includeCursor: this.opts.includeCursor ?? false,
+              env: "LOCAL",
+            });
+            this.ctx.conn.onTransportClosed(this._onCdpClosed);
+            this.state = {
+              kind: "LOCAL",
+              // no LaunchedChrome when attaching externally; create a stub kill
+              chrome: {
+                kill: async () => {},
+              } as unknown as import("chrome-launcher").LaunchedChrome,
+              ws: lbo.cdpUrl,
+            };
+            // Post-connect settings (downloads and viewport) if provided
+            await this._applyPostConnectLocalOptions(lbo);
+            return;
+          }
+
+          // Determine or create user data dir
+          let userDataDir = lbo.userDataDir;
+          let createdTemp = false;
+          if (!userDataDir) {
+            const base = path.join(os.tmpdir(), "stagehand-v3");
+            fs.mkdirSync(base, { recursive: true });
+            userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
+            createdTemp = true;
+          }
+
+          // Build chrome flags
+          const defaults = [
+            "--remote-allow-origins=*",
+            "--disable-gpu",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-dev-shm-usage",
+            "--site-per-process",
+          ];
+          let chromeFlags: string[] = [];
+          const ignore = lbo.ignoreDefaultArgs;
+          if (ignore === true) {
+            // drop defaults
+            chromeFlags = [];
+          } else if (Array.isArray(ignore)) {
+            chromeFlags = defaults.filter(
+              (f) => !ignore.some((ex) => f.includes(ex)),
+            );
+          } else {
+            chromeFlags = [...defaults];
+          }
+
+          // headless handled by launchLocalChrome
+          if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
+          if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
+          if (lbo.viewport?.width && lbo.viewport?.height) {
+            chromeFlags.push(
+              `--window-size=${lbo.viewport.width},${lbo.viewport.height}`,
+            );
+          }
+          if (typeof lbo.deviceScaleFactor === "number") {
+            chromeFlags.push(
+              `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
+            );
+          }
+          if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
+          if (lbo.ignoreHTTPSErrors)
+            chromeFlags.push("--ignore-certificate-errors");
+          if ((lbo.chromiumSandbox ?? false) === false)
+            chromeFlags.push("--no-sandbox");
+          if (lbo.proxy?.server)
+            chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
+          if (lbo.proxy?.bypass)
+            chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
+
+          // add user-supplied args last
+          if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
+
+          const { ws, chrome } = await launchLocalChrome({
+            chromePath: lbo.executablePath,
+            chromeFlags,
+            headless: lbo.headless,
+            userDataDir,
+            connectTimeoutMs: lbo.connectTimeoutMs,
+          });
+          this.ctx = await V3Context.create(ws, {
             includeCursor: this.opts.includeCursor ?? false,
             env: "LOCAL",
           });
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
-            // no LaunchedChrome when attaching externally; create a stub kill
-            chrome: {
-              kill: async () => {},
-            } as unknown as import("chrome-launcher").LaunchedChrome,
-            ws: lbo.cdpUrl,
+            chrome,
+            ws,
+            userDataDir,
+            createdTempProfile: createdTemp,
+            preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
+          this.browserbaseSessionId = undefined;
+
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
           return;
         }
 
-        // Determine or create user data dir
-        let userDataDir = lbo.userDataDir;
-        let createdTemp = false;
-        if (!userDataDir) {
-          const base = path.join(os.tmpdir(), "stagehand-v3");
-          fs.mkdirSync(base, { recursive: true });
-          userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
-          createdTemp = true;
-        }
-
-        // Build chrome flags
-        const defaults = [
-          "--remote-allow-origins=*",
-          "--disable-gpu",
-          "--no-first-run",
-          "--no-default-browser-check",
-          "--disable-dev-shm-usage",
-          "--site-per-process",
-        ];
-        let chromeFlags: string[] = [];
-        const ignore = lbo.ignoreDefaultArgs;
-        if (ignore === true) {
-          // drop defaults
-          chromeFlags = [];
-        } else if (Array.isArray(ignore)) {
-          chromeFlags = defaults.filter(
-            (f) => !ignore.some((ex) => f.includes(ex)),
+        case "BROWSERBASE": {
+          const { apiKey, projectId } = this.requireBrowserbaseCreds();
+          const { ws, sessionId, bb } = await createBrowserbaseSession(
+            apiKey,
+            projectId,
+            this.opts.browserbaseSessionCreateParams,
+            this.opts.browserbaseSessionID,
           );
-        } else {
-          chromeFlags = [...defaults];
-        }
-
-        // headless handled by launchLocalChrome
-        if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
-        if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
-        if (lbo.viewport?.width && lbo.viewport?.height) {
-          chromeFlags.push(
-            `--window-size=${lbo.viewport.width},${lbo.viewport.height}`,
-          );
-        }
-        if (typeof lbo.deviceScaleFactor === "number") {
-          chromeFlags.push(
-            `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
-          );
-        }
-        if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
-        if (lbo.ignoreHTTPSErrors)
-          chromeFlags.push("--ignore-certificate-errors");
-        if ((lbo.chromiumSandbox ?? false) === false)
-          chromeFlags.push("--no-sandbox");
-        if (lbo.proxy?.server)
-          chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
-        if (lbo.proxy?.bypass)
-          chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
-
-        // add user-supplied args last
-        if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
-
-        const { ws, chrome } = await launchLocalChrome({
-          chromePath: lbo.executablePath,
-          chromeFlags,
-          headless: lbo.headless,
-          userDataDir,
-          connectTimeoutMs: lbo.connectTimeoutMs,
-        });
-        this.ctx = await V3Context.create(ws, {
-          includeCursor: this.opts.includeCursor ?? false,
-          env: "LOCAL",
-        });
-        this.ctx.conn.onTransportClosed(this._onCdpClosed);
-        this.state = {
-          kind: "LOCAL",
-          chrome,
-          ws,
-          userDataDir,
-          createdTempProfile: createdTemp,
-          preserveUserDataDir: !!lbo.preserveUserDataDir,
-        };
-        this.browserbaseSessionId = undefined;
-
-        // Post-connect settings (downloads and viewport) if provided
-        await this._applyPostConnectLocalOptions(lbo);
-        return;
-      }
-
-      if (this.opts.env === "BROWSERBASE") {
-        const { apiKey, projectId } = this.requireBrowserbaseCreds();
-        const { ws, sessionId, bb } = await createBrowserbaseSession(
-          apiKey,
-          projectId,
-          this.opts.browserbaseSessionCreateParams,
-          this.opts.browserbaseSessionID,
-        );
-        this.ctx = await V3Context.create(ws, {
-          includeCursor: this.opts.includeCursor ?? false,
-          env: "BROWSERBASE",
-        });
-        this.ctx.conn.onTransportClosed(this._onCdpClosed);
-        this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
-        this.browserbaseSessionId = sessionId;
-
-        await this._ensureBrowserbaseDownloadsEnabled();
-
-        try {
-          const resumed = !!this.opts.browserbaseSessionID;
-          let debugUrl: string | undefined;
-          try {
-            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-              debuggerUrl?: string;
-            };
-            debugUrl = dbg?.debuggerUrl;
-          } catch {
-            // Ignore debug fetch failures; continue with sessionUrl only
-          }
-          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-          this.logger({
-            category: "init",
-            message: resumed
-              ? "browserbase session resumed"
-              : "browserbase session started",
-            level: 1,
-            auxiliary: {
-              sessionUrl: { value: sessionUrl, type: "string" },
-              ...(debugUrl && {
-                debugUrl: { value: debugUrl, type: "string" },
-              }),
-              sessionId: { value: sessionId, type: "string" },
-            },
+          this.ctx = await V3Context.create(ws, {
+            includeCursor: this.opts.includeCursor ?? false,
+            env: "BROWSERBASE",
           });
-        } catch {
-          // best-effort logging — ignore failures
-        }
-        return;
-      }
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+          this.browserbaseSessionId = sessionId;
 
-      const neverEnv: never = this.opts.env;
-      throw new Error(`Unsupported env: ${neverEnv}`);
+          await this._ensureBrowserbaseDownloadsEnabled();
+
+          try {
+            const resumed = !!this.opts.browserbaseSessionID;
+            let debugUrl: string | undefined;
+            try {
+              const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+                debuggerUrl?: string;
+              };
+              debugUrl = dbg?.debuggerUrl;
+            } catch {
+              // Ignore debug fetch failures; continue with sessionUrl only
+            }
+            const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+            this.logger({
+              category: "init",
+              message: resumed
+                ? "browserbase session resumed"
+                : "browserbase session started",
+              level: 1,
+              auxiliary: {
+                sessionUrl: { value: sessionUrl, type: "string" },
+                ...(debugUrl && {
+                  debugUrl: { value: debugUrl, type: "string" },
+                }),
+                sessionId: { value: sessionId, type: "string" },
+              },
+            });
+          } catch {
+            // best-effort logging — ignore failures
+          }
+          return;
+        }
+
+        default:
+          throw new Error(
+            `Unsupported env: ${(this.opts as { env: string }).env}`,
+          );
+      }
     });
   }
 
