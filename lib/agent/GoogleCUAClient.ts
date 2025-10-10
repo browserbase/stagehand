@@ -203,14 +203,16 @@ export class GoogleCUAClient extends AgentClient {
     // Note: The Python implementation doesn't include the initial screenshot
     // Following the same pattern here
 
+    const systemPromptContent = this.userProvidedInstructions
+      ? this.userProvidedInstructions
+      : buildGoogleCUASystemPrompt().content;
+
     this.history = [
       {
         role: "user",
         parts: [
           {
-            text:
-              "System prompt: " +
-              (buildGoogleCUASystemPrompt().content as string),
+            text: "System prompt: " + systemPromptContent,
           },
         ],
       },

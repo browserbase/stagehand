@@ -271,7 +271,10 @@ export class CuaAgentHandler {
         case "keypress": {
           const { keys } = action;
           if (Array.isArray(keys)) {
-            await this.page.keyboard.press(keys.join("+"));
+            const mappedKeys = keys.map((key) =>
+              mapKeyToPlaywright(String(key)),
+            );
+            await this.page.keyboard.press(mappedKeys.join("+"));
           }
           return { success: true };
         }
