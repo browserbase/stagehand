@@ -15,4 +15,7 @@ const banner = `/**
 export const STAGEHAND_VERSION = "${fullVersion}" as const;
 `;
 
-writeFileSync(join(__dirname, "..", "packages", "core", "lib", "version.ts"), banner);
+writeFileSync(
+  join(__dirname, "..", "packages", "core", "lib", "version.ts"),
+  banner,
+);

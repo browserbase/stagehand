@@ -1,5 +1,8 @@
 import path from "path";
-import type { Testcase, EvalInput } from "@/packages/core/lib/v3/types/public/evals";
+import type {
+  Testcase,
+  EvalInput,
+} from "@/packages/core/lib/v3/types/public/evals";
 import type { AvailableModel } from "@/packages/core/lib/v3/types/public/model";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
