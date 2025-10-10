@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand
 
+## 2.5.3
+
+### Patch Changes
+
+- [#1125](https://github.com/browserbase/stagehand/pull/1125) [`cbff109`](https://github.com/browserbase/stagehand/commit/cbff109e46ec1c4df1dc5fb27a373e0a072f402a) Thanks [@tkattkat](https://github.com/tkattkat)! - update cua agents key & system prompt handling
+
 ## 2.5.2
 
 ### Patch Changes
