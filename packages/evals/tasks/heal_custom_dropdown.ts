@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const heal_custom_dropdown: EvalFunction = async ({
   debugUrl,

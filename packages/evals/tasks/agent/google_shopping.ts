@@ -1,5 +1,5 @@
-import { V3Evaluator } from "@/evals/v3Evaluator";
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/orca";
 
 export const google_shopping: EvalFunction = async ({
   debugUrl,

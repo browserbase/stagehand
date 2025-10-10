@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const heal_simple_google_search: EvalFunction = async ({
   debugUrl,

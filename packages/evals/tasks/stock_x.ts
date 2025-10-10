@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const stock_x: EvalFunction = async ({
   debugUrl,

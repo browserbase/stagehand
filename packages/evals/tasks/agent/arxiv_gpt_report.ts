@@ -1,6 +1,7 @@
 //agent often fails on this one,
-import { EvalFunction } from "@browserbasehq/orca";
-import { V3Evaluator } from "@/evals/v3Evaluator";
+import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/orca";
+
 export const arxiv_gpt_report: EvalFunction = async ({
   debugUrl,
   sessionUrl,

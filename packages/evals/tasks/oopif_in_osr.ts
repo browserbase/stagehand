@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const oopif_in_osr: EvalFunction = async ({
   debugUrl,

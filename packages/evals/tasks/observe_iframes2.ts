@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 import { Action } from "@browserbasehq/orca";
 
 export const observe_iframes2: EvalFunction = async ({

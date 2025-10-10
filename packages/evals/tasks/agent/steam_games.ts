@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../../types/evals";
 
 export const steam_games: EvalFunction = async ({
   debugUrl,

@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const extract_geniusee_2: EvalFunction = async ({
   logger,

@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 import { Action } from "@browserbasehq/orca";
 
 export const no_js_click: EvalFunction = async ({

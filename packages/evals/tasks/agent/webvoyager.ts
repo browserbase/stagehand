@@ -1,5 +1,5 @@
-import { EvalFunction } from "@browserbasehq/orca";
-import { V3Evaluator } from "@browserbasehq/orca/lib/v3Evaluator";
+import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/orca";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 
 export const webvoyager: EvalFunction = async ({

@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 import { z } from "zod/v3";
 
 export const combination_sauce: EvalFunction = async ({

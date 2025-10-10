@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const observe_amazon_add_to_cart: EvalFunction = async ({
   debugUrl,

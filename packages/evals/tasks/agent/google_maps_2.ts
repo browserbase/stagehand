@@ -1,7 +1,7 @@
-import { EvalFunction } from "@browserbasehq/orca";
-import { V3Evaluator } from "@/evals/v3Evaluator";
+import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/orca";
 import type { AvailableModel } from "@browserbasehq/orca";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const google_maps_2: EvalFunction = async ({
   debugUrl,

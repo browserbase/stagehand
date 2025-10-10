@@ -5,3 +5,4 @@ export { V3 as Stagehand } from "./v3";
 export * from "./llm/LLMClient";
 export * from "./types/public";
 export { connectToMCPServer } from "./mcp/connection";
+export { V3Evaluator } from "../v3Evaluator";

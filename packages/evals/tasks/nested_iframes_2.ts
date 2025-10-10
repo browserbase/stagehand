@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const nested_iframes_2: EvalFunction = async ({
   debugUrl,

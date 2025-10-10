@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const iframe_same_proc: EvalFunction = async ({
   debugUrl,

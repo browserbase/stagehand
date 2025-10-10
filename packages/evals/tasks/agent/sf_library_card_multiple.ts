@@ -1,5 +1,5 @@
-import { EvalFunction } from "@browserbasehq/orca";
-import { V3Evaluator } from "@/evals/v3Evaluator";
+import { EvalFunction } from "../../types/evals";
+import { V3Evaluator } from "@browserbasehq/orca";
 
 export const sf_library_card_multiple: EvalFunction = async ({
   debugUrl,

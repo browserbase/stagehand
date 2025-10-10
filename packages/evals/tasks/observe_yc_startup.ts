@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const observe_yc_startup: EvalFunction = async ({
   debugUrl,

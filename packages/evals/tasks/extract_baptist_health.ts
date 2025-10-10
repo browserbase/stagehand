@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 import { compareStrings } from "@/evals/utils";
 import { z } from "zod/v3";
 

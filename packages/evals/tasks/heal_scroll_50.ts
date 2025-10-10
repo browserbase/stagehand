@@ -1,4 +1,4 @@
-import { EvalFunction } from "@browserbasehq/orca";
+import { EvalFunction } from "../types/evals";
 
 export const heal_scroll_50: EvalFunction = async ({
   debugUrl,
