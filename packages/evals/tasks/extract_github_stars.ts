@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
+import { EvalFunction } from "@browserbasehq/orca";
 import { z } from "zod/v3";
 
 export const extract_github_stars: EvalFunction = async ({

@@ -1,6 +1,6 @@
 import fs from "fs";
-import { tasksByName } from "../taskConfig";
-import type { SummaryResult } from "../../lib/v3/types/public/evals";
+import { tasksByName } from "./taskConfig";
+import type { SummaryResult } from "@browserbasehq/orca";
 
 export const generateSummary = async (
   results: SummaryResult[],

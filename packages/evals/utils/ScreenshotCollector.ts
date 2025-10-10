@@ -1,15 +1,5 @@
-export interface ScreenshotCollectorOptions {
-  interval?: number;
-  maxScreenshots?: number;
-  captureOnNavigation?: boolean;
-}
-
-// Minimal page-like interface: supports screenshot() and optional event hooks
-type ScreenshotCapablePage = {
-  screenshot: (...args: []) => Promise<Buffer | string>;
-  on?: (event: string, listener: (...args: []) => void) => void;
-  off?: (event: string, listener: (...args: []) => void) => void;
-};
+import { ScreenshotCapablePage } from "../types/screenshotCollector";
+import { ScreenshotCollectorOptions } from "../types/screenshotCollector";
 
 export class ScreenshotCollector {
   private screenshots: Buffer[] = [];

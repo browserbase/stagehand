@@ -1,5 +1,5 @@
-import { V3Evaluator } from "@/evals/v3Evaluator";
-import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
+import { V3Evaluator } from "@browserbasehq/orca/lib/v3Evaluator";
+import { EvalFunction } from "@browserbasehq/orca";
 
 export const all_recipes: EvalFunction = async ({
   debugUrl,

@@ -10,13 +10,13 @@ import type {
   ClientOptions,
   LLMClient,
   ModelConfiguration,
-} from "@/packages/core/lib/v3";
-import { AgentConfig } from "@/packages/core/lib/v3";
+} from "@browserbasehq/orca";
+import { AgentConfig } from "@browserbasehq/orca";
 import type {
   LocalBrowserLaunchOptions,
   V3Options,
-} from "@/packages/core/lib/v3/types/public/options";
-import { V3 } from "@/packages/core/lib/v3/v3";
+} from "@browserbasehq/orca";
+import { V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";

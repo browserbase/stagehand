@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-evals",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "private": true,
   "description": "Evaluation suite for Stagehand",
   "main": "./",
@@ -13,7 +13,9 @@
     "e2e:local": "pnpm run build && playwright test --config deterministic/local.playwright.config.ts"
   },
   "dependencies": {
-    "@browserbasehq/orca": "workspace:*"
+    "@browserbasehq/orca": "workspace:*",
+    "dotenv": "16.4.5",
+    "zod": "3.25.67"
   },
   "devDependencies": {
     "tsx": "^4.10.5"

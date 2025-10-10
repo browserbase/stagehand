@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
+import { EvalFunction } from "@browserbasehq/orca";
 import { V3Evaluator } from "@/evals/v3Evaluator";
 
 export const kayak: EvalFunction = async ({

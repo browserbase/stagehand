@@ -11,9 +11,9 @@
  * reviewed after the tasks complete.
  */
 import { logLineToString } from "./utils";
-import { LogLineEval } from "../lib/v3/types/public/evals";
-import { LogLine } from "../lib/v3/types/public/logs";
-import type { V3 } from "@/packages/core/lib/v3/v3";
+import { LogLineEval } from "@browserbasehq/orca";
+import { LogLine } from "@browserbasehq/orca";
+import type { V3 } from "@browserbasehq/orca";
 
 /**
  * parseLogLine:

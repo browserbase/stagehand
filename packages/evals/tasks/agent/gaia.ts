@@ -1,5 +1,5 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
-import { V3Evaluator } from "../../v3Evaluator";
+import { EvalFunction } from "@browserbasehq/orca";
+import { V3Evaluator } from "@browserbasehq/orca/lib/v3Evaluator";
 
 /**
  * Data-driven GAIA agent eval

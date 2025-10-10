@@ -2,7 +2,7 @@
  * This file implements scoring functions needed by braintrust.
  */
 
-import { EvalArgs, EvalInput, EvalResult } from "../lib/v3/types/public/evals";
+import { EvalArgs, EvalInput, EvalResult } from "./types/evals";
 
 /**
  * Scoring function: exactMatch

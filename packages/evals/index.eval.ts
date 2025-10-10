@@ -27,20 +27,20 @@ import {
   SummaryResult,
   Testcase,
   EvalInput,
-} from "@/packages/core/lib/v3/types/public/evals";
+} from "./types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@/packages/core/lib/v3/types/public/model";
-import { LLMClient } from "@/packages/core/lib/v3/llm/LLMClient";
+import { AvailableModel } from "@browserbasehq/orca";
+import { LLMClient } from "@browserbasehq/orca";
 import { env } from "./env";
 import dotenv from "dotenv";
-import { StagehandEvalError } from "@/packages/core/lib/v3";
+import { StagehandEvalError } from "@browserbasehq/orca";
 import { initV3 } from "./initV3";
-import { AgentProvider } from "@/packages/core/lib/v3/agent/AgentProvider";
-import { AISdkClient } from "@/packages/core/lib/v3/llm/aisdk";
-import { getAISDKLanguageModel } from "@/packages/core/lib/v3/llm/LLMProvider";
-import { loadApiKeyFromEnv } from "@/packages/core/lib/utils";
-import { LogLine } from "@/packages/core/lib/v3";
-import { generateSummary } from "./core/summary";
+import { AgentProvider } from "@browserbasehq/orca/lib/v3/agent/agentProvider";
+import { AISdkClient } from "@browserbasehq/orca/lib/v3/llm/aisdk";
+import { getAISDKLanguageModel } from "@browserbasehq/orca/lib/v3/llm/LLMProvider";
+import { loadApiKeyFromEnv } from "@browserbasehq/orca/lib/utils";
+import { LogLine } from "@browserbasehq/orca";
+import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
