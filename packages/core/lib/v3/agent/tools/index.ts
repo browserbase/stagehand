@@ -8,7 +8,7 @@ import { createAriaTreeTool } from "./v3-ariaTree";
 import { createFillFormTool } from "./v3-fillform";
 import { createScrollTool } from "./v3-scroll";
 import { createExtractTool } from "./v3-extract";
-import type { V3 } from "@/packages/core/lib/v3/v3";
+import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 
 export interface V3AgentToolOptions {

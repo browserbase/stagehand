@@ -18,6 +18,6 @@
     "declaration": true,
     "emitDeclarationOnly": true
   },
-  "include": ["lib/**/*"],
-  "exclude": ["node_modules", "dist", "examples"]
+  "include": ["lib/**/*", "examples/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
