@@ -77,8 +77,9 @@ async function getBrowser(
   browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"],
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
+  intEnv: "LOCAL" | "BROWSERBASE" = "LOCAL",
 ): Promise<BrowserResult> {
-  if (env === "BROWSERBASE") {
+  if (intEnv === "BROWSERBASE") {
     if (!apiKey) {
       throw new MissingEnvironmentVariableError(
         "BROWSERBASE_API_KEY",
@@ -791,6 +792,7 @@ export class Stagehand {
         this.browserbaseSessionCreateParams,
         this.browserbaseSessionID,
         this.localBrowserLaunchOptions,
+        this.intEnv,
       ).catch((e) => {
         this.stagehandLogger.error("Error in init:", { error: String(e) });
         const br: BrowserResult = {
