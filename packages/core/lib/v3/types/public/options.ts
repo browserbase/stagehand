@@ -1,11 +1,7 @@
-import { LaunchedChrome } from "chrome-launcher";
 import Browserbase from "@browserbasehq/sdk";
-import { Page } from "./understudy/page";
-import { ModelConfiguration } from "./types/model";
-import { LLMClient } from "./llm/LLMClient";
-import { z } from "zod/v3";
-import type { ZodTypeAny } from "zod/v3";
-import type { LogLine } from "./types/log";
+import { LLMClient } from "../../llm/LLMClient";
+import { ModelConfiguration } from "./model";
+import { LogLine } from "./logs";
 
 export type V3Env = "LOCAL" | "BROWSERBASE";
 
@@ -93,114 +89,4 @@ export interface V3Options {
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
   domSettleTimeout?: number;
-}
-
-/** Narrow shape we rely on from Browserbase session creation */
-export interface BrowserbaseSession {
-  id: string;
-  connectUrl: string;
-}
-
-/** Narrow shape we rely on from /json/version */
-export interface JsonVersionResponse {
-  webSocketDebuggerUrl: string;
-}
-
-export type InitState =
-  | { kind: "UNINITIALIZED" }
-  | {
-      kind: "LOCAL";
-      chrome: LaunchedChrome;
-      ws: string;
-      userDataDir?: string;
-      createdTempProfile?: boolean;
-      preserveUserDataDir?: boolean;
-    }
-  | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string };
-
-export type PlaywrightPage = import("playwright-core").Page;
-export type PatchrightPage = import("patchright-core").Page;
-export type PuppeteerPage = import("puppeteer-core").Page;
-
-export type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-
-export interface ActOptions {
-  model?: ModelConfiguration;
-  variables?: Record<string, string>;
-  timeout?: number;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-}
-
-export interface ActHandlerParams {
-  instruction: string;
-  model?: ModelConfiguration;
-  variables?: Record<string, string>;
-  timeout?: number;
-  page: Page;
-}
-
-export interface ExtractOptions {
-  model?: ModelConfiguration;
-  timeout?: number;
-  selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-}
-
-export interface ExtractHandlerParams<T extends ZodTypeAny> {
-  instruction?: string;
-  schema?: T;
-  model?: ModelConfiguration;
-  timeout?: number;
-  selector?: string;
-  page: Page;
-}
-
-export const defaultExtractSchema = z.object({
-  extraction: z.string(),
-});
-
-export const pageTextSchema = z.object({
-  pageText: z.string(),
-});
-
-export interface ObserveOptions {
-  model?: ModelConfiguration;
-  timeout?: number;
-  selector?: string;
-  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-}
-
-export interface ObserveHandlerParams {
-  instruction?: string;
-  model?: ModelConfiguration;
-  timeout?: number;
-  selector?: string;
-  page: Page;
-}
-
-export type LoadState = "load" | "domcontentloaded" | "networkidle";
-
-export interface V3Metrics {
-  actPromptTokens: number;
-  actCompletionTokens: number;
-  actInferenceTimeMs: number;
-  extractPromptTokens: number;
-  extractCompletionTokens: number;
-  extractInferenceTimeMs: number;
-  observePromptTokens: number;
-  observeCompletionTokens: number;
-  observeInferenceTimeMs: number;
-  agentPromptTokens: number;
-  agentCompletionTokens: number;
-  agentInferenceTimeMs: number;
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalInferenceTimeMs: number;
-}
-
-export enum V3FunctionName {
-  ACT = "ACT",
-  EXTRACT = "EXTRACT",
-  OBSERVE = "OBSERVE",
-  AGENT = "AGENT",
 }

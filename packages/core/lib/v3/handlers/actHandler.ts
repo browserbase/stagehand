@@ -1,20 +1,24 @@
 // lib/v3/handlers/actHandler.ts
-import { ActHandlerParams, V3FunctionName } from "@/packages/core/lib/v3/types";
+import { act as actInference } from "@/packages/core/lib/inference";
+import { buildActPrompt, buildStepTwoPrompt } from "@/packages/core/lib/prompt";
+import { trimTrailingTextNode } from "@/packages/core/lib/utils";
+import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { ActHandlerParams } from "@/packages/core/lib/v3/types/private/handlers";
+import {
+  ActResult,
+  Action,
+  V3FunctionName,
+} from "@/packages/core/lib/v3/types/public/methods";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
 } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
-import { act as actInference } from "@/packages/core/lib/inference";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
 import { LLMClient } from "../llm/LLMClient";
-import { AvailableModel, ClientOptions } from "../types/model";
-import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
+import { SupportedPlaywrightAction } from "../types/private";
+import { EncodedId } from "../types/private/internal";
+import { AvailableModel, ClientOptions } from "../types/public/model";
 import type { Page } from "../understudy/page";
-import { trimTrailingTextNode } from "@/packages/core/lib/utils";
-import { EncodedId } from "../types/context";
-import type { Action, ActResult } from "../types/stagehand";
-import { buildActPrompt, buildStepTwoPrompt } from "@/packages/core/lib/prompt";
-import { SupportedPlaywrightAction } from "../types/act";
+import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 
 export class ActHandler {
   private readonly llmClient: LLMClient;

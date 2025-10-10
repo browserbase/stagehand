@@ -1,19 +1,18 @@
+import { computeActiveElementXpath } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
+import { V3 } from "@/packages/core/lib/v3/v3";
+import { ToolSet } from "ai";
+import { AgentClient } from "../agent/AgentClient";
+import { AgentProvider } from "../agent/AgentProvider";
+import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import {
   ActionExecutionResult,
   AgentAction,
   AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
-} from "../types/agent";
-import { LogLine } from "../types/log";
-import { V3 } from "@/packages/core/lib/v3/v3";
-import { AgentClient } from "../agent/AgentClient";
-import { AgentProvider } from "../agent/AgentProvider";
-import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
-import { V3FunctionName } from "@/packages/core/lib/v3/types";
-import { ToolSet } from "ai";
-import { computeActiveElementXpath } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
-import type { Action } from "../types/stagehand";
+} from "../types/public/agent";
+import { LogLine } from "../types/public/logs";
+import { type Action, V3FunctionName } from "../types/public/methods";
 
 export class V3CuaAgentHandler {
   private v3: V3;

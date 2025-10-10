@@ -11,7 +11,7 @@ import type {
   EvaluateOptions,
   BatchAskOptions,
   EvaluationResult,
-} from "@/packages/core/lib/v3/types/evaluator";
+} from "@/packages/core/lib/v3/types/private/evaluator";
 import { LLMParsedResponse } from "@/packages/core/lib/inference";
 import { LLMResponse, LLMClient } from "@/packages/core/lib/v3";
 import { LogLine } from "@/packages/core/lib/v3";

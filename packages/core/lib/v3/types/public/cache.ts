@@ -1,6 +1,6 @@
-import type { AgentResult } from "@/packages/core/lib/v3/types/agent";
-import type { Action } from "@/packages/core/lib/v3/types/stagehand";
-import type { LoadState } from "@/packages/core/lib/v3/types";
+import type { AgentResult } from "./agent";
+import type { Action } from "./methods";
+import type { LoadState } from "./page";
 
 export interface CachedActEntry {
   version: 1;

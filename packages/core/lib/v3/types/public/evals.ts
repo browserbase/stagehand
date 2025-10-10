@@ -1,15 +1,19 @@
 import { z } from "zod/v3";
 import type { AvailableModel } from "./model";
-import type { LogLine } from "./log";
+import type { LogLine } from "./logs";
 import type { AgentInstance } from "./agent";
 import type { EvalCase } from "braintrust";
-import type { V3 } from "@/packages/core/lib/v3/v3";
-import { EvalLogger } from "@/packages/evals/logger";
-
+import type { V3 } from "../../v3";
+// EvalLogger is defined in packages/evals - avoid circular dependency
+// Consumers should import EvalLogger from @browserbasehq/stagehand-evals
 export type StagehandInitResult = {
   v3?: V3;
   v3Agent?: AgentInstance;
-  logger: EvalLogger;
+  logger: {
+    log: (message: LogLine) => void;
+    logBraintrustData: (name: string, data: unknown) => void;
+    getInferenceSummary: () => { totalInputTokens: number; totalOutputTokens: number; totalMs: number };
+  };
   debugUrl: string;
   sessionUrl: string;
   modelName: AvailableModel;

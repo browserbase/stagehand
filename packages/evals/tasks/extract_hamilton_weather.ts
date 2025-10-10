@@ -1,6 +1,6 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/evals";
+import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
 import { z } from "zod/v3";
-import { compareStrings } from "@/packages/evals/utils";
+import { compareStrings } from "@/evals/utils";
 
 export const extract_hamilton_weather: EvalFunction = async ({
   logger,

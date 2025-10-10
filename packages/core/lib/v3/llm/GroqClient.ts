@@ -1,15 +1,15 @@
 import type { ClientOptions } from "openai";
 import OpenAI from "openai";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { LogLine } from "../types/log";
-import { AvailableModel } from "../types/model";
+import { LogLine } from "../types/public/logs";
+import { AvailableModel } from "../types/public/model";
 import {
   ChatMessage,
   CreateChatCompletionOptions,
   LLMClient,
   LLMResponse,
 } from "./LLMClient";
-import { CreateChatCompletionResponseError } from "../types/stagehandErrors";
+import { CreateChatCompletionResponseError } from "../types/public/sdkErrors";
 
 export class GroqClient extends LLMClient {
   public type = "groq" as const;

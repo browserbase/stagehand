@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { LogLine } from "./v3/types/log";
+import { LogLine } from "./v3/types/public/logs";
 import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
 import {
   buildActSystemPrompt,

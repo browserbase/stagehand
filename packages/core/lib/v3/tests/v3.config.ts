@@ -1,5 +1,5 @@
-import type { V3Options } from "@/packages/core/lib/v3/types";
-import type { LogLine } from "../types/log";
+import type { V3Options } from "@/packages/core/lib/v3/types/public/options";
+import type { LogLine } from "../types/public/logs";
 
 export const v3TestConfig: V3Options = {
   env: "LOCAL",

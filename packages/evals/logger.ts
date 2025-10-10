@@ -11,8 +11,8 @@
  * reviewed after the tasks complete.
  */
 import { logLineToString } from "./utils";
-import { LogLineEval } from "../core/lib/v3/types/evals";
-import { LogLine } from "../core/lib/v3/types/log";
+import { LogLineEval } from "../lib/v3/types/public/evals";
+import { LogLine } from "../lib/v3/types/public/logs";
 import type { V3 } from "@/packages/core/lib/v3/v3";
 
 /**

@@ -4,19 +4,22 @@
  * to consume `v3` directly.
  */
 
+import type {
+  AgentInstance,
+  AvailableModel,
+  ClientOptions,
+  LLMClient,
+  ModelConfiguration,
+} from "@/packages/core/lib/v3";
+import { AgentConfig } from "@/packages/core/lib/v3";
+import type {
+  LocalBrowserLaunchOptions,
+  V3Options,
+} from "@/packages/core/lib/v3/types/public/options";
+import { V3 } from "@/packages/core/lib/v3/v3";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
-import type {
-  AvailableModel,
-  ClientOptions,
-  ModelConfiguration,
-} from "@/packages/core/lib/v3";
-import type { LLMClient } from "@/packages/core/lib/v3";
-import { V3 } from "@/packages/core/lib/v3/v3";
-import type { AgentInstance } from "@/packages/core/lib/v3";
-import type { V3Options, LocalBrowserLaunchOptions } from "@/packages/core/lib/v3/types";
-import { AgentConfig } from "@/packages/core/lib/v3";
 
 dotenv.config();
 

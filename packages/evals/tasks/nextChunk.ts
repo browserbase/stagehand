@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/evals";
+import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
 
 export const nextChunk: EvalFunction = async ({
   logger,

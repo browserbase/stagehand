@@ -1,5 +1,5 @@
-import { V3Evaluator } from "@/packages/evals/v3Evaluator";
-import { EvalFunction } from "@/packages/core/lib/v3/types/evals";
+import { V3Evaluator } from "@/evals/v3Evaluator";
+import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
 
 export const google_shopping: EvalFunction = async ({
   debugUrl,

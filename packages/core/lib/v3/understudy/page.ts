@@ -7,7 +7,7 @@ import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
-import { LoadState } from "../types";
+import { LoadState } from "@/packages/core/lib/v3/types/public/page";
 
 /**
  * Page

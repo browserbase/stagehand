@@ -1,13 +1,15 @@
-import { AgentAction, AgentExecuteOptions, AgentResult } from "../types/agent";
-import { LogLine } from "../types/log";
-import { LLMClient } from "../llm/LLMClient";
-import { CoreMessage, wrapLanguageModel } from "ai";
-import { LanguageModel } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
-import { ToolSet } from "ai";
-import { V3 } from "@/packages/core/lib/v3/v3";
 import { createAgentTools } from "@/packages/core/lib/v3/agent/tools";
-import { V3FunctionName } from "@/packages/core/lib/v3/types";
+import { LogLine } from "@/packages/core/lib/v3/types/public/logs";
+import { V3 } from "@/packages/core/lib/v3/v3";
+import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
+import { processMessages } from "../agent/utils/messageProcessing";
+import { LLMClient } from "../llm/LLMClient";
+import {
+  AgentAction,
+  AgentExecuteOptions,
+  AgentResult,
+} from "../types/public/agent";
+import { V3FunctionName } from "../types/public/methods";
 
 export class V3AgentHandler {
   private v3: V3;

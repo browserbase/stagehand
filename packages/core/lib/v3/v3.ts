@@ -1,71 +1,75 @@
-import {
-  V3Options,
-  InitState,
-  PlaywrightPage,
-  PuppeteerPage,
-  ActHandlerParams,
-  ActOptions,
-  ExtractHandlerParams,
-  ObserveHandlerParams,
-  ObserveOptions,
-  V3Metrics,
-  V3FunctionName,
-  PatchrightPage,
-  AnyPage,
-  LocalBrowserLaunchOptions,
-  ExtractOptions,
-} from "@/packages/core/lib/v3/types";
+import { createHash } from "crypto";
+import dotenv from "dotenv";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import process from "process";
+import type { ZodTypeAny } from "zod/v3";
+import { z } from "zod/v3";
+import { loadApiKeyFromEnv } from "../utils";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
-import { V3Context } from "@/packages/core/lib/v3/understudy/context";
-import { Page } from "./understudy/page";
-import { LLMClient } from "./llm/LLMClient";
-import { AvailableModel } from "./types/model";
-import { ClientOptions } from "./types/model";
-import { LLMProvider } from "./llm/LLMProvider";
-import { loadApiKeyFromEnv } from "@/packages/core/lib/utils";
-import dotenv from "dotenv";
-import { z } from "zod/v3";
-import type { ZodTypeAny } from "zod/v3";
-import {
-  Action,
-  ActResult,
-  HistoryEntry,
-  AgentConfig,
-} from "./types/stagehand";
-import { AgentExecuteOptions, AgentResult } from "./types/agent";
-import {
-  initV3Logger,
-  bindInstanceLogger,
-  unbindInstanceLogger,
-  withInstanceLogContext,
-  v3Logger,
-} from "./logger";
-import { LogLine } from "./types/log";
-import { launchLocalChrome } from "./launch/local";
+import { V3AgentHandler } from "./handlers/v3AgentHandler";
+import { V3CuaAgentHandler } from "./handlers/v3CuaAgentHandler";
 import { createBrowserbaseSession } from "./launch/browserbase";
-import process from "process";
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { createHash } from "crypto";
-import { V3AgentHandler } from "@/packages/core/lib/v3/handlers/v3AgentHandler";
-import { V3CuaAgentHandler } from "@/packages/core/lib/v3/handlers/v3CuaAgentHandler";
+import { launchLocalChrome } from "./launch/local";
+import { LLMClient } from "./llm/LLMClient";
+import { LLMProvider } from "./llm/LLMProvider";
+import {
+  bindInstanceLogger,
+  initV3Logger,
+  unbindInstanceLogger,
+  v3Logger,
+  withInstanceLogContext,
+} from "./logger";
 import { resolveTools } from "./mcp/utils";
-import { defaultExtractSchema, pageTextSchema } from "./types";
+import {
+  ActHandlerParams,
+  ExtractHandlerParams,
+  ObserveHandlerParams,
+} from "./types/private/handlers";
+import { InitState } from "./types/private/internal";
+import {
+  AgentConfig,
+  AgentExecuteOptions,
+  AgentResult,
+} from "./types/public/agent";
 import type {
-  CachedActEntry,
-  AgentReplayStep,
   AgentReplayActStep,
   AgentReplayFillFormStep,
   AgentReplayGotoStep,
-  AgentReplayScrollStep,
-  AgentReplayWaitStep,
   AgentReplayNavBackStep,
+  AgentReplayScrollStep,
+  AgentReplayStep,
+  AgentReplayWaitStep,
+  CachedActEntry,
   CachedAgentEntry,
   SanitizedAgentExecuteOptions,
-} from "./types/cache";
+} from "./types/public/cache";
+import { LogLine } from "./types/public/logs";
+import {
+  Action,
+  ActOptions,
+  ActResult,
+  defaultExtractSchema,
+  ExtractOptions,
+  HistoryEntry,
+  ObserveOptions,
+  pageTextSchema,
+  V3FunctionName,
+} from "./types/public/methods";
+import { V3Metrics } from "./types/public/metrics";
+import { AvailableModel, ClientOptions } from "./types/public/model";
+import { LocalBrowserLaunchOptions, V3Options } from "./types/public/options";
+import {
+  AnyPage,
+  PatchrightPage,
+  PlaywrightPage,
+  PuppeteerPage,
+} from "./types/public/page";
+import { V3Context } from "./understudy/context";
+import { Page } from "./understudy/page";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 

@@ -1,4 +1,4 @@
-import type { V3Options } from "@/packages/core/lib/v3/types";
+import type { V3Options } from "@/packages/core/lib/v3/types/public/options";
 import type { LogLine } from "@/packages/core/lib/v3";
 import dotenv from "dotenv";
 import path from "path";

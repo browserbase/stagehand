@@ -1,5 +1,5 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/evals";
-import { normalizeString } from "@/packages/evals/utils";
+import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
+import { normalizeString } from "@/evals/utils";
 import { z } from "zod/v3";
 
 export const extract_resistor_info: EvalFunction = async ({

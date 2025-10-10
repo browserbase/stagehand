@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
 import type { V3 } from "@/packages/core/lib/v3/v3";
-import type { Action } from "@/packages/core/lib/v3/types/stagehand";
+import type { Action } from "@/packages/core/lib/v3/types/public/methods";
 
 export const createActTool = (v3: V3, executionModel?: string) =>
   tool({

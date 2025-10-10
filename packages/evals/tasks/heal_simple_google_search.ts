@@ -1,4 +1,4 @@
-import { EvalFunction } from "@/packages/core/lib/v3/types/evals";
+import { EvalFunction } from "@/packages/core/lib/v3/types/public/evals";
 
 export const heal_simple_google_search: EvalFunction = async ({
   debugUrl,
