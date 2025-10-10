@@ -41,6 +41,13 @@ export interface AgentExecuteOptions extends AgentOptions {
 
 export type AgentType = "openai" | "anthropic" | "google";
 
+export type AvailableCuaModel =
+  | "openai/computer-use-preview"
+  | "openai/computer-use-preview-2025-03-11"
+  | "anthropic/claude-3-7-sonnet-latest"
+  | "anthropic/claude-sonnet-4-20250514"
+  | "google/gemini-2.5-computer-use-preview-10-2025";
+
 export interface AgentExecutionOptions {
   options: AgentExecuteOptions;
   logger: (message: LogLine) => void;
@@ -51,7 +58,6 @@ export interface AgentHandlerOptions {
   modelName: string;
   clientOptions?: Record<string, unknown>;
   userProvidedInstructions?: string;
-  agentType: AgentType;
   experimental?: boolean;
 }
 
@@ -152,33 +158,17 @@ export interface AgentInstance {
   ) => Promise<AgentResult>;
 }
 
-/**
- * Configuration for agent functionality
- */
-export interface AgentConfig {
-  /**
-   * The provider to use for agent functionality
-   */
-  provider?: AgentProviderType;
-  /**
-   * The model to use for agent functionality
-   */
-  model?: string;
-  /**
-   * The model to use for tool execution (observe/act calls within agent tools).
-   * If not specified, inherits from the main model configuration.
-   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
-   */
-  executionModel?: string;
+export type AgentProviderType = AgentType;
+
+export type AgentModelConfig<TModelName extends string = string> = {
+  modelName: TModelName;
+} & Record<string, unknown>;
+
+type SharedAgentConfigFields = {
   /**
    * Custom instructions to provide to the agent
    */
   instructions?: string;
-
-  /**
-   * Additional options to pass to the agent client
-   */
-  options?: Record<string, unknown>;
   /**
    * MCP integrations - Array of Client objects
    */
@@ -187,6 +177,41 @@ export interface AgentConfig {
    * Tools passed to the agent client
    */
   tools?: ToolSet;
-}
+};
 
-export type AgentProviderType = "openai" | "anthropic" | "google";
+type StandardAgentConfig = SharedAgentConfigFields & {
+  /**
+   * Indicates CUA is disabled for this configuration
+   */
+  cua?: false;
+  /**
+   * The model to use for agent functionality
+   */
+  model?: string | AgentModelConfig<string>;
+  /**
+   * The model to use for tool execution (observe/act calls within agent tools).
+   * If not specified, inherits from the main model configuration.
+   * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
+   */
+  executionModel?: string;
+};
+
+type CuaAgentConfig = SharedAgentConfigFields & {
+  /**
+   * Indicates CUA is enabled for this configuration
+   */
+  cua: true;
+  /**
+   * The model to use for agent functionality when CUA is enabled
+   */
+  model: AvailableCuaModel | AgentModelConfig<AvailableCuaModel>;
+  /**
+   * Execution models are not supported when CUA is enabled
+   */
+  executionModel?: never;
+};
+
+/**
+ * Configuration for agent functionality
+ */
+export type AgentConfig = StandardAgentConfig | CuaAgentConfig;

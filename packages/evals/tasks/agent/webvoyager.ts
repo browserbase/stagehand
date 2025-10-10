@@ -33,7 +33,6 @@ export const webvoyager: EvalFunction = async ({
 
     const agent = v3.agent({
       model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
       instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}`,
     });
 

@@ -15,6 +15,7 @@ const modelToAgentProviderMap: Record<string, AgentProviderType> = {
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
+  "gemini-2.5-computer-use-preview-10-2025": "google",
 };
 
 /**
@@ -82,9 +83,12 @@ export class AgentProvider {
   }
 
   static getAgentProvider(modelName: string): AgentProviderType {
-    // First check the exact model name in the map
-    if (modelName in modelToAgentProviderMap) {
-      return modelToAgentProviderMap[modelName];
+    const normalized = modelName.includes("/")
+      ? modelName.split("/")[1]
+      : modelName;
+
+    if (normalized in modelToAgentProviderMap) {
+      return modelToAgentProviderMap[normalized];
     }
 
     throw new UnsupportedModelError(

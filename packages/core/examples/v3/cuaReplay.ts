@@ -14,8 +14,8 @@ async function main() {
     "https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/",
   );
   const agent = v3.agent({
-    model: "claude-sonnet-4-20250514",
-    provider: "anthropic",
+    cua: true,
+    model: "anthropic/claude-sonnet-4-20250514",
   });
 
   const result = await agent.execute({

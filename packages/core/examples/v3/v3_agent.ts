@@ -8,27 +8,21 @@ async function main() {
 
   // Initialize Stagehand
   const v3 = new V3({
-    env: "BROWSERBASE",
-    // localBrowserLaunchOptions: {
-    //   headless: false,
-    //   args: ["--window-size=1024,768"],
-    // },
-    verbose: 1,
+    env: "LOCAL",
+    verbose: 2,
   });
 
   await v3.init();
 
   try {
-    const startPage = await v3.context.pages()[0];
+    const startPage = v3.context.pages()[0];
     await startPage.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
     );
     const agent = v3.agent({
-      // model: "computer-use-preview-2025-03-11",
-      // provider: "openai",
-      model: "claude-sonnet-4-20250514",
-      provider: "anthropic",
-      // executionModel: "openai/gpt-4.1-mini",
+      cua: false,
+      model: "google/gemini-2.0-flash",
+      executionModel: "google/gemini-2.0-flash",
     });
     // {
     //   model: "computer-use-preview-2025-03-11",

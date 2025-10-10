@@ -33,7 +33,9 @@ import { InitState } from "./types/private/internal";
 import {
   AgentConfig,
   AgentExecuteOptions,
+  AgentModelConfig,
   AgentResult,
+  AvailableCuaModel,
 } from "./types/public/agent";
 import type {
   AgentReplayActStep,
@@ -1447,6 +1449,110 @@ export class V3 {
     return sanitized;
   }
 
+  private createLlmClientOverride(
+    model?: ModelConfiguration,
+  ): LLMClient | undefined {
+    if (!model) return undefined;
+
+    let modelName: AvailableModel;
+    let clientOptions: Record<string, unknown> | undefined;
+
+    if (typeof model === "string") {
+      modelName = model as AvailableModel;
+    } else {
+      const { modelName: configuredName, ...rest } = model;
+      modelName = configuredName as AvailableModel;
+      clientOptions = Object.keys(rest).length > 0 ? { ...rest } : undefined;
+    }
+
+    const hasApiKey =
+      clientOptions !== undefined &&
+      typeof (clientOptions as { apiKey?: unknown }).apiKey === "string" &&
+      ((clientOptions as { apiKey?: string }).apiKey?.length ?? 0) > 0;
+
+    if (!hasApiKey) {
+      const providerSlug = modelName.includes("/")
+        ? modelName.split("/")[0]
+        : this.inferProviderFromModelName(modelName);
+      const defaultProviderSlug = this.modelName.includes("/")
+        ? this.modelName.split("/")[0]
+        : this.inferProviderFromModelName(this.modelName);
+      let apiKey = loadApiKeyFromEnv(providerSlug, this.logger);
+      if (!apiKey && providerSlug && providerSlug === defaultProviderSlug) {
+        apiKey = (this.modelClientOptions as { apiKey?: string })?.apiKey;
+      }
+      if (apiKey) {
+        clientOptions = { ...(clientOptions ?? {}), apiKey };
+      }
+    }
+
+    if (!clientOptions && modelName === this.modelName) {
+      return this.llmClient;
+    }
+
+    return this.llmProvider.getClient(
+      modelName,
+      clientOptions as ClientOptions | undefined,
+    );
+  }
+
+  private inferProviderFromModelName(modelName: string): string | undefined {
+    const normalized = modelName.toLowerCase();
+    if (normalized.startsWith("claude")) return "anthropic";
+    if (normalized.startsWith("gpt") || normalized.startsWith("o"))
+      return "openai";
+    if (normalized.startsWith("gemini")) return "google";
+    if (normalized.startsWith("groq")) return "groq";
+    if (normalized.startsWith("cerebras")) return "cerebras";
+    if (normalized.startsWith("moonshot")) return "groq";
+    return undefined;
+  }
+
+  private extractAgentModel<T extends string>(
+    model?: T | AgentModelConfig<T>,
+    options?: { stripProviderPrefix?: boolean },
+  ): {
+    modelName?: string;
+    modelOptions?: Record<string, unknown>;
+  } {
+    if (!model) return {};
+
+    const stripPrefix = options?.stripProviderPrefix ?? false;
+
+    const resolveName = (raw: string | undefined): string | undefined => {
+      if (!raw) return raw;
+      if (!stripPrefix) return raw;
+      const parts = raw.split("/");
+      return parts.length > 1 ? parts[parts.length - 1] : raw;
+    };
+
+    if (typeof model === "string") {
+      return { modelName: resolveName(model) };
+    }
+
+    const { modelName, ...rest } = model;
+    const normalizedName = resolveName(modelName);
+    const modelOptions =
+      Object.keys(rest).length > 0
+        ? (rest as Record<string, unknown>)
+        : undefined;
+    return { modelName: normalizedName, modelOptions };
+  }
+
+  private serializeAgentModelForCache(
+    model?: AgentConfig["model"],
+  ): null | string | { modelName: string; options?: Record<string, unknown> } {
+    if (!model) return null;
+    if (typeof model === "string") return model;
+
+    const { modelName, ...modelOptions } = model;
+    const options =
+      Object.keys(modelOptions).length > 0
+        ? (modelOptions as Record<string, unknown>)
+        : undefined;
+    return options ? { modelName, options } : modelName;
+  }
+
   private buildAgentCacheSignature(agentOptions?: AgentConfig): string {
     const toolKeys = agentOptions?.tools
       ? Object.keys(agentOptions.tools).sort()
@@ -1456,13 +1562,18 @@ export class V3 {
           typeof integration === "string" ? integration : "client",
         )
       : undefined;
+    const serializedModel = this.serializeAgentModelForCache(
+      agentOptions?.model,
+    );
     return JSON.stringify({
       v3Model: this.modelName,
       systemPrompt: this.opts.systemPrompt ?? "",
       agent: {
-        provider: agentOptions?.provider ?? null,
-        model: agentOptions?.model ?? null,
-        executionModel: agentOptions?.executionModel ?? null,
+        cua: agentOptions?.cua ?? false,
+        model: serializedModel ?? null,
+        executionModel: agentOptions?.cua
+          ? null
+          : (agentOptions?.executionModel ?? null),
         instructions: agentOptions?.instructions ?? null,
         toolKeys,
         integrations: integrationSignatures,
@@ -1781,8 +1892,27 @@ export class V3 {
       level: 1,
     });
 
-    // If a CUA provider is specified, use the CUA path
-    if (options?.provider) {
+    // If CUA is enabled, use the computer-use agent path
+    if (options?.cua) {
+      const { modelName, modelOptions } =
+        this.extractAgentModel<AvailableCuaModel>(options.model, {
+          stripProviderPrefix: true,
+        });
+      if (!modelName) {
+        throw new Error("A CUA agent requires a model to be specified.");
+      }
+
+      const executionModel = (
+        options as {
+          executionModel?: unknown;
+        }
+      ).executionModel;
+      if (executionModel !== undefined) {
+        throw new Error(
+          "executionModel is not supported when cua is set to true.",
+        );
+      }
+
       const agentConfigSignature = this.buildAgentCacheSignature(options);
       return {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
@@ -1800,12 +1930,11 @@ export class V3 {
               this,
               this.logger,
               {
-                modelName: options.model!,
-                clientOptions: options.options,
+                modelName,
+                clientOptions: modelOptions,
                 userProvidedInstructions:
                   options.instructions ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
-                agentType: options.provider,
               },
               tools,
             );
@@ -1924,7 +2053,7 @@ export class V3 {
             this,
             this.logger,
             this.llmClient,
-            options?.model,
+            options?.executionModel,
             options?.instructions,
             tools,
           );
