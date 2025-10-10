@@ -99,6 +99,8 @@ export class CuaAgentHandler {
         // Execute the action
         await this.executeAction(action);
 
+        action.timestamp = Date.now();
+
         // Add a delay after the action for better visibility
         await new Promise((resolve) => setTimeout(resolve, waitBetweenActions));
 

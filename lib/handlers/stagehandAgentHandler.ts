@@ -191,6 +191,7 @@ export class StagehandAgentHandler {
                   toolCall.toolName === "close"
                     ? (args?.success as boolean)
                     : false,
+                timestamp: Date.now(),
                 ...args,
                 ...getPlaywrightArguments(),
               };
