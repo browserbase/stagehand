@@ -464,14 +464,14 @@
       ]
     },
     {
-      "name": "nextChunk",
+      "name": "next_chunk",
       "categories": [
         "regression",
         "act"
       ]
     },
     {
-      "name": "prevChunk",
+      "name": "prev_chunk",
       "categories": [
         "regression",
         "act"

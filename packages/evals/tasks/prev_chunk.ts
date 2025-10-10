@@ -1,6 +1,6 @@
 import { EvalFunction } from "../types/evals";
 
-export const prevChunk: EvalFunction = async ({
+export const prev_chunk: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
