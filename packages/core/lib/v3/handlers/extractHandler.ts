@@ -9,7 +9,11 @@ import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";
 import { EncodedId, ZodPathSegments } from "../types/private/internal";
 import { defaultExtractSchema, pageTextSchema } from "../types/public/methods";
-import { AvailableModel, ClientOptions } from "../types/public/model";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelConfiguration,
+} from "../types/public/model";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -42,6 +46,9 @@ export class ExtractHandler {
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
+  private readonly resolveLlmClient: (
+    model?: ModelConfiguration,
+  ) => LLMClient;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
@@ -56,6 +63,7 @@ export class ExtractHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
+    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -69,6 +77,7 @@ export class ExtractHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
+    this.resolveLlmClient = resolveLlmClient;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -78,7 +87,9 @@ export class ExtractHandler {
   async extract<T extends ZodTypeAny>(
     params: ExtractHandlerParams<T>,
   ): Promise<z.infer<T> | { pageText: string }> {
-    const { instruction, schema, page, selector, timeout } = params;
+    const { instruction, schema, page, selector, timeout, model } = params;
+
+    const llmClient = this.resolveLlmClient(model);
 
     const doExtract = async (): Promise<z.infer<T> | { pageText: string }> => {
       // No-args → page text (parity with v2)
@@ -140,7 +151,7 @@ export class ExtractHandler {
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as z.ZodObject<z.ZodRawShape>,
-        llmClient: this.llmClient,
+        llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
