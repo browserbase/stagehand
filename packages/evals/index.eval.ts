@@ -23,11 +23,7 @@ import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel } from "braintrust";
-import {
-  SummaryResult,
-  Testcase,
-  EvalInput,
-} from "./types/evals";
+import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
 import { AvailableModel } from "@browserbasehq/orca";
 import { LLMClient } from "@browserbasehq/orca";

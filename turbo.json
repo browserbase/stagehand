@@ -14,9 +14,9 @@
         "lib/version.ts"
       ],
       "inputs": [
-        "lib/**/*.ts",
-        "lib/**/*.tsx",
-        "lib/**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
         "package.json",
         "tsconfig.json"
       ]

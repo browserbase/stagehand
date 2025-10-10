@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { normalizeString } from "@/evals/utils";
+import { normalizeString } from "../utils";
 import { z } from "zod/v3";
 
 export const extract_professional_info: EvalFunction = async ({
