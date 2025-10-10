@@ -452,13 +452,9 @@ function handleRun(args: string[]): void {
     }
 
     const compiledEvalPath = path.join(__dirname, "index.eval.js");
-    const sourceEvalPath = path.resolve(
-      __dirname,
-      "..",
-      "..",
-      "evals",
-      "index.eval.ts",
-    );
+    // When built to dist/evals/cli.js, __dirname is dist/evals/
+    // Source is at packages/evals/index.eval.ts from repo root
+    const sourceEvalPath = path.resolve(__dirname, "..", "..", "packages", "evals", "index.eval.ts");
 
     let child;
 

@@ -6,7 +6,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "gen-version": "cd ../.. && tsx scripts/gen-version.ts",
+    "gen-version": "tsx scripts/gen-version.ts",
     "build-dom-scripts": "cd ../.. && tsx packages/core/lib/v3/dom/genDomScripts.ts",
     "build-js": "cd ../.. && tsup --entry.index packages/core/lib/v3/index.ts --dts --outDir packages/core/dist --external chrome-launcher --external playwright-core --external puppeteer-core --external patchright-core --external @playwright/test --external @langchain/core --external @langchain/openai",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js",

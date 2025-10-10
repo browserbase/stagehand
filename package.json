@@ -6,7 +6,6 @@
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
-    "gen-version": "tsx scripts/gen-version.ts",
     "lint": "turbo run lint",
     "format": "turbo run format",
     "prettier": "prettier --write .",
@@ -15,7 +14,7 @@
     "e2e": "turbo run e2e",
     "e2e:bb": "turbo run e2e -- --config=bb.playwright.config.ts",
     "e2e:local": "turbo run e2e -- --config=local.playwright.config.ts",
-    "evals": "turbo run evals",
+    "evals": "pnpm --filter @browserbasehq/stagehand-evals run evals --",
     "docs": "turbo run docs",
     "dev": "turbo run dev",
     "example": "pnpm --filter @browserbasehq/stagehand-examples run start",

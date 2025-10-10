@@ -5,12 +5,12 @@
   "description": "Evaluation suite for Stagehand",
   "main": "./",
   "scripts": {
-    "build": "pnpm --filter @browserbasehq/orca run build",
+    "build": "echo 'No build needed for evals - TypeScript files run with tsx'",
     "build:cli": "tsup cli.ts --outDir ../../dist/evals --format cjs && cp evals.config.json ../../dist/evals/ && chmod +x ../../dist/evals/cli.js",
-    "evals": "pnpm run build && tsx index.eval.ts",
-    "e2e": "pnpm run build && playwright test --config deterministic/e2e.playwright.config.ts",
-    "e2e:bb": "pnpm run build && playwright test --config deterministic/bb.playwright.config.ts",
-    "e2e:local": "pnpm run build && playwright test --config deterministic/local.playwright.config.ts"
+    "evals": "tsx run.ts",
+    "e2e": "playwright test --config deterministic/e2e.playwright.config.ts",
+    "e2e:bb": "playwright test --config deterministic/bb.playwright.config.ts",
+    "e2e:local": "playwright test --config deterministic/local.playwright.config.ts"
   },
   "dependencies": {
     "@browserbasehq/orca": "workspace:*",

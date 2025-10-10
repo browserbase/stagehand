@@ -47,7 +47,7 @@
       ]
     },
     "gen-version": {
-      "outputs": ["packages/core/lib/version.ts"],
+      "outputs": ["lib/version.ts"],
       "inputs": ["package.json", "scripts/gen-version.ts"]
     },
     "lint": {
