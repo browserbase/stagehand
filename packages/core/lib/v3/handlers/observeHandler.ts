@@ -8,12 +8,19 @@ import { LLMClient } from "../llm/LLMClient";
 import { ObserveHandlerParams } from "../types/private/handlers";
 import { EncodedId } from "../types/private/internal";
 import { Action } from "../types/public/methods";
-import { AvailableModel, ClientOptions } from "../types/public/model";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelConfiguration,
+} from "../types/public/model";
 
 export class ObserveHandler {
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
+  private readonly resolveLlmClient: (
+    model?: ModelConfiguration,
+  ) => LLMClient;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;
@@ -28,6 +35,7 @@ export class ObserveHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
+    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     experimental?: boolean,
@@ -41,6 +49,7 @@ export class ObserveHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
+    this.resolveLlmClient = resolveLlmClient;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.experimental = experimental ?? false;
@@ -48,7 +57,9 @@ export class ObserveHandler {
   }
 
   async observe(params: ObserveHandlerParams): Promise<Action[]> {
-    const { instruction, page, timeout, selector } = params;
+    const { instruction, page, timeout, selector, model } = params;
+
+    const llmClient = this.resolveLlmClient(model);
 
     const effectiveInstruction =
       instruction ??
@@ -87,7 +98,7 @@ export class ObserveHandler {
       const observationResponse = await runObserve({
         instruction: effectiveInstruction,
         domElements: combinedTree,
-        llmClient: this.llmClient,
+        llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,

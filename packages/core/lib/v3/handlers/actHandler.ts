@@ -12,7 +12,11 @@ import {
 import { LLMClient } from "../llm/LLMClient";
 import { SupportedPlaywrightAction } from "../types/private";
 import { EncodedId } from "../types/private/internal";
-import { AvailableModel, ClientOptions } from "../types/public/model";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelConfiguration,
+} from "../types/public/model";
 import type { Page } from "../understudy/page";
 import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
 
@@ -20,6 +24,9 @@ export class ActHandler {
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
+  private readonly resolveLlmClient: (
+    model?: ModelConfiguration,
+  ) => LLMClient;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly selfHeal: boolean;
@@ -35,6 +42,7 @@ export class ActHandler {
     llmClient: LLMClient,
     defaultModelName: AvailableModel,
     defaultClientOptions: ClientOptions,
+    resolveLlmClient: (model?: ModelConfiguration) => LLMClient,
     systemPrompt?: string,
     logInferenceToFile?: boolean,
     selfHeal?: boolean,
@@ -49,6 +57,7 @@ export class ActHandler {
     this.llmClient = llmClient;
     this.defaultModelName = defaultModelName;
     this.defaultClientOptions = defaultClientOptions;
+    this.resolveLlmClient = resolveLlmClient;
     this.systemPrompt = systemPrompt ?? "";
     this.logInferenceToFile = logInferenceToFile ?? false;
     this.selfHeal = !!selfHeal;
@@ -57,7 +66,9 @@ export class ActHandler {
   }
 
   async act(params: ActHandlerParams): Promise<ActResult> {
-    const { instruction, page, variables, timeout } = params;
+    const { instruction, page, variables, timeout, model } = params;
+
+    const llmClient = this.resolveLlmClient(model);
 
     const doObserveAndAct = async (): Promise<ActResult> => {
       const snapshot = await captureHybridSnapshot(page as Page, {
@@ -79,7 +90,7 @@ export class ActHandler {
       const actInferenceResponse = await actInference({
         instruction: observeActInstruction,
         domElements: combinedTree,
-        llmClient: this.llmClient,
+        llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -159,6 +170,7 @@ export class ActHandler {
         chosen,
         page as Page,
         this.defaultDomSettleTimeoutMs,
+        llmClient,
       );
 
       // If not two-step, return the first action result
@@ -203,7 +215,7 @@ export class ActHandler {
       const action2 = await actInference({
         instruction: stepTwoInstructions,
         domElements: diffedTree,
-        llmClient: this.llmClient,
+        llmClient,
         userProvidedInstructions: this.systemPrompt,
         logger: v3Logger,
         logInferenceToFile: this.logInferenceToFile,
@@ -267,6 +279,7 @@ export class ActHandler {
         chosen2,
         page as Page,
         this.defaultDomSettleTimeoutMs,
+        llmClient,
       );
 
       // Combine results
@@ -303,8 +316,10 @@ export class ActHandler {
     action: Action,
     page: Page,
     domSettleTimeoutMs?: number,
+    llmClientOverride?: LLMClient,
   ): Promise<ActResult> {
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
+    const effectiveClient = llmClientOverride ?? this.llmClient;
     const method = action.method?.trim();
     if (!method || method === "not-supported") {
       v3Logger({
@@ -390,7 +405,7 @@ export class ActHandler {
           const actInferenceResponse = await actInference({
             instruction,
             domElements: combinedTree,
-            llmClient: this.llmClient,
+            llmClient: effectiveClient,
             userProvidedInstructions: this.systemPrompt,
             logger: v3Logger,
             logInferenceToFile: this.logInferenceToFile,

@@ -60,7 +60,11 @@ import {
   V3FunctionName,
 } from "./types/public/methods";
 import { V3Metrics } from "./types/public/metrics";
-import { AvailableModel, ClientOptions } from "./types/public/model";
+import {
+  AvailableModel,
+  ClientOptions,
+  ModelConfiguration,
+} from "./types/public/model";
 import { LocalBrowserLaunchOptions, V3Options } from "./types/public/options";
 import {
   AnyPage,
@@ -132,6 +136,7 @@ export class V3 {
   private modelName: AvailableModel;
   private modelClientOptions: ClientOptions;
   private llmProvider: LLMProvider;
+  private overrideLlmClients: Map<string, LLMClient> = new Map();
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   public browserbaseSessionId?: string;
@@ -179,6 +184,64 @@ export class V3 {
 
   private cloneForCache<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
+  }
+
+  private resolveLlmClient(model?: ModelConfiguration): LLMClient {
+    if (!model) {
+      return this.llmClient;
+    }
+
+    let modelName: AvailableModel | string;
+    let clientOptions: ClientOptions | undefined;
+
+    if (typeof model === "string") {
+      modelName = model;
+    } else {
+      const { modelName: overrideModelName, ...rest } = model;
+      modelName = overrideModelName;
+      clientOptions = rest as ClientOptions;
+    }
+
+    if (
+      modelName === this.modelName &&
+      (!clientOptions || Object.keys(clientOptions).length === 0)
+    ) {
+      return this.llmClient;
+    }
+
+    const overrideProvider = String(modelName).split("/")[0];
+    const baseProvider = String(this.modelName).split("/")[0];
+
+    const mergedOptions = {
+      ...(overrideProvider === baseProvider ? this.modelClientOptions : {}),
+      ...(clientOptions ?? {}),
+    } as ClientOptions;
+
+    const providerKey = overrideProvider;
+    if (!(mergedOptions as { apiKey?: string }).apiKey) {
+      const apiKey = loadApiKeyFromEnv(providerKey, this.logger);
+      if (apiKey) {
+        (mergedOptions as { apiKey?: string }).apiKey = apiKey;
+      }
+    }
+
+    const cacheKey = JSON.stringify({
+      modelName,
+      clientOptions: mergedOptions,
+    });
+
+    const cached = this.overrideLlmClients.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const client = this.llmProvider.getClient(
+      modelName as AvailableModel,
+      mergedOptions,
+    );
+
+    this.overrideLlmClients.set(cacheKey, client);
+    return client;
   }
 
   private beginAgentReplayRecording(): void {
@@ -461,6 +524,7 @@ export class V3 {
         this.llmClient,
         this.modelName,
         this.modelClientOptions,
+        (model) => this.resolveLlmClient(model),
         this.opts.systemPrompt ?? "",
         this.logInferenceToFile,
         this.opts.selfHeal ?? false,
@@ -477,6 +541,7 @@ export class V3 {
         this.llmClient,
         this.modelName,
         this.modelClientOptions,
+        (model) => this.resolveLlmClient(model),
         this.opts.systemPrompt ?? "",
         this.logInferenceToFile,
         this.experimental,
@@ -492,6 +557,7 @@ export class V3 {
         this.llmClient,
         this.modelName,
         this.modelClientOptions,
+        (model) => this.resolveLlmClient(model),
         this.opts.systemPrompt ?? "",
         this.logInferenceToFile,
         this.experimental,
@@ -752,6 +818,7 @@ export class V3 {
           { ...input, selector }, // ObserveResult
           v3Page, // V3 Page
           this.domSettleTimeoutMs,
+          this.resolveLlmClient(options?.model),
         );
         // history: record ObserveResult-based act call
         this.addToHistory(
@@ -843,6 +910,7 @@ export class V3 {
         page: page!,
         variables: options?.variables,
         timeout: options?.timeout,
+        model: options?.model,
       };
       const actResult = await this.actHandler.act(handlerParams);
       // history: record instruction-based act call (omit page object)
@@ -1542,6 +1610,7 @@ export class V3 {
           action,
           page,
           this.domSettleTimeoutMs,
+          this.resolveLlmClient(),
         );
       }
       return;
@@ -1565,6 +1634,7 @@ export class V3 {
         action,
         page,
         this.domSettleTimeoutMs,
+        this.resolveLlmClient(),
       );
     }
   }
@@ -1626,6 +1696,7 @@ export class V3 {
           action,
           page,
           domSettleTimeoutMs,
+          this.resolveLlmClient(),
         );
         actionResults.push(result);
         if (!result.success) {
