@@ -5,7 +5,8 @@
   "description": "Evaluation suite for Stagehand",
   "main": "./",
   "scripts": {
-    "build": "echo 'No build needed for evals - TypeScript files run with tsx'",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm run typecheck",
     "build:cli": "tsup cli.ts --outDir ../../dist/evals --format cjs && cp evals.config.json ../../dist/evals/ && chmod +x ../../dist/evals/cli.js",
     "evals": "tsx run.ts",
     "e2e": "playwright test --config deterministic/e2e.playwright.config.ts",
