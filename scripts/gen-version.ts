@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 type PackageJson = { version: string };
 
-const pkgPath = join(__dirname, "..", "package.json");
+const pkgPath = join(__dirname, "..", "packages", "core", "package.json");
 const pkg: PackageJson = JSON.parse(readFileSync(pkgPath, "utf8"));
 
 const fullVersion: `${string}` = pkg.version;

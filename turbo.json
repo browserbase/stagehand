@@ -6,7 +6,7 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "gen-version"],
       "outputs": [
         "dist/**",
         "lib/dom/build/**",
