@@ -145,6 +145,6 @@ const agent = stagehand.agent({
 
 // Execute the agent
 await agent.execute(
-  "Apply for a library card at the San Francisco Public Library"
+  "Apply for a library card at the San Francisco Public Library",
 );
 ```

@@ -12,10 +12,7 @@ import type {
   ModelConfiguration,
 } from "@browserbasehq/orca";
 import { AgentConfig } from "@browserbasehq/orca";
-import type {
-  LocalBrowserLaunchOptions,
-  V3Options,
-} from "@browserbasehq/orca";
+import type { LocalBrowserLaunchOptions, V3Options } from "@browserbasehq/orca";
 import { V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";

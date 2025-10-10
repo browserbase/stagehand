@@ -11,7 +11,7 @@
  * reviewed after the tasks complete.
  */
 import { logLineToString } from "./utils";
-import { LogLineEval } from "@browserbasehq/orca";
+import { LogLineEval } from "./types/evals";
 import { LogLine } from "@browserbasehq/orca";
 import type { V3 } from "@browserbasehq/orca";
 
