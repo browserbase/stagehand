@@ -1,4 +1,4 @@
-import { V3 } from "../../lib/v3/v3";
+import { V3 } from "../../lib/v3";
 
 async function main() {
   const v3 = new V3({

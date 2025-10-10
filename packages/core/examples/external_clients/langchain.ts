@@ -3,7 +3,7 @@ import {
   CreateChatCompletionOptions,
   LLMClient,
   AvailableModel,
-} from "../lib/v3";
+} from "../../lib/v3";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   AIMessage,

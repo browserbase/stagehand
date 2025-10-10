@@ -9,7 +9,7 @@ import {
   AvailableModel,
   CreateChatCompletionOptions,
   LLMClient,
-} from "../lib/v3";
+} from "../../lib/v3";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import type {
@@ -23,7 +23,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat/completions";
 import { z } from "zod/v3";
-import { CreateChatCompletionResponseError } from "../lib/v3";
+import { CreateChatCompletionResponseError } from "../../lib/v3";
 
 function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   try {

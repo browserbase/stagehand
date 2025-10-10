@@ -14,7 +14,7 @@ import {
   CreateChatCompletionOptions,
   LLMClient,
   AvailableModel,
-} from "../lib/v3";
+} from "../../lib/v3";
 import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {
