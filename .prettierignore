@@ -3,3 +3,8 @@ README.md
 **/*.json
 docs/
 .github/
+**/dist/**
+**/node_modules/**
+packages/core/lib/dom/build/**
+packages/core/lib/v3/dom/build/**
+*.min.js
