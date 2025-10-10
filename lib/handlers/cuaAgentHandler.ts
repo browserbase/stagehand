@@ -72,6 +72,8 @@ export class CuaAgentHandler {
 
     // Set up action handler for any client type
     this.agentClient.setActionHandler(async (action) => {
+      action.pageUrl = this.page.url();
+
       // Default delay between actions (1 second if not specified)
       const defaultDelay = 1000;
       // Use specified delay or default
@@ -80,6 +82,8 @@ export class CuaAgentHandler {
         defaultDelay;
 
       try {
+        this.updateClientUrl();
+
         // Try to inject cursor before each action if enabled
         if (this.highlightCursor) {
           try {
@@ -94,6 +98,8 @@ export class CuaAgentHandler {
 
         // Execute the action
         await this.executeAction(action);
+
+        action.timestamp = Date.now();
 
         // Add a delay after the action for better visibility
         await new Promise((resolve) => setTimeout(resolve, waitBetweenActions));

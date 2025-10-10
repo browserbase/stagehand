@@ -17,6 +17,7 @@ export interface AgentAction {
   // Tool-specific fields
   timeMs?: number; // wait tool
   pageText?: string; // ariaTree tool
+  timestamp?: number;
   pageUrl?: string; // ariaTree tool
   instruction?: string; // various tools
   playwrightArguments?: ObserveResult | null; // act tool
