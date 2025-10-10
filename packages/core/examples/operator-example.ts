@@ -6,7 +6,7 @@
  * To learn more about Stagehand Agents, see: https://docs.stagehand.dev/concepts/agent
  */
 
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import dotenv from "dotenv";
 import chalk from "chalk";
 

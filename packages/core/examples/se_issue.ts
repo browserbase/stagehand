@@ -4,7 +4,7 @@
  * Run: pnpm example
  */
 
-import type { Stagehand as StagehandType } from "@browserbasehq/stagehand";
+import type { Stagehand as StagehandType } from "../lib/v3";
 import StagehandConfig from "../stagehand.config";
 
 import fs from "node:fs";

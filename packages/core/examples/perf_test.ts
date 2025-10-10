@@ -1,4 +1,4 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import { performance } from "perf_hooks"; // Using Node.js perf_hooks for more precise timing
 
 async function main() {

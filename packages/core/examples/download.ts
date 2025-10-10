@@ -1,4 +1,4 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import { Browserbase } from "@browserbasehq/sdk";
 import type { Download } from "playwright";
 import JSZip from "jszip";

@@ -4,7 +4,7 @@
  * You will need to reference the Langchain Client in /external_clients/langchain.ts
  */
 import { z } from "zod/v3";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import { LangchainClient } from "./external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";
 

@@ -6,7 +6,7 @@
  * NOTE: YOU MUST CONFIGURE BROWSER DIMENSIONS TO USE COMPUTER USE!
  * Check out stagehand.config.ts for more information.
  */
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import chalk from "chalk";
 
 async function main() {

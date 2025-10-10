@@ -1,4 +1,4 @@
-import { V3 } from "@browserbasehq/stagehand";
+import { V3 } from "../lib/v3";
 import { z } from "zod/v3";
 
 async function example(v3: V3) {
@@ -25,7 +25,7 @@ async function example(v3: V3) {
 
 (async () => {
   const v3 = new V3({
-    env: "BROWSERBASE",
+    env: "LOCAL",
     verbose: 2,
     logInferenceToFile: false,
     model: "google/gemini-2.0-flash",

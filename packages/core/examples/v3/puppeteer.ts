@@ -1,4 +1,4 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import puppeteer from "puppeteer-core";
 
 async function example(stagehand: Stagehand) {

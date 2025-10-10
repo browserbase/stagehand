@@ -1,4 +1,4 @@
-// import { Stagehand } from "@browserbasehq/stagehand";
+// import { Stagehand } from "../lib/v3";
 // import StagehandConfig from "@/stagehand.config";
 // import chalk from "chalk";
 // import { connectToMCPServer } from "../lib/mcp/connection";

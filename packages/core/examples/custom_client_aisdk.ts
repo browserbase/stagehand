@@ -5,7 +5,7 @@
  *
  * To learn more about the Vercel AI SDK, see: https://sdk.vercel.ai/docs
  */
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "../lib/v3";
 import { AISdkClient } from "./external_clients/aisdk";
 import { z } from "zod/v3";
 import { openai } from "@ai-sdk/openai";
