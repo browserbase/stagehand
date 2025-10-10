@@ -166,9 +166,9 @@ export type AgentModelConfig<TModelName extends string = string> = {
 
 type SharedAgentConfigFields = {
   /**
-   * Custom instructions to provide to the agent
+   * Custom system prompt to provide to the agent. Overrides the default system prompt.
    */
-  instructions?: string;
+  systemPrompt?: string;
   /**
    * MCP integrations - Array of Client objects
    */

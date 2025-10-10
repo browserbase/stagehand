@@ -1574,7 +1574,7 @@ export class V3 {
         executionModel: agentOptions?.cua
           ? null
           : (agentOptions?.executionModel ?? null),
-        instructions: agentOptions?.instructions ?? null,
+        systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
       },
@@ -1933,7 +1933,7 @@ export class V3 {
                 modelName,
                 clientOptions: modelOptions,
                 userProvidedInstructions:
-                  options.instructions ??
+                  options.systemPrompt ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
               },
               tools,
@@ -2054,7 +2054,7 @@ export class V3 {
             this.logger,
             this.llmClient,
             options?.executionModel,
-            options?.instructions,
+            options?.systemPrompt,
             tools,
           );
 

@@ -31,9 +31,9 @@ async function main() {
         modelName: "openai/computer-use-preview",
         apiKey: process.env.OPENAI_API_KEY,
       },
-      instructions: `You are a helpful assistant that can use a web browser.
+      systemPrompt: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${await page.url()}.
-      Do not ask follow up questions, the user will trust your judgement.`,
+      Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
     });
 
     // Navigate to the Browserbase careers page
