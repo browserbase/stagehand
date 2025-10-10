@@ -54,9 +54,8 @@ export interface LocalBrowserLaunchOptions {
 }
 
 /** Constructor options for V3 */
-export interface V3Options {
+interface V3BaseOptions {
   env: V3Env;
-
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
@@ -87,3 +86,14 @@ export interface V3Options {
   cacheDir?: string;
   domSettleTimeout?: number;
 }
+
+interface V3APIOptions extends V3BaseOptions {
+  env: "BROWSERBASE";
+  disableAPI?: true;
+}
+
+interface V3LocalOptions extends V3BaseOptions {
+  env: "LOCAL";
+}
+
+export type V3Options = V3APIOptions | V3LocalOptions;
