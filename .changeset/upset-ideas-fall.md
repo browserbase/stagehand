@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Add pageUrl to agent actions
+Add pageUrl & timestamp to agent actions
