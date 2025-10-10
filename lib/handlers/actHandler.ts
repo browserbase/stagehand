@@ -71,6 +71,36 @@ export class StagehandActHandler {
     });
 
     const method = observe.method;
+    const args = Array.isArray(observe.arguments) ? [...observe.arguments] : [];
+    const selector =
+      this.normalizeSelector(observe.selector) ?? observe.selector;
+    let attemptedPlaywrightCommand = this.buildPlaywrightCommand(
+      method,
+      args,
+      selector,
+    );
+
+    if (!method) {
+      this.logger({
+        category: "action",
+        message: "ObserveResult did not include a Playwright method",
+        level: 1,
+        auxiliary: {
+          observeResult: {
+            value: JSON.stringify(observe),
+            type: "object",
+          },
+        },
+      });
+      return {
+        success: false,
+        message:
+          "Unable to perform action: The ObserveResult did not include a Playwright method.",
+        action: observe.description || "ObserveResult action",
+        playwrightCommand: attemptedPlaywrightCommand,
+      };
+    }
+
     if (method === "not-supported") {
       this.logger({
         category: "action",
@@ -92,11 +122,9 @@ export class StagehandActHandler {
         success: false,
         message: `Unable to perform action: The method '${method}' is not supported in ObserveResult. Please use a supported Playwright locator method.`,
         action: observe.description || `ObserveResult action (${method})`,
+        playwrightCommand: attemptedPlaywrightCommand,
       };
     }
-    const args = observe.arguments ?? [];
-    // remove the xpath prefix on the selector
-    const selector = observe.selector.replace("xpath=", "");
 
     try {
       await this._performPlaywrightMethod(
@@ -110,6 +138,7 @@ export class StagehandActHandler {
         success: true,
         message: `Action [${method}] performed successfully on selector: ${selector}`,
         action: observe.description || `ObserveResult action (${method})`,
+        playwrightCommand: attemptedPlaywrightCommand,
       };
     } catch (err) {
       if (
@@ -129,6 +158,7 @@ export class StagehandActHandler {
           success: false,
           message: `Failed to perform act: ${err.message}`,
           action: observe.description || `ObserveResult action (${method})`,
+          playwrightCommand: attemptedPlaywrightCommand,
         };
       }
       // We will try to use observeAct on a failed ObserveResult-act if selfHeal is true
@@ -165,21 +195,30 @@ export class StagehandActHandler {
             success: false,
             message: `Failed to self heal act: Element not found.`,
             action: actCommand,
+            playwrightCommand: attemptedPlaywrightCommand,
           };
         }
         const element: ObserveResult = observeResults[0];
+        const fallbackSelector =
+          this.normalizeSelector(element.selector) ?? element.selector;
+        attemptedPlaywrightCommand = this.buildPlaywrightCommand(
+          observe.method,
+          observe.arguments,
+          fallbackSelector,
+        );
         await this._performPlaywrightMethod(
           // override previously provided method and arguments
           observe.method,
           observe.arguments,
           // only update selector
-          element.selector,
+          fallbackSelector,
           domSettleTimeoutMs,
         );
         return {
           success: true,
           message: `Action [${element.method}] performed successfully on selector: ${element.selector}`,
           action: observe.description || `ObserveResult action (${method})`,
+          playwrightCommand: attemptedPlaywrightCommand,
         };
       } catch (err) {
         this.logger({
@@ -195,9 +234,36 @@ export class StagehandActHandler {
           success: false,
           message: `Failed to perform act: ${err.message}`,
           action: observe.description || `ObserveResult action (${method})`,
+          playwrightCommand: attemptedPlaywrightCommand,
         };
       }
     }
+  }
+
+  private normalizeSelector(selector?: string): string | undefined {
+    if (!selector) {
+      return undefined;
+    }
+
+    return selector.replace(/^xpath=/i, "").trim();
+  }
+
+  private buildPlaywrightCommand(
+    method: string | undefined,
+    args: unknown[] | undefined,
+    selector: string | undefined,
+  ): ActResult["playwrightCommand"] {
+    if (!method || !selector) {
+      return undefined;
+    }
+
+    const commandArguments = Array.isArray(args) ? args : [];
+
+    return {
+      method,
+      selector,
+      arguments: commandArguments,
+    };
   }
 
   /**
