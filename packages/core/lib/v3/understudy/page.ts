@@ -1,5 +1,5 @@
 import { Protocol } from "devtools-protocol";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../logger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
 import { Frame } from "./frame";
@@ -7,7 +7,7 @@ import { FrameLocator } from "./frameLocator";
 import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
-import { LoadState } from "@/packages/core/lib/v3/types/public/page";
+import { LoadState } from "../types/public/page";
 
 /**
  * Page

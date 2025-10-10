@@ -1,6 +1,6 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../logger";
 import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
 import { installV3PiercerIntoSession } from "./piercer";

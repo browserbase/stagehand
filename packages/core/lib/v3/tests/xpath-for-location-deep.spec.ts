@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
 import { v3TestConfig } from "./v3.config";
-import { resolveXpathForLocation } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
+import { resolveXpathForLocation } from "../understudy/a11y/snapshot";
 
 test.describe("resolveNodeForLocationDeep", () => {
   let v3: V3;

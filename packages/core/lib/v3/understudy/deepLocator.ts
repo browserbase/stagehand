@@ -1,7 +1,7 @@
 import { Locator } from "./locator";
 import type { Frame } from "./frame";
 import type { Page } from "./page";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../logger";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator";
 
 /**

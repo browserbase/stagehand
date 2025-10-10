@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import type { V3 } from "@/packages/core/lib/v3/v3";
+import type { V3 } from "../../v3";
 import type { LogLine } from "../../types/public/logs";
 
 function evaluateZodSchema(

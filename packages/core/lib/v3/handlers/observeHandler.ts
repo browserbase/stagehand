@@ -1,9 +1,9 @@
 // lib/v3/handlers/observeHandler.ts
-import { observe as runObserve } from "@/packages/core/lib/inference";
-import { trimTrailingTextNode } from "@/packages/core/lib/utils";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
-import { V3FunctionName } from "@/packages/core/lib/v3/types/public/methods";
-import { captureHybridSnapshot } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
+import { observe as runObserve } from "../../inference";
+import { trimTrailingTextNode } from "../../utils";
+import { v3Logger } from "../logger";
+import { V3FunctionName } from "../types/public/methods";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
 import { ObserveHandlerParams } from "../types/private/handlers";
 import { EncodedId } from "../types/private/internal";

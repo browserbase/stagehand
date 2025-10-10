@@ -1,4 +1,4 @@
-import type { V3Options } from "@/packages/core/lib/v3/types/public/options";
+import type { V3Options } from "../types/public/options";
 import type { LogLine } from "../types/public/logs";
 
 export const v3TestConfig: V3Options = {

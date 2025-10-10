@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { V3 } from "@/packages/core/lib/v3";
+import { V3 } from "../v3";
 import Browserbase from "@browserbasehq/sdk";
 import AdmZip from "adm-zip";
-import { v3BBTestConfig } from "@/packages/core/lib/v3/tests/v3.bb.config";
+import { v3BBTestConfig } from "./v3.bb.config";
 
 const pdfRe = /sample-(\d{13})+\.pdf/;
 test.describe("downloads on browserbase", () => {

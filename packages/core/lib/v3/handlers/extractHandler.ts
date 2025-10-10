@@ -1,9 +1,9 @@
 // lib/v3/handlers/extractHandler.ts
-import { extract as runExtract } from "@/packages/core/lib/inference";
-import { injectUrls, transformSchema } from "@/packages/core/lib/utils";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
-import { V3FunctionName } from "@/packages/core/lib/v3/types/public/methods";
-import { captureHybridSnapshot } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
+import { extract as runExtract } from "../../inference";
+import { injectUrls, transformSchema } from "../../utils";
+import { v3Logger } from "../logger";
+import { V3FunctionName } from "../types/public/methods";
+import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
 import { z, ZodTypeAny } from "zod/v3";
 import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";

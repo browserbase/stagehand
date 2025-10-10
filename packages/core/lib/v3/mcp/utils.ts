@@ -1,5 +1,5 @@
-import { Client } from "@modelcontextprotocol/sdk/dist/esm/client";
-import { ToolSet } from "ai/dist";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ToolSet } from "ai";
 import { JsonSchema, jsonSchemaToZod } from "../../utils";
 import { connectToMCPServer } from "./connection";
 

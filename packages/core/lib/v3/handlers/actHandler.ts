@@ -1,18 +1,14 @@
 // lib/v3/handlers/actHandler.ts
-import { act as actInference } from "@/packages/core/lib/inference";
-import { buildActPrompt, buildStepTwoPrompt } from "@/packages/core/lib/prompt";
-import { trimTrailingTextNode } from "@/packages/core/lib/utils";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
-import { ActHandlerParams } from "@/packages/core/lib/v3/types/private/handlers";
-import {
-  ActResult,
-  Action,
-  V3FunctionName,
-} from "@/packages/core/lib/v3/types/public/methods";
+import { act as actInference } from "../../inference";
+import { buildActPrompt, buildStepTwoPrompt } from "../../prompt";
+import { trimTrailingTextNode } from "../../utils";
+import { v3Logger } from "../logger";
+import { ActHandlerParams } from "../types/private/handlers";
+import { ActResult, Action, V3FunctionName } from "../types/public/methods";
 import {
   captureHybridSnapshot,
   diffCombinedTrees,
-} from "@/packages/core/lib/v3/understudy/a11y/snapshot";
+} from "../understudy/a11y/snapshot";
 import { LLMClient } from "../llm/LLMClient";
 import { SupportedPlaywrightAction } from "../types/private";
 import { EncodedId } from "../types/private/internal";

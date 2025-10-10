@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { Buffer } from "buffer";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../logger";
 import type { Frame } from "./frame";
 import { executionContexts } from "./executionContextRegistry";
 

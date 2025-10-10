@@ -161,7 +161,7 @@ export async function initV3Logger(
   }
 
   // Lazy import to avoid pulling pino into non-Pino paths (and browser bundles)
-  const { StagehandLogger } = await import("@/packages/core/lib/logger");
+  const { StagehandLogger } = await import("../logger");
   const stagehand = new StagehandLogger({
     pretty: opts.pretty ?? true,
     usePino: true,

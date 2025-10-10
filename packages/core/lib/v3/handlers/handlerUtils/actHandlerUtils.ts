@@ -4,7 +4,7 @@ import { Frame } from "../../understudy/frame";
 import { Locator } from "../../understudy/locator";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator";
 import type { Page } from "../../understudy/page";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../../logger";
 import { StagehandClickError } from "../../types/public/sdkErrors";
 
 export class UnderstudyCommandException extends Error {

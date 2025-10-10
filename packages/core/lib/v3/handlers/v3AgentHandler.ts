@@ -1,6 +1,6 @@
-import { createAgentTools } from "@/packages/core/lib/v3/agent/tools";
-import { LogLine } from "@/packages/core/lib/v3/types/public/logs";
-import { V3 } from "@/packages/core/lib/v3/v3";
+import { createAgentTools } from "../agent/tools";
+import { LogLine } from "../types/public/logs";
+import { V3 } from "../v3";
 import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";

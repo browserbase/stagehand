@@ -12,7 +12,7 @@ import {
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
-import { ToolSet } from "ai/dist";
+import { ToolSet } from "ai";
 
 /**
  * Client for OpenAI's Computer Use Assistant API

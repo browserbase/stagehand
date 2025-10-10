@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import { v3Logger } from "@/packages/core/lib/v3/logger";
+import { v3Logger } from "../logger";
 import type { CDPSessionLike } from "./cdp";
 import { v3ScriptContent } from "../dom/build/scriptV3Content";
 

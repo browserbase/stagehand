@@ -1,5 +1,5 @@
-import { computeActiveElementXpath } from "@/packages/core/lib/v3/understudy/a11y/snapshot";
-import { V3 } from "@/packages/core/lib/v3/v3";
+import { computeActiveElementXpath } from "../understudy/a11y/snapshot";
+import { V3 } from "../v3";
 import { ToolSet } from "ai";
 import { AgentClient } from "../agent/AgentClient";
 import { AgentProvider } from "../agent/AgentProvider";
