@@ -307,10 +307,41 @@ export enum StagehandFunctionName {
 }
 
 export interface HistoryEntry {
-  method: "act" | "extract" | "observe" | "navigate";
+  method: "act" | "extract" | "observe" | "navigate" | "upload";
   parameters: unknown;
   result: unknown;
   timestamp: string;
+}
+
+/**
+ * Describes a file to upload. You can provide a path or an in-memory payload.
+ */
+export type FileSpec =
+  | string
+  | {
+      /** Absolute path on disk to the file. */
+      path: string;
+    }
+  | {
+      /** Name to use for the file (required if using buffer). */
+      name: string;
+      /** MIME type for the file (required if using buffer). */
+      mimeType: string;
+      /** Raw file bytes (requires name + mimeType). */
+      buffer: Buffer;
+    };
+
+export interface UploadResult {
+  success: boolean;
+  /** How the upload was performed. */
+  method: "input" | "chooser" | "direct" | "fallback";
+  /** Original hint used to locate the control. */
+  hint: string;
+  /** Selector of the target input, when available. */
+  selector?: string;
+  /** Final file name reported. */
+  fileName?: string;
+  message?: string;
 }
 
 /**
