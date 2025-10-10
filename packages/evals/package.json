@@ -1,0 +1,23 @@
+{
+  "name": "@browserbasehq/stagehand-evals",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Evaluation suite for Stagehand",
+  "main": "./",
+  "scripts": {
+    "build": "echo 'No build needed for evals - TypeScript files run with tsx'",
+    "build:cli": "tsup cli.ts --outDir ../../dist/evals --format cjs && cp evals.config.json ../../dist/evals/ && chmod +x ../../dist/evals/cli.js",
+    "evals": "tsx run.ts",
+    "e2e": "playwright test --config deterministic/e2e.playwright.config.ts",
+    "e2e:bb": "playwright test --config deterministic/bb.playwright.config.ts",
+    "e2e:local": "playwright test --config deterministic/local.playwright.config.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/orca": "workspace:*",
+    "dotenv": "16.4.5",
+    "zod": "3.25.67"
+  },
+  "devDependencies": {
+    "tsx": "^4.10.5"
+  }
+}
