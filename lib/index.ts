@@ -992,6 +992,9 @@ export class Stagehand {
             throw new StagehandNotInitializedError("API client");
           }
 
+          if (!options) {
+            options = {};
+          }
           if (!options.options) {
             options.options = {};
           }
