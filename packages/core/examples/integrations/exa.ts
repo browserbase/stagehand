@@ -9,7 +9,7 @@ async function example(stagehand: Stagehand) {
       `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
     ],
     // Optional: Add custom instructions
-    instructions: `You are a helpful assistant that can use a browser as well as external tools such as web search.
+    systemPrompt: `You are a helpful assistant that can use a browser as well as external tools such as web search.
     You have access to the Exa search tool to find information on the web.
     When looking for products to buy, make sure to search for current and reliable information.
     Be thorough in your research before making purchase decisions.`,

@@ -9,8 +9,7 @@ async function example(stagehand: Stagehand) {
   );
 
   const agent = stagehand.agent({
-    provider: "openai",
-    model: "computer-use-preview",
+    model: "openai/computer-use-preview",
     integrations: [supabaseClient],
   });
 

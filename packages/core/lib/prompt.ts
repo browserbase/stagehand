@@ -272,3 +272,7 @@ ${goal}
 6. Only use \`close\` when the task is genuinely complete or impossible to achieve`,
   };
 }
+
+export function buildCuaDefaultSystemPrompt(): string {
+  return `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toISOString().split("T")[0]}.`;
+}
