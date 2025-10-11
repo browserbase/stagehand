@@ -11,7 +11,7 @@ import type {
   LLMClient,
   ModelConfiguration,
 } from "@browserbasehq/orca";
-import { AgentConfig } from "@browserbasehq/orca";
+import { AgentConfig, AvailableCuaModel } from "@browserbasehq/orca";
 import type { LocalBrowserLaunchOptions, V3Options } from "@browserbasehq/orca";
 import { V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
@@ -128,16 +128,22 @@ export async function initV3({
   logger.init(v3);
   await v3.init();
 
-  const isCUAModel = (model: string): boolean =>
-    model.includes("computer-use-preview") || model.startsWith("claude");
+  const normalizeModelSlug = (model: string): string =>
+    model.includes("/") ? (model.split("/").pop() ?? model) : model;
+
+  const isCUAModel = (model: string): boolean => {
+    const normalized = normalizeModelSlug(model);
+    return (
+      normalized.includes("computer-use-preview") ||
+      normalized.startsWith("claude")
+    );
+  };
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
     let agentConfig: AgentConfig | undefined;
     if (isCUAModel(modelName)) {
-      const base = modelName.includes("/")
-        ? modelName.split("/")[1]
-        : modelName;
+      const base = normalizeModelSlug(modelName);
       const provider = base.startsWith("claude") ? "anthropic" : "openai";
       const apiKey =
         provider === "anthropic"
@@ -151,9 +157,11 @@ export async function initV3({
         );
       }
       agentConfig = {
-        model: modelName,
-        provider,
-        options: { apiKey },
+        cua: true,
+        model: {
+          modelName: modelName as AvailableCuaModel,
+          apiKey,
+        },
       } as AgentConfig;
     } else {
       agentConfig = {

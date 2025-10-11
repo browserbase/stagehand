@@ -18,9 +18,7 @@ export class ObserveHandler {
   private readonly llmClient: LLMClient;
   private readonly defaultModelName: AvailableModel;
   private readonly defaultClientOptions: ClientOptions;
-  private readonly resolveLlmClient: (
-    model?: ModelConfiguration,
-  ) => LLMClient;
+  private readonly resolveLlmClient: (model?: ModelConfiguration) => LLMClient;
   private readonly systemPrompt: string;
   private readonly logInferenceToFile: boolean;
   private readonly experimental: boolean;

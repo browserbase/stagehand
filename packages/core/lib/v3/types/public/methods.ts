@@ -24,7 +24,6 @@ export type ExtractResult<T extends z.AnyZodObject> = z.infer<T>;
 export interface Action {
   selector: string;
   description: string;
-  backendNodeId?: number;
   method?: string;
   arguments?: string[];
 }
