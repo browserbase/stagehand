@@ -288,6 +288,38 @@ export class Locator {
   }
 
   /**
+   * Move the mouse cursor to the element's visual center without clicking.
+   * - Scrolls into view best-effort, resolves geometry, then dispatches a mouse move.
+   */
+  async hover(): Promise<void> {
+    const session = this.frame.session;
+    const { objectId } = await this.resolveNode();
+    try {
+      await session
+        .send("DOM.scrollIntoViewIfNeeded", { objectId })
+        .catch(() => {});
+
+      const box = await session.send<Protocol.DOM.GetBoxModelResponse>(
+        "DOM.getBoxModel",
+        { objectId },
+      );
+      if (!box.model) throw new Error("Element not visible (no box model)");
+      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+
+      await session.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: cx,
+        y: cy,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest);
+    } finally {
+      await session
+        .send<never>("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
+  /**
    * Click the element at its visual center.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
