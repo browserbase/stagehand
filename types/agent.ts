@@ -1,14 +1,6 @@
 import { LogLine } from "./log";
 import { ObserveResult } from "./stagehand";
-
-export interface ActToolResult {
-  success: boolean;
-  action?: string;
-  error?: string;
-  isIframe?: boolean;
-  playwrightArguments?: ObserveResult | null;
-}
-
+import { ScreenshotCollector } from "../evals/utils/ScreenshotCollector";
 export interface AgentAction {
   type: string;
   reasoning?: string;
@@ -19,7 +11,7 @@ export interface AgentAction {
   pageText?: string; // ariaTree tool
   pageUrl?: string; // ariaTree tool
   instruction?: string; // various tools
-  playwrightArguments?: ObserveResult | null; // act tool
+  playwrightArguments?: ObserveResult;
   [key: string]: unknown;
 }
 
@@ -41,6 +33,12 @@ export interface AgentOptions {
   autoScreenshot?: boolean;
   waitBetweenActions?: number;
   context?: string;
+  /**
+   * When true (default), the agent will store actions and avoid using
+   * Claude-specific custom tools/prompts. Set to false to enable
+   * Claude-optimized toolset and prompts.
+   */
+  storeActions?: boolean;
   highlightCursor?: boolean;
 }
 
@@ -169,5 +167,5 @@ export interface AgentInstance {
   execute: (
     instructionOrOptions: string | AgentExecuteOptions,
   ) => Promise<AgentResult>;
-  setScreenshotCollector?: (collector: unknown) => void;
+  setScreenshotCollector?: (collector: ScreenshotCollector) => void;
 }

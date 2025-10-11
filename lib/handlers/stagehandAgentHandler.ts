@@ -1,17 +1,19 @@
-import {
-  AgentAction,
-  AgentExecuteOptions,
-  AgentResult,
-  ActToolResult,
-} from "@/types/agent";
+import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { LLMClient } from "../llm/LLMClient";
-import { CoreMessage, wrapLanguageModel } from "ai";
-import { LanguageModel } from "ai";
-import { processMessages } from "../agent/utils/messageProcessing";
-import { createAgentTools } from "../agent/tools";
+import { CoreMessage } from "ai";
+import { createAgentTools, type AgentTools } from "../agent/tools";
+import { buildStagehandAgentSystemPrompt } from "../prompt";
+import {
+  finalizeAgentMessage,
+  processStepFinishEvent,
+} from "../agent/utils/processStepFinish";
 import { ToolSet } from "ai";
+import { ContextManager } from "../agent/contextManager";
+import { modelWrapper } from "../agent/utils/modelWrapper";
+import { randomUUID } from "crypto";
 import { Stagehand } from "../index";
+import { ScreenshotCollector } from "../../evals/utils/ScreenshotCollector";
 
 export class StagehandAgentHandler {
   private stagehand: Stagehand;
@@ -20,8 +22,8 @@ export class StagehandAgentHandler {
   private executionModel?: string;
   private systemInstructions?: string;
   private tools?: ToolSet;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private screenshotCollector?: any;
+  private contextManager: ContextManager;
+  private screenshotCollector?: ScreenshotCollector;
 
   constructor(
     stagehand: Stagehand,
@@ -37,71 +39,36 @@ export class StagehandAgentHandler {
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
     this.tools = tools;
+    this.contextManager = new ContextManager(logger);
   }
 
   public async execute(
     instructionOrOptions: string | AgentExecuteOptions,
   ): Promise<AgentResult> {
     const startTime = Date.now();
+    const sessionId = randomUUID();
     const options =
       typeof instructionOrOptions === "string"
         ? { instruction: instructionOrOptions }
         : instructionOrOptions;
 
     const maxSteps = options.maxSteps || 10;
+    const storeActions = options.storeActions ?? true;
     const actions: AgentAction[] = [];
     let finalMessage = "";
     let completed = false;
     const collectedReasoning: string[] = [];
 
-    this.logger({
-      category: "agent",
-      message: `Executing agent task: ${options.instruction}`,
-      level: 1,
-      auxiliary: {
-        maxSteps: {
-          value: String(maxSteps),
-          type: "integer",
-        },
-        hasSystemInstructions: {
-          value: String(!!this.systemInstructions),
-          type: "boolean",
-        },
-        hasCustomTools: {
-          value: String(!!this.tools),
-          type: "boolean",
-        },
-      },
-    });
-
     try {
-      const systemPrompt = this.buildSystemPrompt(
+      const systemPrompt = buildStagehandAgentSystemPrompt(
+        this.stagehand.page.url(),
+        this.llmClient?.modelName,
         options.instruction,
         this.systemInstructions,
+        storeActions,
       );
-      const defaultTools = this.createTools();
-      const allTools = { ...defaultTools, ...this.tools };
-
-      this.logger({
-        category: "agent",
-        message: "Initialized agent configuration",
-        level: 2,
-        auxiliary: {
-          systemPromptLength: {
-            value: String(systemPrompt.length),
-            type: "integer",
-          },
-          toolCount: {
-            value: String(Object.keys(allTools).length),
-            type: "integer",
-          },
-          tools: {
-            value: Object.keys(allTools).join(", "),
-            type: "string",
-          },
-        },
-      });
-
+      const tools = this.createTools(storeActions);
+      const allTools: ToolSet = { ...tools, ...this.tools };
       const messages: CoreMessage[] = [
         {
           role: "user",
@@ -120,16 +87,11 @@ export class StagehandAgentHandler {
           "StagehandAgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini' in the provider/model format.",
         );
       }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
-      const wrappedModel = wrapLanguageModel({
-        model: baseModel,
-        middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt };
-          },
-        },
-      });
+      const wrappedModel = modelWrapper(
+        this.llmClient,
+        this.contextManager,
+        sessionId,
+      );
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -140,77 +102,27 @@ export class StagehandAgentHandler {
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
-          if (event.toolCalls && event.toolCalls.length > 0) {
-            for (let i = 0; i < event.toolCalls.length; i++) {
-              const toolCall = event.toolCalls[i];
-              const args = toolCall.args as Record<string, unknown>;
-
-              if (event.text.length > 0) {
-                collectedReasoning.push(event.text);
-                this.logger({
-                  category: "agent",
-                  message: `Agent Reasoning: ${event.text}`,
-                  level: 1,
-                });
-              }
-
-              if (toolCall.toolName === "close") {
-                completed = true;
-                const { success, reasoning } = args;
-                if (success) {
-                  const closeReasoning = reasoning as string;
-                  const allReasoning = collectedReasoning.join(" ");
-                  finalMessage = closeReasoning
-                    ? `${allReasoning} ${closeReasoning}`.trim()
-                    : allReasoning || `Task completed with success: ${success}`;
-                }
-              }
-
-              // Get the tool result if available
-              const toolResult = event.toolResults?.[i];
-
-              const getPlaywrightArguments = () => {
-                if (toolCall.toolName !== "act" || !toolResult) {
-                  return {};
-                }
-                const result = toolResult.result as ActToolResult;
-                if (result && result.playwrightArguments) {
-                  return { playwrightArguments: result.playwrightArguments };
-                }
-
-                return {};
-              };
-
-              const action: AgentAction = {
-                type: toolCall.toolName,
-                reasoning: event.text || undefined,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.success as boolean)
-                    : false,
-                ...args,
-                ...getPlaywrightArguments(),
-              };
-
-              actions.push(action);
-            }
-          }
+          const processed = processStepFinishEvent(
+            event,
+            this.logger,
+            collectedReasoning,
+          );
+          actions.push(...processed.actionsAppended);
+          if (processed.completed) completed = true;
+          if (processed.finalMessage) finalMessage = processed.finalMessage;
         },
       });
 
-      if (!finalMessage) {
-        const allReasoning = collectedReasoning.join(" ").trim();
-        finalMessage = allReasoning || result.text;
-      }
+      finalMessage = finalizeAgentMessage(
+        finalMessage,
+        collectedReasoning,
+        result.text,
+      );
 
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
 
-      this.logger({
-        category: "agent",
-        message: `Agent task ${completed ? "completed" : "finished"}`,
-        level: 1,
-      });
+      this.contextManager.clearSession(sessionId);
 
       return {
         success: completed,
@@ -226,6 +138,7 @@ export class StagehandAgentHandler {
           : undefined,
       };
     } catch (error) {
+      this.contextManager.clearSession(sessionId);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger({
@@ -243,65 +156,25 @@ export class StagehandAgentHandler {
     }
   }
 
-  // in the future if we continue to describe tools in system prompt, we need to make sure to update them in here when new tools are added or removed. still tbd on whether we want to keep them in here long term.
-  private buildSystemPrompt(
-    executionInstruction: string,
-    systemInstructions?: string,
-  ): string {
-    if (systemInstructions) {
-      return `${systemInstructions}
-Your current goal: ${executionInstruction}`;
-    }
-
-    return `You are a web automation assistant using browser automation tools to accomplish the user's goal.
-
-Your task: ${executionInstruction}
-
-You have access to various browser automation tools. Use them step by step to complete the task.
-
-IMPORTANT GUIDELINES:
-1. Always start by understanding the current page state
-2. Use the screenshot tool to verify page state when needed
-3. Use appropriate tools for each action
-4. When the task is complete, use the "close" tool with success: true
-5. If the task cannot be completed, use "close" with success: false
-
-TOOLS OVERVIEW:
-- screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
-- ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
-- act: Perform a specific atomic action (click, type, etc.). For filling a field, you can say 'fill the field x with the value y'.
-- extract: Extract structured data
-- goto: Navigate to a URL
-- wait/navback/refresh: Control timing and navigation
-- scroll: Scroll the page x pixels up or down
-
-STRATEGY:
-- Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
-- Keep actions atomic and verify outcomes before proceeding.
-
-For each action, provide clear reasoning about why you're taking that step.
-Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url}.`;
-  }
-
-  private createTools() {
+  private createTools(storeActions: boolean): AgentTools {
     return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
+      mainModel: this.llmClient?.modelName || undefined,
       logger: this.logger,
+      storeActions,
     });
   }
   /**
    * Set the screenshot collector for this agent handler
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setScreenshotCollector(collector: any): void {
+  setScreenshotCollector(collector: ScreenshotCollector): void {
     this.screenshotCollector = collector;
   }
 
   /**
    * Get the screenshot collector
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getScreenshotCollector(): any {
+  getScreenshotCollector(): ScreenshotCollector | undefined {
     return this.screenshotCollector;
   }
   setTools(tools: ToolSet): void {

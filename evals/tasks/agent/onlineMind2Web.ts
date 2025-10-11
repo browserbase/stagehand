@@ -44,7 +44,8 @@ export const onlineMind2Web: EvalFunction = async ({
     }
 
     await stagehand.page.goto(params.website, {
-      timeout: 75_000,
+      timeout: 120_000,
+      waitUntil: "commit",
     });
 
     const provider =
