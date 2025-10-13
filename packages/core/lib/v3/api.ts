@@ -1,5 +1,5 @@
 import makeFetchCookie from "fetch-cookie";
-import zodToJsonSchema from "zod-to-json-schema/dist/types";
+import zodToJsonSchema from "zod-to-json-schema";
 import z from "zod/v3";
 import { GotoOptions, ObserveResult } from "../dist";
 import { STAGEHAND_VERSION } from "../version";
@@ -89,7 +89,7 @@ export class StagehandAPI {
 
     if (sessionResponse.status === 401) {
       throw new StagehandAPIUnauthorizedError(
-        "Unauthorized. Ensure you provided a valid API key and that it is whitelisted.",
+        "Unauthorized. Ensure you provided a valid API key.",
       );
     } else if (sessionResponse.status !== 200) {
       const errorText = await sessionResponse.text();
@@ -118,10 +118,10 @@ export class StagehandAPI {
     return sessionResponseBody.data;
   }
 
-  async act({ instruction, options }: APIActParameters): Promise<ActResult> {
+  async act({ input, options }: APIActParameters): Promise<ActResult> {
     return this.execute<ActResult>({
       method: "act",
-      args: { instruction, options },
+      args: { input, options },
     });
   }
 

@@ -55,7 +55,7 @@ export interface ErrorResponse {
 export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 
 export interface APIActParameters {
-  instruction?: string | Action;
+  input?: string | Action;
   options?: ActOptions;
 }
 
