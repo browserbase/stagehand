@@ -8,11 +8,12 @@ import {
   FunctionCall,
   Schema,
   Type,
+  GoogleGenAIOptions as ClientOptions,
 } from "@google/genai";
 import zodToJsonSchema from "zod-to-json-schema";
 
 import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
+import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { validateZodSchema, toGeminiSchema, loadApiKeyFromEnv } from "../utils";
 import {
@@ -75,7 +76,7 @@ export class GoogleClient extends LLMClient {
     enableCaching?: boolean;
     cache?: LLMCache;
     modelName: AvailableModel;
-    clientOptions?: ClientOptions; // Expecting { apiKey: string } here
+    clientOptions?: ClientOptions;
   }) {
     super(modelName);
     if (!clientOptions?.apiKey) {
@@ -83,7 +84,7 @@ export class GoogleClient extends LLMClient {
       clientOptions.apiKey = loadApiKeyFromEnv("google_legacy", logger);
     }
     this.clientOptions = clientOptions;
-    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
+    this.client = new GoogleGenAI(clientOptions);
     this.cache = cache;
     this.enableCaching = enableCaching;
     this.modelName = modelName;
