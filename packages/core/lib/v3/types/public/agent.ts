@@ -1,6 +1,10 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ToolSet } from "ai";
 import { LogLine } from "./logs";
+import { Page as PlaywrightPage } from "playwright-core";
+import { Page as PuppeteerPage } from "puppeteer-core";
+import { Page as PatchrightPage } from "patchright-core";
+import { Page } from "../../understudy/page";
 
 export interface AgentAction {
   type: string;
@@ -37,6 +41,7 @@ export interface AgentOptions {
 
 export interface AgentExecuteOptions extends AgentOptions {
   instruction: string;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
 export type AgentType = "openai" | "anthropic" | "google";
