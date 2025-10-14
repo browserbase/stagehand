@@ -834,7 +834,7 @@ export class AnthropicCUAClient extends AgentClient {
             y: y,
             ...input,
           };
-        } else if (action === "drag") {
+        } else if (action === "drag" || action === "left_click_drag") {
           // Make sure path is properly formatted
           const path =
             (input.path as { x: number; y: number }[]) ||
