@@ -1943,6 +1943,12 @@ export class V3 {
               typeof instructionOrOptions === "string"
                 ? { instruction: instructionOrOptions }
                 : instructionOrOptions;
+            if (resolvedOptions.page) {
+              const normalizedPage = await this.normalizeToV3Page(
+                resolvedOptions.page,
+              );
+              this.ctx!.setActivePage(normalizedPage);
+            }
             const instruction = resolvedOptions.instruction.trim();
 
             const shouldAttemptCache =
@@ -2062,6 +2068,12 @@ export class V3 {
             typeof instructionOrOptions === "string"
               ? { instruction: instructionOrOptions }
               : instructionOrOptions;
+          if (resolvedOptions.page) {
+            const normalizedPage = await this.normalizeToV3Page(
+              resolvedOptions.page,
+            );
+            this.ctx!.setActivePage(normalizedPage);
+          }
           const instruction = resolvedOptions.instruction.trim();
 
           const shouldAttemptCache = !!this.cacheDir && instruction.length > 0;
