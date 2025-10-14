@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Browser, chromium } from "playwright";
+import { Browser, BrowserServer, chromium } from "playwright";
 import { z } from "zod/v3";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
@@ -16,6 +16,7 @@ import { BrowserContext, Page } from "../types/page";
 import {
   ActOptions,
   AgentConfig,
+  BrowserServerOptions,
   ConstructorParams,
   ExtractOptions,
   HistoryEntry,
@@ -71,12 +72,14 @@ const defaultLogger = async (logLine: LogLine, disablePino?: boolean) => {
 async function getBrowser(
   apiKey: string | undefined,
   projectId: string | undefined,
-  env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+  env: "LOCAL" | "BROWSERBASE" | "BROWSERSERVER" = "LOCAL",
   headless: boolean = false,
   logger: (message: LogLine) => void,
   browserbaseSessionCreateParams?: ConstructorParams["browserbaseSessionCreateParams"],
   browserbaseSessionID?: string,
   localBrowserLaunchOptions?: LocalBrowserLaunchOptions,
+  wsEndpoint?: string,
+  browserServerOptions?: BrowserServerOptions,
 ): Promise<BrowserResult> {
   if (env === "BROWSERBASE") {
     if (!apiKey) {
@@ -230,6 +233,134 @@ async function getBrowser(
     const context = browser.contexts()[0];
 
     return { browser, context, debugUrl, sessionUrl, sessionId, env };
+  } else if (env === "BROWSERSERVER") {
+    if (wsEndpoint) {
+      logger({
+        category: "init",
+        message: "connecting to browser server",
+        level: 1,
+        auxiliary: {
+          wsEndpoint: {
+            value: wsEndpoint,
+            type: "string",
+          },
+        },
+      });
+
+      const browser = await chromium.connect(wsEndpoint);
+      const contexts = browser.contexts();
+      let context: BrowserContext | undefined;
+
+      if (contexts.length > 0) {
+        context = contexts[0];
+        logger({
+          category: "init",
+          message: "using existing browser context",
+          level: 1,
+        });
+      } else {
+        context = await browser.newContext();
+        logger({
+          category: "init",
+          message: "created new browser context",
+          level: 1,
+        });
+      }
+
+      if (context.pages().length === 0) {
+        await context.newPage();
+        logger({
+          category: "init",
+          message: "created new page",
+          level: 1,
+        });
+      }
+
+      await applyStealthScripts(context);
+
+      return { browser, context, env: "BROWSERSERVER" };
+    } else {
+      logger({
+        category: "init",
+        message: "launching browser server",
+        level: 1,
+      });
+
+      const browserServer = await chromium.launchServer({
+        headless: browserServerOptions?.headless ?? headless,
+        port: browserServerOptions?.port,
+        host: browserServerOptions?.host,
+        args: browserServerOptions?.args ?? [
+          "--disable-blink-features=AutomationControlled",
+        ],
+        timeout: browserServerOptions?.timeout,
+        chromiumSandbox: browserServerOptions?.chromiumSandbox ?? false,
+        devtools: browserServerOptions?.devtools ?? false,
+        downloadsPath: browserServerOptions?.downloadsPath,
+        executablePath: browserServerOptions?.executablePath,
+        handleSIGHUP: browserServerOptions?.handleSIGHUP ?? true,
+        handleSIGINT: browserServerOptions?.handleSIGINT ?? true,
+        handleSIGTERM: browserServerOptions?.handleSIGTERM ?? true,
+        ignoreDefaultArgs: browserServerOptions?.ignoreDefaultArgs,
+        proxy: browserServerOptions?.proxy,
+      });
+
+      const endpoint = browserServer.wsEndpoint();
+      logger({
+        category: "init",
+        message: "browser server started",
+        level: 1,
+        auxiliary: {
+          wsEndpoint: {
+            value: endpoint,
+            type: "string",
+          },
+        },
+      });
+
+      const browser = await chromium.connect(endpoint);
+      const context = await browser.newContext({
+        acceptDownloads: localBrowserLaunchOptions?.acceptDownloads ?? true,
+        viewport: {
+          width: localBrowserLaunchOptions?.viewport?.width ?? 1288,
+          height: localBrowserLaunchOptions?.viewport?.height ?? 711,
+        },
+        locale: localBrowserLaunchOptions?.locale ?? "en-US",
+        timezoneId: localBrowserLaunchOptions?.timezoneId ?? "America/New_York",
+        deviceScaleFactor: localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+        bypassCSP: localBrowserLaunchOptions?.bypassCSP ?? true,
+        proxy: localBrowserLaunchOptions?.proxy,
+        geolocation: localBrowserLaunchOptions?.geolocation,
+        hasTouch: localBrowserLaunchOptions?.hasTouch ?? true,
+        ignoreHTTPSErrors: localBrowserLaunchOptions?.ignoreHTTPSErrors ?? true,
+        permissions: localBrowserLaunchOptions?.permissions,
+        recordHar: localBrowserLaunchOptions?.recordHar,
+        recordVideo: localBrowserLaunchOptions?.recordVideo,
+        extraHTTPHeaders: localBrowserLaunchOptions?.extraHTTPHeaders,
+      });
+
+      if (localBrowserLaunchOptions?.cookies) {
+        await context.addCookies(localBrowserLaunchOptions.cookies);
+      }
+
+      if (context.pages().length === 0) {
+        await context.newPage();
+        logger({
+          category: "init",
+          message: "created new page",
+          level: 1,
+        });
+      }
+
+      await applyStealthScripts(context);
+
+      return {
+        browser,
+        context,
+        env: "BROWSERSERVER",
+        browserServer,
+      };
+    }
   } else {
     if (localBrowserLaunchOptions?.cdpUrl) {
       if (!localBrowserLaunchOptions.cdpUrl.includes("connect.connect")) {
@@ -399,8 +530,10 @@ export class Stagehand {
   private stagehandLogger: StagehandLogger;
   private disablePino: boolean;
   protected modelClientOptions: ClientOptions;
-  private _env: "LOCAL" | "BROWSERBASE";
+  private _env: "LOCAL" | "BROWSERBASE" | "BROWSERSERVER";
   private _browser: Browser | undefined;
+  private _browserServer?: BrowserServer;
+  private _wsEndpoint?: string;
   private _isClosed: boolean = false;
   private _history: Array<HistoryEntry> = [];
   public readonly experimental: boolean;
@@ -538,6 +671,8 @@ export class Stagehand {
       selfHeal = false,
       disablePino,
       experimental = false,
+      wsEndpoint,
+      browserServerOptions,
     }: ConstructorParams = {
       env: "BROWSERBASE",
     },
@@ -566,6 +701,7 @@ export class Stagehand {
 
     // Store the environment value
     this._env = env ?? "BROWSERBASE";
+    this._wsEndpoint = wsEndpoint;
 
     if (this._env === "BROWSERBASE") {
       if (!this.apiKey) {
@@ -581,6 +717,13 @@ export class Stagehand {
       }
     }
 
+    if (this._env === "BROWSERSERVER" && browserServerOptions) {
+      this.localBrowserLaunchOptions = {
+        ...this.localBrowserLaunchOptions,
+        ...browserServerOptions,
+      };
+    }
+
     this.verbose = verbose ?? 0;
     // Update logger verbosity level
     this.stagehandLogger.setVerbosity(this.verbose);
@@ -590,7 +733,9 @@ export class Stagehand {
     let modelApiKey: string | undefined;
 
     const usingVertexAI =
-      "vertexai" in modelClientOptions && modelClientOptions.vertexai;
+      modelClientOptions &&
+      "vertexai" in modelClientOptions &&
+      modelClientOptions.vertexai;
     const provider = LLMProvider.getModelProvider(
       this.modelName,
       usingVertexAI,
@@ -719,7 +864,7 @@ export class Stagehand {
     };
   }
 
-  public get env(): "LOCAL" | "BROWSERBASE" {
+  public get env(): "LOCAL" | "BROWSERBASE" | "BROWSERSERVER" {
     if (this._env === "BROWSERBASE") {
       if (!this.apiKey) {
         throw new MissingEnvironmentVariableError(
@@ -733,9 +878,18 @@ export class Stagehand {
         );
       }
       return "BROWSERBASE";
+    } else if (this._env === "BROWSERSERVER") {
+      return "BROWSERSERVER";
     } else {
       return "LOCAL";
     }
+  }
+
+  public wsEndpoint(): string | undefined {
+    if (this._browserServer) {
+      return this._browserServer.wsEndpoint();
+    }
+    return this._wsEndpoint;
   }
 
   public get downloadsPath(): string {
@@ -788,29 +942,42 @@ export class Stagehand {
       this.browserbaseSessionID = sessionId;
     }
 
-    const { browser, context, debugUrl, sessionUrl, contextPath, sessionId } =
-      await getBrowser(
-        this.apiKey,
-        this.projectId,
-        this.env,
-        this.headless,
-        this.logger,
-        this.browserbaseSessionCreateParams,
-        this.browserbaseSessionID,
-        this.localBrowserLaunchOptions,
-      ).catch((e) => {
-        this.stagehandLogger.error("Error in init:", { error: String(e) });
-        const br: BrowserResult = {
-          context: undefined,
-          debugUrl: undefined,
-          sessionUrl: undefined,
-          sessionId: undefined,
-          env: this.env,
-        };
-        return br;
-      });
+    const {
+      browser,
+      context,
+      debugUrl,
+      sessionUrl,
+      contextPath,
+      sessionId,
+      browserServer,
+    } = await getBrowser(
+      this.apiKey,
+      this.projectId,
+      this.env,
+      this.headless,
+      this.logger,
+      this.browserbaseSessionCreateParams,
+      this.browserbaseSessionID,
+      this.localBrowserLaunchOptions,
+      this._wsEndpoint,
+      this.localBrowserLaunchOptions,
+    ).catch((e) => {
+      this.stagehandLogger.error("Error in init:", { error: String(e) });
+      const br: BrowserResult = {
+        context: undefined,
+        debugUrl: undefined,
+        sessionUrl: undefined,
+        sessionId: undefined,
+        env: this.env,
+      };
+      return br;
+    });
     this.contextPath = contextPath;
     this._browser = browser;
+    if (browserServer) {
+      this._browserServer = browserServer as BrowserServer;
+      this._wsEndpoint = this._browserServer.wsEndpoint();
+    }
     if (!context) {
       const errorMessage =
         "The browser context is undefined. This means the CDP connection to the browser failed";
@@ -880,7 +1047,9 @@ export class Stagehand {
       return;
     } else {
       await this.context.close();
-      if (this._browser) {
+      if (this._browserServer) {
+        await this._browserServer.close();
+      } else if (this._browser) {
         await this._browser.close();
       }
     }
@@ -1039,6 +1208,28 @@ export class Stagehand {
         agentHandler.setScreenshotCollector(collector as any);
       },
     };
+  }
+
+  static async launchServer(
+    options: BrowserServerOptions = {},
+  ): Promise<BrowserServer> {
+    const browserServer = await chromium.launchServer({
+      headless: options.headless ?? false,
+      port: options.port,
+      host: options.host,
+      args: options.args ?? ["--disable-blink-features=AutomationControlled"],
+      timeout: options.timeout,
+      chromiumSandbox: options.chromiumSandbox ?? false,
+      devtools: options.devtools ?? false,
+      downloadsPath: options.downloadsPath,
+      executablePath: options.executablePath,
+      handleSIGHUP: options.handleSIGHUP ?? true,
+      handleSIGINT: options.handleSIGINT ?? true,
+      handleSIGTERM: options.handleSIGTERM ?? true,
+      ignoreDefaultArgs: options.ignoreDefaultArgs,
+      proxy: options.proxy,
+    });
+    return browserServer;
   }
 }
 
