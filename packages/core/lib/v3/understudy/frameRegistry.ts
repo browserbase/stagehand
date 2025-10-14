@@ -133,6 +133,18 @@ export class FrameRegistry {
     }
   }
 
+  onNavigatedWithinDocument(
+    frameId: FrameId,
+    url: string,
+    sessionId: SessionId,
+  ): void {
+    this.ensureNode(frameId);
+    const info = this.frames.get(frameId)!;
+    const lastSeen = info.lastSeen ?? shellFrame(frameId);
+    info.lastSeen = { ...lastSeen, url };
+    this.setOwnerSessionIdInternal(frameId, sessionId);
+  }
+
   /**
    * Record that a frame detached. If `reason !== "swap"`, remove the subtree from the graph,
    * and clean the inverse maps. For “swap” we keep the node to preserve continuity.

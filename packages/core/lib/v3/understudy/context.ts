@@ -618,6 +618,13 @@ export class V3Context {
       },
     );
 
+    session.on<Protocol.Page.NavigatedWithinDocumentEvent>(
+      "Page.navigatedWithinDocument",
+      (evt) => {
+        owner.onNavigatedWithinDocument(evt.frameId, evt.url, session);
+      },
+    );
+
     // Observe window.open to anticipate default page changes
     session.on<Protocol.Page.WindowOpenEvent>("Page.windowOpen", () => {
       this._notePopupSignal();

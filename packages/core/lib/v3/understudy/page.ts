@@ -263,6 +263,25 @@ export class Page {
     this.frameCache.delete(frame.id);
   }
 
+  public onNavigatedWithinDocument(
+    frameId: string,
+    url: string,
+    session: CDPSessionLike,
+  ): void {
+    const normalized = String(url ?? "").trim();
+    if (!normalized) return;
+
+    this.registry.onNavigatedWithinDocument(
+      frameId,
+      normalized,
+      session.id ?? "root",
+    );
+
+    if (frameId === this.mainFrameId()) {
+      this._currentUrl = normalized;
+    }
+  }
+
   /**
    * An OOPIF child session whose **main** frame id equals the parent iframe’s frameId
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
