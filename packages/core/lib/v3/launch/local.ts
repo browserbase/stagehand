@@ -28,6 +28,7 @@ export async function launchLocalChrome(
     chromePath: opts.chromePath,
     chromeFlags,
   });
+  console.log("\n\nchrome", JSON.stringify(chrome, null, 2));
 
   const ws = await waitForWebSocketDebuggerUrl(
     chrome.port,

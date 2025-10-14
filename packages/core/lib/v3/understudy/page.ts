@@ -587,7 +587,7 @@ export class Page {
   /**
    * Capture a screenshot (delegated to the current main frame).
    */
-  async screenshot(options?: { fullPage?: boolean }): Promise<string> {
+  async screenshot(options?: { fullPage?: boolean }): Promise<Buffer> {
     return this.mainFrameWrapper.screenshot(options);
   }
 

@@ -28,7 +28,7 @@ export class AnthropicCUAClient extends AgentClient {
   private baseURL?: string;
   private client: Anthropic;
   public lastMessageId?: string;
-  private currentViewport = { width: 1024, height: 768 };
+  private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
   private screenshotProvider?: () => Promise<string>;
   private actionHandler?: (action: AgentAction) => Promise<void>;

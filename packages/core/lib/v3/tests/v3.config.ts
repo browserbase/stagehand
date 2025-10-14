@@ -5,7 +5,7 @@ export const v3TestConfig: V3Options = {
   env: "LOCAL",
   localBrowserLaunchOptions: {
     headless: true,
-    viewport: { width: 1024, height: 768 },
+    viewport: { width: 1288, height: 711 },
   },
   verbose: 0,
   disablePino: true,

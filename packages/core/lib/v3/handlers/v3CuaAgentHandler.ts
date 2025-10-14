@@ -49,7 +49,7 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
-      return base64; // base64 png
+      return base64.toString("base64"); // base64 png
     });
 
     // Provide action executor
