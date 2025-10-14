@@ -28,6 +28,7 @@ import {
   StagehandResponseParseError,
 } from "../types/stagehandApiErrors";
 import makeFetchCookie from "fetch-cookie";
+import { applyDefaultBrowserSettingsViewport } from "./browserbaseDefaults";
 import { STAGEHAND_VERSION } from "./version";
 
 export class StagehandAPI {
@@ -64,10 +65,18 @@ export class StagehandAPI {
     }
     this.modelApiKey = modelApiKey;
 
-    const region = browserbaseSessionCreateParams?.region;
+    const sessionCreateParams = applyDefaultBrowserSettingsViewport(
+      browserbaseSessionCreateParams,
+    );
+    const region = sessionCreateParams?.region;
     if (region && region !== "us-west-2") {
       return { sessionId: browserbaseSessionID ?? null, available: false };
     }
+    this.logger({
+      category: "init",
+      message: "creating new browserbase session...",
+      level: 1,
+    });
     const sessionResponse = await this.request("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -79,7 +88,7 @@ export class StagehandAPI {
         selfHeal,
         waitForCaptchaSolves,
         actionTimeoutMs,
-        browserbaseSessionCreateParams,
+        browserbaseSessionCreateParams: sessionCreateParams,
         browserbaseSessionID,
       }),
     });

@@ -23,7 +23,7 @@ const agent = stagehand.agent(config: AgentConfig): AgentInstance
 **AgentConfig Interface:**
 ```typescript
 interface AgentConfig {
-  provider?: AgentProviderType;  // "openai" | "anthropic"
+  provider?: AgentProviderType;  // "openai" | "anthropic" | "google"
   model?: string;
   instructions?: string;
   options?: Record<string, unknown>;
@@ -59,15 +59,18 @@ agent = stagehand.agent({
 <ParamField path="provider" type="AgentProviderType" optional>
   AI provider for agent functionality.
   
-  **Options:** `"anthropic"`, `"openai"`
+  **Options:** `"anthropic"`, `"openai"`, `"google"`
 </ParamField>
 
 <ParamField path="model" type="string" optional>
   Specific model for agent execution.
-  
+
   **Anthropic:** `"claude-sonnet-4-20250514"`, `"claude-3-5-sonnet-20241022"`
   
   **OpenAI:** `"computer-use-preview"`, `"gpt-4o"`
+
+  **Google:** `"gemini-2.5-computer-use-preview-10-2025"`
+
 </ParamField>
 
 <ParamField path="instructions" type="string" optional>

@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 import { LogLine } from "@/types/log";
 
 /**
@@ -33,7 +33,7 @@ function evaluateZodSchema(
 }
 
 export const createExtractTool = (
-  stagehandPage: StagehandPage,
+  stagehand: Stagehand,
   executionModel?: string,
   logger?: (message: LogLine) => void,
 ) =>
@@ -70,6 +70,22 @@ export const createExtractTool = (
     }),
     execute: async ({ instruction, schema }) => {
       try {
+        stagehand.logger({
+          category: "agent",
+          message: `Agent calling tool: extract`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: instruction,
+              type: "string",
+            },
+            // TODO: check if we want to log this
+            schema: {
+              value: schema,
+              type: "object",
+            },
+          },
+        });
         // Evaluate the schema string to get the actual Zod schema
         const zodSchema = evaluateZodSchema(schema, logger);
 
@@ -80,7 +96,7 @@ export const createExtractTool = (
             : z.object({ result: zodSchema });
 
         // Extract with the schema - only pass modelName if executionModel is explicitly provided
-        const result = await stagehandPage.page.extract({
+        const result = await stagehand.page.extract({
           instruction,
           schema: schemaObject,
           ...(executionModel && { modelName: executionModel }),

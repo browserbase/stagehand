@@ -5,36 +5,38 @@ import {
   ActToolResult,
 } from "@/types/agent";
 import { LogLine } from "@/types/log";
-import { StagehandPage } from "../StagehandPage";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
+import { Stagehand } from "../index";
 
 export class StagehandAgentHandler {
-  private stagehandPage: StagehandPage;
+  private stagehand: Stagehand;
   private logger: (message: LogLine) => void;
   private llmClient: LLMClient;
   private executionModel?: string;
   private systemInstructions?: string;
-  private mcpTools?: ToolSet;
+  private tools?: ToolSet;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private screenshotCollector?: any;
 
   constructor(
-    stagehandPage: StagehandPage,
+    stagehand: Stagehand,
     logger: (message: LogLine) => void,
     llmClient: LLMClient,
     executionModel?: string,
     systemInstructions?: string,
-    mcpTools?: ToolSet,
+    tools?: ToolSet,
   ) {
-    this.stagehandPage = stagehandPage;
+    this.stagehand = stagehand;
     this.logger = logger;
     this.llmClient = llmClient;
     this.executionModel = executionModel;
     this.systemInstructions = systemInstructions;
-    this.mcpTools = mcpTools;
+    this.tools = tools;
   }
 
   public async execute(
@@ -52,13 +54,54 @@ export class StagehandAgentHandler {
     let completed = false;
     const collectedReasoning: string[] = [];
 
+    this.logger({
+      category: "agent",
+      message: `Executing agent task: ${options.instruction}`,
+      level: 1,
+      auxiliary: {
+        maxSteps: {
+          value: String(maxSteps),
+          type: "integer",
+        },
+        hasSystemInstructions: {
+          value: String(!!this.systemInstructions),
+          type: "boolean",
+        },
+        hasCustomTools: {
+          value: String(!!this.tools),
+          type: "boolean",
+        },
+      },
+    });
+
     try {
       const systemPrompt = this.buildSystemPrompt(
         options.instruction,
         this.systemInstructions,
       );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools };
+      const defaultTools = this.createTools();
+      const allTools = { ...defaultTools, ...this.tools };
+
+      this.logger({
+        category: "agent",
+        message: "Initialized agent configuration",
+        level: 2,
+        auxiliary: {
+          systemPromptLength: {
+            value: String(systemPrompt.length),
+            type: "integer",
+          },
+          toolCount: {
+            value: String(Object.keys(allTools).length),
+            type: "integer",
+          },
+          tools: {
+            value: Object.keys(allTools).join(", "),
+            type: "string",
+          },
+        },
+      });
+
       const messages: CoreMessage[] = [
         {
           role: "user",
@@ -97,12 +140,6 @@ export class StagehandAgentHandler {
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
-          this.logger({
-            category: "agent",
-            message: `Step finished: ${event.finishReason}`,
-            level: 2,
-          });
-
           if (event.toolCalls && event.toolCalls.length > 0) {
             for (let i = 0; i < event.toolCalls.length; i++) {
               const toolCall = event.toolCalls[i];
@@ -112,19 +149,20 @@ export class StagehandAgentHandler {
                 collectedReasoning.push(event.text);
                 this.logger({
                   category: "agent",
-                  message: `reasoning: ${event.text}`,
+                  message: `Agent Reasoning: ${event.text}`,
                   level: 1,
                 });
               }
 
               if (toolCall.toolName === "close") {
                 completed = true;
-                if (args?.taskComplete) {
-                  const closeReasoning = args.reasoning as string;
+                const { success, reasoning } = args;
+                if (success) {
+                  const closeReasoning = reasoning as string;
                   const allReasoning = collectedReasoning.join(" ");
                   finalMessage = closeReasoning
                     ? `${allReasoning} ${closeReasoning}`.trim()
-                    : allReasoning || "Task completed successfully";
+                    : allReasoning || `Task completed with success: ${success}`;
                 }
               }
 
@@ -148,7 +186,7 @@ export class StagehandAgentHandler {
                 reasoning: event.text || undefined,
                 taskCompleted:
                   toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
+                    ? (args?.success as boolean)
                     : false,
                 ...args,
                 ...getPlaywrightArguments(),
@@ -167,6 +205,12 @@ export class StagehandAgentHandler {
 
       const endTime = Date.now();
       const inferenceTimeMs = endTime - startTime;
+
+      this.logger({
+        category: "agent",
+        message: `Agent task ${completed ? "completed" : "finished"}`,
+        level: 1,
+      });
 
       return {
         success: completed,
@@ -219,13 +263,13 @@ IMPORTANT GUIDELINES:
 1. Always start by understanding the current page state
 2. Use the screenshot tool to verify page state when needed
 3. Use appropriate tools for each action
-4. When the task is complete, use the "close" tool with taskComplete: true
-5. If the task cannot be completed, use "close" with taskComplete: false
+4. When the task is complete, use the "close" tool with success: true
+5. If the task cannot be completed, use "close" with success: false
 
 TOOLS OVERVIEW:
 - screenshot: Take a compressed JPEG screenshot for quick visual context (use sparingly)
 - ariaTree: Get an accessibility (ARIA) hybrid tree for full page context (preferred for understanding layout and elements)
-- act: Perform a specific atomic action (click, type, etc.)
+- act: Perform a specific atomic action (click, type, etc.). For filling a field, you can say 'fill the field x with the value y'.
 - extract: Extract structured data
 - goto: Navigate to a URL
 - wait/navback/refresh: Control timing and navigation
@@ -235,13 +279,32 @@ STRATEGY:
 - Prefer ariaTree to understand the page before acting; use screenshot for quick confirmation.
 - Keep actions atomic and verify outcomes before proceeding.
 
-For each action, provide clear reasoning about why you're taking that step.`;
+For each action, provide clear reasoning about why you're taking that step.
+Today's date is ${new Date().toLocaleDateString()}. You're currently on the website: ${this.stagehand.page.url}.`;
   }
 
   private createTools() {
-    return createAgentTools(this.stagehandPage, {
+    return createAgentTools(this.stagehand, {
       executionModel: this.executionModel,
       logger: this.logger,
     });
+  }
+  /**
+   * Set the screenshot collector for this agent handler
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setScreenshotCollector(collector: any): void {
+    this.screenshotCollector = collector;
+  }
+
+  /**
+   * Get the screenshot collector
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getScreenshotCollector(): any {
+    return this.screenshotCollector;
+  }
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
   }
 }

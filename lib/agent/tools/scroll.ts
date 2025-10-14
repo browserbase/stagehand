@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod/v3";
-import { StagehandPage } from "../../StagehandPage";
+import { Stagehand } from "../../index";
 
-export const createScrollTool = (stagehandPage: StagehandPage) =>
+export const createScrollTool = (stagehand: Stagehand) =>
   tool({
     description: "Scroll the page",
     parameters: z.object({
@@ -10,7 +10,18 @@ export const createScrollTool = (stagehandPage: StagehandPage) =>
       direction: z.enum(["up", "down"]).describe("Direction to scroll"),
     }),
     execute: async ({ pixels, direction }) => {
-      await stagehandPage.page.mouse.wheel(
+      stagehand.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ pixels, direction }),
+            type: "object",
+          },
+        },
+      });
+      await stagehand.page.mouse.wheel(
         0,
         direction === "up" ? -pixels : pixels,
       );

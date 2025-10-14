@@ -95,6 +95,26 @@ main().catch((err) => {
 
 <Tab title="Python">
 
+<Tip>
+For uv installation instructions see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1).
+</Tip>
+
+### Initialize virtual environment
+
+<CodeGroup>
+
+```bash uv
+uv init my-stagehand-project
+cd my-stagehand-project
+```
+
+```bash pip
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+</CodeGroup>
+
 ### Add dependencies
 
 <CodeGroup>
@@ -128,6 +148,10 @@ BROWSERBASE_PROJECT_ID=your_project_id
 import os
 import asyncio
 from stagehand import Stagehand
+from pydantic import BaseModel
+
+class PageData(BaseModel):
+    title: str
 
 async def main():
     stagehand = Stagehand(
@@ -143,16 +167,12 @@ async def main():
     await page.act("Click the sign in button")
     
     # Extract structured data
-    result = await page.extract({
-        "instruction": "extract the page title",
-        "schema": {
-            "title": {
-                "type": "string"
-            }
-        }
-    })
+    result = await page.extract(
+        instruction = "extract the page title",
+        schema = PageData
+    )
     
-    print(result["title"])
+    print(result.title)
     await stagehand.close()
 
 if __name__ == "__main__":

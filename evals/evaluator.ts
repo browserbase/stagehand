@@ -19,7 +19,8 @@ import {
 import { LLMParsedResponse } from "@/lib/inference";
 import { LLMResponse } from "@/lib/llm/LLMClient";
 import { LogLine } from "@/types/log";
-import { z } from "zod";
+import { z } from "zod/v3";
+import { imageResize } from "./utils/imageUtils";
 
 dotenv.config();
 
@@ -292,17 +293,36 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
-    const imageContents = screenshots.map((screenshot) => ({
+    //Downsize screenshots:
+    const downsizedScreenshots = await Promise.all(
+      screenshots.map(async (screenshot) => {
+        return await imageResize(screenshot, 0.7);
+      }),
+    );
+
+    const imageContents = downsizedScreenshots.map((screenshot) => ({
       type: "image_url" as const,
       image_url: {
-        url: `data:image/jpeg;base64,${screenshot.toString("base64")}`,
+        url: `data:image/png;base64,${screenshot.toString("base64")}`,
       },
     }));
+
+    this.stagehand.logger?.({
+      category: "evaluator",
+      message: `Evaluating question: ${question} with ${screenshots.length} screenshots`,
+      level: 2,
+      auxiliary: {
+        images: {
+          value: JSON.stringify(imageContents),
+          type: "object",
+        },
+      },
+    });
 
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
     >({
-      logger: this.silentLogger,
+      logger: this.stagehand.logger,
       options: {
         messages: [
           { role: "system", content: systemPrompt },
