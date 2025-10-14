@@ -28,8 +28,8 @@ async function main() {
     const agent = stagehand.agent({
       cua: true,
       model: {
-        modelName: "openai/computer-use-preview",
-        apiKey: process.env.OPENAI_API_KEY,
+        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.

@@ -9,9 +9,13 @@ export const createScreenshotTool = (v3: V3) =>
     parameters: z.object({}),
     execute: async () => {
       const page = await v3.context.awaitActivePage();
-      const base64 = await page.screenshot({ fullPage: false });
+      const buffer = await page.screenshot({ fullPage: false });
       const pageUrl = page.url();
-      return { base64, timestamp: Date.now(), pageUrl };
+      return {
+        base64: buffer.toString("base64"),
+        timestamp: Date.now(),
+        pageUrl,
+      };
     },
     experimental_toToolResultContent: (result) => [
       { type: "image", data: result.base64, mimeType: "image/png" },

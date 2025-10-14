@@ -21,6 +21,7 @@ export class V3CuaAgentHandler {
   private logger: (message: LogLine) => void;
   private agentClient: AgentClient;
   private options: AgentHandlerOptions;
+  private highlightCursor: boolean;
 
   constructor(
     v3: V3,
@@ -49,7 +50,7 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       const page = await this.v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
-      return base64; // base64 png
+      return base64.toString("base64"); // base64 png
     });
 
     // Provide action executor
@@ -59,10 +60,13 @@ export class V3CuaAgentHandler {
         (this.options.clientOptions?.waitBetweenActions as number) ||
         defaultDelay;
       try {
-        try {
-          await this.injectCursor();
-        } catch {
-          //
+        // Try to inject cursor before each action if enabled
+        if (this.highlightCursor) {
+          try {
+            await this.injectCursor();
+          } catch {
+            // Ignore cursor injection failures
+          }
         }
         await new Promise((r) => setTimeout(r, 300));
         await this.executeAction(action);
@@ -101,6 +105,8 @@ export class V3CuaAgentHandler {
         ? { instruction: optionsOrInstruction }
         : optionsOrInstruction;
 
+    this.highlightCursor = options.highlightCursor !== false;
+
     // Redirect if blank
     const page = await this.v3.context.awaitActivePage();
     const currentUrl = page.url();
@@ -113,16 +119,19 @@ export class V3CuaAgentHandler {
       await page.goto("https://www.google.com", { waitUntil: "load" });
     }
 
-    try {
-      await this.injectCursor();
-    } catch (e) {
-      this.logger({
-        category: "agent",
-        message: `Warning: Failed to enable cursor overlay: ${String(
-          (e as Error)?.message ?? e,
-        )}`,
-        level: 1,
-      });
+    if (this.highlightCursor) {
+      try {
+        await this.injectCursor();
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger({
+          category: "agent",
+          message: `Warning: Failed to inject cursor: ${errorMessage}. Continuing with execution.`,
+          level: 1,
+        });
+        // Continue execution even if cursor injection fails
+      }
     }
 
     if (options.autoScreenshot !== false) {
@@ -216,6 +225,35 @@ export class V3CuaAgentHandler {
           await page.click(x as number, y as number, {
             button: "left",
             clickCount: 2,
+          });
+        }
+        return { success: true };
+      }
+      case "tripleClick": {
+        const { x, y } = action;
+        if (recording) {
+          const xpath = await page.click(x as number, y as number, {
+            button: "left",
+            clickCount: 3,
+            returnXpath: true,
+          });
+          const normalized = this.ensureXPath(xpath);
+          if (normalized) {
+            const stagehandAction: Action = {
+              selector: normalized,
+              description: this.describePointerAction("triple click", x, y),
+              method: "tripleClick",
+              arguments: [],
+            };
+            this.recordCuaActStep(
+              action,
+              [stagehandAction],
+              stagehandAction.description,
+            );
+          }
+        } else {
+          await page.click(x as number, y as number, {
+            clickCount: 3,
           });
         }
         return { success: true };

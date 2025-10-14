@@ -78,6 +78,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
+const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 
 type ResolvedModelConfiguration = {
   modelName: AvailableModel;
@@ -640,9 +641,12 @@ export class V3 {
         // headless handled by launchLocalChrome
         if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
         if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
+        if (!lbo.viewport) {
+          lbo.viewport = DEFAULT_VIEWPORT;
+        }
         if (lbo.viewport?.width && lbo.viewport?.height) {
           chromeFlags.push(
-            `--window-size=${lbo.viewport.width},${lbo.viewport.height}`,
+            `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`, // Added pixels to the window to account for the address bar
           );
         }
         if (typeof lbo.deviceScaleFactor === "number") {
@@ -653,8 +657,6 @@ export class V3 {
         if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
         if (lbo.ignoreHTTPSErrors)
           chromeFlags.push("--ignore-certificate-errors");
-        if ((lbo.chromiumSandbox ?? false) === false)
-          chromeFlags.push("--no-sandbox");
         if (lbo.proxy?.server)
           chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
         if (lbo.proxy?.bypass)

@@ -30,7 +30,7 @@ test.describe("resolveNodeForLocationDeep", () => {
     await frame.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
-    const result = await resolveXpathForLocation(page, 206, 563);
+    const result = await resolveXpathForLocation(page, 356, 503);
     console.log(result);
     const xpath = result.absoluteXPath;
     expect(xpath).toBe(

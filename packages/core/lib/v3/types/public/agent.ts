@@ -37,6 +37,7 @@ export interface AgentOptions {
   autoScreenshot?: boolean;
   waitBetweenActions?: number;
   context?: string;
+  highlightCursor?: boolean;
 }
 
 export interface AgentExecuteOptions extends AgentOptions {
@@ -51,6 +52,7 @@ export type AvailableCuaModel =
   | "openai/computer-use-preview-2025-03-11"
   | "anthropic/claude-3-7-sonnet-latest"
   | "anthropic/claude-sonnet-4-20250514"
+  | "anthropic/claude-sonnet-4-5-20250929"
   | "google/gemini-2.5-computer-use-preview-10-2025";
 
 export interface AgentExecutionOptions {
