@@ -800,6 +800,236 @@ export class Locator {
     return this;
   }
 
+  /**
+   * Count the number of elements matching this locator's selector.
+   * Returns 0 if no elements match.
+   */
+  async count(): Promise<number> {
+    const session = this.frame.session;
+
+    try {
+      const raw = this.selector.trim();
+      const looksLikeXPath =
+        /^xpath=/i.test(raw) || raw.startsWith("/") || raw.startsWith("(");
+      const isCssPrefixed = /^css=/i.test(raw);
+      const isTextSelector = /^text=/i.test(raw);
+
+      if (looksLikeXPath) {
+        // For XPath, evaluate the count expression
+        const ctxId = await executionContexts.waitForMainWorld(
+          session,
+          this.frame.frameId,
+          1000,
+        );
+
+        const xp = raw.replace(/^xpath=/i, "");
+        const expr = `(function() {
+          const xp = ${JSON.stringify(xp)};
+          try {
+            if (window.__stagehandV3__ && typeof window.__stagehandV3__.resolveSimpleXPath === "function") {
+              // Count using page-side resolver
+              const result = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+              return result.snapshotLength;
+            }
+            // Fallback to native XPath
+            const result = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            return result.snapshotLength;
+          } catch { return 0; }
+        })()`;
+
+        const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: expr,
+            contextId: ctxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        );
+
+        if (evalRes.exceptionDetails) {
+          return 0;
+        }
+
+        return Number(evalRes.result.value ?? 0);
+      }
+
+      if (isTextSelector) {
+        // For text selectors, count matching elements
+        const { executionContextId } = await session.send<{
+          executionContextId: Protocol.Runtime.ExecutionContextId;
+        }>("Page.createIsolatedWorld", {
+          frameId: this.frame.frameId,
+          worldName: "v3-world",
+        });
+
+        let query = raw.replace(/^text=/i, "").trim();
+        if (
+          (query.startsWith('"') && query.endsWith('"')) ||
+          (query.startsWith("'") && query.endsWith("'"))
+        ) {
+          query = query.slice(1, -1);
+        }
+
+        const expr = `(() => {
+          const needle = ${JSON.stringify(query)};
+          if (!needle) return 0;
+          try {
+            // Find ALL elements containing the text (case-insensitive)
+            const candidates = [];
+            const iter = document.createNodeIterator(document.documentElement, NodeFilter.SHOW_ELEMENT);
+            const needleLc = String(needle).toLowerCase();
+            let n;
+            while ((n = iter.nextNode())) {
+              const el = n;
+              const t = (el.innerText ?? el.textContent ?? '').trim();
+              const tLc = String(t).toLowerCase();
+              if (t && tLc.includes(needleLc)) {
+                candidates.push(el);
+              }
+            }
+            
+            // Count only the innermost elements
+            let count = 0;
+            for (const candidate of candidates) {
+              let isInnermost = true;
+              for (const other of candidates) {
+                if (candidate !== other && candidate.contains(other)) {
+                  isInnermost = false;
+                  break;
+                }
+              }
+              if (isInnermost) count++;
+            }
+            return count;
+          } catch {}
+          return 0;
+        })()`;
+
+        const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: expr,
+            contextId: executionContextId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        );
+
+        if (evalRes.exceptionDetails) {
+          return 0;
+        }
+
+        return Number(evalRes.result.value ?? 0);
+      }
+
+      // CSS selector - use querySelectorAll for counting
+      const { executionContextId } = await session.send<{
+        executionContextId: Protocol.Runtime.ExecutionContextId;
+      }>("Page.createIsolatedWorld", {
+        frameId: this.frame.frameId,
+        worldName: "v3-world",
+      });
+
+      let cssInput = isCssPrefixed ? raw.replace(/^css=/i, "") : raw;
+      if (cssInput.includes(">>")) {
+        cssInput = cssInput
+          .split(">>")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(" ");
+      }
+
+      const expr = `(() => {
+        const selector = ${JSON.stringify(cssInput)};
+        let count = 0;
+        
+        function countDeep(root) {
+          try {
+            const hits = root.querySelectorAll(selector);
+            count += hits.length;
+          } catch {}
+
+          // Walk elements and descend into open shadow roots
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+          let node;
+          while ((node = walker.nextNode())) {
+            if (node.shadowRoot) {
+              countDeep(node.shadowRoot);
+            }
+          }
+        }
+        
+        countDeep(document);
+        
+        // Also check closed shadow roots if available
+        const backdoor = window.__stagehandV3__;
+        if (backdoor && typeof backdoor.getClosedRoot === 'function') {
+          const queue = [];
+          try {
+            const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+            let n;
+            while ((n = walker.nextNode())) {
+              const el = n;
+              try {
+                const closed = backdoor.getClosedRoot(el);
+                if (closed) queue.push(closed);
+              } catch {}
+            }
+          } catch {}
+          
+          while (queue.length) {
+            const root = queue.shift();
+            try {
+              const hits = root.querySelectorAll(selector);
+              count += hits.length;
+              
+              const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+              let e;
+              while ((e = w.nextNode())) {
+                const el = e;
+                try {
+                  const closed = backdoor.getClosedRoot(el);
+                  if (closed) queue.push(closed);
+                } catch {}
+              }
+            } catch {}
+          }
+        }
+        
+        return count;
+      })()`;
+
+      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
+        "Runtime.evaluate",
+        {
+          expression: expr,
+          contextId: executionContextId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
+
+      if (evalRes.exceptionDetails) {
+        return 0;
+      }
+
+      return Number(evalRes.result.value ?? 0);
+    } catch (error) {
+      v3Logger({
+        category: "locator",
+        message: "count() error",
+        level: 2,
+        auxiliary: {
+          frameId: { value: String(this.frame.frameId), type: "string" },
+          selector: { value: this.selector, type: "string" },
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return 0;
+    }
+  }
+
   // ---------- helpers ----------
 
   /**
@@ -967,12 +1197,31 @@ export class Locator {
         const needle = ${JSON.stringify(query)};
         if (!needle) return null;
         try {
+          // Find ALL elements containing the text (case-insensitive)
+          const candidates = [];
           const iter = document.createNodeIterator(document.documentElement, NodeFilter.SHOW_ELEMENT);
+          const needleLc = String(needle).toLowerCase();
           let n;
           while ((n = iter.nextNode())) {
             const el = n;
             const t = (el.innerText ?? el.textContent ?? '').trim();
-            if (t && t.includes(needle)) return el;
+            const tLc = String(t).toLowerCase();
+            if (t && tLc.includes(needleLc)) {
+              candidates.push(el);
+            }
+          }
+          
+          // Return the innermost (leaf-most) element
+          // An element is innermost if no other candidate is its descendant
+          for (const candidate of candidates) {
+            let isInnermost = true;
+            for (const other of candidates) {
+              if (candidate !== other && candidate.contains(other)) {
+                isInnermost = false;
+                break;
+              }
+            }
+            if (isInnermost) return candidate;
           }
         } catch {}
         return null;

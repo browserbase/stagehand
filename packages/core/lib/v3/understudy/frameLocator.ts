@@ -140,6 +140,9 @@ class LocatorDelegate {
   async innerText() {
     return (await this.real()).innerText();
   }
+  async count() {
+    return (await this.real()).count();
+  }
   first(): LocatorDelegate {
     // Underlying querySelector already returns the first; keep chaining stable
     return this;
