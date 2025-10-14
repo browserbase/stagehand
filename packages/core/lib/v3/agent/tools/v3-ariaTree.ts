@@ -10,7 +10,7 @@ export const createAriaTreeTool = (v3: V3) =>
     execute: async () => {
       const page = await v3.context.awaitActivePage();
       const { pageText } = (await v3.extract()) as { pageText: string };
-      const pageUrl = await page.url();
+      const pageUrl = page.url();
 
       let content = pageText;
       const MAX_TOKENS = 70000; // rough cap, assume ~4 chars per token for conservative truncation

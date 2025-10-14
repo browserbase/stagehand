@@ -25,7 +25,7 @@ export const nba_trades: EvalFunction = async ({
     });
 
     const success =
-      (await page.url()) === "https://www.espn.com/nba/transactions" &&
+      page.url() === "https://www.espn.com/nba/transactions" &&
       evaluation === "YES";
 
     if (!success) {

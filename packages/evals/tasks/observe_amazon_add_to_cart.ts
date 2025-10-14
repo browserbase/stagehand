@@ -32,7 +32,7 @@ export const observe_amazon_add_to_cart: EvalFunction = async ({
       await v3.act(action2);
     }
 
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
     const expectedUrlPrefix =
       "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 

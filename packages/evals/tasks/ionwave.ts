@@ -16,7 +16,7 @@ export const ionwave: EvalFunction = async ({
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/closed-bids.html";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     return {
       _success: currentUrl.startsWith(expectedUrl),

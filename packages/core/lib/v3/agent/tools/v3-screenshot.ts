@@ -10,7 +10,7 @@ export const createScreenshotTool = (v3: V3) =>
     execute: async () => {
       const page = await v3.context.awaitActivePage();
       const base64 = await page.screenshot({ fullPage: false });
-      const pageUrl = await page.url();
+      const pageUrl = page.url();
       return { base64, timestamp: Date.now(), pageUrl };
     },
     experimental_toToolResultContent: (result) => [

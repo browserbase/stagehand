@@ -14,7 +14,7 @@ export const wikipedia: EvalFunction = async ({
     });
 
     const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     return {
       _success: currentUrl === url,

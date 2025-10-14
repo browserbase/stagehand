@@ -30,7 +30,7 @@ export const observe_simple_google_search: EvalFunction = async ({
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     return {
       _success: currentUrl.startsWith(expectedUrl),

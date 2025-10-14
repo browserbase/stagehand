@@ -27,7 +27,7 @@ export const combination_sauce: EvalFunction = async ({
 
     const observations = await v3.observe("find all the 'add to cart' buttons");
 
-    const url = await page.url();
+    const url = page.url();
 
     const usernamesCheck = usernames.length === 6;
     const urlCheck = url === "https://www.saucedemo.com/inventory.html";
