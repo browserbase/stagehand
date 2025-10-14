@@ -439,6 +439,7 @@ export class Page {
       "Page.navigate",
       { url },
     );
+    this._currentUrl = url;
     const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
     await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
   }
@@ -478,6 +479,7 @@ export class Page {
     await this.mainSession.send("Page.navigateToHistoryEntry", {
       entryId: prev.id,
     });
+    this._currentUrl = prev.url ?? this._currentUrl;
     if (options?.waitUntil) {
       await this.waitForMainLoadState(
         options.waitUntil,
@@ -502,6 +504,7 @@ export class Page {
     await this.mainSession.send("Page.navigateToHistoryEntry", {
       entryId: next.id,
     });
+    this._currentUrl = next.url ?? this._currentUrl;
     if (options?.waitUntil) {
       await this.waitForMainLoadState(
         options.waitUntil,
