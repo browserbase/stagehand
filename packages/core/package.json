@@ -10,7 +10,7 @@
     "build-dom-scripts": "cd ../.. && tsx packages/core/lib/v3/dom/genDomScripts.ts",
     "build-js": "cd ../.. && tsup --entry.index packages/core/lib/v3/index.ts --dts --outDir packages/core/dist --external chrome-launcher --external playwright-core --external puppeteer-core --external patchright-core --external @playwright/test --external @langchain/core --external @langchain/openai",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm run typecheck && pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js",
+    "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
     "format": "prettier --write ."
