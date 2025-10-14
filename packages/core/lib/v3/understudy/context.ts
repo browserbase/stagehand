@@ -50,6 +50,7 @@ export class V3Context {
   private createdAtByTarget = new Map<TargetId, number>();
   private typeByTarget = new Map<TargetId, TargetType>();
   private _pageOrder: TargetId[] = [];
+  private pendingCreatedTargetUrl = new Map<TargetId, string>();
 
   /**
    * Create a Context for a given CDP websocket URL and bootstrap target wiring.
@@ -137,6 +138,33 @@ export class V3Context {
     return newestTid ? this.pagesByTarget.get(newestTid) : undefined;
   }
 
+  /** Explicitly mark a known Page as the most-recent active page (and focus it). */
+  public setActivePage(page: Page): void {
+    let targetId = page.targetId();
+    if (this.pagesByTarget.get(targetId) !== page) {
+      const lookup = this.findTargetIdByPage(page);
+      if (!lookup) {
+        v3Logger({
+          category: "ctx",
+          message: "setActivePage called with unknown Page",
+          level: 2,
+          auxiliary: {
+            targetId: { value: String(targetId), type: "string" },
+          },
+        });
+        return;
+      }
+      targetId = lookup;
+    }
+
+    this._pushActive(targetId);
+
+    // Bring the tab to the foreground in headful Chrome (best effort).
+    void this.conn
+      .send("Target.activateTarget", { targetId })
+      .catch(() => {});
+  }
+
   /**
    * Return top-level `Page`s (oldest → newest). OOPIF targets are not included.
    */
@@ -181,6 +209,7 @@ export class V3Context {
       "Target.createTarget",
       { url },
     );
+    this.pendingCreatedTargetUrl.set(targetId, url);
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
@@ -205,6 +234,7 @@ export class V3Context {
     this.pendingOopifByMainFrame.clear();
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
+    this.pendingCreatedTargetUrl.clear();
   }
 
   /**
@@ -334,6 +364,9 @@ export class V3Context {
       if (!this.createdAtByTarget.has(info.targetId)) {
         this.createdAtByTarget.set(info.targetId, Date.now());
       }
+      const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
+      this.pendingCreatedTargetUrl.delete(info.targetId);
+      page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
 
@@ -522,6 +555,7 @@ export class V3Context {
     this.pagesByTarget.delete(targetId);
     this.createdAtByTarget.delete(targetId);
     this.typeByTarget.delete(targetId);
+    this.pendingCreatedTargetUrl.delete(targetId);
   }
 
   /**

@@ -369,6 +369,18 @@ export class Page {
     return this._targetId;
   }
 
+  /** Seed the cached URL before navigation events converge. */
+  public seedCurrentUrl(url: string | undefined | null): void {
+    if (!url) return;
+    try {
+      const normalized = String(url).trim();
+      if (!normalized) return;
+      this._currentUrl = normalized;
+    } catch {
+      // ignore invalid url seeds
+    }
+  }
+
   public mainFrameId(): string {
     return this.registry.mainFrameId();
   }
