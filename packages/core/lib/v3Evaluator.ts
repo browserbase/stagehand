@@ -79,8 +79,7 @@ export class V3Evaluator {
     let imageBuffer: Buffer | undefined;
     if (screenshot) {
       const page = await this.v3.context.awaitActivePage();
-      const base64 = await page.screenshot({ fullPage: false });
-      imageBuffer = Buffer.from(base64, "base64");
+      imageBuffer = await page.screenshot({ fullPage: false });
     }
 
     const llmClient = this.getClient();
@@ -149,8 +148,7 @@ export class V3Evaluator {
     let imageBuffer: Buffer | undefined;
     if (screenshot) {
       const page = await this.v3.context.awaitActivePage();
-      const base64 = await page.screenshot({ fullPage: false });
-      imageBuffer = Buffer.from(base64, "base64");
+      imageBuffer = await page.screenshot({ fullPage: false });
     }
 
     const llmClient = this.getClient();

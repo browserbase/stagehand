@@ -159,7 +159,7 @@ export class Frame implements FrameManager {
   async screenshot(options?: {
     fullPage?: boolean;
     clip?: { x: number; y: number; width: number; height: number };
-  }): Promise<string> {
+  }): Promise<Buffer> {
     await this.session.send("Page.enable");
     const params: Protocol.Page.CaptureScreenshotRequest = {
       format: "png",
@@ -171,7 +171,7 @@ export class Frame implements FrameManager {
         "Page.captureScreenshot",
         params,
       );
-    return data;
+    return Buffer.from(data, "base64");
   }
 
   /** Child frames via Page.getFrameTree */

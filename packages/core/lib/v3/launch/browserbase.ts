@@ -43,7 +43,7 @@ export async function createBrowserbaseSession(
     ...rest,
     browserSettings: {
       ...(browserSettings ?? {}),
-      viewport: browserSettings?.viewport ?? { width: 1024, height: 768 },
+      viewport: browserSettings?.viewport ?? { width: 1288, height: 711 },
     },
     userMetadata: {
       ...(userMetadata ?? {}),

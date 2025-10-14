@@ -20,6 +20,7 @@ eval-summary.json
 package-lock.json
 evals/deterministic/tests/BrowserContext/tmp-test.har
 packages/core/lib/version.ts
+packages/core/test-results/
 /examples/inference_summary
 /inference_summary
 .turbo
