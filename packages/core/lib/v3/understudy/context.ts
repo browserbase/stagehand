@@ -160,9 +160,7 @@ export class V3Context {
     this._pushActive(targetId);
 
     // Bring the tab to the foreground in headful Chrome (best effort).
-    void this.conn
-      .send("Target.activateTarget", { targetId })
-      .catch(() => {});
+    void this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
   }
 
   /**

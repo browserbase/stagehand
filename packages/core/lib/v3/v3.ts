@@ -646,7 +646,7 @@ export class V3 {
         }
         if (lbo.viewport?.width && lbo.viewport?.height) {
           chromeFlags.push(
-            `--window-size=${lbo.viewport.width + 50},${lbo.viewport.height + 85}`,
+            `--window-size=${lbo.viewport.width + 50},${lbo.viewport.height + 85}`, // Added pixels to the window to fit the viewport, currently it doesn't display the full viewport
           );
         }
         if (typeof lbo.deviceScaleFactor === "number") {
