@@ -24,8 +24,7 @@ export const ubereats: EvalFunction = async ({
     });
 
     const success =
-      evaluation === "YES" &&
-      (await page.url()).includes("https://auth.uber.com/");
+      evaluation === "YES" && page.url().includes("https://auth.uber.com/");
     if (!success) {
       return {
         _success: false,

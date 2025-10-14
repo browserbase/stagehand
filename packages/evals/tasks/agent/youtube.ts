@@ -17,7 +17,7 @@ export const youtube: EvalFunction = async ({
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
-    const url = await page.url();
+    const url = page.url();
 
     if (url.includes("https://www.youtube.com/watch?v=eEobh8iCbIE")) {
       return {

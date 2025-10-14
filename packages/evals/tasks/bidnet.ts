@@ -14,7 +14,7 @@ export const bidnet: EvalFunction = async ({
 
     const expectedUrl =
       "https://www.bidnetdirect.com/public/solicitations/open?keywords=Construction";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     return {
       _success: currentUrl.startsWith(expectedUrl),

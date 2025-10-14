@@ -58,7 +58,7 @@ async function example() {
   [observation] = await stagehand.observe("find the 'see results' section");
   await stagehand.act(observation);
 
-  const currentUrl = await page.url();
+  const currentUrl = page.url();
   await stagehand.close();
   if (
     currentUrl.includes(

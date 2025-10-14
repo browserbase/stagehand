@@ -1369,7 +1369,7 @@ export class V3 {
 
   private async safeGetPageUrl(page: Page): Promise<string> {
     try {
-      return await page.url();
+      return page.url();
     } catch {
       return "";
     }

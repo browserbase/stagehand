@@ -25,7 +25,7 @@ export const apple_tv: EvalFunction = async ({
       answer: agentResult.message,
     });
 
-    const url = await page.url();
+    const url = page.url();
     const success =
       result.evaluation === "YES" &&
       url.includes("https://www.apple.com/apple-tv-4k/specs/");

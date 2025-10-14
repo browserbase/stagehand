@@ -16,10 +16,12 @@ export const amazon_add_to_cart: EvalFunction = async ({
 
     await v3.act("click the 'Proceed to checkout' button");
 
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
+    console.log("currentUrl", currentUrl);
+    console.log("expectedUrl", expectedUrl);
     return {
       _success: currentUrl === expectedUrl,
       currentUrl,

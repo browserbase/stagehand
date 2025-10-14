@@ -32,7 +32,7 @@ async function main() {
         apiKey: process.env.OPENAI_API_KEY,
       },
       systemPrompt: `You are a helpful assistant that can use a web browser.
-      You are currently on the following page: ${await page.url()}.
+      You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
     });
 

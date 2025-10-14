@@ -30,7 +30,7 @@ test.describe("V3 default page tracking", () => {
     const newPage = await ctx.newPage("https://example.com/");
 
     const activeAfterCreate = await ctx.awaitActivePage();
-    expect(await activeAfterCreate.url()).toContain(await newPage.url());
+    expect(activeAfterCreate.url()).toContain(newPage.url());
   });
 
   test("popup default-page flow via five-tab site", async () => {
@@ -45,7 +45,7 @@ test.describe("V3 default page tracking", () => {
     // 2) Click button on the page to open a new tab → page2.html
     await root.locator("xpath=/html/body/button").click();
     const page2 = await ctx.awaitActivePage();
-    expect(await page2!.url()).toBe(
+    expect(page2!.url()).toBe(
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html",
     );
 
@@ -53,14 +53,14 @@ test.describe("V3 default page tracking", () => {
 
     await page2.locator("xpath=/html/body/button").click();
     const page3 = await ctx.awaitActivePage();
-    expect(await page3!.url()).toBe(
+    expect(page3!.url()).toBe(
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page3.html",
     );
 
     // 4) Close the current page (page3) and ensure the default page reverts to page2
     await page3!.close();
     const backToPage2 = await ctx.awaitActivePage();
-    expect(await backToPage2!.url()).toBe(
+    expect(backToPage2!.url()).toBe(
       "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html",
     );
   });

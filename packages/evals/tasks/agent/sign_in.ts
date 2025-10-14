@@ -17,7 +17,7 @@ export const sign_in: EvalFunction = async ({
       maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
     });
     logger.log(agentResult);
-    const url = await page.url();
+    const url = page.url();
 
     if (url === "https://v0-modern-login-flow.vercel.app/authorized") {
       return {
