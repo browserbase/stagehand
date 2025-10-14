@@ -47,6 +47,8 @@ export class Page {
 
   /** Stable id for Frames created by this Page (use top-level TargetId). */
   private readonly pageId: string;
+  /** Cached current URL for synchronous page.url() */
+  private _currentUrl: string = "about:blank";
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -185,6 +187,12 @@ export class Page {
     const mainFrameId = frameTree.frame.id;
 
     const page = new Page(conn, session, targetId, mainFrameId);
+    // Seed current URL from initial frame tree
+    try {
+      page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+    } catch {
+      // ignore
+    }
 
     // Seed topology + ownership for nodes known at creation time.
     page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
@@ -237,6 +245,18 @@ export class Page {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
       this.frameOrdinals.set(newRoot, oldOrd);
       this.mainFrameWrapper = new Frame(this.mainSession, newRoot, this.pageId);
+    }
+
+    // Update cached URL if this navigation pertains to the current main frame
+    if (frame.id === this.mainFrameId()) {
+      try {
+        // Prefer frame.url; fallback keeps previous value
+        this._currentUrl = String(
+          (frame as { url?: string })?.url ?? this._currentUrl,
+        );
+      } catch {
+        // ignore
+      }
     }
 
     // Invalidate the cached Frame for this id (session may have changed)
@@ -419,6 +439,7 @@ export class Page {
       "Page.navigate",
       { url },
     );
+    this._currentUrl = url;
     const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
     await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
   }
@@ -458,6 +479,7 @@ export class Page {
     await this.mainSession.send("Page.navigateToHistoryEntry", {
       entryId: prev.id,
     });
+    this._currentUrl = prev.url ?? this._currentUrl;
     if (options?.waitUntil) {
       await this.waitForMainLoadState(
         options.waitUntil,
@@ -482,6 +504,7 @@ export class Page {
     await this.mainSession.send("Page.navigateToHistoryEntry", {
       entryId: next.id,
     });
+    this._currentUrl = next.url ?? this._currentUrl;
     if (options?.waitUntil) {
       await this.waitForMainLoadState(
         options.waitUntil,
@@ -491,14 +514,10 @@ export class Page {
   }
 
   /**
-   * Return the current page URL (from navigation history).
+   * Return the current page URL (synchronous, cached from navigation events).
    */
-  async url(): Promise<string> {
-    const { entries, currentIndex } =
-      await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
-        "Page.getNavigationHistory",
-      );
-    return entries[currentIndex]?.url ?? "";
+  url(): string {
+    return this._currentUrl;
   }
 
   /**

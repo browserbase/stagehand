@@ -13,7 +13,7 @@ export const vantechjournal: EvalFunction = async ({
     await v3.act("click on page 'recommendations'");
 
     const expectedUrl = "https://vantechjournal.com/recommendations";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     return {
       _success: currentUrl === expectedUrl,

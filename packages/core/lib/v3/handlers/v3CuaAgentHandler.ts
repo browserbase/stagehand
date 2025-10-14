@@ -103,7 +103,7 @@ export class V3CuaAgentHandler {
 
     // Redirect if blank
     const page = await this.v3.context.awaitActivePage();
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
     if (!currentUrl || currentUrl === "about:blank") {
       this.logger({
         category: "agent",
@@ -431,7 +431,7 @@ export class V3CuaAgentHandler {
   private async updateClientUrl(): Promise<void> {
     try {
       const page = await this.v3.context.awaitActivePage();
-      const url = await page.url();
+      const url = page.url();
       this.agentClient.setCurrentUrl(url);
     } catch {
       //
@@ -447,7 +447,7 @@ export class V3CuaAgentHandler {
     try {
       const page = await this.v3.context.awaitActivePage();
       const base64Image = await page.screenshot({ fullPage: false });
-      const currentUrl = await page.url();
+      const currentUrl = page.url();
       return await this.agentClient.captureScreenshot({
         base64Image,
         currentUrl,

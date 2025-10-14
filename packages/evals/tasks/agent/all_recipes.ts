@@ -26,8 +26,7 @@ export const all_recipes: EvalFunction = async ({
 
     const success =
       evaluation === "YES" &&
-      (await page.url()) ===
-        "https://www.allrecipes.com/recipe/16899/beef-wellington/";
+      page.url() === "https://www.allrecipes.com/recipe/16899/beef-wellington/";
 
     if (!success) {
       return {

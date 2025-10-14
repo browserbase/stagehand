@@ -12,7 +12,7 @@ export const rakuten_jp: EvalFunction = async ({
 
     await v3.act("type '香菜' into the search bar");
     await v3.act("press enter");
-    const url = await page.url();
+    const url = page.url();
     const successUrl =
       "https://search.rakuten.co.jp/search/mall/%E9%A6%99%E8%8F%9C/";
 

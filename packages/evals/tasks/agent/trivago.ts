@@ -18,7 +18,7 @@ export const trivago: EvalFunction = async ({
     });
     logger.log(agentResult);
 
-    const url = await page.url();
+    const url = page.url();
 
     if (
       url.includes("hotel-h10-tribeca-madrid") &&

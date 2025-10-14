@@ -12,7 +12,7 @@ export const stock_x: EvalFunction = async ({
 
     await v3.act("click on Jordan 3 Retro Crimson in the related products");
 
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
     const expectedUrlPrefix = "https://stockx.com/jordan-3-retro-crimson";
 
     await v3.close();

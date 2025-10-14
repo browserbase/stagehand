@@ -34,7 +34,7 @@ export const google_flights: EvalFunction = async ({
 
     const expectedUrl =
       "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
-    const currentUrl = await page.url();
+    const currentUrl = page.url();
 
     await v3.close();
 
