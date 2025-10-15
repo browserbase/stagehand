@@ -154,6 +154,9 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).click(options);
   }
+  async count() {
+    return (await this.real()).count();
+  }
   async hover() {
     return (await this.real()).hover();
   }
