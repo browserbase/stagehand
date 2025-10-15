@@ -32,13 +32,10 @@ export interface AgentResult {
   };
 }
 
-export interface AgentOptions {
+export interface AgentExecuteOptions {
+  instruction: string;
   maxSteps?: number;
   highlightCursor?: boolean;
-}
-
-export interface AgentExecuteOptions extends AgentOptions {
-  instruction: string;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
