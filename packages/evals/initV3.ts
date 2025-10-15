@@ -17,6 +17,8 @@ import { V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
+import { modelToAgentProviderMap } from "@browserbasehq/orca";
+import { loadApiKeyFromEnv } from "@browserbasehq/orca/lib/utils";
 
 dotenv.config();
 
@@ -57,15 +59,8 @@ export async function initV3({
   modelName,
   createAgent,
 }: InitV3Args): Promise<V3InitResult> {
-  // Determine if the requested model is a CUA model (OpenAI/Anthropic computer-use)
-  const baseName = modelName.includes("/")
-    ? modelName.split("/")[1]
-    : modelName;
-  const isCUA =
-    baseName.includes("computer-use-preview") ||
-    baseName.startsWith("claude") ||
-    baseName.includes("claude-sonnet-4") ||
-    baseName.includes("claude-3-7-sonnet-latest");
+  // Determine if the requested model is a CUA model
+  const isCUA = modelName in modelToAgentProviderMap;
 
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
@@ -128,34 +123,20 @@ export async function initV3({
   logger.init(v3);
   await v3.init();
 
-  const normalizeModelSlug = (model: string): string =>
-    model.includes("/") ? (model.split("/").pop() ?? model) : model;
-
-  const isCUAModel = (model: string): boolean => {
-    const normalized = normalizeModelSlug(model);
-    return (
-      normalized.includes("computer-use-preview") ||
-      normalized.startsWith("claude")
-    );
-  };
+  const page = await v3.context.awaitActivePage();
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
     let agentConfig: AgentConfig | undefined;
-    if (isCUAModel(modelName)) {
-      const base = normalizeModelSlug(modelName);
-      const provider = base.startsWith("claude") ? "anthropic" : "openai";
-      const apiKey =
-        provider === "anthropic"
-          ? process.env.ANTHROPIC_API_KEY
-          : process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          `Missing API key for ${provider}. Set ${
-            provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
-          } in your environment.`,
-        );
+    if (isCUA) {
+      if (modelName in modelToAgentProviderMap) {
+        agentConfig = {
+          model: modelName,
+          provider: modelToAgentProviderMap[modelName],
+      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+        } as AgentConfig;
       }
+      const apiKey = loadApiKeyFromEnv(modelToAgentProviderMap[modelName], logger.log.bind(logger));
       agentConfig = {
         cua: true,
         model: {
