@@ -15,7 +15,6 @@ export async function launchLocalChrome(
   const chromeFlags = [
     headless ? "--headless=new" : undefined,
     "--remote-allow-origins=*",
-    "--disable-gpu",
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-dev-shm-usage",
