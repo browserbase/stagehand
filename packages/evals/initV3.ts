@@ -5,20 +5,20 @@
  */
 
 import type {
-  AgentInstance,
+  AvailableCuaModel,
   AvailableModel,
+  AgentConfig,
+  AgentInstance,
   ClientOptions,
   LLMClient,
+  LocalBrowserLaunchOptions,
   ModelConfiguration,
+  V3Options
 } from "@browserbasehq/orca";
-import { AgentConfig, AvailableCuaModel } from "@browserbasehq/orca";
-import type { LocalBrowserLaunchOptions, V3Options } from "@browserbasehq/orca";
-import { V3 } from "@browserbasehq/orca";
+import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
-import { modelToAgentProviderMap } from "@browserbasehq/orca";
-import { loadApiKeyFromEnv } from "@browserbasehq/orca/lib/utils";
 
 dotenv.config();
 
