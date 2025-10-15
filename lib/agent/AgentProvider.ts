@@ -15,6 +15,7 @@ export const modelToAgentProviderMap: Record<string, AgentType> = {
   "computer-use-preview": "openai",
   "computer-use-preview-2025-03-11": "openai",
   "claude-3-7-sonnet-latest": "anthropic",
+  "claude-haiku-4-5-20251001": "anthropic",
   "claude-sonnet-4-20250514": "anthropic",
   "claude-sonnet-4-5-20250929": "anthropic",
   "gemini-2.5-computer-use-preview-10-2025": "google",
