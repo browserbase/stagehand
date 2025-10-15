@@ -34,9 +34,6 @@ export interface AgentResult {
 
 export interface AgentOptions {
   maxSteps?: number;
-  autoScreenshot?: boolean;
-  waitBetweenActions?: number;
-  context?: string;
   highlightCursor?: boolean;
 }
 
