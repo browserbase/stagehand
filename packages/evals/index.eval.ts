@@ -25,17 +25,19 @@ import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
 import { Eval, wrapAISDKModel } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
-import { AvailableModel } from "@browserbasehq/orca";
-import { LLMClient } from "@browserbasehq/orca";
-import { env } from "./env";
-import dotenv from "dotenv";
-import { StagehandEvalError } from "@browserbasehq/orca";
-import { initV3 } from "./initV3";
-import { AgentProvider } from "@browserbasehq/orca/lib/v3/agent/agentProvider";
+import {
+  AvailableModel,
+  LLMClient,
+  StagehandEvalError,
+  AgentProvider,
+  loadApiKeyFromEnv,
+  LogLine,
+} from "@browserbasehq/orca";
 import { AISdkClient } from "@browserbasehq/orca/lib/v3/llm/aisdk";
 import { getAISDKLanguageModel } from "@browserbasehq/orca/lib/v3/llm/LLMProvider";
-import { loadApiKeyFromEnv } from "@browserbasehq/orca/lib/utils";
-import { LogLine } from "@browserbasehq/orca";
+import { env } from "./env";
+import dotenv from "dotenv";
+import { initV3 } from "./initV3";
 import { generateSummary } from "./summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
