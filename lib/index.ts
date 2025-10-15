@@ -1046,4 +1046,5 @@ export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
 export * from "./llm/aisdk";
+export { CerebrasClient } from "./llm/CerebrasClient";
 export { connectToMCPServer };

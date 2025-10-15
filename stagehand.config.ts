@@ -7,9 +7,9 @@ const StagehandConfig: ConstructorParams = {
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
 
   //   LLM configuration
-  modelName: "gpt-4o" /* Name of the model to use */,
+  modelName: "cerebras-qwen-3-32b" /* Name of the model to use */,
   modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.CEREBRAS_API_KEY,
   } /* Configuration options for the model client */,
 
   // Browser configuration
