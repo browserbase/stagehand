@@ -428,17 +428,9 @@ export class V3Context {
       } else {
         this.pendingOopifByMainFrame.set(childMainId, sessionId);
       }
-    } catch (e) {
-      v3Logger({
-        category: "ctx",
-        message: "ATTACH child probe failed (no Page.getFrameTree?)",
-        level: 2,
-        auxiliary: {
-          sessionId: { value: String(sessionId), type: "string" },
-          type: { value: String(info.type), type: "string" },
-          err: { value: String(e), type: "string" },
-        },
-      });
+    } catch {
+      // page.getFrameTree failed. Most likely was an ad iframe
+      // that opened & closed before we could attach. ignore
     }
 
     /* TODO: for child OOPIFs, we rely on reloads for our script to be applied.
