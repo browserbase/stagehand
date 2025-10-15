@@ -619,7 +619,6 @@ export class V3 {
         // Build chrome flags
         const defaults = [
           "--remote-allow-origins=*",
-          "--disable-gpu",
           "--no-first-run",
           "--no-default-browser-check",
           "--disable-dev-shm-usage",
