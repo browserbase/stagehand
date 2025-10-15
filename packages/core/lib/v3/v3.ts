@@ -1442,12 +1442,6 @@ export class V3 {
     const sanitized: SanitizedAgentExecuteOptions = {};
     if (typeof options.maxSteps === "number")
       sanitized.maxSteps = options.maxSteps;
-    if (typeof options.autoScreenshot === "boolean")
-      sanitized.autoScreenshot = options.autoScreenshot;
-    if (typeof options.waitBetweenActions === "number")
-      sanitized.waitBetweenActions = options.waitBetweenActions;
-    if (typeof options.context === "string" && options.context.trim())
-      sanitized.context = options.context.trim();
     return sanitized;
   }
 

@@ -134,20 +134,6 @@ export class V3CuaAgentHandler {
       }
     }
 
-    if (options.autoScreenshot !== false) {
-      try {
-        await this.captureAndSendScreenshot();
-      } catch (e) {
-        this.logger({
-          category: "agent",
-          message: `Warning: initial screenshot failed: ${String(
-            (e as Error)?.message ?? e,
-          )}`,
-          level: 1,
-        });
-      }
-    }
-
     const start = Date.now();
     const result = await this.agent.execute({ options, logger: this.logger });
     const inferenceTimeMs = Date.now() - start;
