@@ -141,10 +141,12 @@ export class DeepLocatorDelegate {
     private readonly page: Page,
     private readonly root: Frame,
     private readonly selector: string,
+    private readonly nthIndex: number = 0,
   ) {}
 
   private async real(): Promise<Locator> {
-    return resolveLocatorWithHops(this.page, this.root, this.selector);
+    const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
+    return base.nth(this.nthIndex);
   }
 
   // Locator API delegates
@@ -212,7 +214,18 @@ export class DeepLocatorDelegate {
     return (await this.real()).sendClickEvent(options);
   }
   first() {
-    return this;
+    return this.nth(0);
+  }
+  nth(index: number): DeepLocatorDelegate {
+    const value = Number(index);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error("deepLocator().nth() expects a non-negative index");
+    }
+
+    const nextIndex = Math.floor(value);
+    if (nextIndex === this.nthIndex) return this;
+
+    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
   }
 }
 
