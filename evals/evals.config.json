@@ -561,12 +561,6 @@
       "categories": [	
         "external_agent_benchmarks"	
       ]	
-    },	
-    {	
-      "name": "screenshot_cdp_toggle",	
-      "categories": [	
-        "regression"	
-      ]
     }
   ]
 }
