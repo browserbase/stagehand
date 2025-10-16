@@ -373,22 +373,6 @@ export class V3Context {
         page.enableCursorOverlay().catch(() => {});
       }
 
-      // Pin viewport metrics once so CSS px and screenshot px match.
-      // We normalize to the current CSS viewport size and deviceScaleFactor = 1.
-      // This avoids HiDPI mismatch (image pixels vs CSS pixels) without requiring
-      // callers to repeatedly resize before screenshots.
-      try {
-        const { w, h } = await page.mainFrame().evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
-        const width = Math.max(1, Math.floor(w));
-        const height = Math.max(1, Math.floor(h));
-        await page.setViewportSize(width, height, { deviceScaleFactor: 1 });
-      } catch {
-        // best-effort; proceed if override fails
-      }
-
       // Resume only if Chrome actually paused
       if (waitingForDebugger) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
