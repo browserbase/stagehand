@@ -174,6 +174,16 @@ export interface ObserveResult {
 export interface LocalBrowserLaunchOptions {
   args?: string[];
   chromiumSandbox?: boolean;
+  clientCertificates?: Array<{
+    origin: string;
+    certPath?: string;
+    cert?: Buffer;
+    keyPath?: string;
+    key?: Buffer;
+    pfxPath?: string;
+    pfx?: Buffer;
+    passphrase?: string;
+  }>;
   devtools?: boolean;
   env?: { [key: string]: string | undefined };
   executablePath?: string;
