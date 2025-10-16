@@ -34,6 +34,7 @@ export class Locator {
     private readonly frame: Frame,
     private readonly selector: string,
     private readonly options?: { deep?: boolean; depth?: number },
+    private readonly nthIndex?: number,
   ) {}
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -55,15 +56,15 @@ export class Locator {
       | string
       | string[]
       | {
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
       | Array<{
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }>,
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
   ): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
@@ -834,6 +835,14 @@ export class Locator {
     return this;
   }
 
+  /**
+   * Returns a locator that will match the nth element (0-based index).
+   * For example, locator("button").nth(1) will match the second button.
+   */
+  nth(index: number): Locator {
+    return new Locator(this.frame, this.selector, this.options, index);
+  }
+
   // ---------- helpers ----------
 
   /**
@@ -885,7 +894,16 @@ export class Locator {
       // Try page-side resolver first (fast path for open/closed via attachShadow)
       const expr = `(function () {
         const xp = ${JSON.stringify(xp)};
+        const nthIndex = ${JSON.stringify(this.nthIndex ?? null)};
         try {
+          if (nthIndex !== null && typeof nthIndex === 'number') {
+            // For nth() we need to get all results and return the nth one
+            const result = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            if (nthIndex >= 0 && nthIndex < result.snapshotLength) {
+              return result.snapshotItem(nthIndex);
+            }
+            return null;
+          }
           if (window.__stagehandV3__ && typeof window.__stagehandV3__.resolveSimpleXPath === "function") {
             return window.__stagehandV3__.resolveSimpleXPath(xp);
           }
@@ -1098,6 +1116,16 @@ export class Locator {
 
         if (!matchesList.length) return null;
 
+        const nthIndex = ${JSON.stringify(this.nthIndex ?? null)};
+        
+        // If nth index is specified, return the nth element from matchesList
+        if (nthIndex !== null && typeof nthIndex === 'number') {
+          if (nthIndex >= 0 && nthIndex < matchesList.length) {
+            return matchesList[nthIndex];
+          }
+          return null;
+        }
+
         for (const candidate of matchesList) {
           let contained = false;
           for (const other of matchesList) {
@@ -1168,6 +1196,34 @@ export class Locator {
     }
     const expr = `(() => {
     const selector = ${JSON.stringify(cssInput)};
+    const nthIndex = ${JSON.stringify(this.nthIndex ?? null)};
+    
+    function queryDeepAll(root, results = []) {
+      // Try in this root
+      try {
+        const hits = root.querySelectorAll(selector);
+        results.push(...hits);
+      } catch {}
+
+      // Walk elements and descend into open shadow roots
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.shadowRoot) {
+          queryDeepAll(node.shadowRoot, results);
+        }
+      }
+      return results;
+    }
+    
+    if (nthIndex !== null && typeof nthIndex === 'number') {
+      const allMatches = queryDeepAll(document);
+      if (nthIndex >= 0 && nthIndex < allMatches.length) {
+        return allMatches[nthIndex];
+      }
+      return null;
+    }
+    
     function queryDeepFirst(root) {
       // Try in this root
       try {
@@ -1224,6 +1280,7 @@ export class Locator {
 
       const exprPierce = `(() => {
         const selector = ${JSON.stringify(cssInput)};
+        const nthIndex = ${JSON.stringify(this.nthIndex ?? null)};
         const backdoor = window.__stagehandV3__;
         // If our v3 script isn't present, bail
         if (!backdoor || typeof backdoor.getClosedRoot !== 'function') return null;
@@ -1262,6 +1319,20 @@ export class Locator {
               }
             } catch {}
           }
+        }
+
+        if (nthIndex !== null && typeof nthIndex === 'number') {
+          const allMatches = [];
+          for (const r of roots()) {
+            try {
+              const hits = r.querySelectorAll(selector);
+              allMatches.push(...hits);
+            } catch {}
+          }
+          if (nthIndex >= 0 && nthIndex < allMatches.length) {
+            return allMatches[nthIndex];
+          }
+          return null;
         }
 
         for (const r of roots()) {
@@ -1455,15 +1526,16 @@ export class Locator {
         return total;
       })()`;
 
-      const fallbackEval = await session.send<Protocol.Runtime.EvaluateResponse>(
-        "Runtime.evaluate",
-        {
-          expression: exprPierce,
-          contextId: ctxId,
-          returnByValue: true,
-          awaitPromise: true,
-        },
-      );
+      const fallbackEval =
+        await session.send<Protocol.Runtime.EvaluateResponse>(
+          "Runtime.evaluate",
+          {
+            expression: exprPierce,
+            contextId: ctxId,
+            returnByValue: true,
+            awaitPromise: true,
+          },
+        );
 
       if (!fallbackEval.exceptionDetails) {
         fallbackCount = normalise(fallbackEval.result.value);
@@ -1663,8 +1735,8 @@ export class Locator {
                 details.text ??
                 String(
                   details.exception?.description ??
-                  details.exception?.value ??
-                  '',
+                    details.exception?.value ??
+                    "",
                 ),
               type: "string",
             },
