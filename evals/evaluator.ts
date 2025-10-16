@@ -334,7 +334,6 @@ export class Evaluator {
           name: "EvaluationResult",
           schema: EvaluationSchema,
         },
-        // temperature: 1,
       },
     });
 
