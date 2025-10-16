@@ -118,11 +118,25 @@ await page.act(observe_result: ObserveResult) -> ActResult
   The action that was performed.
 </ParamField>
 
+<ParamField
+  path="playwrightCommand"
+  type="PlaywrightCommandResult"
+  optional
+>
+  Details about the underlying Playwright method that Stagehand executed,
+  including the selector and arguments that were used.
+</ParamField>
+
 ```Example Response
 {
   success: true,
   message: 'Action [scrollTo] performed successfully on selector: /html[1]',
-  action: 'Scrollable area of the page where user can navigate to the pricing section or other parts of the page'
+  action: 'Scrollable area of the page where user can navigate to the pricing section or other parts of the page',
+  playwrightCommand: {
+    method: 'scrollTo',
+    selector: '/html[1]',
+    arguments: []
+  }
 }
 ```
 

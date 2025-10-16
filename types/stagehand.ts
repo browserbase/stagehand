@@ -125,10 +125,17 @@ export interface ActOptions {
   frameId?: string;
 }
 
+export interface PlaywrightCommandResult {
+  method: string;
+  selector: string;
+  arguments: unknown[];
+}
+
 export interface ActResult {
   success: boolean;
   message: string;
   action: string;
+  playwrightCommand?: PlaywrightCommandResult;
 }
 
 export interface ExtractOptions<T extends z.AnyZodObject> {
