@@ -551,6 +551,22 @@
     {
       "name": "agent/all_recipes",
       "categories": ["agent"]
+    },
+    {	
+      "name": "agent/osworld",	
+      "categories": ["external_agent_benchmarks"]	
+    },	
+    {	
+      "name": "agent/onlineMind2Web",	
+      "categories": [	
+        "external_agent_benchmarks"	
+      ]	
+    },	
+    {	
+      "name": "screenshot_cdp_toggle",	
+      "categories": [	
+        "regression"	
+      ]
     }
   ]
 }
