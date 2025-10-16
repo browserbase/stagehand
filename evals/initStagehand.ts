@@ -20,6 +20,125 @@ import { EvalLogger } from "./logger";
 import type { StagehandInitResult } from "@/types/evals";
 import type { AgentConfig } from "@/dist";
 import { AvailableModel } from "@browserbasehq/stagehand";
+import {
+  // AgentProvider,
+  modelToAgentProviderMap,
+} from "@/lib/agent/AgentProvider";
+// import fetch from "node-fetch";
+// import { HttpsProxyAgent } from "https-proxy-agent";
+
+// /**
+//  * Generates a random 8-character alphanumeric string for session ID
+//  */
+// function generateSessionId(): string {
+//   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+//   let result = "";
+//   for (let i = 0; i < 8; i++) {
+//     result += chars.charAt(Math.floor(Math.random() * chars.length));
+//   }
+//   return result;
+// }
+
+// /**
+//  * Validates that a proxy is working by making a test request
+//  */
+// async function validateProxy(
+//   server: string,
+//   username: string,
+//   password: string,
+// ): Promise<boolean> {
+//   const proxyUrl = `${server.replace("://", `://${username}:${password}@`)}`;
+//   const targetUrl = "https://httpbin.org/ip";
+
+//   try {
+//     const agent = new HttpsProxyAgent(proxyUrl);
+//     const res = await fetch(targetUrl, { agent });
+
+//     if (res.status === 200) {
+//       const body = await res.text();
+//       console.log(
+//         `Proxy validation successful. Response: ${body.substring(0, 100)}`,
+//       );
+//       return true;
+//     } else {
+//       console.error(`Proxy validation failed with status: ${res.status}`);
+//       return false;
+//     }
+//   } catch (err) {
+//     console.error("Proxy test failed:", err.message);
+//     return false;
+//   }
+// }
+
+// /**
+//  * Returns a proxy configuration using NimbleWay format
+//  * Uses a fixed configuration with a random session ID per eval
+//  * Validates the proxy before returning it
+//  */
+// async function getNimbleProxies(): Promise<
+//   {
+//     type: "external";
+//     server: string;
+//     username: string;
+//     password: string;
+//   }[]
+// > {
+//   // Generate random session ID for this eval
+//   const sessionId = generateSessionId();
+
+//   // NimbleWay proxy configuration
+//   const username = `account-browserbase_1zxs2i-pipeline-nimbleip-country-US-session-${sessionId}`;
+//   const password = "Kd0Cz0O709g8";
+//   const server = "http://ip.nimbleway.com:7000";
+
+//   // Validate the proxy is working
+//   const isValid = await validateProxy(server, username, password);
+
+//   if (!isValid) {
+//     console.warn("Proxy validation failed, but continuing anyway");
+//   }
+
+//   return [
+//     {
+//       type: "external",
+//       server,
+//       username,
+//       password,
+//     },
+//   ];
+// }
+
+// async function getBDMobileProxies(): Promise<
+//   {
+//     type: "external";
+//     server: string;
+//     username: string;
+//     password: string;
+//   }[]
+// > {
+//   // const sessionId = generateSessionId();
+
+//   // BD Mobile proxy configuration
+//   const username = `brd-customer-hl_66010a9c-zone-mobile_proxy_stagehand_evals`;
+//   const password = "yn6nmnr8g9m4";
+//   const server = "https://brd.superproxy.io:33335";
+
+//   // Validate the proxy is working
+//   const isValid = await validateProxy(server, username, password);
+
+//   if (!isValid) {
+//     console.warn("Proxy validation failed, but continuing anyway");
+//   }
+
+//   return [
+//     {
+//       type: "external",
+//       server,
+//       username,
+//       password,
+//     },
+//   ];
+// }
 
 /**
  * StagehandConfig:
@@ -29,7 +148,8 @@ import { AvailableModel } from "@browserbasehq/stagehand";
  *
  * Adjust or remove fields as appropriate for your environment.
  */
-const StagehandConfig = {
+// Base configuration without async values
+const BaseStagehandConfig = {
   env: env,
   apiKey: process.env.BROWSERBASE_API_KEY,
   projectId: process.env.BROWSERBASE_PROJECT_ID,
@@ -38,18 +158,13 @@ const StagehandConfig = {
   debugDom: true,
   headless: false,
   enableCaching,
-  domSettleTimeoutMs: 30_000,
+  domSettleTimeoutMs: 60_000,
   disablePino: true,
-  browserbaseSessionCreateParams: {
-    projectId: process.env.BROWSERBASE_PROJECT_ID!,
-    browserSettings: {
-      viewport: {
-        width: 1024,
-        height: 768,
-      },
-    },
-  },
   selfHeal: true,
+  modelName: "google/gemini-2.5-flash",
+  modelClientOptions: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
 };
 
 /**
@@ -80,8 +195,12 @@ export const initStagehand = async ({
   actTimeoutMs?: number;
   modelName: AvailableModel;
 }): Promise<StagehandInitResult> => {
+  // Get proxies with validation
+  // const proxyType = await getNimbleProxies();
+  // const proxies = await getBDMobileProxies();
+
   const config = {
-    ...StagehandConfig,
+    ...BaseStagehandConfig,
     modelClientOptions,
     llmClient,
     ...(domSettleTimeoutMs && { domSettleTimeoutMs }),
@@ -90,45 +209,58 @@ export const initStagehand = async ({
     experimental:
       typeof configOverrides?.experimental === "boolean"
         ? configOverrides.experimental
-        : !StagehandConfig.useAPI,
+        : !BaseStagehandConfig.useAPI,
+    browserbaseSessionCreateParams: {
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      proxies: true,
+      // proxies,
+      browserSettings: {
+        enablePdfViewer: true,
+        advancedStealth: true,
+        os: "windows",
+        viewport: {
+          width: 2560,
+          height: 1440,
+        },
+      },
+    },
     ...configOverrides,
     logger: logger.log.bind(logger),
   };
 
-  const stagehand = new Stagehand(config);
+  try {
+    const stagehand = new Stagehand(config);
 
-  // Associate the logger with the Stagehand instance
-  logger.init(stagehand);
+    // Associate the logger with the Stagehand instance
+    logger.init(stagehand);
 
-  const { debugUrl, sessionUrl } = await stagehand.init();
+    const { debugUrl, sessionUrl } = await stagehand.init();
 
-  // Set navigation timeout to 60 seconds for evaluations
-  stagehand.context.setDefaultNavigationTimeout(60_000);
+    // Set navigation timeout to 60 seconds for evaluations
+    stagehand.context.setDefaultNavigationTimeout(60_000);
 
-  const isCUAModel = (model: string): boolean =>
-    model.includes("computer-use-preview") || model.startsWith("claude");
+    let agentConfig: AgentConfig | undefined;
+    if (modelName in modelToAgentProviderMap) {
+      agentConfig = {
+        model: modelName,
+        provider: modelToAgentProviderMap[modelName],
+        instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+      } as AgentConfig;
+    }
 
-  let agentConfig: AgentConfig | undefined;
-  if (isCUAModel(modelName)) {
-    agentConfig = {
-      model: modelName,
-      provider: modelName.startsWith("claude") ? "anthropic" : "openai",
-    } as AgentConfig;
-  } else {
-    agentConfig = {
-      model: modelName,
-    } as AgentConfig;
+    const agent = stagehand.agent(agentConfig);
+
+    return {
+      stagehand,
+      stagehandConfig: config,
+      logger,
+      debugUrl,
+      sessionUrl,
+      modelName,
+      agent,
+    };
+  } catch (error) {
+    console.error("Error initializing stagehand:", error);
+    throw error;
   }
-
-  const agent = stagehand.agent(agentConfig);
-
-  return {
-    stagehand,
-    stagehandConfig: config,
-    logger,
-    debugUrl,
-    sessionUrl,
-    modelName,
-    agent,
-  };
 };

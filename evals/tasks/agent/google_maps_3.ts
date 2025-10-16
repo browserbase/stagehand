@@ -26,7 +26,7 @@ export const google_maps_3: EvalFunction = async ({
     if (!success) {
       return {
         _success: false,
-        message: reasoning,
+        observations: reasoning,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -41,7 +41,7 @@ export const google_maps_3: EvalFunction = async ({
   } catch (error) {
     return {
       _success: false,
-      message: error.message,
+      error: error,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),

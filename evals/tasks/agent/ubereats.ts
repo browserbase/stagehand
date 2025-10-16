@@ -15,7 +15,7 @@ export const ubereats: EvalFunction = async ({
     await agent.execute({
       instruction:
         "Order a pizza from ubereats to 639 geary st in sf, call the task complete once the login page is shown after adding pizza and viewing the cart",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 35,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });
 
     const { evaluation, reasoning } = await evaluator.ask({

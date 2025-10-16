@@ -14,7 +14,7 @@ export const all_recipes: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for a recipe for Beef Wellington on Allrecipes that has at least 200 reviews and an average rating of 4.5 stars or higher. List the main ingredients required for the dish.",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });
 
     const { evaluation, reasoning } = await evaluator.ask({

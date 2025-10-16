@@ -1,8 +1,7 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
-import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
-import { loadApiKeyFromEnv } from "@/lib/utils";
 import { modelToAgentProviderMap } from "@/lib/agent/AgentProvider";
+import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -18,8 +17,8 @@ export const gaia: EvalFunction = async ({
   logger,
   debugUrl,
   sessionUrl,
-  input,
   modelName,
+  input,
 }) => {
   const startTime = Date.now();
 
@@ -29,28 +28,33 @@ export const gaia: EvalFunction = async ({
       level?: number;
       web?: string;
       ques?: string;
-      expected?: string;
     };
 
     if (!params.web || !params.ques) {
       return {
         _success: false,
         error: `Missing GAIA params (web, ques). Got: ${JSON.stringify(params)}`,
+        execution_time: Date.now() - startTime,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+    await stagehand.page.goto(params.web, {
+      timeout: 120_000,
+    });
+
+    if (!(modelName in modelToAgentProviderMap)) {
+      return {
+        _success: false,
+        error: `Model ${modelName} is not supported for agent tasks. Supported models: ${Object.keys(modelToAgentProviderMap).join(", ")}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
 
-    await stagehand.page.goto(params.web, {
-      timeout: 75_000,
-    });
-
-    const provider =
-      modelName in modelToAgentProviderMap
-        ? modelToAgentProviderMap[modelName]
-        : undefined;
-
+    const provider = modelToAgentProviderMap[modelName];
     const agent = stagehand.agent({
       model: modelName,
       provider,
@@ -60,55 +64,53 @@ export const gaia: EvalFunction = async ({
       },
     });
 
-    // Start collecting screenshots with hybrid approach
-    const screenshotCollector = new ScreenshotCollector(stagehand.page, {
-      maxScreenshots: 8, // Keep last 8 screenshots
-    });
-
-    // Set the collector on the agent so it captures screenshots
-    if (agent.setScreenshotCollector) {
-      agent.setScreenshotCollector(screenshotCollector);
-    }
-
-    screenshotCollector.start();
-
     const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 50;
-    const agentResult = await agent.execute({
+    const result = await agent.execute({
       instruction: params.ques,
-      maxSteps,
+      maxSteps: maxSteps,
     });
-    // Stop collecting and get all screenshots
-    const screenshots = screenshotCollector.stop();
+    logger.log(result);
 
-    logger.log({
-      category: "evaluation",
-      message: `Collected ${screenshots.length} screenshots for evaluation`,
-      level: 1,
-    });
-
-    const expected = params.expected;
+    const expected = (params as Record<string, unknown>).expected as
+      | string
+      | undefined;
     const evaluator = new Evaluator(stagehand);
-    const evalResult = await evaluator.ask({
-      question: `Did the agent provide the expected answer: "${expected}"?`,
-      answer: agentResult.message || "",
-      screenshot: screenshots,
-    });
+
+    let evalResult;
+    try {
+      evalResult = await evaluator.ask({
+        question: `Did the agent provide the expected answer: "${expected}"?`,
+        answer: result?.message || "",
+        screenshot: false,
+      });
+    } catch (evalError) {
+      logger.error({
+        category: "gaia",
+        level: 0,
+        message: `Evaluator failed`,
+        auxiliary: {
+          error: {
+            value:
+              evalError instanceof Error
+                ? evalError.message
+                : String(evalError),
+            type: "string",
+          },
+        },
+      });
+      throw evalError; // Let index.eval.ts handle error categorization
+    }
 
     return {
       _success: evalResult.evaluation === "YES",
       reasoning: evalResult.reasoning,
-      expectedAnswer: expected,
-      final_answer: agentResult?.message,
-      screenshotCount: screenshots.length,
-      task_level: params.level,
+      final_answer: result?.message,
       execution_time: Date.now() - startTime,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
-  } catch (error) {
-    // Let the error propagate - the parent runner will handle cleanup
-    console.error(error);
-    throw error;
+  } finally {
+    stagehand.close();
   }
 };

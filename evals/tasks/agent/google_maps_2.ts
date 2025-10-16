@@ -1,6 +1,6 @@
 import { EvalFunction } from "@/types/evals";
 import { Evaluator } from "../../evaluator";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 export const google_maps_2: EvalFunction = async ({
   debugUrl,
@@ -22,7 +22,7 @@ export const google_maps_2: EvalFunction = async ({
     const evaluator = new Evaluator(stagehand);
     const result = await evaluator.ask({
       question:
-        "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol? Does the distance between the two points show as 1.5 km?",
+        "Does the page show the fastest walking route from La Puerta de Alcalá to La Puerta del Sol?",
     });
     const { distance } = await stagehand.page.extract({
       modelName: "google/gemini-2.5-flash",

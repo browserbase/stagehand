@@ -9,7 +9,7 @@ export const hotel_booking: EvalFunction = async ({
   agent,
 }) => {
   try {
-    await stagehand.page.goto("https://www.booking.com/");
+    await stagehand.page.goto("https://www.hotels.com/");
 
     const agentResult = await agent.execute({
       instruction:

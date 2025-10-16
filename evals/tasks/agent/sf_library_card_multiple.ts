@@ -13,8 +13,8 @@ export const sf_library_card_multiple: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction:
-        "Fill in ALL the required fields with mock data. DO NOT submit the form",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 20,
+        "Fill in ALL the REQUIRED fields with mock data. DO NOT submit the form",
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 25,
     });
     logger.log(agentResult);
 

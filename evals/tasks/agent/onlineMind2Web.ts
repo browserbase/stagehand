@@ -6,21 +6,14 @@ import { loadApiKeyFromEnv } from "@/lib/utils";
 import dotenv from "dotenv";
 
 dotenv.config();
-/**
- * Data-driven OnlineMind2Web agent eval
- * - Expects per-test params injected via eval runner: { task_id, confirmed_task, website, reference_length, level }
- * - Starts at `website`, runs the agent with `confirmed_task` as instruction
- * - Requires the agent to output a final answer in the form: "Final Answer: <value>"
- * - Marks success if such an answer string is present (exact matching against dataset can be layered later)
- * - Uses the evaluator to determine if the agent successfully completed the task
- */
+
 export const onlineMind2Web: EvalFunction = async ({
   stagehand,
   logger,
   debugUrl,
   sessionUrl,
-  input,
   modelName,
+  input,
 }) => {
   const startTime = Date.now();
 
@@ -44,14 +37,20 @@ export const onlineMind2Web: EvalFunction = async ({
     }
 
     await stagehand.page.goto(params.website, {
-      timeout: 75_000,
+      timeout: 120_000,
     });
 
-    const provider =
-      modelName in modelToAgentProviderMap
-        ? modelToAgentProviderMap[modelName]
-        : undefined;
+    if (!(modelName in modelToAgentProviderMap)) {
+      return {
+        _success: false,
+        error: `Model ${modelName} is not supported for agent tasks. Supported models: ${Object.keys(modelToAgentProviderMap).join(", ")}`,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
 
+    const provider = modelToAgentProviderMap[modelName];
     const agent = stagehand.agent({
       model: modelName,
       provider,
@@ -73,10 +72,10 @@ export const onlineMind2Web: EvalFunction = async ({
 
     screenshotCollector.start();
 
-    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 50;
+    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 80;
     const agentResult = await agent.execute({
       instruction: params.confirmed_task,
-      maxSteps,
+      maxSteps: maxSteps,
     });
 
     logger.log(agentResult);
@@ -91,12 +90,19 @@ export const onlineMind2Web: EvalFunction = async ({
 
     const evaluator = new Evaluator(stagehand);
     const evalResult = await evaluator.ask({
-      question: `Did the agent successfully complete this task: "${params.confirmed_task}"? The task might be a bit outdated or impossible to complete, in those cases lean towards YES.`,
+      question: `Did the agent successfully complete this task: "${params.confirmed_task}"?`,
       screenshot: screenshots,
       agentReasoning:
         agentResult.message ||
         "no reasoning available, agent potentially hit step limit",
     });
+
+    if (
+      evalResult.reasoning.includes("access denied") &&
+      evalResult.evaluation === "NO"
+    ) {
+      throw new Error("access denied");
+    }
 
     return {
       _success: evalResult.evaluation === "YES",

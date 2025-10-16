@@ -45,7 +45,7 @@ export class Evaluator {
     this.stagehand = stagehand;
     this.modelName = modelName || "google/gemini-2.5-flash";
     this.modelClientOptions = modelClientOptions || {
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+      apiKey: process.env.GEMINI_API_KEY || "",
     };
   }
 
@@ -293,9 +293,12 @@ export class Evaluator {
       this.modelClientOptions,
     );
 
+    const lastScreenshot = await this.stagehand.page.screenshot();
+
+    const allScreenshots = [...screenshots, lastScreenshot];
     //Downsize screenshots:
     const downsizedScreenshots = await Promise.all(
-      screenshots.map(async (screenshot) => {
+      allScreenshots.map(async (screenshot) => {
         return await imageResize(screenshot, 0.7);
       }),
     );
@@ -306,18 +309,6 @@ export class Evaluator {
         url: `data:image/png;base64,${screenshot.toString("base64")}`,
       },
     }));
-
-    this.stagehand.logger?.({
-      category: "evaluator",
-      message: `Evaluating question: ${question} with ${screenshots.length} screenshots`,
-      level: 2,
-      auxiliary: {
-        images: {
-          value: JSON.stringify(imageContents),
-          type: "object",
-        },
-      },
-    });
 
     const response = await llmClient.createChatCompletion<
       LLMParsedResponse<LLMResponse>
@@ -343,6 +334,7 @@ export class Evaluator {
           name: "EvaluationResult",
           schema: EvaluationSchema,
         },
+        // temperature: 1,
       },
     });
 

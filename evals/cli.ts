@@ -381,6 +381,7 @@ function handleRun(args: string[]): void {
         webbench: "agent/webbench",
         gaia: "agent/gaia",
         webvoyager: "agent/webvoyager",
+        osworld: "agent/osworld",
         onlineMind2Web: "agent/onlineMind2Web",
       };
 

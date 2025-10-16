@@ -25,8 +25,12 @@ test.describe("API key/LLMClient error", () => {
 
     expect(errorThrown).toBeInstanceOf(Error);
     expect(
-      errorThrown?.message?.includes("No LLM API key or LLM Client configured") ||
-      errorThrown?.message?.includes("API key is missing. Pass it using the 'apiKey' parameter")
+      errorThrown?.message?.includes(
+        "No LLM API key or LLM Client configured",
+      ) ||
+        errorThrown?.message?.includes(
+          "API key is missing. Pass it using the 'apiKey' parameter",
+        ),
     ).toBe(true);
 
     await stagehand.close();
@@ -49,8 +53,12 @@ test.describe("API key/LLMClient error", () => {
 
     expect(errorThrown).toBeInstanceOf(Error);
     expect(
-      errorThrown?.message?.includes("No LLM API key or LLM Client configured") ||
-      errorThrown?.message?.includes("API key is missing. Pass it using the 'apiKey' parameter")
+      errorThrown?.message?.includes(
+        "No LLM API key or LLM Client configured",
+      ) ||
+        errorThrown?.message?.includes(
+          "API key is missing. Pass it using the 'apiKey' parameter",
+        ),
     ).toBe(true);
 
     await stagehand.close();
@@ -71,8 +79,12 @@ test.describe("API key/LLMClient error", () => {
 
     expect(errorThrown).toBeInstanceOf(Error);
     expect(
-      errorThrown?.message?.includes("No LLM API key or LLM Client configured") ||
-      errorThrown?.message?.includes("API key is missing. Pass it using the 'apiKey' parameter")
+      errorThrown?.message?.includes(
+        "No LLM API key or LLM Client configured",
+      ) ||
+        errorThrown?.message?.includes(
+          "API key is missing. Pass it using the 'apiKey' parameter",
+        ),
     ).toBe(true);
 
     await stagehand.close();

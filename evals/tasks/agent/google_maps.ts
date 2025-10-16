@@ -8,14 +8,18 @@ export const google_maps: EvalFunction = async ({
   logger,
   agent,
 }) => {
+  const startTime = Date.now();
+
   try {
     await stagehand.page.goto("https://maps.google.com");
 
+    const maxSteps = Number(process.env.AGENT_EVAL_MAX_STEPS) || 15;
     const agentResult = await agent.execute({
       instruction:
         "How long does it take to get from San Francisco to New York driving?",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 15,
+      maxSteps: maxSteps,
     });
+
     logger.log(agentResult);
 
     const evaluator = new Evaluator(stagehand);
@@ -28,6 +32,7 @@ export const google_maps: EvalFunction = async ({
       return {
         _success: false,
         observations: "Evaluator provided an invalid response",
+        execution_time: Date.now() - startTime,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -38,6 +43,8 @@ export const google_maps: EvalFunction = async ({
       return {
         _success: true,
         observations: result.reasoning,
+        final_answer: agentResult?.message,
+        execution_time: Date.now() - startTime,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -46,19 +53,13 @@ export const google_maps: EvalFunction = async ({
       return {
         _success: false,
         observations: result.reasoning,
+        final_answer: agentResult?.message,
+        execution_time: Date.now() - startTime,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     }
-  } catch (error) {
-    return {
-      _success: false,
-      error: error,
-      debugUrl,
-      sessionUrl,
-      logs: logger.getLogs(),
-    };
   } finally {
     await stagehand.close();
   }

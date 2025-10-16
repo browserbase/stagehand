@@ -14,6 +14,9 @@ import fs from "fs";
 import path from "path";
 import { AvailableModel } from "@browserbasehq/stagehand";
 import { filterByEvalName } from "./args";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const ALL_EVAL_MODELS = [
   // GOOGLE
@@ -109,7 +112,10 @@ const DEFAULT_AGENT_MODELS = process.env.EVAL_AGENT_MODELS
   : [
       "computer-use-preview-2025-03-11",
       "claude-sonnet-4-20250514",
-      "anthropic/claude-sonnet-4-20250514",
+      "claude-sonnet-4-5-20250929",
+      "claude-haiku-4-5-20251001",
+      "gemini-2.5-computer-use-preview-10-2025",
+      // "anthropic/claude-sonnet-4-20250514",
     ];
 
 /**

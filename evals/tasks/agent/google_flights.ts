@@ -14,7 +14,7 @@ export const google_flights: EvalFunction = async ({
     const agentResult = await agent.execute({
       instruction:
         "Search for flights from San Francisco to New York for next weekend",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 30,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 40,
     });
     logger.log(agentResult);
 

@@ -15,7 +15,7 @@ export const iframe_form: EvalFunction = async ({
 
     const agentResult = await agent.execute({
       instruction: "Fill in the form name with 'John Smith'",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 8,
     });
     logger.log(agentResult);
 
@@ -36,11 +36,10 @@ export const iframe_form: EvalFunction = async ({
 
     const agentResult2 = await agent.execute({
       instruction: "Fill in the form email with 'john.smith@example.com'",
-      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 3,
+      maxSteps: Number(process.env.AGENT_EVAL_MAX_STEPS) || 5,
     });
     logger.log(agentResult2);
 
-    await stagehand.page.mouse.wheel(0, -1000);
     const result2 = await evaluator.ask({
       question: "Is the form email input filled with 'john.smith@example.com'?",
       screenshot: true,

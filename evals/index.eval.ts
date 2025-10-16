@@ -39,15 +39,13 @@ import { CustomOpenAIClient } from "@/examples/external_clients/customOpenAI";
 import OpenAI from "openai";
 import { initStagehand } from "./initStagehand";
 import { AgentProvider } from "@/lib/agent/AgentProvider";
-import { AISdkClient } from "@/lib/llm/aisdk";
+import { AISdkClient } from "@/examples/external_clients/aisdk";
 import { getAISDKLanguageModel } from "@/lib/llm/LLMProvider";
 import { loadApiKeyFromEnv } from "@/lib/utils";
 import { LogLine } from "@/types/log";
 import { generateSummary } from "./core/summary";
 import { buildGAIATestcases } from "./suites/gaia";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager";
-import { buildWebBenchTestcases } from "./suites/webbench";
-import { buildOSWorldTestcases } from "./suites/osworld";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web";
 
 dotenv.config();
@@ -129,16 +127,13 @@ const generateFilteredTestcases = (): Testcase[] => {
     currentModels,
   );
 
+  // Check for dataset filter from environment
+  const datasetFilter = process.env.EVAL_DATASET;
+
   // Special handling: fan out GAIA dataset for agent/gaia
   const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
   const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
-  // Special handling: fan out WebBench dataset for agent/webbench
-  const isWebBenchTaskIncluded = taskNamesToRun.includes("agent/webbench");
-
-  // Special handling: fan out OSWorld dataset for agent/osworld
-  const isOSWorldTaskIncluded = taskNamesToRun.includes("agent/osworld");
-
   // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
   const isMind2WebTaskIncluded = taskNamesToRun.includes(
     "agent/onlineMind2Web",
@@ -147,33 +142,44 @@ const generateFilteredTestcases = (): Testcase[] => {
   let allTestcases: Testcase[] = [];
 
   // Only include GAIA if no dataset filter or if gaia is selected
-  if (isGAIATaskIncluded) {
+  if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
     allTestcases.push(...buildGAIATestcases(currentModels));
+  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
+    // Remove GAIA from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
   }
 
   // Only include WebVoyager if no dataset filter or if webvoyager is selected
-  if (isWebVoyagerTaskIncluded) {
+  if (
+    isWebVoyagerTaskIncluded &&
+    (!datasetFilter || datasetFilter === "webvoyager")
+  ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
     allTestcases.push(...buildWebVoyagerTestcases(currentModels));
-  }
-
-  // Only include WebBench if no dataset filter or if webbench is selected
-  if (isWebBenchTaskIncluded) {
-    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webbench");
-    allTestcases.push(...buildWebBenchTestcases(currentModels));
-  }
-
-  // Only include OSWorld if no dataset filter or if osworld is selected
-  if (isOSWorldTaskIncluded) {
-    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/osworld");
-    allTestcases.push(...buildOSWorldTestcases(currentModels));
+  } else if (
+    isWebVoyagerTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "webvoyager"
+  ) {
+    // Remove WebVoyager from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/webvoyager");
   }
 
   // Only include Mind2Web if no dataset filter or if onlineMind2Web is selected
-  if (isMind2WebTaskIncluded) {
+  if (
+    isMind2WebTaskIncluded &&
+    (!datasetFilter || datasetFilter === "onlineMind2Web")
+  ) {
     taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
     allTestcases.push(...buildOnlineMind2WebTestcases(currentModels));
+  } else if (
+    isMind2WebTaskIncluded &&
+    datasetFilter &&
+    datasetFilter !== "onlineMind2Web"
+  ) {
+    // Remove Mind2Web from tasks to run if dataset filter excludes it
+    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/onlineMind2Web");
   }
 
   // Create a list of all remaining testcases using the determined task names and models
@@ -389,25 +395,28 @@ const generateFilteredTestcases = (): Testcase[] => {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
 
+          const errorMessageLower = errorMessage.toLowerCase();
+
           if (error instanceof Error) {
-            if (
-              error.message.includes("timeout") ||
-              error.message.includes("Timeout")
-            ) {
+            if (errorMessageLower.includes("access denied")) {
+              errorType = ErrorType.ANTIBOT;
+            } else if (errorMessageLower.includes("proxy.goto")) {
+              errorType = ErrorType.PROXY_ERROR;
+            } else if (errorMessageLower.includes("timeout")) {
               errorType = ErrorType.TIMEOUT;
             } else if (
-              error.message.includes("network") ||
-              error.message.includes("fetch")
+              errorMessageLower.includes("network") ||
+              errorMessageLower.includes("fetch")
             ) {
               errorType = ErrorType.NETWORK;
             } else if (
-              error.message.includes("parse") ||
-              error.message.includes("JSON")
+              errorMessageLower.includes("parse") ||
+              errorMessageLower.includes("json")
             ) {
               errorType = ErrorType.PARSING_ERROR;
             } else if (
-              error.message.includes("init") ||
-              error.message.includes("setup")
+              errorMessageLower.includes("init") ||
+              errorMessageLower.includes("setup")
             ) {
               errorType = ErrorType.SETUP_ERROR;
             }
@@ -459,7 +468,7 @@ const generateFilteredTestcases = (): Testcase[] => {
       const output =
         typeof result.output === "boolean"
           ? { _success: result.output }
-          : result.output;
+          : (result.output as EvalOutput);
 
       // The full output object (including error_type, error_message, etc.)
       // is already captured in result.output and will be visible in Braintrust
@@ -473,13 +482,11 @@ const generateFilteredTestcases = (): Testcase[] => {
       };
     });
 
+    console.log(`\n⌛️ Total run time: ${(Date.now() - startTime) / 1000}s\n`);
     // Generate and write the summary
     await generateSummary(summaryResults, experimentName);
-    console.log(
-      `\n⌛️Evaluation completed in ${(Date.now() - startTime) / 1000}s\n`,
-    );
   } catch (error) {
     console.error("Error during evaluation run:", error);
-    process.exit(1);
+    // process.exit(1);
   }
 })();

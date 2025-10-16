@@ -10,6 +10,7 @@
 import fs from "fs";
 import { LogLine } from "@browserbasehq/stagehand";
 import stringComparison from "string-comparison";
+import sharp from "sharp";
 const { jaroWinkler } = stringComparison;
 
 /**
@@ -202,4 +203,11 @@ export function applySampling<T>(
     }
     return result;
   }
+}
+
+export async function optimizedScreenshot(
+  img: Buffer,
+  scaleFactor: number,
+): Promise<Buffer> {
+  return await sharp(img).resize(scaleFactor).toBuffer();
 }
