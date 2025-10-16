@@ -218,7 +218,7 @@ except Exception as error:
 - Make sure the element exists on the page
 - Use explicit instructions to find the element
 - Ensure page has fully loaded
-- Look at the [debugging workflows](/best-practices/debugging-workflows) logs, if the element is there then the LLM might be hallucinating/not catching it. 
+- Look at the [debugging workflows](/configuration/logging) logs, if the element is there then the LLM might be hallucinating/not catching it. 
 </Accordion>
 
 <Accordion title="Inaccurate element descriptions">
@@ -227,7 +227,7 @@ except Exception as error:
 **Solutions**:
 - Use more capable models: check [evals](https://stagehand.dev/evals) for the best models for your use case
 - Provide more specific instructions
-- Log inference to file (see [debugging workflows](/best-practices/debugging-workflows)) to get an LLM trace
+- Log inference to file (see [debugging workflows](/configuration/logging)) to get an LLM trace
 
 </Accordion>
 <Accordion title="Wrong method identified">
@@ -257,7 +257,7 @@ Extract structured data from observed elements
 Monitor and debug observation performance  
 </Card>
 
-<Card title="Best Practices" icon="star" href="/best-practices/best-practices">
+<Card title="Best Practices" icon="star" href="/best-practices/caching">
 Advanced patterns and optimization techniques
 </Card>
 </CardGroup>
