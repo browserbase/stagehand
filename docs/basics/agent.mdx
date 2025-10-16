@@ -62,12 +62,40 @@ await agent.execute("apply for a job at Browserbase")
 
 Use the agent without specifying a provider to utilize any model or LLM provider:
 
-<Note>Non CUA agents are currently only supported in TypeScript</Note>
+<Note>Stagehand agent is currently only supported in TypeScript</Note>
 
 ```typescript TypeScript
+// Basic usage
 const agent = stagehand.agent();
 await agent.execute("apply for a job at Browserbase")
 ```
+
+#### Recommended Configuration
+
+For optimal performance, we recommend using Claude 4 sonnet with Gemini 2.5 Flash as the execution model:
+
+```typescript TypeScript
+const agent = stagehand.agent({
+  model: "anthropic/claude-4-20250514", // Reliable reasoning and planning for the agent
+  executionModel: "google/gemini-2.5-flash", // Fast and reliable execution for stagehand primitives (act, extract, observe)
+  instructions: "You are a helpful assistant that can use a web browser.",
+});
+
+// Enable Claude-specific optimizations for best performance
+await agent.execute({
+  instruction: "apply for a job at Browserbase",
+  storeActions: false, // Unlocks claude-specific tools
+  maxSteps: 25
+});
+```
+
+<Tip>
+**Why this configuration?** Claude 4 provides excellent reasoning and planning, while Gemini 2.5 Flash offers fast execution for stagehand primitives. Setting `storeActions: false` enables coordinate-based tools for a hybrid approach of stagehand primitives and coordinate-based actions, but removes the ability to turn your agent runs into repeatable deterministic scripts.
+</Tip>
+
+<Note>
+All configuration options are optional. The agent works well with default settings, but the above configuration provides the most optimal performance.
+</Note>
 
 
 ## MCP Integrations

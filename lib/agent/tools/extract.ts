@@ -65,7 +65,7 @@ export const createExtractTool = (
       schema: z
         .string()
         .describe(
-          'Zod schema as a string (e.g., "z.object({ price: z.number() })")',
+          'Zod schema as a string (e.g., "z.object({ price: z.number().optional() })")',
         ),
     }),
     execute: async ({ instruction, schema }) => {
@@ -105,7 +105,6 @@ export const createExtractTool = (
         return {
           success: true,
           data: result,
-          timestamp: Date.now(),
         };
       } catch (error) {
         const errorMessage =

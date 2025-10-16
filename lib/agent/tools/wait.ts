@@ -9,6 +9,6 @@ export const createWaitTool = () =>
     }),
     execute: async ({ timeMs }) => {
       await new Promise((resolve) => setTimeout(resolve, timeMs));
-      return { success: true, waited: timeMs };
+      return { success: true };
     },
   });
