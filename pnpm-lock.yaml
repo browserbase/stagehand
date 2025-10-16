@@ -196,16 +196,16 @@ importers:
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:..
-      sharp:
-        specifier: ^0.33.5
-        version: 0.33.5
-    devDependencies:
       '@types/papaparse':
         specifier: ^5.3.16
         version: 5.3.16
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
+      sharp:
+        specifier: ^0.33.5
+        version: 0.33.5
+    devDependencies:
       tsx:
         specifier: ^4.10.5
         version: 4.20.6

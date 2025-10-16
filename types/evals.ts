@@ -24,6 +24,7 @@ export enum ErrorType {
   EVALUATION_ERROR = "evaluation_error",
   SETUP_ERROR = "setup_error",
   PARSING_ERROR = "parsing_error",
+  PROXY_ERROR = "proxy_error",
   ANTIBOT = "bot_detected",
   UNKNOWN = "unknown",
 }
