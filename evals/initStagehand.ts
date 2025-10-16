@@ -121,7 +121,7 @@ export const initStagehand = async ({
       agentConfig = {
         model: modelName,
         provider: modelToAgentProviderMap[modelName],
-        instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+        instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await stagehand.page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simply perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
       } as AgentConfig;
     }
 
