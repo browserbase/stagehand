@@ -19,3 +19,4 @@ jobs:
 
       - name: Check for broken links
         run: npx mintlify broken-links
+        working-directory: ./docs
