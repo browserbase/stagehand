@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "gen-version": "tsx scripts/gen-version.ts",
-    "build-dom-scripts": "cd ../.. && tsx packages/core/lib/v3/dom/genDomScripts.ts",
+    "build-dom-scripts": "cd ../.. && tsx packages/core/lib/v3/dom/genDomScripts.ts && tsx packages/core/lib/v3/dom/genLocatorScripts.ts",
     "build-js": "cd ../.. && tsup --entry.index packages/core/lib/v3/index.ts --dts --outDir packages/core/dist --external chrome-launcher --external playwright-core --external puppeteer-core --external patchright-core --external @playwright/test --external @langchain/core --external @langchain/openai",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
