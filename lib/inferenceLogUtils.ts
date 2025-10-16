@@ -1,114 +1,85 @@
+import fs from "fs/promises";
 import path from "path";
-import fs from "fs";
+import { INFERENCE_LOGS_DIR } from "./constants";
+import { InferenceLog } from "./types";
+import { isNodeError } from "./utils";
 
-/**
- * Create (or ensure) a parent directory named "inference_summary".
- */
-function ensureInferenceSummaryDir(): string {
-  const inferenceDir = path.join(process.cwd(), "inference_summary");
-  if (!fs.existsSync(inferenceDir)) {
-    fs.mkdirSync(inferenceDir, { recursive: true });
-  }
-  return inferenceDir;
-}
+export async function saveInferenceLog(log: InferenceLog): Promise<void> {
+  const logPath = path.join(INFERENCE_LOGS_DIR, `${log.id}.json`);
 
-/**
- * Appends a new entry to the act_summary.json file, then writes the file back out.
- */
-export function appendSummary<T>(inferenceType: string, entry: T) {
-  const summaryPath = getSummaryJsonPath(inferenceType);
-  const arrayKey = `${inferenceType}_summary`;
+  // Security: Prevent path traversal attacks.
+  const resolvedPath = path.resolve(logPath);
+  const resolvedBaseDir = path.resolve(INFERENCE_LOGS_DIR);
 
-  const existingData = readSummaryFile<T>(inferenceType);
-  existingData[arrayKey].push(entry);
-
-  fs.writeFileSync(summaryPath, JSON.stringify(existingData, null, 2));
-}
-
-/** A simple timestamp utility for filenames. */
-function getTimestamp(): string {
-  return new Date()
-    .toISOString()
-    .replace(/[^0-9T]/g, "")
-    .replace("T", "_");
-}
-
-/**
- * Writes `data` as JSON into a file in `directory`, using a prefix plus timestamp.
- * Returns both the file name and the timestamp used, so you can log them.
- */
-export function writeTimestampedTxtFile(
-  directory: string,
-  prefix: string,
-  data: unknown,
-): { fileName: string; timestamp: string } {
-  const baseDir = ensureInferenceSummaryDir();
-
-  const subDir = path.join(baseDir, directory);
-  if (!fs.existsSync(subDir)) {
-    fs.mkdirSync(subDir, { recursive: true });
+  if (!resolvedPath.startsWith(resolvedBaseDir + path.sep)) {
+    // This should not happen if IDs are generated correctly, but as a safeguard:
+    console.error(`Path traversal attempt blocked for saving log id: ${log.id}`);
+    throw new Error("Invalid log ID detected.");
   }
 
-  const timestamp = getTimestamp();
-  const fileName = `${timestamp}_${prefix}.txt`;
-  const filePath = path.join(subDir, fileName);
-
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify(data, null, 2).replace(/\\n/g, "\n"),
-  );
-
-  return { fileName, timestamp };
+  await fs.writeFile(resolvedPath, JSON.stringify(log, null, 2));
 }
 
-/**
- * Returns the path to the `<inferenceType>_summary.json` file.
- *
- * For example, if `inferenceType = "act"`, this will be:
- *   `./inference_summary/act_summary/act_summary.json`
- */
-function getSummaryJsonPath(inferenceType: string): string {
-  const baseDir = ensureInferenceSummaryDir();
-  const subDir = path.join(baseDir, `${inferenceType}_summary`);
-  if (!fs.existsSync(subDir)) {
-    fs.mkdirSync(subDir, { recursive: true });
+export async function updateInferenceLog(
+  id: string,
+  updates: Partial<InferenceLog>,
+): Promise<void> {
+  const log = await getInferenceLog(id);
+  if (!log) {
+    // Or throw an error, depending on desired behavior
+    console.warn(`Log with id ${id} not found for update.`);
+    return;
   }
-  return path.join(subDir, `${inferenceType}_summary.json`);
+
+  const updatedLog = { ...log, ...updates };
+  await saveInferenceLog(updatedLog);
 }
 
-/**
- * Reads the `<inferenceType>_summary.json` file, returning an object
- * with the top-level array named `<inferenceType>_summary`, if it exists.
- *
- * E.g. if inferenceType is "act", we expect a shape like:
- * {
- *   "act_summary": [ ... ]
- * }
- *
- * If the file or array is missing, returns { "<inferenceType>_summary": [] }.
- */
-function readSummaryFile<T>(inferenceType: string): Record<string, T[]> {
-  const summaryPath = getSummaryJsonPath(inferenceType);
-
-  // The top-level array key, e.g. "act_summary", "observe_summary", "extract_summary"
-  const arrayKey = `${inferenceType}_summary`;
-
-  if (!fs.existsSync(summaryPath)) {
-    return { [arrayKey]: [] };
+export async function appendToInferenceLog(
+  id: string,
+  newContent: Partial<InferenceLog>,
+): Promise<void> {
+  const log = await getInferenceLog(id);
+  if (!log) {
+    console.warn(`Log with id ${id} not found for appending.`);
+export function getInferenceLog(id: string) {
+  if (!id) {
+    return null;
   }
-
   try {
-    const raw = fs.readFileSync(summaryPath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      Array.isArray(parsed[arrayKey])
-    ) {
-      return parsed;
+    const logDir = path.resolve(INFERENCE_LOG_DIR);
+    const logPath = path.resolve(logDir, `${id}.json`);
+
+    // Prevent path traversal.
+    if (!logPath.startsWith(logDir + path.sep)) {
+      console.error(`Path traversal attempt detected for id: ${id}`);
+      return null;
     }
-  } catch {
-    // If we fail to parse for any reason, fall back to empty array
+
+    const log = fs.readFileSync(logPath, "utf-8");
+    return JSON.parse(log);
+  } catch (e) {
+    return null;
   }
-  return { [arrayKey]: [] };
+}
+    // Security: Prevent path traversal attacks.
+    // Ensure the resolved path is within the intended log directory.
+    const resolvedPath = path.resolve(logPath);
+    const resolvedBaseDir = path.resolve(INFERENCE_LOGS_DIR);
+
+    if (!resolvedPath.startsWith(resolvedBaseDir + path.sep)) {
+      console.warn(`Potential path traversal attempt for id: ${id}`);
+      return null;
+    }
+
+    const data = await fs.readFile(resolvedPath, "utf-8");
+    return JSON.parse(data);
+  } catch (error) {
+    // It's okay if the file doesn't exist
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return null;
+    }
+    // Re-throw other errors
+    throw error;
+  }
 }
