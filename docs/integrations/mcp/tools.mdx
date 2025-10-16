@@ -33,6 +33,10 @@ Perform an action on the web page using natural language
 Extract all text content from the current page (filters out CSS and JavaScript)
 
 <Info>No input parameters required</Info>
+
+<ParamField path="instruction" type="string">
+  Extracted text content from the current page
+</ParamField>
 </Accordion>
 
 <Accordion title="browserbase_stagehand_observe">
@@ -64,19 +68,9 @@ Get the current URL of the browser page
 </ResponseField>
 </Accordion>
 
-<Accordion title="browserbase_stagehand_get_all_urls">
-Get current URLs of all active browser sessions
+## Session Management
 
-<Info>No input parameters required</Info>
-
-<ResponseField name="sessionUrls" type="object">
-  Mapping of session IDs to their current URLs in JSON format
-</ResponseField>
-</Accordion>
-
-## Single Session Management
-
-Traditional approach with one active browser session. Simpler for basic automation tasks and automatically manages the active session.
+Manage your browser session lifecycle with create and close operations.
 
 <Accordion title="browserbase_session_create">
 Create or reuse a cloud browser session using Browserbase with fully initialized Stagehand
@@ -93,124 +87,6 @@ Close the current Browserbase session, disconnect the browser, and cleanup Stage
 <Info>No input parameters required</Info>
 
 </Accordion>
-
-## Multi-Session Management
-
-Advanced approach with multiple parallel browser sessions for complex automation workflows. Each session maintains independent state, cookies, and browser context.
-
-### Session Lifecycle Management
-
-<Accordion title="multi_browserbase_stagehand_session_create">
-Create a new independent Stagehand browser session with full web automation capabilities
-
-<ParamField path="name" type="string">
-  Human-readable name for tracking (e.g., 'login-flow', 'data-scraping')
-</ParamField>
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_session_list">
-List all currently active Stagehand browser sessions with detailed metadata
-
-<Info>No input parameters required</Info>
-
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_session_close">
-Close and clean up a specific Stagehand browser session
-
-<ParamField path="sessionId" type="string" required>
-  Exact session ID to close (cannot be undone)
-</ParamField>
-</Accordion>
-
-### Session-Specific Automation Tools
-
-All core browser automation tools are available with session-specific variants:
-
-<Accordion title="multi_browserbase_stagehand_navigate_session">
-Navigate to a URL in a specific browser session
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to use
-</ParamField>
-
-<ParamField path="url" type="string" required>
-  The URL to navigate to
-</ParamField>
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_act_session">
-Perform an action in a specific browser session using natural language
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to use
-</ParamField>
-
-<ParamField path="action" type="string" required>
-  The action to perform
-</ParamField>
-
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_extract_session">
-Extract structured information from a specific browser session
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to use
-</ParamField>
-
-<ParamField path="instruction" type="string" required>
-  What to extract from the page
-</ParamField>
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_observe_session">
-Observe and find actionable elements in a specific browser session
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to use
-</ParamField>
-
-<ParamField path="instruction" type="string" required>
-  What to observe (e.g., "find the login button")
-</ParamField>
-
-<ParamField path="returnAction" type="boolean">
-  Whether to return the action to perform
-</ParamField>
-</Accordion>
-
-<Accordion title="multi_browserbase_stagehand_get_url_session">
-Get the current URL of a specific browser session
-
-<ParamField path="sessionId" type="string" required>
-  The session ID to use
-</ParamField>
-
-<ResponseField name="url" type="string">
-  Complete URL including protocol, domain, path, and any query parameters or fragments
-</ResponseField>
-</Accordion>
-
-### Multi-Session Use Cases
-
-<CardGroup cols={2}>
-  <Card title="Parallel Data Collection" icon="globe">
-    Run multiple scraping sessions simultaneously across different websites
-  </Card>
-  
-  <Card title="A/B Testing" icon="flask">
-    Compare user flows across different browser sessions with varying configurations
-  </Card>
-  
-  <Card title="Cross-Site Operations" icon="link">
-    Perform coordinated actions across multiple websites or applications
-  </Card>
-  
-  <Card title="Backup Sessions" icon="shield">
-    Keep fallback sessions ready in case primary sessions encounter issues
-  </Card>
-</CardGroup>
 
 ## Resources
 
