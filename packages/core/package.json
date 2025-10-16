@@ -11,6 +11,8 @@
     "build-js": "cd ../.. && tsup --entry.index packages/core/lib/v3/index.ts --dts --outDir packages/core/dist --external chrome-launcher --external playwright-core --external puppeteer-core --external patchright-core --external @playwright/test --external @langchain/core --external @langchain/openai",
     "typecheck": "tsc --noEmit",
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
+    "test": "playwright test --config lib/v3/tests/v3.playwright.config.ts",
+    "test:coverage": "c8 --reporter=html --reporter=text-summary pnpm run test",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
     "format": "prettier --write ."
@@ -66,18 +68,19 @@
     "ollama-ai-provider": "^1.2.0"
   },
   "devDependencies": {
-    "playwright-core": "^1.54.1",
-    "puppeteer-core": "^22.8.0",
-    "chrome-launcher": "^1.2.0",
-    "patchright-core": "^1.55.2",
-    "@playwright/test": "^1.42.1",
     "@langchain/core": "^0.3.40",
     "@langchain/openai": "^0.4.4",
-    "typescript": "^5.2.2",
+    "@playwright/test": "^1.42.1",
+    "c8": "^10.1.3",
+    "chrome-launcher": "^1.2.0",
+    "eslint": "^9.16.0",
+    "patchright-core": "^1.55.2",
+    "playwright-core": "^1.54.1",
+    "prettier": "^3.2.5",
+    "puppeteer-core": "^22.8.0",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "prettier": "^3.2.5",
-    "eslint": "^9.16.0"
+    "typescript": "^5.2.2"
   },
   "repository": {
     "type": "git",
