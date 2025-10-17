@@ -8,7 +8,6 @@ import { LLMClient, CreateChatCompletionOptions } from "./LLMClient";
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
   public hasVision = false;
-  public clientOptions: ClientOptions;
   private client: AISdkClient;
 
   constructor({
