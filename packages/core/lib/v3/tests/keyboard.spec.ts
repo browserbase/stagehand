@@ -295,4 +295,48 @@ test.describe("V3 keyboard shortcuts and typing", () => {
     expect(submitted).toBe("");
     expect(value).toBe("a\nb");
   });
+
+  test('pressing "+" key types plus sign', async () => {
+    const html = `<!doctype html>
+      <input id="t" />`;
+    const page = await v3.context.awaitActivePage();
+    await page.goto(dataUrl(html), {
+      waitUntil: "domcontentloaded",
+      timeoutMs: 15000,
+    });
+
+    await page.locator("#t").click();
+    await page.keyPress("+");
+    const value = await page.evaluate(
+      (sel) => (document.querySelector(sel) as HTMLInputElement)!.value,
+      "#t",
+    );
+    expect(value).toBe("+");
+  });
+
+  test("modifier state clears on keyPress error", async () => {
+    const html = `<!doctype html>
+      <input id="t" />`;
+    const page = await v3.context.awaitActivePage();
+    await page.goto(dataUrl(html), {
+      waitUntil: "domcontentloaded",
+      timeoutMs: 15000,
+    });
+
+    await page.locator("#t").click();
+    // Try invalid key that might throw
+    try {
+      await page.keyPress("Cmd+InvalidKey123");
+    } catch {
+      // Expected to fail
+    }
+
+    // Now try normal typing - should work if modifiers were cleared
+    await page.type("ok");
+    const value = await page.evaluate(
+      (sel) => (document.querySelector(sel) as HTMLInputElement)!.value,
+      "#t",
+    );
+    expect(value).toBe("ok");
+  });
 });

@@ -1138,6 +1138,11 @@ export class Page {
 
     // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
+      // Special case: if the entire string is just "+", return it as-is
+      if (keyString === "+") {
+        return ["+"];
+      }
+
       const keys: string[] = [];
       let building = "";
       for (const char of keyString) {
@@ -1148,7 +1153,9 @@ export class Page {
           building += char;
         }
       }
-      keys.push(building);
+      if (building) {
+        keys.push(building);
+      }
       return keys;
     }
 
@@ -1156,16 +1163,22 @@ export class Page {
     const mainKey = tokens[tokens.length - 1];
     const modifierKeys = tokens.slice(0, -1);
 
-    for (const modKey of modifierKeys) {
-      await this.keyDown(modKey);
-    }
+    try {
+      for (const modKey of modifierKeys) {
+        await this.keyDown(modKey);
+      }
 
-    await this.keyDown(mainKey);
-    if (delay) await sleep(delay);
-    await this.keyUp(mainKey);
+      await this.keyDown(mainKey);
+      if (delay) await sleep(delay);
+      await this.keyUp(mainKey);
 
-    for (let i = modifierKeys.length - 1; i >= 0; i--) {
-      await this.keyUp(modifierKeys[i]);
+      for (let i = modifierKeys.length - 1; i >= 0; i--) {
+        await this.keyUp(modifierKeys[i]);
+      }
+    } catch (error) {
+      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      this._pressedModifiers.clear();
+      throw error;
     }
   }
 
