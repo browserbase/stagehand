@@ -60,10 +60,7 @@ export class V3Context {
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
-    const ctx = new V3Context(
-      conn,
-      opts?.env ?? "LOCAL",
-    );
+    const ctx = new V3Context(conn, opts?.env ?? "LOCAL");
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
     return ctx;

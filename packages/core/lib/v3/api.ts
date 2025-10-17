@@ -147,7 +147,10 @@ export class StagehandAPI {
     });
   }
 
-  async goto(url: string, options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" }): Promise<void> {
+  async goto(
+    url: string,
+    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
+  ): Promise<void> {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },

@@ -6,10 +6,7 @@ import * as path from "path";
 import { Buffer } from "buffer";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
-import {
-  FrameSelectorResolver,
-  type SelectorQuery,
-} from "./selectorResolver";
+import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -47,7 +44,10 @@ export class Locator {
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
-    this.nthIndex = Math.max(0, Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0));
+    this.nthIndex = Math.max(
+      0,
+      Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0),
+    );
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -69,15 +69,15 @@ export class Locator {
       | string
       | string[]
       | {
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
       | Array<{
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }>,
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
   ): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
@@ -106,8 +106,7 @@ export class Locator {
           "Runtime.callFunctionOn",
           {
             objectId,
-            functionDeclaration:
-              locatorScriptSources.ensureFileInputElement,
+            functionDeclaration: locatorScriptSources.ensureFileInputElement,
             returnByValue: true,
           },
         );

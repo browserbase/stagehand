@@ -4,10 +4,7 @@ const parseTargetIndex = (value: unknown): number => {
   return Math.floor(num);
 };
 
-const collectCssMatches = (
-  selector: string,
-  limit: number,
-): Element[] => {
+const collectCssMatches = (selector: string, limit: number): Element[] => {
   if (!selector) return [];
   const seenRoots = new WeakSet<Node>();
   const seenElements = new Set<Element>();
@@ -31,10 +28,14 @@ const collectCssMatches = (
     }
 
     try {
-      const ownerDocument = root instanceof Document
-        ? root
-        : root.host?.ownerDocument ?? document;
-      const walker = ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      const ownerDocument =
+        root instanceof Document
+          ? root
+          : (root.host?.ownerDocument ?? document);
+      const walker = ownerDocument.createTreeWalker(
+        root,
+        NodeFilter.SHOW_ELEMENT,
+      );
       let node: Node | null;
       while ((node = walker.nextNode())) {
         if (!(node instanceof Element)) continue;
@@ -54,7 +55,10 @@ const collectCssMatches = (
   return results;
 };
 
-export function resolveCssSelector(selectorRaw: string, targetIndexRaw?: number): Element | null {
+export function resolveCssSelector(
+  selectorRaw: string,
+  targetIndexRaw?: number,
+): Element | null {
   const selector = String(selectorRaw ?? "").trim();
   if (!selector) return null;
 
@@ -63,7 +67,10 @@ export function resolveCssSelector(selectorRaw: string, targetIndexRaw?: number)
   return matches[targetIndex] ?? null;
 }
 
-export function resolveCssSelectorPierce(selectorRaw: string, targetIndexRaw?: number): Element | null {
+export function resolveCssSelectorPierce(
+  selectorRaw: string,
+  targetIndexRaw?: number,
+): Element | null {
   const selector = String(selectorRaw ?? "").trim();
   if (!selector) return null;
 
@@ -74,7 +81,9 @@ export function resolveCssSelectorPierce(selectorRaw: string, targetIndexRaw?: n
     return matches[targetIndex] ?? null;
   }
 
-  const getClosedRoot: (host: Element) => ShadowRoot | null = (host: Element) => {
+  const getClosedRoot: (host: Element) => ShadowRoot | null = (
+    host: Element,
+  ) => {
     try {
       return backdoor.getClosedRoot(host) ?? null;
     } catch {
@@ -88,7 +97,8 @@ export function resolveCssSelectorPierce(selectorRaw: string, targetIndexRaw?: n
   const queue: Array<Document | ShadowRoot> = [document];
 
   const visit = (root: Document | ShadowRoot): void => {
-    if (!root || seenRoots.has(root) || results.length >= targetIndex + 1) return;
+    if (!root || seenRoots.has(root) || results.length >= targetIndex + 1)
+      return;
     seenRoots.add(root);
 
     try {
@@ -104,10 +114,14 @@ export function resolveCssSelectorPierce(selectorRaw: string, targetIndexRaw?: n
     }
 
     try {
-      const ownerDocument = root instanceof Document
-        ? root
-        : root.host?.ownerDocument ?? document;
-      const walker = ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+      const ownerDocument =
+        root instanceof Document
+          ? root
+          : (root.host?.ownerDocument ?? document);
+      const walker = ownerDocument.createTreeWalker(
+        root,
+        NodeFilter.SHOW_ELEMENT,
+      );
       let node: Node | null;
       while ((node = walker.nextNode())) {
         if (!(node instanceof Element)) continue;
@@ -129,7 +143,10 @@ export function resolveCssSelectorPierce(selectorRaw: string, targetIndexRaw?: n
   return results[targetIndex] ?? null;
 }
 
-export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number): Element | null {
+export function resolveTextSelector(
+  rawNeedle: string,
+  targetIndexRaw?: number,
+): Element | null {
   const needle = String(rawNeedle ?? "");
   if (!needle) return null;
   const needleLc = needle.toLowerCase();
@@ -212,7 +229,7 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
       const doc =
         root instanceof Document
           ? root
-          : (root as Element)?.ownerDocument ?? document;
+          : ((root as Element)?.ownerDocument ?? document);
       return doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     } catch {
       return null;
@@ -284,7 +301,10 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
   return target?.element ?? null;
 }
 
-export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): Element | null {
+export function resolveXPathMainWorld(
+  rawXp: string,
+  targetIndexRaw?: number,
+): Element | null {
   const xp = String(rawXp ?? "").trim();
   if (!xp) return null;
 
@@ -302,9 +322,13 @@ export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): E
     }
 
     try {
-      return document
-        .evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
-        .singleNodeValue as Element | null;
+      return document.evaluate(
+        xp,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null,
+      ).singleNodeValue as Element | null;
     } catch {
       // ignore native XPath errors and fall through to composed traversal
     }
@@ -312,9 +336,18 @@ export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): E
 
   const parseSteps = (input: string) => {
     const s = String(input || "").trim();
-    if (!s) return [] as Array<{ axis: "child" | "desc"; tag: string; index: number | null }>;
+    if (!s)
+      return [] as Array<{
+        axis: "child" | "desc";
+        tag: string;
+        index: number | null;
+      }>;
     const path = s.replace(/^xpath=/i, "");
-    const steps: Array<{ axis: "child" | "desc"; tag: string; index: number | null }> = [];
+    const steps: Array<{
+      axis: "child" | "desc";
+      tag: string;
+      index: number | null;
+    }> = [];
     let i = 0;
     while (i < path.length) {
       let axis: "child" | "desc" = "child";
@@ -395,7 +428,9 @@ export function resolveXPathMainWorld(rawXp: string, targetIndexRaw?: number): E
     return out;
   };
 
-  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [document];
+  let current: Array<Document | Element | ShadowRoot | DocumentFragment> = [
+    document,
+  ];
 
   for (const step of steps) {
     const next: Element[] = [];

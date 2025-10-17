@@ -24,7 +24,10 @@ export function ensureFileInputElement(this: Element): boolean {
   }
 }
 
-export function dispatchDomClick(this: Element, options?: ClickEventOptions): void {
+export function dispatchDomClick(
+  this: Element,
+  options?: ClickEventOptions,
+): void {
   const opts = options ?? {};
   try {
     const event = new MouseEvent("click", {
@@ -45,7 +48,10 @@ export function dispatchDomClick(this: Element, options?: ClickEventOptions): vo
   }
 }
 
-export function scrollElementToPercent(this: Element, percent: number | string): boolean {
+export function scrollElementToPercent(
+  this: Element,
+  percent: number | string,
+): boolean {
   const normalize = (value: unknown): number => {
     if (typeof value === "number" && Number.isFinite(value)) return value;
     const str = String(value ?? "").trim();
@@ -69,13 +75,16 @@ export function scrollElementToPercent(this: Element, percent: number | string):
         document.scrollingElement ||
         document.documentElement ||
         document.body;
-      const scrollHeight = root?.scrollHeight ?? document.body.scrollHeight ?? 0;
-      const viewportHeight = element.ownerDocument?.defaultView?.innerHeight ?? window.innerHeight;
+      const scrollHeight =
+        root?.scrollHeight ?? document.body.scrollHeight ?? 0;
+      const viewportHeight =
+        element.ownerDocument?.defaultView?.innerHeight ?? window.innerHeight;
       const maxTop = Math.max(0, scrollHeight - viewportHeight);
       const top = maxTop * (pct / 100);
       element.ownerDocument?.defaultView?.scrollTo({
         top,
-        left: element.ownerDocument?.defaultView?.scrollX ?? window.scrollX ?? 0,
+        left:
+          element.ownerDocument?.defaultView?.scrollX ?? window.scrollX ?? 0,
         behavior: "smooth",
       });
       return true;
@@ -98,8 +107,10 @@ export function scrollElementToPercent(this: Element, percent: number | string):
 
 export function fillElementValue(this: Element, value: string): void {
   try {
-    if (("value" in this) && this instanceof HTMLElement) {
-      (this as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value = value;
+    if ("value" in this && this instanceof HTMLElement) {
+      (
+        this as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      ).value = value;
     } else if ((this as HTMLElement).isContentEditable) {
       (this as HTMLElement).textContent = value;
     }
@@ -123,7 +134,10 @@ export function focusElement(this: Element): void {
   }
 }
 
-export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {
+export function selectElementOptions(
+  this: Element,
+  rawValues: string | string[],
+): string[] {
   try {
     if (!(this instanceof HTMLSelectElement)) return [];
 
@@ -169,7 +183,9 @@ export function isElementVisible(this: Element): boolean {
     const element = this as HTMLElement;
     if (!element.isConnected) return false;
 
-    const style = element.ownerDocument?.defaultView?.getComputedStyle(element) ?? window.getComputedStyle(element);
+    const style =
+      element.ownerDocument?.defaultView?.getComputedStyle(element) ??
+      window.getComputedStyle(element);
     if (!style) return false;
     if (style.display === "none" || style.visibility === "hidden") return false;
     const opacity = parseFloat(style.opacity ?? "1");
@@ -209,7 +225,9 @@ export function readElementInputValue(this: Element): string {
     const element = this as HTMLElement;
     const tag = (element.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea") {
-      return String((element as HTMLInputElement | HTMLTextAreaElement).value ?? "");
+      return String(
+        (element as HTMLInputElement | HTMLTextAreaElement).value ?? "",
+      );
     }
     if (tag === "select") {
       return String((element as HTMLSelectElement).value ?? "");

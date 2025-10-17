@@ -17,21 +17,22 @@ test.describe("Text selector innermost element matching", () => {
 
   test("text selector matches only innermost elements", async () => {
     const page = v3.context.pages()[0];
-    
+
     await page.goto(
-      "data:text/html," + encodeURIComponent(`
+      "data:text/html," +
+        encodeURIComponent(`
         <div id="outer">
           <span id="middle">
             <button id="inner">Click me</button>
           </span>
         </div>
-      `)
+      `),
     );
-    
+
     // Only the button should be counted, not the parent elements
     const count = await page.mainFrame().locator("text=Click me").count();
     expect(count).toBe(1);
-    
+
     // Verify it finds the button element specifically
     const session = page.mainFrame().session;
     const { executionContextId } = await session.send<{
@@ -40,7 +41,7 @@ test.describe("Text selector innermost element matching", () => {
       frameId: page.mainFrame().frameId,
       worldName: "test-world",
     });
-    
+
     const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
       "Runtime.evaluate",
       {
@@ -71,17 +72,18 @@ test.describe("Text selector innermost element matching", () => {
         })()`,
         contextId: executionContextId,
         returnByValue: true,
-      }
+      },
     );
-    
+
     expect(evalRes.result.value).toBe("inner");
   });
 
   test("multiple innermost elements with same text", async () => {
     const page = v3.context.pages()[0];
-    
+
     await page.goto(
-      "data:text/html," + encodeURIComponent(`
+      "data:text/html," +
+        encodeURIComponent(`
         <div>
           <button>Submit</button>
           <span>Some other content</span>
@@ -90,9 +92,9 @@ test.describe("Text selector innermost element matching", () => {
         <div>
           <a href="#">Submit</a>
         </div>
-      `)
+      `),
     );
-    
+
     // Should find all three innermost elements (2 buttons + 1 link)
     const count = await page.mainFrame().locator("text=Submit").count();
     expect(count).toBe(3);
@@ -100,25 +102,29 @@ test.describe("Text selector innermost element matching", () => {
 
   test("nested text with different innermost elements", async () => {
     const page = v3.context.pages()[0];
-    
+
     await page.goto(
-      "data:text/html," + encodeURIComponent(`
+      "data:text/html," +
+        encodeURIComponent(`
         <div id="parent">
           Hello <span id="child">World</span>
         </div>
-      `)
+      `),
     );
-    
+
     // "Hello" is only in the parent div
     const helloCount = await page.mainFrame().locator("text=Hello").count();
     expect(helloCount).toBe(1); // Only the div
-    
+
     // "World" is only in the span
     const worldCount = await page.mainFrame().locator("text=World").count();
     expect(worldCount).toBe(1); // Only the span
-    
+
     // "Hello World" matches only the parent div (as it's the innermost containing both words)
-    const bothCount = await page.mainFrame().locator("text=Hello World").count();
+    const bothCount = await page
+      .mainFrame()
+      .locator("text=Hello World")
+      .count();
     expect(bothCount).toBe(1); // Only the div
   });
 });

@@ -1875,16 +1875,12 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(
-    options: AgentConfig & { cua: true },
-  ): {
+  agent(options: AgentConfig & { cua: true }): {
     execute: (
       instructionOrOptions: string | CuaAgentExecuteOptions,
     ) => Promise<AgentResult>;
   };
-  agent(
-    options?: AgentConfig & { cua?: false },
-  ): {
+  agent(options?: AgentConfig & { cua?: false }): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
