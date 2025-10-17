@@ -364,40 +364,6 @@ export class AISdkClient extends LLMClient {
       },
     } as T;
 
-    if (this.enableCaching) {
-      this.logger?.({
-        category: "llm_cache",
-        message: "caching response",
-        level: 1,
-        auxiliary: {
-          requestId: {
-            value: options.requestId,
-            type: "string",
-          },
-          cacheOptions: {
-            value: JSON.stringify({
-              ...cacheOptions,
-              messages: cacheOptions.messages.map((msg) => ({
-                ...msg,
-                content: Array.isArray(msg.content)
-                  ? msg.content.map((c) =>
-                      "image_url" in c
-                        ? { ...c, image_url: { url: "[IMAGE_REDACTED]" } }
-                        : c,
-                    )
-                  : msg.content,
-              })),
-            }),
-            type: "object",
-          },
-          response: {
-            value: JSON.stringify(result),
-            type: "object",
-          },
-        },
-      });
-      this.cache.set(cacheOptions, result, options.requestId);
-    }
 
     this.logger?.({
       category: "aisdk",
