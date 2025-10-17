@@ -30,7 +30,6 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 export class V3Context {
   private constructor(
     readonly conn: CdpConnection,
-    private readonly includeCursor = false,
     private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
   ) {}
 
@@ -57,13 +56,12 @@ export class V3Context {
    */
   static async create(
     wsUrl: string,
-    opts?: { includeCursor?: boolean; env?: "LOCAL" | "BROWSERBASE" },
+    opts?: { env?: "LOCAL" | "BROWSERBASE" },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
     const ctx = new V3Context(
       conn,
-      !!opts?.includeCursor,
       opts?.env ?? "LOCAL",
     );
     await ctx.bootstrap();
@@ -367,11 +365,6 @@ export class V3Context {
       page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
       this._pushActive(info.targetId);
       this.installFrameEventBridges(sessionId, page);
-
-      // Optionally enable a visual cursor overlay for this page
-      if (this.includeCursor) {
-        page.enableCursorOverlay().catch(() => {});
-      }
 
       // Resume only if Chrome actually paused
       if (waitingForDebugger) {

@@ -35,7 +35,9 @@ import {
   AgentExecuteOptions,
   AgentModelConfig,
   AgentResult,
+  AnyAgentExecuteOptions,
   AvailableCuaModel,
+  CuaAgentExecuteOptions,
 } from "./types/public/agent";
 import type {
   AgentReplayActStep,
@@ -589,7 +591,6 @@ export class V3 {
         // If a CDP URL is provided, attach instead of launching.
         if (lbo.cdpUrl) {
           this.ctx = await V3Context.create(lbo.cdpUrl, {
-            includeCursor: this.opts.includeCursor ?? false,
             env: "LOCAL",
           });
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
@@ -672,7 +673,6 @@ export class V3 {
           connectTimeoutMs: lbo.connectTimeoutMs,
         });
         this.ctx = await V3Context.create(ws, {
-          includeCursor: this.opts.includeCursor ?? false,
           env: "LOCAL",
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
@@ -700,7 +700,6 @@ export class V3 {
           this.opts.browserbaseSessionID,
         );
         this.ctx = await V3Context.create(ws, {
-          includeCursor: this.opts.includeCursor ?? false,
           env: "BROWSERBASE",
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
@@ -1435,7 +1434,7 @@ export class V3 {
   }
 
   private sanitizeAgentExecuteOptions(
-    options?: AgentExecuteOptions,
+    options?: AnyAgentExecuteOptions,
   ): SanitizedAgentExecuteOptions {
     if (!options) return {};
     const sanitized: SanitizedAgentExecuteOptions = {};
@@ -1876,9 +1875,23 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(options?: AgentConfig): {
+  agent(
+    options: AgentConfig & { cua: true },
+  ): {
+    execute: (
+      instructionOrOptions: string | CuaAgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  };
+  agent(
+    options?: AgentConfig & { cua?: false },
+  ): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<AgentResult>;
+  };
+  agent(options?: AgentConfig): {
+    execute: (
+      instructionOrOptions: string | AnyAgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
     this.logger({
@@ -1910,7 +1923,9 @@ export class V3 {
 
       const agentConfigSignature = this.buildAgentCacheSignature(options);
       return {
-        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
+        execute: async (
+          instructionOrOptions: string | CuaAgentExecuteOptions,
+        ) =>
           withInstanceLogContext(this.instanceId, async () => {
             if (options?.integrations && !this.experimental) {
               throw new Error(
@@ -1934,7 +1949,7 @@ export class V3 {
               tools,
             );
 
-            const resolvedOptions: AgentExecuteOptions =
+            const resolvedOptions: CuaAgentExecuteOptions =
               typeof instructionOrOptions === "string"
                 ? { instruction: instructionOrOptions }
                 : instructionOrOptions;

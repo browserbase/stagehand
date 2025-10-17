@@ -1,12 +1,12 @@
 import {
   AgentAction,
-  AgentExecutionOptions,
   AgentResult,
   AgentType,
   AnthropicContentBlock,
   AnthropicMessage,
   AnthropicTextBlock,
   AnthropicToolResult,
+  CuaAgentExecutionOptions,
   ToolUseItem,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
@@ -98,7 +98,9 @@ export class AnthropicCUAClient extends AgentClient {
    * This is the main entry point for the agent
    * @implements AgentClient.execute
    */
-  async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
+  async execute(
+    executionOptions: CuaAgentExecutionOptions,
+  ): Promise<AgentResult> {
     const { options, logger } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;

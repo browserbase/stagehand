@@ -32,12 +32,23 @@ export interface AgentResult {
   };
 }
 
-export interface AgentExecuteOptions {
+export interface BaseAgentExecuteOptions {
   instruction: string;
   maxSteps?: number;
-  highlightCursor?: boolean;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
+
+export interface AgentExecuteOptions extends BaseAgentExecuteOptions {
+  highlightCursor?: never;
+}
+
+export interface CuaAgentExecuteOptions extends BaseAgentExecuteOptions {
+  highlightCursor?: boolean;
+}
+
+export type AnyAgentExecuteOptions =
+  | AgentExecuteOptions
+  | CuaAgentExecuteOptions;
 
 export type AgentType = "openai" | "anthropic" | "google";
 
@@ -49,11 +60,16 @@ export type AvailableCuaModel =
   | "anthropic/claude-sonnet-4-5-20250929"
   | "google/gemini-2.5-computer-use-preview-10-2025";
 
-export interface AgentExecutionOptions {
-  options: AgentExecuteOptions;
+export interface AgentExecutionOptions<
+  TOptions extends BaseAgentExecuteOptions = AgentExecuteOptions,
+> {
+  options: TOptions;
   logger: (message: LogLine) => void;
   retries?: number;
 }
+
+export type CuaAgentExecutionOptions =
+  AgentExecutionOptions<CuaAgentExecuteOptions>;
 
 export interface AgentHandlerOptions {
   modelName: string;
