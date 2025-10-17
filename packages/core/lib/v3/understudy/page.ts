@@ -1130,7 +1130,6 @@ export class Page {
    * Press a single key or key combination (keyDown then keyUp).
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
-   * On macOS, Ctrl+[A/C/V/X/Z/F] is treated as Meta+[...] for cross-OS convenience; elsewhere keys are passed as-is.
    */
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1155,25 +1154,7 @@ export class Page {
 
     const tokens = split(key);
     const mainKey = tokens[tokens.length - 1];
-    let modifierKeys = tokens.slice(0, -1);
-
-    // Optional OS-compat convenience: on macOS, treat Ctrl+<common> as Cmd+<common>
-    // to allow cross-OS scripts to work without conditionals.
-    if (this.isMacOS()) {
-      const lower = String(mainKey || "").toLowerCase();
-      const isCommonCmd = ["a", "c", "v", "x", "z", "f"].includes(lower);
-      const hasCtrl = modifierKeys.some(
-        (k) => this.normalizeModifierKey(k) === "Control",
-      );
-      const hasMeta = modifierKeys.some(
-        (k) => this.normalizeModifierKey(k) === "Meta",
-      );
-      if (isCommonCmd && hasCtrl && !hasMeta) {
-        modifierKeys = modifierKeys.map((k) =>
-          this.normalizeModifierKey(k) === "Control" ? "Meta" : k,
-        );
-      }
-    }
+    const modifierKeys = tokens.slice(0, -1);
 
     for (const modKey of modifierKeys) {
       await this.keyDown(modKey);
