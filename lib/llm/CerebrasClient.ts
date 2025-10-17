@@ -1,6 +1,6 @@
-import { createCerebras } from "@ai-sdk/cerebras";
+import { createCerebras, CerebrasProviderSettings } from "@ai-sdk/cerebras";
 import { LogLine } from "../../types/log";
-import { AvailableModel, ClientOptions } from "../../types/model";
+import { AvailableModel } from "../../types/model";
 import { LLMCache } from "../cache/LLMCache";
 import { AISdkClient } from "./aisdk";
 import { LLMClient, CreateChatCompletionOptions } from "./LLMClient";
@@ -22,7 +22,7 @@ export class CerebrasClient extends LLMClient {
     enableCaching?: boolean;
     cache?: LLMCache;
     modelName: AvailableModel;
-    clientOptions?: ClientOptions;
+    clientOptions?: CerebrasProviderSettings;
     userProvidedInstructions?: string;
   }) {
     super(modelName, userProvidedInstructions);
