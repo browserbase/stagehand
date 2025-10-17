@@ -7,13 +7,13 @@
 import type {
   AvailableCuaModel,
   AvailableModel,
-  AgentConfig,
   AgentInstance,
   ClientOptions,
   LLMClient,
   LocalBrowserLaunchOptions,
   ModelConfiguration,
-  V3Options
+  V3Options,
+  AgentModelConfig,
 } from "@browserbasehq/orca";
 import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "@browserbasehq/orca";
 import dotenv from "dotenv";
@@ -104,7 +104,6 @@ export async function initV3({
         ? configOverrides.experimental
         : true,
     verbose: 2,
-    includeCursor: false,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
@@ -123,34 +122,35 @@ export async function initV3({
   logger.init(v3);
   await v3.init();
 
-  const page = await v3.context.awaitActivePage();
 
   let agent: AgentInstance | undefined;
   if (createAgent) {
-    let agentConfig: AgentConfig | undefined;
     if (isCUA) {
-      if (modelName in modelToAgentProviderMap) {
-        agentConfig = {
-          model: modelName,
-          provider: modelToAgentProviderMap[modelName],
-      instructions: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
-        } as AgentConfig;
-      }
-      const apiKey = loadApiKeyFromEnv(modelToAgentProviderMap[modelName], logger.log.bind(logger));
-      agentConfig = {
+      const apiKey = loadApiKeyFromEnv(
+        modelToAgentProviderMap[modelName],
+        logger.log.bind(logger),
+      );
+
+      const cuaModel: AvailableCuaModel | AgentModelConfig<AvailableCuaModel> =
+        apiKey && apiKey.length > 0
+          ? {
+              modelName: modelName as AvailableCuaModel,
+              apiKey,
+            }
+          : (modelName as AvailableCuaModel);
+
+      agent = v3.agent({
         cua: true,
-        model: {
-          modelName: modelName as AvailableCuaModel,
-          apiKey,
-        },
-      } as AgentConfig;
+        model: cuaModel,
+        systemPrompt:
+          `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+      });
     } else {
-      agentConfig = {
+      agent = v3.agent({
         model: modelName,
         executionModel: "google/gemini-2.5-flash",
-      } as AgentConfig;
+      });
     }
-    agent = v3.agent(agentConfig);
   }
 
   return {

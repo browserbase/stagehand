@@ -12,7 +12,7 @@ import {
   AgentAction,
   AgentResult,
   AgentType,
-  AgentExecutionOptions,
+  CuaAgentExecutionOptions,
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
@@ -110,7 +110,9 @@ export class GoogleCUAClient extends AgentClient {
    * This is the main entry point for the agent
    * @implements AgentClient.execute
    */
-  async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
+  async execute(
+    executionOptions: CuaAgentExecutionOptions,
+  ): Promise<AgentResult> {
     const { options, logger } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
