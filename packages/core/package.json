@@ -76,7 +76,8 @@
     "typescript": "^5.2.2",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "typescript": "^5.2.2"
+    "prettier": "^3.2.5",
+    "eslint": "^9.16.0"
   },
   "repository": {
     "type": "git",
