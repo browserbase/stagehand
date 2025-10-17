@@ -1135,8 +1135,23 @@ export class Page {
     const sleep = (ms: number) =>
       new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
-    const named: Record<string, { key: string; code: string; vk: number }> = {
-      Enter: { key: "Enter", code: "Enter", vk: 13 },
+    const named: Record<
+      string,
+      {
+        key: string;
+        code: string;
+        vk: number;
+        text?: string;
+        unmodifiedText?: string;
+      }
+    > = {
+      Enter: {
+        key: "Enter",
+        code: "Enter",
+        vk: 13,
+        text: "\r",
+        unmodifiedText: "\r",
+      },
       Tab: { key: "Tab", code: "Tab", vk: 9 },
       Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
       Escape: { key: "Escape", code: "Escape", vk: 27 },
@@ -1166,18 +1181,25 @@ export class Page {
 
     const entry = named[key] ?? null;
     if (entry) {
-      const base: Protocol.Input.DispatchKeyEventRequest = {
+      const keyDown: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyDown",
         key: entry.key,
         code: entry.code,
         windowsVirtualKeyCode: entry.vk,
       };
-      await this.mainSession.send("Input.dispatchKeyEvent", base);
+      if (entry.text) {
+        keyDown.text = entry.text;
+        keyDown.unmodifiedText = entry.unmodifiedText ?? entry.text;
+      }
+      await this.mainSession.send("Input.dispatchKeyEvent", keyDown);
       if (delay) await sleep(delay);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        ...base,
+      const keyUp: Protocol.Input.DispatchKeyEventRequest = {
         type: "keyUp",
-      } as Protocol.Input.DispatchKeyEventRequest);
+        key: entry.key,
+        code: entry.code,
+        windowsVirtualKeyCode: entry.vk,
+      };
+      await this.mainSession.send("Input.dispatchKeyEvent", keyUp);
       return;
     }
 
