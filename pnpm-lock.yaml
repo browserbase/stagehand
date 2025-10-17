@@ -61,7 +61,7 @@ importers:
         version: 1.2.0
       chromium-bidi:
         specifier: ^0.10.0
-        version: 0.10.2(devtools-protocol@0.0.1312386)
+        version: 0.10.2(devtools-protocol@0.0.1464554)
       esbuild:
         specifier: ^0.21.4
         version: 0.21.5
@@ -119,6 +119,9 @@ importers:
       '@google/genai':
         specifier: ^1.22.0
         version: 1.24.0(@modelcontextprotocol/sdk@1.17.2)
+      '@langchain/openai':
+        specifier: ^0.4.4
+        version: 0.4.9(@langchain/core@0.3.50(openai@4.96.2(ws@8.18.3)(zod@3.25.67)))(ws@8.18.3)
       '@modelcontextprotocol/sdk':
         specifier: ^1.17.2
         version: 1.17.2
@@ -192,37 +195,34 @@ importers:
       '@ai-sdk/xai':
         specifier: ^1.2.15
         version: 1.2.15(zod@3.25.67)
-      ollama-ai-provider:
-        specifier: ^1.2.0
-        version: 1.2.0(zod@3.25.67)
-    devDependencies:
       '@langchain/core':
         specifier: ^0.3.40
         version: 0.3.50(openai@4.96.2(ws@8.18.3)(zod@3.25.67))
-      '@langchain/openai':
-        specifier: ^0.4.4
-        version: 0.4.9(@langchain/core@0.3.50(openai@4.96.2(ws@8.18.3)(zod@3.25.67)))(ws@8.18.3)
-      '@playwright/test':
-        specifier: ^1.42.1
-        version: 1.54.2
       chrome-launcher:
         specifier: ^1.2.0
         version: 1.2.0
-      eslint:
-        specifier: ^9.16.0
-        version: 9.25.1(jiti@1.21.7)
+      ollama-ai-provider:
+        specifier: ^1.2.0
+        version: 1.2.0(zod@3.25.67)
       patchright-core:
         specifier: ^1.55.2
         version: 1.55.2
       playwright-core:
         specifier: ^1.54.1
         version: 1.54.2
-      prettier:
-        specifier: ^3.2.5
-        version: 3.5.3
       puppeteer-core:
         specifier: ^22.8.0
         version: 22.15.0
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.42.1
+        version: 1.54.2
+      eslint:
+        specifier: ^9.16.0
+        version: 9.25.1(jiti@1.21.7)
+      prettier:
+        specifier: ^3.2.5
+        version: 3.5.3
       tsup:
         specifier: ^8.2.1
         version: 8.4.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.19.4)(typescript@5.8.3)(yaml@2.7.1)
@@ -8087,9 +8087,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  chromium-bidi@0.10.2(devtools-protocol@0.0.1312386):
+  chromium-bidi@0.10.2(devtools-protocol@0.0.1464554):
     dependencies:
-      devtools-protocol: 0.0.1312386
+      devtools-protocol: 0.0.1464554
       mitt: 3.0.1
       zod: 3.23.8
 
