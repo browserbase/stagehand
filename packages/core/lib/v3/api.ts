@@ -28,7 +28,7 @@ import {
   StagehandServerError,
 } from "./types/public";
 
-export class StagehandAPI {
+export class StagehandAPIClient {
   private apiKey: string;
   private projectId: string;
   private sessionId?: string;
@@ -49,11 +49,8 @@ export class StagehandAPI {
     modelApiKey,
     domSettleTimeoutMs,
     verbose,
-    debugDom,
     systemPrompt,
     selfHeal,
-    waitForCaptchaSolves,
-    actionTimeoutMs,
     browserbaseSessionCreateParams,
     browserbaseSessionID,
   }: StartSessionParams): Promise<StartSessionResult> {
@@ -77,11 +74,8 @@ export class StagehandAPI {
         modelName,
         domSettleTimeoutMs,
         verbose,
-        debugDom,
         systemPrompt,
         selfHeal,
-        waitForCaptchaSolves,
-        actionTimeoutMs,
         browserbaseSessionCreateParams,
         browserbaseSessionID,
       }),

@@ -25,15 +25,12 @@ export interface StartSessionParams {
   modelApiKey: string;
   domSettleTimeoutMs: number;
   verbose: number;
-  debugDom: boolean;
   systemPrompt?: string;
   browserbaseSessionCreateParams?: Omit<
     Browserbase.Sessions.SessionCreateParams,
     "projectId"
   > & { projectId?: string };
   selfHeal?: boolean;
-  waitForCaptchaSolves?: boolean;
-  actionTimeoutMs?: number;
   browserbaseSessionID?: string;
 }
 

@@ -85,4 +85,5 @@ export interface V3Options {
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
   domSettleTimeout?: number;
+  disableAPI?: boolean;
 }

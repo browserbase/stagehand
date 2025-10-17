@@ -18,10 +18,8 @@ export async function createBrowserbaseSession(
     if (!existing?.id) {
       throw new Error(`Browserbase session not found: ${resumeSessionId}`);
     }
-    const details = (await bb.sessions.retrieve(
-      resumeSessionId,
-    )) as unknown as { connectUrl?: string; status?: string };
-    const ws = details.connectUrl;
+
+    const ws = existing.connectUrl;
     if (!ws) {
       throw new Error(
         `Browserbase session resume missing connectUrl for ${resumeSessionId}`,
