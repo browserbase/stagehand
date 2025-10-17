@@ -16,6 +16,17 @@ export const createActTool = (v3: V3, executionModel?: string) =>
     }),
     execute: async ({ action }) => {
       try {
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: act`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: action,
+              type: "string",
+            },
+          },
+        });
         const options = executionModel ? { model: executionModel } : undefined;
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];

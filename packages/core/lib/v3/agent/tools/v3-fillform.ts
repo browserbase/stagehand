@@ -21,6 +21,17 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         .min(1, "Provide at least one field to fill"),
     }),
     execute: async ({ fields }) => {
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: fillForm`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify(fields),
+            type: "object",
+          },
+        },
+      });
       const instruction = `Return observation results for the following actions: ${fields
         .map((f) => f.action)
         .join(", ")}`;

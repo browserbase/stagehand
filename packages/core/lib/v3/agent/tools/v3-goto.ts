@@ -10,6 +10,17 @@ export const createGotoTool = (v3: V3) =>
     }),
     execute: async ({ url }) => {
       try {
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: goto`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: url,
+              type: "string",
+            },
+          },
+        });
         const page = await v3.context.awaitActivePage();
         await page.goto(url, { waitUntil: "load" });
         v3.recordAgentReplayStep({ type: "goto", url, waitUntil: "load" });
