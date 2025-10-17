@@ -78,7 +78,6 @@ import {
 } from "./types/public/page";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
-import { StagehandAPI } from "./api";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -161,7 +160,6 @@ export class V3 {
   private static _instances: Set<V3> = new Set();
   private cacheDir?: string;
   private _agentReplayRecording: AgentReplayStep[] | null = null;
-  private api: StagehandAPI | null = null;
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -576,20 +574,19 @@ export class V3 {
             inferenceTimeMs,
           ),
       );
-      switch (this.opts.env) {
-        case "LOCAL": {
-          // chrome-launcher conditionally adds --headless when the environment variable
-          // HEADLESS is set, without parsing its value.
-          // if it is not equal to true, then we delete it from the process
-          const envHeadless = process.env.HEADLESS;
-          if (envHeadless !== undefined) {
-            const normalized = envHeadless.trim().toLowerCase();
-            if (normalized !== "true") {
-              delete process.env.HEADLESS;
-            }
+      if (this.opts.env === "LOCAL") {
+        // chrome-launcher conditionally adds --headless when the environment variable
+        // HEADLESS is set, without parsing its value.
+        // if it is not equal to true, then we delete it from the process
+        const envHeadless = process.env.HEADLESS;
+        if (envHeadless !== undefined) {
+          const normalized = envHeadless.trim().toLowerCase();
+          if (normalized !== "true") {
+            delete process.env.HEADLESS;
           }
-          const lbo: LocalBrowserLaunchOptions =
-            this.opts.localBrowserLaunchOptions ?? {};
+        }
+        const lbo: LocalBrowserLaunchOptions =
+          this.opts.localBrowserLaunchOptions ?? {};
 
         // If a CDP URL is provided, attach instead of launching.
         if (lbo.cdpUrl) {
@@ -610,15 +607,15 @@ export class V3 {
           return;
         }
 
-          // Determine or create user data dir
-          let userDataDir = lbo.userDataDir;
-          let createdTemp = false;
-          if (!userDataDir) {
-            const base = path.join(os.tmpdir(), "stagehand-v3");
-            fs.mkdirSync(base, { recursive: true });
-            userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
-            createdTemp = true;
-          }
+        // Determine or create user data dir
+        let userDataDir = lbo.userDataDir;
+        let createdTemp = false;
+        if (!userDataDir) {
+          const base = path.join(os.tmpdir(), "stagehand-v3");
+          fs.mkdirSync(base, { recursive: true });
+          userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
+          createdTemp = true;
+        }
 
         // Build chrome flags
         const defaults = [
@@ -665,8 +662,8 @@ export class V3 {
         if (lbo.proxy?.bypass)
           chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
 
-          // add user-supplied args last
-          if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
+        // add user-supplied args last
+        if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
 
         const { ws, chrome } = await launchLocalChrome({
           chromePath: lbo.executablePath,
@@ -689,10 +686,10 @@ export class V3 {
         };
         this.browserbaseSessionId = undefined;
 
-          // Post-connect settings (downloads and viewport) if provided
-          await this._applyPostConnectLocalOptions(lbo);
-          return;
-        }
+        // Post-connect settings (downloads and viewport) if provided
+        await this._applyPostConnectLocalOptions(lbo);
+        return;
+      }
 
       if (this.opts.env === "BROWSERBASE") {
         const { apiKey, projectId } = this.requireBrowserbaseCreds();
@@ -709,46 +706,42 @@ export class V3 {
         this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
         this.browserbaseSessionId = sessionId;
 
-            await this._ensureBrowserbaseDownloadsEnabled();
+        await this._ensureBrowserbaseDownloadsEnabled();
 
-            try {
-              const resumed = !!this.opts.browserbaseSessionID;
-              let debugUrl: string | undefined;
-              try {
-                const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-                  debuggerUrl?: string;
-                };
-                debugUrl = dbg?.debuggerUrl;
-              } catch {
-                // Ignore debug fetch failures; continue with sessionUrl only
-              }
-              const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
-              this.logger({
-                category: "init",
-                message: resumed
-                  ? "browserbase session resumed"
-                  : "browserbase session started",
-                level: 1,
-                auxiliary: {
-                  sessionUrl: { value: sessionUrl, type: "string" },
-                  ...(debugUrl && {
-                    debugUrl: { value: debugUrl, type: "string" },
-                  }),
-                  sessionId: { value: sessionId, type: "string" },
-                },
-              });
-            } catch {
-              // best-effort logging — ignore failures
-            }
+        try {
+          const resumed = !!this.opts.browserbaseSessionID;
+          let debugUrl: string | undefined;
+          try {
+            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+              debuggerUrl?: string;
+            };
+            debugUrl = dbg?.debuggerUrl;
+          } catch {
+            // Ignore debug fetch failures; continue with sessionUrl only
           }
-          return;
+          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+          this.logger({
+            category: "init",
+            message: resumed
+              ? "browserbase session resumed"
+              : "browserbase session started",
+            level: 1,
+            auxiliary: {
+              sessionUrl: { value: sessionUrl, type: "string" },
+              ...(debugUrl && {
+                debugUrl: { value: debugUrl, type: "string" },
+              }),
+              sessionId: { value: sessionId, type: "string" },
+            },
+          });
+        } catch {
+          // best-effort logging — ignore failures
         }
-
-        default:
-          throw new Error(
-            `Unsupported env: ${(this.opts as { env: string }).env}`,
-          );
+        return;
       }
+
+      const neverEnv: never = this.opts.env;
+      throw new Error(`Unsupported env: ${neverEnv}`);
     });
   }
 
@@ -811,21 +804,6 @@ export class V3 {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.actHandler)
         throw new Error("V3 not initialized. Call init() before act().");
-
-      if (this.api) {
-        const result = await this.api.act({ input, options });
-
-        this.addToHistory(
-          "act",
-          {
-            instruction: input,
-            variables: options?.variables,
-            timeout: options?.timeout,
-          },
-          result,
-        );
-        return result;
-      }
 
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
@@ -1044,26 +1022,6 @@ export class V3 {
       const effectiveSchema =
         instruction && !schema ? defaultExtractSchema : schema;
 
-      if (this.api) {
-        const result = await this.api.extract({
-          instruction,
-          schema: effectiveSchema,
-          options,
-        });
-
-        this.addToHistory(
-          "extract",
-          {
-            instruction,
-            hasSchema: Boolean(effectiveSchema),
-            timeout: options?.timeout,
-            selector: options?.selector,
-          },
-          result,
-        );
-        return result;
-      }
-
       // Resolve page from options or use active page
       let page: Page;
       const pageArg: AnyPage | undefined = options?.page;
@@ -1141,16 +1099,6 @@ export class V3 {
         options = a as ObserveOptions | undefined;
       }
 
-      if (this.api) {
-        const result = await this.api.observe({ instruction, options });
-        this.addToHistory(
-          "observe",
-          { instruction, timeout: options?.timeout },
-          result,
-        );
-        return result;
-      }
-
       // Resolve to our internal Page type
       let page: Page;
       if (options?.page) {
@@ -1194,50 +1142,16 @@ export class V3 {
     });
   }
 
-  /**
-   * Navigate to a URL.
-   */
-  async goto(
-    url: string,
-    options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
-  ): Promise<void> {
-    return await withInstanceLogContext(this.instanceId, async () => {
-      if (this.api) {
-        await this.api.goto(url, options);
-        this.addToHistory("navigate", { url, options }, undefined);
-        return;
-      }
-
-      if (!this.ctx) {
-        throw new Error("V3 not initialized. Call init() before goto().");
-      }
-
-      const page = await this.ctx.awaitActivePage();
-      await page.goto(url, { waitUntil: options?.waitUntil ?? "load" });
-      this.addToHistory("navigate", { url, options }, undefined);
-    });
-  }
-
   /** Return the browser-level CDP WebSocket endpoint. */
   connectURL(): string {
     if (this.state.kind === "UNINITIALIZED") {
       throw new Error("V3 not initialized. Call await v3.init() first.");
-    }
-    if (this.api && this.state.kind === "BROWSERBASE") {
-      throw new Error(
-        "connectURL() not available when using API mode. Use the API methods directly.",
-      );
     }
     return this.state.ws;
   }
 
   /** Expose the current CDP-backed context. */
   public get context(): V3Context {
-    if (this.api && this.state.kind === "BROWSERBASE") {
-      throw new Error(
-        "context not available when using API mode. Use the API methods directly.",
-      );
-    }
     return this.ctx;
   }
 
@@ -1248,15 +1162,6 @@ export class V3 {
     this._isClosing = true;
 
     try {
-      // End API session if using API
-      if (this.api && this.browserbaseSessionId) {
-        try {
-          await this.api.end();
-        } catch {
-          // ignore API end errors
-        }
-      }
-
       // Unhook CDP transport close handler if context exists
       try {
         if (this.ctx?.conn && this._onCdpClosed) {

@@ -1,7 +1,7 @@
 import makeFetchCookie from "fetch-cookie";
 import zodToJsonSchema from "zod-to-json-schema";
 import z from "zod/v3";
-import { GotoOptions, ObserveResult } from "../dist";
+import { Action } from "./types/public";
 import { STAGEHAND_VERSION } from "../version";
 import {
   APIActParameters,
@@ -140,14 +140,14 @@ export class StagehandAPI {
   async observe({
     instruction,
     options,
-  }: APIObserveParameters): Promise<ObserveResult[]> {
-    return this.execute<ObserveResult[]>({
+  }: APIObserveParameters): Promise<Action[]> {
+    return this.execute<Action[]>({
       method: "observe",
       args: { instruction, options },
     });
   }
 
-  async goto(url: string, options?: GotoOptions): Promise<void> {
+  async goto(url: string, options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" }): Promise<void> {
     return this.execute<void>({
       method: "navigate",
       args: { url, options },
