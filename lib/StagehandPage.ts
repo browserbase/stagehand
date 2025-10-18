@@ -619,6 +619,7 @@ ${scriptContent} \
 
       let quietTimer: NodeJS.Timeout | null = null;
       let stalledRequestSweepTimer: NodeJS.Timeout | null = null;
+      let isResolved = false; // Flag to prevent multiple resolutions
 
       const clearQuiet = () => {
         if (quietTimer) {
@@ -628,7 +629,7 @@ ${scriptContent} \
       };
 
       const maybeQuiet = () => {
-        if (inflight.size === 0 && !quietTimer)
+        if (inflight.size === 0 && !quietTimer && !isResolved)
           quietTimer = setTimeout(() => resolveDone(), 500);
       };
 
@@ -712,6 +713,10 @@ ${scriptContent} \
       }, timeout);
 
       const resolveDone = () => {
+        // Prevent multiple resolutions of the same Promise
+        if (isResolved) return;
+        isResolved = true;
+
         client.off("Network.requestWillBeSent", onRequest);
         client.off("Network.loadingFinished", onFinish);
         client.off("Network.loadingFailed", onFinish);
