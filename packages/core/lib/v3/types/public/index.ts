@@ -1,6 +1,5 @@
 export * from "./agent";
 export * from "./apiErrors";
-export * from "./cache";
 export * from "./logs";
 export * from "./methods";
 export * from "./metrics";
