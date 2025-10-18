@@ -102,6 +102,7 @@ export const initStagehand = async ({
       },
     },
     ...configOverrides,
+    useAPI: true,
     logger: logger.log.bind(logger),
   };
 
