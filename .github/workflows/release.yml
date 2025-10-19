@@ -15,6 +15,9 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
@@ -52,3 +55,86 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  minor-release-evals:
+    name: Run Full Eval Stack on Minor Release
+    runs-on: ubuntu-latest
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    env:
+      EVAL_ENV: BROWSERBASE
+      EVAL_MAX_CONCURRENCY: 10
+      EVAL_TRIAL_COUNT: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+
+      - name: Install dependencies
+        run: |
+          rm -rf node_modules
+          npm install -g pnpm
+          pnpm install --no-frozen-lockfile
+
+      - name: Check if minor release
+        id: check-minor
+        run: |
+          # Get the published packages info
+          PUBLISHED_PACKAGES='${{ needs.release.outputs.publishedPackages }}'
+          echo "Published packages: $PUBLISHED_PACKAGES"
+
+          # Extract the version from the published packages JSON
+          VERSION=$(echo "$PUBLISHED_PACKAGES" | jq -r '.[0].version // empty')
+          echo "Version: $VERSION"
+
+          if [ -z "$VERSION" ]; then
+            echo "No version found, skipping eval"
+            echo "is-minor=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get the previous version from git tags
+          PREVIOUS_VERSION=$(git tag --sort=-version:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1 | sed 's/^v//')
+          echo "Previous version: $PREVIOUS_VERSION"
+
+          # Compare versions to determine if this is a minor release
+          CURRENT_MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          CURRENT_MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PREV_MAJOR=$(echo "$PREVIOUS_VERSION" | cut -d. -f1)
+          PREV_MINOR=$(echo "$PREVIOUS_VERSION" | cut -d. -f2)
+
+          if [ "$CURRENT_MAJOR" = "$PREV_MAJOR" ] && [ "$CURRENT_MINOR" -gt "$PREV_MINOR" ]; then
+            echo "This is a minor release ($PREVIOUS_VERSION -> $VERSION)"
+            echo "is-minor=true" >> $GITHUB_OUTPUT
+          else
+            echo "This is not a minor release ($PREVIOUS_VERSION -> $VERSION)"
+            echo "is-minor=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Full Eval Stack
+        if: steps.check-minor.outputs.is-minor == 'true'
+        run: |
+          echo "🚀 Running full eval stack for minor release..."
+          pnpm run evals
+        env:
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+
+      - name: Upload Eval Results
+        if: steps.check-minor.outputs.is-minor == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: minor-release-eval-results
+          path: |
+            evals/results/
+            evals/downloads/
+          retention-days: 30
