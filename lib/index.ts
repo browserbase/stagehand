@@ -379,6 +379,7 @@ export class Stagehand {
   public verbose: 0 | 1 | 2;
   public llmProvider: LLMProvider;
   public enableCaching: boolean;
+  public readonly cacheDir?: string;
   protected apiKey: string | undefined;
   private projectId: string | undefined;
   private externalLogger?: (logLine: LogLine) => void;
@@ -527,6 +528,7 @@ export class Stagehand {
       browserbaseSessionCreateParams,
       domSettleTimeoutMs,
       enableCaching,
+      cacheDir,
       browserbaseSessionID,
       modelName,
       modelClientOptions,
@@ -559,8 +561,12 @@ export class Stagehand {
       enableCaching ??
       (process.env.ENABLE_CACHING && process.env.ENABLE_CACHING === "true");
 
+    const cacheDirCandidate = cacheDir ?? process.env.STAGEHAND_CACHE_DIR;
+    this.cacheDir = cacheDirCandidate ? path.resolve(cacheDirCandidate) : undefined;
+
     this.llmProvider =
-      llmProvider || new LLMProvider(this.logger, this.enableCaching);
+      llmProvider ||
+      new LLMProvider(this.logger, this.enableCaching, this.cacheDir);
     this.apiKey = apiKey ?? process.env.BROWSERBASE_API_KEY;
     this.projectId = projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 

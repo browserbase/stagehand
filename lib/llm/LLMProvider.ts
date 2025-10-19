@@ -133,10 +133,14 @@ export class LLMProvider {
   private enableCaching: boolean;
   private cache: LLMCache | undefined;
 
-  constructor(logger: (message: LogLine) => void, enableCaching: boolean) {
+  constructor(
+    logger: (message: LogLine) => void,
+    enableCaching: boolean,
+    cacheDir?: string,
+  ) {
     this.logger = logger;
     this.enableCaching = enableCaching;
-    this.cache = enableCaching ? new LLMCache(logger) : undefined;
+    this.cache = enableCaching ? new LLMCache(logger, cacheDir) : undefined;
   }
 
   cleanRequestCache(requestId: string): void {
