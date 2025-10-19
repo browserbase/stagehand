@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Browser, chromium } from "playwright";
+import { Browser, chromium, FileChooser } from "playwright";
 import { z } from "zod/v3";
 import { AgentExecuteOptions, AgentResult } from "../types/agent";
 import { BrowserResult } from "../types/browser";
@@ -22,6 +22,8 @@ import {
   InitResult,
   LocalBrowserLaunchOptions,
   ObserveOptions,
+  FileSpec,
+  UploadResult,
   StagehandFunctionName,
   StagehandMetrics,
 } from "../types/stagehand";
@@ -43,6 +45,10 @@ import { LLMProvider } from "./llm/LLMProvider";
 import { CuaAgentHandler } from "./handlers/cuaAgentHandler";
 import { StagehandAgentHandler } from "./handlers/stagehandAgentHandler";
 import { StagehandLogger } from "./logger";
+import {
+  deepLocator,
+  deepLocatorWithShadow,
+} from "./handlers/handlerUtils/actHandlerUtils";
 import { connectToMCPServer } from "./mcp/connection";
 import { resolveTools } from "./mcp/utils";
 import { applyDefaultBrowserSettingsViewport } from "./browserbaseDefaults";
@@ -897,6 +903,7 @@ export class Stagehand {
       | ExtractOptions<z.AnyZodObject>
       | ObserveOptions
       | { url: string; options: GotoOptions }
+      | { hint: string; file: FileSpec }
       | string,
     result?: unknown,
   ): void {
@@ -905,6 +912,222 @@ export class Stagehand {
       parameters,
       result: result ?? null,
       timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Upload a file to an upload control identified by a natural language hint.
+   * This method will attempt, in order:
+   *  1) Directly set files on a matching <input type="file"> (visible or hidden).
+   *  2) Trigger a file chooser by clicking the hinted control, then set files.
+   *  3) Heuristically locate an associated file input near/within the hinted element.
+   */
+  public async upload(hint: string, file: FileSpec): Promise<UploadResult> {
+    const page = this.stagehandPage.page;
+
+    const toSetInputArg = async (f: FileSpec) => {
+      if (typeof f === "string") {
+        // If it's a URL, download and return a Buffer payload
+        if (/^https?:\/\//i.test(f)) {
+          const res = await fetch(f);
+          if (!res.ok) {
+            throw new StagehandError(
+              `Failed to download file: ${res.status} ${res.statusText}`,
+            );
+          }
+          const mimeType =
+            res.headers.get("content-type") || "application/octet-stream";
+          const urlPath = new URL(f).pathname;
+          const name = urlPath.split("/").pop() || "uploaded_file";
+          const arrayBuf = await res.arrayBuffer();
+          return {
+            name,
+            mimeType,
+            buffer: Buffer.from(arrayBuf),
+          } as { name: string; mimeType: string; buffer: Buffer };
+        }
+        // Otherwise treat as a local path if provided as string (kept for compatibility)
+        return f;
+      }
+      
+      // Handle discriminated union types
+      if ('path' in f && f.path) {
+        return f.path;
+      }
+      
+      if ('buffer' in f && 'name' in f && 'mimeType' in f && f.buffer && f.name && f.mimeType) {
+        return { name: f.name, mimeType: f.mimeType, buffer: f.buffer } as {
+          name: string;
+          mimeType: string;
+          buffer: Buffer;
+        };
+      }
+      
+      throw new StagehandError(
+        "Invalid FileSpec. Provide an http(s) URL, a path, or { buffer, name, mimeType }",
+      );
+    };
+
+    const filesArg = await toSetInputArg(file);
+
+    const finish = async (result: UploadResult): Promise<UploadResult> => {
+      this.addToHistory("upload", { hint, file }, result);
+      return result;
+    };
+
+    // Use NL→selector to locate the upload control strictly
+    try {
+      const [candidate] = await page.observe(
+        "Find the file upload control or input for: " + String(hint),
+      );
+      if (candidate?.selector) {
+        const raw = candidate.selector.replace(/^xpath=/i, "").trim();
+        const locator = this.experimental
+          ? await deepLocatorWithShadow(page, raw)
+          : deepLocator(page, raw);
+
+        // If this is a file input → set directly
+        const isFileInput = await locator
+          .evaluate(
+            (el): boolean => {
+              const tagName = el.tagName.toLowerCase();
+              const type = (el as HTMLInputElement).type;
+              return tagName === "input" && type === "file";
+            },
+          )
+          .catch(() => {
+            return false;
+          });
+
+        if (isFileInput) {
+          await locator.setInputFiles(filesArg);
+          await this.stagehandPage._waitForSettledDom();
+          return finish({
+            success: true,
+            method: "input",
+            hint,
+            selector: candidate.selector,
+            fileName:
+              typeof file === "string" && /^https?:/i.test(file)
+                ? new URL(file).pathname.split("/").pop() || undefined
+                : typeof file === "string"
+                  ? file.split("/").pop()
+                  : ('name' in file ? file.name : undefined),
+            message: "File attached via direct input",
+          });
+        }
+
+        // Otherwise attempt to trigger a file chooser via the hinted control
+        try {
+          const chooserPromise = page.waitForEvent("filechooser", {
+            timeout: 8000,
+          });
+          await locator.click({ timeout: 3000 }).catch((): void => {});
+          const chooser = await chooserPromise.catch(
+            (): FileChooser | undefined => undefined,
+          );
+          if (chooser) {
+            await chooser.setFiles(filesArg);
+            await this.stagehandPage._waitForSettledDom();
+            return finish({
+              success: true,
+              method: "chooser",
+              hint,
+              selector: candidate.selector,
+              fileName:
+                typeof file === "string" && /^https?:/i.test(file)
+                  ? new URL(file).pathname.split("/").pop() || undefined
+                  : typeof file === "string"
+                    ? file.split("/").pop()
+                    : ('name' in file ? file.name : undefined),
+              message: "File attached via file chooser",
+            });
+          }
+        } catch {
+          void 0;
+        }
+
+        // Heuristic: find an associated file input near/within the hinted control
+        try {
+          const elementHandle = await locator.elementHandle();
+          if (elementHandle) {
+            const inputHandle = await elementHandle.evaluateHandle(
+              (el: Element): HTMLInputElement | null => {
+                const doc: Document = el.ownerDocument || document;
+                const asInput = (n: Element | null): HTMLInputElement | null =>
+                  n &&
+                  n.tagName.toLowerCase() === "input" &&
+                  (n as HTMLInputElement).type === "file"
+                    ? (n as HTMLInputElement)
+                    : null;
+
+                // 1) Self
+                const self = asInput(el as Element);
+                if (self) return self;
+
+                // 2) Label association
+                const label = (el as HTMLElement).closest("label");
+                if (label?.htmlFor) {
+                  const byId = doc.getElementById(label.htmlFor);
+                  const a = asInput(byId);
+                  if (a) return a;
+                }
+
+                // 3) Descendants
+                const desc = (el as Element).querySelector(
+                  'input[type="file"]',
+                );
+                const aDesc = asInput(desc);
+                if (aDesc) return aDesc;
+
+                // 4) Up to 5 ancestors, then search within each ancestor subtree
+                let cur: Element | null = (el as Element).parentElement;
+                for (let i = 0; i < 5 && cur; i++) {
+                  const within = cur.querySelector('input[type="file"]');
+                  const a = asInput(within);
+                  if (a) return a;
+                  cur = cur.parentElement;
+                }
+                return null;
+              },
+              undefined as unknown,
+            );
+
+            const el = inputHandle.asElement?.();
+            if (el) {
+              const fileEl = el as unknown as {
+                setInputFiles: (files: unknown) => Promise<void>;
+              };
+              await fileEl.setInputFiles(filesArg);
+              await this.stagehandPage._waitForSettledDom();
+              return finish({
+                success: true,
+                method: "fallback",
+                hint,
+                selector: candidate.selector,
+                fileName:
+                  typeof file === "string" && /^https?:/i.test(file)
+                    ? new URL(file).pathname.split("/").pop() || undefined
+                    : typeof file === "string"
+                      ? file.split("/").pop()
+                      : ('name' in file ? file.name : undefined),
+                message: "File attached via heuristic input lookup",
+              });
+            }
+          }
+        } catch {
+          void 0;
+        }
+      }
+    } catch {
+      void 0;
+    }
+
+    return finish({
+      success: false,
+      method: "fallback",
+      hint,
+      message: "Could not locate a file input or trigger a chooser via observe",
     });
   }
 
@@ -1048,5 +1271,6 @@ export * from "../types/stagehand";
 export * from "../types/stagehandApiErrors";
 export * from "../types/stagehandErrors";
 export * from "./llm/LLMClient";
+export * from "./llm/LLMProvider";
 export * from "./llm/aisdk";
 export { connectToMCPServer };
