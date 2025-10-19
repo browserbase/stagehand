@@ -258,7 +258,6 @@ export class V3 {
     V3._instances.add(this);
   }
 
-
   /**
    * Async property for metrics so callers can `await v3.metrics`.
    * Returning a Promise future-proofs async aggregation/storage.
@@ -433,7 +432,6 @@ export class V3 {
     this.v3Metrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
-
   private async _immediateShutdown(reason: string): Promise<void> {
     try {
       this.logger({
@@ -492,6 +490,12 @@ export class V3 {
         message: "SIGINT: initiating shutdown",
         level: 0,
       });
+      for (const instance of V3._instances) {
+        if (instance.apiClient) {
+          void instance.apiClient.end();
+          return;
+        }
+      }
       void shutdownAllImmediate("signal SIGINT");
       void exitAfter("SIGINT");
     });
@@ -501,6 +505,12 @@ export class V3 {
         message: "SIGTERM: initiating shutdown",
         level: 0,
       });
+      for (const instance of V3._instances) {
+        if (instance.apiClient) {
+          void instance.apiClient.end();
+          return;
+        }
+      }
       void shutdownAllImmediate("signal SIGTERM");
       void exitAfter("SIGTERM");
     });
@@ -699,13 +709,20 @@ export class V3 {
       if (this.opts.env === "BROWSERBASE") {
         const { apiKey, projectId } = this.requireBrowserbaseCreds();
         if (!apiKey || !projectId) {
-          throw new Error("BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env");
+          throw new Error(
+            "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
+          );
         }
-        if (!this.opts.disableAPI) {
+        if (!this.disableAPI) {
           this.apiClient = new StagehandAPIClient({
             apiKey,
             projectId,
             logger: this.logger,
+          });
+          this.logger({
+            category: "init",
+            message: "Starting browserbase session",
+            level: 1,
           });
           const { sessionId, available } = await this.apiClient.init({
             modelName: this.modelName,
@@ -714,12 +731,18 @@ export class V3 {
             verbose: this.verbose,
             systemPrompt: this.opts.systemPrompt,
             selfHeal: this.opts.selfHeal,
-            browserbaseSessionCreateParams: this.opts.browserbaseSessionCreateParams,
+            browserbaseSessionCreateParams:
+              this.opts.browserbaseSessionCreateParams,
             browserbaseSessionID: this.opts.browserbaseSessionID,
           });
           if (!available) {
             this.apiClient = null;
           }
+          this.logger({
+            category: "init",
+            message: "Browserbase session started",
+            level: 1,
+          });
           this.opts.browserbaseSessionID = sessionId;
         }
         const { ws, sessionId, bb } = await createBrowserbaseSession(
@@ -834,6 +857,8 @@ export class V3 {
       if (!this.actHandler)
         throw new Error("V3 not initialized. Call init() before act().");
 
+      let actResult: ActResult;
+
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
         let v3Page: Page;
@@ -845,12 +870,21 @@ export class V3 {
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
-        const actResult = await this.actHandler.actFromObserveResult(
-          { ...input, selector }, // ObserveResult
-          v3Page, // V3 Page
-          this.domSettleTimeoutMs,
-          this.resolveLlmClient(options?.model),
-        );
+        if (this.apiClient) {
+          actResult = await this.apiClient.act({
+            input,
+            options,
+            frameId: v3Page.mainFrameId(),
+          });
+        } else {
+          actResult = await this.actHandler.actFromObserveResult(
+            { ...input, selector }, // ObserveResult
+            v3Page, // V3 Page
+            this.domSettleTimeoutMs,
+            this.resolveLlmClient(options?.model),
+          );
+        }
+
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
@@ -943,7 +977,17 @@ export class V3 {
         timeout: options?.timeout,
         model: options?.model,
       };
-      const actResult = await this.actHandler.act(handlerParams);
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        console.log("act frameId", frameId);
+        // Don't pass the page object to the API
+        if (options?.page) {
+          options.page = null;
+        }
+        actResult = await this.apiClient.act({ input, options, frameId });
+      } else {
+        actResult = await this.actHandler.act(handlerParams);
+      }
       // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
@@ -1081,21 +1125,18 @@ export class V3 {
         selector: options?.selector,
         page: page!,
       };
-
-      const result =
-        await this.extractHandler.extract<ZodTypeAny>(handlerParams);
-
-      // history: record extract call (omit page object and raw schema instance)
-      this.addToHistory(
-        "extract",
-        {
-          instruction,
-          hasSchema: Boolean(effectiveSchema),
-          timeout: options?.timeout,
-          selector: options?.selector,
-        },
-        result,
-      );
+      let result: z.infer<typeof effectiveSchema> | { pageText: string };
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        console.log("frameId", frameId);
+        // Don't pass the page object to the API
+        if (options?.page) {
+          options.page = null;
+        }
+        result = await this.apiClient.extract({ ...handlerParams, frameId });
+      } else {
+        result = await this.extractHandler.extract<ZodTypeAny>(handlerParams);
+      }
       return result;
     });
   }
@@ -1154,10 +1195,26 @@ export class V3 {
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
-        page,
+        page: page!,
       };
 
-      const results = await this.observeHandler.observe(handlerParams);
+      let results: Action[];
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        console.log("observe frameId", frameId);
+        // Don't pass the page object to the API
+        if (options?.page) {
+          options.page = null;
+        }
+        results = await this.apiClient.observe({
+          instruction,
+          options,
+          frameId,
+        });
+      } else {
+        results = await this.observeHandler.observe(handlerParams);
+      }
+
       // history: record observe call (omit page object)
       this.addToHistory(
         "observe",

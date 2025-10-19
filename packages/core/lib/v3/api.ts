@@ -65,7 +65,7 @@ export class StagehandAPIClient {
     }
     this.logger({
       category: "init",
-      message: "creating new browserbase session...",
+      message: "Creating new browserbase session...",
       level: 1,
     });
     const sessionResponse = await this.request("/sessions/start", {
@@ -112,10 +112,10 @@ export class StagehandAPIClient {
     return sessionResponseBody.data;
   }
 
-  async act({ input, options }: APIActParameters): Promise<ActResult> {
+  async act({ input, options, frameId }: APIActParameters): Promise<ActResult> {
     return this.execute<ActResult>({
       method: "act",
-      args: { input, options },
+      args: { input, options, frameId },
     });
   }
 
@@ -123,21 +123,24 @@ export class StagehandAPIClient {
     instruction,
     schema: zodSchema,
     options,
+    frameId,
   }: APIExtractParameters): Promise<ExtractResult<T>> {
     const jsonSchema = zodSchema ? zodToJsonSchema(zodSchema) : undefined;
+
     return this.execute<ExtractResult<T>>({
       method: "extract",
-      args: { schema: jsonSchema, instruction, options },
+      args: { schema: jsonSchema, instruction, options, frameId },
     });
   }
 
   async observe({
     instruction,
     options,
+    frameId,
   }: APIObserveParameters): Promise<Action[]> {
     return this.execute<Action[]>({
       method: "observe",
-      args: { instruction, options },
+      args: { instruction, options, frameId },
     });
   }
 
@@ -244,10 +247,7 @@ export class StagehandAPIClient {
     }
   }
 
-  private async request(
-    path: string,
-    options: RequestInit = {},
-  ): Promise<Response> {
+  private async request(path: string, options: RequestInit): Promise<Response> {
     const defaultHeaders: Record<string, string> = {
       "x-bb-api-key": this.apiKey,
       "x-bb-project-id": this.projectId,
@@ -259,7 +259,7 @@ export class StagehandAPIClient {
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
-
+    console.log("options", options);
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }

@@ -52,17 +52,20 @@ export interface ErrorResponse {
 export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
 
 export interface APIActParameters {
-  input?: string | Action;
-  options?: ActOptions;
+  input: string | Action;
+  options?: Omit<ActOptions, "page">;
+  frameId?: string;
 }
 
 export interface APIExtractParameters {
   instruction?: string;
   schema?: ZodTypeAny;
-  options?: ExtractOptions;
+  options?: Omit<ExtractOptions, "page">;
+  frameId?: string;
 }
 
 export interface APIObserveParameters {
   instruction?: string;
-  options?: ObserveOptions;
+  options?: Omit<ObserveOptions, "page">;
+  frameId?: string;
 }
