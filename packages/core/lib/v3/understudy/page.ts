@@ -8,6 +8,7 @@ import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
+import type { StagehandAPIClient } from "../api";
 
 /**
  * Page
@@ -49,14 +50,18 @@ export class Page {
   private readonly pageId: string;
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
+  /** Optional API client for routing page operations to the API */
+  private readonly apiClient: StagehandAPIClient | null = null;
 
   private constructor(
     private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
+    apiClient?: StagehandAPIClient | null,
   ) {
     this.pageId = _targetId;
+    this.apiClient = apiClient ?? null;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -176,6 +181,7 @@ export class Page {
     conn: CdpConnection,
     session: CDPSessionLike,
     targetId: string,
+    apiClient?: StagehandAPIClient | null,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -186,7 +192,7 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId);
+    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -466,6 +472,18 @@ export class Page {
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<void> {
+    // Route to API if available
+    if (this.apiClient) {
+      await this.apiClient.goto(
+        url,
+        { waitUntil: options?.waitUntil },
+        this.mainFrameId(),
+      );
+      this._currentUrl = url;
+      return;
+    }
+
+    // Local CDP execution
     await this.mainSession.send<Protocol.Page.NavigateResponse>(
       "Page.navigate",
       { url },

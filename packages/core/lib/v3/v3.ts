@@ -753,6 +753,7 @@ export class V3 {
         );
         this.ctx = await V3Context.create(ws, {
           env: "BROWSERBASE",
+          apiClient: this.apiClient,
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = { kind: "BROWSERBASE", sessionId, ws, bb };

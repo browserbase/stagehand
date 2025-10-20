@@ -147,10 +147,11 @@ export class StagehandAPIClient {
   async goto(
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
+    frameId?: string,
   ): Promise<void> {
     return this.execute<void>({
       method: "navigate",
-      args: { url, options },
+      args: { url, options, frameId },
     });
   }
 
@@ -259,7 +260,6 @@ export class StagehandAPIClient {
       "x-language": "typescript",
       "x-sdk-version": STAGEHAND_VERSION,
     };
-    console.log("options", options);
     if (options.method === "POST" && options.body) {
       defaultHeaders["Content-Type"] = "application/json";
     }
