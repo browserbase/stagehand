@@ -1,14 +1,10 @@
-import {
-  AgentAction,
-  AgentExecuteOptions,
-  AgentResult,
-  ActToolResult,
-} from "@/types/agent";
+import { AgentAction, AgentExecuteOptions, AgentResult } from "@/types/agent";
 import { LogLine } from "@/types/log";
 import { LLMClient } from "../llm/LLMClient";
 import { CoreMessage, wrapLanguageModel } from "ai";
 import { LanguageModel } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
+import { mapToolResultToActions } from "../agent/utils/actionMapping";
 import { createAgentTools } from "../agent/tools";
 import { ToolSet } from "ai";
 import { Stagehand } from "../index";
@@ -169,34 +165,23 @@ export class StagehandAgentHandler {
               }
 
               // Get the tool result if available
-              const toolResult = event.toolResults?.[i];
+              const toolResult = event.toolResults?.[i] ?? null;
 
-              const getPlaywrightArguments = () => {
-                if (toolCall.toolName !== "act" || !toolResult) {
-                  return {};
-                }
-                const result = toolResult.result as ActToolResult;
-                if (result && result.playwrightArguments) {
-                  return { playwrightArguments: result.playwrightArguments };
-                }
-
-                return {};
-              };
-
-              const action: AgentAction = {
-                type: toolCall.toolName,
+              const mappedActions = mapToolResultToActions({
+                toolCallName: toolCall.toolName,
+                toolResult,
+                args,
                 reasoning: event.text || undefined,
-                pageUrl: currentPageUrl,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.success as boolean)
-                    : false,
-                timestamp: Date.now(),
-                ...args,
-                ...getPlaywrightArguments(),
-              };
+              });
 
-              actions.push(action);
+              for (const mapped of mappedActions) {
+                const action: AgentAction = {
+                  ...mapped,
+                  pageUrl: currentPageUrl,
+                  timestamp: Date.now(),
+                };
+                actions.push(action);
+              }
             }
             currentPageUrl = this.stagehand.page.url();
           }

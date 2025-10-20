@@ -9,6 +9,17 @@ export interface ActToolResult {
   playwrightArguments?: ObserveResult | null;
 }
 
+export interface FillFormResult {
+  success: boolean;
+  playwrightArguments: ObserveResult[];
+}
+
+export type ActRelatedToolResult = ActToolResult | FillFormResult;
+// generic type for tool results to avoid need for an individual type for each tool
+export interface ToolExecutionResult {
+  result: unknown;
+}
+
 export interface AgentAction {
   type: string;
   reasoning?: string;
