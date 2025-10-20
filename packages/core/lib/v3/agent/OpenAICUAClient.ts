@@ -12,7 +12,8 @@ import {
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
-import { ToolSet } from "ai/dist";
+import { ToolSet, Tool } from "ai/dist";
+import { z } from "zod/v3";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -389,15 +390,25 @@ export class OpenAICUAClient extends AgentClient {
 
       // Add custom tools if available
       if (this.tools && Object.keys(this.tools).length > 0) {
-        const customTools = Object.entries(this.tools).map(([name, tool]) => ({
-          type: "function" as const,
-          name,
-          function: {
+        const customTools = Object.entries(this.tools).map(([name, tool]) => {
+          type ToolWithSchema = Tool & {
+            inputSchema?: z.ZodType;
+            parameters?: z.ZodType;
+          };
+          const typedTool = tool as ToolWithSchema;
+          const schema =
+            typedTool.inputSchema || typedTool.parameters || z.object({});
+
+          return {
+            type: "function" as const,
             name,
-            description: tool.description,
-            parameters: tool.parameters,
-          },
-        }));
+            function: {
+              name,
+              description: tool.description,
+              inputSchema: schema,
+            },
+          };
+        });
 
         requestParams.tools = [
           ...(requestParams.tools as Record<string, unknown>[]),

@@ -6,7 +6,7 @@ export const createAriaTreeTool = (v3: V3) =>
   tool({
     description:
       "gets the accessibility (ARIA) hybrid tree text for the current page. use this to understand structure and content.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
     execute: async () => {
       v3.logger({
         category: "agent",
@@ -29,8 +29,8 @@ export const createAriaTreeTool = (v3: V3) =>
 
       return { content, pageUrl };
     },
-    experimental_toToolResultContent: (result) => {
-      const content = typeof result === "string" ? result : result.content;
-      return [{ type: "text", text: `Accessibility Tree:\n${content}` }];
-    },
+    toModelOutput: (result) => ({
+      type: "content",
+      value: [{ type: "text", text: `Accessibility Tree:\n${result.content}` }],
+    }),
   });

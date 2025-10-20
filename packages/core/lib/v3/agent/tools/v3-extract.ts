@@ -30,7 +30,7 @@ export const createExtractTool = (
   tool({
     description:
       "Extract structured data. Optionally provide an instruction and Zod schema.",
-    parameters: z.object({
+    inputSchema: z.object({
       instruction: z.string().optional(),
       schema: z
         .string()

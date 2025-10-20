@@ -59,7 +59,7 @@ export interface ChatCompletionOptions {
   };
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
-  maxTokens?: number;
+  maxOutputTokens?: number;
   requestId?: string;
 }
 

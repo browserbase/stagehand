@@ -1,4 +1,7 @@
 import { V3 } from "../../lib/v3";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 async function main() {
   const v3 = new V3({
@@ -14,12 +17,12 @@ async function main() {
     "https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/",
   );
   const agent = v3.agent({
-    cua: true,
+    cua: false,
     model: "anthropic/claude-sonnet-4-20250514",
   });
 
   const result = await agent.execute({
-    instruction: "drag 'text' to zone A.",
+    instruction: "order me shampoo on amazon",
     maxSteps: 20,
   });
 

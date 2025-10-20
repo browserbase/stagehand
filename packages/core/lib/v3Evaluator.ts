@@ -22,7 +22,7 @@ dotenv.config();
 
 const EvaluationSchema = z.object({
   evaluation: z.enum(["YES", "NO"]),
-  reasoning: z.string(),
+  reasoningText: z.string(),
 });
 
 const BatchEvaluationSchema = z.array(EvaluationSchema);
@@ -124,13 +124,13 @@ export class V3Evaluator {
       const result = response.data as unknown as z.infer<
         typeof EvaluationSchema
       >;
-      return { evaluation: result.evaluation, reasoning: result.reasoning };
+      return { evaluation: result.evaluation, reasoningText: result.reasoningText };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return {
         evaluation: "INVALID",
-        reasoning: `Failed to get structured response: ${errorMessage}`,
+        reasoningText: `Failed to get structured response: ${errorMessage}`,
       } as const;
     }
   }
@@ -200,14 +200,14 @@ export class V3Evaluator {
       >;
       return results.map((r) => ({
         evaluation: r.evaluation,
-        reasoning: r.reasoning,
+        reasoningText: r.reasoningText,
       }));
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return questions.map(() => ({
         evaluation: "INVALID" as const,
-        reasoning: `Failed to get structured response: ${errorMessage}`,
+        reasoningText: `Failed to get structured response: ${errorMessage}`,
       }));
     }
   }
@@ -269,13 +269,13 @@ export class V3Evaluator {
       const result = response.data as unknown as z.infer<
         typeof EvaluationSchema
       >;
-      return { evaluation: result.evaluation, reasoning: result.reasoning };
+      return { evaluation: result.evaluation, reasoningText: result.reasoningText };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       return {
         evaluation: "INVALID",
-        reasoning: `Failed to get structured response: ${errorMessage}`,
+        reasoningText: `Failed to get structured response: ${errorMessage}`,
       } as const;
     }
   }

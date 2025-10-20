@@ -8,7 +8,7 @@ import { Page } from "../../understudy/page";
 
 export interface AgentAction {
   type: string;
-  reasoning?: string;
+  reasoningText?: string;
   taskCompleted?: boolean;
   action?: string;
   // Tool-specific fields

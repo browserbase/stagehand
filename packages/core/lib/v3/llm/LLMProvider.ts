@@ -30,6 +30,12 @@ import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
 import { ollama } from "ollama-ai-provider";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
+// Type-safe wrapper for ollama provider which still uses v1 API
+// Ollama provider returns LanguageModelV1 but AI SDK v5 expects LanguageModelV2
+const ollamaWrapper: AISDKProvider = (modelName: string) => {
+  return ollama(modelName) as unknown as ReturnType<AISDKProvider>;
+};
+
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
   anthropic,
@@ -42,7 +48,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   mistral,
   deepseek,
   perplexity,
-  ollama,
+  ollama: ollamaWrapper,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,

@@ -1,6 +1,6 @@
 import {
   CoreAssistantMessage,
-  CoreMessage,
+  ModelMessage,
   CoreSystemMessage,
   CoreUserMessage,
   generateObject,
@@ -10,11 +10,16 @@ import {
   NoObjectGeneratedError,
   TextPart,
   ToolSet,
+  Tool,
 } from "ai";
 import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+
+interface LanguageModelWithId {
+  modelId: string;
+}
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -28,7 +33,11 @@ export class AISdkClient extends LLMClient {
     model: LanguageModel;
     logger?: (message: LogLine) => void;
   }) {
-    super(model.modelId as AvailableModel);
+    const modelId =
+      typeof model === "string"
+        ? model
+        : (model as LanguageModelWithId).modelId || "unknown";
+    super(modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
   }
@@ -63,67 +72,76 @@ export class AISdkClient extends LLMClient {
           type: "object",
         },
         modelName: {
-          value: this.model.modelId,
+          value:
+            typeof this.model === "string"
+              ? this.model
+              : (this.model as LanguageModelWithId).modelId || "unknown",
           type: "string",
         },
       },
     });
 
-    const formattedMessages: CoreMessage[] = options.messages.map((message) => {
-      if (Array.isArray(message.content)) {
-        if (message.role === "system") {
-          const systemMessage: CoreSystemMessage = {
-            role: "system",
-            content: message.content
-              .map((c) => ("text" in c ? c.text : ""))
-              .join("\n"),
-          };
-          return systemMessage;
-        }
-
-        const contentParts = message.content.map((content) => {
-          if ("image_url" in content) {
-            const imageContent: ImagePart = {
-              type: "image",
-              image: content.image_url.url,
+    const formattedMessages: ModelMessage[] = options.messages.map(
+      (message) => {
+        if (Array.isArray(message.content)) {
+          if (message.role === "system") {
+            const systemMessage: CoreSystemMessage = {
+              role: "system",
+              content: message.content
+                .map((c) => ("text" in c ? c.text : ""))
+                .join("\n"),
             };
-            return imageContent;
-          } else {
-            const textContent: TextPart = {
-              type: "text",
-              text: content.text,
-            };
-            return textContent;
+            return systemMessage;
           }
-        });
 
-        if (message.role === "user") {
-          const userMessage: CoreUserMessage = {
-            role: "user",
-            content: contentParts,
-          };
-          return userMessage;
-        } else {
-          const textOnlyParts = contentParts.map((part) => ({
-            type: "text" as const,
-            text: part.type === "image" ? "[Image]" : part.text,
-          }));
-          const assistantMessage: CoreAssistantMessage = {
-            role: "assistant",
-            content: textOnlyParts,
-          };
-          return assistantMessage;
+          const contentParts = message.content.map((content) => {
+            if ("image_url" in content) {
+              const imageContent: ImagePart = {
+                type: "image",
+                image: content.image_url.url,
+              };
+              return imageContent;
+            } else {
+              const textContent: TextPart = {
+                type: "text",
+                text: content.text,
+              };
+              return textContent;
+            }
+          });
+
+          if (message.role === "user") {
+            const userMessage: CoreUserMessage = {
+              role: "user",
+              content: contentParts,
+            };
+            return userMessage;
+          } else {
+            const textOnlyParts = contentParts.map((part) => ({
+              type: "text" as const,
+              text: part.type === "image" ? "[Image]" : part.text,
+            }));
+            const assistantMessage: CoreAssistantMessage = {
+              role: "assistant",
+              content: textOnlyParts,
+            };
+            return assistantMessage;
+          }
         }
-      }
 
-      return {
-        role: message.role,
-        content: message.content,
-      };
-    });
+        return {
+          role: message.role,
+          content: message.content,
+        };
+      },
+    );
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
-    const isGPT5 = this.model.modelId.includes("gpt-5");
+    const modelId =
+      typeof this.model === "string"
+        ? this.model
+        : (this.model as LanguageModelWithId).modelId || "unknown";
+    const isGPT5 = modelId.includes("gpt-5");
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -182,8 +200,8 @@ export class AISdkClient extends LLMClient {
       const result = {
         data: objectResponse.object,
         usage: {
-          prompt_tokens: objectResponse.usage.promptTokens ?? 0,
-          completion_tokens: objectResponse.usage.completionTokens ?? 0,
+          prompt_tokens: objectResponse.usage.inputTokens ?? 0,
+          completion_tokens: objectResponse.usage.outputTokens ?? 0,
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
@@ -217,8 +235,8 @@ export class AISdkClient extends LLMClient {
       for (const tool of options.tools) {
         tools[tool.name] = {
           description: tool.description,
-          parameters: tool.parameters,
-        };
+          inputSchema: tool.parameters,
+        } as Tool;
       }
     }
 
@@ -246,7 +264,7 @@ export class AISdkClient extends LLMClient {
         type: "function",
         function: {
           name: toolCall.toolName,
-          arguments: JSON.stringify(toolCall.args),
+          arguments: JSON.stringify(toolCall.input),
         },
       }),
     );
@@ -255,7 +273,10 @@ export class AISdkClient extends LLMClient {
       id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
-      model: this.model.modelId,
+      model:
+        typeof this.model === "string"
+          ? this.model
+          : (this.model as LanguageModelWithId).modelId || "unknown",
       choices: [
         {
           index: 0,
@@ -268,8 +289,8 @@ export class AISdkClient extends LLMClient {
         },
       ],
       usage: {
-        prompt_tokens: textResponse.usage.promptTokens ?? 0,
-        completion_tokens: textResponse.usage.completionTokens ?? 0,
+        prompt_tokens: textResponse.usage.inputTokens ?? 0,
+        completion_tokens: textResponse.usage.outputTokens ?? 0,
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;

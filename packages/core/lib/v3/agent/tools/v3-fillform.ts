@@ -6,7 +6,7 @@ import type { Action } from "../../types/public/methods";
 export const createFillFormTool = (v3: V3, executionModel?: string) =>
   tool({
     description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
-    parameters: z.object({
+    inputSchema: z.object({
       fields: z
         .array(
           z.object({

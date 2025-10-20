@@ -5,7 +5,7 @@ import type { V3 } from "../../v3";
 export const createGotoTool = (v3: V3) =>
   tool({
     description: "Navigate to a specific URL",
-    parameters: z.object({
+    inputSchema: z.object({
       url: z.string().describe("The URL to navigate to"),
     }),
     execute: async ({ url }) => {
