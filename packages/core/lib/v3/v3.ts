@@ -780,12 +780,7 @@ export class V3 {
 
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
-        let v3Page: Page;
-        if (options?.page) {
-          v3Page = await this.normalizeToV3Page(options.page);
-        } else {
-          v3Page = await this.ctx!.awaitActivePage();
-        }
+        const v3Page = await this.resolvePage(options?.page);
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
@@ -813,25 +808,7 @@ export class V3 {
       }
 
       // Resolve page from options or default
-      let page: Page;
-      if (options?.page) {
-        if (options.page instanceof (await import("./understudy/page")).Page) {
-          page = options.page as Page;
-        } else if (this.isPlaywrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to act().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
       let actCacheContext:
         | Awaited<ReturnType<typeof this.actCache.prepareContext>>
@@ -870,7 +847,7 @@ export class V3 {
 
       const handlerParams: ActHandlerParams = {
         instruction: input,
-        page: page!,
+        page,
         variables: options?.variables,
         timeout: options?.timeout,
         model: options?.model,
@@ -966,26 +943,7 @@ export class V3 {
         instruction && !schema ? defaultExtractSchema : schema;
 
       // Resolve page from options or use active page
-      let page: Page;
-      const pageArg: AnyPage | undefined = options?.page;
-      if (pageArg) {
-        if (pageArg instanceof (await import("./understudy/page")).Page) {
-          page = pageArg as Page;
-        } else if (this.isPlaywrightPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to extract().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
       const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
         instruction,
@@ -993,7 +951,7 @@ export class V3 {
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
-        page: page!,
+        page,
       };
 
       const result =
@@ -1043,25 +1001,7 @@ export class V3 {
       }
 
       // Resolve to our internal Page type
-      let page: Page;
-      if (options?.page) {
-        if (options.page instanceof (await import("./understudy/page")).Page) {
-          page = options.page as Page;
-        } else if (this.isPlaywrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to observe().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
       const handlerParams: ObserveHandlerParams = {
         instruction,
@@ -1267,6 +1207,20 @@ export class V3 {
       p !== null &&
       typeof (p as PuppeteerPage).target === "function"
     );
+  }
+
+  /** Resolve an external page reference or fall back to the active V3 page. */
+  private async resolvePage(page?: AnyPage): Promise<Page> {
+    if (page) {
+      return await this.normalizeToV3Page(page);
+    }
+    const ctx = this.ctx;
+    if (!ctx) {
+      throw new Error(
+        "V3 context not initialized. Call init() before resolving pages.",
+      );
+    }
+    return await ctx.awaitActivePage();
   }
 
   private async normalizeToV3Page(input: AnyPage): Promise<Page> {
