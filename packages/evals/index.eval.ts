@@ -347,12 +347,13 @@ const generateFilteredTestcases = (): Testcase[] => {
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
-              const languageModel = getAISDKLanguageModel(
-                input.modelName.split("/")[0],
-                input.modelName.split("/")[1],
-              );
               llmClient = new AISdkClient({
-                model: wrapAISDKModel(languageModel),
+                model: wrapAISDKModel(
+                  getAISDKLanguageModel(
+                    input.modelName.split("/")[0],
+                    input.modelName.split("/")[1],
+                  ),
+                ),
               });
             }
             v3Input = await initV3({
