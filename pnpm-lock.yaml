@@ -163,37 +163,37 @@ importers:
         version: 3.24.5(zod@3.25.67)
     optionalDependencies:
       '@ai-sdk/anthropic':
-        specifier: latest
+        specifier: ^2.0.34
         version: 2.0.34(zod@3.25.67)
       '@ai-sdk/azure':
-        specifier: latest
+        specifier: ^2.0.54
         version: 2.0.54(zod@3.25.67)
       '@ai-sdk/cerebras':
-        specifier: latest
+        specifier: ^1.0.25
         version: 1.0.25(zod@3.25.67)
       '@ai-sdk/deepseek':
-        specifier: latest
+        specifier: ^1.0.23
         version: 1.0.23(zod@3.25.67)
       '@ai-sdk/google':
-        specifier: latest
+        specifier: ^2.0.23
         version: 2.0.23(zod@3.25.67)
       '@ai-sdk/groq':
-        specifier: latest
+        specifier: ^2.0.24
         version: 2.0.24(zod@3.25.67)
       '@ai-sdk/mistral':
-        specifier: latest
+        specifier: ^2.0.19
         version: 2.0.19(zod@3.25.67)
       '@ai-sdk/openai':
-        specifier: latest
+        specifier: ^2.0.53
         version: 2.0.53(zod@3.25.67)
       '@ai-sdk/perplexity':
-        specifier: latest
+        specifier: ^2.0.13
         version: 2.0.13(zod@3.25.67)
       '@ai-sdk/togetherai':
-        specifier: latest
+        specifier: ^1.0.23
         version: 1.0.23(zod@3.25.67)
       '@ai-sdk/xai':
-        specifier: latest
+        specifier: ^2.0.26
         version: 2.0.26(zod@3.25.67)
       '@langchain/core':
         specifier: ^0.3.40
@@ -202,7 +202,7 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       ollama-ai-provider:
-        specifier: latest
+        specifier: ^1.2.0
         version: 1.2.0(zod@3.25.67)
       patchright-core:
         specifier: ^1.55.2
@@ -4636,7 +4636,7 @@ packages:
   puppeteer@22.15.0:
     resolution: {integrity: sha512-XjCY1SiSEi1T7iSYuxS82ft85kwDJUS7wj1Z0eGVXKdtr5g4xnVcbjwxhq5xBnpK/E7x1VZZoJDxpjAOasHT4Q==}
     engines: {node: '>=18'}
-    deprecated: < 24.15.0 is no longer supported
+    deprecated: < 24.9.0 is no longer supported
     hasBin: true
 
   qs@6.13.0:
