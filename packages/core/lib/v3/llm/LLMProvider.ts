@@ -27,7 +27,6 @@ import { togetherai, createTogetherAI } from "@ai-sdk/togetherai";
 import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ollama } from "ollama-ai-provider-v2";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
@@ -99,7 +98,7 @@ export function getAISDKLanguageModel(
   subModelName: string,
   apiKey?: string,
   baseURL?: string,
-): LanguageModelV2 {
+) {
   if (apiKey) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
