@@ -108,7 +108,7 @@ export class V3AgentHandler {
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
-                  const closeReasoning = args.reasoningText as string;
+                  const closeReasoning = args.reasoning;
                   const allReasoning = collectedReasoning.join(" ");
                   finalMessage = closeReasoning
                     ? `${allReasoning} ${closeReasoning}`.trim()
