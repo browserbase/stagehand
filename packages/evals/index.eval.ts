@@ -22,7 +22,7 @@ import {
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
-import { Eval, wrapAISDKModel } from "braintrust";
+import { Eval } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
 import {
@@ -33,7 +33,7 @@ import {
   loadApiKeyFromEnv,
   LogLine,
 } from "@browserbasehq/orca";
-import { AISdkClient } from "@browserbasehq/orca/lib/v3/llm/aisdk";
+import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
 import { getAISDKLanguageModel } from "@browserbasehq/orca/lib/v3/llm/LLMProvider";
 import { env } from "./env";
 import dotenv from "dotenv";
@@ -347,12 +347,10 @@ const generateFilteredTestcases = (): Testcase[] => {
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
-              llmClient = new AISdkClient({
-                model: wrapAISDKModel(
-                  getAISDKLanguageModel(
-                    input.modelName.split("/")[0],
-                    input.modelName.split("/")[1],
-                  ),
+              llmClient = new AISdkClientWrapped({
+                model: getAISDKLanguageModel(
+                  input.modelName.split("/")[0],
+                  input.modelName.split("/")[1],
                 ),
               });
             }
