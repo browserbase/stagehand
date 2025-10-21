@@ -38,5 +38,5 @@ export interface EvaluationResult {
   /**
    * The reasoning behind the evaluation
    */
-  reasoningText: string;
+  reasoning: string;
 }
