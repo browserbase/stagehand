@@ -8,6 +8,8 @@ import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
+import { NetworkManager } from "./networkManager";
+import { LifecycleWatcher } from "./lifecycleWatcher";
 
 /**
  * Page
@@ -50,6 +52,8 @@ export class Page {
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
 
+  private readonly networkManager: NetworkManager;
+
   private constructor(
     private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
@@ -70,6 +74,9 @@ export class Page {
       mainFrameId,
       this.pageId,
     );
+
+    this.networkManager = new NetworkManager();
+    this.networkManager.trackSession(this.mainSession);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -292,6 +299,8 @@ export class Page {
   ): void {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
+    this.networkManager.trackSession(childSession);
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -355,6 +364,7 @@ export class Page {
       this.frameCache.delete(fid);
     }
     this.sessions.delete(sessionId);
+    this.networkManager.untrackSession(sessionId);
   }
 
   // ---------------- Ownership helpers / lookups ----------------
@@ -380,6 +390,14 @@ export class Page {
   /** Expose a session by id (used by snapshot to resolve session id -> session) */
   public getSessionById(id: string): CDPSessionLike | undefined {
     return this.sessions.get(id);
+  }
+
+  public registerSessionForNetwork(session: CDPSessionLike): void {
+    this.networkManager.trackSession(session);
+  }
+
+  public unregisterSessionForNetwork(sessionId: string | undefined): void {
+    this.networkManager.untrackSession(sessionId);
   }
 
   // ---------------- MAIN APIs ----------------
@@ -422,6 +440,7 @@ export class Page {
       try {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
+          this.networkManager.dispose();
           return;
         }
       } catch {
@@ -429,6 +448,7 @@ export class Page {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
+    this.networkManager.dispose();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -466,13 +486,28 @@ export class Page {
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<void> {
-    await this.mainSession.send<Protocol.Page.NavigateResponse>(
-      "Page.navigate",
-      { url },
-    );
-    this._currentUrl = url;
-    const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
-    await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeoutMs: timeout,
+    });
+
+    try {
+      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
+        "Page.navigate",
+        { url },
+      );
+      this._currentUrl = url;
+      if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
+      await watcher.wait();
+    } finally {
+      watcher.dispose();
+    }
   }
 
   /**
@@ -483,14 +518,29 @@ export class Page {
     timeoutMs?: number;
     ignoreCache?: boolean;
   }): Promise<void> {
-    await this.mainSession.send("Page.reload", {
-      ignoreCache: options?.ignoreCache ?? false,
-    });
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.reload", {
+        ignoreCache: options?.ignoreCache ?? false,
+      });
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -507,15 +557,30 @@ export class Page {
       );
     const prev = entries[currentIndex - 1];
     if (!prev) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: prev.id,
-    });
-    this._currentUrl = prev.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: prev.id,
+      });
+      this._currentUrl = prev.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -532,15 +597,30 @@ export class Page {
       );
     const next = entries[currentIndex + 1];
     if (!next) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: next.id,
-    });
-    this._currentUrl = next.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: next.id,
+      });
+      this._currentUrl = next.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -1478,7 +1558,7 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  private async waitForMainLoadState(
+  async waitForMainLoadState(
     state: LoadState,
     timeoutMs = 15000,
   ): Promise<void> {
