@@ -68,7 +68,7 @@
     "@ai-sdk/xai": "^2.0.26",
     "@langchain/core": "^0.3.40",
     "chrome-launcher": "^1.2.0",
-    "ollama-ai-provider": "^1.2.0",
+    "ollama-ai-provider-v2": "^1.5.0",
     "patchright-core": "^1.55.2",
     "playwright-core": "^1.54.1",
     "puppeteer-core": "^22.8.0"
