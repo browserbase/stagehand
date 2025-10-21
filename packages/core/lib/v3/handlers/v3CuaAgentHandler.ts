@@ -409,8 +409,8 @@ export class V3CuaAgentHandler {
   ): string {
     const raw =
       (typeof agentAction.action === "string" && agentAction.action.trim()) ||
-      (typeof agentAction.reasoningText === "string" &&
-        agentAction.reasoningText.trim());
+      (typeof agentAction.reasoning === "string" &&
+        agentAction.reasoning.trim());
     return raw && raw.length > 0 ? raw : fallback;
   }
 
@@ -432,9 +432,9 @@ export class V3CuaAgentHandler {
       actions,
       actionDescription: description,
       message:
-        typeof agentAction.reasoningText === "string" &&
-        agentAction.reasoningText.trim().length > 0
-          ? agentAction.reasoningText.trim()
+        typeof agentAction.reasoning === "string" &&
+        agentAction.reasoning.trim().length > 0
+          ? agentAction.reasoning.trim()
           : undefined,
     });
   }
