@@ -17,12 +17,12 @@ async function main() {
     "https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/",
   );
   const agent = v3.agent({
-    cua: false,
+    cua: true,
     model: "anthropic/claude-sonnet-4-20250514",
   });
 
   const result = await agent.execute({
-    instruction: "order me shampoo on amazon",
+    instruction: "drag 'text' to zone A.",
     maxSteps: 20,
   });
 
