@@ -86,8 +86,7 @@ export function processMessages(params: LanguageModelV2CallOptions): {
   );
 
   return {
-    processedPrompt:
-      processedPrompt as unknown as LanguageModelV2CallOptions["prompt"],
+    processedPrompt: processedPrompt as LanguageModelV2CallOptions["prompt"],
     stats,
   };
 }

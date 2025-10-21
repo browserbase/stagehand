@@ -1,13 +1,7 @@
 import { createAgentTools } from "../agent/tools";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
-import {
-  ModelMessage,
-  LanguageModel,
-  ToolSet,
-  wrapLanguageModel,
-  stepCountIs,
-} from "ai";
+import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
@@ -72,9 +66,14 @@ export class V3AgentHandler {
           "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
         );
       }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const baseModel = this.llmClient.getLanguageModel();
+      if (typeof baseModel === "string") {
+        throw new Error(
+          "AISDK language model is required for V3AgentHandler; got a string model id",
+        );
+      }
       const wrappedModel = wrapLanguageModel({
-        model: baseModel as Exclude<LanguageModel, string>,
+        model: baseModel,
         middleware: {
           transformParams: async ({ params }) => {
             const { processedPrompt } = processMessages(params);
@@ -84,7 +83,7 @@ export class V3AgentHandler {
       });
 
       const result = await this.llmClient.generateText({
-        model: wrappedModel as LanguageModel,
+        model: wrappedModel,
         system: systemPrompt,
         messages,
         tools: allTools,
