@@ -1,3 +1,5 @@
+import type { LanguageModelV2CallOptions } from "@ai-sdk/provider";
+
 export interface CompressionStats {
   originalSize: number;
   compressedSize: number;
@@ -5,11 +7,6 @@ export interface CompressionStats {
   compressionRatio: number;
   screenshotCount: number;
   ariaTreeCount: number;
-}
-
-interface LanguageModelV2CallOptions {
-  prompt: unknown[];
-  [key: string]: unknown;
 }
 
 function isToolMessage(
