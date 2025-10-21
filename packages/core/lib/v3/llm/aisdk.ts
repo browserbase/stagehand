@@ -6,7 +6,6 @@ import {
   generateObject,
   generateText,
   ImagePart,
-  LanguageModel,
   NoObjectGeneratedError,
   TextPart,
   ToolSet,
@@ -35,7 +34,7 @@ export class AISdkClient extends LLMClient {
     this.logger = logger;
   }
 
-  public getLanguageModel(): LanguageModel {
+  public getLanguageModel(): LanguageModelV2 {
     return this.model;
   }
 

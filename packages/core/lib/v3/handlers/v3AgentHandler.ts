@@ -67,11 +67,6 @@ export class V3AgentHandler {
         );
       }
       const baseModel = this.llmClient.getLanguageModel();
-      if (typeof baseModel === "string") {
-        throw new Error(
-          "AISDK language model is required for V3AgentHandler; got a string model id",
-        );
-      }
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
