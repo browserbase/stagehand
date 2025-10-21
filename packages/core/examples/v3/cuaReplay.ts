@@ -1,7 +1,4 @@
 import { V3 } from "../../lib/v3";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 async function main() {
   const v3 = new V3({
