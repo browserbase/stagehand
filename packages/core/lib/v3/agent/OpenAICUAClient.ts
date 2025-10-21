@@ -395,7 +395,7 @@ export class OpenAICUAClient extends AgentClient {
           function: {
             name,
             description: tool.description,
-            inputSchema: tool.inputSchema,
+            parameters: tool.inputSchema,
           },
         }));
 

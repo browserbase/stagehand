@@ -206,7 +206,7 @@ export class GoogleClient extends LLMClient {
           return {
             name: tool.name,
             description: tool.description,
-            inputSchema: parameters,
+            parameters: parameters,
           };
         }),
       },

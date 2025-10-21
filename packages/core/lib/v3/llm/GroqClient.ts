@@ -90,7 +90,7 @@ export class GroqClient extends LLMClient {
       function: {
         name: tool.name,
         description: tool.description,
-        inputSchema: {
+        parameters: {
           type: "object",
           properties: tool.parameters.properties,
           required: tool.parameters.required,
@@ -113,7 +113,7 @@ export class GroqClient extends LLMClient {
           name: "print_extracted_data",
           description:
             "Prints the extracted data based on the provided schema.",
-          inputSchema: {
+          parameters: {
             type: "object",
             properties: schemaProperties,
             required: schemaRequired,
