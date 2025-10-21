@@ -351,11 +351,6 @@ const generateFilteredTestcases = (): Testcase[] => {
                 input.modelName.split("/")[0],
                 input.modelName.split("/")[1],
               );
-              if (typeof languageModel === "string") {
-                throw new Error(
-                  `Expected object LanguageModel for ${input.modelName}, got string`,
-                );
-              }
               llmClient = new AISdkClient({
                 model: wrapAISDKModel(languageModel),
               });
