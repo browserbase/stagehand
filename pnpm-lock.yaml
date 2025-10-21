@@ -110,6 +110,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@ai-sdk/provider':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@anthropic-ai/sdk':
         specifier: 0.39.0
         version: 0.39.0

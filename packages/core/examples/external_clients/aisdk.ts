@@ -17,9 +17,8 @@ import {
 } from "../../lib/v3";
 import { ChatCompletion } from "openai/resources";
 
-interface LanguageModelWithId {
-  modelId: string;
-}
+// LanguageModelV2 from AI SDK has modelId as a required property
+type LanguageModelV2Object = Extract<LanguageModel, { modelId: string }>;
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
@@ -29,7 +28,7 @@ export class AISdkClient extends LLMClient {
     const modelId =
       typeof model === "string"
         ? model
-        : (model as LanguageModelWithId).modelId || "unknown";
+        : (model as LanguageModelV2Object).modelId;
     super(modelId as AvailableModel);
     this.model = model;
   }

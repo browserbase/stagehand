@@ -1,5 +1,5 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
-import { LanguageModel } from "ai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 
 export type AnthropicJsonSchemaObject = {
@@ -20,7 +20,10 @@ export interface LLMTool {
   parameters: Record<string, unknown>;
 }
 
-export type AISDKProvider = (modelName: string) => LanguageModel;
+// AI SDK provider functions (like openai(), anthropic()) return LanguageModelV2 objects.
+// The LanguageModel type also includes 'string' for registry lookups, but providers
+// themselves always return objects, not strings.
+export type AISDKProvider = (modelName: string) => LanguageModelV2;
 // Represents a function that takes options (like apiKey) and returns an AISDKProvider
 export type AISDKCustomProvider = (options: {
   apiKey: string;

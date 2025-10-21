@@ -38,6 +38,7 @@
     "zod": "3.25.67"
   },
   "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/sdk": "0.39.0",
     "@browserbasehq/sdk": "^2.4.0",
     "@google/genai": "^1.22.0",
@@ -48,7 +49,7 @@
     "fetch-cookie": "^3.1.0",
     "openai": "^4.87.1",
     "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",    
+    "pino-pretty": "^13.0.0",
     "playwright": "^1.52.0",
     "ws": "^8.18.0",
     "zod-to-json-schema": "^3.23.5"
@@ -66,19 +67,19 @@
     "@ai-sdk/togetherai": "^1.0.23",
     "@ai-sdk/xai": "^2.0.26",
     "@langchain/core": "^0.3.40",
-    "playwright-core": "^1.54.1",
-    "puppeteer-core": "^22.8.0",
     "chrome-launcher": "^1.2.0",
+    "ollama-ai-provider": "^1.2.0",
     "patchright-core": "^1.55.2",
-    "ollama-ai-provider": "^1.2.0"
+    "playwright-core": "^1.54.1",
+    "puppeteer-core": "^22.8.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",
-    "typescript": "^5.2.2",
+    "eslint": "^9.16.0",
+    "prettier": "^3.2.5",
     "tsup": "^8.2.1",
     "tsx": "^4.10.5",
-    "prettier": "^3.2.5",
-    "eslint": "^9.16.0"
+    "typescript": "^5.2.2"
   },
   "repository": {
     "type": "git",

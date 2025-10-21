@@ -12,32 +12,25 @@ import {
   ToolSet,
   Tool,
 } from "ai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
-interface LanguageModelWithId {
-  modelId: string;
-}
-
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModel;
+  private model: LanguageModelV2;
   private logger?: (message: LogLine) => void;
 
   constructor({
     model,
     logger,
   }: {
-    model: LanguageModel;
+    model: LanguageModelV2;
     logger?: (message: LogLine) => void;
   }) {
-    const modelId =
-      typeof model === "string"
-        ? model
-        : (model as LanguageModelWithId).modelId || "unknown";
-    super(modelId as AvailableModel);
+    super(model.modelId as AvailableModel);
     this.model = model;
     this.logger = logger;
   }
@@ -72,10 +65,7 @@ export class AISdkClient extends LLMClient {
           type: "object",
         },
         modelName: {
-          value:
-            typeof this.model === "string"
-              ? this.model
-              : (this.model as LanguageModelWithId).modelId || "unknown",
+          value: this.model.modelId,
           type: "string",
         },
       },
@@ -137,11 +127,7 @@ export class AISdkClient extends LLMClient {
     );
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
-    const modelId =
-      typeof this.model === "string"
-        ? this.model
-        : (this.model as LanguageModelWithId).modelId || "unknown";
-    const isGPT5 = modelId.includes("gpt-5");
+    const isGPT5 = this.model.modelId.includes("gpt-5");
     if (options.response_model) {
       try {
         objectResponse = await generateObject({
@@ -273,10 +259,7 @@ export class AISdkClient extends LLMClient {
       id: `chatcmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
-      model:
-        typeof this.model === "string"
-          ? this.model
-          : (this.model as LanguageModelWithId).modelId || "unknown",
+      model: this.model.modelId,
       choices: [
         {
           index: 0,
