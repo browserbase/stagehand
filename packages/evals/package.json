@@ -17,7 +17,6 @@
     "@browserbasehq/orca": "workspace:*",
     "ai": "^5.0.0",
     "@ai-sdk/provider": "^2.0.0",
-    "braintrust": "^0.4.7",
     "openai": "^4.87.1",
     "dotenv": "16.4.5",
     "zod": "3.25.67"

@@ -259,9 +259,6 @@ importers:
       ai:
         specifier: ^5.0.0
         version: 5.0.76(zod@3.25.67)
-      braintrust:
-        specifier: ^0.4.7
-        version: 0.4.7(zod@3.25.67)
       dotenv:
         specifier: 16.4.5
         version: 16.4.5
