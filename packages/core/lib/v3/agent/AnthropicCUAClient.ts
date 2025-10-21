@@ -12,7 +12,7 @@ import {
 import { LogLine } from "../types/public/logs";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
-import { ToolSet, Tool } from "ai";
+import { ToolSet } from "ai";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod/v3";
 import { AgentClient } from "./AgentClient";
@@ -446,14 +446,7 @@ export class AnthropicCUAClient extends AgentClient {
       if (this.tools && Object.keys(this.tools).length > 0) {
         const customTools = Object.entries(this.tools).map(([name, tool]) => {
           // Convert Zod schema to proper JSON schema format for Anthropic
-          type ToolWithSchema = Tool & {
-            inputSchema?: z.ZodType;
-            parameters?: z.ZodType;
-          };
-          const typedTool = tool as ToolWithSchema;
-          const schema =
-            typedTool.inputSchema || typedTool.parameters || z.object({});
-          const jsonSchema = zodToJsonSchema(schema) as {
+          const jsonSchema = zodToJsonSchema(tool.inputSchema as z.ZodType) as {
             properties?: Record<string, unknown>;
             required?: string[];
           };
