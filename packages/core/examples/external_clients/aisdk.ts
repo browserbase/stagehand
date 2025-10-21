@@ -7,9 +7,9 @@ import {
   generateObject,
   generateText,
   ImagePart,
-  LanguageModel,
   TextPart,
 } from "ai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import {
   CreateChatCompletionOptions,
   LLMClient,
@@ -17,19 +17,12 @@ import {
 } from "../../lib/v3";
 import { ChatCompletion } from "openai/resources";
 
-// LanguageModelV2 from AI SDK has modelId as a required property
-type LanguageModelV2Object = Extract<LanguageModel, { modelId: string }>;
-
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModel;
+  private model: LanguageModelV2;
 
-  constructor({ model }: { model: LanguageModel }) {
-    const modelId =
-      typeof model === "string"
-        ? model
-        : (model as LanguageModelV2Object).modelId;
-    super(modelId as AvailableModel);
+  constructor({ model }: { model: LanguageModelV2 }) {
+    super(model.modelId as AvailableModel);
     this.model = model;
   }
 
