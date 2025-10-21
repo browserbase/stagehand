@@ -118,7 +118,7 @@ export class V3AgentHandler {
 
               const action: AgentAction = {
                 type: toolCall.toolName,
-                reasoningText: event.text || undefined,
+                reasoning: event.text || undefined,
                 taskCompleted:
                   toolCall.toolName === "close"
                     ? (args?.taskComplete as boolean)
