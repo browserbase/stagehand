@@ -1,7 +1,7 @@
 import { createAgentTools } from "../agent/tools";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
-import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
+import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
@@ -57,7 +57,7 @@ export class V3AgentHandler {
       );
       const tools = this.createTools();
       const allTools = { ...tools, ...this.mcpTools };
-      const messages: CoreMessage[] = [
+      const messages: ModelMessage[] = [
         { role: "user", content: options.instruction },
       ];
 
@@ -66,13 +66,13 @@ export class V3AgentHandler {
           "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
         );
       }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const baseModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
           transformParams: async ({ params }) => {
             const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt };
+            return { ...params, prompt: processedPrompt } as typeof params;
           },
         },
       });
@@ -82,7 +82,7 @@ export class V3AgentHandler {
         system: systemPrompt,
         messages,
         tools: allTools,
-        maxSteps,
+        stopWhen: stepCountIs(maxSteps),
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
@@ -94,7 +94,7 @@ export class V3AgentHandler {
 
           if (event.toolCalls && event.toolCalls.length > 0) {
             for (const toolCall of event.toolCalls) {
-              const args = toolCall.args as Record<string, unknown>;
+              const args = toolCall.input as Record<string, unknown>;
 
               if (event.text.length > 0) {
                 collectedReasoning.push(event.text);
@@ -108,7 +108,7 @@ export class V3AgentHandler {
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
-                  const closeReasoning = args.reasoning as string;
+                  const closeReasoning = args.reasoning;
                   const allReasoning = collectedReasoning.join(" ");
                   finalMessage = closeReasoning
                     ? `${allReasoning} ${closeReasoning}`.trim()
@@ -141,8 +141,8 @@ export class V3AgentHandler {
       if (result.usage) {
         this.v3.updateMetrics(
           V3FunctionName.AGENT,
-          result.usage.promptTokens || 0,
-          result.usage.completionTokens || 0,
+          result.usage.inputTokens || 0,
+          result.usage.outputTokens || 0,
           inferenceTimeMs,
         );
       }
@@ -154,8 +154,8 @@ export class V3AgentHandler {
         completed,
         usage: result.usage
           ? {
-              input_tokens: result.usage.promptTokens || 0,
-              output_tokens: result.usage.completionTokens || 0,
+              input_tokens: result.usage.inputTokens || 0,
+              output_tokens: result.usage.outputTokens || 0,
               inference_time_ms: inferenceTimeMs,
             }
           : undefined,

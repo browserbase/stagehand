@@ -7,10 +7,10 @@ import {
   experimental_transcribe,
   generateObject,
   generateText,
-  LanguageModel,
   streamObject,
   streamText,
 } from "ai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ZodType } from "zod/v3";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel, ClientOptions } from "../types/public/model";
@@ -59,7 +59,7 @@ export interface ChatCompletionOptions {
   };
   tools?: LLMTool[];
   tool_choice?: "auto" | "none" | "required";
-  maxTokens?: number;
+  maxOutputTokens?: number;
   requestId?: string;
 }
 
@@ -125,5 +125,5 @@ export abstract class LLMClient {
   public transcribe = experimental_transcribe;
   public generateSpeech = experimental_generateSpeech;
 
-  getLanguageModel?(): LanguageModel;
+  getLanguageModel?(): LanguageModelV2;
 }

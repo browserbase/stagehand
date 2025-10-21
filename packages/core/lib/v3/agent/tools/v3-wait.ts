@@ -5,7 +5,7 @@ import type { V3 } from "../../v3";
 export const createWaitTool = (v3: V3) =>
   tool({
     description: "Wait for a specified time",
-    parameters: z.object({
+    inputSchema: z.object({
       timeMs: z.number().describe("Time in milliseconds"),
     }),
     execute: async ({ timeMs }) => {

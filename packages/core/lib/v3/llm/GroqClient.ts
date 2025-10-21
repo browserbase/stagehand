@@ -143,7 +143,7 @@ export class GroqClient extends LLMClient {
             : []),
         ],
         temperature: options.temperature || 0.7,
-        max_tokens: options.maxTokens,
+        max_tokens: options.maxOutputTokens,
         tools: tools,
         tool_choice: options.tool_choice || "auto",
       });

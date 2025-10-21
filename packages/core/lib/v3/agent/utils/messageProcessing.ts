@@ -1,4 +1,4 @@
-import { type LanguageModelV1CallOptions } from "ai";
+import type { LanguageModelV2CallOptions } from "@ai-sdk/provider";
 
 export interface CompressionStats {
   originalSize: number;
@@ -36,8 +36,8 @@ function isAriaTreePart(part: unknown): boolean {
   );
 }
 
-export function processMessages(params: LanguageModelV1CallOptions): {
-  processedPrompt: LanguageModelV1CallOptions["prompt"];
+export function processMessages(params: LanguageModelV2CallOptions): {
+  processedPrompt: LanguageModelV2CallOptions["prompt"];
   stats: CompressionStats;
 } {
   // Calculate original content size
@@ -46,29 +46,33 @@ export function processMessages(params: LanguageModelV1CallOptions): {
   const ariaTreeIndices = findToolIndices(params.prompt, "ariaTree");
 
   // Process messages and compress old screenshots
-  const processedPrompt = params.prompt.map((message, index) => {
-    if (isToolMessage(message)) {
-      if (
-        (message.content as unknown[]).some((part) => isScreenshotPart(part))
-      ) {
-        const shouldCompress = shouldCompressScreenshot(
-          index,
-          screenshotIndices,
-        );
-        if (shouldCompress) {
-          return compressScreenshotMessage(message);
+  const processedPrompt = params.prompt.map(
+    (message: unknown, index: number) => {
+      if (isToolMessage(message)) {
+        if (
+          (message.content as unknown[]).some((part) => isScreenshotPart(part))
+        ) {
+          const shouldCompress = shouldCompressScreenshot(
+            index,
+            screenshotIndices,
+          );
+          if (shouldCompress) {
+            return compressScreenshotMessage(message);
+          }
+        }
+        if (
+          (message.content as unknown[]).some((part) => isAriaTreePart(part))
+        ) {
+          const shouldCompress = shouldCompressAriaTree(index, ariaTreeIndices);
+          if (shouldCompress) {
+            return compressAriaTreeMessage(message);
+          }
         }
       }
-      if ((message.content as unknown[]).some((part) => isAriaTreePart(part))) {
-        const shouldCompress = shouldCompressAriaTree(index, ariaTreeIndices);
-        if (shouldCompress) {
-          return compressAriaTreeMessage(message);
-        }
-      }
-    }
 
-    return { ...message };
-  });
+      return message;
+    },
+  );
 
   const compressedContentSize = JSON.stringify(processedPrompt).length;
   const stats = calculateCompressionStats(
@@ -79,8 +83,7 @@ export function processMessages(params: LanguageModelV1CallOptions): {
   );
 
   return {
-    processedPrompt:
-      processedPrompt as unknown as LanguageModelV1CallOptions["prompt"],
+    processedPrompt: processedPrompt as LanguageModelV2CallOptions["prompt"],
     stats,
   };
 }

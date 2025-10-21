@@ -27,7 +27,7 @@ import { togetherai, createTogetherAI } from "@ai-sdk/togetherai";
 import { mistral, createMistral } from "@ai-sdk/mistral";
 import { deepseek, createDeepSeek } from "@ai-sdk/deepseek";
 import { perplexity, createPerplexity } from "@ai-sdk/perplexity";
-import { ollama } from "ollama-ai-provider";
+import { ollama } from "ollama-ai-provider-v2";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model";
 
 const AISDKProviders: Record<string, AISDKProvider> = {
