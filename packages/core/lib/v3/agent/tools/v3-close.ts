@@ -4,7 +4,7 @@ import { z } from "zod/v3";
 export const createCloseTool = () =>
   tool({
     description: "Complete the task and close",
-    parameters: z.object({
+    inputSchema: z.object({
       reasoning: z.string().describe("Summary of what was accomplished"),
       taskComplete: z
         .boolean()

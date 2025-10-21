@@ -27,7 +27,7 @@ export const resolveTools = async (
       for (const tool of clientTools.tools) {
         tools[tool.name] = {
           description: tool.description,
-          parameters: jsonSchemaToZod(tool.inputSchema as JsonSchema),
+          inputSchema: jsonSchemaToZod(tool.inputSchema as JsonSchema),
           execute: async (input) => {
             const result = await clientInstance.callTool({
               name: tool.name,

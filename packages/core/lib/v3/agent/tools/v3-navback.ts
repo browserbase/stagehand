@@ -5,8 +5,8 @@ import type { V3 } from "../../v3";
 export const createNavBackTool = (v3: V3) =>
   tool({
     description: "Navigate back to the previous page",
-    parameters: z.object({
-      reasoning: z.string().describe("Why you're going back"),
+    inputSchema: z.object({
+      reasoningText: z.string().describe("Why you're going back"),
     }),
     execute: async () => {
       v3.logger({
