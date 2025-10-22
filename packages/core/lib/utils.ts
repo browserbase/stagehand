@@ -4,6 +4,16 @@ import { z, ZodTypeAny } from "zod";
 import { LogLine } from "./v3/types/public/logs";
 import { ModelProvider } from "./v3/types/public/model";
 import { ZodPathSegments } from "./v3/types/private/internal";
+
+/**
+ * Zod 4 Internal Types
+ *
+ * We import these from zod/v4/core to access the internal structure of Zod schemas.
+ * Note: zod/v4/core uses `$ZodType` while the main zod module uses `z.ZodTypeAny`.
+ * These are functionally identical at runtime but TypeScript sees them as incompatible types.
+ * Therefore, when extracting properties from these internals (e.g., `def.element`, `def.innerType`),
+ * we must cast them to `z.ZodTypeAny` to work with the public Zod API.
+ */
 import type {
   $ZodArrayInternals,
   $ZodObjectInternals,
