@@ -3,9 +3,26 @@ import { Stagehand } from "@browserbasehq/stagehand";
 import StagehandConfig from "@/evals/deterministic/stagehand.config";
 import { z } from "zod/v3";
 
+let originalApiKey: string | undefined;
+
+test.beforeAll(async () => {
+  originalApiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+});
+
+test.afterAll(async () => {
+  if (originalApiKey !== undefined) {
+    process.env.OPENAI_API_KEY = originalApiKey;
+  }
+});
+
 test.describe("API key/LLMClient error", () => {
   test("Should confirm that we get an error if we call extract without LLM API key or LLMClient", async () => {
-    const stagehand = new Stagehand(StagehandConfig);
+    const stagehand = new Stagehand({
+      ...StagehandConfig,
+      llmClient: undefined,
+      modelClientOptions: undefined,
+    });
     await stagehand.init();
     await stagehand.page.goto("https://docs.browserbase.com/introduction");
 
@@ -37,7 +54,11 @@ test.describe("API key/LLMClient error", () => {
   });
 
   test("Should confirm that we get an error if we call act without LLM API key or LLMClient", async () => {
-    const stagehand = new Stagehand(StagehandConfig);
+    const stagehand = new Stagehand({
+      ...StagehandConfig,
+      llmClient: undefined,
+      modelClientOptions: undefined,
+    });
     await stagehand.init();
     await stagehand.page.goto("https://docs.browserbase.com/introduction");
 
@@ -65,7 +86,11 @@ test.describe("API key/LLMClient error", () => {
   });
 
   test("Should confirm that we get an error if we call observe without LLM API key or LLMClient", async () => {
-    const stagehand = new Stagehand(StagehandConfig);
+    const stagehand = new Stagehand({
+      ...StagehandConfig,
+      llmClient: undefined,
+      modelClientOptions: undefined,
+    });
     await stagehand.init();
     await stagehand.page.goto("https://docs.browserbase.com/introduction");
 
