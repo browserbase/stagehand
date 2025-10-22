@@ -199,7 +199,7 @@ export class StagehandAPIClient {
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
       throw new StagehandAPIError(
-        "MCP integrations are not supported in API mode. Please use local mode with experimental: true to use MCP integrations.",
+        "MCP integrations are not supported in API mode. Set experimental: true to use MCP integrations.",
       );
     }
 
