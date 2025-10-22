@@ -713,7 +713,7 @@ export class V3 {
             "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
           );
         }
-        if (!this.disableAPI) {
+        if (!this.disableAPI && !this.experimental) {
           this.apiClient = new StagehandAPIClient({
             apiKey,
             projectId,
