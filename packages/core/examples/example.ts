@@ -8,16 +8,11 @@ async function example(stagehand: Stagehand) {
   await page.goto(
     "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
   );
-  await new Promise((resolve) => setTimeout(resolve, 10000));
 
   const { extraction } = await stagehand.extract(
     "grab the the first title from inside the iframe",
   );
   console.log(extraction);
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  // const [action] = await stagehand.observe("click the first post on hackernews");
-
-  // await stagehand.act(action);
 
   const page2 = await stagehand.context.newPage();
   await page2.goto(
@@ -42,7 +37,6 @@ async function example(stagehand: Stagehand) {
 (async () => {
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
-    // experimental: true,
     verbose: 2,
   });
   await stagehand.init();
