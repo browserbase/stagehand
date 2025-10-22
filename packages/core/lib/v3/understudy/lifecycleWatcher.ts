@@ -93,11 +93,13 @@ export class LifecycleWatcher {
           totalBudgetMs: this.timeoutMs,
         });
 
-        await this.awaitWithAbort(this.idleHandle.promise.catch((error) => {
-          // Surface timeout / disposal errors unless we already aborted.
-          if (this.abortError) throw this.abortError;
-          throw error;
-        }));
+        await this.awaitWithAbort(
+          this.idleHandle.promise.catch((error) => {
+            // Surface timeout / disposal errors unless we already aborted.
+            if (this.abortError) throw this.abortError;
+            throw error;
+          }),
+        );
       }
     } finally {
       this.dispose();
@@ -178,9 +180,7 @@ export class LifecycleWatcher {
   private timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error(
-        `Lifecycle wait timed out after ${this.timeoutMs}ms`,
-      );
+      throw new Error(`Lifecycle wait timed out after ${this.timeoutMs}ms`);
     }
     return remaining;
   }

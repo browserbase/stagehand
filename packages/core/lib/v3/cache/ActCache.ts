@@ -8,7 +8,7 @@ import { safeGetPageUrl } from "./utils";
 import {
   ActCacheContext,
   ActCacheDeps,
-  CachedActEntry
+  CachedActEntry,
 } from "../types/private";
 
 export class ActCache {
@@ -65,9 +65,11 @@ export class ActCache {
   ): Promise<ActResult | null> {
     if (!this.enabled) return null;
 
-    const { value: entry, error, path } = await this.storage.readJson<
-      CachedActEntry
-    >(`${context.cacheKey}.json`);
+    const {
+      value: entry,
+      error,
+      path,
+    } = await this.storage.readJson<CachedActEntry>(`${context.cacheKey}.json`);
     if (error && path) {
       this.logger({
         category: "cache",

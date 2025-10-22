@@ -145,7 +145,11 @@ export class DeepLocatorDelegate {
   ) {}
 
   private async real(): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
+    const base = await resolveLocatorWithHops(
+      this.page,
+      this.root,
+      this.selector,
+    );
     return base.nth(this.nthIndex);
   }
 
@@ -225,7 +229,12 @@ export class DeepLocatorDelegate {
     const nextIndex = Math.floor(value);
     if (nextIndex === this.nthIndex) return this;
 
-    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
+    return new DeepLocatorDelegate(
+      this.page,
+      this.root,
+      this.selector,
+      nextIndex,
+    );
   }
 }
 

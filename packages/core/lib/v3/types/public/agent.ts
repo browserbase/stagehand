@@ -32,44 +32,32 @@ export interface AgentResult {
   };
 }
 
-export interface BaseAgentExecuteOptions {
+export interface AgentExecuteOptions {
   instruction: string;
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
-}
-
-export interface AgentExecuteOptions extends BaseAgentExecuteOptions {
-  highlightCursor?: never;
-}
-
-export interface CuaAgentExecuteOptions extends BaseAgentExecuteOptions {
   highlightCursor?: boolean;
 }
-
-export type AnyAgentExecuteOptions =
-  | AgentExecuteOptions
-  | CuaAgentExecuteOptions;
-
 export type AgentType = "openai" | "anthropic" | "google";
 
-export type AvailableCuaModel =
-  | "openai/computer-use-preview"
-  | "openai/computer-use-preview-2025-03-11"
-  | "anthropic/claude-3-7-sonnet-latest"
-  | "anthropic/claude-sonnet-4-20250514"
-  | "anthropic/claude-sonnet-4-5-20250929"
-  | "google/gemini-2.5-computer-use-preview-10-2025";
+export const AVAILABLE_CUA_MODELS = [
+  "openai/computer-use-preview",
+  "openai/computer-use-preview-2025-03-11",
+  "anthropic/claude-3-7-sonnet-latest",
+  "anthropic/claude-haiku-4-5-20251001",
+  "anthropic/claude-sonnet-4-20250514",
+  "anthropic/claude-sonnet-4-5-20250929",
+  "google/gemini-2.5-computer-use-preview-10-2025",
+] as const;
+export type AvailableCuaModel = (typeof AVAILABLE_CUA_MODELS)[number];
 
 export interface AgentExecutionOptions<
-  TOptions extends BaseAgentExecuteOptions = AgentExecuteOptions,
+  TOptions extends AgentExecuteOptions = AgentExecuteOptions,
 > {
   options: TOptions;
   logger: (message: LogLine) => void;
   retries?: number;
 }
-
-export type CuaAgentExecutionOptions =
-  AgentExecutionOptions<CuaAgentExecuteOptions>;
 
 export interface AgentHandlerOptions {
   modelName: string;
@@ -181,7 +169,7 @@ export type AgentModelConfig<TModelName extends string = string> = {
   modelName: TModelName;
 } & Record<string, unknown>;
 
-type SharedAgentConfigFields = {
+export type AgentConfig = {
   /**
    * Custom system prompt to provide to the agent. Overrides the default system prompt.
    */
@@ -194,13 +182,10 @@ type SharedAgentConfigFields = {
    * Tools passed to the agent client
    */
   tools?: ToolSet;
-};
-
-type StandardAgentConfig = SharedAgentConfigFields & {
   /**
    * Indicates CUA is disabled for this configuration
    */
-  cua?: false;
+  cua?: boolean;
   /**
    * The model to use for agent functionality
    */
@@ -210,25 +195,5 @@ type StandardAgentConfig = SharedAgentConfigFields & {
    * If not specified, inherits from the main model configuration.
    * Format: "provider/model" (e.g., "openai/gpt-4o-mini", "google/gemini-2.0-flash-exp")
    */
-  executionModel?: string;
+  executionModel?: string | AgentModelConfig<string>;
 };
-
-type CuaAgentConfig = SharedAgentConfigFields & {
-  /**
-   * Indicates CUA is enabled for this configuration
-   */
-  cua: true;
-  /**
-   * The model to use for agent functionality when CUA is enabled
-   */
-  model: AvailableCuaModel | AgentModelConfig<AvailableCuaModel>;
-  /**
-   * Execution models are not supported when CUA is enabled
-   */
-  executionModel?: never;
-};
-
-/**
- * Configuration for agent functionality
- */
-export type AgentConfig = StandardAgentConfig | CuaAgentConfig;

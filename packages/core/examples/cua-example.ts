@@ -16,8 +16,8 @@ async function main() {
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 1,
+    env: "LOCAL",
+    verbose: 2,
   });
   await stagehand.init();
 
@@ -26,14 +26,16 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      cua: true,
-      model: {
-        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-        apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
-      },
+      // cua: true,
+      // model: {
+      //   modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+      //   apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
+      // },
+      model: "anthropic/claude-sonnet-4-5-20250929",
       systemPrompt: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
+      executionModel: "anthropic/claude-haiku-4-5-20251001",
     });
 
     // Navigate to the Browserbase careers page
@@ -41,7 +43,7 @@ async function main() {
 
     // Define the instruction for the CUA
     const instruction =
-      "Apply for the first engineer position with mock data. Don't submit the form.";
+      "Apply for the first engineer position with mock data. Don't submit the form. You're on the right page";
     console.log(`Instruction: ${chalk.white(instruction)}`);
 
     // Execute the instruction
@@ -49,6 +51,7 @@ async function main() {
       instruction,
       maxSteps: 20,
     });
+    await new Promise(resolve => setTimeout(resolve, 30000));
 
     console.log(`${chalk.green("✓")} Execution complete`);
     console.log(`${chalk.yellow("⤷")} Result:`);

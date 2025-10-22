@@ -30,7 +30,9 @@ export class FrameSelectorResolver {
 
     const isText = /^text=/i.test(trimmed);
     const looksLikeXPath =
-      /^xpath=/i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("(");
+      /^xpath=/i.test(trimmed) ||
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("(");
     const isCssPrefixed = /^css=/i.test(trimmed);
 
     if (isText) {
@@ -61,7 +63,9 @@ export class FrameSelectorResolver {
     return { kind: "css", value: selector };
   }
 
-  public async resolveFirst(query: SelectorQuery): Promise<ResolvedNode | null> {
+  public async resolveFirst(
+    query: SelectorQuery,
+  ): Promise<ResolvedNode | null> {
     return this.resolveAtIndex(query, 0);
   }
 
@@ -104,12 +108,18 @@ export class FrameSelectorResolver {
     return results[index] ?? null;
   }
 
-  private buildLocatorInvocation(name: LocatorScriptName, args: string[]): string {
+  private buildLocatorInvocation(
+    name: LocatorScriptName,
+    args: string[],
+  ): string {
     const call = `${locatorScriptGlobalRefs[name]}(${args.join(", ")})`;
     return `(() => { ${locatorScriptBootstrap}; return ${call}; })()`;
   }
 
-  private async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
+  private async resolveCss(
+    selector: string,
+    limit: number,
+  ): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -130,11 +140,14 @@ export class FrameSelectorResolver {
     let loggedFallback = false;
 
     for (let index = 0; index < limit; index += 1) {
-      const primaryExpr = this.buildLocatorInvocation(
-        "resolveCssSelector",
-        [JSON.stringify(selector), String(index)],
+      const primaryExpr = this.buildLocatorInvocation("resolveCssSelector", [
+        JSON.stringify(selector),
+        String(index),
+      ]);
+      const primary = await this.evaluateElement(
+        primaryExpr,
+        executionContextId,
       );
-      const primary = await this.evaluateElement(primaryExpr, executionContextId);
       if (primary) {
         results.push(primary);
         continue;
@@ -169,7 +182,10 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  private async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
+  private async resolveText(
+    value: string,
+    limit: number,
+  ): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -181,10 +197,10 @@ export class FrameSelectorResolver {
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
-      const expr = this.buildLocatorInvocation(
-        "resolveTextSelector",
-        [JSON.stringify(value), String(index)],
-      );
+      const expr = this.buildLocatorInvocation("resolveTextSelector", [
+        JSON.stringify(value),
+        String(index),
+      ]);
       const resolved = await this.evaluateElement(expr, ctxId);
       if (!resolved) break;
       results.push(resolved);
@@ -193,7 +209,10 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  private async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
+  private async resolveXPath(
+    value: string,
+    limit: number,
+  ): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -216,10 +235,10 @@ export class FrameSelectorResolver {
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
-      const expr = this.buildLocatorInvocation(
-        "resolveXPathMainWorld",
-        [JSON.stringify(value), String(index)],
-      );
+      const expr = this.buildLocatorInvocation("resolveXPathMainWorld", [
+        JSON.stringify(value),
+        String(index),
+      ]);
       const resolved = await this.evaluateElement(expr, ctxId);
       if (!resolved) break;
       results.push(resolved);
@@ -238,10 +257,9 @@ export class FrameSelectorResolver {
       worldName: "v3-world",
     });
 
-    const primaryExpr = this.buildLocatorInvocation(
-      "countCssMatchesPrimary",
-      [JSON.stringify(selector)],
-    );
+    const primaryExpr = this.buildLocatorInvocation("countCssMatchesPrimary", [
+      JSON.stringify(selector),
+    ]);
     const primary = await this.evaluateCount(primaryExpr, executionContextId);
 
     const ctxId = await executionContexts.waitForMainWorld(
@@ -250,10 +268,9 @@ export class FrameSelectorResolver {
       1000,
     );
 
-    const fallbackExpr = this.buildLocatorInvocation(
-      "countCssMatchesPierce",
-      [JSON.stringify(selector)],
-    );
+    const fallbackExpr = this.buildLocatorInvocation("countCssMatchesPierce", [
+      JSON.stringify(selector),
+    ]);
     const fallback = await this.evaluateCount(fallbackExpr, ctxId);
 
     return Math.max(primary, fallback);
@@ -267,10 +284,9 @@ export class FrameSelectorResolver {
       1000,
     );
 
-    const expr = this.buildLocatorInvocation(
-      "countTextMatches",
-      [JSON.stringify(value)],
-    );
+    const expr = this.buildLocatorInvocation("countTextMatches", [
+      JSON.stringify(value),
+    ]);
 
     try {
       const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
@@ -311,7 +327,8 @@ export class FrameSelectorResolver {
         count?: unknown;
       };
 
-      const num = typeof data.count === "number" ? data.count : Number(data.count);
+      const num =
+        typeof data.count === "number" ? data.count : Number(data.count);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
     } catch {
@@ -328,10 +345,9 @@ export class FrameSelectorResolver {
       1000,
     );
 
-    const expr = this.buildLocatorInvocation(
-      "countXPathMatchesMainWorld",
-      [JSON.stringify(value)],
-    );
+    const expr = this.buildLocatorInvocation("countXPathMatchesMainWorld", [
+      JSON.stringify(value),
+    ]);
 
     try {
       const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>(
@@ -348,9 +364,10 @@ export class FrameSelectorResolver {
         return 0;
       }
 
-      const num = typeof evalRes.result.value === "number"
-        ? evalRes.result.value
-        : Number(evalRes.result.value);
+      const num =
+        typeof evalRes.result.value === "number"
+          ? evalRes.result.value
+          : Number(evalRes.result.value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
     } catch {

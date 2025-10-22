@@ -7,7 +7,7 @@ import { mapKeyToPlaywright } from "../agent/utils/cuaKeyMapping";
 import {
   ActionExecutionResult,
   AgentAction,
-  CuaAgentExecuteOptions,
+  AgentExecuteOptions,
   AgentHandlerOptions,
   AgentResult,
 } from "../types/public/agent";
@@ -98,7 +98,7 @@ export class V3CuaAgentHandler {
   }
 
   async execute(
-    optionsOrInstruction: CuaAgentExecuteOptions | string,
+    optionsOrInstruction: AgentExecuteOptions | string,
   ): Promise<AgentResult> {
     const options =
       typeof optionsOrInstruction === "string"
