@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
 import os from "os";
@@ -7,6 +6,9 @@ import process from "process";
 import type { ZodTypeAny } from "zod/v3";
 import { z } from "zod/v3";
 import { loadApiKeyFromEnv } from "../utils";
+import { ActCache } from "./cache/ActCache";
+import { AgentCache } from "./cache/AgentCache";
+import { CacheStorage } from "./cache/CacheStorage";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
@@ -28,31 +30,18 @@ import {
   ActHandlerParams,
   ExtractHandlerParams,
   ObserveHandlerParams,
-} from "./types/private/handlers";
-import { InitState } from "./types/private/internal";
+  AgentReplayStep,
+  InitState,
+  AgentCacheContext,
+} from "./types/private";
 import {
   AgentConfig,
   AgentExecuteOptions,
   AgentModelConfig,
   AgentResult,
-  AnyAgentExecuteOptions,
-  AvailableCuaModel,
-  CuaAgentExecuteOptions,
-} from "./types/public/agent";
-import type {
-  AgentReplayActStep,
-  AgentReplayFillFormStep,
-  AgentReplayGotoStep,
-  AgentReplayNavBackStep,
-  AgentReplayScrollStep,
-  AgentReplayStep,
-  AgentReplayWaitStep,
-  CachedActEntry,
-  CachedAgentEntry,
-  SanitizedAgentExecuteOptions,
-} from "./types/public/cache";
-import { LogLine } from "./types/public/logs";
-import {
+  AVAILABLE_CUA_MODELS,
+  LogLine,
+  V3Metrics,
   Action,
   ActOptions,
   ActResult,
@@ -62,22 +51,19 @@ import {
   ObserveOptions,
   pageTextSchema,
   V3FunctionName,
-} from "./types/public/methods";
-import { V3Metrics } from "./types/public/metrics";
-import {
   AvailableModel,
   ClientOptions,
   ModelConfiguration,
-} from "./types/public/model";
-import { LocalBrowserLaunchOptions, V3Options } from "./types/public/options";
-import {
+  LocalBrowserLaunchOptions,
+  V3Options,
   AnyPage,
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-} from "./types/public/page";
+} from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
+import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
@@ -159,8 +145,9 @@ export class V3 {
   private readonly instanceId: string;
   private static _processGuardsInstalled = false;
   private static _instances: Set<V3> = new Set();
-  private cacheDir?: string;
-  private _agentReplayRecording: AgentReplayStep[] | null = null;
+  private cacheStorage: CacheStorage;
+  private actCache: ActCache;
+  private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
 
   public v3Metrics: V3Metrics = {
@@ -234,24 +221,28 @@ export class V3 {
         this.modelClientOptions,
       );
     }
-
-    if (opts.cacheDir) {
-      const resolvedCacheDir = path.resolve(opts.cacheDir);
-      try {
-        fs.mkdirSync(resolvedCacheDir, { recursive: true });
-        this.cacheDir = resolvedCacheDir;
-      } catch (err) {
-        this.logger({
-          category: "cache",
-          message: `unable to initialize act cache directory: ${resolvedCacheDir}`,
-          level: 1,
-          auxiliary: {
-            error: { value: String(err), type: "string" },
-          },
-        });
-        this.cacheDir = undefined;
-      }
-    }
+    
+    this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
+      label: "cache directory",
+    });
+    this.actCache = new ActCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+    });
+    this.agentCache = new AgentCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getContext: () => this.ctx,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      getBaseModelName: () => this.modelName,
+      getSystemPrompt: () => opts.systemPrompt,
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+      act: this.act.bind(this),
+    });
 
     this.opts = opts;
     // Track instance for global process guard handling
@@ -264,10 +255,6 @@ export class V3 {
    */
   public get metrics(): Promise<V3Metrics> {
     return Promise.resolve(this.v3Metrics);
-  }
-
-  private cloneForCache<T>(value: T): T {
-    return JSON.parse(JSON.stringify(value)) as T;
   }
 
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
@@ -329,42 +316,27 @@ export class V3 {
   }
 
   private beginAgentReplayRecording(): void {
-    this._agentReplayRecording = [];
+    this.agentCache.beginRecording();
   }
 
   private endAgentReplayRecording(): AgentReplayStep[] {
-    if (!this._agentReplayRecording) return [];
-    const steps = this.cloneForCache(this._agentReplayRecording);
-    this._agentReplayRecording = null;
-    return steps;
+    return this.agentCache.endRecording();
   }
 
   private discardAgentReplayRecording(): void {
-    this._agentReplayRecording = null;
+    this.agentCache.discardRecording();
   }
 
   private isAgentReplayRecording(): boolean {
-    return Array.isArray(this._agentReplayRecording);
+    return this.agentCache.isRecording();
   }
 
   public isAgentReplayActive(): boolean {
-    return this.isAgentReplayRecording();
+    return this.agentCache.isReplayActive();
   }
 
   public recordAgentReplayStep(step: AgentReplayStep): void {
-    if (!this.isAgentReplayRecording()) return;
-    try {
-      this._agentReplayRecording!.push(this.cloneForCache(step));
-    } catch (err) {
-      this.logger({
-        category: "cache",
-        message: "failed to record agent replay step",
-        level: 2,
-        auxiliary: {
-          error: { value: String(err), type: "string" },
-        },
-      });
-    }
+    this.agentCache.recordStep(step);
   }
 
   /**
@@ -862,12 +834,7 @@ export class V3 {
 
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
-        let v3Page: Page;
-        if (options?.page) {
-          v3Page = await this.normalizeToV3Page(options.page);
-        } else {
-          v3Page = await this.ctx!.awaitActivePage();
-        }
+        const v3Page = await this.resolvePage(options?.page);
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
@@ -904,76 +871,46 @@ export class V3 {
       }
 
       // Resolve page from options or default
-      let page: Page;
-      if (options?.page) {
-        if (options.page instanceof (await import("./understudy/page")).Page) {
-          page = options.page as Page;
-        } else if (this.isPlaywrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx!.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to act().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
-      let cacheKey: string | undefined;
-      let pageUrlForCache: string | undefined;
+      let actCacheContext: Awaited<
+        ReturnType<typeof this.actCache.prepareContext>
+      > | null = null;
       const canUseCache =
-        !!this.cacheDir &&
         typeof input === "string" &&
-        !this.isAgentReplayRecording();
+        !this.isAgentReplayRecording() &&
+        this.actCache.enabled;
       if (canUseCache) {
-        pageUrlForCache = await this.safeGetPageUrl(page);
-        cacheKey = this.buildActCacheKey(
+        actCacheContext = await this.actCache.prepareContext(
           input,
-          pageUrlForCache,
+          page,
           options?.variables,
         );
-        const cachedEntry = await this.readActCacheEntry(cacheKey);
-        if (cachedEntry) {
-          this.logger({
-            category: "cache",
-            message: "act cache hit",
-            level: 1,
-            auxiliary: {
-              instruction: { value: input, type: "string" },
-              url: {
-                value: pageUrlForCache ?? "",
-                type: "string",
-              },
-            },
-          });
-          const replayResult = await this.replayCachedActions(
-            cachedEntry,
+        if (actCacheContext) {
+          const cachedResult = await this.actCache.tryReplay(
+            actCacheContext,
             page,
             options?.timeout,
-            this.domSettleTimeoutMs,
           );
-          this.addToHistory(
-            "act",
-            {
-              instruction: input,
-              variables: options?.variables,
-              timeout: options?.timeout,
-              cacheHit: true,
-            },
-            replayResult,
-          );
-          return replayResult;
+          if (cachedResult) {
+            this.addToHistory(
+              "act",
+              {
+                instruction: input,
+                variables: options?.variables,
+                timeout: options?.timeout,
+                cacheHit: true,
+              },
+              cachedResult,
+            );
+            return cachedResult;
+          }
         }
       }
 
       const handlerParams: ActHandlerParams = {
         instruction: input,
-        page: page!,
+        page,
         variables: options?.variables,
         timeout: options?.timeout,
         model: options?.model,
@@ -1001,30 +938,12 @@ export class V3 {
       );
 
       if (
-        cacheKey &&
-        pageUrlForCache !== undefined &&
+        actCacheContext &&
         actResult.success &&
         Array.isArray(actResult.actions) &&
         actResult.actions.length > 0
       ) {
-        await this.writeActCacheEntry(cacheKey, {
-          version: 1,
-          instruction: input.trim(),
-          url: pageUrlForCache,
-          variables: options?.variables ?? {},
-          actions: actResult.actions,
-          actionDescription: actResult.actionDescription,
-          message: actResult.message,
-        });
-        this.logger({
-          category: "cache",
-          message: "act cache stored",
-          level: 2,
-          auxiliary: {
-            instruction: { value: input, type: "string" },
-            url: { value: pageUrlForCache, type: "string" },
-          },
-        });
+        await this.actCache.store(actCacheContext, actResult);
       }
       return actResult;
     });
@@ -1097,26 +1016,7 @@ export class V3 {
         instruction && !schema ? defaultExtractSchema : schema;
 
       // Resolve page from options or use active page
-      let page: Page;
-      const pageArg: AnyPage | undefined = options?.page;
-      if (pageArg) {
-        if (pageArg instanceof (await import("./understudy/page")).Page) {
-          page = pageArg as Page;
-        } else if (this.isPlaywrightPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(pageArg)) {
-          const frameId = await this.resolveTopFrameId(pageArg);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to extract().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
       const handlerParams: ExtractHandlerParams<ZodTypeAny> = {
         instruction,
@@ -1124,7 +1024,7 @@ export class V3 {
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
-        page: page!,
+        page,
       };
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
       if (this.apiClient) {
@@ -1171,25 +1071,7 @@ export class V3 {
       }
 
       // Resolve to our internal Page type
-      let page: Page;
-      if (options?.page) {
-        if (options.page instanceof (await import("./understudy/page")).Page) {
-          page = options.page as Page;
-        } else if (this.isPlaywrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPuppeteerPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else if (this.isPatchrightPage(options.page)) {
-          const frameId = await this.resolveTopFrameId(options.page);
-          page = this.ctx.resolvePageByMainFrameId(frameId);
-        } else {
-          throw new Error("Unsupported page object provided to observe().");
-        }
-      } else {
-        page = await this.ctx!.awaitActivePage();
-      }
+      const page = await this.resolvePage(options?.page);
 
       const handlerParams: ObserveHandlerParams = {
         instruction,
@@ -1413,6 +1295,20 @@ export class V3 {
     );
   }
 
+  /** Resolve an external page reference or fall back to the active V3 page. */
+  private async resolvePage(page?: AnyPage): Promise<Page> {
+    if (page) {
+      return await this.normalizeToV3Page(page);
+    }
+    const ctx = this.ctx;
+    if (!ctx) {
+      throw new Error(
+        "V3 context not initialized. Call init() before resolving pages.",
+      );
+    }
+    return await ctx.awaitActivePage();
+  }
+
   private async normalizeToV3Page(input: AnyPage): Promise<Page> {
     if (input instanceof (await import("./understudy/page")).Page) {
       return input as Page;
@@ -1441,540 +1337,13 @@ export class V3 {
     throw new Error("Unsupported page object.");
   }
 
-  private buildActCacheKey(
-    instruction: string,
-    url: string,
-    variables?: Record<string, string>,
-  ): string {
-    const payload = JSON.stringify({
-      instruction: instruction.trim(),
-      url,
-      variables: variables ?? {},
-    });
-    return createHash("sha256").update(payload).digest("hex");
-  }
-
-  private async safeGetPageUrl(page: Page): Promise<string> {
-    try {
-      return page.url();
-    } catch {
-      return "";
-    }
-  }
-
-  private async readActCacheEntry(
-    cacheKey: string,
-  ): Promise<CachedActEntry | null> {
-    if (!this.cacheDir) return null;
-    const filePath = path.join(this.cacheDir, `${cacheKey}.json`);
-    try {
-      const raw = await fs.promises.readFile(filePath, "utf8");
-      const parsed = JSON.parse(raw) as CachedActEntry;
-      if (parsed?.version !== 1) return null;
-      if (!Array.isArray(parsed.actions) || parsed.actions.length === 0) {
-        return null;
-      }
-      if (!parsed.variables || typeof parsed.variables !== "object") {
-        parsed.variables = {};
-      }
-      return parsed;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code !== "ENOENT") {
-        this.logger({
-          category: "cache",
-          message: `failed to read act cache entry: ${filePath}`,
-          level: 2,
-          auxiliary: {
-            error: { value: String(err), type: "string" },
-          },
-        });
-      }
-      return null;
-    }
-  }
-
-  private async writeActCacheEntry(
-    cacheKey: string,
-    entry: CachedActEntry,
-  ): Promise<void> {
-    if (!this.cacheDir) return;
-    const dir = this.cacheDir;
-    try {
-      await fs.promises.mkdir(dir, { recursive: true });
-      const filePath = path.join(dir, `${cacheKey}.json`);
-      await fs.promises.writeFile(
-        filePath,
-        JSON.stringify(entry, null, 2),
-        "utf8",
-      );
-    } catch (err) {
-      this.logger({
-        category: "cache",
-        message: "failed to write act cache entry",
-        level: 1,
-        auxiliary: {
-          error: { value: String(err), type: "string" },
-        },
-      });
-    }
-  }
-
-  private sanitizeAgentExecuteOptions(
-    options?: AnyAgentExecuteOptions,
-  ): SanitizedAgentExecuteOptions {
-    if (!options) return {};
-    const sanitized: SanitizedAgentExecuteOptions = {};
-    if (typeof options.maxSteps === "number")
-      sanitized.maxSteps = options.maxSteps;
-    return sanitized;
-  }
-
-  private createLlmClientOverride(
-    model?: ModelConfiguration,
-  ): LLMClient | undefined {
-    if (!model) return undefined;
-
-    let modelName: AvailableModel;
-    let clientOptions: Record<string, unknown> | undefined;
-
-    if (typeof model === "string") {
-      modelName = model as AvailableModel;
-    } else {
-      const { modelName: configuredName, ...rest } = model;
-      modelName = configuredName as AvailableModel;
-      clientOptions = Object.keys(rest).length > 0 ? { ...rest } : undefined;
-    }
-
-    const hasApiKey =
-      clientOptions !== undefined &&
-      typeof (clientOptions as { apiKey?: unknown }).apiKey === "string" &&
-      ((clientOptions as { apiKey?: string }).apiKey?.length ?? 0) > 0;
-
-    if (!hasApiKey) {
-      const providerSlug = modelName.includes("/")
-        ? modelName.split("/")[0]
-        : this.inferProviderFromModelName(modelName);
-      const defaultProviderSlug = this.modelName.includes("/")
-        ? this.modelName.split("/")[0]
-        : this.inferProviderFromModelName(this.modelName);
-      let apiKey = loadApiKeyFromEnv(providerSlug, this.logger);
-      if (!apiKey && providerSlug && providerSlug === defaultProviderSlug) {
-        apiKey = (this.modelClientOptions as { apiKey?: string })?.apiKey;
-      }
-      if (apiKey) {
-        clientOptions = { ...(clientOptions ?? {}), apiKey };
-      }
-    }
-
-    if (!clientOptions && modelName === this.modelName) {
-      return this.llmClient;
-    }
-
-    return this.llmProvider.getClient(
-      modelName,
-      clientOptions as ClientOptions | undefined,
-    );
-  }
-
-  private inferProviderFromModelName(modelName: string): string | undefined {
-    const normalized = modelName.toLowerCase();
-    if (normalized.startsWith("claude")) return "anthropic";
-    if (normalized.startsWith("gpt") || normalized.startsWith("o"))
-      return "openai";
-    if (normalized.startsWith("gemini")) return "google";
-    if (normalized.startsWith("groq")) return "groq";
-    if (normalized.startsWith("cerebras")) return "cerebras";
-    if (normalized.startsWith("moonshot")) return "groq";
-    return undefined;
-  }
-
-  private extractAgentModel<T extends string>(
-    model?: T | AgentModelConfig<T>,
-    options?: { stripProviderPrefix?: boolean },
-  ): {
-    modelName?: string;
-    modelOptions?: Record<string, unknown>;
-  } {
-    if (!model) return {};
-
-    const stripPrefix = options?.stripProviderPrefix ?? false;
-
-    const resolveName = (raw: string | undefined): string | undefined => {
-      if (!raw) return raw;
-      if (!stripPrefix) return raw;
-      const parts = raw.split("/");
-      return parts.length > 1 ? parts[parts.length - 1] : raw;
-    };
-
-    if (typeof model === "string") {
-      return { modelName: resolveName(model) };
-    }
-
-    const { modelName, ...rest } = model;
-    const normalizedName = resolveName(modelName);
-    const modelOptions =
-      Object.keys(rest).length > 0
-        ? (rest as Record<string, unknown>)
-        : undefined;
-    return { modelName: normalizedName, modelOptions };
-  }
-
-  private serializeAgentModelForCache(
-    model?: AgentConfig["model"],
-  ): null | string | { modelName: string; options?: Record<string, unknown> } {
-    if (!model) return null;
-    if (typeof model === "string") return model;
-
-    const { modelName, ...modelOptions } = model;
-    const options =
-      Object.keys(modelOptions).length > 0
-        ? (modelOptions as Record<string, unknown>)
-        : undefined;
-    return options ? { modelName, options } : modelName;
-  }
-
-  private buildAgentCacheSignature(agentOptions?: AgentConfig): string {
-    const toolKeys = agentOptions?.tools
-      ? Object.keys(agentOptions.tools).sort()
-      : undefined;
-    const integrationSignatures = agentOptions?.integrations
-      ? agentOptions.integrations.map((integration) =>
-          typeof integration === "string" ? integration : "client",
-        )
-      : undefined;
-    const serializedModel = this.serializeAgentModelForCache(
-      agentOptions?.model,
-    );
-    return JSON.stringify({
-      v3Model: this.modelName,
-      systemPrompt: this.opts.systemPrompt ?? "",
-      agent: {
-        cua: agentOptions?.cua ?? false,
-        model: serializedModel ?? null,
-        executionModel: agentOptions?.cua
-          ? null
-          : (agentOptions?.executionModel ?? null),
-        systemPrompt: agentOptions?.systemPrompt ?? null,
-        toolKeys,
-        integrations: integrationSignatures,
-      },
-    });
-  }
-
-  private buildAgentCacheKey(
-    instruction: string,
-    startUrl: string,
-    options: SanitizedAgentExecuteOptions,
-    configSignature: string,
-  ): string {
-    const payload = {
-      instruction: instruction.trim(),
-      startUrl,
-      options,
-      configSignature,
-    };
-    return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
-  }
-
-  private async readAgentCacheEntry(
-    cacheKey: string,
-  ): Promise<CachedAgentEntry | null> {
-    if (!this.cacheDir) return null;
-    const filePath = path.join(this.cacheDir, `agent-${cacheKey}.json`);
-    try {
-      const raw = await fs.promises.readFile(filePath, "utf8");
-      const parsed = JSON.parse(raw) as CachedAgentEntry;
-      if (parsed?.version !== 1) return null;
-      return parsed;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code !== "ENOENT") {
-        this.logger({
-          category: "cache",
-          message: `failed to read agent cache entry: ${filePath}`,
-          level: 1,
-          auxiliary: {
-            error: { value: String(err), type: "string" },
-          },
-        });
-      }
-      return null;
-    }
-  }
-
-  private async writeAgentCacheEntry(
-    cacheKey: string,
-    entry: CachedAgentEntry,
-  ): Promise<void> {
-    if (!this.cacheDir) return;
-    try {
-      await fs.promises.mkdir(this.cacheDir, { recursive: true });
-      const filePath = path.join(this.cacheDir, `agent-${cacheKey}.json`);
-      await fs.promises.writeFile(
-        filePath,
-        JSON.stringify(this.cloneForCache(entry), null, 2),
-        "utf8",
-      );
-    } catch (err) {
-      this.logger({
-        category: "cache",
-        message: "failed to write agent cache entry",
-        level: 1,
-        auxiliary: {
-          error: { value: String(err), type: "string" },
-        },
-      });
-    }
-  }
-
-  private async replayAgentCacheEntry(
-    entry: CachedAgentEntry,
-  ): Promise<AgentResult | null> {
-    if (!this.ctx || !this.actHandler) return null;
-    try {
-      for (const step of entry.steps ?? []) {
-        await this.executeAgentReplayStep(step);
-      }
-      const result = this.cloneForCache(entry.result);
-      result.metadata = {
-        ...(result.metadata ?? {}),
-        cacheHit: true,
-        cacheTimestamp: entry.timestamp,
-      };
-      return result;
-    } catch (err) {
-      this.logger({
-        category: "cache",
-        message: "agent cache replay failed",
-        level: 1,
-        auxiliary: {
-          error: { value: String(err), type: "string" },
-        },
-      });
-      return null;
-    }
-  }
-
-  private async executeAgentReplayStep(step: AgentReplayStep): Promise<void> {
-    switch (step.type) {
-      case "act":
-        await this.replayAgentActStep(step as AgentReplayActStep);
-        return;
-      case "fillForm":
-        await this.replayAgentFillFormStep(step as AgentReplayFillFormStep);
-        return;
-      case "goto":
-        await this.replayAgentGotoStep(step as AgentReplayGotoStep);
-        return;
-      case "scroll":
-        await this.replayAgentScrollStep(step as AgentReplayScrollStep);
-        return;
-      case "wait":
-        await this.replayAgentWaitStep(step as AgentReplayWaitStep);
-        return;
-      case "navback":
-        await this.replayAgentNavBackStep(step as AgentReplayNavBackStep);
-        return;
-      case "close":
-      case "extract":
-      case "screenshot":
-      case "ariaTree":
-        return;
-      default:
-        // Non-mutating tools (screenshot, extract, etc.) are skipped during replay
-        this.logger({
-          category: "cache",
-          message: `agent cache skipping step type: ${step.type}`,
-          level: 2,
-        });
-    }
-  }
-
-  private async replayAgentActStep(step: AgentReplayActStep): Promise<void> {
-    if (!this.actHandler)
-      throw new Error("V3 not initialized. Call init() before agent replay.");
-    const actions = Array.isArray(step.actions) ? step.actions : [];
-    if (actions.length > 0) {
-      const page = await this.ctx!.awaitActivePage();
-      for (const action of actions) {
-        await this.actHandler.actFromObserveResult(
-          action,
-          page,
-          this.domSettleTimeoutMs,
-          this.resolveLlmClient(),
-        );
-      }
-      return;
-    }
-    await this.act(step.instruction, { timeout: step.timeout });
-  }
-
-  private async replayAgentFillFormStep(
-    step: AgentReplayFillFormStep,
-  ): Promise<void> {
-    if (!this.actHandler)
-      throw new Error("V3 not initialized. Call init() before agent replay.");
-    const actions =
-      Array.isArray(step.actions) && step.actions.length > 0
-        ? step.actions
-        : (step.observeResults ?? []);
-    if (!Array.isArray(actions) || actions.length === 0) return;
-    const page = await this.ctx!.awaitActivePage();
-    for (const action of actions) {
-      await this.actHandler.actFromObserveResult(
-        action,
-        page,
-        this.domSettleTimeoutMs,
-        this.resolveLlmClient(),
-      );
-    }
-  }
-
-  private async replayAgentGotoStep(step: AgentReplayGotoStep): Promise<void> {
-    const page = await this.ctx!.awaitActivePage();
-    await page.goto(step.url, { waitUntil: step.waitUntil ?? "load" });
-  }
-
-  private async replayAgentScrollStep(
-    step: AgentReplayScrollStep,
-  ): Promise<void> {
-    const page = await this.ctx!.awaitActivePage();
-    let anchor = step.anchor;
-    if (!anchor) {
-      anchor = await page
-        .mainFrame()
-        .evaluate<{ x: number; y: number }>(() => ({
-          x: Math.max(0, Math.floor(window.innerWidth / 2)),
-          y: Math.max(0, Math.floor(window.innerHeight / 2)),
-        }));
-    }
-    const deltaX = step.deltaX ?? 0;
-    const deltaY = step.deltaY ?? 0;
-    await page.scroll(
-      Math.round(anchor.x ?? 0),
-      Math.round(anchor.y ?? 0),
-      deltaX,
-      deltaY,
-    );
-  }
-
-  private async replayAgentWaitStep(step: AgentReplayWaitStep): Promise<void> {
-    if (!step.timeMs || step.timeMs <= 0) return;
-    await new Promise((resolve) => setTimeout(resolve, step.timeMs));
-  }
-
-  private async replayAgentNavBackStep(
-    step: AgentReplayNavBackStep,
-  ): Promise<void> {
-    const page = await this.ctx!.awaitActivePage();
-    await page.goBack({ waitUntil: step.waitUntil ?? "domcontentloaded" });
-  }
-
-  private async replayCachedActions(
-    entry: CachedActEntry,
-    page: Page,
-    timeout?: number,
-    domSettleTimeoutMs?: number,
-  ): Promise<ActResult> {
-    if (!this.actHandler) {
-      throw new Error("V3 not initialized. Call init() before act().");
-    }
-
-    const execute = async (): Promise<ActResult> => {
-      const actionResults: ActResult[] = [];
-      for (const action of entry.actions) {
-        const result = await this.actHandler!.actFromObserveResult(
-          action,
-          page,
-          domSettleTimeoutMs,
-          this.resolveLlmClient(),
-        );
-        actionResults.push(result);
-        if (!result.success) {
-          break;
-        }
-      }
-
-      if (actionResults.length === 0) {
-        return {
-          success: false,
-          message: "Failed to perform act: cached entry has no actions",
-          actionDescription: entry.actionDescription ?? entry.instruction,
-          actions: [],
-        };
-      }
-
-      const success = actionResults.every((r) => r.success);
-      const actions = actionResults.flatMap((r) => r.actions ?? []);
-      const message =
-        actionResults
-          .map((r) => r.message)
-          .filter((m) => m && m.trim().length > 0)
-          .join(" → ") ||
-        entry.message ||
-        `Replayed ${entry.actions.length} cached action${
-          entry.actions.length === 1 ? "" : "s"
-        }.`;
-      const actionDescription =
-        entry.actionDescription ||
-        actionResults[actionResults.length - 1]?.actionDescription ||
-        entry.actions[entry.actions.length - 1]?.description ||
-        entry.instruction;
-      return {
-        success,
-        message,
-        actionDescription,
-        actions,
-      };
-    };
-
-    return await this.runWithActTimeout(execute, timeout);
-  }
-
-  private async runWithActTimeout<T>(
-    run: () => Promise<T>,
-    timeout?: number,
-  ): Promise<T> {
-    if (!timeout) {
-      return await run();
-    }
-
-    return await new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`act() timed out after ${timeout}ms`));
-      }, timeout);
-
-      void run().then(
-        (value) => {
-          clearTimeout(timer);
-          resolve(value);
-        },
-        (err) => {
-          clearTimeout(timer);
-          reject(err);
-        },
-      );
-    });
-  }
-
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(options: AgentConfig & { cua: true }): {
-    execute: (
-      instructionOrOptions: string | CuaAgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  };
-  agent(options?: AgentConfig & { cua?: false }): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  };
   agent(options?: AgentConfig): {
     execute: (
-      instructionOrOptions: string | AnyAgentExecuteOptions,
+      instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
     this.logger({
@@ -1985,30 +1354,22 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      const { modelName, modelOptions } =
-        this.extractAgentModel<AvailableCuaModel>(options.model, {
-          stripProviderPrefix: true,
-        });
-      if (!modelName) {
+      if (!options?.model) {
         throw new Error("A CUA agent requires a model to be specified.");
       }
+      const { modelName, isCua, clientOptions } = resolveModel(options.model);
 
-      const executionModel = (
-        options as {
-          executionModel?: unknown;
-        }
-      ).executionModel;
-      if (executionModel !== undefined) {
+      if (!isCua) {
         throw new Error(
-          "executionModel is not supported when cua is set to true.",
+          "Model is not a CUA model. Try one of the following: " +
+            AVAILABLE_CUA_MODELS.join(", "),
         );
       }
 
-      const agentConfigSignature = this.buildAgentCacheSignature(options);
+      const agentConfigSignature =
+        this.agentCache.buildConfigSignature(options);
       return {
-        execute: async (
-          instructionOrOptions: string | CuaAgentExecuteOptions,
-        ) =>
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
             if (options?.integrations && !this.experimental) {
               throw new Error(
@@ -2024,7 +1385,7 @@ export class V3 {
               this.logger,
               {
                 modelName,
-                clientOptions: modelOptions,
+                clientOptions,
                 userProvidedInstructions:
                   options.systemPrompt ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
@@ -2032,7 +1393,7 @@ export class V3 {
               tools,
             );
 
-            const resolvedOptions: CuaAgentExecuteOptions =
+            const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
                 ? { instruction: instructionOrOptions }
                 : instructionOrOptions;
@@ -2043,35 +1404,20 @@ export class V3 {
               this.ctx!.setActivePage(normalizedPage);
             }
             const instruction = resolvedOptions.instruction.trim();
-
-            const shouldAttemptCache =
-              !!this.cacheDir && instruction.length > 0;
             const sanitizedOptions =
-              this.sanitizeAgentExecuteOptions(resolvedOptions);
+              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
-            let cacheKey: string | undefined;
-            let startUrl: string | undefined;
-            if (shouldAttemptCache) {
+            let cacheContext: AgentCacheContext | null = null;
+            if (this.agentCache.shouldAttemptCache(instruction)) {
               const startPage = await this.ctx!.awaitActivePage();
-              startUrl = await this.safeGetPageUrl(startPage);
-              cacheKey = this.buildAgentCacheKey(
+              cacheContext = await this.agentCache.prepareContext({
                 instruction,
-                startUrl,
-                sanitizedOptions,
-                agentConfigSignature,
-              );
-              const cachedEntry = await this.readAgentCacheEntry(cacheKey);
-              if (cachedEntry) {
-                this.logger({
-                  category: "cache",
-                  message: "agent cache hit",
-                  level: 1,
-                  auxiliary: {
-                    instruction: { value: instruction, type: "string" },
-                    url: { value: startUrl, type: "string" },
-                  },
-                });
-                const replayed = await this.replayAgentCacheEntry(cachedEntry);
+                options: sanitizedOptions,
+                configSignature: agentConfigSignature,
+                page: startPage,
+              });
+              if (cacheContext) {
+                const replayed = await this.agentCache.tryReplay(cacheContext);
                 if (replayed) {
                   return replayed;
                 }
@@ -2079,10 +1425,9 @@ export class V3 {
             }
 
             let agentSteps: AgentReplayStep[] = [];
-            let recording = false;
-            if (shouldAttemptCache) {
+            const recording = !!cacheContext;
+            if (recording) {
               this.beginAgentReplayRecording();
-              recording = true;
             }
 
             try {
@@ -2091,32 +1436,8 @@ export class V3 {
                 agentSteps = this.endAgentReplayRecording();
               }
 
-              if (
-                shouldAttemptCache &&
-                cacheKey &&
-                startUrl !== undefined &&
-                result.success &&
-                agentSteps.length > 0
-              ) {
-                await this.writeAgentCacheEntry(cacheKey, {
-                  version: 1,
-                  instruction,
-                  startUrl,
-                  options: sanitizedOptions,
-                  configSignature: agentConfigSignature,
-                  steps: agentSteps,
-                  result: this.cloneForCache(result),
-                  timestamp: new Date().toISOString(),
-                });
-                this.logger({
-                  category: "cache",
-                  message: "agent cache stored",
-                  level: 2,
-                  auxiliary: {
-                    instruction: { value: instruction, type: "string" },
-                    steps: { value: String(agentSteps.length), type: "string" },
-                  },
-                });
+              if (cacheContext && result.success && agentSteps.length > 0) {
+                await this.agentCache.store(cacheContext, agentSteps, result);
               }
 
               return result;
@@ -2133,7 +1454,7 @@ export class V3 {
     }
 
     // Default: AISDK tools-based agent
-    const agentConfigSignature = this.buildAgentCacheSignature(options);
+    const agentConfigSignature = this.agentCache.buildConfigSignature(options);
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
@@ -2152,7 +1473,9 @@ export class V3 {
             this,
             this.logger,
             this.llmClient,
-            options?.executionModel,
+            typeof options?.executionModel === "string"
+              ? options.executionModel
+              : options?.executionModel?.modelName,
             options?.systemPrompt,
             tools,
           );
@@ -2168,34 +1491,20 @@ export class V3 {
             this.ctx!.setActivePage(normalizedPage);
           }
           const instruction = resolvedOptions.instruction.trim();
-
-          const shouldAttemptCache = !!this.cacheDir && instruction.length > 0;
           const sanitizedOptions =
-            this.sanitizeAgentExecuteOptions(resolvedOptions);
+            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
-          let cacheKey: string | undefined;
-          let startUrl: string | undefined;
-          if (shouldAttemptCache) {
+          let cacheContext: AgentCacheContext | null = null;
+          if (this.agentCache.shouldAttemptCache(instruction)) {
             const startPage = await this.ctx!.awaitActivePage();
-            startUrl = await this.safeGetPageUrl(startPage);
-            cacheKey = this.buildAgentCacheKey(
+            cacheContext = await this.agentCache.prepareContext({
               instruction,
-              startUrl,
-              sanitizedOptions,
-              agentConfigSignature,
-            );
-            const cachedEntry = await this.readAgentCacheEntry(cacheKey);
-            if (cachedEntry) {
-              this.logger({
-                category: "cache",
-                message: "agent cache hit",
-                level: 1,
-                auxiliary: {
-                  instruction: { value: instruction, type: "string" },
-                  url: { value: startUrl, type: "string" },
-                },
-              });
-              const replayed = await this.replayAgentCacheEntry(cachedEntry);
+              options: sanitizedOptions,
+              configSignature: agentConfigSignature,
+              page: startPage,
+            });
+            if (cacheContext) {
+              const replayed = await this.agentCache.tryReplay(cacheContext);
               if (replayed) {
                 return replayed;
               }
@@ -2203,10 +1512,9 @@ export class V3 {
           }
 
           let agentSteps: AgentReplayStep[] = [];
-          let recording = false;
-          if (shouldAttemptCache) {
+          const recording = !!cacheContext;
+          if (recording) {
             this.beginAgentReplayRecording();
-            recording = true;
           }
 
           try {
@@ -2215,35 +1523,8 @@ export class V3 {
               agentSteps = this.endAgentReplayRecording();
             }
 
-            if (
-              shouldAttemptCache &&
-              cacheKey &&
-              startUrl !== undefined &&
-              result.success &&
-              agentSteps.length > 0
-            ) {
-              await this.writeAgentCacheEntry(cacheKey, {
-                version: 1,
-                instruction,
-                startUrl,
-                options: sanitizedOptions,
-                configSignature: agentConfigSignature,
-                steps: agentSteps,
-                result: this.cloneForCache(result),
-                timestamp: new Date().toISOString(),
-              });
-              this.logger({
-                category: "cache",
-                message: "agent cache stored",
-                level: 2,
-                auxiliary: {
-                  instruction: { value: instruction, type: "string" },
-                  steps: {
-                    value: String(agentSteps.length),
-                    type: "string",
-                  },
-                },
-              });
+            if (cacheContext && result.success && agentSteps.length > 0) {
+              await this.agentCache.store(cacheContext, agentSteps, result);
             }
 
             return result;

@@ -3,21 +3,24 @@ import {
   ModelMessage,
   CoreSystemMessage,
   CoreUserMessage,
-  generateObject,
-  generateText,
   ImagePart,
   NoObjectGeneratedError,
   TextPart,
   ToolSet,
   Tool,
 } from "ai";
+import * as ai from "ai";
+import { wrapAISDK } from "braintrust";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
-import { LogLine } from "../types/public/logs";
-import { AvailableModel } from "../types/public/model";
-import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
+import { LogLine } from "@browserbasehq/orca/lib/v3/types/public/logs";
+import { AvailableModel } from "@browserbasehq/orca/lib/v3/types/public/model";
+import { CreateChatCompletionOptions, LLMClient } from "@browserbasehq/orca/lib/v3/llm/LLMClient";
 
-export class AISdkClient extends LLMClient {
+// Wrap AI SDK functions with Braintrust for tracing
+const { generateObject, generateText } = wrapAISDK(ai);
+
+export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
   private logger?: (message: LogLine) => void;

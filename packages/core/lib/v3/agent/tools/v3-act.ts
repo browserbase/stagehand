@@ -7,7 +7,7 @@ export const createActTool = (v3: V3, executionModel?: string) =>
   tool({
     description:
       "Perform an action on the page (click, type). Provide a short, specific phrase that mentions the element type.",
-    parameters: z.object({
+    inputSchema: z.object({
       action: z
         .string()
         .describe(
@@ -16,6 +16,17 @@ export const createActTool = (v3: V3, executionModel?: string) =>
     }),
     execute: async ({ action }) => {
       try {
+        v3.logger({
+          category: "agent",
+          message: `Agent calling tool: act`,
+          level: 1,
+          auxiliary: {
+            arguments: {
+              value: action,
+              type: "string",
+            },
+          },
+        });
         const options = executionModel ? { model: executionModel } : undefined;
         const result = await v3.act(action, options);
         const actions = (result.actions as Action[] | undefined) ?? [];

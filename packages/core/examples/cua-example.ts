@@ -16,8 +16,8 @@ async function main() {
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    env: "BROWSERBASE",
-    verbose: 1,
+    env: "LOCAL",
+    verbose: 2,
   });
   await stagehand.init();
 
@@ -41,7 +41,7 @@ async function main() {
 
     // Define the instruction for the CUA
     const instruction =
-      "Apply for the first engineer position with mock data. Don't submit the form.";
+      "Apply for the first engineer position with mock data. Don't submit the form. You're on the right page";
     console.log(`Instruction: ${chalk.white(instruction)}`);
 
     // Execute the instruction
@@ -49,6 +49,7 @@ async function main() {
       instruction,
       maxSteps: 20,
     });
+    await new Promise(resolve => setTimeout(resolve, 30000));
 
     console.log(`${chalk.green("✓")} Execution complete`);
     console.log(`${chalk.yellow("⤷")} Result:`);

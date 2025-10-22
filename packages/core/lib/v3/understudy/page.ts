@@ -8,6 +8,8 @@ import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
+import { NetworkManager } from "./networkManager";
+import { LifecycleWatcher } from "./lifecycleWatcher";
 import type { StagehandAPIClient } from "../api";
 
 /**
@@ -50,6 +52,8 @@ export class Page {
   private readonly pageId: string;
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
+
+  private readonly networkManager: NetworkManager;
   /** Optional API client for routing page operations to the API */
   private readonly apiClient: StagehandAPIClient | null = null;
 
@@ -75,6 +79,9 @@ export class Page {
       mainFrameId,
       this.pageId,
     );
+
+    this.networkManager = new NetworkManager();
+    this.networkManager.trackSession(this.mainSession);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -298,6 +305,8 @@ export class Page {
   ): void {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
+    this.networkManager.trackSession(childSession);
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -361,6 +370,7 @@ export class Page {
       this.frameCache.delete(fid);
     }
     this.sessions.delete(sessionId);
+    this.networkManager.untrackSession(sessionId);
   }
 
   // ---------------- Ownership helpers / lookups ----------------
@@ -386,6 +396,14 @@ export class Page {
   /** Expose a session by id (used by snapshot to resolve session id -> session) */
   public getSessionById(id: string): CDPSessionLike | undefined {
     return this.sessions.get(id);
+  }
+
+  public registerSessionForNetwork(session: CDPSessionLike): void {
+    this.networkManager.trackSession(session);
+  }
+
+  public unregisterSessionForNetwork(sessionId: string | undefined): void {
+    this.networkManager.untrackSession(sessionId);
   }
 
   // ---------------- MAIN APIs ----------------
@@ -428,6 +446,7 @@ export class Page {
       try {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
+          this.networkManager.dispose();
           return;
         }
       } catch {
@@ -435,6 +454,7 @@ export class Page {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
+    this.networkManager.dispose();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -472,25 +492,38 @@ export class Page {
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<void> {
-    // Route to API if available
-    if (this.apiClient) {
-      await this.apiClient.goto(
-        url,
-        { waitUntil: options?.waitUntil },
-        this.mainFrameId(),
-      );
-      this._currentUrl = url;
-      return;
-    }
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
+    const timeout = options?.timeoutMs ?? 15000;
 
-    // Local CDP execution
-    await this.mainSession.send<Protocol.Page.NavigateResponse>(
-      "Page.navigate",
-      { url },
-    );
-    this._currentUrl = url;
-    const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
-    await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeoutMs: timeout,
+    });
+
+    try {
+      // Route to API if available
+      if (this.apiClient) {
+        await this.apiClient.goto(
+          url,
+          { waitUntil: options?.waitUntil },
+          this.mainFrameId(),
+        );
+        this._currentUrl = url;
+        return;
+      }
+      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
+          "Page.navigate",
+          { url },
+        );
+      this._currentUrl = url;
+      if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
+      await watcher.wait();
+    } finally {
+      watcher.dispose();
+    }
   }
 
   /**
@@ -501,14 +534,29 @@ export class Page {
     timeoutMs?: number;
     ignoreCache?: boolean;
   }): Promise<void> {
-    await this.mainSession.send("Page.reload", {
-      ignoreCache: options?.ignoreCache ?? false,
-    });
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.reload", {
+        ignoreCache: options?.ignoreCache ?? false,
+      });
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -525,15 +573,30 @@ export class Page {
       );
     const prev = entries[currentIndex - 1];
     if (!prev) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: prev.id,
-    });
-    this._currentUrl = prev.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: prev.id,
+      });
+      this._currentUrl = prev.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -550,15 +613,30 @@ export class Page {
       );
     const next = entries[currentIndex + 1];
     if (!next) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: next.id,
-    });
-    this._currentUrl = next.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: next.id,
+      });
+      this._currentUrl = next.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -1145,24 +1223,231 @@ export class Page {
   }
 
   /**
-   * Press a single key (keyDown then keyUp). For printable characters,
-   * uses the text path on keyDown; for named keys, sets key/code/VK.
+   * Press a single key or key combination (keyDown then keyUp).
+   * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
+   * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
   async keyPress(key: string, options?: { delay?: number }): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
     const sleep = (ms: number) =>
       new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
-    const named: Record<
-      string,
-      {
-        key: string;
-        code: string;
-        vk: number;
-        text?: string;
-        unmodifiedText?: string;
+    // Split key combination by + but handle the special case of "+" key itself
+    function split(keyString: string): string[] {
+      // Special case: if the entire string is just "+", return it as-is
+      if (keyString === "+") {
+        return ["+"];
       }
-    > = {
+
+      const keys: string[] = [];
+      let building = "";
+      for (const char of keyString) {
+        if (char === "+" && building) {
+          keys.push(building);
+          building = "";
+        } else {
+          building += char;
+        }
+      }
+      if (building) {
+        keys.push(building);
+      }
+      return keys;
+    }
+
+    const tokens = split(key);
+    const mainKey = tokens[tokens.length - 1];
+    const modifierKeys = tokens.slice(0, -1);
+
+    try {
+      for (const modKey of modifierKeys) {
+        await this.keyDown(modKey);
+      }
+
+      await this.keyDown(mainKey);
+      if (delay) await sleep(delay);
+      await this.keyUp(mainKey);
+
+      for (let i = modifierKeys.length - 1; i >= 0; i--) {
+        await this.keyUp(modifierKeys[i]);
+      }
+    } catch (error) {
+      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      this._pressedModifiers.clear();
+      throw error;
+    }
+  }
+
+  // Track pressed modifier keys
+  private _pressedModifiers = new Set<string>();
+
+  /** Press a key down without releasing it */
+  private async keyDown(key: string): Promise<void> {
+    const normalizedKey = this.normalizeModifierKey(key);
+
+    const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
+    if (modifierKeys.includes(normalizedKey)) {
+      this._pressedModifiers.add(normalizedKey);
+    }
+
+    let modifiers = 0;
+    if (this._pressedModifiers.has("Alt")) modifiers |= 1;
+    if (this._pressedModifiers.has("Control")) modifiers |= 2;
+    if (this._pressedModifiers.has("Meta")) modifiers |= 4;
+    if (this._pressedModifiers.has("Shift")) modifiers |= 8;
+
+    const named = this.getNamedKeys();
+
+    if (normalizedKey.length === 1) {
+      const hasNonShiftModifier =
+        this._pressedModifiers.has("Alt") ||
+        this._pressedModifiers.has("Control") ||
+        this._pressedModifiers.has("Meta");
+      if (hasNonShiftModifier) {
+        // For accelerators (e.g., Cmd/Ctrl/Alt + key), do not send text. Use rawKeyDown with key/code/VK.
+        const desc = this.describePrintableKey(normalizedKey);
+        const macCommands = this.isMacOS()
+          ? this.macCommandsFor(desc.code ?? "")
+          : [];
+        const req: Protocol.Input.DispatchKeyEventRequest = {
+          type: "rawKeyDown",
+          modifiers,
+          key: desc.key,
+          ...(desc.code ? { code: desc.code } : {}),
+          ...(typeof desc.vk === "number"
+            ? { windowsVirtualKeyCode: desc.vk }
+            : {}),
+          ...(macCommands.length ? { commands: macCommands } : {}),
+        } as Protocol.Input.DispatchKeyEventRequest;
+        await this.mainSession.send("Input.dispatchKeyEvent", req);
+      } else {
+        // Typing path (no non-Shift modifiers): send text to generate input
+        await this.mainSession.send("Input.dispatchKeyEvent", {
+          type: "keyDown",
+          text: normalizedKey,
+          unmodifiedText: normalizedKey,
+          modifiers,
+        } as Protocol.Input.DispatchKeyEventRequest);
+      }
+      return;
+    }
+
+    const entry = named[normalizedKey] ?? null;
+    if (entry) {
+      const macCommands = this.isMacOS() ? this.macCommandsFor(entry.code) : [];
+      const includeText = !!entry.text && modifiers === 0;
+      const keyDown: Protocol.Input.DispatchKeyEventRequest = {
+        type: includeText ? "keyDown" : "rawKeyDown",
+        key: entry.key,
+        code: entry.code,
+        windowsVirtualKeyCode: entry.vk,
+        modifiers,
+        ...(includeText
+          ? {
+              text: entry.text,
+              unmodifiedText: entry.unmodifiedText ?? entry.text,
+            }
+          : {}),
+        ...(macCommands.length ? { commands: macCommands } : {}),
+      } as Protocol.Input.DispatchKeyEventRequest;
+      await this.mainSession.send("Input.dispatchKeyEvent", keyDown);
+      return;
+    }
+
+    // Fallback: send with key property only
+    await this.mainSession.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: normalizedKey,
+      modifiers,
+    } as Protocol.Input.DispatchKeyEventRequest);
+  }
+
+  /** Release a pressed key */
+  private async keyUp(key: string): Promise<void> {
+    const normalizedKey = this.normalizeModifierKey(key);
+
+    let modifiers = 0;
+    if (this._pressedModifiers.has("Alt")) modifiers |= 1;
+    if (this._pressedModifiers.has("Control")) modifiers |= 2;
+    if (this._pressedModifiers.has("Meta")) modifiers |= 4;
+    if (this._pressedModifiers.has("Shift")) modifiers |= 8;
+
+    const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
+    if (modifierKeys.includes(normalizedKey)) {
+      this._pressedModifiers.delete(normalizedKey);
+    }
+
+    const named = this.getNamedKeys();
+
+    if (normalizedKey.length === 1) {
+      const desc = this.describePrintableKey(normalizedKey);
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: desc.key,
+        code: desc.code,
+        windowsVirtualKeyCode:
+          typeof desc.vk === "number" ? desc.vk : undefined,
+        modifiers,
+      } as Protocol.Input.DispatchKeyEventRequest);
+      return;
+    }
+
+    const entry = named[normalizedKey] ?? null;
+    if (entry) {
+      await this.mainSession.send("Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: entry.key,
+        code: entry.code,
+        windowsVirtualKeyCode: entry.vk,
+        modifiers,
+      } as Protocol.Input.DispatchKeyEventRequest);
+      return;
+    }
+
+    // Fallback: send with key property only
+    await this.mainSession.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: normalizedKey,
+      modifiers,
+    } as Protocol.Input.DispatchKeyEventRequest);
+  }
+
+  /** Normalize modifier key names to match CDP expectations */
+  private normalizeModifierKey(key: string): string {
+    const normalized = key.toLowerCase();
+    switch (normalized) {
+      case "cmd":
+      case "command":
+        // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
+        return this.isMacOS() ? "Meta" : "Control";
+      case "win":
+      case "windows":
+        return "Meta";
+      case "ctrl":
+        return "Control";
+      case "option":
+        return "Alt";
+      case "shift":
+        return "Shift";
+      default:
+        return key;
+    }
+  }
+
+  /**
+   * Get the map of named keys with their properties
+   */
+  private getNamedKeys(): Record<
+    string,
+    {
+      key: string;
+      code: string;
+      vk: number;
+      text?: string;
+      unmodifiedText?: string;
+    }
+  > {
+    return {
       Enter: {
         key: "Enter",
         code: "Enter",
@@ -1182,56 +1467,89 @@ export class Page {
       End: { key: "End", code: "End", vk: 35 },
       PageUp: { key: "PageUp", code: "PageUp", vk: 33 },
       PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
+      // Modifier keys
+      Alt: { key: "Alt", code: "AltLeft", vk: 18 },
+      Control: { key: "Control", code: "ControlLeft", vk: 17 },
+      Meta: { key: "Meta", code: "MetaLeft", vk: 91 },
+      Shift: { key: "Shift", code: "ShiftLeft", vk: 16 },
     };
+  }
 
-    if (key.length === 1) {
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        type: "keyDown",
-        text: key,
-        unmodifiedText: key,
-      } as Protocol.Input.DispatchKeyEventRequest);
-      if (delay) await sleep(delay);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        type: "keyUp",
-      } as Protocol.Input.DispatchKeyEventRequest);
-      return;
+  /**
+   * Minimal description for printable keys (letters/digits/space) to provide code and VK.
+   * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
+   */
+  private describePrintableKey(ch: string): {
+    key: string;
+    code?: string;
+    vk?: number;
+  } {
+    const shiftDown = this._pressedModifiers.has("Shift");
+    const isLetter = /^[a-zA-Z]$/.test(ch);
+    const isDigit = /^[0-9]$/.test(ch);
+
+    if (isLetter) {
+      const upper = ch.toUpperCase();
+      return {
+        key: shiftDown ? upper : upper.toLowerCase(),
+        code: `Key${upper}`,
+        vk: upper.charCodeAt(0), // 'A'..'Z' => 65..90
+      };
     }
 
-    const entry = named[key] ?? null;
-    if (entry) {
-      const keyDown: Protocol.Input.DispatchKeyEventRequest = {
-        type: "keyDown",
-        key: entry.key,
-        code: entry.code,
-        windowsVirtualKeyCode: entry.vk,
+    if (isDigit) {
+      return {
+        key: ch,
+        code: `Digit${ch}`,
+        vk: ch.charCodeAt(0), // '0'..'9' => 48..57
       };
-      if (entry.text) {
-        keyDown.text = entry.text;
-        keyDown.unmodifiedText = entry.unmodifiedText ?? entry.text;
-      }
-      await this.mainSession.send("Input.dispatchKeyEvent", keyDown);
-      if (delay) await sleep(delay);
-      const keyUp: Protocol.Input.DispatchKeyEventRequest = {
-        type: "keyUp",
-        key: entry.key,
-        code: entry.code,
-        windowsVirtualKeyCode: entry.vk,
-      };
-      await this.mainSession.send("Input.dispatchKeyEvent", keyUp);
-      return;
     }
 
-    // Fallback: send with key property only
-    const base: Protocol.Input.DispatchKeyEventRequest = {
-      type: "keyDown",
-      key,
-    } as Protocol.Input.DispatchKeyEventRequest;
-    await this.mainSession.send("Input.dispatchKeyEvent", base);
-    if (delay) await sleep(delay);
-    await this.mainSession.send("Input.dispatchKeyEvent", {
-      ...base,
-      type: "keyUp",
-    } as Protocol.Input.DispatchKeyEventRequest);
+    if (ch === " ") {
+      return { key: " ", code: "Space", vk: 32 };
+    }
+
+    // Fallback: just return the character as-is; VK best-effort from ASCII
+    return {
+      key: shiftDown ? ch.toUpperCase() : ch,
+      vk: ch.toUpperCase().charCodeAt(0),
+    };
+  }
+
+  private isMacOS(): boolean {
+    try {
+      return process.platform === "darwin";
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Return Chromium mac editing commands (without trailing ':') for a given code like 'KeyA'
+   * Only used on macOS to trigger system editing shortcuts (e.g., selectAll, copy, paste...).
+   */
+  private macCommandsFor(code: string): string[] {
+    if (!this.isMacOS()) return [];
+    const parts: string[] = [];
+    if (this._pressedModifiers.has("Shift")) parts.push("Shift");
+    if (this._pressedModifiers.has("Control")) parts.push("Control");
+    if (this._pressedModifiers.has("Alt")) parts.push("Alt");
+    if (this._pressedModifiers.has("Meta")) parts.push("Meta");
+    parts.push(code);
+    const shortcut = parts.join("+");
+    const table: Record<string, string | string[]> = {
+      "Meta+KeyA": "selectAll:",
+      "Meta+KeyC": "copy:",
+      "Meta+KeyX": "cut:",
+      "Meta+KeyV": "paste:",
+      "Meta+KeyZ": "undo:",
+    };
+    const value = table[shortcut];
+    if (!value) return [];
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .filter((c) => !c.startsWith("insert"))
+      .map((c) => c.substring(0, c.length - 1));
   }
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
@@ -1256,7 +1574,7 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  private async waitForMainLoadState(
+  async waitForMainLoadState(
     state: LoadState,
     timeoutMs = 15000,
   ): Promise<void> {

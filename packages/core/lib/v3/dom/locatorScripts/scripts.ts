@@ -105,22 +105,215 @@ export function scrollElementToPercent(
   }
 }
 
-export function fillElementValue(this: Element, value: string): void {
+const inputTypesToSetValue = new Set([
+  "color",
+  "date",
+  "datetime-local",
+  "month",
+  "range",
+  "time",
+  "week",
+]);
+
+const inputTypesToTypeInto = new Set([
+  "",
+  "email",
+  "number",
+  "password",
+  "search",
+  "tel",
+  "text",
+  "url",
+]);
+
+export type FillElementResult =
+  | { status: "done" }
+  | { status: "needsinput"; value: string; reason?: string }
+  | { status: "error"; reason: string };
+
+export function prepareElementForTyping(this: Element): boolean {
   try {
-    if ("value" in this && this instanceof HTMLElement) {
-      (
-        this as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-      ).value = value;
-    } else if ((this as HTMLElement).isContentEditable) {
-      (this as HTMLElement).textContent = value;
+    const element = this as HTMLElement;
+    if (!element.isConnected) return false;
+
+    const doc = element.ownerDocument || document;
+    const win = doc.defaultView || window;
+
+    try {
+      if (typeof element.focus === "function") {
+        element.focus();
+      }
+    } catch {
+      /* ignore */
     }
 
-    const inputEvent = new Event("input", { bubbles: true });
-    const changeEvent = new Event("change", { bubbles: true });
-    this.dispatchEvent(inputEvent);
-    this.dispatchEvent(changeEvent);
+    if (
+      element instanceof win.HTMLInputElement ||
+      element instanceof win.HTMLTextAreaElement
+    ) {
+      try {
+        if (typeof element.select === "function") {
+          element.select();
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      try {
+        const length = (element.value ?? "").length;
+        if (typeof element.setSelectionRange === "function") {
+          element.setSelectionRange(0, length);
+          return true;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      return true;
+    }
+
+    if (element.isContentEditable) {
+      const selection = doc.getSelection?.();
+      const range = doc.createRange?.();
+      if (selection && range) {
+        try {
+          range.selectNodeContents(element);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } catch {
+          /* ignore */
+        }
+      }
+      return true;
+    }
+
+    return false;
   } catch {
-    /* ignore */
+    return false;
+  }
+}
+
+export function fillElementValue(
+  this: Element,
+  rawValue: string,
+): FillElementResult {
+  const element = this as HTMLElement;
+  if (!element.isConnected) {
+    return { status: "error", reason: "notconnected" };
+  }
+
+  const doc = element.ownerDocument || document;
+  const win = doc.defaultView || window;
+  let fallbackValue = rawValue ?? "";
+
+  try {
+    const dispatchInputAndChange = (eventValue: string): void => {
+      let inputEvent: Event;
+      if (typeof win.InputEvent === "function") {
+        try {
+          inputEvent = new win.InputEvent("input", {
+            bubbles: true,
+            composed: true,
+            data: eventValue,
+            inputType: "insertText",
+          });
+        } catch {
+          inputEvent = new win.Event("input", {
+            bubbles: true,
+            composed: true,
+          });
+        }
+      } else {
+        inputEvent = new win.Event("input", { bubbles: true, composed: true });
+      }
+
+      element.dispatchEvent(inputEvent);
+
+      const changeEvent = new win.Event("change", { bubbles: true });
+      element.dispatchEvent(changeEvent);
+    };
+
+    if (element instanceof win.HTMLInputElement) {
+      const type = (element.type || "").toLowerCase();
+
+      if (!inputTypesToTypeInto.has(type) && !inputTypesToSetValue.has(type)) {
+        return { status: "error", reason: `unsupported-input-type:${type}` };
+      }
+
+      let valueForTyping = rawValue;
+
+      if (type === "number") {
+        const trimmed = rawValue.trim();
+        if (trimmed !== "" && Number.isNaN(Number(trimmed))) {
+          return { status: "error", reason: "invalid-number-value" };
+        }
+        valueForTyping = trimmed;
+      }
+
+      fallbackValue = valueForTyping;
+
+      if (inputTypesToSetValue.has(type)) {
+        const trimmed = rawValue.trim();
+        fallbackValue = trimmed;
+        prepareElementForTyping.call(element);
+
+        const prototype = win.HTMLInputElement.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, "value");
+        const nativeSetter = descriptor?.set;
+
+        if (typeof nativeSetter === "function") {
+          nativeSetter.call(element, trimmed);
+        } else {
+          element.value = trimmed;
+        }
+
+        const tracker = (
+          element as unknown as {
+            _valueTracker?: { setValue?: (next: string) => void };
+          }
+        )._valueTracker;
+        tracker?.setValue?.(trimmed);
+
+        if (element.value !== trimmed) {
+          return { status: "error", reason: "malformed-value" };
+        }
+
+        dispatchInputAndChange(trimmed);
+        return { status: "done" };
+      }
+
+      prepareElementForTyping.call(element);
+      return { status: "needsinput", value: valueForTyping };
+    }
+
+    if (element instanceof win.HTMLTextAreaElement) {
+      prepareElementForTyping.call(element);
+      fallbackValue = rawValue;
+      return { status: "needsinput", value: rawValue };
+    }
+
+    if (element instanceof win.HTMLSelectElement) {
+      // Select elements use setInputFiles/selectOption instead.
+      return { status: "error", reason: "unsupported-element" };
+    }
+
+    if (element.isContentEditable) {
+      prepareElementForTyping.call(element);
+      fallbackValue = rawValue;
+      return { status: "needsinput", value: rawValue };
+    }
+
+    return { status: "error", reason: "unsupported-element" };
+  } catch (error) {
+    let reason = "exception";
+    if (error && typeof error === "object") {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === "string" && message.trim().length > 0) {
+        reason = `exception:${message}`;
+      }
+    }
+    return { status: "needsinput", value: fallbackValue, reason };
   }
 }
 
