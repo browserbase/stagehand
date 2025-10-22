@@ -72,16 +72,7 @@ function decorateGeminiSchema(
 }
 
 export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
-  let zodType: string;
-  try {
-    zodType = getZodType(zodSchema);
-  } catch (error) {
-    console.error("Error getting Zod type:", error);
-    console.error("Schema object keys:", Object.keys(zodSchema));
-    console.error("Schema:", zodSchema);
-    throw error;
-  }
-
+  const zodType = getZodType(zodSchema);
   switch (zodType) {
     case "array": {
       const arraySchema = zodSchema as ZodWithInternals<$ZodArrayInternals>;
@@ -230,12 +221,6 @@ export function transformSchema(
   // 1) If it's a URL type (z.url() in Zod 4), convert to ID string pattern
   if (isKind(schema, "url")) {
     const transformed = makeIdStringSchema(schema as z.ZodString);
-    console.log("[transformSchema] Found URL type, transforming to ID pattern");
-    console.log("[transformSchema] Original schema type:", getZodType(schema));
-    console.log(
-      "[transformSchema] Transformed schema type:",
-      getZodType(transformed),
-    );
     return [transformed, [{ segments: [] }]];
   }
 
@@ -289,8 +274,6 @@ export function transformSchema(
 
     if (changed) {
       const newSchema = z.object(newShape);
-      console.log("[transformSchema] Reconstructed object with changed fields");
-      console.log("[transformSchema] URL paths found:", urlPaths);
       return [newSchema, urlPaths];
     }
     return [schema, urlPaths];
@@ -314,9 +297,6 @@ export function transformSchema(
 
     if (changed) {
       const newSchema = z.array(transformedItem);
-      console.log(
-        "[transformSchema] Reconstructed array with changed item type",
-      );
       return [newSchema, arrayPaths];
     }
     return [schema, arrayPaths];
