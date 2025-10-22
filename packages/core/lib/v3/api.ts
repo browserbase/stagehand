@@ -113,9 +113,21 @@ export class StagehandAPIClient {
   }
 
   async act({ input, options, frameId }: APIActParameters): Promise<ActResult> {
+    const args: Record<string, unknown> = {
+      input,
+      frameId,
+    };
+    // Only include options if it has properties (excluding page)
+    if (options) {
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        args.options = restOptions;
+      }
+    }
+
     return this.execute<ActResult>({
       method: "act",
-      args: { input, options, frameId },
+      args,
     });
   }
 
@@ -127,9 +139,22 @@ export class StagehandAPIClient {
   }: APIExtractParameters): Promise<ExtractResult<T>> {
     const jsonSchema = zodSchema ? zodToJsonSchema(zodSchema) : undefined;
 
+    const args: Record<string, unknown> = {
+      schema: jsonSchema,
+      instruction,
+      frameId,
+    };
+    // Only include options if it has properties (excluding page)
+    if (options) {
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        args.options = restOptions;
+      }
+    }
+
     return this.execute<ExtractResult<T>>({
       method: "extract",
-      args: { schema: jsonSchema, instruction, options, frameId },
+      args,
     });
   }
 
@@ -138,9 +163,21 @@ export class StagehandAPIClient {
     options,
     frameId,
   }: APIObserveParameters): Promise<Action[]> {
+    const args: Record<string, unknown> = {
+      instruction,
+      frameId,
+    };
+    // Only include options if it has properties (excluding page)
+    if (options) {
+      const { page: _, ...restOptions } = options;
+      if (Object.keys(restOptions).length > 0) {
+        args.options = restOptions;
+      }
+    }
+
     return this.execute<Action[]>({
       method: "observe",
-      args: { instruction, options, frameId },
+      args,
     });
   }
 

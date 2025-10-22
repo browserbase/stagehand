@@ -221,7 +221,7 @@ export class V3 {
         this.modelClientOptions,
       );
     }
-    
+
     this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
       label: "cache directory",
     });
@@ -917,11 +917,6 @@ export class V3 {
       };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        console.log("act frameId", frameId);
-        // Don't pass the page object to the API
-        if (options?.page) {
-          options.page = null;
-        }
         actResult = await this.apiClient.act({ input, options, frameId });
       } else {
         actResult = await this.actHandler.act(handlerParams);
@@ -1029,12 +1024,12 @@ export class V3 {
       let result: z.infer<typeof effectiveSchema> | { pageText: string };
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        console.log("frameId", frameId);
-        // Don't pass the page object to the API
-        if (options?.page) {
-          options.page = null;
-        }
-        result = await this.apiClient.extract({ ...handlerParams, frameId });
+        result = await this.apiClient.extract({
+          instruction: handlerParams.instruction,
+          schema: handlerParams.schema,
+          options,
+          frameId,
+        });
       } else {
         result = await this.extractHandler.extract<ZodTypeAny>(handlerParams);
       }
@@ -1084,11 +1079,6 @@ export class V3 {
       let results: Action[];
       if (this.apiClient) {
         const frameId = page.mainFrameId();
-        console.log("observe frameId", frameId);
-        // Don't pass the page object to the API
-        if (options?.page) {
-          options.page = null;
-        }
         results = await this.apiClient.observe({
           instruction,
           options,

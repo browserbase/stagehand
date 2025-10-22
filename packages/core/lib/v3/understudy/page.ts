@@ -514,7 +514,8 @@ export class Page {
         this._currentUrl = url;
         return;
       }
-      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
+      const response =
+        await this.mainSession.send<Protocol.Page.NavigateResponse>(
           "Page.navigate",
           { url },
         );
