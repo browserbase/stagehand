@@ -194,7 +194,8 @@ export class StagehandAPIClient {
 
   async agentExecute(
     agentConfig: AgentConfig,
-    executeOptions: AgentExecuteOptions,
+    executeOptions: AgentExecuteOptions | string,
+    frameId?: string,
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
@@ -202,10 +203,15 @@ export class StagehandAPIClient {
         "MCP integrations are not supported in API mode. Set experimental: true to use MCP integrations.",
       );
     }
-
+    if (typeof executeOptions === "object") {
+      if (executeOptions.page) {
+        const { page: _, ...restOptions } = executeOptions;
+        executeOptions = restOptions;
+      }
+    }
     return this.execute<AgentResult>({
       method: "agentExecute",
-      args: { agentConfig, executeOptions },
+      args: { agentConfig, executeOptions, frameId },
     });
   }
 

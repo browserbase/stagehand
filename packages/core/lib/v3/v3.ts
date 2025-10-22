@@ -696,6 +696,21 @@ export class V3 {
             message: "Starting browserbase session",
             level: 1,
           });
+          const createSessionPayload = {
+            projectId:
+              this.opts.browserbaseSessionCreateParams?.projectId ?? projectId,
+            ...this.opts.browserbaseSessionCreateParams,
+            browserSettings: {
+              ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
+                {}),
+              viewport: this.opts.browserbaseSessionCreateParams
+                ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+            },
+            userMetadata: {
+              ...(this.opts.browserbaseSessionCreateParams?.userMetadata ?? {}),
+              stagehand: "true",
+            },
+          };
           const { sessionId, available } = await this.apiClient.init({
             modelName: this.modelName,
             modelApiKey: this.modelClientOptions.apiKey,
@@ -703,8 +718,7 @@ export class V3 {
             verbose: this.verbose,
             systemPrompt: this.opts.systemPrompt,
             selfHeal: this.opts.selfHeal,
-            browserbaseSessionCreateParams:
-              this.opts.browserbaseSessionCreateParams,
+            browserbaseSessionCreateParams: createSessionPayload,
             browserbaseSessionID: this.opts.browserbaseSessionID,
           });
           if (!available) {
@@ -1420,8 +1434,18 @@ export class V3 {
               this.beginAgentReplayRecording();
             }
 
+            let result: AgentResult;
             try {
-              const result = await handler.execute(instructionOrOptions);
+              if (this.apiClient && !this.experimental) {
+                const page = await this.ctx!.awaitActivePage();
+                result = await this.apiClient.agentExecute(
+                  options,
+                  resolvedOptions,
+                  page.mainFrameId(),
+                );
+              } else {
+                result = await handler.execute(instructionOrOptions);
+              }
               if (recording) {
                 agentSteps = this.endAgentReplayRecording();
               }
@@ -1506,9 +1530,19 @@ export class V3 {
           if (recording) {
             this.beginAgentReplayRecording();
           }
+          let result: AgentResult;
 
           try {
-            const result = await handler.execute(instructionOrOptions);
+            if (this.apiClient && !this.experimental) {
+              const page = await this.ctx!.awaitActivePage();
+              result = await this.apiClient.agentExecute(
+                options,
+                resolvedOptions,
+                page.mainFrameId(),
+              );
+            } else {
+              result = await handler.execute(instructionOrOptions);
+            }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
             }
