@@ -411,9 +411,6 @@ export function transformSchema(
     }
     return [schema, allPaths];
   }
-
-  // 10) For any other type (including standalone transforms), return as-is
-  // Standalone transforms (z.transform(fn)) don't have nested schemas to recurse into
   return [schema, []];
 }
 
@@ -480,7 +477,6 @@ function isKind(s: z.ZodTypeAny, kind: string): boolean {
 }
 
 function makeIdStringSchema(orig: z.ZodString): z.ZodString {
-  // In Zod 4, description is accessed via .description property
   const userDesc =
     (orig as unknown as { description?: string }).description ?? "";
 
