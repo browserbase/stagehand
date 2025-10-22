@@ -101,10 +101,10 @@ export async function resolveXpathForLocation(
           .catch(() => {});
         const evalParams = ctxId
           ? {
-              contextId: ctxId,
-              expression: scrollOffsetsExpr(),
-              returnByValue: true,
-            }
+            contextId: ctxId,
+            expression: scrollOffsetsExpr(),
+            returnByValue: true,
+          }
           : { expression: scrollOffsetsExpr(), returnByValue: true };
         const { result } = await curSession.send<{
           result: { value?: { sx?: number; sy?: number } };
@@ -253,10 +253,10 @@ export async function computeActiveElementXpath(
         .catch(() => {});
       const evalParams = ctxId
         ? {
-            contextId: ctxId,
-            expression: "document.hasFocus()===true",
-            returnByValue: true,
-          }
+          contextId: ctxId,
+          expression: "document.hasFocus()===true",
+          returnByValue: true,
+        }
         : { expression: "document.hasFocus()===true", returnByValue: true };
       const { result } = await sess.send<Protocol.Runtime.EvaluateResponse>(
         "Runtime.evaluate",
@@ -1532,13 +1532,12 @@ async function buildHierarchicalTree(
 ): Promise<{ tree: A11yNode[] }> {
   const nodeMap = new Map<string, A11yNode>();
 
-  // Keep named, described, or container nodes and any non-structural role
+  // Keep named or container nodes and any non-structural role
   for (const n of nodes) {
-    const hasName = Boolean(n.name?.trim());
-    const hasDescription = Boolean(n.description?.trim());
-    const hasChildren = !!(n.childIds && n.childIds.length);
     const keep =
-      hasName || hasDescription || hasChildren || !isStructural(n.role);
+      !!(n.name && n.name.trim()) ||
+      !!(n.childIds && n.childIds.length) ||
+      !isStructural(n.role);
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
   }
@@ -1566,12 +1565,9 @@ async function buildHierarchicalTree(
   async function pruneStructuralSafe(node: A11yNode): Promise<A11yNode | null> {
     if (+node.nodeId < 0) return null;
 
-    const hasDescription = Boolean(node.description?.trim());
-    const structuralRole = isStructural(node.role) && !hasDescription;
-
     const children = node.children ?? [];
     if (!children.length) {
-      return structuralRole ? null : node;
+      return isStructural(node.role) ? null : node;
     }
 
     const cleanedKids = (
@@ -1581,7 +1577,7 @@ async function buildHierarchicalTree(
     // Remove StaticText children whose combined text equals the parent's name
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 
-    if (structuralRole) {
+    if (isStructural(node.role)) {
       if (prunedStatic.length === 1) return prunedStatic[0]!;
       if (prunedStatic.length === 0) return null;
     }
