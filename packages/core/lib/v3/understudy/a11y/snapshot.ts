@@ -1538,10 +1538,7 @@ async function buildHierarchicalTree(
     const hasDescription = Boolean(n.description?.trim());
     const hasChildren = !!(n.childIds && n.childIds.length);
     const keep =
-      hasName ||
-      hasDescription ||
-      hasChildren ||
-      !isStructural(n.role);
+      hasName || hasDescription || hasChildren || !isStructural(n.role);
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
   }

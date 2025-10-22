@@ -1,11 +1,12 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import {
-  DEFAULT_IDLE_WAIT, IGNORED_RESOURCE_TYPES,
+  DEFAULT_IDLE_WAIT,
+  IGNORED_RESOURCE_TYPES,
   NetworkObserver,
   NetworkRequestInfo,
   WaitForIdleHandle,
-  WaitForIdleOptions
+  WaitForIdleOptions,
 } from "../types/private/network";
 
 /**
@@ -194,14 +195,18 @@ export class NetworkManager {
     const startTime = options.startTime ?? Date.now();
     const idleTimeMs = options.idleTimeMs ?? DEFAULT_IDLE_WAIT;
     const timeoutMs = options.timeoutMs;
-    const remainingBudgetMs = Number.isFinite(timeoutMs) ? timeoutMs : undefined;
+    const remainingBudgetMs = Number.isFinite(timeoutMs)
+      ? timeoutMs
+      : undefined;
     const originalBudgetMs = Number.isFinite(options.totalBudgetMs ?? NaN)
       ? (options.totalBudgetMs as number)
       : remainingBudgetMs;
 
-    const filter = options.filter ?? ((info: NetworkRequestInfo) => {
-      return !IGNORED_RESOURCE_TYPES.has(info.resourceType);
-    });
+    const filter =
+      options.filter ??
+      ((info: NetworkRequestInfo) => {
+        return !IGNORED_RESOURCE_TYPES.has(info.resourceType);
+      });
 
     const tracked = new Set<string>();
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -273,13 +278,17 @@ export class NetworkManager {
     maybeIdle();
 
     if (Number.isFinite(timeoutMs)) {
-      timeoutTimer = setTimeout(() => {
-        const elapsed = Date.now() - startTime;
-        const message = originalBudgetMs !== undefined
-          ? `networkidle timed out after ${originalBudgetMs}ms`
-          : `networkidle timed out after ${elapsed}ms`;
-        cleanup(new Error(message));
-      }, Math.max(0, timeoutMs));
+      timeoutTimer = setTimeout(
+        () => {
+          const elapsed = Date.now() - startTime;
+          const message =
+            originalBudgetMs !== undefined
+              ? `networkidle timed out after ${originalBudgetMs}ms`
+              : `networkidle timed out after ${elapsed}ms`;
+          cleanup(new Error(message));
+        },
+        Math.max(0, timeoutMs),
+      );
     }
 
     return {

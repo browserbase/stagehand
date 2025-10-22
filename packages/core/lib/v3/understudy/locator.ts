@@ -6,10 +6,7 @@ import * as path from "path";
 import { Buffer } from "buffer";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
-import {
-  FrameSelectorResolver,
-  type SelectorQuery,
-} from "./selectorResolver";
+import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -47,7 +44,10 @@ export class Locator {
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
-    this.nthIndex = Math.max(0, Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0));
+    this.nthIndex = Math.max(
+      0,
+      Math.floor(Number.isFinite(nthIndex) ? nthIndex : 0),
+    );
   }
 
   /** Return the owning Frame for this locator (typed accessor, no private access). */
@@ -69,15 +69,15 @@ export class Locator {
       | string
       | string[]
       | {
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
       | Array<{
-      name: string;
-      mimeType: string;
-      buffer: ArrayBuffer | Uint8Array | Buffer | string;
-    }>,
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
   ): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
@@ -106,8 +106,7 @@ export class Locator {
           "Runtime.callFunctionOn",
           {
             objectId,
-            functionDeclaration:
-              locatorScriptSources.ensureFileInputElement,
+            functionDeclaration: locatorScriptSources.ensureFileInputElement,
             returnByValue: true,
           },
         );
@@ -498,7 +497,8 @@ export class Locator {
         | { status?: string; reason?: string; value?: string }
         | null
         | undefined;
-      const status = typeof result === "object" && result ? result.status : undefined;
+      const status =
+        typeof result === "object" && result ? result.status : undefined;
 
       if (status === "done") {
         return;
@@ -518,14 +518,16 @@ export class Locator {
         try {
           const { objectId: prepObjectId } = await this.resolveNode();
           try {
-            const prepRes = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-              "Runtime.callFunctionOn",
-              {
-                objectId: prepObjectId,
-                functionDeclaration: locatorScriptSources.prepareElementForTyping,
-                returnByValue: true,
-              },
-            );
+            const prepRes =
+              await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+                "Runtime.callFunctionOn",
+                {
+                  objectId: prepObjectId,
+                  functionDeclaration:
+                    locatorScriptSources.prepareElementForTyping,
+                  returnByValue: true,
+                },
+              );
             prepared = Boolean(prepRes.result.value);
           } finally {
             await session
@@ -543,26 +545,20 @@ export class Locator {
 
         if (valueToType.length === 0) {
           // Simulate deleting the currently selected text to clear the field.
-          await session.send<never>(
-            "Input.dispatchKeyEvent",
-            {
-              type: "keyDown",
-              key: "Backspace",
-              code: "Backspace",
-              windowsVirtualKeyCode: 8,
-              nativeVirtualKeyCode: 8,
-            } as Protocol.Input.DispatchKeyEventRequest,
-          );
-          await session.send<never>(
-            "Input.dispatchKeyEvent",
-            {
-              type: "keyUp",
-              key: "Backspace",
-              code: "Backspace",
-              windowsVirtualKeyCode: 8,
-              nativeVirtualKeyCode: 8,
-            } as Protocol.Input.DispatchKeyEventRequest,
-          );
+          await session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyDown",
+            key: "Backspace",
+            code: "Backspace",
+            windowsVirtualKeyCode: 8,
+            nativeVirtualKeyCode: 8,
+          } as Protocol.Input.DispatchKeyEventRequest);
+          await session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyUp",
+            key: "Backspace",
+            code: "Backspace",
+            windowsVirtualKeyCode: 8,
+            nativeVirtualKeyCode: 8,
+          } as Protocol.Input.DispatchKeyEventRequest);
         } else {
           await session.send<never>("Input.insertText", { text: valueToType });
         }

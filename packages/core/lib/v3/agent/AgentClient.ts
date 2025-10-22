@@ -2,7 +2,7 @@ import {
   AgentAction,
   AgentResult,
   AgentType,
-  CuaAgentExecutionOptions,
+  AgentExecutionOptions,
 } from "../types/public/agent";
 
 /**
@@ -26,7 +26,7 @@ export abstract class AgentClient {
     this.clientOptions = {};
   }
 
-  abstract execute(options: CuaAgentExecutionOptions): Promise<AgentResult>;
+  abstract execute(options: AgentExecutionOptions): Promise<AgentResult>;
 
   abstract captureScreenshot(
     options?: Record<string, unknown>,

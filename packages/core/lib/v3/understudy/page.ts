@@ -498,10 +498,11 @@ export class Page {
     });
 
     try {
-      const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
-        "Page.navigate",
-        { url },
-      );
+      const response =
+        await this.mainSession.send<Protocol.Page.NavigateResponse>(
+          "Page.navigate",
+          { url },
+        );
       this._currentUrl = url;
       if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
       await watcher.wait();

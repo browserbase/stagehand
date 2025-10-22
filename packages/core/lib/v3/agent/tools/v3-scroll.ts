@@ -20,7 +20,7 @@ export const createScrollTool = (v3: V3) =>
             type: "object",
           },
         },
-      })
+      });
       const page = await v3.context.awaitActivePage();
       // Determine a reasonable anchor (center of viewport)
       const { w, h } = await page.mainFrame().evaluate<{

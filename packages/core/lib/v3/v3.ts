@@ -32,16 +32,14 @@ import {
   ObserveHandlerParams,
   AgentReplayStep,
   InitState,
-  AgentCacheContext
+  AgentCacheContext,
 } from "./types/private";
 import {
   AgentConfig,
   AgentExecuteOptions,
   AgentModelConfig,
   AgentResult,
-  AnyAgentExecuteOptions,
-  AvailableCuaModel,
-  CuaAgentExecuteOptions,
+  AVAILABLE_CUA_MODELS,
   LogLine,
   V3Metrics,
   Action,
@@ -65,6 +63,7 @@ import {
 } from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
+import { resolveModel } from "../modelUtils";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -810,9 +809,9 @@ export class V3 {
       // Resolve page from options or default
       const page = await this.resolvePage(options?.page);
 
-      let actCacheContext:
-        | Awaited<ReturnType<typeof this.actCache.prepareContext>>
-        | null = null;
+      let actCacheContext: Awaited<
+        ReturnType<typeof this.actCache.prepareContext>
+      > | null = null;
       const canUseCache =
         typeof input === "string" &&
         !this.isAgentReplayRecording() &&
@@ -1286,23 +1285,23 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(
-    options: AgentConfig & { cua: true },
-  ): {
-    execute: (
-      instructionOrOptions: string | CuaAgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  };
-  agent(
-    options?: AgentConfig & { cua?: false },
-  ): {
-    execute: (
-      instructionOrOptions: string | AgentExecuteOptions,
-    ) => Promise<AgentResult>;
-  };
+  // agent(
+  //   options: AgentConfig & { cua: true },
+  // ): {
+  //   execute: (
+  //     instructionOrOptions: string | CuaAgentExecuteOptions,
+  //   ) => Promise<AgentResult>;
+  // };
+  // agent(
+  //   options?: AgentConfig & { cua?: false },
+  // ): {
+  //   execute: (
+  //     instructionOrOptions: string | AgentExecuteOptions,
+  //   ) => Promise<AgentResult>;
+  // };
   agent(options?: AgentConfig): {
     execute: (
-      instructionOrOptions: string | AnyAgentExecuteOptions,
+      instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
     this.logger({
@@ -1313,30 +1312,22 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      const { modelName, modelOptions } =
-        this.extractAgentModel<AvailableCuaModel>(options.model, {
-          stripProviderPrefix: true,
-        });
-      if (!modelName) {
+      if (!options?.model) {
         throw new Error("A CUA agent requires a model to be specified.");
       }
+      const { modelName, isCua, clientOptions } = resolveModel(options.model);
 
-      const executionModel = (
-        options as {
-          executionModel?: unknown;
-        }
-      ).executionModel;
-      if (executionModel !== undefined) {
+      if (!isCua) {
         throw new Error(
-          "executionModel is not supported when cua is set to true.",
+          "Model is not a CUA model. Try one of the following: " +
+            AVAILABLE_CUA_MODELS.join(", "),
         );
       }
 
-      const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+      const agentConfigSignature =
+        this.agentCache.buildConfigSignature(options);
       return {
-        execute: async (
-          instructionOrOptions: string | CuaAgentExecuteOptions,
-        ) =>
+        execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
             if (options?.integrations && !this.experimental) {
               throw new Error(
@@ -1352,7 +1343,7 @@ export class V3 {
               this.logger,
               {
                 modelName,
-                clientOptions: modelOptions,
+                clientOptions,
                 userProvidedInstructions:
                   options.systemPrompt ??
                   `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement.`,
@@ -1360,7 +1351,7 @@ export class V3 {
               tools,
             );
 
-            const resolvedOptions: CuaAgentExecuteOptions =
+            const resolvedOptions: AgentExecuteOptions =
               typeof instructionOrOptions === "string"
                 ? { instruction: instructionOrOptions }
                 : instructionOrOptions;
@@ -1371,9 +1362,8 @@ export class V3 {
               this.ctx!.setActivePage(normalizedPage);
             }
             const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions = this.agentCache.sanitizeExecuteOptions(
-              resolvedOptions,
-            );
+            const sanitizedOptions =
+              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1404,11 +1394,7 @@ export class V3 {
                 agentSteps = this.endAgentReplayRecording();
               }
 
-              if (
-                cacheContext &&
-                result.success &&
-                agentSteps.length > 0
-              ) {
+              if (cacheContext && result.success && agentSteps.length > 0) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
               }
 
@@ -1445,7 +1431,9 @@ export class V3 {
             this,
             this.logger,
             this.llmClient,
-            options?.executionModel,
+            typeof options?.executionModel === "string"
+              ? options.executionModel
+              : options?.executionModel?.modelName,
             options?.systemPrompt,
             tools,
           );
@@ -1461,9 +1449,8 @@ export class V3 {
             this.ctx!.setActivePage(normalizedPage);
           }
           const instruction = resolvedOptions.instruction.trim();
-          const sanitizedOptions = this.agentCache.sanitizeExecuteOptions(
-            resolvedOptions,
-          );
+          const sanitizedOptions =
+            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
           let cacheContext: AgentCacheContext | null = null;
           if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1494,11 +1481,7 @@ export class V3 {
               agentSteps = this.endAgentReplayRecording();
             }
 
-            if (
-              cacheContext &&
-              result.success &&
-              agentSteps.length > 0
-            ) {
+            if (cacheContext && result.success && agentSteps.length > 0) {
               await this.agentCache.store(cacheContext, agentSteps, result);
             }
 

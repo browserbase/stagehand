@@ -13,14 +13,14 @@ import type {
   SanitizedAgentExecuteOptions,
   ActFn,
   AgentCacheContext,
-  AgentCacheDeps
+  AgentCacheDeps,
 } from "../types/private";
 import type {
   AvailableModel,
   AgentResult,
   AgentConfig,
-  AnyAgentExecuteOptions,
-  Logger
+  AgentExecuteOptions,
+  Logger,
 } from "../types/public";
 import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
@@ -71,7 +71,7 @@ export class AgentCache {
   }
 
   sanitizeExecuteOptions(
-    options?: AnyAgentExecuteOptions,
+    options?: AgentExecuteOptions,
   ): SanitizedAgentExecuteOptions {
     if (!options) return {};
     const sanitized: SanitizedAgentExecuteOptions = {};
@@ -80,9 +80,12 @@ export class AgentCache {
     }
     if (
       "highlightCursor" in options &&
-      typeof (options as { highlightCursor?: unknown }).highlightCursor === "boolean"
+      typeof (options as { highlightCursor?: unknown }).highlightCursor ===
+        "boolean"
     ) {
-      sanitized.highlightCursor = (options as { highlightCursor?: boolean }).highlightCursor;
+      sanitized.highlightCursor = (
+        options as { highlightCursor?: boolean }
+      ).highlightCursor;
     }
     return sanitized;
   }
@@ -96,7 +99,9 @@ export class AgentCache {
           typeof integration === "string" ? integration : "client",
         )
       : undefined;
-    const serializedModel = this.serializeAgentModelForCache(agentOptions?.model);
+    const serializedModel = this.serializeAgentModelForCache(
+      agentOptions?.model,
+    );
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
@@ -142,7 +147,11 @@ export class AgentCache {
   async tryReplay(context: AgentCacheContext): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
-    const { value: entry, error, path } = await this.storage.readJson<CachedAgentEntry>(
+    const {
+      value: entry,
+      error,
+      path,
+    } = await this.storage.readJson<CachedAgentEntry>(
       `agent-${context.cacheKey}.json`,
     );
     if (error && path) {
@@ -326,7 +335,11 @@ export class AgentCache {
         await this.replayAgentActStep(step as AgentReplayActStep, ctx, handler);
         return;
       case "fillForm":
-        await this.replayAgentFillFormStep(step as AgentReplayFillFormStep, ctx, handler);
+        await this.replayAgentFillFormStep(
+          step as AgentReplayFillFormStep,
+          ctx,
+          handler,
+        );
         return;
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);

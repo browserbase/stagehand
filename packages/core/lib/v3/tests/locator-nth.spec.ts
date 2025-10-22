@@ -19,12 +19,12 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div class="test" id="first">1</div>' +
-        '<div class="test" id="second">2</div>' +
-        '<div class="test" id="third">3</div>' +
-        '<span id="other">4</span>',
-      ),
+        encodeURIComponent(
+          '<div class="test" id="first">1</div>' +
+            '<div class="test" id="second">2</div>' +
+            '<div class="test" id="third">3</div>' +
+            '<span id="other">4</span>',
+        ),
     );
 
     // Test nth() with CSS selectors
@@ -46,11 +46,11 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<button id="btn1">Button 1</button>' +
-        '<button id="btn2">Button 2</button>' +
-        '<button id="btn3">Button 3</button>',
-      ),
+        encodeURIComponent(
+          '<button id="btn1">Button 1</button>' +
+            '<button id="btn2">Button 2</button>' +
+            '<button id="btn3">Button 3</button>',
+        ),
     );
 
     // Test nth() with XPath selectors
@@ -72,11 +72,11 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div id="d1">Click me</div>' +
-        '<button id="b1">Click me</button>' +
-        '<span id="s1">Click me</span>',
-      ),
+        encodeURIComponent(
+          '<div id="d1">Click me</div>' +
+            '<button id="b1">Click me</button>' +
+            '<span id="s1">Click me</span>',
+        ),
     );
 
     // Test nth() with text selectors
@@ -98,14 +98,14 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div id="host"></div>' +
-        "<script>" +
-        'const host = document.getElementById("host");' +
-        'const shadow = host.attachShadow({mode: "open"});' +
-        'shadow.innerHTML = "<button>Shadow Button 1</button><button>Shadow Button 2</button><button>Shadow Button 3</button>";' +
-        "</script>",
-      ),
+        encodeURIComponent(
+          '<div id="host"></div>' +
+            "<script>" +
+            'const host = document.getElementById("host");' +
+            'const shadow = host.attachShadow({mode: "open"});' +
+            'shadow.innerHTML = "<button>Shadow Button 1</button><button>Shadow Button 2</button><button>Shadow Button 3</button>";' +
+            "</script>",
+        ),
     );
 
     // Wait a bit for shadow DOM to be attached
@@ -130,9 +130,9 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div class="test">1</div>' + '<div class="test">2</div>',
-      ),
+        encodeURIComponent(
+          '<div class="test">1</div>' + '<div class="test">2</div>',
+        ),
     );
 
     // Test with out of bounds index - should throw an error
@@ -152,15 +152,15 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div class="container">' +
-        '<span class="item">1</span>' +
-        '<span class="item">2</span>' +
-        "</div>" +
-        "<div>" +
-        '<span class="item">3</span>' +
-        "</div>",
-      ),
+        encodeURIComponent(
+          '<div class="container">' +
+            '<span class="item">1</span>' +
+            '<span class="item">2</span>' +
+            "</div>" +
+            "<div>" +
+            '<span class="item">3</span>' +
+            "</div>",
+        ),
     );
 
     // Test nth() with complex CSS selectors
@@ -178,11 +178,11 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div class="test">First</div>' +
-        '<div class="test">Second</div>' +
-        '<div class="test">Third</div>',
-      ),
+        encodeURIComponent(
+          '<div class="test">First</div>' +
+            '<div class="test">Second</div>' +
+            '<div class="test">Third</div>',
+        ),
     );
 
     // Test that nth() returns a Locator that can be used for other actions
@@ -200,11 +200,11 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<div class="test">First</div>' +
-        '<div class="test">Second</div>' +
-        '<div class="test">Third</div>',
-      ),
+        encodeURIComponent(
+          '<div class="test">First</div>' +
+            '<div class="test">Second</div>' +
+            '<div class="test">Third</div>',
+        ),
     );
 
     // Verify nth(0) returns the same element as first()
@@ -223,18 +223,18 @@ test.describe("Locator nth() method tests", () => {
 
     await page.goto(
       "data:text/html," +
-      encodeURIComponent(
-        '<button id="main1">Main Button 1</button>' +
-        '<button id="main2">Main Button 2</button>' +
-        '<iframe id="frame1"></iframe>' +
-        "<script>" +
-        'const frame = document.getElementById("frame1");' +
-        "const doc = frame.contentDocument;" +
-        "doc.open();" +
-        'doc.write("<button>Frame Button 1</button><button>Frame Button 2</button>");' +
-        "doc.close();" +
-        "</script>",
-      ),
+        encodeURIComponent(
+          '<button id="main1">Main Button 1</button>' +
+            '<button id="main2">Main Button 2</button>' +
+            '<iframe id="frame1"></iframe>' +
+            "<script>" +
+            'const frame = document.getElementById("frame1");' +
+            "const doc = frame.contentDocument;" +
+            "doc.open();" +
+            'doc.write("<button>Frame Button 1</button><button>Frame Button 2</button>");' +
+            "doc.close();" +
+            "</script>",
+        ),
     );
 
     // Wait for iframe to load
