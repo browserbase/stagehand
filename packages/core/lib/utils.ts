@@ -407,9 +407,6 @@ export function transformSchema(
       // Reconstruct the pipe with transformed schemas
       // In Zod 4, we use z.pipe() to create pipes
       const result = z.pipe(newIn as never, newOut as never) as z.ZodTypeAny;
-
-      // Note: Transform functions from the original pipe are not preserved
-      // This is a limitation of the current implementation
       return [result, allPaths];
     }
     return [schema, allPaths];
