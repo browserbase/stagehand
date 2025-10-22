@@ -4,8 +4,23 @@ import { z, ZodTypeAny } from "zod";
 import { LogLine } from "./v3/types/public/logs";
 import { ModelProvider } from "./v3/types/public/model";
 import { ZodPathSegments } from "./v3/types/private/internal";
+import type {
+  $ZodArrayInternals,
+  $ZodObjectInternals,
+  $ZodStringInternals,
+  $ZodUnionInternals,
+  $ZodIntersectionInternals,
+  $ZodOptionalInternals,
+  $ZodNullableInternals,
+  $ZodPipeInternals,
+  $ZodEnumInternals,
+  $ZodLiteralInternals,
+} from "zod/v4/core";
 
 const ID_PATTERN = /^\d+-\d+$/;
+
+// Helper type for accessing Zod 4 internals
+type ZodWithInternals<T> = z.ZodTypeAny & { _zod: T };
 
 export function validateZodSchema(schema: z.ZodTypeAny, data: unknown) {
   const result = schema.safeParse(data);
@@ -59,10 +74,8 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
 
   switch (zodType) {
     case "array": {
-      // In Zod 4, array element is accessed via _zod.def.element
-      const element = (
-        zodSchema as unknown as { _zod?: { def?: { element?: z.ZodTypeAny } } }
-      )._zod?.def?.element as unknown as z.ZodTypeAny;
+      const arraySchema = zodSchema as ZodWithInternals<$ZodArrayInternals>;
+      const element = arraySchema._zod.def.element as z.ZodTypeAny;
       return decorateGeminiSchema(
         {
           type: Type.ARRAY,
@@ -75,11 +88,8 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
       const properties: Record<string, Schema> = {};
       const required: string[] = [];
 
-      const shape = (
-        zodSchema as unknown as {
-          _zod: { def: { shape: Record<string, z.ZodTypeAny> } };
-        }
-      )._zod.def.shape;
+      const objectSchema = zodSchema as ZodWithInternals<$ZodObjectInternals>;
+      const shape = objectSchema._zod.def.shape;
       Object.entries(shape).forEach(([key, value]: [string, z.ZodTypeAny]) => {
         properties[key] = toGeminiSchema(value);
         if (getZodType(value) !== "optional") {
@@ -120,13 +130,8 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
         zodSchema,
       );
     case "enum": {
-      // In Zod 4, enum entries are in _zod.def.entries
-      const entries = (
-        zodSchema as unknown as {
-          _zod: { def: { entries: Record<string, string | number> } };
-        }
-      )._zod.def.entries;
-      const values = Object.values(entries);
+      const enumSchema = zodSchema as ZodWithInternals<$ZodEnumInternals>;
+      const values = Object.values(enumSchema._zod.def.entries);
       return decorateGeminiSchema(
         {
           type: Type.STRING,
@@ -138,9 +143,10 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
     case "default":
     case "nullable":
     case "optional": {
-      const innerType = (
-        zodSchema as unknown as { _zod: { def: { innerType: z.ZodTypeAny } } }
-      )._zod.def.innerType;
+      const wrapperSchema = zodSchema as ZodWithInternals<
+        $ZodOptionalInternals | $ZodNullableInternals
+      >;
+      const innerType = wrapperSchema._zod.def.innerType as z.ZodTypeAny;
       const innerSchema = toGeminiSchema(innerType);
       return decorateGeminiSchema(
         {
@@ -151,12 +157,8 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
       );
     }
     case "literal": {
-      // In Zod 4, literal values are stored as an array
-      const values = (
-        zodSchema as unknown as {
-          _zod: { def: { values: (string | number | boolean)[] } };
-        }
-      )._zod.def.values;
+      const literalSchema = zodSchema as ZodWithInternals<$ZodLiteralInternals>;
+      const values = literalSchema._zod.def.values;
       return decorateGeminiSchema(
         {
           type: Type.STRING,
@@ -166,10 +168,8 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
       );
     }
     case "pipe": {
-      // For pipes (which include transforms), use the input schema
-      const inSchema = (
-        zodSchema as unknown as { _zod: { def: { in: z.ZodTypeAny } } }
-      )._zod.def.in;
+      const pipeSchema = zodSchema as ZodWithInternals<$ZodPipeInternals>;
+      const inSchema = pipeSchema._zod.def.in as z.ZodTypeAny;
       return toGeminiSchema(inSchema);
     }
     // Standalone transforms and any unknown types fall through to default
@@ -189,34 +189,10 @@ export function getZodType(schema: z.ZodTypeAny): string {
   // In Zod 4, the type is accessed via _zod.def.type
   const schemaWithDef = schema as unknown as {
     _zod?: { def?: { type?: string } };
-    _def?: { typeName?: string };
   };
 
-  // Try Zod 4 structure first
   if (schemaWithDef._zod?.def?.type) {
     return schemaWithDef._zod.def.type;
-  }
-
-  // Fallback to Zod 3 structure if needed
-  if (schemaWithDef._def?.typeName) {
-    // Convert Zod 3 type names to Zod 4 format
-    const typeName = schemaWithDef._def.typeName;
-    const typeMap: Record<string, string> = {
-      ZodString: "string",
-      ZodNumber: "number",
-      ZodBoolean: "boolean",
-      ZodArray: "array",
-      ZodObject: "object",
-      ZodUnion: "union",
-      ZodIntersection: "intersection",
-      ZodOptional: "optional",
-      ZodNullable: "nullable",
-      ZodEnum: "enum",
-      ZodLiteral: "literal",
-      ZodEffects: "transform",
-      ZodDefault: "default",
-    };
-    return typeMap[typeName] || typeName;
   }
 
   throw new Error(
@@ -253,18 +229,15 @@ export function transformSchema(
     return [transformed, [{ segments: [] }]];
   }
 
-  // 2) If it's a string with .url() check, convert to z.number()
+  // 2) If it's a string with .url() check, convert to ID string pattern
   if (isKind(schema, "string")) {
-    const schemaWithDef = schema as unknown as {
-      _zod?: {
-        def?: { checks?: Array<{ _zod: { kind: string } }> };
-        bag?: { format?: string };
-      };
-    };
-    const checks = schemaWithDef._zod?.def?.checks;
-    const format = schemaWithDef._zod?.bag?.format;
+    const stringSchema = schema as ZodWithInternals<
+      $ZodStringInternals<unknown>
+    >;
+    const checks = stringSchema._zod.def.checks;
+    const format = stringSchema._zod.bag?.format;
     const hasUrlCheck =
-      (checks?.some((check) => check._zod?.kind === "url") ?? false) ||
+      (checks?.some((check) => check._zod?.def?.check === "url") ?? false) ||
       format === "url";
     if (hasUrlCheck) {
       return [makeIdStringSchema(schema as z.ZodString), [{ segments: [] }]];
@@ -274,11 +247,8 @@ export function transformSchema(
 
   // 3) If it's an object, transform each field
   if (isKind(schema, "object")) {
-    // The shape is a raw object containing fields keyed by string (no symbols):
-    const schemaWithShape = schema as unknown as {
-      _zod?: { def?: { shape?: Record<string, z.ZodTypeAny> } };
-    };
-    const shape = schemaWithShape._zod?.def?.shape;
+    const objectSchema = schema as ZodWithInternals<$ZodObjectInternals>;
+    const shape = objectSchema._zod.def.shape as Record<string, z.ZodTypeAny>;
     if (!shape) {
       return [schema, []];
     }
@@ -318,11 +288,8 @@ export function transformSchema(
 
   // 4) If it's an array, transform its item type
   if (isKind(schema, "array")) {
-    const schemaWithElement = schema as unknown as {
-      _zod?: { def?: { element?: z.ZodTypeAny } };
-    };
-    const itemType = schemaWithElement._zod?.def
-      ?.element as unknown as z.ZodTypeAny;
+    const arraySchema = schema as ZodWithInternals<$ZodArrayInternals>;
+    const itemType = arraySchema._zod.def.element as z.ZodTypeAny;
     if (!itemType) {
       return [schema, []];
     }
@@ -347,11 +314,8 @@ export function transformSchema(
 
   // 5) If it's a union, transform each option
   if (isKind(schema, "union")) {
-    // Cast the union's options to an array of ZodTypeAny
-    const schemaWithOptions = schema as unknown as {
-      _zod?: { def?: { options?: z.ZodTypeAny[] } };
-    };
-    const unionOptions = schemaWithOptions._zod?.def?.options;
+    const unionSchema = schema as ZodWithInternals<$ZodUnionInternals>;
+    const unionOptions = unionSchema._zod.def.options;
     if (!unionOptions || unionOptions.length === 0) {
       return [schema, []];
     }
@@ -383,11 +347,10 @@ export function transformSchema(
 
   // 6) If it's an intersection, transform left and right
   if (isKind(schema, "intersection")) {
-    const schemaWithIntersection = schema as unknown as {
-      _zod?: { def?: { left?: z.ZodTypeAny; right?: z.ZodTypeAny } };
-    };
-    const leftType = schemaWithIntersection._zod?.def?.left;
-    const rightType = schemaWithIntersection._zod?.def?.right;
+    const intersectionSchema =
+      schema as ZodWithInternals<$ZodIntersectionInternals>;
+    const leftType = intersectionSchema._zod.def.left as z.ZodTypeAny;
+    const rightType = intersectionSchema._zod.def.right as z.ZodTypeAny;
     if (!leftType || !rightType) {
       return [schema, []];
     }
@@ -410,10 +373,8 @@ export function transformSchema(
 
   // 7) If it's optional, transform inner
   if (isKind(schema, "optional")) {
-    const schemaWithInner = schema as unknown as {
-      _zod?: { def?: { innerType?: z.ZodTypeAny } };
-    };
-    const innerType = schemaWithInner._zod?.def?.innerType;
+    const optionalSchema = schema as ZodWithInternals<$ZodOptionalInternals>;
+    const innerType = optionalSchema._zod.def.innerType as z.ZodTypeAny;
     if (!innerType) {
       return [schema, []];
     }
@@ -426,10 +387,8 @@ export function transformSchema(
 
   // 8) If it's nullable, transform inner
   if (isKind(schema, "nullable")) {
-    const schemaWithInner = schema as unknown as {
-      _zod?: { def?: { innerType?: z.ZodTypeAny } };
-    };
-    const innerType = schemaWithInner._zod?.def?.innerType;
+    const nullableSchema = schema as ZodWithInternals<$ZodNullableInternals>;
+    const innerType = nullableSchema._zod.def.innerType as z.ZodTypeAny;
     if (!innerType) {
       return [schema, []];
     }
@@ -442,11 +401,9 @@ export function transformSchema(
 
   // 9) If it's a pipe (which is what .transform() creates in Zod 4)
   if (isKind(schema, "pipe")) {
-    const schemaWithPipe = schema as unknown as {
-      _zod?: { def?: { in?: z.ZodTypeAny; out?: z.ZodTypeAny } };
-    };
-    const inSchema = schemaWithPipe._zod?.def?.in;
-    const outSchema = schemaWithPipe._zod?.def?.out;
+    const pipeSchema = schema as ZodWithInternals<$ZodPipeInternals>;
+    const inSchema = pipeSchema._zod.def.in as z.ZodTypeAny;
+    const outSchema = pipeSchema._zod.def.out as z.ZodTypeAny;
     if (!inSchema || !outSchema) {
       return [schema, []];
     }
@@ -536,12 +493,9 @@ function isKind(s: z.ZodTypeAny, kind: string): boolean {
 }
 
 function makeIdStringSchema(orig: z.ZodString): z.ZodString {
+  // In Zod 4, description is accessed via .description property
   const userDesc =
-    // Zod ≥3.23 exposes .description directly; fall back to _def for older minor versions
-    (orig as unknown as { description?: string }).description ??
-    (orig as unknown as { _def?: { description?: string } })._def
-      ?.description ??
-    "";
+    (orig as unknown as { description?: string }).description ?? "";
 
   const base =
     "This field must be the element-ID in the form 'frameId-backendId' " +
