@@ -26,16 +26,14 @@ async function main() {
 
     // Create a computer use agent
     const agent = stagehand.agent({
-      // cua: true,
-      // model: {
-      //   modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-      //   apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
-      // },
-      model: "anthropic/claude-sonnet-4-5-20250929",
+      cua: true,
+      model: {
+        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
+      },
       systemPrompt: `You are a helpful assistant that can use a web browser.
       You are currently on the following page: ${page.url()}.
       Do not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toLocaleDateString()}.`,
-      executionModel: "anthropic/claude-haiku-4-5-20251001",
     });
 
     // Navigate to the Browserbase careers page
