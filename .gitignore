@@ -23,4 +23,7 @@ packages/core/lib/version.ts
 packages/core/test-results/
 /examples/inference_summary
 /inference_summary
+packages/core/examples/v3/inference_summary/
 .turbo
+/zod-3
+/zod-4

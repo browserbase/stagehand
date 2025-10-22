@@ -1,3 +1,4 @@
 node_modules
 downloads
 .DS_Store
+/examples/v3/inference_summary/*

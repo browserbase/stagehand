@@ -3,8 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
-import type { ZodTypeAny } from "zod/v3";
-import { z } from "zod/v3";
+import type { ZodTypeAny } from "zod";
+import { z } from "zod";
 import { loadApiKeyFromEnv } from "../utils";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
@@ -32,7 +32,7 @@ import {
   ObserveHandlerParams,
   AgentReplayStep,
   InitState,
-  AgentCacheContext
+  AgentCacheContext,
 } from "./types/private";
 import {
   AgentConfig,
@@ -810,9 +810,9 @@ export class V3 {
       // Resolve page from options or default
       const page = await this.resolvePage(options?.page);
 
-      let actCacheContext:
-        | Awaited<ReturnType<typeof this.actCache.prepareContext>>
-        | null = null;
+      let actCacheContext: Awaited<
+        ReturnType<typeof this.actCache.prepareContext>
+      > | null = null;
       const canUseCache =
         typeof input === "string" &&
         !this.isAgentReplayRecording() &&
@@ -1286,16 +1286,12 @@ export class V3 {
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  agent(
-    options: AgentConfig & { cua: true },
-  ): {
+  agent(options: AgentConfig & { cua: true }): {
     execute: (
       instructionOrOptions: string | CuaAgentExecuteOptions,
     ) => Promise<AgentResult>;
   };
-  agent(
-    options?: AgentConfig & { cua?: false },
-  ): {
+  agent(options?: AgentConfig & { cua?: false }): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
@@ -1332,7 +1328,8 @@ export class V3 {
         );
       }
 
-      const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+      const agentConfigSignature =
+        this.agentCache.buildConfigSignature(options);
       return {
         execute: async (
           instructionOrOptions: string | CuaAgentExecuteOptions,
@@ -1371,9 +1368,8 @@ export class V3 {
               this.ctx!.setActivePage(normalizedPage);
             }
             const instruction = resolvedOptions.instruction.trim();
-            const sanitizedOptions = this.agentCache.sanitizeExecuteOptions(
-              resolvedOptions,
-            );
+            const sanitizedOptions =
+              this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
             let cacheContext: AgentCacheContext | null = null;
             if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1404,11 +1400,7 @@ export class V3 {
                 agentSteps = this.endAgentReplayRecording();
               }
 
-              if (
-                cacheContext &&
-                result.success &&
-                agentSteps.length > 0
-              ) {
+              if (cacheContext && result.success && agentSteps.length > 0) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
               }
 
@@ -1461,9 +1453,8 @@ export class V3 {
             this.ctx!.setActivePage(normalizedPage);
           }
           const instruction = resolvedOptions.instruction.trim();
-          const sanitizedOptions = this.agentCache.sanitizeExecuteOptions(
-            resolvedOptions,
-          );
+          const sanitizedOptions =
+            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
 
           let cacheContext: AgentCacheContext | null = null;
           if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1494,11 +1485,7 @@ export class V3 {
               agentSteps = this.endAgentReplayRecording();
             }
 
-            if (
-              cacheContext &&
-              result.success &&
-              agentSteps.length > 0
-            ) {
+            if (cacheContext && result.success && agentSteps.length > 0) {
               await this.agentCache.store(cacheContext, agentSteps, result);
             }
 

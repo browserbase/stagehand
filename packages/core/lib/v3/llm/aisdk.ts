@@ -132,7 +132,8 @@ export class AISdkClient extends LLMClient {
         objectResponse = await generateObject({
           model: this.model,
           messages: formattedMessages,
-          schema: options.response_model.schema,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          schema: options.response_model.schema as any,
           temperature: options.temperature,
           providerOptions: isGPT5
             ? {

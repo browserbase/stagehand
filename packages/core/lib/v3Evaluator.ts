@@ -5,15 +5,14 @@
  */
 
 import dotenv from "dotenv";
-import { z } from "zod/v3";
+import { z } from "zod";
 import type { AvailableModel, ClientOptions } from "./v3/types/public/model";
 import type {
   EvaluateOptions,
   BatchAskOptions,
   EvaluationResult,
 } from "./v3/types/private/evaluator";
-import { LLMParsedResponse } from "./inference";
-import { LLMResponse, LLMClient } from "./v3/llm/LLMClient";
+import { LLMResponse, LLMClient, LLMParsedResponse } from "./v3/llm/LLMClient";
 import { LogLine } from "./v3/types/public/logs";
 import { V3 } from "./v3/v3";
 import { LLMProvider } from "./v3/llm/LLMProvider.js";
