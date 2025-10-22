@@ -55,6 +55,8 @@ export class V3CuaAgentHandler {
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
+      action.pageUrl = (await this.v3.context.awaitActivePage()).url();
+
       const defaultDelay = 1000;
       const waitBetween =
         (this.options.clientOptions?.waitBetweenActions as number) ||
@@ -70,6 +72,9 @@ export class V3CuaAgentHandler {
         }
         await new Promise((r) => setTimeout(r, 300));
         await this.executeAction(action);
+
+        action.timestamp = Date.now();
+
         await new Promise((r) => setTimeout(r, waitBetween));
         try {
           await this.captureAndSendScreenshot();
