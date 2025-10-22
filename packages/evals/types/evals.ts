@@ -1,4 +1,4 @@
-import { z } from "zod/v3";
+import { z } from "zod";
 import type { AvailableModel } from "@browserbasehq/orca";
 import type { LogLine } from "@browserbasehq/orca";
 import type { AgentInstance } from "@browserbasehq/orca";

@@ -1,4 +1,4 @@
-import { z } from "zod/v3";
+import { z } from "zod";
 import { LogLine } from "./v3/types/public/logs";
 import { ChatMessage, LLMClient } from "./v3/llm/LLMClient";
 import {
@@ -12,20 +12,8 @@ import {
 } from "./prompt";
 import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils";
 
-/** Simple usage shape if your LLM returns usage tokens. */
-interface LLMUsage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
-}
-
-/**
- * For calls that use a schema: the LLMClient may return { data: T; usage?: LLMUsage }
- */
-export interface LLMParsedResponse<T> {
-  data: T;
-  usage?: LLMUsage;
-}
+// Re-export for backward compatibility
+export type { LLMParsedResponse } from "./v3/llm/LLMClient";
 
 export async function extract({
   instruction,
@@ -101,8 +89,7 @@ export async function extract({
     });
   const extractEndTime = Date.now();
 
-  const { data: extractedData, usage: extractUsage } =
-    extractionResponse as LLMParsedResponse<ExtractionResponse>;
+  const { data: extractedData, usage: extractUsage } = extractionResponse;
 
   let extractResponseFile = "";
   if (logInferenceToFile) {
@@ -171,7 +158,7 @@ export async function extract({
       progress: metadataResponseProgress,
     },
     usage: metadataResponseUsage,
-  } = metadataResponse as LLMParsedResponse<MetadataResponse>;
+  } = metadataResponse;
 
   let metadataResponseFile = "";
   if (logInferenceToFile) {
@@ -308,8 +295,7 @@ export async function observe({
   const end = Date.now();
   const usageTimeMs = end - start;
 
-  const { data: observeData, usage: observeUsage } =
-    rawResponse as LLMParsedResponse<ObserveResponse>;
+  const { data: observeData, usage: observeUsage } = rawResponse;
   const promptTokens = observeUsage?.prompt_tokens ?? 0;
   const completionTokens = observeUsage?.completion_tokens ?? 0;
 
@@ -440,8 +426,7 @@ export async function act({
   const end = Date.now();
   const usageTimeMs = end - start;
 
-  const { data: actData, usage: actUsage } =
-    rawResponse as LLMParsedResponse<ActResponse>;
+  const { data: actData, usage: actUsage } = rawResponse;
   const promptTokens = actUsage?.prompt_tokens ?? 0;
   const completionTokens = actUsage?.completion_tokens ?? 0;
 

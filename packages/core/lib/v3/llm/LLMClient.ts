@@ -11,7 +11,7 @@ import {
   streamText,
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { ZodType } from "zod/v3";
+import { ZodType } from "zod";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel, ClientOptions } from "../types/public/model";
 
@@ -97,6 +97,15 @@ export interface CreateChatCompletionOptions {
   retries?: number;
 }
 
+export interface LLMParsedResponse<T> {
+  data: T;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
 export abstract class LLMClient {
   public type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
   public modelName: AvailableModel | (string & {});
@@ -109,11 +118,17 @@ export abstract class LLMClient {
     this.userProvidedInstructions = userProvidedInstructions;
   }
 
-  abstract createChatCompletion<
-    T = LLMResponse & {
-      usage?: LLMResponse["usage"];
+  // Overload 1: When response_model is provided, returns LLMParsedResponse<T>
+  abstract createChatCompletion<T>(
+    options: CreateChatCompletionOptions & {
+      options: { response_model: { name: string; schema: ZodType } };
     },
-  >(options: CreateChatCompletionOptions): Promise<T>;
+  ): Promise<LLMParsedResponse<T>>;
+
+  // Overload 2: When response_model is not provided, returns T (defaults to LLMResponse)
+  abstract createChatCompletion<T = LLMResponse>(
+    options: CreateChatCompletionOptions,
+  ): Promise<T>;
 
   public generateObject = generateObject;
   public generateText = generateText;
