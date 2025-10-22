@@ -1250,55 +1250,10 @@ export class V3 {
     throw new Error("Unsupported page object.");
   }
 
-  private extractAgentModel<T extends string>(
-    model?: T | AgentModelConfig<T>,
-    options?: { stripProviderPrefix?: boolean },
-  ): {
-    modelName?: string;
-    modelOptions?: Record<string, unknown>;
-  } {
-    if (!model) return {};
-
-    const stripPrefix = options?.stripProviderPrefix ?? false;
-
-    const resolveName = (raw: string | undefined): string | undefined => {
-      if (!raw) return raw;
-      if (!stripPrefix) return raw;
-      const parts = raw.split("/");
-      return parts.length > 1 ? parts[parts.length - 1] : raw;
-    };
-
-    if (typeof model === "string") {
-      return { modelName: resolveName(model) };
-    }
-
-    const { modelName, ...rest } = model;
-    const normalizedName = resolveName(modelName);
-    const modelOptions =
-      Object.keys(rest).length > 0
-        ? (rest as Record<string, unknown>)
-        : undefined;
-    return { modelName: normalizedName, modelOptions };
-  }
-
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
    */
-  // agent(
-  //   options: AgentConfig & { cua: true },
-  // ): {
-  //   execute: (
-  //     instructionOrOptions: string | CuaAgentExecuteOptions,
-  //   ) => Promise<AgentResult>;
-  // };
-  // agent(
-  //   options?: AgentConfig & { cua?: false },
-  // ): {
-  //   execute: (
-  //     instructionOrOptions: string | AgentExecuteOptions,
-  //   ) => Promise<AgentResult>;
-  // };
   agent(options?: AgentConfig): {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
