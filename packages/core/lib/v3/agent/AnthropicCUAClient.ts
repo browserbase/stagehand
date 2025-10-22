@@ -14,7 +14,7 @@ import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import Anthropic from "@anthropic-ai/sdk";
 import { ToolSet } from "ai";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AgentClient } from "./AgentClient";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
 import { compressConversationImages } from "./utils/imageCompression";

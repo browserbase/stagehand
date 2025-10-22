@@ -473,16 +473,18 @@ export class Locator {
 
   /**
    * Fill an input/textarea/contenteditable element.
-   * - Sets the value/text directly in DOM.
-   * - Dispatches `input` and `change` events to mimic user input.
-   * - Releases the underlying `objectId` afterwards to avoid leaks.
+   * Mirrors Playwright semantics: the DOM helper either applies the native
+   * value setter (for special input types) or asks us to type text via the CDP
+   * Input domain after focusing/selecting.
    */
   async fill(value: string): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode();
 
+    let releaseNeeded = true;
+
     try {
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -491,8 +493,101 @@ export class Locator {
           returnByValue: true,
         },
       );
+
+      const result = res.result.value as
+        | { status?: string; reason?: string; value?: string }
+        | null
+        | undefined;
+      const status = typeof result === "object" && result ? result.status : undefined;
+
+      if (status === "done") {
+        return;
+      }
+
+      if (status === "needsinput") {
+        // Release the current handle before synthesizing keyboard input to avoid leaking it.
+        await session
+          .send<never>("Runtime.releaseObject", { objectId })
+          .catch(() => {});
+        releaseNeeded = false;
+
+        const valueToType =
+          typeof result?.value === "string" ? result.value : value;
+
+        let prepared = false;
+        try {
+          const { objectId: prepObjectId } = await this.resolveNode();
+          try {
+            const prepRes = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+              "Runtime.callFunctionOn",
+              {
+                objectId: prepObjectId,
+                functionDeclaration: locatorScriptSources.prepareElementForTyping,
+                returnByValue: true,
+              },
+            );
+            prepared = Boolean(prepRes.result.value);
+          } finally {
+            await session
+              .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
+              .catch(() => {});
+          }
+        } catch {
+          // Ignore preparation failures; we'll fall back to typing best-effort.
+        }
+
+        if (!prepared && valueToType.length > 0) {
+          await this.type(valueToType);
+          return;
+        }
+
+        if (valueToType.length === 0) {
+          // Simulate deleting the currently selected text to clear the field.
+          await session.send<never>(
+            "Input.dispatchKeyEvent",
+            {
+              type: "keyDown",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest,
+          );
+          await session.send<never>(
+            "Input.dispatchKeyEvent",
+            {
+              type: "keyUp",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest,
+          );
+        } else {
+          await session.send<never>("Input.insertText", { text: valueToType });
+        }
+
+        return;
+      }
+
+      if (status === "error") {
+        const reason =
+          typeof result?.reason === "string" && result.reason.length > 0
+            ? result.reason
+            : "Failed to fill element";
+        throw new Error(`Failed to fill element (${reason})`);
+      }
+
+      // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
+      if (!status) {
+        await this.type(value);
+      }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      if (releaseNeeded) {
+        await session
+          .send<never>("Runtime.releaseObject", { objectId })
+          .catch(() => {});
+      }
     }
   }
 
