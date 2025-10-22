@@ -109,7 +109,6 @@ export function toGeminiSchema(zodSchema: z.ZodTypeAny): Schema {
     }
     case "string":
     case "url":
-      // URL type in Zod 4 is still a string at the schema level
       return decorateGeminiSchema(
         {
           type: Type.STRING,
