@@ -101,6 +101,7 @@
       {
         "group": "Reference",
         "pages": [
+          "references/constructor",
           "references/act",
           "references/extract",
           "references/observe",
