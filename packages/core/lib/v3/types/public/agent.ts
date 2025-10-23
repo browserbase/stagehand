@@ -32,13 +32,6 @@ export interface AgentResult {
   };
 }
 
-export interface ActionMappingOptions {
-  toolCallName: string;
-  toolResult: unknown;
-  args: Record<string, unknown>;
-  reasoning?: string;
-}
-
 export interface AgentExecuteOptions {
   instruction: string;
   maxSteps?: number;
