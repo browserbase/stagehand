@@ -193,7 +193,7 @@ export class V3 {
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
     this.llmProvider = new LLMProvider(this.logger);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
-    this.disableAPI = opts.disableAPI ?? false;
+    this.disableAPI = opts.disableAPI ?? true;
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
