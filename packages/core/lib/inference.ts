@@ -394,10 +394,7 @@ export async function act({
         ),
     ),
     twoStep: z
-      .boolean()
-      .describe(
-        "true if we will need to take another action after this. false otherwise",
-      ),
+      .boolean(),
   });
 
   type ActResponse = z.infer<typeof actSchema>;

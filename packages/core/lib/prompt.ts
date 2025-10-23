@@ -168,7 +168,7 @@ export function buildActPrompt(
 ): string {
   // Base instruction
   let instruction = `Find the most relevant element to perform an action on given the following action: ${action}.  
-  If the action implies choosing/selecting/clicking an option from a dropdown, ignore the 'General Instructions' section, and follow the 'Dropdown Specific Instructions' section carefully.
+  IF AND ONLY IF the action EXPLICITLY includes the word 'dropdown' and implies choosing/selecting an option from a dropdown, ignore the 'General Instructions' section, and follow the 'Dropdown Specific Instructions' section carefully.
   
   General Instructions: 
     Provide an action for this element such as ${supportedActions.join(", ")}. Remember that to users, buttons and links look the same in most cases.
