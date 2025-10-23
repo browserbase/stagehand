@@ -171,7 +171,15 @@ await agent.execute({
 
 **Returns:** `Promise<AgentResult>`
 
+<Note>
+When using the Stagehand API, the Python SDK will return the TypeScript `AgentResult` structure. Running Stagehand locally disables the API and returns the Python-native structure.
+</Note>
+
 **AgentResult Interface:**
+
+<Tabs>
+<Tab title="TypeScript">
+
 ```typescript
 interface AgentResult {
   success: boolean;
@@ -186,6 +194,20 @@ interface AgentResult {
   };
 }
 ```
+
+</Tab>
+<Tab title="Python">
+
+```python
+class AgentResult(BaseModel):
+    actions: list[AgentActionType]
+    message: Optional[str]
+    usage: Optional[AgentUsage]
+    completed: bool
+```
+
+</Tab>
+</Tabs>
 
 <Tabs>
 <Tab title="TypeScript">
