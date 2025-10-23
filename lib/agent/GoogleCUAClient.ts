@@ -623,6 +623,8 @@ export class GoogleCUAClient extends AgentClient {
           type: "function",
           name: "open_web_browser",
           arguments: null,
+          pageUrl: this.currentUrl,
+          timestamp: Date.now(),
         };
 
       case "click_at": {
