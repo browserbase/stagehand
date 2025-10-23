@@ -518,7 +518,7 @@ export class V3 {
         (model) => this.resolveLlmClient(model),
         this.opts.systemPrompt ?? "",
         this.logInferenceToFile,
-        this.opts.selfHeal ?? false,
+        this.opts.selfHeal ?? true,
         (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
           this.updateMetrics(
             functionName,
@@ -1129,6 +1129,9 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
+    if (this.apiClient) {
+      await this.apiClient.end();
+    }
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
