@@ -1,11 +1,5 @@
 import { AgentAction } from "../../types/public/agent";
-
-export interface ActionMappingOptions {
-  toolCallName: string;
-  toolResult: unknown;
-  args: Record<string, unknown>;
-  reasoning?: string;
-}
+import { ActionMappingOptions } from "../../types/public/agent";
 
 export function mapToolResultToActions({
   toolCallName,
