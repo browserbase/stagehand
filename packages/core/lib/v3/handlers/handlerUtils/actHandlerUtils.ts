@@ -41,9 +41,6 @@ export async function performUnderstudyMethod(
   args: ReadonlyArray<unknown>,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
-  // Proactively wait for the DOM/network to be quiet before acting
-  await waitForDomNetworkQuiet(frame, domSettleTimeoutMs);
-
   const selectorRaw = normalizeRootXPath(rawXPath);
   // Unified resolver: supports '>>' hops and XPath across iframes
   const locator: Locator = await resolveLocatorWithHops(
@@ -516,7 +513,7 @@ async function getFrameUrl(frame: Frame): Promise<string> {
  * More robust DOM settle using Network + Page events to detect network quiet.
  * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
  */
-async function waitForDomNetworkQuiet(
+export async function waitForDomNetworkQuiet(
   frame: Frame,
   timeoutMs?: number,
 ): Promise<void> {
