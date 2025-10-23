@@ -40,6 +40,7 @@ export const createActTool = (v3: V3, executionModel?: string) =>
         return {
           success: result.success ?? true,
           action: result?.actionDescription ?? action,
+          playwrightArguments: actions.length > 0 ? actions[0] : undefined,
         };
       } catch (error) {
         return { success: false, error: error?.message ?? String(error) };

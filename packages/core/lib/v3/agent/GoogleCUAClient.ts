@@ -360,6 +360,8 @@ export class GoogleCUAClient extends AgentClient {
             action.type === "function" &&
             action.name === "open_web_browser"
           ) {
+            // Set pageUrl for open_web_browser since it doesn't go through action handler
+            action.pageUrl = this.currentUrl;
             logger({
               category: "agent",
               message: "Skipping open_web_browser action",
@@ -623,6 +625,7 @@ export class GoogleCUAClient extends AgentClient {
           type: "function",
           name: "open_web_browser",
           arguments: null,
+          timestamp: Date.now(),
         };
 
       case "click_at": {
@@ -798,6 +801,11 @@ export class GoogleCUAClient extends AgentClient {
     base64Image?: string;
     currentUrl?: string;
   }): Promise<string> {
+    // Update current URL if provided
+    if (options?.currentUrl) {
+      this.currentUrl = options.currentUrl;
+    }
+
     // Use provided options if available
     if (options?.base64Image) {
       return `data:image/png;base64,${options.base64Image}`;

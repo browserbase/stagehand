@@ -10,6 +10,7 @@ import {
   AgentResult,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
+import { mapToolResultToActions } from "../agent/utils/actionMapping";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -49,6 +50,8 @@ export class V3AgentHandler {
     let finalMessage = "";
     let completed = false;
     const collectedReasoning: string[] = [];
+
+    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
     try {
       const systemPrompt = this.buildSystemPrompt(
@@ -93,8 +96,10 @@ export class V3AgentHandler {
           });
 
           if (event.toolCalls && event.toolCalls.length > 0) {
-            for (const toolCall of event.toolCalls) {
+            for (let i = 0; i < event.toolCalls.length; i++) {
+              const toolCall = event.toolCalls[i];
               const args = toolCall.input as Record<string, unknown>;
+              const toolResult = event.toolResults?.[i];
 
               if (event.text.length > 0) {
                 collectedReasoning.push(event.text);
@@ -115,18 +120,20 @@ export class V3AgentHandler {
                     : allReasoning || "Task completed successfully";
                 }
               }
-
-              const action: AgentAction = {
-                type: toolCall.toolName,
+              const mappedActions = mapToolResultToActions({
+                toolCallName: toolCall.toolName,
+                toolResult,
+                args,
                 reasoning: event.text || undefined,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
-                    : false,
-                ...args,
-              };
-              actions.push(action);
+              });
+
+              for (const action of mappedActions) {
+                action.pageUrl = currentPageUrl;
+                action.timestamp = Date.now();
+                actions.push(action);
+              }
             }
+            currentPageUrl = (await this.v3.context.awaitActivePage()).url();
           }
         },
       });
