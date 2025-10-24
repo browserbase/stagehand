@@ -30,17 +30,10 @@ page.act("click on add to cart")
 
 Use `act` to perform single actions in your automation. Here's how to click a button:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await page.goto("https://example-store.com");
 await page.act("click the add to cart button");
 ```
-
-```python Python
-await page.goto("https://example-store.com")
-await page.act("click the add to cart button")
-```
-</CodeGroup>
 
 With `act`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use multiple `act` commands or `agent`.
 
@@ -60,87 +53,47 @@ With `act`, breaking complex actions into small, single-step actions works best.
 <Tab title="Do this">
 Break your task into single-step actions.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Break it into single-step actions
 await page.act("open the filters panel");
 await page.act("choose 4-star rating");
 await page.act("click the apply button");
 ```
-
-```python Python
-# Break it into single-step actions
-await page.act("open the filters panel")
-await page.act("choose 4-star rating")
-await page.act("click the apply button")
-```
-</CodeGroup>
 </Tab>
 
 <Tab title="Don't do this">
 For multi-step tasks, use [`agent()`](/basics/agent) instead.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Too complex - trying to do multiple things at once
 await page.act("open the filters panel, choose 4-star rating, and click apply");
 ```
-
-```python Python
-# Too complex - trying to do multiple things at once
-await page.act("open the filters panel, choose 4-star rating, and click apply")
-```
-</CodeGroup>
 </Tab>
 </Tabs>
 
 ### Advanced Configuration
 
-For advanced scenarios, you can configure additional options:
+You can pass additional options to configure the model, timeout, variables, and target page:
 
-<CodeGroup>
-```typescript TypeScript
-// Dynamic food search with advanced options
-const foodItem = "organic quinoa";
-
-await page.act({
-  action: "Type %foodItem% in the search box and press enter",
-  variables: {
-    foodItem: foodItem
+```typescript
+// Custom model configuration
+await page.act("choose 'Peach' from the favorite colour dropdown", {
+  model: {
+    provider: "google",
+    model: "gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY
   },
-  modelName: "google/gemini-2.5-pro",
-  modelClientOptions: {
-    modelApiKey: process.env.GOOGLE_API_KEY,
-  },
-  iframes: true, // Search within iframes if needed
-  domSettleTimeoutMs: 45000, // Wait longer for dynamic content
-  timeoutMs: 60000 // Extended timeout for slow-loading forms
+  timeout: 10000
 });
 ```
 
-```python Python
-# Dynamic food search with advanced options
-food_item = "organic quinoa"
-
-await page.act({
-  "action": "Type %foodItem% in the search box and press enter",
-  "variables": {
-    "foodItem": food_item
-  },
-  "modelName": "google/gemini-2.5-pro",
-  "modelClientOptions": {
-    "modelApiKey": os.environ.get("GOOGLE_API_KEY")
-  },
-  "iframes": True, # Search within iframes if needed
-  "domSettleTimeoutMs": 45000, # Wait longer for dynamic content
-  "timeoutMs": 60000 # Extended timeout for slow-loading forms
-})
-```
-</CodeGroup>
-  
 <Note>
-Shadow DOM support is now available! Set `experimental: true` in your Stagehand configuration to enable it. See the [configuration guide](/configuration/browser) for more details.
+**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
 </Note>
+
+<Card title="Complete API Reference" icon="book" href="/v3/references/act">
+  See the full `act()` reference for detailed parameter documentation, return values, and advanced examples.
+</Card>
 
 
 
@@ -152,8 +105,7 @@ Shadow DOM support is now available! Set `experimental: true` in your Stagehand 
 
 Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act` to execute it.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const [action] = await page.observe("click the login button");
 
 if (action) {
@@ -161,113 +113,61 @@ if (action) {
 }
 ```
 
-```python Python
-results = await page.observe("click the login button")
-
-if results:
-    await page.act(results[0])
-```
-</CodeGroup>
-
 <Card title="Analyze pages with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/basics/observe">
   Plan actions with `observe()` before executing with `act`.
 </Card>
 
 ### Reduce model costs
 
-Cache observed actions to avoid repeated LLM calls and ensure consistent execution.
+Enable automatic action caching by specifying a `cacheDir` when initializing Stagehand. The first time an action runs, it's cached. Subsequent runs reuse the cached action without LLM calls.
 
-<CodeGroup>
-```typescript TypeScript
-// Cost-optimized actions with caching
-const actionCache = new Map();
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
 
-const getCachedAction = async (instruction: string) => {
-  if (actionCache.has(instruction)) {
-    return actionCache.get(instruction);
-  }
-  
-  const [action] = await page.observe(instruction);
-  actionCache.set(instruction, action);
-  return action;
-};
+// Enable caching by specifying a cache directory
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "act-cache" // Actions are automatically cached here
+});
 
-// Reuse cached actions
-const loginAction = await getCachedAction("click the login button");
-await page.act(loginAction);
+await stagehand.init();
+const page = stagehand.page;
+
+// First run - makes LLM call and caches the action
+await page.act("click the login button");
+
+// Second run (or subsequent script executions) - reuses cached action (no LLM call)
+await page.act("click the login button");
 ```
 
-```python Python
-# Cost-optimized actions with caching
-action_cache = {}
+<Note>
+Caching persists across script executions. The first time you run your script, actions are cached to disk. On subsequent runs, cached actions are reused automatically, significantly reducing costs and improving performance.
+</Note>
 
-async def get_cached_action(instruction: str):
-    if instruction in action_cache:
-        return action_cache[instruction]
-    
-    results = await page.observe(instruction)
-    if results:
-        action = results[0]
-        action_cache[instruction] = action
-        return action
-    
-    return None
-
-# Reuse cached actions
-login_action = await get_cached_action("click the login button")
-if login_action:
-    await page.act(login_action)
-```
-</CodeGroup>
-
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
 ### Secure your automations
 
-Variables will not be shared with LLM providers. Use them for passwords, API keys, and other sensitive data.
-
+Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data.
 
 <Note>
 Load sensitive data from environment variables using `.env` files. Never hardcode API keys, passwords, or other secrets directly in your code.
 </Note>
 
-<CodeGroup>
-```typescript TypeScript
-await page.act({
-  action: "enter %username% in the email field",
-  variables: {
-    username: "user@example.com"
-  }
+```typescript
+// Variables use %variableName% syntax in the instruction
+await page.act("type %username% into the email field", {
+  variables: { username: "user@example.com" }
 });
 
-await page.act({
-  action: "enter %password% in the password field",
-  variables: {
-    password: process.env.USER_PASSWORD
-  }
+await page.act("type %password% into the password field", {
+  variables: { password: process.env.USER_PASSWORD }
 });
+
+await page.act("click the login button");
 ```
-
-```python Python
-# If using Python, set `use_api: true` in your Stagehand configuration
-
-await page.act(
-  "enter %username% in the email field",
-  variables={
-      "username": "user@example.com"
-  }
-)
-
-await page.act(
-  "enter %password% in the password field",
-  variables={
-      "password": os.environ.get("USER_PASSWORD")
-  }
-)
-```
-</CodeGroup>
 
 <Warning>
 When handling sensitive data, set `verbose: 0` in your Stagehand configuration to prevent secrets from appearing in logs. See the [configuration guide](/configuration/browser) for more details.
@@ -292,8 +192,7 @@ When handling sensitive data, set `verbose: 0` in your Stagehand configuration t
 
 **Solution 1: Validate with observe**
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const prompt = "click the submit button";
 const expectedMethod = "click";
 
@@ -303,7 +202,7 @@ try {
   if (error.message.includes("method not supported")) {
     // Observe the same prompt to get the planned action
     const [action] = await page.observe(prompt);
-    
+
     if (action && action.method === expectedMethod) {
       await page.act(action);
     } else {
@@ -315,38 +214,16 @@ try {
 }
 ```
 
-```python Python
-prompt = "click the submit button"
-expected_method = "click"
-
-try:
-    await page.act(prompt)
-except Exception as error:
-    if "method not supported" in str(error):
-        # Observe the same prompt to get the planned action
-        results = await page.observe(prompt)
-        
-        if results and results[0].method == expected_method:
-            await page.act(results[0])
-        else:
-            method = results[0].method if results else "unknown"
-            raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
-    else:
-        raise error
-```
-</CodeGroup>
-
 **Solution 2: Retry with exponential backoff**
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Retry with exponential backoff for intermittent issues
 const prompt = "click the submit button";
 const maxRetries = 3;
 
 for (let attempt = 0; attempt <= maxRetries; attempt++) {
   try {
-    await page.act(prompt, { timeoutMs: 10000 + (attempt * 5000) });
+    await page.act(prompt, { timeout: 10000 + (attempt * 5000) });
     break; // Success, exit retry loop
   } catch (error) {
     if (error.message.includes("method not supported") && attempt < maxRetries) {
@@ -361,29 +238,6 @@ for (let attempt = 0; attempt <= maxRetries; attempt++) {
 }
 ```
 
-```python Python
-# Retry with exponential backoff for intermittent issues
-import asyncio
-
-prompt = "click the submit button"
-max_retries = 3
-
-for attempt in range(max_retries + 1):
-    try:
-        timeout = 10000 + (attempt * 5000)
-        await page.act(prompt, {"timeoutMs": timeout})
-        break  # Success, exit retry loop
-    except Exception as error:
-        if "method not supported" in str(error) and attempt < max_retries:
-            # Exponential backoff: wait 2^attempt seconds
-            delay = 2 ** attempt
-            print(f"Retry {attempt + 1}/{max_retries} after {delay}s")
-            await asyncio.sleep(delay)
-        else:
-            raise error
-```
-</CodeGroup>
-
 </Accordion>
 
 <Accordion title="Action failed or timed out">
@@ -395,18 +249,17 @@ for attempt in range(max_retries + 1):
 - Increase action timeout
 - Use `observe()` first to verify element exists
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Handle timeout and element not found issues
 try {
   await page.act("click the submit button", { timeout: 30000 });
 } catch (error) {
   // Check if page is fully loaded
   await page.waitForLoadState('domcontentloaded');
-  
+
   // Use observe to check element state
   const [element] = await page.observe("find the submit button");
-  
+
   if (element) {
     console.log("Element found, trying more specific instruction");
     await page.act("click the submit button at the bottom of the form");
@@ -416,26 +269,6 @@ try {
   }
 }
 ```
-
-```python Python
-# Handle timeout and element not found issues
-try:
-    await page.act("click the submit button", {"timeout": 30000})
-except Exception as error:
-    # Check if page is fully loaded
-    await page.wait_for_load_state('domcontentloaded')
-    
-    # Use observe to check element state
-    results = await page.observe("find the submit button")
-    
-    if results:
-        print("Element found, trying more specific instruction")
-        await page.act("click the submit button at the bottom of the form")
-    else:
-        print("Element not found, trying alternative selector")
-        await page.act("click the button with text 'Submit'")
-```
-</CodeGroup>
 </Accordion>
 
 <Accordion title="Incorrect element selected">
@@ -447,8 +280,7 @@ except Exception as error:
 - Add contextual information: "the search button in the header"
 - Use unique identifiers when available
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // More precise element targeting
 // Instead of:
 await page.act("click the button");
@@ -462,21 +294,6 @@ if (action.description.includes("checkout")) {
   await page.act(action);
 }
 ```
-
-```python Python
-# More precise element targeting
-# Instead of:
-await page.act("click the button")
-
-# Use specific context:
-await page.act("click the red 'Delete' button next to the user John Smith")
-
-# Or preview with observe first:
-results = await page.observe("click the submit button in the checkout form")
-if results and "checkout" in results[0].description:
-    await page.act(results[0])
-```
-</CodeGroup>
 </Accordion>
 
 

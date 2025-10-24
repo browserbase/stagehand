@@ -38,8 +38,7 @@ Get your API key and Project ID from the [Browserbase Dashboard](https://browser
 
 The simplest way to get started is with default settings:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -48,23 +47,11 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-)
-
-await stagehand.init()
-```
-</CodeGroup>
 
 #### Advanced Configuration
 
 Configure browser settings, proxy support, and other session parameters:
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -85,31 +72,10 @@ const stagehand = new Stagehand({
 await stagehand.init();
 console.log("Session ID:", stagehand.sessionId);
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    # Optional: API Key and Project ID will be pulled directly from your environment
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-    browserbase_session_create_params={
-        "proxies": True,
-        "region": "us-west-2",
-        "browser_settings": {
-            "viewport": {"width": 1920, "height": 1080},
-            "block_ads": True,
-        },
-    },
-)
-```
-</CodeGroup>
 
 <Accordion title="Advanced Browserbase Configuration Example">
-    <CodeGroup>
-    ```typescript TypeScript
-    const stagehand = new Stagehand({
+    ```typescript
+const stagehand = new Stagehand({
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY,
       projectId: process.env.BROWSERBASE_PROJECT_ID,
@@ -143,57 +109,15 @@ stagehand = Stagehand(
       },
     });
     ```
-    ```python Python
-    stagehand = Stagehand(
-        env="BROWSERBASE",
-        api_key=os.getenv("BROWSERBASE_API_KEY"),
-        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-        browserbase_session_create_params={
-            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"),
-            "proxies": True,
-            "region": "us-west-2",
-            "timeout": 3600,  # 1 hour session timeout
-            "keep_alive": True,  # Available on Startup plan
-            "browser_settings": {
-                "advanced_stealth": False,  # this is a Scale Plan feature - reach out to support@browserbase.com to enable
-                "block_ads": True,
-                "solve_captchas": True,
-                "record_session": False,
-                "viewport": {
-                    "width": 1920,
-                    "height": 1080,
-                },
-                "fingerprint": {
-                    "browsers": ["chrome", "edge"],
-                    "devices": ["desktop"],
-                    "operating_systems": ["windows", "macos"],
-                    "locales": ["en-US", "en-GB"],
-                    "http_version": 2,
-                },
-            },
-            "user_metadata": {
-                "user_id": "automation-user-123",
-                "environment": "production",
-            },
-        },
-    )
-    ```
-</CodeGroup>
 </Accordion>
 
 #### Initialization Result
 After calling `stagehand.init()`, the method returns configuration information about the initialized session:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const result = await stagehand.init();
 console.log(result);
 ```
-```python Python
-result = await stagehand.init()
-print(result)
-```
-</CodeGroup>
 
 The returned object contains:
 ```Example
@@ -222,8 +146,7 @@ The returned object contains:
 
 If you prefer to manage sessions directly, you can use the Browserbase SDK:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Browserbase } from "@browserbasehq/sdk";
 
 const bb = new Browserbase({ 
@@ -235,24 +158,12 @@ const session = await bb.sessions.create({
   // Add configuration options here
 });
 ```
-```python Python
-from browserbase import Browserbase
-
-bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
-
-session = bb.sessions.create(
-    project_id=os.environ["BROWSERBASE_PROJECT_ID"],
-    # Add configuration options here
-)
-```
-</CodeGroup>
 
 #### Connecting to an Existing Session
 
 Connect to a previously created Browserbase session using its session ID:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -263,19 +174,6 @@ const stagehand = new Stagehand({
 await stagehand.init();
 console.log("Resumed Session ID:", stagehand.sessionId);
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    browserbase_session_id="existing-session-uuid-here",
-)
-
-await stagehand.init()
-print(f"Resumed Session ID: {stagehand.session_id}")
-```
-</CodeGroup>
 
 ## Local Environment
 
@@ -297,8 +195,7 @@ The local environment runs browsers directly on your machine, providing full con
 
 ### Basic Local Setup
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -308,24 +205,12 @@ const stagehand = new Stagehand({
 await stagehand.init();
 console.log("Session ID:", stagehand.sessionId);
 ```
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="LOCAL"
-)
-
-await stagehand.init()
-print(f"Session ID: {stagehand.session_id}")
-```
-</CodeGroup>
 
 ### Advanced Local Configuration
 
 Customize browser launch options for local development:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -350,39 +235,12 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="LOCAL",
-    headless=False,  # Show browser window
-    local_browser_launch_options={
-        "devtools": True,  # Open developer tools
-        "viewport": {"width": 1280, "height": 720},
-        "executable_path": "/opt/google/chrome/chrome",  # Custom Chrome path
-        "args": [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-web-security",
-            "--allow-running-insecure-content",
-        ],
-        "env": {
-            "NODE_ENV": "development",
-            "DEBUG": "true",
-        },
-    },
-)
-
-await stagehand.init()
-```
-</CodeGroup>
 
 ### Connecting to your local browser
 
 Connect to your existing local Chrome/Chromium browser instead of launching a new one. This lets you automate your normal browser with all your existing tabs, extensions and settings.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -394,19 +252,6 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="LOCAL",
-    local_browser_launch_options={
-      cdp_url="http://localhost:9222"
-    }
-)
-
-await stagehand.init()
-```
-</CodeGroup>
 
 ## Troubleshooting
 

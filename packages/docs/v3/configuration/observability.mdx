@@ -26,8 +26,7 @@ Browserbase provides real-time visibility into your automation sessions:
 - Session status and duration tracking
 
 **Session Management & API Access**
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 import { Browserbase } from "@browserbasehq/sdk";
 
@@ -49,31 +48,6 @@ console.log("CPU usage:", sessionInfo.avgCpuUsage);
 console.log("Memory usage:", sessionInfo.memoryUsage);
 console.log("Proxy bytes:", sessionInfo.proxyBytes);
 ```
-
-```python Python
-import os
-from stagehand import Stagehand
-from browserbase import Browserbase
-
-browserbase = Browserbase(
-  api_key=os.getenv("BROWSERBASE_API_KEY"),
-)
-
-stagehand = Stagehand(
-    env="BROWSERBASE",
-)
-
-await stagehand.init()
-
-session_info = browserbase.sessions.retrieve(stagehand.session_id)
-
-print(f"Session status: {session_info['status']}")
-print(f"Session region: {session_info['region']}")
-print(f"CPU usage: {session_info['avgCpuUsage']}")
-print(f"Memory usage: {session_info['memoryUsage']}")
-print(f"Proxy bytes: {session_info['proxyBytes']}")
-```
-</CodeGroup>
 
 ### Session Analytics & Insights
 
@@ -99,8 +73,7 @@ print(f"Proxy bytes: {session_info['proxyBytes']}")
 
 Query and monitor sessions by status and metadata:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Browserbase } from "@browserbasehq/sdk";
 
 const browserbase = new Browserbase({
@@ -136,44 +109,13 @@ async function querySessionsByMetadata(query: string) {
 }
 ```
 
-```python Python
-import os
-from browserbase import Browserbase
-
-browserbase = Browserbase(
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-)
-
-def get_filtered_sessions():
-    sessions = browserbase.sessions.list(status="RUNNING")
-    
-    return [{
-        'id': session['id'],
-        'status': session['status'],  # RUNNING, COMPLETED, ERROR, TIMED_OUT
-        'started_at': session['startedAt'],
-        'ended_at': session['endedAt'],
-        'region': session['region'],
-        'avg_cpu_usage': session['avgCpuUsage'],
-        'memory_usage': session['memoryUsage'],
-        'proxy_bytes': session['proxyBytes'],
-        'user_metadata': session['userMetadata']
-    } for session in sessions]
-
-def query_sessions_by_metadata(query):
-    sessions = browserbase.sessions.list(q=query)
-    
-    return sessions
-```
-</CodeGroup>
-
 ## Local Environment Monitoring
 
 For local development, Stagehand provides performance monitoring and resource tracking capabilities directly on your machine.
 
 ### Performance Tracking
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -198,39 +140,11 @@ console.log('Local Performance Summary:', {
 });
 ```
 
-```python Python
-from stagehand import Stagehand
-import time
-
-stagehand = Stagehand(
-    env="LOCAL",
-    verbose=1,  # Monitor performance without debug noise
-)
-
-# Track local automation metrics
-start_time = time.time()
-initial_metrics = stagehand.metrics
-
-# ... perform automation tasks
-
-final_metrics = stagehand.metrics
-execution_time = (time.time() - start_time) * 1000  # Convert to ms
-
-print('Local Performance Summary:', {
-    'execution_time': f"{execution_time:.0f}ms",
-    'total_tokens': final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens'],
-    'average_response_time': final_metrics['total_inference_time_ms'] / 3,  # Assuming 3 operations
-    'tokens_per_second': (final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens']) / (execution_time / 1000)
-})
-```
-</CodeGroup>
-
 ## Resource Usage Monitoring
 
 When running locally, monitor system resource usage and browser performance:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 import * as os from 'os';
 import { performance } from 'perf_hooks';
@@ -274,65 +188,6 @@ clearInterval(interval);
 console.log('Resource Usage:', monitor.getResourceSummary());
 ```
 
-```python Python
-import psutil
-import time
-from typing import List
-from stagehand import Stagehand
-
-class LocalResourceMonitor:
-    def __init__(self):
-        self.cpu_usage: List[float] = []
-        self.memory_usage: List[float] = []
-        self.monitoring = False
-    
-    def start_monitoring(self):
-        self.monitoring = True
-        import threading
-        
-        def monitor_resources():
-            while self.monitoring:
-                # Track CPU and memory usage
-                cpu_percent = psutil.cpu_percent(interval=1)
-                memory_info = psutil.virtual_memory()
-                
-                self.cpu_usage.append(cpu_percent)
-                self.memory_usage.append(memory_info.percent)
-                
-                time.sleep(1)
-        
-        thread = threading.Thread(target=monitor_resources)
-        thread.daemon = True
-        thread.start()
-        return thread
-    
-    def stop_monitoring(self):
-        self.monitoring = False
-    
-    def get_resource_summary(self):
-        if not self.cpu_usage or not self.memory_usage:
-            return {'error': 'No monitoring data collected'}
-        
-        return {
-            'avg_cpu_usage': sum(self.cpu_usage) / len(self.cpu_usage),
-            'peak_cpu_usage': max(self.cpu_usage),
-            'avg_memory_usage': sum(self.memory_usage) / len(self.memory_usage),
-            'peak_memory_usage': max(self.memory_usage),
-            'total_data_points': len(self.cpu_usage)
-        }
-
-monitor = LocalResourceMonitor()
-monitor.start_monitoring()
-
-stagehand = Stagehand(env="LOCAL")
-
-# ... run automation
-
-monitor.stop_monitoring()
-print('Resource Usage:', monitor.get_resource_summary())
-```
-</CodeGroup>
-
 
   <Card title="LLM Usage" icon="chart-line" href="/configuration/evals">
     Monitor token usage, costs, and speed. Set up automated alerting for critical failures. Implement cost tracking across different environments. Use session analytics to optimize automation workflows.
@@ -345,8 +200,7 @@ print('Resource Usage:', monitor.get_resource_summary())
 
 Monitor your automation's resource usage in real-time with `stagehand.metrics`:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Get current metrics
 console.log(stagehand.metrics);
 
@@ -367,35 +221,11 @@ console.log('Automation Summary:', {
 });
 ```
 
-```python Python
-# Get current metrics
-print(stagehand.metrics)
-
-# Monitor during automation
-import time
-start_time = time.time()
-initial_metrics = stagehand.metrics
-
-# ... perform automation tasks
-
-final_metrics = stagehand.metrics
-execution_time = (time.time() - start_time) * 1000  # Convert to ms
-
-print('Automation Summary:', {
-    'total_tokens': final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens'],
-    'total_cost': calculate_cost(final_metrics),
-    'execution_time': execution_time,
-    'efficiency': (final_metrics['total_prompt_tokens'] + final_metrics['total_completion_tokens']) / execution_time
-})
-```
-</CodeGroup>
-
 ### Understanding Metrics Data
 
 The metrics object provides detailed breakdown by Stagehand operation:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 {
   actPromptTokens: 4011,
   actCompletionTokens: 51,
@@ -415,43 +245,14 @@ The metrics object provides detailed breakdown by Stagehand operation:
 }
 ```
 
-```python Python
-{
-  "act_prompt_tokens": 4011,
-  "act_completion_tokens": 51,
-  "act_inference_time_ms": 1688,
-
-  "extract_prompt_tokens": 4200,
-  "extract_completion_tokens": 243,
-  "extract_inference_time_ms": 4297,
-
-  "observe_prompt_tokens": 347,
-  "observe_completion_tokens": 43,
-  "observe_inference_time_ms": 903,
-
-  "total_prompt_tokens": 8558,
-  "total_completion_tokens": 337,
-  "total_inference_time_ms": 6888
-}
-```
-</CodeGroup>
-
 ### Log Inference to File
 
 You can also log inference to a file by setting `logInferenceToFile` to `true`. This will create a directory called `inference_summary` in your project's root directory.
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const stagehand = new Stagehand({
   logInferenceToFile: true,    
 });
 ```
-
-```python Python
-stagehand = Stagehand(
-    log_inference_to_file=True,             
-)
-```
-</CodeGroup>
 The `inference_summary` directory provides granular analysis data:
 ```
 inference_summary/

@@ -36,20 +36,7 @@ interface ObserveOptions {
 ```
 
 </Tab>
-<Tab title="Python">
 
-```python
-# With parameters
-await page.observe(
-    instruction: str,
-    dom_settle_timeout_ms: int = None,
-    iframes: bool = None,
-    model_name: AvailableModel = None,
-    model_client_options: Dict = None
-) -> List[ObserveResult]
-```
-
-</Tab>
 </Tabs>
 
 ### Parameters
@@ -116,11 +103,9 @@ interface ObserveResult {
   Additional parameters for the suggested action.
 </ParamField>
 
-
 ### Code Examples
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Basic element discovery
 const buttons = await page.observe("find all clickable buttons");
 const formFields = await page.observe("locate form input fields");
@@ -154,45 +139,9 @@ const iframeElements = await page.observe({
 });
 ```
 
-```python Python
-# Basic element discovery
-buttons = await page.observe("find all clickable buttons")
-form_fields = await page.observe("locate the form fields")
-
-# Advanced configuration  
-elements = await page.observe(
-    instruction="find important call-to-action buttons",
-    model_name="gpt-4.1-mini",
-    dom_settle_timeout_ms=45000
-)
-
-# Working with results
-login_buttons = await page.observe("find the login button")
-if login_buttons:
-    button = login_buttons[0]
-    print("Found:", button.description)
-    print("Selector:", button.selector)
-    await page.act(button)  # Execute the action
-
-# Filter results
-submit_buttons = await page.observe("find all submit buttons")
-primary_submit = next((
-    btn for btn in submit_buttons 
-    if 'primary' in btn.description.lower()
-), None)
-
-# Iframe search
-iframe_elements = await page.observe(
-    instruction="find the form fields inside the iframe",
-    iframes=True
-)
-```
-</CodeGroup>
-
 ### Integration Patterns
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Observe → Act workflow
 const actions = await page.observe("find checkout elements");
 for (const action of actions) {
@@ -216,26 +165,3 @@ if (requiredElements.length === 0) {
   throw new Error("Login form not found");
 }
 ```
-
-```python Python
-# Observe → Act workflow  
-actions = await page.observe("find checkout elements")
-for action in actions:
-    await page.act(action)
-    await page.wait_for_timeout(1000)
-
-# Observe → Extract workflow
-tables = await page.observe("find data tables")
-if tables:
-    data = await page.extract(
-        instruction="extract the table data",
-        selector=tables[0].selector,
-        schema=DataSchema
-    )
-
-# Element validation
-required_elements = await page.observe("find login form")
-if not required_elements:
-    raise Exception("Login form not found")
-```
-</CodeGroup>

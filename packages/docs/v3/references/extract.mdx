@@ -42,28 +42,7 @@ type ExtractResult<T> = z.infer<T>;
 ```
 
 </Tab>
-<Tab title="Python">
 
-```python
-# With schema and parameters
-await page.extract(
-    instruction: str = None,
-    schema: BaseModel = None,
-    selector: str = None,
-    iframes: bool = None,
-    model_name: AvailableModel = None,
-    model_client_options: Dict = None,
-    dom_settle_timeout_ms: int = None
-) -> ExtractResult
-
-# String instruction only
-await page.extract(instruction: str) -> Dict[str, str]
-
-# No parameters (raw page content)
-await page.extract() -> Dict[str, str]
-```
-
-</Tab>
 </Tabs>
 
 ### Parameters
@@ -127,8 +106,7 @@ Raw accessibility tree representation of page content.
 <Tabs>
 <Tab title="Single Object">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { z } from 'zod';
 
 // Schema definition
@@ -145,23 +123,6 @@ const product = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel
-
-# Schema definition
-class Product(BaseModel):
-    name: str
-    price: float
-    in_stock: bool
-
-# Extraction
-product = await page.extract(
-    instruction="extract product details",
-    schema=Product
-)
-```
-</CodeGroup>
-
 #### Example Response
 ```json
 {
@@ -174,8 +135,7 @@ product = await page.extract(
 </Tab>
 <Tab title="Arrays">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { z } from 'zod';
 
 // Schema definition
@@ -193,27 +153,6 @@ const listings = await page.extract({
   schema: ApartmentListingsSchema
 });
 ```
-
-```python Python
-from pydantic import BaseModel
-from typing import List
-
-# Schema definition
-class Apartment(BaseModel):
-    address: str
-    price: str
-    bedrooms: int
-
-class ApartmentListings(BaseModel):
-    apartments: List[Apartment]
-
-# Extraction
-listings = await page.extract(
-    instruction="extract all apartment listings",
-    schema=ApartmentListings
-)
-```
-</CodeGroup>
 
 #### Example Response
 ```json
@@ -236,8 +175,7 @@ listings = await page.extract(
 </Tab>
 <Tab title="URLs">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { z } from 'zod';
 
 // Schema definition
@@ -255,26 +193,6 @@ const links = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel, HttpUrl
-from typing import List
-
-# Schema definition
-class NavLink(BaseModel):
-    text: str
-    url: HttpUrl  # URL validation
-
-class Navigation(BaseModel):
-    links: List[NavLink]
-
-# Extraction
-links = await page.extract(
-    instruction="extract navigation links", 
-    schema=Navigation
-)
-```
-</CodeGroup>
-
 #### Example Response
 ```json
 {
@@ -290,8 +208,7 @@ links = await page.extract(
 </Tab>
 <Tab title="Scoped">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { z } from 'zod';
 
 const ProductSchema = z.object({
@@ -308,23 +225,6 @@ const data = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel
-
-class Product(BaseModel):
-    name: str
-    price: float
-    description: str
-
-# Extract from specific page section
-data = await page.extract(
-    instruction="extract product info from this section",
-    selector="xpath=/html/body/div/div",
-    schema=Product
-)
-```
-</CodeGroup>
-
 #### Example Response
 ```json
 {
@@ -337,8 +237,7 @@ data = await page.extract(
 </Tab>
 <Tab title="Schema-less">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // String only extraction
 const title = await page.extract("get the page title");
 // Returns: { extraction: "Page Title" }
@@ -347,17 +246,6 @@ const title = await page.extract("get the page title");
 const content = await page.extract();
 // Returns: { pageText: "Accessibility Tree: ..." }
 ```
-
-```python Python
-# String only extraction
-title = await page.extract("get the page title")
-# Returns: {"extraction": "Page Title"}
-
-# Raw page content
-content = await page.extract()
-# Returns: {"pageText": "Accessibility Tree: ..."}
-```
-</CodeGroup>
 
 #### Example Response
 ```json
@@ -369,8 +257,7 @@ content = await page.extract()
 </Tab>
 <Tab title="Advanced">
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { z } from 'zod';
 
 // Schema with descriptions and validation
@@ -396,36 +283,6 @@ const EcommerceSchema = z.object({
   }))
 });
 ```
-
-```python Python
-from pydantic import BaseModel, Field
-from typing import Optional, List
-
-# Schema with descriptions and validation
-class Product(BaseModel):
-    price: float = Field(description="Product price in USD")
-    rating: float = Field(ge=0, le=5, description="Customer rating out of 5")
-    available: bool = Field(description="Whether product is in stock")
-    tags: Optional[List[str]] = None
-
-# Nested schema
-class Price(BaseModel):
-    current: float
-    original: Optional[float] = None
-
-class Review(BaseModel):
-    rating: int
-    comment: str
-
-class ProductDetails(BaseModel):
-    name: str
-    price: Price
-
-class EcommerceData(BaseModel):
-    product: ProductDetails
-    reviews: List[Review]
-```
-</CodeGroup>
 
 #### Example Response
 ```json

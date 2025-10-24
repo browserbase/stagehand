@@ -32,8 +32,7 @@ There are two ways to create agents in Stagehand:
 
 Use computer use agents with specialized models from OpenAI or Anthropic: 
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const agent = stagehand.agent({
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
@@ -44,19 +43,6 @@ const agent = stagehand.agent({
 });
 await agent.execute("apply for a job at Browserbase")
 ```
-
-```python Python
-agent = stagehand.agent({
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514",
-    "instructions": "You are a helpful assistant that can use a web browser.",
-    "options": {
-      "apiKey": os.getenv("ANTHROPIC_API_KEY"),
-    },
-})
-await agent.execute("apply for a job at Browserbase")
-```
-</CodeGroup>
 
 ### Use Stagehand Agent with Any LLM
 
@@ -74,8 +60,8 @@ await agent.execute("apply for a job at Browserbase")
 
 Agents can be enhanced with external tools and services through MCP (Model Context Protocol) integrations. This allows your agent to access external APIs and data sources beyond just browser interactions.
 
-<CodeGroup>
-```typescript TypeScript (Pass URL)
+```typescript
+(Pass URL)
 const agent = stagehand.agent({
   provider: "openai",
   model: "computer-use-preview",
@@ -142,19 +128,9 @@ await agent.execute({
 });
 ```
 
-```python Python
-# Set max_steps to control how many actions the agent can take
-result = await agent.execute({
-    "instruction": "Sign me up for a library card",
-    "max_steps": 15  # Agent will stop after 15 steps if task isn't complete
-})
-```
-</CodeGroup>
-
 For complex tasks, increase the `maxSteps` limit and check task success.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Complex multi-step task requiring more actions
 const result = await agent.execute({
   instruction: "Find and apply for software engineering jobs, filtering by remote work and saving 3 applications",
@@ -169,21 +145,6 @@ if (result.success === true) {
 }
 ```
 
-```python Python
-# Complex multi-step task requiring more actions
-result = await agent.execute({
-    "instruction": "Find and apply for software engineering jobs, filtering by remote work and saving 3 applications",
-    "max_steps": 30  # Higher limit for complex workflows
-})
-
-# Check if the task completed successfully
-if result.success == True:
-    print("Task completed successfully!")
-else:
-    print("Task failed or was incomplete")
-```
-</CodeGroup>
-
 ## Best Practices
 
 Following these best practices will improve your agent's success rate, reduce execution time, and minimize unexpected errors during task completion.
@@ -193,29 +154,16 @@ Navigate to your target page before executing tasks:
 
 <Tabs>
 <Tab title="Do this">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await page.goto('https://github.com/browserbase/stagehand');
 await agent.execute('Get me the latest PR on the stagehand repo');
 ```
-
-```python Python
-await page.goto("https://github.com/browserbase/stagehand")
-result = await agent.execute("Get me the latest PR on the stagehand repo")
-```
-</CodeGroup>
 </Tab>
 
 <Tab title="Don't do this">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await agent.execute('Go to GitHub and find the latest PR on browserbase/stagehand');
 ```
-
-```python Python
-result = await agent.execute("Go to GitHub and find the latest PR on browserbase/stagehand")
-```
-</CodeGroup>
 </Tab>
 </Tabs>
 
@@ -225,27 +173,15 @@ Provide detailed instructions for better results:
 
 <Tabs>
 <Tab title="Do this">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating");
 ```
-
-```python Python
-result = await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating")
-```
-</CodeGroup>
 </Tab>
 
 <Tab title="Don't do this">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await agent.execute("Find a restaurant");
 ```
-
-```python Python
-result = await agent.execute("Find a restaurant")
-```
-</CodeGroup>
 </Tab>
 </Tabs>
 

@@ -32,16 +32,10 @@ page.observe("Find the login button")
 
 Calling `observe` supercharges other Stagehand methods. Use it to plan workflows, speed up `act`, and precisely target `extract`. Using `observe` helps you explore what's possible on a page by giving you a list of suggested actions.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Plan & validate
 const buttons = await page.observe("Find the log in / sign up buttons");
 ```
-```python Python
-# Plan & validate
-buttons = await page.observe("Find the log in / sign up buttons")
-```
-</CodeGroup>
 
 This will return a list of suggestions with the following structure
 ```json
@@ -61,32 +55,20 @@ You can **validate** the action (method, selector, arguments...) and then pass i
 **Performance Tip**: Acting on multiple `observe` suggestions will minimize the number of LLM calls for multi-step actions and speed up your workflow 2-3x.
 </Note>
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await page.act(buttons[0]); // No LLM!
 ```
-```python Python
-await page.act(buttons[0]) # No LLM!
-```
-</CodeGroup>
 
 #### Plan ahead
 
 You can use multiple suggestions from `observe` to preview a batch of actions. For example, when filling a form you could ask `observe` to find all the fields and then pass them in to `act`. **Call the LLM once, act multiple times**.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const fields = await page.observe("Find all the fields in the form");
 for (const field of fields) {
   await page.act(field); // No LLM!
 }
 ```
-```python Python
-fields = await page.observe("Find all the fields in the form")
-for field in fields:
-  await page.act(field) # No LLM!
-```
-</CodeGroup>
 
 ### Observe and Extract
 
@@ -95,8 +77,7 @@ Using `observe` to focus `extract` on a specific section of the page (like a tab
 **Savings Tip**: Pass the selector to `extract` to reduce LLM token usage by 10x for verbose websites!
 </Tip>
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Use observe to validate elements before extraction
 const [ table ] = await page.observe("Find the data table");
 
@@ -108,17 +89,6 @@ const { data } = await page.extract({
   selector: table.selector // Reduce context scope needed for extraction
 });
 ```
-```python Python
-# Use observe to validate elements before extraction
-[ table ] = await page.observe("Find the data table")
-
-extraction = await page.extract(
-  "Extract data from the table",
-  schema=Data, # Pydantic schema
-  selector=table.selector # Reduce context scope needed for extraction
-)
-```
-</CodeGroup>
 
 ## Best Practices
 
@@ -162,8 +132,7 @@ Be precise with instructions, e.g., "Find the primary CTA in the hero" for bette
 
 Before performing critical actions, validate the suggestion's `method`, `selector`, and `arguments` to prevent misclicks. If a direct `act` fails, use `observe` with the same prompt to verify the method, then proceed with the suggested action.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const prompt = "click the submit button";
 const expectedMethod = "click";
 
@@ -184,27 +153,6 @@ try {
   }
 }
 ```
-
-```python Python
-prompt = "click the submit button"
-expected_method = "click"
-
-try:
-    await page.act(prompt)
-except Exception as error:
-    if "method not supported" in str(error):
-        # Observe the same prompt to get the planned action
-        results = await page.observe(prompt)
-        
-        if results and results[0].method == expected_method:
-            await page.act(results[0])
-        else:
-            method = results[0].method if results else "unknown"
-            raise Exception(f'Unsupported method: expected "{expected_method}", got "{method}"')
-    else:
-        raise error
-```
-</CodeGroup>
 
 ## Troubleshooting
 

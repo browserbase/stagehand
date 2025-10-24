@@ -33,8 +33,7 @@ While MCP is really nascent, we're excited to see where it goes.
 
 Stagehand lets you leverage powerful computer use APIs from OpenAI and Anthropic with just one line of code. 
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await page.goto("https://github.com/browserbase/stagehand");
 
 // Create a Computer Use agent with just one line of code!
@@ -47,19 +46,6 @@ const agent = stagehand.agent({
 const result = await agent.execute("Extract the top contributor's username");
 console.log(result);
 ```
-```python Python
-await page.goto("https://github.com/browserbase/stagehand-python")
-
-# Create a Computer Use agent with just one line of code!
-agent = stagehand.agent(
-    model="computer-use-preview"
-)
-
-# Use the agent to execute a task
-result = await agent.execute("Extract the top contributor's username")
-print(result)
-```
-</CodeGroup>
 
 <CardGroup>
 <Card title="Stagehand + Computer Use Docs" href="/best-practices/computer-use" icon="scroll">

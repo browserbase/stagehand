@@ -9,8 +9,7 @@ Good prompts make Stagehand reliable. Bad prompts cause failures. Here's how to 
 
 Use `act()` for single actions on web pages. Each action should be focused and clear.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Single, specific actions
 await page.act("click the 'Add to Cart' button");
 await page.act("type 'user@example.com' into the email field");
@@ -20,23 +19,11 @@ await page.act("fill out the form and submit it");
 await page.act("login with credentials and navigate to dashboard");
 ```
 
-```python Python
-# Good - Single, specific actions
-await page.act("click the 'Add to Cart' button")
-await page.act("type 'user@example.com' into the email field")
-
-# Bad - Multiple actions combined
-await page.act("fill out the form and submit it")
-await page.act("login with credentials and navigate to dashboard")
-```
-</CodeGroup>
-
 ### Use Element Types, Not Colors
 
 Describe elements by their type and function rather than visual attributes like color.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Element types and descriptive text
 await page.act("click the 'Sign In' button");
 await page.act("type into the email input field");
@@ -46,21 +33,9 @@ await page.act("click the blue button");
 await page.act("type into the white input");
 ```
 
-```python Python
-# Good - Element types and descriptive text
-await page.act("click the 'Sign In' button")
-await page.act("type into the email input field")
-
-# Bad - Color-based descriptions
-await page.act("click the blue button")
-await page.act("type into the white input")
-```
-</CodeGroup>
-
 ### Use Descriptive Language
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Clear element identification
 await page.act("click the 'Next' button at the bottom of the form");
 await page.act("type into the search bar at the top of the page");
@@ -70,17 +45,6 @@ await page.act("click next");
 await page.act("type into search");
 ```
 
-```python Python
-# Good - Clear element identification
-await page.act("click the 'Next' button at the bottom of the form")
-await page.act("type into the search bar at the top of the page")
-
-# Bad - Vague descriptions
-await page.act("click next")
-await page.act("type into search")
-```
-</CodeGroup>
-
 ### Choose the Right Action Verbs
 
 - **Click** for buttons, links, checkboxes
@@ -89,8 +53,7 @@ await page.act("type into search")
 - **Check/uncheck** for checkboxes
 - **Upload** for file inputs
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good
 await page.act("click the submit button");
 await page.act("select 'Option 1' from dropdown");
@@ -100,23 +63,11 @@ await page.act("click submit");
 await page.act("choose option 1");
 ```
 
-```python Python
-# Good
-await page.act("click the submit button")
-await page.act("select 'Option 1' from dropdown")
-
-# Bad
-await page.act("click submit")
-await page.act("choose option 1")
-```
-</CodeGroup>
-
 ### Protect Sensitive Data
 
 Variables keep sensitive information out of prompts and logs.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Secure approach
 await page.act({
   action: "enter %username% in the email field",
@@ -136,29 +87,6 @@ await page.act({
 await page.act("type 'mySecretPassword123' into the password field");
 ```
 
-```python Python
-import os
-
-# Good - Secure approach
-await page.act(
-  "enter %username% in the email field",
-  variables={
-    "username": "user@example.com"
-  }
-)
-
-await page.act(
-  "enter %password% in the password field",
-  variables={
-    "password": os.environ.get("USER_PASSWORD")
-  }
-)
-
-# Bad - Insecure approach
-await page.act("type 'mySecretPassword123' into the password field")
-```
-</CodeGroup>
-
 <Warning>
 Set `verbose: 0` in your Stagehand config to prevent secrets from appearing in logs.
 </Warning>
@@ -171,8 +99,7 @@ Use `extract()` to pull structured data from pages. Define clear schemas and pro
 
 Use descriptive field names, correct types, and detailed descriptions. Field descriptions provide context that helps the agent understand exactly what to extract.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Descriptive names, correct types, and helpful descriptions
 const productData = await page.extract({
   instruction: "Extract product information",
@@ -194,39 +121,11 @@ const data = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel, Field
-
-# Good - Descriptive names, correct types, and helpful descriptions
-class ProductData(BaseModel):
-    productTitle: str = Field(description="The main product name displayed on the page")
-    priceInDollars: float = Field(description="Current selling price as a number, without currency symbol")
-    isInStock: bool = Field(description="Whether the product is available for purchase")
-
-productData = await page.extract(
-  "Extract product information",
-  schema=ProductData
-)
-
-# Bad - Generic names, wrong types, no descriptions
-class Data(BaseModel):
-    name: str      # Too generic, no context
-    price: str     # Should be float, no context
-    stock: str     # Should be bool, no context
-
-data = await page.extract(
-  "Get product details",
-  schema=Data
-)
-```
-</CodeGroup>
-
 ### Handle Arrays Correctly
 
 Always wrap schemas in objects for reliable extraction.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Array wrapped in object
 const listings = await page.extract({
   instruction: "Extract all apartment listings",
@@ -245,34 +144,11 @@ const listings = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel
-from typing import List
-
-# Good - Array wrapped in object
-class Apartment(BaseModel):
-    address: str
-    rent: float
-
-class Listings(BaseModel):
-    apartments: List[Apartment]
-
-listings = await page.extract(
-  "Extract all apartment listings",
-  schema=Listings
-)
-
-# Bad - Bare array (not supported)
-# Don't do this - arrays must be wrapped in objects
-```
-</CodeGroup>
-
 ### Use Proper URL Types
 
 Specify URL types to tell Stagehand to extract URLs. Without proper URL types, Stagehand won't extract URLs.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Tells Stagehand to extract URLs
 const links = await page.extract({
   instruction: "Extract navigation links",
@@ -285,25 +161,6 @@ const links = await page.extract({
 });
 ```
 
-```python Python
-from pydantic import BaseModel, HttpUrl
-from typing import List
-
-# Good - Tells Stagehand to extract URLs
-class Link(BaseModel):
-    text: str
-    url: HttpUrl  # Required for URL extraction
-
-class Links(BaseModel):
-    links: List[Link]
-
-links = await page.extract(
-  "Extract navigation links",
-  schema=Links
-)
-```
-</CodeGroup>
-
 ## Observe Method
 
 Use `observe()` to discover actionable elements before acting on them.
@@ -312,8 +169,7 @@ Use `observe()` to discover actionable elements before acting on them.
 
 Verify elements exist before taking action to avoid errors.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Check for elements first
 const loginButtons = await page.observe("Find the login button");
 
@@ -324,21 +180,9 @@ if (loginButtons.length > 0) {
 }
 ```
 
-```python Python
-# Check for elements first
-login_buttons = await page.observe("Find the login button")
-
-if len(login_buttons) > 0:
-    await page.act(login_buttons[0])
-else:
-    print("No login button found")
-```
-</CodeGroup>
-
 ### Be Specific About Element Types
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Specific element types
 const submitButtons = await page.observe("Find submit button in the form");
 const dropdowns = await page.observe("Find the state dropdown menu");
@@ -348,17 +192,6 @@ const elements = await page.observe("Find submit stuff");
 const things = await page.observe("Find state selection");
 ```
 
-```python Python
-# Good - Specific element types
-submit_buttons = await page.observe("Find submit button in the form")
-dropdowns = await page.observe("Find the state dropdown menu")
-
-# Bad - Too vague
-elements = await page.observe("Find submit")
-things = await page.observe("Find state selection")
-```
-</CodeGroup>
-
 ## Agent Method
 
 Use `agent()` for complex, multi-step workflows. Provide detailed instructions and set appropriate limits.
@@ -367,8 +200,7 @@ Use `agent()` for complex, multi-step workflows. Provide detailed instructions a
 
 Don't include navigation in agent tasks. Handle it separately.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Navigate first
 await page.goto('https://amazon.com');
 await agent.execute('Search for wireless headphones under $100 and add the best rated one to cart');
@@ -377,22 +209,11 @@ await agent.execute('Search for wireless headphones under $100 and add the best 
 await agent.execute('Go to Amazon, search for headphones, and add one to cart');
 ```
 
-```python Python
-# Good - Navigate first
-await page.goto('https://amazon.com')
-await agent.execute('Search for wireless headphones under $100 and add the best rated one to cart')
-
-# Bad - Navigation in task
-await agent.execute('Go to Amazon, search for headphones, and add one to cart')
-```
-</CodeGroup>
-
 ### Be Highly Specific
 
 Detailed instructions lead to better results.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Detailed instructions
 await agent.execute({
   instruction: "Find Italian restaurants in Brooklyn that are open after 10pm, have outdoor seating, and are rated 4+ stars. Save the top 3 results.",
@@ -403,24 +224,11 @@ await agent.execute({
 await agent.execute("Find some good restaurants");
 ```
 
-```python Python
-# Good - Detailed instructions
-await agent.execute(
-  instruction="Find Italian restaurants in Brooklyn that are open after 10pm, have outdoor seating, and are rated 4+ stars. Save the top 3 results.",
-  max_steps=25
-)
-
-# Bad - Vague instructions
-await agent.execute("Find some good restaurants")
-```
-</CodeGroup>
-
 ### Set Appropriate Step Limits
 
 Match step limits to task complexity.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Simple task - fewer steps
 await agent.execute({
   instruction: "Subscribe to the newsletter with email 'user@example.com'",
@@ -434,27 +242,11 @@ await agent.execute({
 });
 ```
 
-```python Python
-# Simple task - fewer steps
-await agent.execute(
-  instruction="Subscribe to the newsletter with email 'user@example.com'",
-  max_steps=10
-)
-
-# Complex task - more steps
-await agent.execute(
-  instruction="Research and compare 5 project management tools with pricing and features",
-  max_steps=50
-)
-```
-</CodeGroup>
-
 ### Include Success Criteria
 
 Tell the agent how to know when it's done.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Good - Clear success criteria
 await agent.execute({
   instruction: "Add 3 smartphone cases to cart and confirm the cart shows exactly 3 items with total price",
@@ -464,18 +256,6 @@ await agent.execute({
 // Bad - No validation
 await agent.execute("Add some items to cart");
 ```
-
-```python Python
-# Good - Clear success criteria
-await agent.execute(
-  instruction="Add 3 smartphone cases to cart and confirm the cart shows exactly 3 items with total price",
-  max_steps=20
-)
-
-# Bad - No validation
-await agent.execute("Add some items to cart")
-```
-</CodeGroup>
 
 ## Common Mistakes to Avoid
 

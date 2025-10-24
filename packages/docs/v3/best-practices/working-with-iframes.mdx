@@ -11,8 +11,7 @@ Elements inside iframes exist in a separate context than the main page.
 
 Set `iframes: true` in your `act()`, `observe()`, and `extract()` commands.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Act within iframes
 await page.act({ action: "click the accept cookies button", iframes: true });
 
@@ -31,33 +30,6 @@ const data = await page.extract({
   iframes: true,
 });
 ```
-
-```python Python
-# Act within iframes
-await page.act(
-    "click the accept cookies button",
-    iframes=True
-)
-
-# Observe within iframes
-results = await page.observe({
-    "instruction": "Find the primary action button",
-    "iframes": True,
-})
-
-# Extract from iframes
-data = await page.extract({
-    "instruction": "Extract the product price from the payment widget",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "price": {"type": "string"}
-        }
-    },
-    "iframes": True,
-})
-```
-</CodeGroup>
 
 ### Tips
 

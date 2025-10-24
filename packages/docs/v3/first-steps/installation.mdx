@@ -53,8 +53,7 @@ BROWSERBASE_PROJECT_ID=your_project_id
 
 Add Stagehand where you need browser automation.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import "dotenv/config";
 import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
@@ -89,76 +88,6 @@ main().catch((err) => {
   process.exit(1);
 });
 ```
-</CodeGroup>
-
-</Tab>
-
-<Tab title="Python">
-
-### Add dependencies
-
-<CodeGroup>
-
-```bash uv
-uv add stagehand
-```
-
-```bash pip
-pip install stagehand
-```
-
-</CodeGroup>
-
-### Configure environment
-
-Set environment variables (or a `.env` via your framework):
-
-<CodeGroup>
-```bash Bash
-MODEL_API_KEY=your_api_key
-BROWSERBASE_API_KEY=your_api_key
-BROWSERBASE_PROJECT_ID=your_project_id
-```
-</CodeGroup>
-
-### Use in your codebase
-
-<CodeGroup>
-```python Python
-import os
-import asyncio
-from stagehand import Stagehand
-
-async def main():
-    stagehand = Stagehand(
-        env="BROWSERBASE",
-        model_api_key=os.getenv("MODEL_API_KEY")
-    )
-    await stagehand.init()
-    page = stagehand.page
-    
-    await page.goto("https://example.com")
-    
-    # Act on the page
-    await page.act("Click the sign in button")
-    
-    # Extract structured data
-    result = await page.extract({
-        "instruction": "extract the page title",
-        "schema": {
-            "title": {
-                "type": "string"
-            }
-        }
-    })
-    
-    print(result["title"])
-    await stagehand.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-</CodeGroup>
 
 </Tab>
 

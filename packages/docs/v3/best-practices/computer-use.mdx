@@ -39,8 +39,7 @@ Browser configuration differs by environment:
 
 <Tabs>
 <Tab title="BROWSERBASE">
-<CodeGroup>  
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -62,34 +61,9 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
-```python Python
-import os
-from stagehand import Stagehand, StagehandConfig
-
-stagehand = Stagehand(StagehandConfig(
-    env="BROWSERBASE",
-    api_key=os.getenv("BROWSERBASE_API_KEY"),  # API key for authentication
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),  # Project identifier
-    
-    browserbase_session_create_params={
-        "projectId": os.getenv("BROWSERBASE_PROJECT_ID"),
-        "browserSettings": {
-            "blockAds": True,
-            "viewport": {
-                "width": 1024,
-                "height": 768,
-            },
-        },
-    },
-))
-
-await stagehand.init()
-```
-</CodeGroup>
 </Tab>
 <Tab title="LOCAL">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -105,23 +79,6 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
-```python Python
-from stagehand import Stagehand, StagehandConfig
-
-stagehand = Stagehand(StagehandConfig(
-    env="LOCAL",
-    local_browser_launch_options={
-        "headless": False,
-        "viewport": {
-            "width": 1024,
-            "height": 768,
-        },
-    }
-))
-
-await stagehand.init()
-```
-</CodeGroup>
 </Tab>
 </Tabs>
 
@@ -129,8 +86,7 @@ await stagehand.init()
 
 Call `execute` on the agent to assign a task to the agent.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Navigate to a website
 await stagehand.page.goto("https://www.google.com");
 
@@ -154,44 +110,11 @@ const agent = stagehand.agent({
 await agent.execute("Apply for a library card at the San Francisco Public Library");
 ```
 
-```python Python
-import os
-
-# Navigate to a website
-await stagehand.page.goto("https://www.google.com")
-
-agent = stagehand.agent({
-    # The model to use
-    model="computer-use-preview",
-
-    # Customize the system prompt
-    instructions="You are a helpful assistant that can use a web browser. Do not ask follow up questions, the user will trust your judgement.",
-
-    # Customize the API key
-    options={
-        "apiKey": os.getenv("ANTHROPIC_API_KEY"),
-    },
-})
-
-# Execute the agent
-await agent.execute("Apply for a library card at the San Francisco Public Library")
-```
-</CodeGroup>
-
 You can also define the maximum number of steps the agent can take with:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 await agent.execute({
 	instructions: "Apply for a library card at the San Francisco Public Library",
 	maxSteps: 10,
 });
-```
-
-```python Python
-await agent.execute(
-	"Apply for a library card at the San Francisco Public Library",
-	max_steps=10,
-)
-```
-</CodeGroup> 
+``` 

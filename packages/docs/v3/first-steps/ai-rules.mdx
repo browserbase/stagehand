@@ -74,14 +74,12 @@ Direct access to official Stagehand documentation. This MCP server provides AI a
 - **Reduced Integration Overhead**: Standardized protocol eliminates the need for custom integrations with each documentation source
 - **Enhanced Accuracy**: AI agents receive structured, up-to-date information rather than relying on potentially outdated training data
 
-
 <Tip>
 **Prompting tip:** 
 Explicitly ask your coding agent/assistant to use these MCP servers to fetch relevant information from the docs so they have better context and know how to write proper Stagehand code. 
 
 ie. **"Use the stagehand-docs MCP to fetch the act/observe guidelines, then generate code that follows them. Prefer cached observe results."**
 </Tip>
-
 
 ## Editor rule files (copy‑paste)
 
@@ -368,105 +366,23 @@ Use the following rules to write code for this project.
 
 - To plan an instruction like "click the sign in button", use Stagehand `observe` to get the action to execute.
 
-```python
-results = await page.observe("Click the sign in button")
-```
-
 You can also pass in the following params:
 
-```python
-await page.observe(
-    instruction="the instruction to execute",
-    draw_overlay=True  # Show visual overlay on observed elements
-)
-```
-
 - The result of `observe` is a list of `ObserveResult` objects that can directly be used as params for `act` like this:
-  ```python
-  results = await page.observe("Click the sign in button")
-  await page.act(results[0])
-  ```
+  
 - When writing code that needs to extract data from the page, use Stagehand `extract`. Use Pydantic models for schemas:
 
-```python
-from pydantic import BaseModel
-
-class ExtractedData(BaseModel):
-    some_value: str
-
-result = await page.extract(
-    instruction="the instruction to execute",
-    schema=ExtractedData
-)
-```
-
 ## Initialize
-
-```python
-from stagehand import Stagehand, StagehandConfig
-import asyncio
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-async def main():
-    config = StagehandConfig(
-        env="BROWSERBASE",  # or "LOCAL"
-        api_key=os.getenv("BROWSERBASE_API_KEY"),
-        project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-        model_name="google/gemini-2.5-flash-preview-05-20",
-        model_api_key=os.getenv("MODEL_API_KEY"),
-    )
-    
-    # Recommended: Use as async context manager
-    async with Stagehand(config) as stagehand:
-        page = stagehand.page
-        # Your automation code here
-        
-    # Alternative: Manual initialization
-    stagehand = Stagehand(config)
-    await stagehand.init()
-    page = stagehand.page
-    # Your automation code here
-    await stagehand.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
 
 ### Configuration Options
 
 Key configuration options in `StagehandConfig`:
 
-```python
-config = StagehandConfig(
-    env="BROWSERBASE",  # or "LOCAL"
-    api_key=os.getenv("BROWSERBASE_API_KEY"),
-    project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
-    model_name="google/gemini-2.5-flash-preview-05-20",
-    model_api_key=os.getenv("MODEL_API_KEY"),
-    verbose=1,  # 0=minimal, 1=medium, 2=detailed
-    dom_settle_timeout_ms=30000,
-    self_heal=True,  # Enable self-healing functionality
-)
-```
-
 ## Act
 
 You can act directly with string instructions:
 
-```python
-await page.act("Click the sign in button")
-```
-
 Use variables for dynamic form filling:
-
-```python
-await page.act(
-    "Enter the following information: Name: John Doe, Email: john@example.com"
-)
-```
 
 **Best Practices:**
 - Cache the results of `observe` to avoid unexpected DOM changes
@@ -479,61 +395,15 @@ AVOID actions that are more than one step, i.e. "Order me pizza" or "Send an ema
 ## Extract
 
 ### Simple String Extraction
-```python
-sign_in_button_text = await page.extract("extract the sign in button text")
-```
 
 ### Structured Extraction with Schema (Recommended)
 Always use Pydantic models for structured data extraction:
 
-```python
-from pydantic import BaseModel, Field
-from typing import List
-
-class ButtonData(BaseModel):
-    text: str = Field(..., description="Button text content")
-
-data = await page.extract(
-    instruction="extract the sign in button text",
-    schema=ButtonData
-)
-```
-
 ### Array Extraction
 For arrays, use List types:
 
-```python
-from pydantic import BaseModel, Field
-from typing import List
-
-class ButtonsData(BaseModel):
-    buttons: List[str] = Field(..., description="List of button texts")
-
-data = await page.extract(
-    instruction="extract the text inside all buttons",
-    schema=ButtonsData
-)
-```
-
 ### Complex Object Extraction
 For more complex data structures:
-
-```python
-from pydantic import BaseModel, Field
-from typing import List
-
-class Company(BaseModel):
-    name: str = Field(..., description="Company name")
-    description: str = Field(..., description="Brief company description")
-
-class Companies(BaseModel):
-    companies: List[Company] = Field(..., description="List of companies")
-
-companies_data = await page.extract(
-    "Extract names and descriptions of 5 companies",
-    schema=Companies
-)
-```
 
 ## Agent System
 
@@ -541,53 +411,13 @@ Stagehand provides an Agent System for autonomous web browsing using Computer Us
 
 ### Creating Agents
 
-```python
-# Basic agent (uses default model)
-agent = stagehand.agent()
-
-# OpenAI agent
-agent = stagehand.agent(
-    model="computer-use-preview",
-    instructions="You are a helpful web navigation assistant.",
-    options={"apiKey": os.getenv("OPENAI_API_KEY")}
-)
-
-# Anthropic agent
-agent = stagehand.agent(
-    model="claude-sonnet-4-20250514",
-    instructions="You are a helpful web navigation assistant.",
-    options={"apiKey": os.getenv("ANTHROPIC_API_KEY")}
-)
-```
-
 ### Agent Execution
-
-```python
-# Simple task
-result = await agent.execute("Play a game of 2048")
-
-# Complex multi-step task with options
-result = await agent.execute(
-    instruction="Apply for the first engineer position with mock data",
-    max_steps=20,
-    auto_screenshot=True,
-    wait_between_actions=1000  # milliseconds
-)
-```
 
 **Best Practices:**
 - Be specific with instructions: `"Fill out the contact form with name 'John Doe' and submit it"`
 - Break down complex tasks into smaller steps
 - Use error handling with try/except blocks
 - Combine agents for navigation with traditional methods for precise data extraction
-
-```python
-# Good: Specific instructions
-await agent.execute("Navigate to products page and filter by 'Electronics'")
-
-# Avoid: Vague instructions
-await agent.execute("Do some stuff on this page")
-```
 
 ## Project Structure Best Practices
 

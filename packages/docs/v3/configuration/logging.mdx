@@ -8,8 +8,7 @@ Stagehand provides comprehensive logging capabilities to help you debug automati
 
 ## Logging Configuration
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -17,16 +16,6 @@ const stagehand = new Stagehand({
   verbose: 1, // 0 = errors only, 1 = info, 2 = debug
 });
 ```
-
-```python Python
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    env="BROWSERBASE",  # or "LOCAL"
-    verbose=1,  # 0 = errors only, 1 = info, 2 = debug
-)
-```
-</CodeGroup>
 
 ### Verbose Levels
 
@@ -40,8 +29,7 @@ stagehand = Stagehand(
 
 Each log entry contains structured information:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 interface LogLine {
   category: 'browser' | 'action' | 'llm' | 'error' | 'stagehand' | 'cache';
   message: string;
@@ -56,27 +44,9 @@ interface LogLine {
 }
 ```
 
-```python Python
-# Log line structure in Python
-{
-  "category": "browser" | "action" | "llm" | "error" | "stagehand" | "cache",
-  "message": str,
-  "level": 0 | 1 | 2,  # error | info | debug
-  "timestamp": str,
-  "auxiliary": {
-    "execution_time": {"value": str, "unit": str},
-    "session_id": str,
-    "url": str,
-    # ... other context data
-  }
-}
-```
-</CodeGroup>
-
 ### Custom Logger
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 class AdvancedLogger {
   private logFile?: string;
   
@@ -131,85 +101,19 @@ const stagehand = new Stagehand({
 });
 ```
 
-```python Python
-import json
-import os
-from datetime import datetime
-from typing import Dict, Any, Optional
-
-class AdvancedLogger:
-    def __init__(self, log_file: Optional[str] = None):
-        self.log_file = log_file
-    
-    def log(self, log_line: Dict[str, Any]):
-        timestamp = datetime.now().isoformat()
-        colors = {
-            'browser': '\033[34m',   # blue
-            'action': '\033[32m',    # green
-            'llm': '\033[35m',       # magenta
-            'error': '\033[31m',     # red
-            'stagehand': '\033[36m', # cyan
-            'cache': '\033[33m',     # yellow
-        }
-        
-        color = colors.get(log_line.get('category', ''), '\033[0m')
-        reset = '\033[0m'
-        
-        # Console output with colors
-        print(f"{color}[{log_line.get('category')}]{reset} {log_line.get('message')}")
-        
-        # Log execution time if available
-        if log_line.get('auxiliary', {}).get('execution_time'):
-            exec_time = log_line['auxiliary']['execution_time']
-            print(f"{exec_time['value']}{exec_time['unit']}")
-        
-        # Log additional context
-        auxiliary = log_line.get('auxiliary', {})
-        if auxiliary and len(auxiliary) > 0:
-            print('  Context:', json.dumps(auxiliary, indent=2))
-        
-        # File logging (optional)
-        if self.log_file:
-            log_entry = {
-                'timestamp': timestamp,
-                **log_line
-            }
-            with open(self.log_file, 'a') as f:
-                f.write(json.dumps(log_entry) + '\n')
-
-# Usage
-logger = AdvancedLogger('./automation.log')
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    verbose=2,
-    logger=logger.log
-)
-```
-</CodeGroup>
-
 ## Detailed Logging Features
 
 ### LLM Inference Logging
 
 Enable detailed logging of all LLM interactions:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   logInferenceToFile: true,  // Creates inference_summary/ directory
   verbose: 2
 });
 ```
-
-```python Python
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    log_inference_to_file=True,  # Creates inference_summary/ directory
-    verbose=2
-)
-```
-</CodeGroup>
 
 The `inference_summary/` directory structure:
 ```

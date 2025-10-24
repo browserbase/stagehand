@@ -40,18 +40,7 @@ interface AgentInstance {
 ```
 
 </Tab>
-<Tab title="Python">
 
-```python
-# Create agent instance
-agent = stagehand.agent({
-    "model": str,
-    "instructions": str = None,
-    "options": Dict[str, Any] = None
-})
-```
-
-</Tab>
 </Tabs>
 
 ### Agent Configuration
@@ -117,23 +106,7 @@ interface AgentExecuteOptions {
 ```
 
 </Tab>
-<Tab title="Python">
 
-```python
-# String instruction
-await agent.execute(instruction: str) -> AgentResult
-
-# With options dictionary
-await agent.execute({
-    "instruction": str,
-    "max_steps": int = 20,
-    "auto_screenshot": bool = True,
-    "wait_between_actions": int = 0,
-    "context": str = None
-}) -> AgentResult
-```
-
-</Tab>
 </Tabs>
 
 ### Execute Parameters
@@ -212,25 +185,7 @@ interface AgentResult {
 </ParamField>
 
 </Tab>
-<Tab title="Python">
 
-<ParamField path="success" type="boolean">
-  Whether the task was completed successfully.
-</ParamField>
-
-<ParamField path="message" type="string">
-  Description of the execution result and status.
-</ParamField>
-
-<ParamField path="actions" type="AgentAction[]">
-  Array of individual actions taken during execution.
-</ParamField>
-
-<ParamField path="completed" type="boolean">
-  Whether the agent believes the task is fully complete.
-</ParamField>
-
-</Tab>
 </Tabs>
 
 ### Example Response

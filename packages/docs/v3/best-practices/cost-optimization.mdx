@@ -27,8 +27,7 @@ We don't recommend using larger, more premium models for simple tasks. See our [
 
 Cache successful actions to avoid repeated LLM calls. Learn the basics in our [Caching Guide](/best-practices/caching):
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Cache successful actions
 const [action] = await page.observe("Click the sign in button");
 await setCache("sign_in_button", action);
@@ -41,20 +40,6 @@ if (cachedAction) {
   await page.act(action);
 }
 ```
-```python Python
-# Cache successful actions
-actions = await page.observe("Click the sign in button")
-action = actions[0]
-await set_cache("sign_in_button", action)
-
-# Reuse cached action (no LLM cost)
-cached_action = await get_cache("sign_in_button")
-if cached_action:
-    await page.act(cached_action)
-else:
-    await page.act(action)
-```
-</CodeGroup>
 
 <CardGroup cols={1}>
 <Card title="Caching Guide" icon="database" href="/best-practices/caching">
@@ -66,8 +51,7 @@ else:
 
 Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/configuration/browser) for details:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 const stagehand = new Stagehand({
   env: "BROWSERBASE",
   browserbaseSessionCreateParams: {
@@ -76,16 +60,6 @@ const stagehand = new Stagehand({
   }
 });
 ```
-```python Python
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    browserbase_session_create_params={
-        "timeout": 1800,  # 30 minutes instead of default 1 hour
-        "keep_alive": True,  # Keep session alive between tasks
-    }
-)
-```
-</CodeGroup>
 
 <CardGroup cols={1}>
 <Card title="Browserbase Cost Optimization" icon="window-maximize" href="https://docs.browserbase.com/guides/cost-optimization">
@@ -99,8 +73,7 @@ stagehand = Stagehand(
 
 Automatically fall back to cheaper models for simple tasks:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Use models from least to most expensive based on task complexity
 // See stagehand.dev/evals for performance comparisons
 async function smartAct(page: Page, prompt: string) {
@@ -119,31 +92,12 @@ async function smartAct(page: Page, prompt: string) {
   }
 }
 ```
-```python Python
-# Use models from least to most expensive based on task complexity
-# See stagehand.dev/evals for performance comparisons
-async def smart_act(page, prompt: str):
-    models = ["cheaper-model", "premium-model"]
-    
-    for model in models:
-        try:
-            stagehand = Stagehand(model_name=model)
-            await stagehand.init()
-            actions = await stagehand.page.observe(prompt)
-            action = actions[0]
-            await stagehand.page.act(action)
-            return
-        except Exception:
-            print(f"Falling back to {model}...")
-```
-</CodeGroup>
 
 ### Session Pooling
 
 Reuse browser sessions across multiple tasks:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 class SessionManager {
   private sessions = new Map<string, Stagehand>();
   
@@ -159,41 +113,17 @@ class SessionManager {
   }
 }
 ```
-```python Python
-class SessionManager:
-    def __init__(self):
-        self.sessions = {}
-    
-    async def get_session(self, task_type: str):
-        if task_type in self.sessions:
-            return self.sessions[task_type]
-        
-        stagehand = Stagehand(env="BROWSERBASE")
-        await stagehand.init()
-        self.sessions[task_type] = stagehand
-        return stagehand
-```
-</CodeGroup>
 
 ## Cost Monitoring
 
 Track your spending to identify optimization opportunities. See our [Observability Guide](/configuration/observability) for detailed metrics:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Monitor token usage
 const metrics = stagehand.metrics;
 console.log(`Total tokens: ${metrics.totalPromptTokens + metrics.totalCompletionTokens}`);
 console.log(`Estimated cost: $${(metrics.totalPromptTokens + metrics.totalCompletionTokens) * 0.00001}`);
 ```
-```python Python
-# Monitor token usage
-metrics = stagehand.metrics
-total_tokens = metrics['total_prompt_tokens'] + metrics['total_completion_tokens']
-print(f"Total tokens: {total_tokens}")
-print(f"Estimated cost: ${total_tokens * 0.00001:.4f}")
-```
-</CodeGroup>
 
 <CardGroup cols={1}>
 <Card title="Observability & Metrics" icon="chart-line" href="/configuration/observability">
@@ -205,8 +135,7 @@ print(f"Estimated cost: ${total_tokens * 0.00001:.4f}")
 
 Set spending limits to prevent unexpected costs:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 class BudgetGuard {
   private dailySpend = 0;
   private maxDailyBudget: number;
@@ -223,18 +152,6 @@ class BudgetGuard {
   }
 }
 ```
-```python Python
-class BudgetGuard:
-    def __init__(self, max_daily_budget: float = 25.0):
-        self.daily_spend = 0
-        self.max_daily_budget = max_daily_budget
-    
-    def check_budget(self, estimated_cost: float) -> None:
-        if self.daily_spend + estimated_cost > self.max_daily_budget:
-            raise Exception(f"Daily budget exceeded: ${self.max_daily_budget}")
-        self.daily_spend += estimated_cost
-```
-</CodeGroup>
 
 
 ## Related Resources

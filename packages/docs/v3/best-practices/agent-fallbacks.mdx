@@ -20,8 +20,7 @@ Use an agent fallback as a failsafe when a one step action unexpectedly becomes 
 
 A single `act("click sign in")` can't handle this change. The agent fallback can discover and execute both steps.
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 try {
@@ -45,30 +44,4 @@ try {
   if (!result.success) throw err;
 }
 ```
-
-```python Python
-from stagehand import Stagehand
-
-try:
-    await page.act("click the 'Sign In' button")
-except Exception as err:
-    print("Agent fallback triggered")
-
-    agent = stagehand.agent({
-        "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
-        "instructions": "Complete the action, handling any new steps required.",
-    })
-
-    result = await agent.execute({
-        "instruction": "Find and click Sign In button",
-        "max_steps": 10,
-    })
-
-    print("Agent fallback success" if result.success else "Agent fallback failed")
-
-    if not result.success:
-        raise err
-```
-</CodeGroup>
 

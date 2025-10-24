@@ -82,8 +82,7 @@ Stagehand uses the format `provider/model-name` for model specification.
 
 <Tabs>
 <Tab title="Google (Recommended)">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -93,20 +92,9 @@ const stagehand = new Stagehand({
   },
 });
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    model_name="google/gemini-2.5-flash",
-    model_api_key=os.getenv("GOOGLE_API_KEY")
-)
-```
-</CodeGroup>
 </Tab>
 <Tab title="OpenAI">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -116,21 +104,10 @@ const stagehand = new Stagehand({
   },
 });
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    model_name="openai/gpt-4.1",
-    model_api_key=os.getenv("OPENAI_API_KEY")
-)
-```
-</CodeGroup>
 </Tab>
 
 <Tab title="Anthropic">
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -140,16 +117,6 @@ const stagehand = new Stagehand({
   },
 });
 ```
-```python Python
-import os
-from stagehand import Stagehand
-
-stagehand = Stagehand(
-    model_name="anthropic/claude-3-7-sonnet-latest",
-    model_api_key=os.getenv("ANTHROPIC_API_KEY")
-)
-```
-</CodeGroup>
 </Tab>
 </Tabs>
 

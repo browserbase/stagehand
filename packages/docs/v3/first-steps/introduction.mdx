@@ -33,8 +33,7 @@ Stagehand gives you the best of both worlds through four powerful primitives tha
   </Card>
 </CardGroup>
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 // Act - Execute natural language actions
 await page.act("click the login button");
 
@@ -56,22 +55,6 @@ const agent = stagehand.agent({
 })
 await agent.execute("apply for this job");
 ```
-```python Python
-# Act - Execute natural language actions
-await page.act("click the login button")
-
-# Extract - Pull structured data
-result = await page.extract(
-  schema={"price": float}
-)
-
-# Observe - Discover available actions
-actions = await page.observe("find submit buttons")
-
-# Agent - Automate entire workflows
-await agent.execute("apply for this job")
-```
-</CodeGroup>
 
 
 ## Why Developers Choose Stagehand

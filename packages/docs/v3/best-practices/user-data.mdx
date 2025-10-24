@@ -3,8 +3,7 @@
 
 Persist browser data between sessions using a custom user data directory:
 
-<CodeGroup>
-```typescript TypeScript
+```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 // For Browserbase sessions
@@ -26,26 +25,3 @@ const localStagehand = new Stagehand({
 await stagehand.init();
 console.log("Session ID:", stagehand.sessionId);
 ```
-```python Python
-from stagehand import Stagehand
-
-# For Browserbase sessions
-stagehand = Stagehand(
-    env="BROWSERBASE",
-    browserbase_session_create_params={
-        "user_data_dir": "/path/to/user/data/directory",
-    },
-)
-
-# For Local sessions
-local_stagehand = Stagehand(
-    env="LOCAL",
-    local_browser_launch_options={
-        "user_data_dir": "./browser-data",
-    },
-)
-
-await stagehand.init()
-print(f"Session ID: {stagehand.session_id}")
-```
-</CodeGroup>
