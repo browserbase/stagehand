@@ -135,13 +135,10 @@ const page = stagehand.page;
 
 // First run - makes LLM call and caches the action
 await page.act("click the login button");
-
-// Second run (or subsequent script executions) - reuses cached action (no LLM call)
-await page.act("click the login button");
 ```
 
 <Note>
-Caching persists across script executions. The first time you run your script, actions are cached to disk. On subsequent runs, cached actions are reused automatically, significantly reducing costs and improving performance.
+Caching persists across script executions. The first time you run your script, actions are cached to your local filesystem. On subsequent runs, cached actions are reused automatically, significantly reducing costs and improving performance.
 </Note>
 
 <Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
