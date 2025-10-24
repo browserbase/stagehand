@@ -1382,10 +1382,16 @@ export class V3 {
             ? await resolveTools(options.integrations, options.tools)
             : (options?.tools ?? {});
 
+          // Resolve the LLM client for the agent based on the model parameter
+          // Use the agent's model if specified, otherwise fall back to the default
+          const agentLlmClient = options?.model
+            ? this.resolveLlmClient(options.model)
+            : this.llmClient;
+
           const handler = new V3AgentHandler(
             this,
             this.logger,
-            this.llmClient,
+            agentLlmClient,
             typeof options?.executionModel === "string"
               ? options.executionModel
               : options?.executionModel?.modelName,
