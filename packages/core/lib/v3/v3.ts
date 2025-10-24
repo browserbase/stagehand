@@ -37,7 +37,6 @@ import {
 import {
   AgentConfig,
   AgentExecuteOptions,
-  AgentModelConfig,
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
