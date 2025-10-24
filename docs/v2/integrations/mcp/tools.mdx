@@ -1,0 +1,117 @@
+---
+title: "Browserbase MCP Server Tools"
+sidebarTitle: "Tools"
+description: "This guide covers the specialized tools available in the Browserbase MCP server for browser automation and interaction."
+---
+
+## Overview
+
+The Browserbase MCP server provides comprehensive tools for browser automation and session management. These tools allow you to perform actions like navigating pages, capturing screenshots, manipulating cookies, and managing multiple browser sessions simultaneously.
+
+## Core Browser Automation Tools
+
+These are the primary tools for modern web automation using natural language commands.
+
+<Accordion title="browserbase_stagehand_navigate">
+Navigate to any URL in the browser
+
+<ParamField path="url" type="string" required>
+  The URL to navigate to
+</ParamField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_act">
+Perform an action on the web page using natural language
+
+<ParamField path="action" type="string" required>
+  The action to perform (e.g., "click the login button", "fill form field")
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_stagehand_extract">
+Extract all text content from the current page (filters out CSS and JavaScript)
+
+<Info>No input parameters required</Info>
+
+<ParamField path="instruction" type="string">
+  Extracted text content from the current page
+</ParamField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_observe">
+Observe and find actionable elements on the web page
+
+<ParamField path="instruction" type="string" required>
+  Specific instruction for observation (e.g., "find the login button", "locate search form")
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_screenshot">
+Capture a PNG screenshot of the current page
+
+<Info>No input parameters required</Info>
+
+<ResponseField name="image" type="string">
+  Base-64 encoded PNG data
+</ResponseField>
+</Accordion>
+
+<Accordion title="browserbase_stagehand_get_url">
+Get the current URL of the browser page
+
+<Info>No input parameters required</Info>
+
+<ResponseField name="url" type="string">
+  Complete URL including protocol, domain, path, and any query parameters or fragments
+</ResponseField>
+</Accordion>
+
+## Session Management
+
+Manage your browser session lifecycle with create and close operations.
+
+<Accordion title="browserbase_session_create">
+Create or reuse a cloud browser session using Browserbase with fully initialized Stagehand
+
+<ParamField path="sessionId" type="string">
+  Optional session ID to use/reuse. If not provided, creates new session
+</ParamField>
+
+</Accordion>
+
+<Accordion title="browserbase_session_close">
+Close the current Browserbase session, disconnect the browser, and cleanup Stagehand instance
+
+<Info>No input parameters required</Info>
+
+</Accordion>
+
+## Resources
+
+<Card title="Screenshot Resources" icon="camera">
+  The server provides access to screenshot resources with URI-based access. 
+
+  example: 
+  ```
+  screenshot://screenshot-name-of-the-screenshot
+  ```
+
+</Card>
+
+## Further Reading
+
+<CardGroup cols={3}>
+<Card title="Model Context Protocol (MCP) Docs" icon="book" href="https://modelcontextprotocol.io/introduction">
+Learn more about the MCP protocol
+</Card>
+
+<Card title="Stagehand Documentation" icon="robot" href="https://docs.stagehand.dev/">
+Explore Stagehand's AI-powered browser automation
+</Card>
+
+<Card title="Support" icon="headset" href="mailto:support@browserbase.com">
+Get help from our support team
+</Card>
+</CardGroup>
