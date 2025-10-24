@@ -1266,10 +1266,12 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      if (!options?.model) {
-        throw new Error("A CUA agent requires a model to be specified.");
-      }
-      const { modelName, isCua, clientOptions } = resolveModel(options.model);
+      const modelToUse = options?.model || {
+        modelName: this.modelName,
+        ...this.modelClientOptions,
+      };
+
+      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
 
       if (!isCua) {
         throw new Error(
