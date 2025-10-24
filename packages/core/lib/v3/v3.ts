@@ -1275,7 +1275,7 @@ export class V3 {
 
       if (!isCua) {
         throw new Error(
-          "To use our computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
+          "To use the computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
             AVAILABLE_CUA_MODELS.join(", "),
         );
       }
