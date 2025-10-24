@@ -1360,14 +1360,16 @@ export class V3 {
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
-      if (!options?.model) {
-        throw new Error("A CUA agent requires a model to be specified.");
-      }
-      const { modelName, isCua, clientOptions } = resolveModel(options.model);
+      const modelToUse = options?.model || {
+        modelName: this.modelName,
+        ...this.modelClientOptions,
+      };
+
+      const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
 
       if (!isCua) {
         throw new Error(
-          "Model is not a CUA model. Try one of the following: " +
+          "To use the computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
             AVAILABLE_CUA_MODELS.join(", "),
         );
       }
@@ -1485,10 +1487,16 @@ export class V3 {
             ? await resolveTools(options.integrations, options.tools)
             : (options?.tools ?? {});
 
+          // Resolve the LLM client for the agent based on the model parameter
+          // Use the agent's model if specified, otherwise fall back to the default
+          const agentLlmClient = options?.model
+            ? this.resolveLlmClient(options.model)
+            : this.llmClient;
+
           const handler = new V3AgentHandler(
             this,
             this.logger,
-            this.llmClient,
+            agentLlmClient,
             typeof options?.executionModel === "string"
               ? options.executionModel
               : options?.executionModel?.modelName,
