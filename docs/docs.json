@@ -1,0 +1,156 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "willow",
+  "name": "🤘 Stagehand",
+  "colors": {
+    "primary": "#B88100",
+    "light": "#FFC83C",
+    "dark": "#FFC83C"
+  },
+  "favicon": "/images/favicon.svg",
+  "seo": {
+    "indexing": "all",
+    "metatags": {
+      "og:type": "website",
+      "og:site_name": "Stagehand Docs"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "First Steps",
+        "pages": [
+          "first-steps/introduction",
+          "first-steps/quickstart",
+          "first-steps/installation",
+          "first-steps/ai-rules"
+        ]
+      },
+      {
+        "group": "The Basics",
+        "pages": [
+          "basics/act",
+          "basics/extract",
+          "basics/observe",
+          "basics/agent"
+        ]
+      },
+      {
+        "group": "Configuration",
+        "pages": [
+          "configuration/browser",
+          "configuration/observability",
+          "configuration/logging",
+          "configuration/models",
+          "configuration/evals"
+        ]
+      },
+      {
+        "group": "Best Practices",
+        "pages": [
+          "best-practices/caching",
+          "best-practices/cost-optimization",
+          "best-practices/using-multiple-tabs",
+          "best-practices/working-with-iframes",
+          "best-practices/deployments",
+          "best-practices/computer-use",
+          "best-practices/contributing",
+          "best-practices/playwright-interop",
+          "best-practices/build-agent",
+          "best-practices/agent-fallbacks",
+          "best-practices/prompting-best-practices",
+          "best-practices/mcp-integrations",
+          "best-practices/speed-optimization"
+        ]
+      },
+      {
+        "group": "Integrations",
+        "pages": [
+          {
+            "group": "MCP Server",
+            "pages": [
+              "integrations/mcp/introduction",
+              "integrations/mcp/setup",
+              "integrations/mcp/tools",
+              "integrations/mcp/configuration"
+            ]
+          },
+          {
+            "group": "CrewAI",
+            "pages": [
+              "integrations/crew-ai/introduction",
+              "integrations/crew-ai/configuration"
+            ]
+          },
+          {
+            "group": "Langchain",
+            "pages": [
+              "integrations/langchain/introduction",
+              "integrations/langchain/configuration"
+            ]
+          },
+          {
+            "group": "Next.js + Vercel",
+            "pages": [
+              "integrations/vercel/introduction",
+              "integrations/vercel/configuration"
+            ]
+          }
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "references/act",
+          "references/extract",
+          "references/observe",
+          "references/agent"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Changelog",
+          "href": "https://github.com/browserbase/stagehand/releases",
+          "icon": "scroll"
+        },
+        {
+          "anchor": "Stagehand by Browserbase",
+          "href": "https://docs.stagehand.dev/first-steps/introduction",
+          "icon": "code"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light_logo.png",
+    "dark": "/logo/dark_logo.png",
+    "href": "https://stagehand.dev"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@browserbase.com"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/stagehanddev",
+      "github": "https://github.com/browserbase/stagehand",
+      "linkedin": "https://linkedin.com/company/browserbasehq",
+      "slack": "https://stagehand.dev/slack"
+    }
+  },
+  "integrations": {
+    "posthog": {
+      "apiKey": "phc_hmwkFrlc9UVrdE1jyG8AEKoCQCSr8dScjsRpKoLBEiV",
+      "apiHost": "https://us.i.posthog.com"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "chatgpt", "claude", "view"]
+  }
+}
