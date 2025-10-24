@@ -19,6 +19,12 @@ import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
+import {
+  executeGoogleCustomTool,
+  isCustomTool,
+  convertToolSetToFunctionDeclarations,
+} from "./utils/googleCustomToolHandler";
+import { ToolSet } from "ai";
 
 /**
  * Client for Google's Computer Use Assistant API
@@ -35,15 +41,17 @@ export class GoogleCUAClient extends AgentClient {
   private environment: "ENVIRONMENT_BROWSER" | "ENVIRONMENT_DESKTOP" =
     "ENVIRONMENT_BROWSER";
   private generateContentConfig: GenerateContentConfig;
-
+  private tools?: ToolSet;
   constructor(
     type: AgentType,
     modelName: string,
     userProvidedInstructions?: string,
     clientOptions?: Record<string, unknown>,
+    tools?: ToolSet,
   ) {
     super(type, modelName, userProvidedInstructions);
 
+    this.tools = tools;
     // Process client options
     this.apiKey =
       (clientOptions?.apiKey as string) || process.env.GEMINI_API_KEY || "";
@@ -61,7 +69,6 @@ export class GoogleCUAClient extends AgentClient {
       this.environment = clientOptions.environment as typeof this.environment;
     }
 
-    // Initialize the generation config (similar to Python's _generate_content_config)
     this.generateContentConfig = {
       temperature: 1,
       topP: 0.95,
@@ -83,6 +90,11 @@ export class GoogleCUAClient extends AgentClient {
     this.clientOptions = {
       apiKey: this.apiKey,
     };
+
+    // Initialize tools if provided
+    if (this.tools && Object.keys(this.tools).length > 0) {
+      this.updateGenerateContentConfig();
+    }
   }
 
   public setViewport(width: number, height: number): void {
@@ -101,8 +113,31 @@ export class GoogleCUAClient extends AgentClient {
     this.actionHandler = handler;
   }
 
-  setTools(): void {
-    // TODO: need to convert and pass custom tools to the client
+  setTools(tools: ToolSet): void {
+    this.tools = tools;
+    this.updateGenerateContentConfig();
+  }
+
+  /**
+   * Update the generateContentConfig with current tools
+   */
+  private updateGenerateContentConfig(): void {
+    const functionDeclarations =
+      this.tools && Object.keys(this.tools).length > 0
+        ? convertToolSetToFunctionDeclarations(this.tools)
+        : [];
+
+    this.generateContentConfig = {
+      ...this.generateContentConfig,
+      tools: [
+        {
+          computerUse: {
+            environment: this.environment,
+          },
+          ...(functionDeclarations.length > 0 ? { functionDeclarations } : {}),
+        } as Tool,
+      ],
+    };
   }
 
   /**
@@ -356,10 +391,7 @@ export class GoogleCUAClient extends AgentClient {
           });
 
           // Special handling for open_web_browser - don't execute it
-          if (
-            action.type === "function" &&
-            action.name === "open_web_browser"
-          ) {
+          if (action.type === "open_web_browser") {
             // Set pageUrl for open_web_browser since it doesn't go through action handler
             action.pageUrl = this.currentUrl;
             logger({
@@ -367,6 +399,31 @@ export class GoogleCUAClient extends AgentClient {
               message: "Skipping open_web_browser action",
               level: 2,
             });
+          } else if (action.type === "custom_tool") {
+            const toolName = action.name as string;
+            const toolArgs = action.arguments as Record<string, unknown>;
+
+            if (this.tools && toolName in this.tools) {
+              const correspondingFunctionCall = result.functionCalls.find(
+                (fc) => fc.name === toolName,
+              );
+
+              if (correspondingFunctionCall) {
+                const executionResult = await executeGoogleCustomTool(
+                  toolName,
+                  toolArgs,
+                  this.tools,
+                  correspondingFunctionCall,
+                  logger,
+                );
+
+                functionResponses.push(executionResult.functionResponse);
+
+                if (!executionResult.success) {
+                  hasError = true;
+                }
+              }
+            }
           } else if (this.actionHandler) {
             try {
               await this.actionHandler(action);
@@ -392,55 +449,62 @@ export class GoogleCUAClient extends AgentClient {
           }
         }
 
-        // Create function responses - one for each function call
+        // Create function responses for computer use actions (non-custom tools)
         // We need exactly one response per function call, regardless of how many actions were generated
         if (result.functionCalls.length > 0 || hasError) {
-          try {
-            logger({
-              category: "agent",
-              message: `Taking screenshot after executing ${result.actions.length} actions${hasError ? " (with errors)" : ""}`,
-              level: 2,
-            });
+          // Filter out custom tool function calls as they've already been handled
+          const computerUseFunctionCalls = result.functionCalls.filter(
+            (fc) => !isCustomTool(fc, this.tools),
+          );
 
-            const screenshot = await this.captureScreenshot();
-            const base64Data = screenshot.replace(
-              /^data:image\/png;base64,/,
-              "",
-            );
+          if (computerUseFunctionCalls.length > 0) {
+            try {
+              logger({
+                category: "agent",
+                message: `Taking screenshot after executing ${result.actions.length} actions${hasError ? " (with errors)" : ""}`,
+                level: 2,
+              });
 
-            // Create one function response for each function call
-            // Following Python SDK pattern: FunctionResponse with parts containing inline_data
-            for (const functionCall of result.functionCalls) {
-              const functionResponsePart: Part = {
-                functionResponse: {
-                  name: functionCall.name,
-                  response: {
-                    url: this.currentUrl || "",
-                    // Acknowledge safety decision for evals
-                    ...(functionCall.args?.safety_decision
-                      ? {
-                          safety_acknowledgement: "true",
-                        }
-                      : {}),
-                  },
-                  parts: [
-                    {
-                      inlineData: {
-                        mimeType: "image/png",
-                        data: base64Data,
-                      },
+              const screenshot = await this.captureScreenshot();
+              const base64Data = screenshot.replace(
+                /^data:image\/png;base64,/,
+                "",
+              );
+
+              // Create one function response for each computer use function call
+              // Following Python SDK pattern: FunctionResponse with parts containing inline_data
+              for (const functionCall of computerUseFunctionCalls) {
+                const functionResponsePart: Part = {
+                  functionResponse: {
+                    name: functionCall.name,
+                    response: {
+                      url: this.currentUrl || "",
+                      // Acknowledge safety decision for evals
+                      ...(functionCall.args?.safety_decision
+                        ? {
+                            safety_acknowledgement: "true",
+                          }
+                        : {}),
                     },
-                  ],
-                },
-              };
-              functionResponses.push(functionResponsePart);
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType: "image/png",
+                          data: base64Data,
+                        },
+                      },
+                    ],
+                  },
+                };
+                functionResponses.push(functionResponsePart);
+              }
+            } catch (error) {
+              logger({
+                category: "agent",
+                message: `Error capturing screenshot: ${error}`,
+                level: 0,
+              });
             }
-          } catch (error) {
-            logger({
-              category: "agent",
-              message: `Error capturing screenshot: ${error}`,
-              level: 0,
-            });
           }
         }
 
@@ -622,9 +686,7 @@ export class GoogleCUAClient extends AgentClient {
     switch (name) {
       case "open_web_browser":
         return {
-          type: "function",
-          name: "open_web_browser",
-          arguments: null,
+          type: "open_web_browser",
           timestamp: Date.now(),
         };
 
@@ -717,29 +779,24 @@ export class GoogleCUAClient extends AgentClient {
 
       case "navigate":
         return {
-          type: "function",
-          name: "goto",
-          arguments: { url: args.url as string },
+          type: "goto",
+          url: args.url as string,
         };
 
       case "go_back":
         return {
-          type: "function",
-          name: "back",
-          arguments: null,
+          type: "back",
         };
 
       case "go_forward":
         return {
-          type: "function",
-          name: "forward",
-          arguments: null,
+          type: "forward",
         };
 
       case "wait_5_seconds":
         return {
           type: "wait",
-          milliseconds: 5000, // Google CUA waits for 5 seconds
+          timeMs: 5000, // Google CUA waits for 5 seconds
         };
 
       case "hover_at": {
@@ -756,9 +813,8 @@ export class GoogleCUAClient extends AgentClient {
 
       case "search":
         return {
-          type: "function",
-          name: "goto",
-          arguments: { url: "https://www.google.com" },
+          type: "goto",
+          url: "https://www.google.com",
         };
 
       case "drag_and_drop": {
@@ -780,6 +836,15 @@ export class GoogleCUAClient extends AgentClient {
       }
 
       default:
+        if (isCustomTool(functionCall, this.tools)) {
+          return {
+            type: "custom_tool",
+            name,
+            arguments: args,
+            timestamp: Date.now(),
+            pageUrl: this.currentUrl,
+          };
+        }
         console.warn(`Unsupported Google CUA function: ${name}`);
         return null;
     }

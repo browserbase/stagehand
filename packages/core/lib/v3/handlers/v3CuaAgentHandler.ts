@@ -370,6 +370,43 @@ export class V3CuaAgentHandler {
         // Already handled around actions
         return { success: true };
       }
+      case "goto": {
+        const { url } = action;
+        await page.goto(String(url ?? ""), { waitUntil: "load" });
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "goto",
+            url: String(url ?? ""),
+          });
+        }
+        return { success: true };
+      }
+      case "back": {
+        await page.goBack();
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "back",
+          });
+        }
+        return { success: true };
+      }
+      case "forward": {
+        await page.goForward();
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "forward",
+          });
+        }
+        return { success: true };
+      }
+      case "open_web_browser": {
+        // Browser is already open, this is a no-op
+        return { success: true };
+      }
+      case "custom_tool": {
+        // Custom tools are handled by the agent client directly
+        return { success: true };
+      }
       default:
         this.logger({
           category: "agent",
