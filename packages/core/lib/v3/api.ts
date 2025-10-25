@@ -119,6 +119,7 @@ export class StagehandAPIClient {
     };
     // Only include options if it has properties (excluding page)
     if (options) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
         args.options = restOptions;
@@ -146,6 +147,7 @@ export class StagehandAPIClient {
     };
     // Only include options if it has properties (excluding page)
     if (options) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
         args.options = restOptions;
@@ -169,6 +171,7 @@ export class StagehandAPIClient {
     };
     // Only include options if it has properties (excluding page)
     if (options) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { page: _, ...restOptions } = options;
       if (Object.keys(restOptions).length > 0) {
         args.options = restOptions;
@@ -205,6 +208,7 @@ export class StagehandAPIClient {
     }
     if (typeof executeOptions === "object") {
       if (executeOptions.page) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { page: _, ...restOptions } = executeOptions;
         executeOptions = restOptions;
       }
@@ -256,7 +260,9 @@ export class StagehandAPIClient {
       const { value, done } = await reader.read();
 
       if (done && !buffer) {
-        return null;
+        throw new StagehandServerError(
+          "Stream ended without completion signal",
+        );
       }
 
       buffer += decoder.decode(value, { stream: true });
@@ -280,14 +286,46 @@ export class StagehandAPIClient {
             this.logger(eventData.data.message);
           }
         } catch (e) {
-          console.error("Error parsing event data:", e);
+          // Don't catch and re-throw StagehandServerError
+          if (e instanceof StagehandServerError) {
+            throw e;
+          }
+
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          this.logger({
+            category: "api",
+            message: `Failed to parse SSE event: ${errorMessage}`,
+            level: 0,
+          });
           throw new StagehandResponseParseError(
-            "Failed to parse server response",
+            `Failed to parse server response: ${errorMessage}`,
           );
         }
       }
 
-      if (done) break;
+      if (done) {
+        // Process any remaining data in buffer before exiting
+        if (buffer.trim() && buffer.startsWith("data: ")) {
+          try {
+            const eventData = JSON.parse(buffer.slice(6));
+            if (
+              eventData.type === "system" &&
+              eventData.data.status === "finished"
+            ) {
+              return eventData.data.result as T;
+            }
+          } catch {
+            this.logger({
+              category: "api",
+              message: `Incomplete data in final buffer: ${buffer.substring(0, 100)}`,
+              level: 0,
+            });
+          }
+        }
+        throw new StagehandServerError(
+          "Stream ended without completion signal",
+        );
+      }
     }
   }
 

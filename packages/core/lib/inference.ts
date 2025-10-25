@@ -393,8 +393,7 @@ export async function act({
           "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
         ),
     ),
-    twoStep: z
-      .boolean(),
+    twoStep: z.boolean(),
   });
 
   type ActResponse = z.infer<typeof actSchema>;
