@@ -29,7 +29,7 @@ export interface Action {
 }
 
 export interface HistoryEntry {
-  method: "act" | "extract" | "observe" | "navigate";
+  method: "act" | "extract" | "observe" | "navigate" | "agent";
   parameters: unknown;
   result: unknown;
   timestamp: string;

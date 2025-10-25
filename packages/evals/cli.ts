@@ -501,6 +501,25 @@ function handleRun(args: string[]): void {
     child.on("exit", (code) => {
       process.exit(code || 0);
     });
+
+    // Forward SIGINT (Ctrl+C) and SIGTERM to child process
+    process.on("SIGINT", () => {
+      console.log("\n\nReceived SIGINT, killing child process...");
+      child.kill("SIGINT");
+      setTimeout(() => {
+        child.kill("SIGKILL");
+        process.exit(130);
+      }, 1000);
+    });
+
+    process.on("SIGTERM", () => {
+      console.log("\n\nReceived SIGTERM, killing child process...");
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        child.kill("SIGKILL");
+        process.exit(143);
+      }, 1000);
+    });
   });
 }
 
