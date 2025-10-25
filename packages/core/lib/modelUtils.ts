@@ -26,7 +26,8 @@ export function resolveModel(model: string | ModelConfiguration): {
     typeof model === "string"
       ? {}
       : (() => {
-          const { modelName, ...rest } = model;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { modelName: _, ...rest } = model;
           return rest;
         })();
 

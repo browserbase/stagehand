@@ -63,6 +63,7 @@ import {
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
+import { StagehandAPIClient } from "./api";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -136,7 +137,7 @@ export class V3 {
   };
   public readonly experimental: boolean = false;
   public readonly logInferenceToFile: boolean = false;
-
+  public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
   private _history: Array<HistoryEntry> = [];
@@ -146,6 +147,7 @@ export class V3 {
   private cacheStorage: CacheStorage;
   private actCache: ActCache;
   private agentCache: AgentCache;
+  private apiClient: StagehandAPIClient | null = null;
 
   public v3Metrics: V3Metrics = {
     actPromptTokens: 0,
@@ -164,6 +166,87 @@ export class V3 {
     totalCompletionTokens: 0,
     totalInferenceTimeMs: 0,
   };
+
+  constructor(opts: V3Options) {
+    V3._installProcessGuards();
+    this.externalLogger = opts.logger;
+    this.verbose = opts.verbose ?? 1;
+    this.instanceId =
+      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
+      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    // Initialize the global v3 logger (fire-and-forget)
+    void initV3Logger({
+      verbose: this.verbose,
+      disablePino: opts.disablePino,
+      pretty: true,
+    });
+    if (this.externalLogger) {
+      try {
+        bindInstanceLogger(this.instanceId, this.externalLogger);
+      } catch {
+        // ignore
+      }
+    }
+    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
+    this.modelName = modelName;
+    this.experimental = opts.experimental ?? false;
+    this.logInferenceToFile = opts.logInferenceToFile ?? false;
+    this.llmProvider = new LLMProvider(this.logger);
+    this.domSettleTimeoutMs = opts.domSettleTimeout;
+    this.disableAPI = opts.disableAPI ?? true;
+    const baseClientOptions: ClientOptions = clientOptions
+      ? ({ ...clientOptions } as ClientOptions)
+      : ({} as ClientOptions);
+    if (opts.llmClient) {
+      this.llmClient = opts.llmClient;
+      this.modelClientOptions = baseClientOptions;
+    } else {
+      // Ensure API key is set
+      let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
+      if (!apiKey) {
+        apiKey = loadApiKeyFromEnv(
+          this.modelName.split("/")[0], // "openai", "anthropic", etc
+          this.logger,
+        );
+      }
+      this.modelClientOptions = {
+        ...baseClientOptions,
+        apiKey,
+      } as ClientOptions;
+
+      // Get the default client for this model
+      this.llmClient = this.llmProvider.getClient(
+        this.modelName,
+        this.modelClientOptions,
+      );
+    }
+
+    this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
+      label: "cache directory",
+    });
+    this.actCache = new ActCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+    });
+    this.agentCache = new AgentCache({
+      storage: this.cacheStorage,
+      logger: this.logger,
+      getActHandler: () => this.actHandler,
+      getContext: () => this.ctx,
+      getDefaultLlmClient: () => this.resolveLlmClient(),
+      getBaseModelName: () => this.modelName,
+      getSystemPrompt: () => opts.systemPrompt,
+      domSettleTimeoutMs: this.domSettleTimeoutMs,
+      act: this.act.bind(this),
+    });
+
+    this.opts = opts;
+    // Track instance for global process guard handling
+    V3._instances.add(this);
+  }
 
   /**
    * Async property for metrics so callers can `await v3.metrics`.
@@ -320,86 +403,6 @@ export class V3 {
     this.v3Metrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
-  constructor(opts: V3Options) {
-    V3._installProcessGuards();
-    this.externalLogger = opts.logger;
-    this.verbose = opts.verbose ?? 1;
-    this.instanceId =
-      (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
-      `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-    // Initialize the global v3 logger (fire-and-forget)
-    void initV3Logger({
-      verbose: this.verbose,
-      disablePino: opts.disablePino,
-      pretty: true,
-    });
-    if (this.externalLogger) {
-      try {
-        bindInstanceLogger(this.instanceId, this.externalLogger);
-      } catch {
-        // ignore
-      }
-    }
-    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
-    this.modelName = modelName;
-    this.experimental = opts.experimental ?? false;
-    this.logInferenceToFile = opts.logInferenceToFile ?? false;
-    this.llmProvider = new LLMProvider(this.logger);
-    this.domSettleTimeoutMs = opts.domSettleTimeout;
-    const baseClientOptions: ClientOptions = clientOptions
-      ? ({ ...clientOptions } as ClientOptions)
-      : ({} as ClientOptions);
-    if (opts.llmClient) {
-      this.llmClient = opts.llmClient;
-      this.modelClientOptions = baseClientOptions;
-    } else {
-      // Ensure API key is set
-      let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
-      if (!apiKey) {
-        apiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0], // "openai", "anthropic", etc
-          this.logger,
-        );
-      }
-      this.modelClientOptions = {
-        ...baseClientOptions,
-        apiKey,
-      } as ClientOptions;
-
-      // Get the default client for this model
-      this.llmClient = this.llmProvider.getClient(
-        this.modelName,
-        this.modelClientOptions,
-      );
-    }
-
-    this.cacheStorage = CacheStorage.create(opts.cacheDir, this.logger, {
-      label: "cache directory",
-    });
-    this.actCache = new ActCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-    });
-    this.agentCache = new AgentCache({
-      storage: this.cacheStorage,
-      logger: this.logger,
-      getActHandler: () => this.actHandler,
-      getContext: () => this.ctx,
-      getDefaultLlmClient: () => this.resolveLlmClient(),
-      getBaseModelName: () => this.modelName,
-      getSystemPrompt: () => opts.systemPrompt,
-      domSettleTimeoutMs: this.domSettleTimeoutMs,
-      act: this.act.bind(this),
-    });
-
-    this.opts = opts;
-    // Track instance for global process guard handling
-    V3._instances.add(this);
-  }
-
   private async _immediateShutdown(reason: string): Promise<void> {
     try {
       this.logger({
@@ -458,6 +461,12 @@ export class V3 {
         message: "SIGINT: initiating shutdown",
         level: 0,
       });
+      for (const instance of V3._instances) {
+        if (instance.apiClient) {
+          void instance.apiClient.end();
+          return;
+        }
+      }
       void shutdownAllImmediate("signal SIGINT");
       void exitAfter("SIGINT");
     });
@@ -467,6 +476,12 @@ export class V3 {
         message: "SIGTERM: initiating shutdown",
         level: 0,
       });
+      for (const instance of V3._instances) {
+        if (instance.apiClient) {
+          void instance.apiClient.end();
+          return;
+        }
+      }
       void shutdownAllImmediate("signal SIGTERM");
       void exitAfter("SIGTERM");
     });
@@ -503,7 +518,7 @@ export class V3 {
         (model) => this.resolveLlmClient(model),
         this.opts.systemPrompt ?? "",
         this.logInferenceToFile,
-        this.opts.selfHeal ?? false,
+        this.opts.selfHeal ?? true,
         (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
           this.updateMetrics(
             functionName,
@@ -664,6 +679,57 @@ export class V3 {
 
       if (this.opts.env === "BROWSERBASE") {
         const { apiKey, projectId } = this.requireBrowserbaseCreds();
+        if (!apiKey || !projectId) {
+          throw new Error(
+            "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
+          );
+        }
+        if (!this.disableAPI && !this.experimental) {
+          this.apiClient = new StagehandAPIClient({
+            apiKey,
+            projectId,
+            logger: this.logger,
+          });
+          this.logger({
+            category: "init",
+            message: "Starting browserbase session",
+            level: 1,
+          });
+          const createSessionPayload = {
+            projectId:
+              this.opts.browserbaseSessionCreateParams?.projectId ?? projectId,
+            ...this.opts.browserbaseSessionCreateParams,
+            browserSettings: {
+              ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
+                {}),
+              viewport: this.opts.browserbaseSessionCreateParams
+                ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+            },
+            userMetadata: {
+              ...(this.opts.browserbaseSessionCreateParams?.userMetadata ?? {}),
+              stagehand: "true",
+            },
+          };
+          const { sessionId, available } = await this.apiClient.init({
+            modelName: this.modelName,
+            modelApiKey: this.modelClientOptions.apiKey,
+            domSettleTimeoutMs: this.domSettleTimeoutMs,
+            verbose: this.verbose,
+            systemPrompt: this.opts.systemPrompt,
+            selfHeal: this.opts.selfHeal,
+            browserbaseSessionCreateParams: createSessionPayload,
+            browserbaseSessionID: this.opts.browserbaseSessionID,
+          });
+          if (!available) {
+            this.apiClient = null;
+          }
+          this.logger({
+            category: "init",
+            message: "Browserbase session started",
+            level: 1,
+          });
+          this.opts.browserbaseSessionID = sessionId;
+        }
         const { ws, sessionId, bb } = await createBrowserbaseSession(
           apiKey,
           projectId,
@@ -672,6 +738,7 @@ export class V3 {
         );
         this.ctx = await V3Context.create(ws, {
           env: "BROWSERBASE",
+          apiClient: this.apiClient,
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
@@ -776,18 +843,29 @@ export class V3 {
       if (!this.actHandler)
         throw new Error("V3 not initialized. Call init() before act().");
 
+      let actResult: ActResult;
+
       if (isObserveResult(input)) {
         // Resolve page: use provided page if any, otherwise default active page
         const v3Page = await this.resolvePage(options?.page);
 
         // Use selector as provided to support XPath, CSS, and other engines
         const selector = input.selector;
-        const actResult = await this.actHandler.actFromObserveResult(
-          { ...input, selector }, // ObserveResult
-          v3Page, // V3 Page
-          this.domSettleTimeoutMs,
-          this.resolveLlmClient(options?.model),
-        );
+        if (this.apiClient) {
+          actResult = await this.apiClient.act({
+            input,
+            options,
+            frameId: v3Page.mainFrameId(),
+          });
+        } else {
+          actResult = await this.actHandler.actFromObserveResult(
+            { ...input, selector }, // ObserveResult
+            v3Page, // V3 Page
+            this.domSettleTimeoutMs,
+            this.resolveLlmClient(options?.model),
+          );
+        }
+
         // history: record ObserveResult-based act call
         this.addToHistory(
           "act",
@@ -850,7 +928,12 @@ export class V3 {
         timeout: options?.timeout,
         model: options?.model,
       };
-      const actResult = await this.actHandler.act(handlerParams);
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        actResult = await this.apiClient.act({ input, options, frameId });
+      } else {
+        actResult = await this.actHandler.act(handlerParams);
+      }
       // history: record instruction-based act call (omit page object)
       this.addToHistory(
         "act",
@@ -951,21 +1034,18 @@ export class V3 {
         selector: options?.selector,
         page,
       };
-
-      const result =
-        await this.extractHandler.extract<ZodTypeAny>(handlerParams);
-
-      // history: record extract call (omit page object and raw schema instance)
-      this.addToHistory(
-        "extract",
-        {
-          instruction,
-          hasSchema: Boolean(effectiveSchema),
-          timeout: options?.timeout,
-          selector: options?.selector,
-        },
-        result,
-      );
+      let result: z.infer<typeof effectiveSchema> | { pageText: string };
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        result = await this.apiClient.extract({
+          instruction: handlerParams.instruction,
+          schema: handlerParams.schema,
+          options,
+          frameId,
+        });
+      } else {
+        result = await this.extractHandler.extract<ZodTypeAny>(handlerParams);
+      }
       return result;
     });
   }
@@ -1006,10 +1086,21 @@ export class V3 {
         model: options?.model,
         timeout: options?.timeout,
         selector: options?.selector,
-        page,
+        page: page!,
       };
 
-      const results = await this.observeHandler.observe(handlerParams);
+      let results: Action[];
+      if (this.apiClient) {
+        const frameId = page.mainFrameId();
+        results = await this.apiClient.observe({
+          instruction,
+          options,
+          frameId,
+        });
+      } else {
+        results = await this.observeHandler.observe(handlerParams);
+      }
+
       // history: record observe call (omit page object)
       this.addToHistory(
         "observe",
@@ -1038,6 +1129,9 @@ export class V3 {
 
   /** Best-effort cleanup of context and launched resources. */
   async close(opts?: { force?: boolean }): Promise<void> {
+    if (this.apiClient) {
+      await this.apiClient.end();
+    }
     // If we're already closing and this isn't a forced close, no-op.
     if (this._isClosing && !opts?.force) return;
     this._isClosing = true;
@@ -1344,8 +1438,18 @@ export class V3 {
               this.beginAgentReplayRecording();
             }
 
+            let result: AgentResult;
             try {
-              const result = await handler.execute(instructionOrOptions);
+              if (this.apiClient && !this.experimental) {
+                const page = await this.ctx!.awaitActivePage();
+                result = await this.apiClient.agentExecute(
+                  options,
+                  resolvedOptions,
+                  page.mainFrameId(),
+                );
+              } else {
+                result = await handler.execute(instructionOrOptions);
+              }
               if (recording) {
                 agentSteps = this.endAgentReplayRecording();
               }
@@ -1436,9 +1540,19 @@ export class V3 {
           if (recording) {
             this.beginAgentReplayRecording();
           }
+          let result: AgentResult;
 
           try {
-            const result = await handler.execute(instructionOrOptions);
+            if (this.apiClient && !this.experimental) {
+              const page = await this.ctx!.awaitActivePage();
+              result = await this.apiClient.agentExecute(
+                options,
+                resolvedOptions,
+                page.mainFrameId(),
+              );
+            } else {
+              result = await handler.execute(instructionOrOptions);
+            }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
             }
