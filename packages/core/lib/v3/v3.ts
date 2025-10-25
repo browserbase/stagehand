@@ -645,6 +645,7 @@ export class V3 {
         });
         this.ctx = await V3Context.create(ws, {
           env: "LOCAL",
+          localBrowserLaunchOptions: lbo,
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = {
@@ -738,7 +739,7 @@ export class V3 {
         const page = await this.ctx!.awaitActivePage();
         await page
           .setViewportSize(lbo.viewport.width, lbo.viewport.height, {
-            deviceScaleFactor: lbo.deviceScaleFactor,
+            deviceScaleFactor: lbo.deviceScaleFactor ?? 1,
           })
           .catch(() => {});
       }
