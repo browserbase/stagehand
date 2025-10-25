@@ -6,6 +6,7 @@ import { Page } from "./page";
 import { installV3PiercerIntoSession } from "./piercer";
 import { executionContexts } from "./executionContextRegistry";
 import type { StagehandAPIClient } from "../api";
+import { LocalBrowserLaunchOptions } from "../types/public";
 
 type TargetId = string;
 type SessionId = string;
@@ -33,6 +34,7 @@ export class V3Context {
     readonly conn: CdpConnection,
     private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
     private readonly apiClient: StagehandAPIClient | null = null,
+    private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
   ) {}
 
   private readonly _piercerInstalled = new Set<string>();
@@ -61,6 +63,7 @@ export class V3Context {
     opts?: {
       env?: "LOCAL" | "BROWSERBASE";
       apiClient?: StagehandAPIClient | null;
+      localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
     },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
@@ -69,6 +72,7 @@ export class V3Context {
       conn,
       opts?.env ?? "LOCAL",
       opts?.apiClient ?? null,
+      opts?.localBrowserLaunchOptions ?? null,
     );
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
@@ -361,6 +365,7 @@ export class V3Context {
         session,
         info.targetId,
         this.apiClient,
+        this.localBrowserLaunchOptions,
       );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
