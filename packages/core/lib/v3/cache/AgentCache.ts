@@ -306,6 +306,11 @@ export class AgentCache {
         await this.executeAgentReplayStep(step, ctx, handler);
       }
       const result = cloneForCache(entry.result);
+      result.usage = {
+        input_tokens: 0,
+        output_tokens: 0,
+        inference_time_ms: 0,
+      };
       result.metadata = {
         ...(result.metadata ?? {}),
         cacheHit: true,
