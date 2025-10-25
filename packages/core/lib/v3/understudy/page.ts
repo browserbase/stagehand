@@ -11,7 +11,7 @@ import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import type { StagehandAPIClient } from "../api";
-
+import type { LocalBrowserLaunchOptions } from "../types/public";
 /**
  * Page
  *
@@ -189,6 +189,7 @@ export class Page {
     session: CDPSessionLike,
     targetId: string,
     apiClient?: StagehandAPIClient | null,
+    localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -203,6 +204,16 @@ export class Page {
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+      if (localBrowserLaunchOptions?.viewport) {
+        page.setViewportSize(
+          localBrowserLaunchOptions?.viewport?.width,
+          localBrowserLaunchOptions?.viewport?.height,
+          {
+            deviceScaleFactor:
+              localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+          },
+        );
+      }
     } catch {
       // ignore
     }
