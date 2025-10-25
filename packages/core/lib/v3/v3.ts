@@ -660,6 +660,7 @@ export class V3 {
         });
         this.ctx = await V3Context.create(ws, {
           env: "LOCAL",
+          localBrowserLaunchOptions: lbo,
         });
         this.ctx.conn.onTransportClosed(this._onCdpClosed);
         this.state = {
@@ -796,16 +797,6 @@ export class V3 {
             behavior,
             downloadPath: lbo.downloadsPath,
             eventsEnabled: true,
-          })
-          .catch(() => {});
-      }
-
-      // Viewport
-      if (lbo.viewport) {
-        const page = await this.ctx!.awaitActivePage();
-        await page
-          .setViewportSize(lbo.viewport.width, lbo.viewport.height, {
-            deviceScaleFactor: lbo.deviceScaleFactor,
           })
           .catch(() => {});
       }
