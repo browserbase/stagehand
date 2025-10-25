@@ -101,10 +101,10 @@ export async function resolveXpathForLocation(
           .catch(() => {});
         const evalParams = ctxId
           ? {
-            contextId: ctxId,
-            expression: scrollOffsetsExpr(),
-            returnByValue: true,
-          }
+              contextId: ctxId,
+              expression: scrollOffsetsExpr(),
+              returnByValue: true,
+            }
           : { expression: scrollOffsetsExpr(), returnByValue: true };
         const { result } = await curSession.send<{
           result: { value?: { sx?: number; sy?: number } };
@@ -253,10 +253,10 @@ export async function computeActiveElementXpath(
         .catch(() => {});
       const evalParams = ctxId
         ? {
-          contextId: ctxId,
-          expression: "document.hasFocus()===true",
-          returnByValue: true,
-        }
+            contextId: ctxId,
+            expression: "document.hasFocus()===true",
+            returnByValue: true,
+          }
         : { expression: "document.hasFocus()===true", returnByValue: true };
       const { result } = await sess.send<Protocol.Runtime.EvaluateResponse>(
         "Runtime.evaluate",
