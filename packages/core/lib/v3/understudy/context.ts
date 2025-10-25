@@ -365,6 +365,7 @@ export class V3Context {
         session,
         info.targetId,
         this.apiClient,
+        this.localBrowserLaunchOptions,
       );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);

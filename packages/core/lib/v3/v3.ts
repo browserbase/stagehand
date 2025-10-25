@@ -800,16 +800,6 @@ export class V3 {
           })
           .catch(() => {});
       }
-
-      // Viewport
-      if (lbo.viewport) {
-        const page = await this.ctx!.awaitActivePage();
-        await page
-          .setViewportSize(lbo.viewport.width, lbo.viewport.height, {
-            deviceScaleFactor: lbo.deviceScaleFactor ?? 1,
-          })
-          .catch(() => {});
-      }
     } catch {
       // best-effort only
     }

@@ -205,12 +205,11 @@ export class Page {
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
       if (localBrowserLaunchOptions?.viewport) {
-        page.setViewportSize(
-          localBrowserLaunchOptions?.viewport?.width,
-          localBrowserLaunchOptions?.viewport?.height,
+        await page.setViewportSize(
+          localBrowserLaunchOptions.viewport.width,
+          localBrowserLaunchOptions.viewport.height,
           {
-            deviceScaleFactor:
-              localBrowserLaunchOptions?.deviceScaleFactor ?? 1,
+            deviceScaleFactor: localBrowserLaunchOptions.deviceScaleFactor ?? 1,
           },
         );
       }
