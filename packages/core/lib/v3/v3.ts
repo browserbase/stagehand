@@ -6,6 +6,7 @@ import process from "process";
 import type { ZodTypeAny } from "zod/v3";
 import { z } from "zod/v3";
 import { loadApiKeyFromEnv } from "../utils";
+import { StagehandLogger } from "../logger";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
 import { CacheStorage } from "./cache/CacheStorage";
@@ -20,7 +21,6 @@ import { LLMClient } from "./llm/LLMClient";
 import { LLMProvider } from "./llm/LLMProvider";
 import {
   bindInstanceLogger,
-  initV3Logger,
   unbindInstanceLogger,
   v3Logger,
   withInstanceLogContext,
@@ -140,6 +140,7 @@ export class V3 {
   public readonly disableAPI: boolean = false;
   private externalLogger?: (logLine: LogLine) => void;
   public verbose: 0 | 1 | 2 = 1;
+  private stagehandLogger: StagehandLogger;
   private _history: Array<HistoryEntry> = [];
   private readonly instanceId: string;
   private static _processGuardsInstalled = false;
@@ -174,8 +175,22 @@ export class V3 {
     this.instanceId =
       (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
       `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-    // Logger initialization will be awaited in init() to prevent race condition
-    // The cached promise pattern ensures only the first V3 instance pays the initialization cost
+
+    // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
+    // This gives each V3 instance independent logger configuration
+    // while still sharing the underlying Pino worker thread via StagehandLogger.sharedPinoLogger
+    this.stagehandLogger = new StagehandLogger(
+      {
+        usePino: !opts.disablePino,
+        pretty: true,
+        level: "info", // Most permissive - filtering happens at instance level
+      },
+      opts.logger,
+    );
+    this.stagehandLogger.setVerbosity(this.verbose);
+
+    // Also bind to AsyncLocalStorage for v3Logger() calls from handlers
+    // This maintains backward compatibility with code that uses v3Logger() directly
     if (this.externalLogger) {
       try {
         bindInstanceLogger(this.instanceId, this.externalLogger);
@@ -506,14 +521,6 @@ export class V3 {
    * and sets up a CDP context.
    */
   async init(): Promise<void> {
-    // Initialize logger first to prevent race condition with early logs
-    // Uses cached promise pattern - first instance waits, subsequent instances return immediately
-    await initV3Logger({
-      verbose: this.verbose,
-      disablePino: this.opts.disablePino,
-      pretty: true,
-    });
-
     return await withInstanceLogContext(this.instanceId, async () => {
       this.actHandler = new ActHandler(
         this.llmClient,
@@ -1229,19 +1236,12 @@ export class V3 {
   }
 
   public get logger(): (logLine: LogLine) => void {
+    // Delegate to per-instance StagehandLogger
+    // StagehandLogger handles: verbosity filtering, usePino selection, external logger routing
+    // This provides per-instance configuration while maintaining shared Pino optimization
     return (logLine: LogLine) => {
-      const fn = this.externalLogger;
       const line = { ...logLine, level: logLine.level ?? 1 };
-      if (typeof fn === "function") {
-        try {
-          fn(line);
-          return;
-        } catch {
-          // fall through to no-op
-        }
-      }
-      // Fallback to global v3 logger so console/Pino still receive logs
-      v3Logger(line);
+      this.stagehandLogger.log(line);
     };
   }
 

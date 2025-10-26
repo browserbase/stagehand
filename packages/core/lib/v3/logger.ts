@@ -137,17 +137,37 @@ export async function initV3Logger(
         const print = (line: LogLine) => {
           const ts = line.timestamp ?? new Date().toISOString();
           const cat = line.category ?? "log";
-          const aux = line.auxiliary
-            ? ` ${JSON.stringify(line.auxiliary)}`
-            : "";
-          const msg = `${ts}::[v3:${cat}] ${line.message}${aux}`;
           const lvl = line.level ?? 1;
+          const levelStr = lvl === 0 ? "ERROR" : lvl === 2 ? "DEBUG" : "INFO";
+
+          // Format like Pino: [timestamp] LEVEL: message
+          let output = `[${ts}] ${levelStr}: ${line.message}`;
+
+          // Add auxiliary data on separate indented lines (like Pino pretty format)
+          if (line.auxiliary) {
+            for (const [key, { value, type }] of Object.entries(line.auxiliary)) {
+              let formattedValue = value;
+              if (type === "object") {
+                try {
+                  // Pretty print objects with indentation
+                  formattedValue = JSON.stringify(JSON.parse(value), null, 2)
+                    .split('\n')
+                    .map((line, i) => i === 0 ? line : `    ${line}`)
+                    .join('\n');
+                } catch {
+                  formattedValue = value;
+                }
+              }
+              output += `\n    ${key}: ${formattedValue}`;
+            }
+          }
+
           if (lvl === 0) {
-            console.error(msg);
+            console.error(output);
           } else if (lvl === 2) {
-            (console.debug ?? console.log)(msg);
+            (console.debug ?? console.log)(output);
           } else {
-            console.log(msg);
+            console.log(output);
           }
         };
 

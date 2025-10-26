@@ -149,17 +149,40 @@ export class StagehandLogger {
 
     if (shouldFallbackToConsole) {
       const level = logLine.level ?? 1;
-      const prefix = `[${logLine.category || "log"}] `;
+      const ts = logLine.timestamp ?? new Date().toISOString();
+      const cat = logLine.category || "log";
+      const levelStr = level === 0 ? "ERROR" : level === 2 ? "DEBUG" : "INFO";
+
+      // Format like Pino: [timestamp] LEVEL: message
+      let output = `[${ts}] ${levelStr}: ${logLine.message}`;
+
+      // Add auxiliary data on separate indented lines (like Pino pretty format)
+      if (logLine.auxiliary) {
+        const formattedData = this.formatAuxiliaryData(logLine.auxiliary);
+        for (const [key, value] of Object.entries(formattedData)) {
+          let formattedValue: string;
+          if (typeof value === "object" && value !== null) {
+            // Pretty print objects with indentation
+            formattedValue = JSON.stringify(value, null, 2)
+              .split('\n')
+              .map((line, i) => i === 0 ? line : `    ${line}`)
+              .join('\n');
+          } else {
+            formattedValue = String(value);
+          }
+          output += `\n    ${key}: ${formattedValue}`;
+        }
+      }
 
       switch (level) {
         case 0:
-          console.error(prefix + logLine.message);
+          console.error(output);
           break;
         case 1:
-          console.log(prefix + logLine.message);
+          console.log(output);
           break;
         case 2:
-          console.debug(prefix + logLine.message);
+          console.debug(output);
           break;
       }
 
