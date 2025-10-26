@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
 import {
-  initV3Logger,
-  getV3Logger,
-  setV3Verbosity,
   bindInstanceLogger,
   unbindInstanceLogger,
   withInstanceLogContext,
@@ -10,331 +7,75 @@ import {
 } from "../logger";
 import type { LogLine } from "../types/public/logs";
 
-test.describe("V3 Logger Initialization", () => {
-  test.beforeEach(async () => {
-    // Note: Since the logger is a global singleton with cached initialization,
-    // we can't fully reset it between tests. Tests should be written to be
-    // independent and not rely on uninitialized state.
-  });
-
-  test("initV3Logger is idempotent and returns same promise", async () => {
-    // Call init multiple times in rapid succession
-    const promises = [
-      initV3Logger({ verbose: 1, disablePino: true }),
-      initV3Logger({ verbose: 2, disablePino: false }), // Different options should be ignored
-      initV3Logger({ verbose: 0, disablePino: true }),
-    ];
-
-    // All promises should resolve successfully
-    await Promise.all(promises);
-
-    // Get the logger instance
-    const logger = getV3Logger();
-    expect(logger).toBeDefined();
-    expect(logger.log).toBeDefined();
-    expect(logger.setVerbosity).toBeDefined();
-  });
-
-  test("concurrent initV3Logger calls don't cause race conditions", async () => {
-    // Simulate multiple V3 instances being created at the same time
-    const concurrentInitCount = 10;
-    const promises: Promise<void>[] = [];
-
-    for (let i = 0; i < concurrentInitCount; i++) {
-      promises.push(
-        initV3Logger({
-          verbose: (i % 3) as 0 | 1 | 2,
-          disablePino: true,
-        }),
-      );
-    }
-
-    // All should complete without throwing
-    await expect(Promise.all(promises)).resolves.toBeDefined();
-
-    // Logger should be functional
-    const logger = getV3Logger();
-    expect(logger).toBeDefined();
-
-    // Should be able to log without errors
-    expect(() => {
-      logger.log({
-        category: "test",
-        message: "Test message",
-        level: 1,
-      });
-    }).not.toThrow();
-  });
-
-  test("logger works with disablePino: true (console fallback)", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-    const logger = getV3Logger();
-
-    const testMessages: LogLine[] = [];
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-
-    try {
-      // Capture console output
-      console.log = (...args: unknown[]) => {
-        testMessages.push({
-          category: "log",
-          message: String(args[0]),
-          level: 1,
-        });
-      };
-      console.error = (...args: unknown[]) => {
-        testMessages.push({
-          category: "log",
-          message: String(args[0]),
-          level: 0,
-        });
-      };
-
-      // Test different log levels
-      logger.info("Info message", { key: "value" });
-      logger.error("Error message", { error: "details" });
-      logger.debug("Debug message");
-
-      // Should have captured some output
-      expect(testMessages.length).toBeGreaterThan(0);
-    } finally {
-      console.log = originalConsoleLog;
-      console.error = originalConsoleError;
-    }
-  });
-
-  test("logger respects verbosity settings", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-    const logger = getV3Logger();
-
-    const capturedLogs: string[] = [];
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-
-    try {
-      console.log = (msg: string) => {
-        capturedLogs.push(msg);
-      };
-      console.error = (msg: string) => {
-        capturedLogs.push(msg);
-      };
-
-      // Set verbosity to 1 (info only)
-      setV3Verbosity(1);
-
-      // Info should log (level 1 <= verbosity 1)
-      logger.info("Info message");
-      const infoCount = capturedLogs.length;
-
-      // Debug should not log (level 2 > verbosity 1)
-      logger.debug("Debug message");
-      const afterDebugCount = capturedLogs.length;
-
-      expect(afterDebugCount).toBe(infoCount);
-
-      // Error should log (level 0 <= verbosity 1)
-      logger.error("Error message");
-      expect(capturedLogs.length).toBeGreaterThan(infoCount);
-    } finally {
-      console.log = originalConsoleLog;
-      console.error = originalConsoleError;
-    }
-  });
-
-  test("logger handles auxiliary data correctly", async () => {
-    await initV3Logger({ verbose: 2, disablePino: true });
-    const logger = getV3Logger();
-
-    const capturedLogs: string[] = [];
-    const originalConsoleLog = console.log;
-
-    try {
-      console.log = (msg: string) => {
-        capturedLogs.push(msg);
-      };
-
-      logger.log({
-        category: "test",
-        message: "Test with auxiliary",
-        level: 1,
-        auxiliary: {
-          stringValue: { value: "test", type: "string" },
-          integerValue: { value: "42", type: "integer" },
-          booleanValue: { value: "true", type: "boolean" },
-          objectValue: {
-            value: JSON.stringify({ nested: "data" }),
-            type: "object",
-          },
-        },
-      });
-
-      // Should have logged with auxiliary data
-      expect(capturedLogs.length).toBeGreaterThan(0);
-      const logOutput = capturedLogs.join("\n");
-      expect(logOutput).toContain("Test with auxiliary");
-      expect(logOutput).toContain("stringValue");
-      expect(logOutput).toContain("integerValue");
-    } finally {
-      console.log = originalConsoleLog;
-    }
-  });
-
-  test("logger initialization is thread-safe with Promise.race patterns", async () => {
-    // This test simulates a common pattern where multiple async operations
-    // race to initialize the logger
-    const raceCount = 20;
-    const results: boolean[] = [];
-
-    for (let i = 0; i < raceCount; i++) {
-      const result = await Promise.race([
-        initV3Logger({ verbose: 1, disablePino: true }).then(() => true),
-        initV3Logger({ verbose: 2, disablePino: true }).then(() => true),
-        initV3Logger({ verbose: 0, disablePino: true }).then(() => true),
-      ]);
-      results.push(result);
-    }
-
-    // All races should complete successfully
-    expect(results.every((r) => r === true)).toBe(true);
-    expect(results.length).toBe(raceCount);
-
-    // Logger should still be functional
-    const logger = getV3Logger();
-    expect(() => logger.info("Test after race")).not.toThrow();
-  });
-
-  test("logger handles rapid sequential initialization attempts", async () => {
-    // Test the scenario where init is called multiple times in sequence
-    // without awaiting (simulating fire-and-forget initialization)
-    const sequentialCount = 15;
-
-    // Don't await - let them execute in parallel
-    const promises: Promise<void>[] = [];
-    for (let i = 0; i < sequentialCount; i++) {
-      promises.push(initV3Logger({ verbose: 1, disablePino: true }));
-    }
-
-    // All should complete without deadlock or error
-    await expect(Promise.all(promises)).resolves.toBeDefined();
-
-    // Logger should be usable
-    const logger = getV3Logger();
-    expect(() => {
-      logger.log({
-        category: "test",
-        message: "After sequential init",
-        level: 1,
-      });
-    }).not.toThrow();
-  });
-
-  test("logger methods don't throw on valid input", async () => {
-    await initV3Logger({ verbose: 2, disablePino: true });
-    const logger = getV3Logger();
-
-    // Test all logger methods
-    expect(() => {
-      logger.error("Error message");
-      logger.error("Error with data", { code: 500 });
-      logger.info("Info message");
-      logger.info("Info with data", { status: "ok" });
-      logger.debug("Debug message");
-      logger.debug("Debug with data", { trace: "details" });
-      logger.log({
-        category: "custom",
-        message: "Custom log",
-        level: 1,
-        timestamp: new Date().toISOString(),
-      });
-    }).not.toThrow();
-  });
-
-  test("logger filters undefined and empty values from auxiliary data", async () => {
-    await initV3Logger({ verbose: 2, disablePino: true });
-    const logger = getV3Logger();
-
-    const capturedLogs: string[] = [];
-    const originalConsoleLog = console.log;
-
-    try {
-      console.log = (msg: string) => {
-        capturedLogs.push(msg);
-      };
-
-      logger.info("Test message", {
-        definedValue: "present",
-        undefinedValue: undefined,
-        emptyObject: {},
-        emptyArray: [],
-        nullValue: null,
-      });
-
-      const logOutput = capturedLogs.join("\n");
-      expect(logOutput).toContain("definedValue");
-      expect(logOutput).not.toContain("undefinedValue");
-      expect(logOutput).not.toContain("emptyObject");
-      expect(logOutput).not.toContain("emptyArray");
-    } finally {
-      console.log = originalConsoleLog;
-    }
-  });
-});
-
-test.describe("V3 Logger Instance Binding", () => {
+test.describe("V3 Logger Instance Routing", () => {
   test.afterEach(() => {
-    // Clean up any bound instance loggers
-    // Note: We can't easily enumerate all instances, so tests should clean up
-    // their own bindings
+    // Clean up is handled by unbindInstanceLogger calls in tests
   });
 
-  test("bindInstanceLogger and unbindInstanceLogger work correctly", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-
+  test("bindInstanceLogger routes logs to correct instance", () => {
     const instanceId = "test-instance-001";
     const capturedLogs: LogLine[] = [];
 
-    const instanceLogger = (line: LogLine) => {
+    bindInstanceLogger(instanceId, (line) => {
       capturedLogs.push(line);
-    };
-
-    // Bind the instance logger
-    bindInstanceLogger(instanceId, instanceLogger);
-
-    // Log within context
-    withInstanceLogContext(instanceId, () => {
-      v3Logger({
-        category: "test",
-        message: "Test message for instance",
-        level: 1,
-      });
     });
 
-    // Should have captured the log
-    expect(capturedLogs.length).toBe(1);
-    expect(capturedLogs[0].message).toBe("Test message for instance");
-    expect(capturedLogs[0].auxiliary?.instanceId?.value).toBe(instanceId);
-
-    // Unbind the logger
-    unbindInstanceLogger(instanceId);
-
-    // Log again - should not be captured by instance logger
-    const beforeCount = capturedLogs.length;
-    withInstanceLogContext(instanceId, () => {
-      v3Logger({
-        category: "test",
-        message: "After unbind",
-        level: 1,
+    try {
+      // Log within context
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "test",
+          message: "Test message for instance",
+          level: 1,
+        });
       });
-    });
 
-    // Should not have captured the second log
-    expect(capturedLogs.length).toBe(beforeCount);
+      // Should have captured the log
+      expect(capturedLogs.length).toBe(1);
+      expect(capturedLogs[0].message).toBe("Test message for instance");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
   });
 
-  test("multiple instances have isolated log routing", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
+  test("unbindInstanceLogger stops routing", () => {
+    const instanceId = "test-instance-002";
+    const capturedLogs: LogLine[] = [];
+    const consoleOutput: string[] = [];
+    const originalConsoleLog = console.log;
 
+    try {
+      console.log = (msg: string) => {
+        consoleOutput.push(msg);
+      };
+
+      bindInstanceLogger(instanceId, (line) => {
+        capturedLogs.push(line);
+      });
+
+      // Unbind immediately
+      unbindInstanceLogger(instanceId);
+
+      // Log - should fall back to console
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "test",
+          message: "After unbind",
+          level: 1,
+        });
+      });
+
+      // Should not have captured via instance logger
+      expect(capturedLogs.length).toBe(0);
+      // But should have logged to console
+      expect(consoleOutput.length).toBeGreaterThan(0);
+    } finally {
+      console.log = originalConsoleLog;
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("multiple instances have isolated log routing", () => {
     const instance1Id = "test-instance-1";
     const instance2Id = "test-instance-2";
     const instance1Logs: LogLine[] = [];
@@ -367,17 +108,13 @@ test.describe("V3 Logger Instance Binding", () => {
       expect(instance2Logs.length).toBe(1);
       expect(instance1Logs[0].message).toBe("From instance 1");
       expect(instance2Logs[0].message).toBe("From instance 2");
-      expect(instance1Logs[0].auxiliary?.instanceId?.value).toBe(instance1Id);
-      expect(instance2Logs[0].auxiliary?.instanceId?.value).toBe(instance2Id);
     } finally {
       unbindInstanceLogger(instance1Id);
       unbindInstanceLogger(instance2Id);
     }
   });
 
-  test("v3Logger falls back to global logger when no instance context", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-
+  test("v3Logger falls back to console when no instance context", () => {
     const capturedLogs: string[] = [];
     const originalConsoleLog = console.log;
 
@@ -389,29 +126,27 @@ test.describe("V3 Logger Instance Binding", () => {
       // Log without any instance context
       v3Logger({
         category: "test",
-        message: "Global log without context",
+        message: "Console fallback log",
         level: 1,
       });
 
-      // Should have used global console logger
+      // Should have used console logger
       expect(capturedLogs.length).toBeGreaterThan(0);
       const logOutput = capturedLogs.join("\n");
-      expect(logOutput).toContain("Global log without context");
+      expect(logOutput).toContain("Console fallback log");
     } finally {
       console.log = originalConsoleLog;
     }
   });
 
-  test("instance logger errors don't break logging", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-
+  test("v3Logger falls back to console when instance logger throws", () => {
     const instanceId = "failing-instance";
-    const capturedGlobalLogs: string[] = [];
+    const capturedConsoleLogs: string[] = [];
     const originalConsoleLog = console.log;
 
     try {
       console.log = (msg: string) => {
-        capturedGlobalLogs.push(msg);
+        capturedConsoleLogs.push(msg);
       };
 
       // Bind a logger that throws
@@ -419,7 +154,7 @@ test.describe("V3 Logger Instance Binding", () => {
         throw new Error("Instance logger failed");
       });
 
-      // Should fall back to global logger when instance logger throws
+      // Should fall back to console without throwing
       withInstanceLogContext(instanceId, () => {
         expect(() => {
           v3Logger({
@@ -430,17 +165,17 @@ test.describe("V3 Logger Instance Binding", () => {
         }).not.toThrow();
       });
 
-      // Global logger should have received the log as fallback
-      expect(capturedGlobalLogs.length).toBeGreaterThan(0);
+      // Console should have received the log as fallback
+      expect(capturedConsoleLogs.length).toBeGreaterThan(0);
+      const logOutput = capturedConsoleLogs.join("\n");
+      expect(logOutput).toContain("Test with failing instance logger");
     } finally {
       console.log = originalConsoleLog;
       unbindInstanceLogger(instanceId);
     }
   });
 
-  test("withInstanceLogContext nests properly", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-
+  test("withInstanceLogContext nests properly", () => {
     const outerInstanceId = "outer-instance";
     const innerInstanceId = "inner-instance";
     const outerLogs: LogLine[] = [];
@@ -486,9 +221,7 @@ test.describe("V3 Logger Instance Binding", () => {
     }
   });
 
-  test("withInstanceLogContext returns function result", async () => {
-    await initV3Logger({ verbose: 1, disablePino: true });
-
+  test("withInstanceLogContext returns function result", () => {
     const instanceId = "return-test-instance";
     bindInstanceLogger(instanceId, () => {});
 
@@ -498,14 +231,455 @@ test.describe("V3 Logger Instance Binding", () => {
       });
 
       expect(result).toEqual({ success: true, value: 42 });
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
 
-      // Test with async function
+  test("withInstanceLogContext works with async functions", async () => {
+    const instanceId = "async-test-instance";
+    const capturedLogs: LogLine[] = [];
+
+    bindInstanceLogger(instanceId, (line) => capturedLogs.push(line));
+
+    try {
       const asyncResult = await withInstanceLogContext(instanceId, async () => {
+        v3Logger({
+          category: "test",
+          message: "Log from async context",
+          level: 1,
+        });
+
         await new Promise((resolve) => setTimeout(resolve, 10));
+
+        v3Logger({
+          category: "test",
+          message: "Log after await",
+          level: 1,
+        });
+
         return "async result";
       });
 
       expect(asyncResult).toBe("async result");
+      expect(capturedLogs.length).toBe(2);
+      expect(capturedLogs[0].message).toBe("Log from async context");
+      expect(capturedLogs[1].message).toBe("Log after await");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("console fallback formats different log levels correctly", () => {
+    const consoleOutput: { level: string; msg: string }[] = [];
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    const originalConsoleDebug = console.debug;
+
+    try {
+      console.log = (msg: string) => {
+        consoleOutput.push({ level: "log", msg });
+      };
+      console.error = (msg: string) => {
+        consoleOutput.push({ level: "error", msg });
+      };
+      console.debug = (msg: string) => {
+        consoleOutput.push({ level: "debug", msg });
+      };
+
+      // Test error level (0)
+      v3Logger({
+        category: "test",
+        message: "Error message",
+        level: 0,
+      });
+
+      // Test info level (1)
+      v3Logger({
+        category: "test",
+        message: "Info message",
+        level: 1,
+      });
+
+      // Test debug level (2)
+      v3Logger({
+        category: "test",
+        message: "Debug message",
+        level: 2,
+      });
+
+      expect(consoleOutput.length).toBe(3);
+      expect(consoleOutput[0].level).toBe("error");
+      expect(consoleOutput[0].msg).toContain("ERROR");
+      expect(consoleOutput[0].msg).toContain("Error message");
+
+      expect(consoleOutput[1].level).toBe("log");
+      expect(consoleOutput[1].msg).toContain("INFO");
+      expect(consoleOutput[1].msg).toContain("Info message");
+
+      expect(consoleOutput[2].level).toBe("debug");
+      expect(consoleOutput[2].msg).toContain("DEBUG");
+      expect(consoleOutput[2].msg).toContain("Debug message");
+    } finally {
+      console.log = originalConsoleLog;
+      console.error = originalConsoleError;
+      console.debug = originalConsoleDebug;
+    }
+  });
+
+  test("console fallback formats auxiliary data", () => {
+    const consoleOutput: string[] = [];
+    const originalConsoleLog = console.log;
+
+    try {
+      console.log = (msg: string) => {
+        consoleOutput.push(msg);
+      };
+
+      v3Logger({
+        category: "test",
+        message: "Message with auxiliary",
+        level: 1,
+        auxiliary: {
+          stringValue: { value: "test", type: "string" },
+          integerValue: { value: "42", type: "integer" },
+          objectValue: {
+            value: JSON.stringify({ nested: "data" }),
+            type: "object",
+          },
+        },
+      });
+
+      expect(consoleOutput.length).toBe(1);
+      const output = consoleOutput[0];
+      expect(output).toContain("Message with auxiliary");
+      expect(output).toContain("stringValue");
+      expect(output).toContain("integerValue");
+      expect(output).toContain("objectValue");
+    } finally {
+      console.log = originalConsoleLog;
+    }
+  });
+
+  test("concurrent instances don't interfere", () => {
+    const instances = Array.from({ length: 10 }, (_, i) => `instance-${i}`);
+    const logsByInstance = new Map<string, LogLine[]>();
+
+    // Bind all instances
+    instances.forEach((id) => {
+      const logs: LogLine[] = [];
+      logsByInstance.set(id, logs);
+      bindInstanceLogger(id, (line) => logs.push(line));
+    });
+
+    try {
+      // Log from each instance
+      instances.forEach((id, index) => {
+        withInstanceLogContext(id, () => {
+          v3Logger({
+            category: "test",
+            message: `Message from ${id}`,
+            level: 1,
+            auxiliary: {
+              index: { value: String(index), type: "integer" },
+            },
+          });
+        });
+      });
+
+      // Verify each instance received only its own log
+      instances.forEach((id) => {
+        const logs = logsByInstance.get(id)!;
+        expect(logs.length).toBe(1);
+        expect(logs[0].message).toBe(`Message from ${id}`);
+      });
+    } finally {
+      instances.forEach((id) => unbindInstanceLogger(id));
+    }
+  });
+});
+
+test.describe("V3 Logger with External Logger (Production Pattern)", () => {
+  test.afterEach(() => {
+    // Clean up instance loggers
+  });
+
+  test("external logger receives all logs from v3Logger", () => {
+    const instanceId = "v3-instance-with-external";
+    const externalLogs: LogLine[] = [];
+
+    // Simulate V3 constructor behavior with external logger
+    const externalLogger = (line: LogLine) => {
+      externalLogs.push(line);
+    };
+
+    bindInstanceLogger(instanceId, externalLogger);
+
+    try {
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "a11y/snapshot",
+          message: "Capturing hybrid snapshot",
+          level: 0,
+        });
+
+        v3Logger({
+          category: "handlers/act",
+          message: "Executing action",
+          level: 1,
+          auxiliary: {
+            action: { value: "click", type: "string" },
+          },
+        });
+
+        v3Logger({
+          category: "debug",
+          message: "Debug details",
+          level: 2,
+        });
+      });
+
+      // All logs should be captured by external logger
+      expect(externalLogs.length).toBe(3);
+      expect(externalLogs[0].message).toBe("Capturing hybrid snapshot");
+      expect(externalLogs[1].message).toBe("Executing action");
+      expect(externalLogs[2].message).toBe("Debug details");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("StagehandLogger wrapper forwards to external logger", () => {
+    const instanceId = "v3-with-stagehand-wrapper";
+    const externalLogs: LogLine[] = [];
+
+    // Simulate V3's stagehandLogger.log() wrapping pattern
+    const mockStagehandLogger = {
+      log: (line: LogLine) => {
+        // This simulates StagehandLogger.log() which internally calls externalLogger
+        externalLogs.push(line);
+      },
+    };
+
+    bindInstanceLogger(instanceId, (line) => mockStagehandLogger.log(line));
+
+    try {
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "test",
+          message: "Log through StagehandLogger wrapper",
+          level: 1,
+        });
+      });
+
+      expect(externalLogs.length).toBe(1);
+      expect(externalLogs[0].message).toBe(
+        "Log through StagehandLogger wrapper",
+      );
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("multiple V3 instances with different external loggers", () => {
+    const instance1Id = "v3-instance-1";
+    const instance2Id = "v3-instance-2";
+    const external1Logs: LogLine[] = [];
+    const external2Logs: LogLine[] = [];
+
+    // Simulate two V3 instances with different external loggers
+    bindInstanceLogger(instance1Id, (line) => external1Logs.push(line));
+    bindInstanceLogger(instance2Id, (line) => external2Logs.push(line));
+
+    try {
+      // Instance 1 logs
+      withInstanceLogContext(instance1Id, () => {
+        v3Logger({
+          category: "instance1",
+          message: "Instance 1 activity",
+          level: 1,
+        });
+      });
+
+      // Instance 2 logs
+      withInstanceLogContext(instance2Id, () => {
+        v3Logger({
+          category: "instance2",
+          message: "Instance 2 activity",
+          level: 1,
+        });
+      });
+
+      // Each external logger should only have its instance's logs
+      expect(external1Logs.length).toBe(1);
+      expect(external2Logs.length).toBe(1);
+      expect(external1Logs[0].message).toBe("Instance 1 activity");
+      expect(external2Logs[0].message).toBe("Instance 2 activity");
+    } finally {
+      unbindInstanceLogger(instance1Id);
+      unbindInstanceLogger(instance2Id);
+    }
+  });
+
+  test("external logger receives logs with auxiliary data preserved", () => {
+    const instanceId = "v3-with-auxiliary";
+    const externalLogs: LogLine[] = [];
+
+    bindInstanceLogger(instanceId, (line) => externalLogs.push(line));
+
+    try {
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "extract",
+          message: "Extracting data",
+          level: 1,
+          auxiliary: {
+            selector: { value: "xpath=/html/body", type: "string" },
+            timeout: { value: "5000", type: "integer" },
+            retries: { value: "3", type: "integer" },
+            metadata: {
+              value: JSON.stringify({ key: "value" }),
+              type: "object",
+            },
+          },
+        });
+      });
+
+      expect(externalLogs.length).toBe(1);
+      const log = externalLogs[0];
+      expect(log.auxiliary).toBeDefined();
+      expect(log.auxiliary?.selector?.value).toBe("xpath=/html/body");
+      expect(log.auxiliary?.timeout?.value).toBe("5000");
+      expect(log.auxiliary?.retries?.value).toBe("3");
+      expect(log.auxiliary?.metadata?.type).toBe("object");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("external logger handles rapid concurrent logs", () => {
+    const instanceId = "v3-rapid-logs";
+    const externalLogs: LogLine[] = [];
+
+    bindInstanceLogger(instanceId, (line) => externalLogs.push(line));
+
+    try {
+      withInstanceLogContext(instanceId, () => {
+        // Simulate rapid logging like during snapshot capture
+        for (let i = 0; i < 50; i++) {
+          v3Logger({
+            category: "perf",
+            message: `Operation ${i}`,
+            level: 2,
+            auxiliary: {
+              iteration: { value: String(i), type: "integer" },
+            },
+          });
+        }
+      });
+
+      // All logs should be captured
+      expect(externalLogs.length).toBe(50);
+      expect(externalLogs[0].message).toBe("Operation 0");
+      expect(externalLogs[49].message).toBe("Operation 49");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("external logger can filter by log level", () => {
+    const instanceId = "v3-with-filtering";
+    const errorLogs: LogLine[] = [];
+
+    // External logger that only captures errors
+    const filteringLogger = (line: LogLine) => {
+      if (line.level === 0) {
+        errorLogs.push(line);
+      }
+    };
+
+    bindInstanceLogger(instanceId, filteringLogger);
+
+    try {
+      withInstanceLogContext(instanceId, () => {
+        v3Logger({
+          category: "test",
+          message: "Info message",
+          level: 1,
+        });
+
+        v3Logger({
+          category: "test",
+          message: "Error message",
+          level: 0,
+        });
+
+        v3Logger({
+          category: "test",
+          message: "Debug message",
+          level: 2,
+        });
+
+        v3Logger({
+          category: "test",
+          message: "Another error",
+          level: 0,
+        });
+      });
+
+      // Only error logs should be captured
+      expect(errorLogs.length).toBe(2);
+      expect(errorLogs[0].message).toBe("Error message");
+      expect(errorLogs[1].message).toBe("Another error");
+    } finally {
+      unbindInstanceLogger(instanceId);
+    }
+  });
+
+  test("external logger persists across async operations", async () => {
+    const instanceId = "v3-async-ops";
+    const externalLogs: LogLine[] = [];
+
+    bindInstanceLogger(instanceId, (line) => externalLogs.push(line));
+
+    try {
+      await withInstanceLogContext(instanceId, async () => {
+        v3Logger({
+          category: "async",
+          message: "Before async operation",
+          level: 1,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        v3Logger({
+          category: "async",
+          message: "After async operation",
+          level: 1,
+        });
+
+        await Promise.all([
+          Promise.resolve().then(() =>
+            v3Logger({
+              category: "async",
+              message: "Parallel operation 1",
+              level: 1,
+            }),
+          ),
+          Promise.resolve().then(() =>
+            v3Logger({
+              category: "async",
+              message: "Parallel operation 2",
+              level: 1,
+            }),
+          ),
+        ]);
+      });
+
+      // All logs should be captured despite async boundaries
+      expect(externalLogs.length).toBe(4);
+      expect(externalLogs[0].message).toBe("Before async operation");
+      expect(externalLogs[1].message).toBe("After async operation");
     } finally {
       unbindInstanceLogger(instanceId);
     }
