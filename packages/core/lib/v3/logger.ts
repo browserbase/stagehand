@@ -284,7 +284,6 @@ export function v3Logger(line: LogLine): void {
         ...line,
         auxiliary: {
           ...(line.auxiliary || {}),
-          instanceId: { value: id, type: "string" },
         },
       };
       try {
