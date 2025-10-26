@@ -208,27 +208,40 @@ export class StagehandLogger {
     const formattedData: Record<string, unknown> = {};
 
     for (const [key, { value, type }] of Object.entries(auxiliary)) {
+      let formattedValue: unknown;
+
       // Convert values based on their type
       switch (type) {
         case "integer":
-          formattedData[key] = parseInt(value, 10);
+          formattedValue = parseInt(value, 10);
           break;
         case "float":
-          formattedData[key] = parseFloat(value);
+          formattedValue = parseFloat(value);
           break;
         case "boolean":
-          formattedData[key] = value === "true";
+          formattedValue = value === "true";
           break;
         case "object":
           try {
-            formattedData[key] = JSON.parse(value);
+            formattedValue = JSON.parse(value);
           } catch {
-            formattedData[key] = value;
+            formattedValue = value;
           }
           break;
         default:
-          formattedData[key] = value;
+          formattedValue = value;
       }
+
+      // Skip undefined values and empty objects/arrays
+      if (formattedValue === undefined) continue;
+      if (typeof formattedValue === "object" && formattedValue !== null) {
+        const isEmpty = Array.isArray(formattedValue)
+          ? formattedValue.length === 0
+          : Object.keys(formattedValue).length === 0;
+        if (isEmpty) continue;
+      }
+
+      formattedData[key] = formattedValue;
     }
 
     return formattedData;

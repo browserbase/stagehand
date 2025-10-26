@@ -174,12 +174,8 @@ export class V3 {
     this.instanceId =
       (globalThis.crypto as Crypto | undefined)?.randomUUID?.() ??
       `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-    // Initialize the global v3 logger (fire-and-forget)
-    void initV3Logger({
-      verbose: this.verbose,
-      disablePino: opts.disablePino,
-      pretty: true,
-    });
+    // Logger initialization will be awaited in init() to prevent race condition
+    // The cached promise pattern ensures only the first V3 instance pays the initialization cost
     if (this.externalLogger) {
       try {
         bindInstanceLogger(this.instanceId, this.externalLogger);
@@ -510,6 +506,14 @@ export class V3 {
    * and sets up a CDP context.
    */
   async init(): Promise<void> {
+    // Initialize logger first to prevent race condition with early logs
+    // Uses cached promise pattern - first instance waits, subsequent instances return immediately
+    await initV3Logger({
+      verbose: this.verbose,
+      disablePino: this.opts.disablePino,
+      pretty: true,
+    });
+
     return await withInstanceLogContext(this.instanceId, async () => {
       this.actHandler = new ActHandler(
         this.llmClient,
@@ -576,6 +580,11 @@ export class V3 {
 
         // If a CDP URL is provided, attach instead of launching.
         if (lbo.cdpUrl) {
+          this.logger({
+            category: "init",
+            message: "Connecting to local browser",
+            level: 1,
+          });
           this.ctx = await V3Context.create(lbo.cdpUrl, {
             env: "LOCAL",
           });
@@ -592,6 +601,11 @@ export class V3 {
           await this._applyPostConnectLocalOptions(lbo);
           return;
         }
+        this.logger({
+          category: "init",
+          message: "Launching local browser",
+          level: 1,
+        });
 
         // Determine or create user data dir
         let userDataDir = lbo.userDataDir;
@@ -685,16 +699,16 @@ export class V3 {
             "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
           );
         }
+        this.logger({
+          category: "init",
+          message: "Starting browserbase session",
+          level: 1,
+        });
         if (!this.disableAPI && !this.experimental) {
           this.apiClient = new StagehandAPIClient({
             apiKey,
             projectId,
             logger: this.logger,
-          });
-          this.logger({
-            category: "init",
-            message: "Starting browserbase session",
-            level: 1,
           });
           const createSessionPayload = {
             projectId:
@@ -724,11 +738,6 @@ export class V3 {
           if (!available) {
             this.apiClient = null;
           }
-          this.logger({
-            category: "init",
-            message: "Browserbase session started",
-            level: 1,
-          });
           this.opts.browserbaseSessionID = sessionId;
         }
         const { ws, sessionId, bb } = await createBrowserbaseSession(
@@ -762,8 +771,10 @@ export class V3 {
           this.logger({
             category: "init",
             message: resumed
-              ? "browserbase session resumed"
-              : "browserbase session started",
+              ? this.apiClient
+                ? "Browserbase session started"
+                : "Browserbase session resumed"
+              : "Browserbase session started",
             level: 1,
             auxiliary: {
               sessionUrl: { value: sessionUrl, type: "string" },
@@ -1345,8 +1356,21 @@ export class V3 {
   } {
     this.logger({
       category: "agent",
-      message: "Creating v3 agent instance",
+      message: "Creating v3 agent instance with options:",
       level: 1,
+      auxiliary: {
+        cua: { value: options?.cua ? "true" : "false", type: "boolean" },
+        model:
+          typeof options?.model === "string"
+            ? { value: options.model, type: "string" }
+            : { value: options.model.modelName, type: "string" },
+        systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
+        tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
+        integrations: {
+          value: JSON.stringify(options?.integrations ?? []),
+          type: "object",
+        },
+      },
     });
 
     // If CUA is enabled, use the computer-use agent path
