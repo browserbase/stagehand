@@ -5,20 +5,27 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * Stagehand V3 Logging
  *
  * Design goals:
- * - Provide a single global logging sink (Pino or console) for general output.
- * - Support concurrent V3 instances by routing logs to an instance-bound external logger
- *   (e.g., Braintrust EvalLogger) without cross-talk.
- * - Keep the public API simple: per-instance binding happens via V3, not here.
+ * - Support concurrent V3 instances with independent logger configuration
+ * - Each V3 instance has its own StagehandLogger (handles usePino, verbose, externalLogger)
+ * - Provide AsyncLocalStorage-based routing for backward compatibility with handler code
+ * - Prevent cross-talk between concurrent instances
  *
  * How it works:
- * - initV3Logger(): initializes the global logger backend (Pino if enabled, otherwise a
- *   lightweight console logger). No external logger is bound globally.
- * - bindInstanceLogger()/unbindInstanceLogger(): registers an external logger callback per
- *   instance id for use by v3Logger.
- * - withInstanceLogContext(): establishes a context so v3Logger can route logs to the
- *   correct instance's external logger during that call tree.
- * - v3Logger(): preferred entrypoint for emitting structured logs from V3 internals and handlers.
- *   It routes to the instance logger when available, or falls back to the global backend.
+ * - Each V3 instance creates a StagehandLogger in its constructor (per-instance config)
+ * - bindInstanceLogger()/unbindInstanceLogger(): registers external logger callback per instance ID
+ * - withInstanceLogContext(): establishes AsyncLocalStorage context for an async operation
+ * - v3Logger(): routes logs using AsyncLocalStorage OR falls back to console
+ *
+ * ⚠️ CONTEXT LOSS SCENARIOS:
+ * 1. setTimeout/setInterval callbacks lose context (runs outside AsyncLocalStorage scope)
+ * 2. Event emitters (EventEmitter.on) lose context (callback invoked outside scope)
+ * 3. Fire-and-forget promises (void promise) lose context if they don't complete synchronously
+ * 4. Third-party library callbacks may lose context depending on implementation
+ *
+ * WORKAROUND for context loss:
+ * - Use explicit logger parameter instead of v3Logger()
+ * - Wrap callback in withInstanceLogContext() manually
+ * - Or let logs fall back to console (acceptable for edge cases)
  */
 
 type Verbosity = 0 | 1 | 2;
@@ -136,7 +143,6 @@ export async function initV3Logger(
 
         const print = (line: LogLine) => {
           const ts = line.timestamp ?? new Date().toISOString();
-          const cat = line.category ?? "log";
           const lvl = line.level ?? 1;
           const levelStr = lvl === 0 ? "ERROR" : lvl === 2 ? "DEBUG" : "INFO";
 
@@ -145,15 +151,17 @@ export async function initV3Logger(
 
           // Add auxiliary data on separate indented lines (like Pino pretty format)
           if (line.auxiliary) {
-            for (const [key, { value, type }] of Object.entries(line.auxiliary)) {
+            for (const [key, { value, type }] of Object.entries(
+              line.auxiliary,
+            )) {
               let formattedValue = value;
               if (type === "object") {
                 try {
                   // Pretty print objects with indentation
                   formattedValue = JSON.stringify(JSON.parse(value), null, 2)
-                    .split('\n')
-                    .map((line, i) => i === 0 ? line : `    ${line}`)
-                    .join('\n');
+                    .split("\n")
+                    .map((line, i) => (i === 0 ? line : `    ${line}`))
+                    .join("\n");
                 } catch {
                   formattedValue = value;
                 }

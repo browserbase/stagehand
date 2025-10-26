@@ -521,285 +521,299 @@ export class V3 {
    * and sets up a CDP context.
    */
   async init(): Promise<void> {
-    return await withInstanceLogContext(this.instanceId, async () => {
-      this.actHandler = new ActHandler(
-        this.llmClient,
-        this.modelName,
-        this.modelClientOptions,
-        (model) => this.resolveLlmClient(model),
-        this.opts.systemPrompt ?? "",
-        this.logInferenceToFile,
-        this.opts.selfHeal ?? true,
-        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-          this.updateMetrics(
-            functionName,
-            promptTokens,
-            completionTokens,
-            inferenceTimeMs,
-          ),
-        this.domSettleTimeoutMs,
-      );
-      this.extractHandler = new ExtractHandler(
-        this.llmClient,
-        this.modelName,
-        this.modelClientOptions,
-        (model) => this.resolveLlmClient(model),
-        this.opts.systemPrompt ?? "",
-        this.logInferenceToFile,
-        this.experimental,
-        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-          this.updateMetrics(
-            functionName,
-            promptTokens,
-            completionTokens,
-            inferenceTimeMs,
-          ),
-      );
-      this.observeHandler = new ObserveHandler(
-        this.llmClient,
-        this.modelName,
-        this.modelClientOptions,
-        (model) => this.resolveLlmClient(model),
-        this.opts.systemPrompt ?? "",
-        this.logInferenceToFile,
-        this.experimental,
-        (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
-          this.updateMetrics(
-            functionName,
-            promptTokens,
-            completionTokens,
-            inferenceTimeMs,
-          ),
-      );
-      if (this.opts.env === "LOCAL") {
-        // chrome-launcher conditionally adds --headless when the environment variable
-        // HEADLESS is set, without parsing its value.
-        // if it is not equal to true, then we delete it from the process
-        const envHeadless = process.env.HEADLESS;
-        if (envHeadless !== undefined) {
-          const normalized = envHeadless.trim().toLowerCase();
-          if (normalized !== "true") {
-            delete process.env.HEADLESS;
+    try {
+      return await withInstanceLogContext(this.instanceId, async () => {
+        this.actHandler = new ActHandler(
+          this.llmClient,
+          this.modelName,
+          this.modelClientOptions,
+          (model) => this.resolveLlmClient(model),
+          this.opts.systemPrompt ?? "",
+          this.logInferenceToFile,
+          this.opts.selfHeal ?? true,
+          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+            this.updateMetrics(
+              functionName,
+              promptTokens,
+              completionTokens,
+              inferenceTimeMs,
+            ),
+          this.domSettleTimeoutMs,
+        );
+        this.extractHandler = new ExtractHandler(
+          this.llmClient,
+          this.modelName,
+          this.modelClientOptions,
+          (model) => this.resolveLlmClient(model),
+          this.opts.systemPrompt ?? "",
+          this.logInferenceToFile,
+          this.experimental,
+          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+            this.updateMetrics(
+              functionName,
+              promptTokens,
+              completionTokens,
+              inferenceTimeMs,
+            ),
+        );
+        this.observeHandler = new ObserveHandler(
+          this.llmClient,
+          this.modelName,
+          this.modelClientOptions,
+          (model) => this.resolveLlmClient(model),
+          this.opts.systemPrompt ?? "",
+          this.logInferenceToFile,
+          this.experimental,
+          (functionName, promptTokens, completionTokens, inferenceTimeMs) =>
+            this.updateMetrics(
+              functionName,
+              promptTokens,
+              completionTokens,
+              inferenceTimeMs,
+            ),
+        );
+        if (this.opts.env === "LOCAL") {
+          // chrome-launcher conditionally adds --headless when the environment variable
+          // HEADLESS is set, without parsing its value.
+          // if it is not equal to true, then we delete it from the process
+          const envHeadless = process.env.HEADLESS;
+          if (envHeadless !== undefined) {
+            const normalized = envHeadless.trim().toLowerCase();
+            if (normalized !== "true") {
+              delete process.env.HEADLESS;
+            }
           }
-        }
-        const lbo: LocalBrowserLaunchOptions =
-          this.opts.localBrowserLaunchOptions ?? {};
+          const lbo: LocalBrowserLaunchOptions =
+            this.opts.localBrowserLaunchOptions ?? {};
 
-        // If a CDP URL is provided, attach instead of launching.
-        if (lbo.cdpUrl) {
+          // If a CDP URL is provided, attach instead of launching.
+          if (lbo.cdpUrl) {
+            this.logger({
+              category: "init",
+              message: "Connecting to local browser",
+              level: 1,
+            });
+            this.ctx = await V3Context.create(lbo.cdpUrl, {
+              env: "LOCAL",
+            });
+            this.ctx.conn.onTransportClosed(this._onCdpClosed);
+            this.state = {
+              kind: "LOCAL",
+              // no LaunchedChrome when attaching externally; create a stub kill
+              chrome: {
+                kill: async () => {},
+              } as unknown as import("chrome-launcher").LaunchedChrome,
+              ws: lbo.cdpUrl,
+            };
+            // Post-connect settings (downloads and viewport) if provided
+            await this._applyPostConnectLocalOptions(lbo);
+            return;
+          }
           this.logger({
             category: "init",
-            message: "Connecting to local browser",
+            message: "Launching local browser",
             level: 1,
           });
-          this.ctx = await V3Context.create(lbo.cdpUrl, {
+
+          // Determine or create user data dir
+          let userDataDir = lbo.userDataDir;
+          let createdTemp = false;
+          if (!userDataDir) {
+            const base = path.join(os.tmpdir(), "stagehand-v3");
+            fs.mkdirSync(base, { recursive: true });
+            userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
+            createdTemp = true;
+          }
+
+          // Build chrome flags
+          const defaults = [
+            "--remote-allow-origins=*",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-dev-shm-usage",
+            "--site-per-process",
+          ];
+          let chromeFlags: string[] = [];
+          const ignore = lbo.ignoreDefaultArgs;
+          if (ignore === true) {
+            // drop defaults
+            chromeFlags = [];
+          } else if (Array.isArray(ignore)) {
+            chromeFlags = defaults.filter(
+              (f) => !ignore.some((ex) => f.includes(ex)),
+            );
+          } else {
+            chromeFlags = [...defaults];
+          }
+
+          // headless handled by launchLocalChrome
+          if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
+          if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
+          if (!lbo.viewport) {
+            lbo.viewport = DEFAULT_VIEWPORT;
+          }
+          if (lbo.viewport?.width && lbo.viewport?.height) {
+            chromeFlags.push(
+              `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`, // Added pixels to the window to account for the address bar
+            );
+          }
+          if (typeof lbo.deviceScaleFactor === "number") {
+            chromeFlags.push(
+              `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
+            );
+          }
+          if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
+          if (lbo.ignoreHTTPSErrors)
+            chromeFlags.push("--ignore-certificate-errors");
+          if (lbo.proxy?.server)
+            chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
+          if (lbo.proxy?.bypass)
+            chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
+
+          // add user-supplied args last
+          if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
+
+          const { ws, chrome } = await launchLocalChrome({
+            chromePath: lbo.executablePath,
+            chromeFlags,
+            headless: lbo.headless,
+            userDataDir,
+            connectTimeoutMs: lbo.connectTimeoutMs,
+          });
+          this.ctx = await V3Context.create(ws, {
             env: "LOCAL",
+            localBrowserLaunchOptions: lbo,
           });
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
           this.state = {
             kind: "LOCAL",
-            // no LaunchedChrome when attaching externally; create a stub kill
-            chrome: {
-              kill: async () => {},
-            } as unknown as import("chrome-launcher").LaunchedChrome,
-            ws: lbo.cdpUrl,
+            chrome,
+            ws,
+            userDataDir,
+            createdTempProfile: createdTemp,
+            preserveUserDataDir: !!lbo.preserveUserDataDir,
           };
+          this.browserbaseSessionId = undefined;
+
           // Post-connect settings (downloads and viewport) if provided
           await this._applyPostConnectLocalOptions(lbo);
           return;
         }
-        this.logger({
-          category: "init",
-          message: "Launching local browser",
-          level: 1,
-        });
 
-        // Determine or create user data dir
-        let userDataDir = lbo.userDataDir;
-        let createdTemp = false;
-        if (!userDataDir) {
-          const base = path.join(os.tmpdir(), "stagehand-v3");
-          fs.mkdirSync(base, { recursive: true });
-          userDataDir = fs.mkdtempSync(path.join(base, "profile-"));
-          createdTemp = true;
-        }
-
-        // Build chrome flags
-        const defaults = [
-          "--remote-allow-origins=*",
-          "--no-first-run",
-          "--no-default-browser-check",
-          "--disable-dev-shm-usage",
-          "--site-per-process",
-        ];
-        let chromeFlags: string[] = [];
-        const ignore = lbo.ignoreDefaultArgs;
-        if (ignore === true) {
-          // drop defaults
-          chromeFlags = [];
-        } else if (Array.isArray(ignore)) {
-          chromeFlags = defaults.filter(
-            (f) => !ignore.some((ex) => f.includes(ex)),
-          );
-        } else {
-          chromeFlags = [...defaults];
-        }
-
-        // headless handled by launchLocalChrome
-        if (lbo.devtools) chromeFlags.push("--auto-open-devtools-for-tabs");
-        if (lbo.locale) chromeFlags.push(`--lang=${lbo.locale}`);
-        if (!lbo.viewport) {
-          lbo.viewport = DEFAULT_VIEWPORT;
-        }
-        if (lbo.viewport?.width && lbo.viewport?.height) {
-          chromeFlags.push(
-            `--window-size=${lbo.viewport.width},${lbo.viewport.height + 87}`, // Added pixels to the window to account for the address bar
-          );
-        }
-        if (typeof lbo.deviceScaleFactor === "number") {
-          chromeFlags.push(
-            `--force-device-scale-factor=${Math.max(0.1, lbo.deviceScaleFactor)}`,
-          );
-        }
-        if (lbo.hasTouch) chromeFlags.push("--touch-events=enabled");
-        if (lbo.ignoreHTTPSErrors)
-          chromeFlags.push("--ignore-certificate-errors");
-        if (lbo.proxy?.server)
-          chromeFlags.push(`--proxy-server=${lbo.proxy.server}`);
-        if (lbo.proxy?.bypass)
-          chromeFlags.push(`--proxy-bypass-list=${lbo.proxy.bypass}`);
-
-        // add user-supplied args last
-        if (Array.isArray(lbo.args)) chromeFlags.push(...lbo.args);
-
-        const { ws, chrome } = await launchLocalChrome({
-          chromePath: lbo.executablePath,
-          chromeFlags,
-          headless: lbo.headless,
-          userDataDir,
-          connectTimeoutMs: lbo.connectTimeoutMs,
-        });
-        this.ctx = await V3Context.create(ws, {
-          env: "LOCAL",
-          localBrowserLaunchOptions: lbo,
-        });
-        this.ctx.conn.onTransportClosed(this._onCdpClosed);
-        this.state = {
-          kind: "LOCAL",
-          chrome,
-          ws,
-          userDataDir,
-          createdTempProfile: createdTemp,
-          preserveUserDataDir: !!lbo.preserveUserDataDir,
-        };
-        this.browserbaseSessionId = undefined;
-
-        // Post-connect settings (downloads and viewport) if provided
-        await this._applyPostConnectLocalOptions(lbo);
-        return;
-      }
-
-      if (this.opts.env === "BROWSERBASE") {
-        const { apiKey, projectId } = this.requireBrowserbaseCreds();
-        if (!apiKey || !projectId) {
-          throw new Error(
-            "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
-          );
-        }
-        this.logger({
-          category: "init",
-          message: "Starting browserbase session",
-          level: 1,
-        });
-        if (!this.disableAPI && !this.experimental) {
-          this.apiClient = new StagehandAPIClient({
-            apiKey,
-            projectId,
-            logger: this.logger,
-          });
-          const createSessionPayload = {
-            projectId:
-              this.opts.browserbaseSessionCreateParams?.projectId ?? projectId,
-            ...this.opts.browserbaseSessionCreateParams,
-            browserSettings: {
-              ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
-                {}),
-              viewport: this.opts.browserbaseSessionCreateParams
-                ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
-            },
-            userMetadata: {
-              ...(this.opts.browserbaseSessionCreateParams?.userMetadata ?? {}),
-              stagehand: "true",
-            },
-          };
-          const { sessionId, available } = await this.apiClient.init({
-            modelName: this.modelName,
-            modelApiKey: this.modelClientOptions.apiKey,
-            domSettleTimeoutMs: this.domSettleTimeoutMs,
-            verbose: this.verbose,
-            systemPrompt: this.opts.systemPrompt,
-            selfHeal: this.opts.selfHeal,
-            browserbaseSessionCreateParams: createSessionPayload,
-            browserbaseSessionID: this.opts.browserbaseSessionID,
-          });
-          if (!available) {
-            this.apiClient = null;
+        if (this.opts.env === "BROWSERBASE") {
+          const { apiKey, projectId } = this.requireBrowserbaseCreds();
+          if (!apiKey || !projectId) {
+            throw new Error(
+              "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
+            );
           }
-          this.opts.browserbaseSessionID = sessionId;
-        }
-        const { ws, sessionId, bb } = await createBrowserbaseSession(
-          apiKey,
-          projectId,
-          this.opts.browserbaseSessionCreateParams,
-          this.opts.browserbaseSessionID,
-        );
-        this.ctx = await V3Context.create(ws, {
-          env: "BROWSERBASE",
-          apiClient: this.apiClient,
-        });
-        this.ctx.conn.onTransportClosed(this._onCdpClosed);
-        this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
-        this.browserbaseSessionId = sessionId;
-
-        await this._ensureBrowserbaseDownloadsEnabled();
-
-        try {
-          const resumed = !!this.opts.browserbaseSessionID;
-          let debugUrl: string | undefined;
-          try {
-            const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
-              debuggerUrl?: string;
-            };
-            debugUrl = dbg?.debuggerUrl;
-          } catch {
-            // Ignore debug fetch failures; continue with sessionUrl only
-          }
-          const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
           this.logger({
             category: "init",
-            message: resumed
-              ? this.apiClient
-                ? "Browserbase session started"
-                : "Browserbase session resumed"
-              : "Browserbase session started",
+            message: "Starting browserbase session",
             level: 1,
-            auxiliary: {
-              sessionUrl: { value: sessionUrl, type: "string" },
-              ...(debugUrl && {
-                debugUrl: { value: debugUrl, type: "string" },
-              }),
-              sessionId: { value: sessionId, type: "string" },
-            },
           });
-        } catch {
-          // best-effort logging — ignore failures
-        }
-        return;
-      }
+          if (!this.disableAPI && !this.experimental) {
+            this.apiClient = new StagehandAPIClient({
+              apiKey,
+              projectId,
+              logger: this.logger,
+            });
+            const createSessionPayload = {
+              projectId:
+                this.opts.browserbaseSessionCreateParams?.projectId ??
+                projectId,
+              ...this.opts.browserbaseSessionCreateParams,
+              browserSettings: {
+                ...(this.opts.browserbaseSessionCreateParams?.browserSettings ??
+                  {}),
+                viewport: this.opts.browserbaseSessionCreateParams
+                  ?.browserSettings?.viewport ?? { width: 1288, height: 711 },
+              },
+              userMetadata: {
+                ...(this.opts.browserbaseSessionCreateParams?.userMetadata ??
+                  {}),
+                stagehand: "true",
+              },
+            };
+            const { sessionId, available } = await this.apiClient.init({
+              modelName: this.modelName,
+              modelApiKey: this.modelClientOptions.apiKey,
+              domSettleTimeoutMs: this.domSettleTimeoutMs,
+              verbose: this.verbose,
+              systemPrompt: this.opts.systemPrompt,
+              selfHeal: this.opts.selfHeal,
+              browserbaseSessionCreateParams: createSessionPayload,
+              browserbaseSessionID: this.opts.browserbaseSessionID,
+            });
+            if (!available) {
+              this.apiClient = null;
+            }
+            this.opts.browserbaseSessionID = sessionId;
+          }
+          const { ws, sessionId, bb } = await createBrowserbaseSession(
+            apiKey,
+            projectId,
+            this.opts.browserbaseSessionCreateParams,
+            this.opts.browserbaseSessionID,
+          );
+          this.ctx = await V3Context.create(ws, {
+            env: "BROWSERBASE",
+            apiClient: this.apiClient,
+          });
+          this.ctx.conn.onTransportClosed(this._onCdpClosed);
+          this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
+          this.browserbaseSessionId = sessionId;
 
-      const neverEnv: never = this.opts.env;
-      throw new Error(`Unsupported env: ${neverEnv}`);
-    });
+          await this._ensureBrowserbaseDownloadsEnabled();
+
+          try {
+            const resumed = !!this.opts.browserbaseSessionID;
+            let debugUrl: string | undefined;
+            try {
+              const dbg = (await bb.sessions.debug(sessionId)) as unknown as {
+                debuggerUrl?: string;
+              };
+              debugUrl = dbg?.debuggerUrl;
+            } catch {
+              // Ignore debug fetch failures; continue with sessionUrl only
+            }
+            const sessionUrl = `https://www.browserbase.com/sessions/${sessionId}`;
+            this.logger({
+              category: "init",
+              message: resumed
+                ? this.apiClient
+                  ? "Browserbase session started"
+                  : "Browserbase session resumed"
+                : "Browserbase session started",
+              level: 1,
+              auxiliary: {
+                sessionUrl: { value: sessionUrl, type: "string" },
+                ...(debugUrl && {
+                  debugUrl: { value: debugUrl, type: "string" },
+                }),
+                sessionId: { value: sessionId, type: "string" },
+              },
+            });
+          } catch {
+            // best-effort logging — ignore failures
+          }
+          return;
+        }
+
+        const neverEnv: never = this.opts.env;
+        throw new Error(`Unsupported env: ${neverEnv}`);
+      });
+    } catch (error) {
+      // Cleanup instanceLoggers map on init failure to prevent memory leak
+      if (this.externalLogger) {
+        try {
+          unbindInstanceLogger(this.instanceId);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+      throw error;
+    }
   }
 
   /** Apply post-connect local browser options that require CDP. */
