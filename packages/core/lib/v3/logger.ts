@@ -130,138 +130,143 @@ export async function initV3Logger(
   try {
     // Create and cache the initialization promise
     loggerInitPromise = (async () => {
-      if (!isNode) {
-        current = makeNoop();
-        return;
-      }
-      // Decide whether to use Pino-backed logger
-      const usePino = !opts.disablePino;
+      try {
+        if (!isNode) {
+          current = makeNoop();
+          return;
+        }
+        // Decide whether to use Pino-backed logger
+        const usePino = !opts.disablePino;
 
-      if (!usePino) {
-        // Lightweight console logger for environments without Pino
-        let level: Verbosity = opts.verbose ?? 1;
+        if (!usePino) {
+          // Lightweight console logger for environments without Pino
+          let level: Verbosity = opts.verbose ?? 1;
 
-        const print = (line: LogLine) => {
-          const ts = line.timestamp ?? new Date().toISOString();
-          const lvl = line.level ?? 1;
-          const levelStr = lvl === 0 ? "ERROR" : lvl === 2 ? "DEBUG" : "INFO";
+          const print = (line: LogLine) => {
+            const ts = line.timestamp ?? new Date().toISOString();
+            const lvl = line.level ?? 1;
+            const levelStr = lvl === 0 ? "ERROR" : lvl === 2 ? "DEBUG" : "INFO";
 
-          // Format like Pino: [timestamp] LEVEL: message
-          let output = `[${ts}] ${levelStr}: ${line.message}`;
+            // Format like Pino: [timestamp] LEVEL: message
+            let output = `[${ts}] ${levelStr}: ${line.message}`;
 
-          // Add auxiliary data on separate indented lines (like Pino pretty format)
-          if (line.auxiliary) {
-            for (const [key, { value, type }] of Object.entries(
-              line.auxiliary,
-            )) {
-              let formattedValue = value;
-              if (type === "object") {
-                try {
-                  // Pretty print objects with indentation
-                  formattedValue = JSON.stringify(JSON.parse(value), null, 2)
-                    .split("\n")
-                    .map((line, i) => (i === 0 ? line : `    ${line}`))
-                    .join("\n");
-                } catch {
-                  formattedValue = value;
+            // Add auxiliary data on separate indented lines (like Pino pretty format)
+            if (line.auxiliary) {
+              for (const [key, { value, type }] of Object.entries(
+                line.auxiliary,
+              )) {
+                let formattedValue = value;
+                if (type === "object") {
+                  try {
+                    // Pretty print objects with indentation
+                    formattedValue = JSON.stringify(JSON.parse(value), null, 2)
+                      .split("\n")
+                      .map((line, i) => (i === 0 ? line : `    ${line}`))
+                      .join("\n");
+                  } catch {
+                    formattedValue = value;
+                  }
                 }
+                output += `\n    ${key}: ${formattedValue}`;
               }
-              output += `\n    ${key}: ${formattedValue}`;
             }
-          }
 
-          if (lvl === 0) {
-            console.error(output);
-          } else if (lvl === 2) {
-            (console.debug ?? console.log)(output);
-          } else {
-            console.log(output);
-          }
-        };
+            if (lvl === 0) {
+              console.error(output);
+            } else if (lvl === 2) {
+              (console.debug ?? console.log)(output);
+            } else {
+              console.log(output);
+            }
+          };
 
-        const toAuxiliary = (
-          data?: Record<string, unknown>,
-        ): LogLine["auxiliary"] | undefined => {
-          if (!data) return undefined;
-          const entries = Object.entries(data)
-            .filter(([, v]) => {
-              // Skip undefined values
-              if (v === undefined) return false;
-              // Skip empty objects/arrays
-              if (typeof v === "object" && v !== null) {
-                const isEmpty = Array.isArray(v)
-                  ? v.length === 0
-                  : Object.keys(v).length === 0;
-                if (isEmpty) return false;
-              }
-              return true;
-            })
-            .map(([k, v]) => {
-              let type: LogLine["auxiliary"][string]["type"] = "string";
-              if (typeof v === "boolean") type = "boolean";
-              else if (typeof v === "number")
-                type = Number.isInteger(v) ? "integer" : "float";
-              return [k, { value: String(v), type }];
-            });
-          return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-        };
+          const toAuxiliary = (
+            data?: Record<string, unknown>,
+          ): LogLine["auxiliary"] | undefined => {
+            if (!data) return undefined;
+            const entries = Object.entries(data)
+              .filter(([, v]) => {
+                // Skip undefined values
+                if (v === undefined) return false;
+                // Skip empty objects/arrays
+                if (typeof v === "object" && v !== null) {
+                  const isEmpty = Array.isArray(v)
+                    ? v.length === 0
+                    : Object.keys(v).length === 0;
+                  if (isEmpty) return false;
+                }
+                return true;
+              })
+              .map(([k, v]) => {
+                let type: LogLine["auxiliary"][string]["type"] = "string";
+                if (typeof v === "boolean") type = "boolean";
+                else if (typeof v === "number")
+                  type = Number.isInteger(v) ? "integer" : "float";
+                return [k, { value: String(v), type }];
+              });
+            return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+          };
+
+          current = {
+            setVerbosity(v) {
+              level = v;
+            },
+            log(line) {
+              if ((line.level ?? 1) <= level) print(line);
+            },
+            error(msg, data) {
+              print({
+                category: "log",
+                message: msg,
+                level: 0,
+                auxiliary: toAuxiliary(data),
+              });
+            },
+            info(msg, data) {
+              print({
+                category: "log",
+                message: msg,
+                level: 1,
+                auxiliary: toAuxiliary(data),
+              });
+            },
+            debug(msg, data) {
+              print({
+                category: "log",
+                message: msg,
+                level: 2,
+                auxiliary: toAuxiliary(data),
+              });
+            },
+          };
+          return;
+        }
+
+        // Lazy import to avoid pulling pino into non-Pino paths (and browser bundles)
+        const { StagehandLogger } = await import("../logger");
+        const stagehand = new StagehandLogger({
+          pretty: opts.pretty ?? true,
+          usePino: true,
+        });
+        if (opts.verbose !== undefined) stagehand.setVerbosity(opts.verbose);
 
         current = {
-          setVerbosity(v) {
-            level = v;
-          },
-          log(line) {
-            if ((line.level ?? 1) <= level) print(line);
-          },
-          error(msg, data) {
-            print({
-              category: "log",
-              message: msg,
-              level: 0,
-              auxiliary: toAuxiliary(data),
-            });
-          },
-          info(msg, data) {
-            print({
-              category: "log",
-              message: msg,
-              level: 1,
-              auxiliary: toAuxiliary(data),
-            });
-          },
-          debug(msg, data) {
-            print({
-              category: "log",
-              message: msg,
-              level: 2,
-              auxiliary: toAuxiliary(data),
-            });
-          },
+          log: (l) => stagehand.log(l),
+          setVerbosity: (v) => stagehand.setVerbosity(v),
+          error: (m, d) => stagehand.error(m, d),
+          info: (m, d) => stagehand.info(m, d),
+          debug: (m, d) => stagehand.debug(m, d),
         };
-        return;
+      } finally {
+        // Mark initialization as complete (runs when async work finishes)
+        isInitializing = false;
       }
-
-      // Lazy import to avoid pulling pino into non-Pino paths (and browser bundles)
-      const { StagehandLogger } = await import("../logger");
-      const stagehand = new StagehandLogger({
-        pretty: opts.pretty ?? true,
-        usePino: true,
-      });
-      if (opts.verbose !== undefined) stagehand.setVerbosity(opts.verbose);
-
-      current = {
-        log: (l) => stagehand.log(l),
-        setVerbosity: (v) => stagehand.setVerbosity(v),
-        error: (m, d) => stagehand.error(m, d),
-        info: (m, d) => stagehand.info(m, d),
-        debug: (m, d) => stagehand.debug(m, d),
-      };
     })();
 
     return loggerInitPromise;
-  } finally {
-    // Mark initialization as complete
+  } catch (err) {
     isInitializing = false;
+    throw err;
   }
 }
 

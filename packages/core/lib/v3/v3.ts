@@ -191,12 +191,18 @@ export class V3 {
 
     // Also bind to AsyncLocalStorage for v3Logger() calls from handlers
     // This maintains backward compatibility with code that uses v3Logger() directly
-    if (this.externalLogger) {
-      try {
+    try {
+      if (this.externalLogger) {
+        // Use external logger directly when provided
         bindInstanceLogger(this.instanceId, this.externalLogger);
-      } catch {
-        // ignore
+      } else {
+        // Fall back to stagehandLogger when no external logger
+        bindInstanceLogger(this.instanceId, (line) => {
+          this.stagehandLogger.log(line);
+        });
       }
+    } catch {
+      // ignore
     }
     const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
     this.modelName = modelName;
