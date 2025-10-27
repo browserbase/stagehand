@@ -276,7 +276,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, xpath } = ctx;
+  const { args, xpath, page } = ctx;
   const key = args[0] ?? "";
   try {
     v3Logger({
@@ -288,16 +288,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    await frame.session.send<never>("Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key,
-      text: key.length === 1 ? key : undefined,
-    } as Protocol.Input.DispatchKeyEventRequest);
-    await frame.session.send<never>("Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key,
-      text: key.length === 1 ? key : undefined,
-    } as Protocol.Input.DispatchKeyEventRequest);
+    await page.keyPress(key);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
