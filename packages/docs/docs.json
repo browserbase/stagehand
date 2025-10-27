@@ -204,6 +204,7 @@
           {
             "group": "Reference",
             "pages": [
+              "v2/references/stagehand",
               "v2/references/act",
               "v2/references/extract",
               "v2/references/observe",

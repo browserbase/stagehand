@@ -26,7 +26,6 @@ const formFields = await stagehand.observe("Find all form fields to fill");
 for (const field of formFields) {
   await stagehand.act(field); // No LLM calls!
 }
-
 ```
 
 <Note>
@@ -63,46 +62,17 @@ Use shorter timeouts for simple operations and longer ones for complex page load
 
 ```typescript
 // Simple actions - reduce action timeout
-await stagehand.act({ 
-  instruction: "Click the login button",
-  actTimeout: 5000  // Default is 30000ms, reduce for simple clicks
+await stagehand.act("Click the login button", {
+  timeout: 5000  // Default is 30000ms, reduce for simple clicks
 });
 
 // Complex page loads - optimize navigation
+const page = stagehand.context.pages()[0];
 await page.goto("https://heavy-spa.com", {
   waitUntil: "domcontentloaded", // Don't wait for all resources
   timeout: 15000 // Shorter than default 30s
 });
 ```
-
-## Advanced Performance Strategies
-
-
-### Smart Model Selection
-
-Use faster models for simple tasks, premium models only when needed:
-
-```typescript
-class SpeedOptimizedStagehand {
-  private fastModel: Stagehand;
-  private premiumModel: Stagehand;
-
-  async smartAct(page: Page, prompt: string, complexity: 'simple' | 'complex') {
-    const model = complexity === 'simple' ? this.fastModel : this.premiumModel;
-    return await model.stagehand.act(prompt);
-  }
-}
-
-// Use fast model for simple clicks/forms
-await stagehand.smartAct(page, "Click submit", 'simple');
-
-// Use premium model for complex reasoning
-await stagehand.smartAct(page, "Find the cheapest flight option", 'complex');
-```
-
-<Card title="Model Configuration" icon="brain" href="/configuration/models">
-  Compare model performance and costs
-</Card>
 
 ## Performance Monitoring and Benchmarking
 

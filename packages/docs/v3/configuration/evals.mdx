@@ -92,11 +92,11 @@ export const customEvalTask: EvalTask = {
   // The actual test
   task: async ({ stagehand, page }) => {
     // Your automation logic
-    await stagehand.act({ action: 'click the login button' });
-    const result = await stagehand.extract({ 
-      instruction: 'Get the user name',
-      schema: { username: 'string' }
-    });
+    await stagehand.act('click the login button');
+    const result = await stagehand.extract(
+      'Get the user name',
+      z.object({ username: z.string() })
+    );
     return result;
   },
   
