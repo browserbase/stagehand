@@ -10,18 +10,6 @@ description: 'Discover and plan executable actions on any web page'
 page.observe("find the login button");
 ```
 
-Returns:
-```typescript
-[
-  {
-    selector: "xpath=//button[@id='login']",
-    description: "Login button in the header",
-    method: "click",
-    arguments: []
-  }
-]
-```
-
 `observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
 
 ## Why use `observe()`?
@@ -40,6 +28,19 @@ Returns:
     Verify elements exist and check their properties before performing critical actions
   </Card>
 </CardGroup>
+
+## Return value of `observe()`?
+When you use `observe()`, Stagehand will return a `Promise<Action[]>` with the following structure:
+``` typescript
+[
+  {
+    description: 'Click me button',
+    method: 'click',
+    arguments: [],
+    selector: 'xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]'
+  }
+]
+```
 
 ## Using `observe()`
 
