@@ -3,7 +3,12 @@ import type { LoadState } from "../types/public/page";
 import type { CDPSessionLike } from "./cdp";
 import type { NetworkManager } from "./networkManager";
 import type { Page } from "./page";
-import { WaitForIdleHandle } from "../types/private/network";
+import {
+  DEFAULT_IDLE_WAIT,
+  IGNORED_RESOURCE_TYPES,
+  type NetworkRequestInfo,
+  WaitForIdleHandle,
+} from "../types/private/network";
 
 /**
  * Coordinates page lifecycle waits (load/domcontentloaded/networkidle) while
@@ -24,6 +29,9 @@ export class LifecycleWatcher {
   private readonly waitUntil: LoadState;
   private readonly timeoutMs: number;
   private readonly startTime: number;
+  private readonly navigationCommandId: number;
+  private currentLoaderId: string | undefined;
+  private idleStartTime: number;
 
   private cleanupCallbacks: Array<() => void> = [];
   private idleHandle: WaitForIdleHandle | null = null;
@@ -35,6 +43,7 @@ export class LifecycleWatcher {
 
   private expectedLoaderId: string | undefined;
   private initialLoaderId: string | undefined;
+  private pendingFollowupNavigation = false;
 
   /**
    * Create a watcher; callers should subsequently invoke {@link wait}.
@@ -45,6 +54,7 @@ export class LifecycleWatcher {
     networkManager: NetworkManager;
     waitUntil: LoadState;
     timeoutMs: number;
+    navigationCommandId: number;
   }) {
     this.page = params.page;
     this.mainSession = params.mainSession;
@@ -52,6 +62,8 @@ export class LifecycleWatcher {
     this.waitUntil = params.waitUntil;
     this.timeoutMs = params.timeoutMs;
     this.startTime = Date.now();
+    this.navigationCommandId = params.navigationCommandId;
+    this.idleStartTime = this.startTime;
 
     this.abortPromise = new Promise<never>((_, reject) => {
       this.abortReject = reject;
@@ -65,6 +77,8 @@ export class LifecycleWatcher {
     if (!loaderId) return;
     this.expectedLoaderId = loaderId;
     this.initialLoaderId = loaderId;
+    this.currentLoaderId = loaderId;
+    this.idleStartTime = Date.now();
   }
 
   /** Wait for the requested lifecycle state or throw on timeout/abort. */
@@ -82,24 +96,25 @@ export class LifecycleWatcher {
         return;
       }
 
-      await this.awaitWithAbort(
-        this.page.waitForMainLoadState("load", this.timeRemaining(deadline)),
-      );
-
-      if (this.waitUntil === "networkidle") {
-        this.idleHandle = this.networkManager.waitForIdle({
-          startTime: this.startTime,
-          timeoutMs: this.timeRemaining(deadline),
-          totalBudgetMs: this.timeoutMs,
-        });
-
+      while (true) {
         await this.awaitWithAbort(
-          this.idleHandle.promise.catch((error) => {
-            // Surface timeout / disposal errors unless we already aborted.
-            if (this.abortError) throw this.abortError;
-            throw error;
-          }),
+          this.page.waitForMainLoadState(
+            "load",
+            this.timeRemaining(deadline),
+          ),
         );
+
+        if (this.waitUntil !== "networkidle") break;
+
+        try {
+          await this.awaitWithAbort(this.waitForNetworkIdle(deadline));
+          break;
+        } catch (error) {
+          if (this.shouldRestartAfterFollowup(error)) {
+            continue;
+          }
+          throw error;
+        }
       }
     } finally {
       this.dispose();
@@ -143,17 +158,26 @@ export class LifecycleWatcher {
 
       if (!this.initialLoaderId) {
         this.initialLoaderId = loaderId;
+        this.currentLoaderId = loaderId;
+        this.idleStartTime = Date.now();
       }
 
       if (!this.expectedLoaderId) {
         this.expectedLoaderId = loaderId;
+        this.currentLoaderId = loaderId;
+        this.idleStartTime = Date.now();
         return;
       }
 
       if (loaderId !== this.expectedLoaderId) {
-        this.triggerAbort(
-          new Error("Navigation was superseded by a new request"),
-        );
+        if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+          this.triggerAbort(
+            new Error("Navigation was superseded by a new request"),
+          );
+          return;
+        }
+
+        this.adoptNewMainLoader(loaderId);
       }
     };
 
@@ -203,5 +227,65 @@ export class LifecycleWatcher {
       this.abortReject(error);
       this.abortReject = null;
     }
+  }
+  private waitForNetworkIdle(deadline: number): Promise<void> {
+    this.pendingFollowupNavigation = false;
+    const remaining = this.timeRemaining(deadline);
+    const idleWindow = Math.min(DEFAULT_IDLE_WAIT, remaining);
+    this.idleHandle = this.networkManager.waitForIdle({
+      startTime: this.idleStartTime,
+      timeoutMs: remaining,
+      totalBudgetMs: this.timeoutMs,
+      idleTimeMs: idleWindow,
+      filter: this.buildIdleFilter(),
+    });
+
+    return this.idleHandle.promise.catch((error) => {
+      if (this.abortError) throw this.abortError;
+      throw error;
+    });
+  }
+
+  private shouldRestartAfterFollowup(error: unknown): boolean {
+    if (!this.pendingFollowupNavigation) return false;
+    if (!(error instanceof Error)) return false;
+    if (error.message !== "waitForIdle disposed") return false;
+    this.pendingFollowupNavigation = false;
+    return true;
+  }
+
+  private adoptNewMainLoader(loaderId: string): void {
+    this.expectedLoaderId = loaderId;
+    this.currentLoaderId = loaderId;
+    this.idleStartTime = Date.now();
+    if (this.waitUntil !== "networkidle") return;
+
+    this.pendingFollowupNavigation = true;
+
+    if (this.idleHandle) {
+      const handle = this.idleHandle;
+      this.idleHandle = null;
+      void handle.promise.catch(() => {});
+      handle.dispose();
+    }
+  }
+
+  private buildIdleFilter(): (info: NetworkRequestInfo) => boolean {
+    const loaderId = this.currentLoaderId;
+    const mainFrameId = this.page.mainFrameId();
+
+    return (info: NetworkRequestInfo) => {
+      if (IGNORED_RESOURCE_TYPES.has(info.resourceType)) return false;
+
+      if (loaderId && info.loaderId) {
+        return info.loaderId === loaderId;
+      }
+
+      if (!info.loaderId && info.frameId) {
+        return info.frameId === mainFrameId;
+      }
+
+      return true;
+    };
   }
 }
