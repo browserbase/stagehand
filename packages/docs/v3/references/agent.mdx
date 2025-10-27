@@ -254,7 +254,8 @@ interface AgentAction {
 
 ### Code Examples
 
-#### Basic Usage
+<Tabs>
+<Tab title="Basic Usage">
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -279,7 +280,8 @@ console.log(`Completed: ${result.completed}`);
 console.log(`Actions taken: ${result.actions.length}`);
 ```
 
-#### With Custom Configuration
+</Tab>
+<Tab title="Custom Configuration">
 
 ```typescript
 // Create agent with custom model and system prompt
@@ -298,7 +300,8 @@ const result = await agent.execute({
 });
 ```
 
-#### With Model Configuration Object
+</Tab>
+<Tab title="Advanced Model Config">
 
 ```typescript
 // Using AgentModelConfig for advanced configuration
@@ -313,7 +316,8 @@ const agent = stagehand.agent({
 const result = await agent.execute("Complete the checkout process");
 ```
 
-#### Multi-Page Agent Execution
+</Tab>
+<Tab title="Multi-Page">
 
 ```typescript
 const page1 = stagehand.page;
@@ -329,7 +333,8 @@ const result = await agent.execute({
 });
 ```
 
-#### With MCP Integrations
+</Tab>
+<Tab title="MCP Integrations">
 
 ```typescript
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -346,7 +351,8 @@ const agent = stagehand.agent({
 const result = await agent.execute("Use the external tool to process this data");
 ```
 
-#### With Custom Tools
+</Tab>
+<Tab title="Custom Tools">
 
 ```typescript
 import { tool } from "ai";
@@ -376,6 +382,9 @@ const agent = stagehand.agent({
 
 const result = await agent.execute("Calculate the total cost of items in the shopping cart");
 ```
+
+</Tab>
+</Tabs>
 
 ### Error Types
 

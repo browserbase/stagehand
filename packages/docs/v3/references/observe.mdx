@@ -145,7 +145,8 @@ interface Action {
 
 ### Code Examples
 
-#### Basic Usage
+<Tabs>
+<Tab title="Basic Usage">
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -169,7 +170,8 @@ if (loginButton) {
 }
 ```
 
-#### Advanced Configuration
+</Tab>
+<Tab title="Custom Model">
 
 ```typescript
 // Using string format model
@@ -188,7 +190,8 @@ const actions = await page.observe("find navigation links", {
 });
 ```
 
-#### Focused Observation with Selector
+</Tab>
+<Tab title="Scoped">
 
 ```typescript
 // Focus observation on a specific part of the page
@@ -197,7 +200,8 @@ const tableActions = await page.observe("find all table rows", {
 });
 ```
 
-#### Multi-Page Support
+</Tab>
+<Tab title="Multi-Page">
 
 ```typescript
 // Observe on specific pages
@@ -208,7 +212,8 @@ const page1Actions = await page.observe("find navigation", { page: page1 });
 const page2Actions = await page.observe("find buttons", { page: page2 });
 ```
 
-#### Filter Results
+</Tab>
+<Tab title="Filter Results">
 
 ```typescript
 const submitButtons = await page.observe("find all submit buttons");
@@ -216,6 +221,9 @@ const primarySubmit = submitButtons.find(btn =>
   btn.description.toLowerCase().includes('primary')
 );
 ```
+
+</Tab>
+</Tabs>
 
 ### Integration Patterns
 

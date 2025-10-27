@@ -342,7 +342,8 @@ const EcommerceSchema = z.object({
 
 ### Additional Examples
 
-#### Using Custom Model Configuration
+<Tabs>
+<Tab title="Custom Model">
 
 ```typescript
 import { z } from 'zod';
@@ -372,7 +373,8 @@ const data2 = await page.extract(
 );
 ```
 
-#### Multi-Page Extraction
+</Tab>
+<Tab title="Multi-Page">
 
 ```typescript
 import { z } from 'zod';
@@ -385,6 +387,9 @@ const Schema = z.object({ title: z.string() });
 const data1 = await page.extract("get title", Schema, { page: page1 });
 const data2 = await page.extract("get title", Schema, { page: page2 });
 ```
+
+</Tab>
+</Tabs>
 
 ### Error Types
 

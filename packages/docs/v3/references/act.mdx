@@ -159,9 +159,10 @@ type ModelConfiguration =
 **Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
 </Note>
 
-### Examples
+### Code Examples
 
-#### Basic Usage
+<Tabs>
+<Tab title="Basic Usage">
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -176,7 +177,8 @@ await page.goto("https://example.com");
 await page.act("click the login button");
 ```
 
-#### Using Variables for Sensitive Data
+</Tab>
+<Tab title="Variables">
 
 ```typescript
 // Variables are NOT shared with LLM providers
@@ -191,17 +193,18 @@ await page.act("type %password% into the password field", {
 await page.act("click the login button");
 ```
 
-#### Custom Model Configuration
+</Tab>
+<Tab title="Custom Model">
 
 ```typescript
 // Using string format
-await page.act("choose 'Peach' from the favorite colour dropdown", {
+await page.act("choose 'Peach' from the favourite colour dropdown", {
   model: "google/gemini-2.5-flash",
   timeout: 10000
 });
 
 // Using object format with custom configuration
-await page.act("choose 'Peach' from the favorite colour dropdown", {
+await page.act("choose 'Peach' from the favourite colour dropdown", {
   model: {
     modelName: "gemini-2.5-flash",
     apiKey: process.env.GOOGLE_API_KEY,
@@ -211,7 +214,8 @@ await page.act("choose 'Peach' from the favorite colour dropdown", {
 });
 ```
 
-#### Multi-Page Support
+</Tab>
+<Tab title="Multi-Page">
 
 ```typescript
 // Create multiple pages
@@ -223,7 +227,8 @@ await page.act("click the first link", { page: page1 });
 await page.act("click the second link", { page: page2 });
 ```
 
-#### Using Observed Actions (Caching)
+</Tab>
+<Tab title="Caching">
 
 ```typescript
 // Observe first to plan the action
@@ -237,6 +242,9 @@ if (action) {
 // Later, reuse the same cached action
 await page.act(action);
 ```
+
+</Tab>
+</Tabs>
 
 ### Error Types
 
