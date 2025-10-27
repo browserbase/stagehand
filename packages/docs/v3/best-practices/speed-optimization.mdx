@@ -26,7 +26,6 @@ const formFields = await stagehand.observe("Find all form fields to fill");
 for (const field of formFields) {
   await stagehand.act(field); // No LLM calls!
 }
-
 ```
 
 <Note>

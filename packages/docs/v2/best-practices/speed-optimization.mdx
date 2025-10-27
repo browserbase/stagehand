@@ -27,7 +27,6 @@ const formFields = await page.observe("Find all form fields to fill");
 for (const field of formFields) {
   await page.act(field); // No LLM calls!
 }
-
 ```
 ```python Python
 import asyncio
