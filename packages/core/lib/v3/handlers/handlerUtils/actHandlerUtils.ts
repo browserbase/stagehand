@@ -288,7 +288,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-   await page.keyPress(key);
+    await page.keyPress(key);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
