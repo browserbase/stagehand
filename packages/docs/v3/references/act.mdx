@@ -35,11 +35,15 @@ interface ActOptions {
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
-interface ModelConfiguration {
-  provider: string;  // e.g., "openai", "anthropic", "google"
-  model: string;     // e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash"
-  apiKey?: string;   // Optional: override default API key
-}
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
 ```
 
 </Tab>
@@ -53,17 +57,19 @@ interface ModelConfiguration {
 </ParamField>
 
 <ParamField path="model" type="ModelConfiguration" optional>
-  Configure the AI model to use for this action. Supports OpenAI, Anthropic, Google, and other providers.
+  Configure the AI model to use for this action. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - An object with detailed configuration
 
-  <Expandable title="Model Configuration">
-    <ParamField path="provider" type="string">
-      Model provider (e.g., "openai", "anthropic", "google")
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
     </ParamField>
-    <ParamField path="model" type="string">
-      Model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
     </ParamField>
-    <ParamField path="apiKey" type="string">
-      Optional: API key for the model provider (overrides default)
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
     </ParamField>
   </Expandable>
 </ParamField>
@@ -188,11 +194,18 @@ await page.act("click the login button");
 #### Custom Model Configuration
 
 ```typescript
+// Using string format
+await page.act("choose 'Peach' from the favorite colour dropdown", {
+  model: "google/gemini-2.5-flash",
+  timeout: 10000
+});
+
+// Using object format with custom configuration
 await page.act("choose 'Peach' from the favorite colour dropdown", {
   model: {
-    provider: "google",
-    model: "gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_API_KEY
+    modelName: "gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY,
+    baseURL: "https://custom-api-endpoint.com"
   },
   timeout: 10000
 });
@@ -227,7 +240,18 @@ await page.act(action);
 
 ### Error Types
 
-- **TimeoutError** - Action exceeded timeout limits
-- **ElementNotFoundError** - Target element could not be located
-- **ActionFailedError** - Action could not be completed
-- **StagehandError** - General Stagehand-specific errors
+The following errors may be thrown by the `act()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **StagehandElementNotFoundError** - Target element could not be located using the provided selector(s)
+- **StagehandClickError** - Failed to click on the target element
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
