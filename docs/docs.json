@@ -101,7 +101,7 @@
       {
         "group": "Reference",
         "pages": [
-          "references/Stagehand",
+          "references/constructor",
           "references/act",
           "references/extract",
           "references/observe",
