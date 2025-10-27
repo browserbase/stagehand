@@ -22,6 +22,22 @@ stagehand.extract("extract the name of the repository");
   </Card>
 </CardGroup>
 
+## Return value of `extract()`?
+When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with the following structure:
+``` typescript
+{
+  extraction: 'The name of the repository is "Stagehand"',
+  actions: [
+    {
+      selector: 'xpath=/html[1]/body[1]/div[1]/h1[1]',
+      description: 'Repository name',
+      method: 'text',
+      arguments: []
+    }
+  ]
+}
+```
+
 ## Using `extract()`
 
 ### Single Value Extraction
