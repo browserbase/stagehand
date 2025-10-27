@@ -62,6 +62,7 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
+
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model
   const isCUA = modelName in modelToAgentProviderMap;
@@ -105,14 +106,15 @@ export async function initV3({
     model: resolvedModelConfig,
     experimental:
       typeof configOverrides?.experimental === "boolean"
-        ? configOverrides.experimental
-        : true,
+        ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
+        : false,
     verbose: 2,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
     selfHeal: true,
     disablePino: true,
+    disableAPI: process.env.USE_API !== "true", // Negate: USE_API=true → disableAPI=false
     logger: logger.log.bind(logger),
   };
 
