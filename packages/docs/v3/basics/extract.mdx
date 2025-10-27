@@ -253,6 +253,22 @@ Accessibility Tree:
               [0-247] StaticText: home page
 ```
 
+### Targeted Extract
+
+Pass a selector to `extract` to target a specific element on the page.
+<Tip>
+This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
+</Tip>
+```typescript
+const pageText = await stagehand.extract(
+  "Extract the values of the third row", 
+  {
+    selector: "xpath=/html/body/div/table/",
+  }
+);
+```
+
+
 ## Best practices
 
 
