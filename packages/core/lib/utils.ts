@@ -440,12 +440,7 @@ export function loadApiKeyFromEnv(
     return apiKeyFromEnv;
   }
 
-  logger({
-    category: "init",
-    message: `API key for ${provider} not found in environment variable ${envVarName}`,
-    level: 0,
-  });
-
+  // Don't log - this is expected when llmClient is provided or API key will be set later
   return undefined;
 }
 
