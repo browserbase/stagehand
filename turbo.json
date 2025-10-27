@@ -81,6 +81,22 @@
       ],
       "cache": false
     },
+    "e2e:local": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "playwright-report/**",
+        "test-results/**"
+      ],
+      "cache": false
+    },
+    "e2e:bb": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "playwright-report/**",
+        "test-results/**"
+      ],
+      "cache": false
+    },
     "evals": {
       "dependsOn": ["build"],
       "outputs": [],

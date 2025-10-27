@@ -2,14 +2,14 @@ import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import Browserbase from "@browserbasehq/sdk";
 import AdmZip from "adm-zip";
-import { v3BBTestConfig } from "./v3.bb.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 
 const pdfRe = /sample-(\d{13})+\.pdf/;
 test.describe("downloads on browserbase", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3BBTestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
