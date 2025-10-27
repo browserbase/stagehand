@@ -268,7 +268,7 @@ const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
 // stagehand.page === context.activePage()
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 // Create a new page - it becomes active
 const newPage = await stagehand.context.newPage();

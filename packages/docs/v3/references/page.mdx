@@ -18,7 +18,7 @@ Access the page object through your Stagehand instance:
 ```typescript
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 ```
 
 ## Navigation Methods
@@ -299,7 +299,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 // Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 // Navigate to a URL
 await page.goto("https://example.com");

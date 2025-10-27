@@ -259,5 +259,31 @@
   },
   "contextual": {
     "options": ["copy", "chatgpt", "claude", "view"]
-  }
+  },
+  "redirects": [
+    {
+      "source": "/first-steps/:slug*",
+      "destination": "/v3/first-steps/:slug*"
+    },
+    {
+      "source": "/basics/:slug*",
+      "destination": "/v3/basics/:slug*"
+    },
+    {
+      "source": "/configuration/:slug*",
+      "destination": "/v3/configuration/:slug*"
+    },
+    {
+      "source": "/best-practices/:slug*",
+      "destination": "/v3/best-practices/:slug*"
+    },
+    {
+      "source": "/integrations/:slug*",
+      "destination": "/v3/integrations/:slug*"
+    },
+    {
+      "source": "/references/:slug*",
+      "destination": "/v3/references/:slug*"
+    }
+  ]
 }

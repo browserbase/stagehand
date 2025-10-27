@@ -158,7 +158,7 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 
-const page = stagehand.page; // Playwright Page with act, extract, and observe methods
+const page = stagehand.context.pages()[0]; // Playwright Page with act, extract, and observe methods
 
 const context = stagehand.context; // Playwright BrowserContext
 ```

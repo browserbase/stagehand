@@ -62,8 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY!,
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
-      modelName: "google/gemini-2.5-flash",
-      modelClientOptions: {
+      model: {
+        modelName: "google/gemini-2.5-flash",
         apiKey: process.env.GOOGLE_API_KEY!,
       },
       // optional session params
@@ -77,17 +77,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     });
 
     await stagehand.init();
-    const page = stagehand.page;
+    const page = stagehand.context.pages()[0];
 
     await page.goto("https://www.stagehand.dev/");
     await stagehand.act("click the evals button");
 
-    const { extraction } = await stagehand.extract("extract the fastest model");
-    const data = { model: extraction ?? "" };
+    const fastestModel = await stagehand.extract("extract the fastest model", z.string());
 
     await stagehand.close();
 
-    res.status(200).json({ ok: true, data: data.model });
+    res.status(200).json({ ok: true, data: fastestModel });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ ok: false, error: msg });

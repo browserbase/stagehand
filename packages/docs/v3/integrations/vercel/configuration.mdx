@@ -57,7 +57,7 @@ import { Browserbase } from "@browserbasehq/sdk";
 async function main(stagehand: Stagehand) {
   // You can use the `page` instance to write any Playwright code
   // For more info: https://playwright.dev/docs/pom
-  const page = stagehand.page;
+  const page = stagehand.context.pages()[0];
 
   // In this example, we'll get the title of the Stagehand quickstart page
   await page.goto("https://docs.stagehand.dev/");
