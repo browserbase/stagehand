@@ -27,6 +27,8 @@ import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
 import { cloneForCache, safeGetPageUrl } from "./utils";
 
+const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
+
 export class AgentCache {
   private readonly storage: CacheStorage;
   private readonly logger: Logger;
@@ -102,15 +104,16 @@ export class AgentCache {
     const serializedModel = this.serializeAgentModelForCache(
       agentOptions?.model,
     );
+    const serializedExecutionModel = this.serializeAgentModelForCache(
+      agentOptions?.executionModel,
+    );
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
         cua: agentOptions?.cua ?? false,
         model: serializedModel ?? null,
-        executionModel: agentOptions?.cua
-          ? null
-          : (agentOptions?.executionModel ?? null),
+        executionModel: agentOptions?.cua ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
@@ -273,11 +276,13 @@ export class AgentCache {
     if (typeof model === "string") return model;
 
     const { modelName, ...modelOptions } = model;
-    const options =
+    const sanitizedOptions =
       Object.keys(modelOptions).length > 0
-        ? (modelOptions as Record<string, unknown>)
+        ? this.sanitizeModelOptionsForCache(
+            modelOptions as Record<string, unknown>,
+          )
         : undefined;
-    return options ? { modelName, options } : modelName;
+    return sanitizedOptions ? { modelName, options: sanitizedOptions } : modelName;
   }
 
   private buildAgentCacheKey(
@@ -293,6 +298,39 @@ export class AgentCache {
       configSignature,
     };
     return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+  }
+
+  private sanitizeModelOptionsForCache(
+    value: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
+    const sanitizedEntries: Record<string, unknown> = {};
+    for (const [key, rawValue] of Object.entries(value)) {
+      if (SENSITIVE_CONFIG_KEYS.has(key.toLowerCase())) {
+        continue;
+      }
+
+      const sanitizedValue = this.sanitizeModelValueForCache(rawValue);
+      if (sanitizedValue !== undefined) {
+        sanitizedEntries[key] = sanitizedValue;
+      }
+    }
+
+    return Object.keys(sanitizedEntries).length > 0 ? sanitizedEntries : undefined;
+  }
+
+  private sanitizeModelValueForCache(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      const sanitizedArray = value
+        .map((item) => this.sanitizeModelValueForCache(item))
+        .filter((item) => item !== undefined);
+      return sanitizedArray;
+    }
+
+    if (value && typeof value === "object") {
+      return this.sanitizeModelOptionsForCache(value as Record<string, unknown>);
+    }
+
+    return value;
   }
 
   private async replayAgentCacheEntry(
