@@ -31,15 +31,16 @@ Each log entry contains structured information:
 
 ```typescript
 interface LogLine {
-  category: 'browser' | 'action' | 'llm' | 'error' | 'stagehand' | 'cache';
+  id?: string;
+  category?: string;
   message: string;
-  level: 0 | 1 | 2; // error | info | debug
-  timestamp: string;
+  level?: 0 | 1 | 2; // 0 = error, 1 = info, 2 = debug
+  timestamp?: string;
   auxiliary?: {
-    executionTime?: { value: string; unit: string };
-    sessionId?: string;
-    url?: string;
-    [key: string]: any;
+    [key: string]: {
+      value: string;
+      type: "object" | "string" | "html" | "integer" | "float" | "boolean";
+    };
   };
 }
 ```

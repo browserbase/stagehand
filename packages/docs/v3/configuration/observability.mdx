@@ -123,20 +123,26 @@ const stagehand = new Stagehand({
   verbose: 1, // Monitor performance without debug noise
 });
 
+await stagehand.init();
+
 // Track local automation metrics
 const startTime = Date.now();
-const initialMetrics = stagehand.metrics;
+const initialMetrics = await stagehand.metrics;
 
 // ... perform automation tasks
+const page = stagehand.page;
+await page.goto("https://example.com");
+await page.act("click button");
+await page.extract({ instruction: "get data", schema: DataSchema });
 
-const finalMetrics = stagehand.metrics;
+const finalMetrics = await stagehand.metrics;
 const executionTime = Date.now() - startTime;
 
 console.log('Local Performance Summary:', {
   executionTime: `${executionTime}ms`,
   totalTokens: finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens,
-  averageResponseTime: finalMetrics.totalInferenceTimeMs / 3, // Assuming 3 operations
-  tokensPerSecond: (finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens) / (executionTime / 1000)
+  totalInferenceTime: `${finalMetrics.totalInferenceTimeMs}ms`,
+  tokensPerSecond: ((finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens) / (executionTime / 1000)).toFixed(2)
 });
 ```
 
@@ -201,23 +207,35 @@ console.log('Resource Usage:', monitor.getResourceSummary());
 Monitor your automation's resource usage in real-time with `stagehand.metrics`:
 
 ```typescript
-// Get current metrics
-console.log(stagehand.metrics);
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+
+// Metrics are async in V3
+const metrics = await stagehand.metrics;
+console.log(metrics);
 
 // Monitor during automation
 const startTime = Date.now();
-const initialMetrics = stagehand.metrics;
+const initialMetrics = await stagehand.metrics;
 
 // ... perform automation tasks
+const page = stagehand.page;
+await page.goto("https://example.com");
+await page.act("click the login button");
+const data = await page.extract({
+  instruction: "extract user info",
+  schema: UserSchema
+});
 
-const finalMetrics = stagehand.metrics;
+const finalMetrics = await stagehand.metrics;
 const executionTime = Date.now() - startTime;
 
 console.log('Automation Summary:', {
   totalTokens: finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens,
-  totalCost: calculateCost(finalMetrics),
-  executionTime,
-  efficiency: (finalMetrics.totalPromptTokens + finalMetrics.totalCompletionTokens) / executionTime
+  executionTime: `${executionTime}ms`,
+  avgInferenceTime: `${finalMetrics.totalInferenceTimeMs / 3}ms`,
 });
 ```
 
@@ -226,72 +244,164 @@ console.log('Automation Summary:', {
 The metrics object provides detailed breakdown by Stagehand operation:
 
 ```typescript
-{
-  actPromptTokens: 4011,
-  actCompletionTokens: 51,
-  actInferenceTimeMs: 1688,
+interface V3Metrics {
+  // Act operation metrics
+  actPromptTokens: number;
+  actCompletionTokens: number;
+  actInferenceTimeMs: number;
 
-  extractPromptTokens: 4200,
-  extractCompletionTokens: 243,
-  extractInferenceTimeMs: 4297,
+  // Extract operation metrics
+  extractPromptTokens: number;
+  extractCompletionTokens: number;
+  extractInferenceTimeMs: number;
 
-  observePromptTokens: 347,
-  observeCompletionTokens: 43,
-  observeInferenceTimeMs: 903,
+  // Observe operation metrics
+  observePromptTokens: number;
+  observeCompletionTokens: number;
+  observeInferenceTimeMs: number;
 
-  totalPromptTokens: 8558,
-  totalCompletionTokens: 337,
-  totalInferenceTimeMs: 6888
+  // Agent operation metrics
+  agentPromptTokens: number;
+  agentCompletionTokens: number;
+  agentInferenceTimeMs: number;
+
+  // Cumulative totals
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalInferenceTimeMs: number;
 }
 ```
 
-### Log Inference to File
+**Example metrics output:**
 
-You can also log inference to a file by setting `logInferenceToFile` to `true`. This will create a directory called `inference_summary` in your project's root directory.
 ```typescript
-const stagehand = new Stagehand({
-  logInferenceToFile: true,    
+const metrics = await stagehand.metrics;
+console.log(metrics);
+
+// {
+//   actPromptTokens: 4011,
+//   actCompletionTokens: 51,
+//   actInferenceTimeMs: 1688,
+//   extractPromptTokens: 4200,
+//   extractCompletionTokens: 243,
+//   extractInferenceTimeMs: 4297,
+//   observePromptTokens: 347,
+//   observeCompletionTokens: 43,
+//   observeInferenceTimeMs: 903,
+//   agentPromptTokens: 0,
+//   agentCompletionTokens: 0,
+//   agentInferenceTimeMs: 0,
+//   totalPromptTokens: 8558,
+//   totalCompletionTokens: 337,
+//   totalInferenceTimeMs: 6888
+// }
+```
+
+## History Tracking
+
+Track all Stagehand operations with the history API. History captures every action, extraction, observation, navigation, and agent execution.
+
+### Basic History Usage
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+
+// Perform some operations
+const page = stagehand.page;
+await page.goto("https://example.com");
+await page.act("click login button");
+await page.observe("find form fields");
+
+// Get complete history (async in V3)
+const history = await stagehand.history;
+
+console.log(`Total operations: ${history.length}`);
+history.forEach((entry, i) => {
+  console.log(`${i + 1}. ${entry.method} at ${entry.timestamp}`);
 });
 ```
-The `inference_summary` directory provides granular analysis data:
-```
-inference_summary/
-├── act_summary/
-│   ├── {timestamp}.json
-│   ├── {timestamp}.json
-│   └── ...
-│   └── act_summary.json
-├── extract_summary/
-│   ├── {timestamp}.json
-│   ├── {timestamp}.json
-│   └── ...
-│   └── extract_summary.json
-├── observe_summary/
-│   ├── {timestamp}.json
-│   ├── {timestamp}.json
-│   └── ...
-│   └── observe_summary.json
-```
 
-### Log File Structure
+### History Entry Structure
 
-Each operation creates detailed logs for analysis:
+Each history entry contains:
+
 ```typescript
-{
-  "act_summary": [
-    {
-      "act_inference_type": "act",
-      "timestamp": "20250329_080446068",
-      "LLM_input_file": "20250329_080446068_act_call.txt",
-      "LLM_output_file": "20250329_080447019_act_response.txt",
-      "prompt_tokens": 3451,
-      "completion_tokens": 45,
-      "inference_time_ms": 951
-    },
-    ...
-  ],
+interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate" | "agent";
+  parameters: unknown;  // Input parameters for the operation
+  result: unknown;      // Output/result of the operation
+  timestamp: string;    // ISO timestamp of when operation occurred
 }
 ```
+
+### Analyzing Workflow Patterns
+
+Use history to analyze and debug automation workflows:
+
+```typescript
+const history = await stagehand.history;
+
+// Find all failed operations
+const failures = history.filter(entry =>
+  entry.result && typeof entry.result === 'object' && 'error' in entry.result
+);
+
+// Count operations by type
+const operationCounts = history.reduce((acc, entry) => {
+  acc[entry.method] = (acc[entry.method] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+
+console.log('Operations:', operationCounts);
+// { act: 5, extract: 2, observe: 3, navigate: 1, agent: 0 }
+
+// Get execution timeline
+const timeline = history.map(entry => ({
+  method: entry.method,
+  time: new Date(entry.timestamp).toLocaleTimeString()
+}));
+```
+
+### Replaying Workflows
+
+Use history to replay or resume automation workflows:
+
+```typescript
+// Save history for later replay
+const history = await stagehand.history;
+await fs.writeFile('workflow-history.json', JSON.stringify(history, null, 2));
+
+// Later: analyze what happened
+const savedHistory = JSON.parse(await fs.readFile('workflow-history.json', 'utf-8'));
+
+console.log('Workflow executed these steps:');
+savedHistory.forEach((entry: HistoryEntry) => {
+  if (entry.method === 'act') {
+    console.log(`- Action: ${JSON.stringify(entry.parameters)}`);
+  } else if (entry.method === 'extract') {
+    console.log(`- Extracted data`);
+  }
+});
+```
+
+### Detailed Inference Logging
+
+For debugging LLM interactions and analyzing model decisions, enable inference logging:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  logInferenceToFile: true, // Creates detailed inference logs
+  verbose: 2
+});
+```
+
+<Card title="Complete Logging Guide" icon="file-lines" href="/configuration/logging">
+  Learn about logging configuration, inference file structure, and debugging techniques.
+</Card>
 
 
 ## Best Practices
