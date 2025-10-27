@@ -297,113 +297,6 @@ console.log(metrics);
 // }
 ```
 
-## History Tracking
-
-Track all Stagehand operations with the history API. History captures every action, extraction, observation, navigation, and agent execution.
-
-### Basic History Usage
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({ env: "BROWSERBASE" });
-await stagehand.init();
-
-// Perform some operations
-const page = stagehand.page;
-await page.goto("https://example.com");
-await page.act("click login button");
-await page.observe("find form fields");
-
-// Get complete history (async in V3)
-const history = await stagehand.history;
-
-console.log(`Total operations: ${history.length}`);
-history.forEach((entry, i) => {
-  console.log(`${i + 1}. ${entry.method} at ${entry.timestamp}`);
-});
-```
-
-### History Entry Structure
-
-Each history entry contains:
-
-```typescript
-interface HistoryEntry {
-  method: "act" | "extract" | "observe" | "navigate" | "agent";
-  parameters: unknown;  // Input parameters for the operation
-  result: unknown;      // Output/result of the operation
-  timestamp: string;    // ISO timestamp of when operation occurred
-}
-```
-
-### Analyzing Workflow Patterns
-
-Use history to analyze and debug automation workflows:
-
-```typescript
-const history = await stagehand.history;
-
-// Find all failed operations
-const failures = history.filter(entry =>
-  entry.result && typeof entry.result === 'object' && 'error' in entry.result
-);
-
-// Count operations by type
-const operationCounts = history.reduce((acc, entry) => {
-  acc[entry.method] = (acc[entry.method] || 0) + 1;
-  return acc;
-}, {} as Record<string, number>);
-
-console.log('Operations:', operationCounts);
-// { act: 5, extract: 2, observe: 3, navigate: 1, agent: 0 }
-
-// Get execution timeline
-const timeline = history.map(entry => ({
-  method: entry.method,
-  time: new Date(entry.timestamp).toLocaleTimeString()
-}));
-```
-
-### Replaying Workflows
-
-Use history to replay or resume automation workflows:
-
-```typescript
-// Save history for later replay
-const history = await stagehand.history;
-await fs.writeFile('workflow-history.json', JSON.stringify(history, null, 2));
-
-// Later: analyze what happened
-const savedHistory = JSON.parse(await fs.readFile('workflow-history.json', 'utf-8'));
-
-console.log('Workflow executed these steps:');
-savedHistory.forEach((entry: HistoryEntry) => {
-  if (entry.method === 'act') {
-    console.log(`- Action: ${JSON.stringify(entry.parameters)}`);
-  } else if (entry.method === 'extract') {
-    console.log(`- Extracted data`);
-  }
-});
-```
-
-### Detailed Inference Logging
-
-For debugging LLM interactions and analyzing model decisions, enable inference logging:
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  logInferenceToFile: true, // Creates detailed inference logs
-  verbose: 2
-});
-```
-
-<Card title="Complete Logging Guide" icon="file-lines" href="/configuration/logging">
-  Learn about logging configuration, inference file structure, and debugging techniques.
-</Card>
-
-
 ## Best Practices
 
 <AccordionGroup>
@@ -440,4 +333,13 @@ const stagehand = new Stagehand({
 </Accordion>
 </AccordionGroup>
 
-For detailed logging and debugging capabilities, see [Logging](/configuration/logging).
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Complete Observability Guide" icon="chart-line" href="v3/best-practices/history">
+  Learn about history tracking, session monitoring, and resource usage monitoring.
+</Card>
+  <Card title="Complete Logging Guide" icon="file-lines" href="v3/configuration/logging">
+    Learn about history tracking, session monitoring, and resource usage monitoring.
+  </Card>
+</CardGroup>

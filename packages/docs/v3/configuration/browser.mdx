@@ -94,13 +94,6 @@ const stagehand = new Stagehand({
             width: 1920,
             height: 1080,
           },
-          fingerprint: {
-            browsers: ["chrome", "edge"],
-            devices: ["desktop"],
-            operatingSystems: ["windows", "macos"],
-            locales: ["en-US", "en-GB"],
-            httpVersion: 2,
-          },
         },
         userMetadata: {
           userId: "automation-user-123",
@@ -246,96 +239,13 @@ const stagehand = new Stagehand({
 await stagehand.init();
 ```
 
-### Connecting to your local browser
+## Advanced Configuration
 
-Connect to your existing local Chrome/Chromium browser instead of launching a new one. This lets you automate your normal browser with all your existing tabs, extensions and settings.
+For performance optimization and resilience features like action caching, self-healing, DOM settling, and experimental features, see the Advanced Configuration guide:
 
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-	env: "LOCAL",
-	localBrowserLaunchOptions: {
-		cdpUrl: 'http://localhost:9222'
-	}
-});
-
-await stagehand.init();
-```
-
-## Additional Configuration
-
-### Action Caching
-
-Cache discovered actions to reduce LLM calls and improve performance. Cached actions are persisted to the local filesystem.
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "./stagehand-cache", // Directory for cached actions
-});
-
-await stagehand.init();
-
-// First run: caches the action
-await stagehand.act("click the login button");
-
-// Subsequent runs: uses cached action (no LLM call)
-await stagehand.act("click the login button");
-```
-
-<Card title="Complete Caching Guide" icon="database" href="/best-practices/caching">
-  Learn advanced caching strategies and best practices.
+<Card title="Advanced Configuration" icon="sliders" href="/configuration/advanced">
+  Configure caching, self-healing, DOM timeouts, and experimental features for optimal performance
 </Card>
-
-### Self-Healing Actions
-
-Enable automatic retry and recovery for failed actions:
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  selfHeal: true, // Automatically retry failed actions with alternative strategies
-});
-```
-
-When `selfHeal` is enabled, Stagehand will:
-- Retry actions with different selectors if the initial attempt fails
-- Adapt to minor page layout changes
-- Use alternative strategies to complete actions
-
-### DOM Settle Timeout
-
-Configure how long Stagehand waits for the DOM to stabilize before taking actions:
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  domSettleTimeout: 3000, // Wait up to 3 seconds for DOM to settle (default varies by operation)
-});
-```
-
-This is useful for pages with:
-- Animated content
-- Lazy-loaded elements
-- Dynamic JavaScript updates
-
-### Experimental Features
-
-Enable experimental features that are under development:
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  experimental: true, // Enable experimental features
-});
-```
-
-<Warning>
-Experimental features may change or be removed in future versions. Use with caution in production environments.
-</Warning>
 
 ## Troubleshooting
 

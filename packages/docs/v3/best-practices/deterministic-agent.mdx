@@ -1,0 +1,586 @@
+---
+title: Deterministic Agent Scripts
+sidebarTitle: Deterministic Agent
+description: Use auto-caching to convert agent workflows into fast, deterministic scripts
+---
+
+Agent workflows are powerful for exploring and automating complex tasks, but they can be slow and non-deterministic. This guide shows you how to use Stagehand's built-in auto-caching to convert agent-discovered workflows into fast, deterministic scripts that run 10-100x faster.
+
+## Why Use Auto-Caching with Agent?
+
+<CardGroup cols={2}>
+  <Card title="Speed" icon="bolt">
+    Cached agent workflows run 10-100x faster by skipping LLM inference on subsequent runs
+  </Card>
+  <Card title="Cost" icon="dollar-sign">
+    Eliminate repeated LLM calls—first run uses inference, subsequent runs use cache
+  </Card>
+  <Card title="Reliability" icon="shield-check">
+    Cached actions are deterministic and more predictable than fresh agent exploration
+  </Card>
+  <Card title="Simplicity" icon="wand-magic-sparkles">
+    Works automatically—just specify `cacheDir` and Stagehand handles everything
+  </Card>
+</CardGroup>
+
+## How Auto-Caching Works
+
+When you specify a `cacheDir`:
+
+1. **First run**: Agent explores and executes workflow using LLM inference
+2. **Actions cached**: All actions are automatically saved to local cache
+3. **Subsequent runs**: Same workflow reuses cached actions (no LLM calls)
+4. **Performance**: 10-100x faster execution, zero LLM tokens
+
+The cache key is automatically generated based on:
+- Agent instruction
+- Start URL
+- Agent execution options
+- Agent configuration
+
+## Basic Auto-Caching with Agent
+
+Simply add `cacheDir` when initializing Stagehand:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Enable auto-caching
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "agent-cache" // Automatic caching enabled
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com");
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+
+// First run: Uses LLM inference (~20-30 seconds, ~50,000 tokens)
+// Subsequent runs: Uses cached actions (~2-3 seconds, 0 tokens)
+const result = await agent.execute({
+  instruction: "Find the login form, fill in username 'demo' and password 'test123', then click submit",
+  maxSteps: 10
+});
+
+console.log("Completed:", result.success);
+console.log("Actions taken:", result.actions.length);
+
+await stagehand.close();
+```
+
+That's it! The second time you run this script, it will reuse the cached agent actions automatically.
+
+## Organizing Caches by Workflow
+
+Use descriptive cache directories for different workflows:
+
+```typescript
+// Login workflow
+const loginStagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/login-workflow"
+});
+
+// Checkout workflow
+const checkoutStagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/checkout-workflow"
+});
+
+// Data extraction workflow
+const extractStagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/extraction-workflow"
+});
+```
+
+## Complete Example: First vs Subsequent Runs
+
+### First Run (Exploration Mode)
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/github-search" // Enable caching
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://github.com");
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+
+console.log("First run: Exploring with agent...");
+const startTime = Date.now();
+
+const result = await agent.execute({
+  instruction: "Search for 'stagehand' and click the first repository result",
+  maxSteps: 10
+});
+
+const duration = Date.now() - startTime;
+console.log(`First run completed in ${duration}ms`);
+console.log(`Actions: ${result.actions.length}`);
+console.log(`Status: ${result.success}`);
+
+await stagehand.close();
+
+// Output (example):
+// First run completed in 25000ms
+// Actions: 8
+// Status: true
+```
+
+### Subsequent Runs (Cached Mode)
+
+Run the **exact same script** again:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/github-search" // Same cache directory
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://github.com");
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+
+console.log("Subsequent run: Using cached actions...");
+const startTime = Date.now();
+
+const result = await agent.execute({
+  instruction: "Search for 'stagehand' and click the first repository result",
+  maxSteps: 10
+});
+
+const duration = Date.now() - startTime;
+console.log(`Subsequent run completed in ${duration}ms`);
+console.log(`Actions: ${result.actions.length}`);
+console.log(`Status: ${result.success}`);
+
+await stagehand.close();
+
+// Output (example):
+// Subsequent run completed in 2500ms  ← 10x faster!
+// Actions: 8
+// Status: true
+```
+
+## Using History for Analysis
+
+While caching handles execution automatically, you can still use `stagehand.history` to analyze what happened:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import fs from "fs/promises";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow"
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com");
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+
+await agent.execute({
+  instruction: "Complete the login process",
+  maxSteps: 10
+});
+
+// Analyze what the agent did
+const history = await stagehand.history;
+
+console.log(`\nWorkflow Analysis:`);
+console.log(`Total operations: ${history.length}`);
+
+const agentOps = history.filter(e => e.method === 'agent');
+const actOps = history.filter(e => e.method === 'act');
+const navOps = history.filter(e => e.method === 'navigate');
+
+console.log(`- Agent executions: ${agentOps.length}`);
+console.log(`- Act operations: ${actOps.length}`);
+console.log(`- Navigate operations: ${navOps.length}`);
+
+// Save for documentation
+await fs.writeFile(
+  'workflow-analysis.json',
+  JSON.stringify(history, null, 2)
+);
+
+await stagehand.close();
+```
+
+## Cache Management
+
+### Clear Cache When Site Changes
+
+If the website structure changes, clear the cache to force fresh exploration:
+
+```typescript
+import { rmSync } from 'fs';
+
+// Clear specific workflow cache
+rmSync('cache/login-workflow', { recursive: true, force: true });
+
+// Then run with fresh exploration
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/login-workflow" // Will rebuild cache
+});
+```
+
+### Programmatic Cache Control
+
+```typescript
+import { rmSync, existsSync } from 'fs';
+
+function clearCacheIfNeeded(cacheDir: string, maxAge: number = 7 * 24 * 60 * 60 * 1000) {
+  if (!existsSync(cacheDir)) {
+    return; // No cache to clear
+  }
+
+  const stats = statSync(cacheDir);
+  const age = Date.now() - stats.mtimeMs;
+
+  if (age > maxAge) {
+    console.log(`Cache older than ${maxAge}ms, clearing...`);
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
+}
+
+// Clear cache if older than 7 days
+clearCacheIfNeeded('cache/workflow');
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow"
+});
+```
+
+## Advanced Patterns
+
+### Parameterized Agent Workflows
+
+Use variables to make cached workflows reusable with different inputs:
+
+```typescript
+async function executeLogin(username: string, password: string) {
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    cacheDir: "cache/login"
+  });
+
+  await stagehand.init();
+  const page = stagehand.page;
+
+  await page.goto("https://example.com/login");
+
+  const agent = stagehand.agent({
+    model: "anthropic/claude-sonnet-4-20250514"
+  });
+
+  // Variables work with caching
+  const result = await agent.execute({
+    instruction: `Fill in username with "${username}" and password with "${password}", then click submit`,
+    maxSteps: 5
+  });
+
+  await stagehand.close();
+  return result.success;
+}
+
+// First user: Caches the workflow
+await executeLogin("user1@example.com", "password123");
+
+// Second user: Reuses cached workflow structure
+await executeLogin("user2@example.com", "differentpass");
+```
+
+### Fallback to Fresh Exploration
+
+Combine caching with fallback for resilience:
+
+```typescript
+async function executeWithFallback() {
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    cacheDir: "cache/workflow",
+    selfHeal: true // Enable self-healing
+  });
+
+  await stagehand.init();
+  const page = stagehand.page;
+
+  await page.goto("https://example.com");
+
+  const agent = stagehand.agent({
+    model: "anthropic/claude-sonnet-4-20250514"
+  });
+
+  try {
+    // Try with cache
+    const result = await agent.execute({
+      instruction: "Complete the checkout process",
+      maxSteps: 15
+    });
+
+    console.log("Execution successful:", result.success);
+  } catch (error) {
+    console.error("Cached workflow failed:", error);
+
+    // Clear cache and retry with fresh exploration
+    rmSync('cache/workflow', { recursive: true, force: true });
+
+    console.log("Retrying with fresh exploration...");
+    const retryResult = await agent.execute({
+      instruction: "Complete the checkout process",
+      maxSteps: 15
+    });
+
+    console.log("Retry successful:", retryResult.success);
+  }
+
+  await stagehand.close();
+}
+```
+
+### Version Control for Caches
+
+Commit cache directories to ensure consistent behavior across environments:
+
+```gitignore
+# .gitignore
+
+# Commit cache directories for deterministic CI/CD
+!cache/
+!cache/**/*.json
+```
+
+```typescript
+// CI/CD pipeline will use pre-generated cache
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/production-workflow" // Committed to repo
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+
+<Accordion title="Use Descriptive Cache Names">
+Organize caches by workflow or feature:
+
+```typescript
+// Good: descriptive cache names
+cacheDir: "cache/user-registration"
+cacheDir: "cache/product-search"
+cacheDir: "cache/checkout-flow"
+
+// Avoid: generic names
+cacheDir: "cache"
+cacheDir: "my-cache"
+```
+</Accordion>
+
+<Accordion title="Cache Invalidation Strategy">
+Implement a strategy for refreshing caches:
+
+```typescript
+// Option 1: Time-based invalidation
+if (isCacheOlderThan('cache/workflow', 7)) {
+  clearCache('cache/workflow');
+}
+
+// Option 2: Version-based invalidation
+const CACHE_VERSION = 'v2';
+const cacheDir = `cache/workflow-${CACHE_VERSION}`;
+
+// Option 3: Manual invalidation flag
+if (process.env.CLEAR_CACHE === 'true') {
+  clearCache('cache/workflow');
+}
+```
+</Accordion>
+
+<Accordion title="Test in Staging First">
+Always test cached workflows in staging before production:
+
+```typescript
+const env = process.env.NODE_ENV === 'production' ? 'production' : 'staging';
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: `cache/${env}-workflow`
+});
+```
+</Accordion>
+
+<Accordion title="Monitor Cache Hit Rates">
+Track cache usage for optimization:
+
+```typescript
+const cacheHit = existsSync('cache/workflow') &&
+                statSync('cache/workflow').mtimeMs < Date.now();
+
+if (cacheHit) {
+  console.log("Cache hit - using cached workflow");
+} else {
+  console.log("Cache miss - exploring with agent");
+}
+
+// Log metrics
+metrics.recordCacheHit(cacheHit);
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Performance Comparison
+
+**Without Caching (Every Run):**
+```typescript
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+// No cacheDir specified
+
+const result = await agent.execute({
+  instruction: "Complete workflow",
+  maxSteps: 10
+});
+
+// Every run: ~20-30 seconds, ~50,000 tokens
+```
+
+**With Auto-Caching (First Run):**
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow"
+});
+
+const result = await agent.execute({
+  instruction: "Complete workflow",
+  maxSteps: 10
+});
+
+// First run: ~20-30 seconds, ~50,000 tokens (cached for next time)
+```
+
+**With Auto-Caching (Subsequent Runs):**
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow" // Reuses cache
+});
+
+const result = await agent.execute({
+  instruction: "Complete workflow",
+  maxSteps: 10
+});
+
+// Subsequent runs: ~2-3 seconds, 0 tokens ← 10-100x faster!
+```
+
+<Note>
+Cached agent workflows run **10-100x faster** and consume **zero LLM tokens** on subsequent runs. The first run pays the exploration cost, every run after is nearly instant.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Cache not being used">
+**Problem**: Workflow still slow on subsequent runs
+
+**Solutions**:
+- Verify `cacheDir` path is correct and consistent across runs
+- Ensure instruction, URL, and agent config are identical
+- Check file permissions on cache directory
+- Look for cache hit/miss logs in verbose mode
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow",
+  verbose: 2 // Enable debug logs
+});
+```
+</Accordion>
+
+<Accordion title="Cached workflow fails">
+**Problem**: Cached actions fail on subsequent runs
+
+**Solutions**:
+- Website may have changed—clear cache to re-explore
+- Enable self-healing to adapt to minor changes
+- Implement fallback logic to retry with fresh exploration
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "cache/workflow",
+  selfHeal: true // Adapt to changes
+});
+```
+</Accordion>
+
+<Accordion title="Too many cache directories">
+**Problem**: Cache directories growing uncontrolled
+
+**Solutions**:
+- Use version prefixes for cache directories
+- Implement automatic cleanup of old caches
+- Share cache directories for similar workflows
+
+```typescript
+// Versioned caches
+const CACHE_VERSION = '2024-01';
+const cacheDir = `cache/workflow-${CACHE_VERSION}`;
+
+// Cleanup old versions
+rmSync('cache/workflow-2023-12', { recursive: true, force: true });
+```
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agent Guide" icon="robot" href="/basics/agent">
+    Learn more about agent capabilities and configuration
+  </Card>
+
+  <Card title="Caching Guide" icon="database" href="/best-practices/caching">
+    Complete guide to auto-caching with act() and agent()
+  </Card>
+
+  <Card title="Observability" icon="chart-line" href="/configuration/observability">
+    Monitor and track history and metrics
+  </Card>
+
+  <Card title="Speed Optimization" icon="bolt" href="/best-practices/speed-optimization">
+    Additional techniques for faster automation
+  </Card>
+</CardGroup>

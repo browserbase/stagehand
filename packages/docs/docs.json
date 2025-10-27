@@ -45,7 +45,8 @@
               "v3/configuration/observability",
               "v3/configuration/logging",
               "v3/configuration/models",
-              "v3/configuration/evals"
+              "v3/configuration/evals",
+              "v3/configuration/advanced"
             ]
           },
           {
@@ -53,8 +54,10 @@
             "pages": [
               "v3/best-practices/caching",
               "v3/best-practices/cost-optimization",
+              "v3/best-practices/deterministic-agent",
               "v3/best-practices/using-multiple-tabs",
               "v3/best-practices/deployments",
+              "v3/best-practices/history",
               "v3/best-practices/computer-use",
               "v3/best-practices/contributing",
               "v3/best-practices/playwright-interop",

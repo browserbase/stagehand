@@ -1,0 +1,455 @@
+---
+title: Advanced Configuration
+sidebarTitle: Advanced
+description: Configure self-healing, caching, and experimental features
+---
+
+Advanced configuration options for optimizing performance, enabling resilience, and accessing experimental features in Stagehand.
+
+## Self-Healing Actions
+
+Enable automatic retry and recovery for failed actions. Self-healing helps actions adapt to minor page changes.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  selfHeal: true // Enable self-healing
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+// If the button selector changes slightly, self-heal will try alternative strategies
+await page.act("click the submit button");
+```
+
+### How Self-Healing Works
+
+When `selfHeal` is enabled, Stagehand will:
+- **Retry with alternative selectors** if the initial action fails
+- **Adapt to minor layout changes** without requiring cache invalidation
+- **Use fallback strategies** to complete actions even when the DOM changes
+- **Automatically recover** from transient failures
+
+### Use Cases
+
+Self-healing is particularly useful for:
+- **Dynamic websites** with frequently changing layouts
+- **A/B testing scenarios** where page structure varies
+- **Long-running automations** that need to be resilient
+- **Multi-environment deployments** with slight UI differences
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  selfHeal: true,
+  cacheDir: "./cache" // Combine with caching for best results
+});
+```
+
+<Note>
+Self-healing adds a small overhead to failed actions but significantly improves reliability for workflows running against evolving websites.
+</Note>
+
+## DOM Settle Timeout
+
+Configure how long Stagehand waits for the DOM to stabilize before taking actions.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 3000 // Wait up to 3 seconds for DOM to settle
+});
+```
+
+### What is DOM Settling?
+
+DOM settling ensures that:
+- **Animations complete** before interacting with elements
+- **Lazy-loaded content** has time to appear
+- **JavaScript updates** finish before actions are taken
+- **Dynamic content** is fully rendered
+
+### When to Adjust
+
+Increase `domSettleTimeout` for pages with:
+- Heavy animations or transitions
+- Lazy-loading or infinite scroll
+- Dynamic JavaScript frameworks (React, Vue, Angular)
+- Complex single-page applications
+
+```typescript
+// For fast, static pages
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 500 // Minimal wait
+});
+
+// For dynamic, animated pages
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 5000 // Longer wait for stability
+});
+```
+
+<Warning>
+Setting `domSettleTimeout` too low may cause actions to fail on elements that aren't ready. Setting it too high increases execution time unnecessarily.
+</Warning>
+
+
+## Action Caching
+
+Cache discovered actions to reduce LLM calls and improve performance. Cached actions are persisted to the local filesystem.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./stagehand-cache" // Directory for cached actions
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+// First run: caches the action
+await page.act("click the login button");
+
+// Subsequent runs: uses cached action (no LLM call)
+await page.act("click the login button");
+```
+
+### How Caching Works
+
+When you specify a `cacheDir`:
+1. **First run**: Actions use LLM inference and results are cached to local files
+2. **Subsequent runs**: Cached actions are reused automatically (no LLM calls)
+3. **Cost savings**: Eliminate redundant inference calls for repeated actions
+4. **Performance**: Faster execution by skipping LLM inference (10-100x speedup)
+
+### Caching with Agent
+
+Caching works automatically with agent workflows too:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "agent-cache" // Cache agent actions
+});
+
+await stagehand.init();
+
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+
+// First run: explores and caches
+// Subsequent runs: uses cached workflow
+const result = await agent.execute({
+  instruction: "Complete the checkout process",
+  maxSteps: 15
+});
+```
+
+<Card title="Complete Caching Guide" icon="database" href="/best-practices/caching">
+  Learn advanced caching strategies, cache organization, and best practices
+</Card>
+
+## Experimental Features
+
+Enable experimental features that are under active development.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: true // Enable experimental features
+});
+```
+
+### What's Included
+
+Experimental features may include:
+- **New AI models** or providers being tested
+- **Performance optimizations** not yet stable
+- **Cutting-edge browser capabilities** still in development
+- **Advanced automation techniques** in beta
+
+<Warning>
+**Use with caution in production**. Experimental features:
+- May change or be removed in future versions without notice
+- Have not undergone full stability testing
+- May have incomplete documentation
+- Are not covered by standard support SLAs
+</Warning>
+
+### Development Usage
+
+Experimental features are suitable for:
+- **Testing environments** where instability is acceptable
+- **Research and exploration** of new capabilities
+- **Early feedback** to the Stagehand team
+- **Prototyping** before production deployment
+
+```typescript
+// Safe for development/testing
+const devStagehand = new Stagehand({
+  env: "LOCAL",
+  experimental: true,
+  verbose: 2 // Extra logging to debug experimental features
+});
+
+// Avoid in production
+const prodStagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: false // Stick to stable features
+});
+```
+
+## API Endpoint Control
+
+Disable internal API endpoints (advanced use case).
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  disableAPI: true // Disable internal API endpoints
+});
+```
+
+### When to Use
+
+The `disableAPI` flag is primarily for:
+- **Minimal deployments** where API endpoints aren't needed
+- **Security-restricted environments** with strict networking policies
+- **Testing scenarios** where API interactions should be isolated
+- **Custom integrations** that bypass standard API usage
+
+<Note>
+Most users should **not** set this flag. It's an internal configuration for advanced use cases and may break certain functionality.
+</Note>
+
+## Configuration Combinations
+
+Combine advanced configurations for optimal results:
+
+### Production: Performance + Reliability
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./production-cache",
+  selfHeal: true,
+  domSettleTimeout: 2000,
+  experimental: false // Stable features only
+});
+```
+
+### Development: Fast Iteration
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  cacheDir: "./dev-cache",
+  selfHeal: false, // Fail fast to catch issues
+  domSettleTimeout: 500,
+  experimental: true, // Test new features
+  verbose: 2 // Extra logging
+});
+```
+
+### Testing: Deterministic Behavior
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./test-cache",
+  selfHeal: false, // Predictable failures
+  domSettleTimeout: 1000,
+  experimental: false
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+
+<Accordion title="Start with Defaults">
+Begin with default settings and only adjust when needed:
+
+```typescript
+// Start here
+const stagehand = new Stagehand({
+  env: "BROWSERBASE"
+});
+
+// Add advanced config based on observed behavior
+const optimizedStagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./cache", // Add after testing
+  selfHeal: true // Add if seeing layout issues
+});
+```
+</Accordion>
+
+<Accordion title="Measure Impact">
+Always measure the impact of advanced configurations:
+
+```typescript
+const startTime = Date.now();
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./cache",
+  selfHeal: true
+});
+
+// ... run automation
+
+const metrics = await stagehand.metrics;
+const duration = Date.now() - startTime;
+
+console.log(`Duration: ${duration}ms`);
+console.log(`Tokens: ${metrics.totalPromptTokens + metrics.totalCompletionTokens}`);
+```
+</Accordion>
+
+<Accordion title="Environment-Specific Configs">
+Use different configurations for different environments:
+
+```typescript
+const config = {
+  env: "BROWSERBASE",
+  cacheDir: process.env.NODE_ENV === 'production'
+    ? "./production-cache"
+    : "./dev-cache",
+  selfHeal: process.env.NODE_ENV === 'production', // Only in prod
+  experimental: process.env.NODE_ENV !== 'production' // Only in dev
+};
+
+const stagehand = new Stagehand(config);
+```
+</Accordion>
+
+<Accordion title="Monitor Cache Performance">
+Track cache hit rates and adjust strategies:
+
+```typescript
+import { existsSync, statSync } from 'fs';
+
+const cacheDir = "./cache";
+const cacheExists = existsSync(cacheDir);
+
+console.log(cacheExists ? "Cache hit" : "Cache miss");
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir
+});
+
+// Log cache statistics
+if (cacheExists) {
+  const stats = statSync(cacheDir);
+  console.log(`Cache age: ${Date.now() - stats.mtimeMs}ms`);
+}
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Cache not working">
+**Problem**: Actions still slow despite caching
+
+**Solutions**:
+- Verify `cacheDir` path exists and has write permissions
+- Check that instructions are exactly identical across runs
+- Look for cache hit/miss logs with `verbose: 2`
+- Ensure cache files aren't being deleted between runs
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./cache",
+  verbose: 2 // Debug logging
+});
+```
+</Accordion>
+
+<Accordion title="Self-healing too slow">
+**Problem**: Self-healing adds too much overhead
+
+**Solutions**:
+- Reduce retries by using more specific instructions
+- Combine with caching to avoid repeated self-heal attempts
+- Consider disabling self-heal and using explicit error handling instead
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  selfHeal: false // Disable if performance is critical
+});
+```
+</Accordion>
+
+<Accordion title="DOM settle timeout issues">
+**Problem**: Actions failing or taking too long
+
+**Solutions**:
+- Increase timeout for dynamic pages
+- Decrease timeout for static pages
+- Use page-specific waits instead of global timeout
+
+```typescript
+// Increase for dynamic pages
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 5000
+});
+
+// Or use explicit waits
+await page.waitForLoadState('networkidle');
+await page.act("click button");
+```
+</Accordion>
+
+<Accordion title="Experimental features unstable">
+**Problem**: Unexpected behavior with experimental features
+
+**Solutions**:
+- Disable experimental features in production
+- Report issues to Stagehand team with verbose logs
+- Use stable features for critical workflows
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  experimental: false, // Disable for stability
+  verbose: 2 // Enable for debugging
+});
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Caching Guide" icon="database" href="/best-practices/caching">
+    Deep dive into caching strategies and patterns
+  </Card>
+
+  <Card title="Deterministic Agent" icon="robot" href="/best-practices/deterministic-agent">
+    Use caching to create fast, deterministic agent workflows
+  </Card>
+
+  <Card title="Browser Configuration" icon="browser" href="/configuration/browser">
+    Configure browser environments and launch options
+  </Card>
+
+  <Card title="Observability" icon="chart-line" href="/configuration/observability">
+    Monitor metrics and track performance
+  </Card>
+</CardGroup>

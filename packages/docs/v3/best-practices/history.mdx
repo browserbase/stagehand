@@ -1,0 +1,644 @@
+---
+title: History Tracking
+sidebarTitle: History Tracking
+description: Track, analyze, and replay Stagehand operations with the history API
+---
+
+The history API captures every Stagehand operation, providing a complete audit trail of your automation workflows. Use history for debugging, analysis, workflow optimization, and building deterministic scripts.
+
+## Why Use History?
+
+<CardGroup cols={2}>
+  <Card title="Debugging" icon="bug">
+    See exactly what happened during execution to diagnose failures
+  </Card>
+  <Card title="Analysis" icon="chart-line">
+    Analyze workflow patterns, timing, and operation sequences
+  </Card>
+  <Card title="Audit Trail" icon="file-lines">
+    Maintain complete records of automation activities
+  </Card>
+  <Card title="Workflow Optimization" icon="gauge-high">
+    Identify bottlenecks and optimize execution paths
+  </Card>
+</CardGroup>
+
+## Basic Usage
+
+Access the complete history of operations with `stagehand.history`:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.page;
+
+// Perform automation
+await page.goto("https://example.com");
+await page.act("click login button");
+await page.extract({
+  instruction: "get user info",
+  schema: z.object({ name: z.string() })
+});
+
+// Get complete history (async in V3)
+const history = await stagehand.history;
+
+console.log(`Total operations: ${history.length}`);
+history.forEach((entry, i) => {
+  console.log(`${i + 1}. ${entry.method} at ${entry.timestamp}`);
+});
+
+await stagehand.close();
+```
+
+## History Entry Structure
+
+Each history entry contains complete information about an operation:
+
+```typescript
+interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate" | "agent";
+  parameters: unknown;  // Input parameters for the operation
+  result: unknown;      // Output/result of the operation
+  timestamp: string;    // ISO 8601 timestamp
+}
+```
+
+**Example history entry:**
+
+```typescript
+{
+  method: "act",
+  parameters: {
+    instruction: "click the submit button",
+    variables: {}
+  },
+  result: {
+    success: true,
+    selector: "xpath=//button[@type='submit']"
+  },
+  timestamp: "2025-01-15T10:30:45.123Z"
+}
+```
+
+## Common Use Cases
+
+### Debugging Failed Workflows
+
+Identify where and why workflows fail:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.page;
+
+try {
+  await page.goto("https://example.com");
+  await page.act("click login button");
+  await page.act("fill username field");
+} catch (error) {
+  console.error("Workflow failed:", error);
+
+  // Analyze what happened
+  const history = await stagehand.history;
+
+  console.log("\nExecution history:");
+  history.forEach((entry, i) => {
+    const status = entry.result && 'error' in entry.result ? "❌ FAILED" : "✅ SUCCESS";
+    console.log(`${i + 1}. ${status} - ${entry.method}`);
+    console.log(`   Time: ${entry.timestamp}`);
+    if (entry.result && 'error' in entry.result) {
+      console.log(`   Error: ${entry.result.error}`);
+    }
+  });
+}
+
+await stagehand.close();
+```
+
+### Analyzing Operation Timing
+
+Identify performance bottlenecks:
+
+```typescript
+const history = await stagehand.history;
+
+// Calculate duration between operations
+const timings = history.map((entry, i) => {
+  if (i === 0) return null;
+
+  const prevTime = new Date(history[i - 1].timestamp).getTime();
+  const currTime = new Date(entry.timestamp).getTime();
+  const duration = currTime - prevTime;
+
+  return {
+    operation: entry.method,
+    duration: `${duration}ms`,
+    parameters: entry.parameters
+  };
+}).filter(Boolean);
+
+// Find slowest operations
+const slowest = timings.sort((a, b) =>
+  parseInt(b.duration) - parseInt(a.duration)
+).slice(0, 5);
+
+console.log("Slowest operations:");
+slowest.forEach(op => {
+  console.log(`${op.operation}: ${op.duration}`);
+});
+```
+
+### Operation Statistics
+
+Get insights into workflow composition:
+
+```typescript
+const history = await stagehand.history;
+
+// Count operations by type
+const stats = history.reduce((acc, entry) => {
+  acc[entry.method] = (acc[entry.method] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+
+console.log("Workflow statistics:");
+console.log(`- Total operations: ${history.length}`);
+console.log(`- Actions (act): ${stats.act || 0}`);
+console.log(`- Extractions (extract): ${stats.extract || 0}`);
+console.log(`- Observations (observe): ${stats.observe || 0}`);
+console.log(`- Navigations (navigate): ${stats.navigate || 0}`);
+console.log(`- Agent executions (agent): ${stats.agent || 0}`);
+
+// Calculate success rate
+const failures = history.filter(entry =>
+  entry.result && typeof entry.result === 'object' && 'error' in entry.result
+);
+
+const successRate = ((history.length - failures.length) / history.length * 100).toFixed(2);
+console.log(`- Success rate: ${successRate}%`);
+```
+
+### Saving History for Analysis
+
+Export history for later analysis or auditing:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import fs from "fs/promises";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.page;
+
+// Run automation
+await page.goto("https://example.com");
+await page.act("complete workflow");
+
+// Save history with metadata
+const history = await stagehand.history;
+const metrics = await stagehand.metrics;
+
+const report = {
+  workflow: "user-registration",
+  timestamp: new Date().toISOString(),
+  history: history,
+  metrics: {
+    totalOperations: history.length,
+    totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens,
+    totalInferenceTime: metrics.totalInferenceTimeMs
+  }
+};
+
+await fs.writeFile(
+  `workflow-report-${Date.now()}.json`,
+  JSON.stringify(report, null, 2)
+);
+
+console.log("History saved for analysis");
+
+await stagehand.close();
+```
+
+## Advanced Patterns
+
+### Building Execution Timelines
+
+Create detailed timelines for visualization:
+
+```typescript
+const history = await stagehand.history;
+
+const timeline = history.map((entry, i) => {
+  const timestamp = new Date(entry.timestamp);
+  const duration = i > 0
+    ? timestamp.getTime() - new Date(history[i - 1].timestamp).getTime()
+    : 0;
+
+  return {
+    step: i + 1,
+    method: entry.method,
+    time: timestamp.toISOString(),
+    duration: `${duration}ms`,
+    description: extractDescription(entry),
+    success: !entry.result || !('error' in entry.result)
+  };
+});
+
+function extractDescription(entry: HistoryEntry): string {
+  if (entry.method === 'act') {
+    return entry.parameters?.instruction || 'Action';
+  } else if (entry.method === 'extract') {
+    return entry.parameters?.instruction || 'Extraction';
+  } else if (entry.method === 'navigate') {
+    return `Navigate to ${entry.parameters?.url || 'page'}`;
+  } else if (entry.method === 'observe') {
+    return entry.parameters?.instruction || 'Observation';
+  } else if (entry.method === 'agent') {
+    return entry.parameters?.instruction || 'Agent execution';
+  }
+  return entry.method;
+}
+
+console.table(timeline);
+```
+
+### Filtering History by Operation Type
+
+Focus on specific operation types:
+
+```typescript
+const history = await stagehand.history;
+
+// Get only actions
+const actions = history.filter(e => e.method === 'act');
+console.log(`Actions taken: ${actions.length}`);
+actions.forEach(action => {
+  console.log(`- ${action.parameters?.instruction}`);
+});
+
+// Get only extractions
+const extractions = history.filter(e => e.method === 'extract');
+console.log(`\nData extracted: ${extractions.length} times`);
+extractions.forEach(extraction => {
+  console.log(`- ${extraction.parameters?.instruction}`);
+  console.log(`  Result: ${JSON.stringify(extraction.result).slice(0, 100)}...`);
+});
+
+// Get only agent operations
+const agentOps = history.filter(e => e.method === 'agent');
+console.log(`\nAgent executions: ${agentOps.length}`);
+```
+
+### Comparing Workflow Runs
+
+Compare history across multiple runs:
+
+```typescript
+import fs from "fs/promises";
+
+async function runAndSaveHistory(workflowName: string) {
+  const stagehand = new Stagehand({ env: "BROWSERBASE" });
+  await stagehand.init();
+  const page = stagehand.page;
+
+  // Run workflow
+  await page.goto("https://example.com");
+  await page.act("complete checkout");
+
+  // Save history
+  const history = await stagehand.history;
+  await fs.writeFile(
+    `history-${workflowName}-${Date.now()}.json`,
+    JSON.stringify(history, null, 2)
+  );
+
+  await stagehand.close();
+  return history;
+}
+
+// Run workflow twice
+const run1 = await runAndSaveHistory("baseline");
+const run2 = await runAndSaveHistory("optimized");
+
+// Compare
+console.log("Comparison:");
+console.log(`Run 1: ${run1.length} operations`);
+console.log(`Run 2: ${run2.length} operations`);
+console.log(`Difference: ${Math.abs(run1.length - run2.length)} operations`);
+```
+
+### Detecting Patterns and Anomalies
+
+Identify unusual patterns in execution:
+
+```typescript
+const history = await stagehand.history;
+
+// Detect repeated failed operations
+const failedOps = history.filter(entry =>
+  entry.result && typeof entry.result === 'object' && 'error' in entry.result
+);
+
+const failurePatterns = failedOps.reduce((acc, entry) => {
+  const key = entry.method + ':' + JSON.stringify(entry.parameters);
+  acc[key] = (acc[key] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+
+console.log("Repeated failures:");
+Object.entries(failurePatterns)
+  .filter(([_, count]) => count > 1)
+  .forEach(([pattern, count]) => {
+    console.log(`${count}x - ${pattern}`);
+  });
+
+// Detect unusually slow operations
+const durations = history.map((entry, i) => {
+  if (i === 0) return 0;
+  return new Date(entry.timestamp).getTime() -
+         new Date(history[i - 1].timestamp).getTime();
+});
+
+const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+const slowOps = history.filter((entry, i) =>
+  durations[i] > avgDuration * 2
+);
+
+console.log(`\nUnusually slow operations (>${(avgDuration * 2).toFixed(0)}ms):`);
+slowOps.forEach((entry, i) => {
+  console.log(`- ${entry.method}: ${durations[i]}ms`);
+});
+```
+
+## Integration with Observability
+
+Combine history with metrics for comprehensive insights:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com");
+await page.act("complete workflow");
+
+// Get both history and metrics
+const history = await stagehand.history;
+const metrics = await stagehand.metrics;
+
+const report = {
+  execution: {
+    totalOperations: history.length,
+    successfulOps: history.filter(e =>
+      !e.result || !('error' in e.result)
+    ).length,
+    failedOps: history.filter(e =>
+      e.result && 'error' in e.result
+    ).length
+  },
+  performance: {
+    totalInferenceTime: `${metrics.totalInferenceTimeMs}ms`,
+    avgTimePerOperation: `${(metrics.totalInferenceTimeMs / history.length).toFixed(0)}ms`,
+    totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens
+  },
+  breakdown: {
+    actOps: history.filter(e => e.method === 'act').length,
+    extractOps: history.filter(e => e.method === 'extract').length,
+    observeOps: history.filter(e => e.method === 'observe').length,
+    navigateOps: history.filter(e => e.method === 'navigate').length,
+    agentOps: history.filter(e => e.method === 'agent').length
+  }
+};
+
+console.log(JSON.stringify(report, null, 2));
+
+await stagehand.close();
+```
+
+<Card title="Observability Guide" icon="chart-line" href="/configuration/observability">
+  Learn more about metrics, logging, and monitoring
+</Card>
+
+## Best Practices
+
+<AccordionGroup>
+
+<Accordion title="Save History for Important Workflows">
+Maintain audit trails for critical automations:
+
+```typescript
+async function runWithAudit(workflowName: string) {
+  const stagehand = new Stagehand({ env: "BROWSERBASE" });
+  await stagehand.init();
+
+  try {
+    // Run workflow
+    await runWorkflow(stagehand);
+
+    // Save history on success
+    const history = await stagehand.history;
+    await fs.writeFile(
+      `audit/${workflowName}-${Date.now()}.json`,
+      JSON.stringify({ status: 'success', history }, null, 2)
+    );
+  } catch (error) {
+    // Save history on failure too
+    const history = await stagehand.history;
+    await fs.writeFile(
+      `audit/${workflowName}-${Date.now()}-FAILED.json`,
+      JSON.stringify({ status: 'failed', error, history }, null, 2)
+    );
+    throw error;
+  } finally {
+    await stagehand.close();
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Use History for Debugging">
+When workflows fail, inspect history first:
+
+```typescript
+try {
+  await runComplexWorkflow();
+} catch (error) {
+  const history = await stagehand.history;
+
+  console.error("Workflow failed at step:", history.length);
+  console.error("Last successful operation:",
+    history[history.length - 2]?.method);
+  console.error("Failed operation:",
+    history[history.length - 1]);
+
+  throw error;
+}
+```
+</Accordion>
+
+<Accordion title="Analyze History Periodically">
+Review history to optimize workflows:
+
+```typescript
+// Collect history from multiple runs
+const histories: HistoryEntry[][] = [];
+
+for (let i = 0; i < 10; i++) {
+  const stagehand = new Stagehand({ env: "BROWSERBASE" });
+  await stagehand.init();
+
+  await runWorkflow(stagehand);
+  histories.push(await stagehand.history);
+
+  await stagehand.close();
+}
+
+// Analyze patterns
+const avgLength = histories.reduce((sum, h) => sum + h.length, 0) / histories.length;
+console.log(`Average operations per run: ${avgLength.toFixed(1)}`);
+
+const mostCommonOps = histories.flat()
+  .reduce((acc, e) => {
+    acc[e.method] = (acc[e.method] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+console.log("Most common operations:", mostCommonOps);
+```
+</Accordion>
+
+<Accordion title="Combine with Caching">
+Use history to validate cached workflows:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "./cache"
+});
+
+await stagehand.init();
+await runWorkflow(stagehand);
+
+const history = await stagehand.history;
+
+// Check if workflow was fully cached
+const llmCalls = history.filter(e =>
+  e.method === 'act' || e.method === 'extract' || e.method === 'observe'
+);
+
+console.log(`Operations using cache: ${llmCalls.length}`);
+console.log("Cache is working:", llmCalls.length === 0);
+
+await stagehand.close();
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="History is empty">
+**Problem**: `stagehand.history` returns empty array
+
+**Solutions**:
+- Ensure operations have been performed before accessing history
+- History only includes operations on the current Stagehand instance
+- Check that operations completed successfully
+
+```typescript
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+
+// History will be empty here
+let history = await stagehand.history;
+console.log(history.length); // 0
+
+// Perform operations
+await stagehand.page.goto("https://example.com");
+await stagehand.page.act("click button");
+
+// Now history has entries
+history = await stagehand.history;
+console.log(history.length); // 2 (navigate + act)
+```
+</Accordion>
+
+<Accordion title="History missing operations">
+**Problem**: Some operations not appearing in history
+
+**Solutions**:
+- Only Stagehand operations are tracked (native Playwright/Puppeteer calls aren't)
+- Errors may prevent history entry creation
+- Check that you're using Stagehand methods (act, extract, observe, etc.)
+
+```typescript
+// These ARE tracked in history
+await page.act("click button");              // ✓ Tracked
+await page.extract({ instruction: "..." }); // ✓ Tracked
+await page.observe("find elements");        // ✓ Tracked
+await page.goto("https://example.com");     // ✓ Tracked
+
+// These are NOT tracked in history
+await page.locator("button").click();       // ✗ Native Playwright
+await page.click("button");                 // ✗ Native Playwright
+```
+</Accordion>
+
+<Accordion title="History too large">
+**Problem**: History consuming too much memory
+
+**Solutions**:
+- Save and clear history periodically for long-running automations
+- Filter history to only relevant operations
+- Store history to disk instead of memory
+
+```typescript
+// Periodically save and clear
+let operationCount = 0;
+
+async function saveHistoryPeriodically() {
+  const history = await stagehand.history;
+
+  await fs.writeFile(
+    `history-batch-${operationCount}.json`,
+    JSON.stringify(history, null, 2)
+  );
+
+  operationCount += history.length;
+
+  // Note: V3 history is read-only, you can't clear it
+  // Consider creating a new Stagehand instance if needed
+}
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deterministic Agent" icon="robot" href="/best-practices/deterministic-agent">
+    Use history analysis to build fast, cached agent workflows
+  </Card>
+
+  <Card title="Observability" icon="chart-line" href="/configuration/observability">
+    Combine history with metrics for complete observability
+  </Card>
+
+  <Card title="Caching" icon="database" href="/best-practices/caching">
+    Speed up workflows with automatic action caching
+  </Card>
+
+  <Card title="Logging" icon="file-lines" href="/configuration/logging">
+    Configure logging for detailed execution traces
+  </Card>
+</CardGroup>
