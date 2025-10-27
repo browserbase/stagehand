@@ -32,8 +32,8 @@ await stagehand.act(instruction: string, options: ActOptions): Promise<ActResult
 interface Action {
   selector: string;
   description: string;
-  method?: string;
-  arguments?: string[];
+  method: string;
+  arguments: string[];
 }
 ```
 
@@ -71,12 +71,12 @@ type ModelConfiguration =
       The selector (XPath, CSS selector, etc.) used to target the element
     </ParamField>
     <ParamField path="description" type="string" required>
-      Description of the action
+      Description of the action - used for self-healing
     </ParamField>
-    <ParamField path="method" type="string" optional>
+    <ParamField path="method" type="string" required>
       The method used (e.g., "click", "fill", "type")
     </ParamField>
-    <ParamField path="arguments" type="string[]" optional>
+    <ParamField path="arguments" type="string[]" required>
       Arguments passed to the method
     </ParamField>
   </Expandable>
@@ -84,12 +84,12 @@ type ModelConfiguration =
 
 <ParamField path="model" type="ModelConfiguration" optional>
   Configure the AI model to use for this action. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - A string in the format `"provider/model"` (e.g., `openai/gpt-5`, `google/gemini-2.5-flash`)
   - An object with detailed configuration
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+      The model name (e.g., `anthropic/claude-sonnet-4-5`, `google/gemini-2.5-flash`)
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides default)
@@ -112,7 +112,7 @@ type ModelConfiguration =
 </ParamField>
 
 <ParamField path="timeout" type="number" optional>
-  Maximum time in milliseconds to wait for the action to complete. Default varies by configuration.
+  Maximum time in **milliseconds** to wait for the action to complete. Default varies by configuration.
 </ParamField>
 
 <ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
@@ -127,16 +127,16 @@ type ModelConfiguration =
 
 ### Returns `Promise<ActResult>`
 
-<ResponseField name="success" type="boolean">
+<ResponseField name="success" type="boolean" required>
   Whether the action completed successfully
 </ResponseField>
 
-<ResponseField name="message" type="string">
+<ResponseField name="message" type="string" required>
   Human-readable message describing the result
 </ResponseField>
 
-<ResponseField name="actionDescription" type="string">
-  Description of the action that was performed
+<ResponseField name="actionDescription" type="string" required>
+  Instruction that was used to perform the action
 </ResponseField>
 
 <ResponseField name="actions" type="Action[]">
@@ -144,7 +144,7 @@ type ModelConfiguration =
 
   <Expandable title="Action">
     <ResponseField name="selector" type="string">
-      The CSS selector used to target the element
+      The selector (XPath) used to target the element
     </ResponseField>
     <ResponseField name="description" type="string">
       Description of the action
@@ -166,7 +166,7 @@ type ModelConfiguration =
   "actionDescription": "Clicked the submit button",
   "actions": [
     {
-      "selector": "button[type='submit']",
+      "selector": "/html/body/form/button[1]",
       "description": "Submit button at bottom of form",
       "method": "click",
       "arguments": []
@@ -254,6 +254,9 @@ await stagehand.act("click the second link", { page: page2 });
 </Tab>
 <Tab title="Caching">
 
+<Tip>
+**Auto-caching is now available in v3.** See the [caching guide](/v3/best-practices/caching) for more details.
+</Tip>
 ```typescript
 // Observe first to plan the action
 const [action] = await stagehand.observe("click the submit button");
