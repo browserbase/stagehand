@@ -221,10 +221,19 @@ export class V3 {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
       if (!apiKey) {
-        apiKey = loadApiKeyFromEnv(
-          this.modelName.split("/")[0], // "openai", "anthropic", etc
-          this.logger,
-        );
+        try {
+          apiKey = loadApiKeyFromEnv(
+            this.modelName.split("/")[0], // "openai", "anthropic", etc
+            this.logger,
+          );
+        } catch (error) {
+          this.logger({
+            category: "init",
+            message: `Error loading API key for model ${this.modelName}: ${error}. Continuing without LLM client.`,
+            level: 0,
+          });
+          throw error;
+        }
       }
       this.modelClientOptions = {
         ...baseClientOptions,

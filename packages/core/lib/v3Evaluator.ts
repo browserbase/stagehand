@@ -41,7 +41,10 @@ export class V3Evaluator {
     this.v3 = v3;
     this.modelName = modelName || ("google/gemini-2.5-flash" as AvailableModel);
     this.modelClientOptions = modelClientOptions || {
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+      apiKey:
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        "",
     };
   }
 
