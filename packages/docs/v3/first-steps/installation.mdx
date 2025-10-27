@@ -3,14 +3,12 @@ title: Installation
 description: Integrate Stagehand into an existing project.
 ---
 
-Install Stagehand in your current app with the TypeScript or Python SDK.
+Install Stagehand in your current app with the TypeScript SDK.
 
 <Tip>
-For TypeScript/Node.js: We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun. 
+We highly recommend using the Node.js runtime environment to run Stagehand scripts, as opposed to newer alternatives like Deno or Bun.
 
 **Bun does not support Stagehand** since it doesn't support [Playwright](https://github.com/search?q=repo:oven-sh/bun+playwright&type=issues).
-
-For Python: We require Python 3.9+ and recommend using [uv](https://docs.astral.sh/uv/) to manage your virtual environment.
 </Tip>
 
 <Tabs>
@@ -88,6 +86,20 @@ main().catch((err) => {
   process.exit(1);
 });
 ```
+
+</Tab>
+
+<Tab title="Python">
+
+<Note>
+**Python support is only available in Stagehand v2.**
+
+v3 currently only supports TypeScript. If you need Python support, please use v2.
+</Note>
+
+<Card title="Install Stagehand v2 for Python" icon="python" href="/v2/first-steps/installation#python">
+  View the Python installation guide for Stagehand v2
+</Card>
 
 </Tab>
 
