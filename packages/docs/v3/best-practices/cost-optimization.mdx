@@ -23,27 +23,26 @@ We don't recommend using larger, more premium models for simple tasks. See our [
 </Card>
 </CardGroup>
 
-### 2. Implement Smart Caching
+### 2. Implement Caching
 
-Cache successful actions to avoid repeated LLM calls. Learn the basics in our [Caching Guide](/best-practices/caching):
+Enable automatic action caching to eliminate redundant LLM calls. Simply specify a `cacheDir` when initializing Stagehand:
 
 ```typescript
-// Cache successful actions
-const [action] = await stagehand.observe("Click the sign in button");
-await setCache("sign_in_button", action);
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  cacheDir: "action-cache", // Enable automatic caching
+});
 
-// Reuse cached action (no LLM cost)
-const cachedAction = await getCache("sign_in_button");
-if (cachedAction) {
-  await stagehand.act(cachedAction);
-} else {
-  await stagehand.act(action);
-}
+await stagehand.init();
+
+// First run: uses LLM inference and caches
+// Subsequent runs: reuses cached action (no LLM cost)
+await stagehand.act("Click the sign in button");
 ```
 
 <CardGroup cols={1}>
 <Card title="Caching Guide" icon="database" href="/best-practices/caching">
-  Reduce costs with smart action caching and observe patterns
+  Learn how to organize caches and manage cache directories
 </Card>
 </CardGroup>
 

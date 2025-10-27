@@ -19,11 +19,11 @@ icon: 'ufo-beam'
 // No parameters (raw page content)
 await stagehand.extract(): Promise<{ pageText: string }>
 
-// Options only (for page text with custom options)
+// Options only (for example, for targeted extraction)
 await stagehand.extract(options: ExtractOptions): Promise<{ pageText: string }>
 
 // String instruction only
-await stagehand.extract(instruction: string, options?: ExtractOptions): Promise<{ extraction: string }>
+await stagehand.extract(instruction: string): Promise<{ extraction: string }>
 
 // With schema
 await page.extract<T extends ZodTypeAny>(
@@ -44,7 +44,7 @@ interface ExtractOptions {
 
 // ModelConfiguration can be either a string or an object
 type ModelConfiguration =
-  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | string  // Format: "provider/model" (e.g., "openai/gpt-5-mini", "anthropic/claude-sonnet-4-5")
   | {
       modelName: string;  // The model name
       apiKey?: string;    // Optional: API key override
@@ -68,13 +68,13 @@ type ModelConfiguration =
 </ParamField>
 
 <ParamField path="model" type="ModelConfiguration" optional>
-  Configure the AI model to use for this extraction. Can be either:
-  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  Configure the AI model to use for this action. Can be either:
+  - A string in the format `"provider/model"` (e.g., `openai/gpt-5`, `google/gemini-2.5-flash`)
   - An object with detailed configuration
 
   <Expandable title="Model Configuration Object">
     <ParamField path="modelName" type="string" required>
-      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+      The model name (e.g., `anthropic/claude-sonnet-4-5`, `google/gemini-2.5-flash`)
     </ParamField>
     <ParamField path="apiKey" type="string" optional>
       API key for the model provider (overrides default)
@@ -90,7 +90,7 @@ type ModelConfiguration =
 </ParamField>
 
 <ParamField path="selector" type="string" optional>
-  Optional XPath selector to limit extraction scope to a specific part of the page. Reduces token usage and improves accuracy.
+  Optional selector (XPath, CSS selector, etc.) to limit extraction scope to a specific part of the page. Reduces token usage and improves accuracy.
 </ParamField>
 
 <ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
@@ -121,13 +121,13 @@ The returned object will be strictly typed according to your Zod schema definiti
 <Tab title="String Only">
 **Returns:** `Promise<{ extraction: string }>`
 
-Simple string extraction without schema validation.
+`extraction`: Simple string extraction without schema validation.
 </Tab>
 
 <Tab title="No Parameters">
 **Returns:** `Promise<{ pageText: string }>`
 
-Raw accessibility tree representation of page content.
+`pageText`: Raw accessibility tree representation of page content.
 </Tab>
 </Tabs>
 
@@ -156,7 +156,10 @@ const ProductSchema = z.object({
 });
 
 // Extraction with v3 API
-const product = await stagehand.extract("extract product details", ProductSchema);
+const product = await stagehand.extract(
+  "extract product details", 
+  ProductSchema
+);
 ```
 
 #### Example Response
@@ -175,13 +178,13 @@ const product = await stagehand.extract("extract product details", ProductSchema
 import { z } from 'zod';
 
 // Schema definition
-const ApartmentListingsSchema = z.object({
-  apartments: z.array(z.object({
+const ApartmentListingsSchema = z.array(
+  z.object({
     address: z.string(),
     price: z.string(),
     bedrooms: z.number()
-  }))
-});
+  })
+);
 
 // Extraction with v3 API
 const listings = await stagehand.extract(
@@ -192,20 +195,18 @@ const listings = await stagehand.extract(
 
 #### Example Response
 ```json
-{
-  "apartments": [
-    {
-      "address": "123 Main St",
-      "price": "$100,000",
-      "bedrooms": 3
-    },
-    {
-      "address": "456 Elm St",
-      "price": "$150,000",
-      "bedrooms": 2
-    }
-  ]
-}
+[
+  {
+    "address": "123 Main St",
+    "price": "$100,000",
+    "bedrooms": 3
+  },
+  {
+    "address": "456 Elm St",
+    "price": "$150,000",
+    "bedrooms": 2
+  }
+]
 ```
 
 </Tab>
@@ -359,7 +360,7 @@ const DataSchema = z.object({
 const data1 = await stagehand.extract(
   "extract article data",
   DataSchema,
-  { model: "openai/gpt-4o" }
+  { model: "openai/gpt-5-mini" }
 );
 
 // Using object format with custom configuration

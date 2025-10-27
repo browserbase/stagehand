@@ -36,6 +36,8 @@ Here is how an `extract` call might look for a single object:
 
 <CodeGroup>
 ```typescript TypeScript
+import { z } from 'zod/v3';
+
 const item = await page.extract({
   instruction: "extract the price of the item",
   schema: z.object({
@@ -45,6 +47,8 @@ const item = await page.extract({
 ```
 
 ```python Python
+from pydantic import BaseModel
+
 class Extraction(BaseModel):
     price: float
 
@@ -66,6 +70,8 @@ Here is how an `extract` call might look for a list of objects.
 
 <CodeGroup>
 ```typescript TypeScript
+import { z } from 'zod/v3';
+
 const apartments = await page.extract({
   instruction:
     "Extract ALL the apartment listings and their details, including address, price, and square feet.",
@@ -84,6 +90,8 @@ console.log("the apartment list is: ", apartments);
 ```
 
 ```python Python
+from pydantic import BaseModel
+
 class Apartment(BaseModel):
     address: str
     price: str
@@ -180,6 +188,8 @@ You can provide additional context to your schema to help the model extract the 
 
 <CodeGroup>
 ```typescript TypeScript
+import { z } from 'zod/v3';
+
 const apartments = await page.extract({
  instruction:
    "Extract ALL the apartment listings and their details, including address, price, and square feet.",
@@ -196,6 +206,8 @@ const apartments = await page.extract({
 ```
 
 ```python Python
+from pydantic import BaseModel, Field
+
 class Apartment(BaseModel):
     address: str = Field(..., description="the address of the apartment")
     price: str = Field(..., description="the price of the apartment")
@@ -221,6 +233,8 @@ Here is how an `extract` call might look for extracting a link or URL. This also
 
 <CodeGroup>
 ```typescript TypeScript
+import { z } from 'zod/v3';
+
 const extraction = await page.extract({
   instruction: "extract the link to the 'contact us' page",
   schema: z.object({
@@ -232,6 +246,8 @@ console.log("the link to the contact us page is: ", extraction.link);
 ```
 
 ```python Python
+from pydantic import BaseModel, HttpUrl
+
 class Extraction(BaseModel):
     link: HttpUrl # note the usage of HttpUrl here
 
@@ -407,11 +423,11 @@ for page_num in page_numbers:
 
 <CardGroup cols={2}>
 
-  <Card title="Act" icon="play" href="/basics/act">
+  <Card title="Act" icon="play" href="/v2/basics/act">
     Execute actions efficiently using observe results
   </Card>
 
-  <Card title="Observe" icon="magnifying-glass" href="/basics/observe">
+  <Card title="Observe" icon="magnifying-glass" href="/v2/basics/observe">
     Analyze pages with observe()
   </Card>
 </CardGroup>

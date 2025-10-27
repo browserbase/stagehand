@@ -15,7 +15,7 @@ Start with these simple optimizations that can reduce costs:
 We don't recommend using larger, more premium models for simple tasks. See our [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
 
 <CardGroup cols={2}>
-<Card title="Model Selection Guide" icon="brain" href="/configuration/models">
+<Card title="Model Selection Guide" icon="brain" href="/v2/configuration/models">
   Choose the right LLM for your budget and accuracy requirements
 </Card>
 <Card title="Evaluation Results" icon="chart-line" href="https://www.stagehand.dev/evals">
@@ -25,7 +25,7 @@ We don't recommend using larger, more premium models for simple tasks. See our [
 
 ### 2. Implement Smart Caching
 
-Cache successful actions to avoid repeated LLM calls. Learn the basics in our [Caching Guide](/best-practices/caching):
+Cache successful actions to avoid repeated LLM calls. Learn the basics in our [Caching Guide](/v2/best-practices/caching):
 
 <CodeGroup>
 ```typescript TypeScript
@@ -57,14 +57,14 @@ else:
 </CodeGroup>
 
 <CardGroup cols={1}>
-<Card title="Caching Guide" icon="database" href="/best-practices/caching">
+<Card title="Caching Guide" icon="database" href="/v2/best-practices/caching">
   Reduce costs with smart action caching and observe patterns
 </Card>
 </CardGroup>
 
 ### 3. Optimize Browser Sessions
 
-Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/configuration/browser) for details:
+Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/v2/configuration/browser) for details:
 
 <CodeGroup>
 ```typescript TypeScript
@@ -196,7 +196,7 @@ print(f"Estimated cost: ${total_tokens * 0.00001:.4f}")
 </CodeGroup>
 
 <CardGroup cols={1}>
-<Card title="Observability & Metrics" icon="chart-line" href="/configuration/observability">
+<Card title="Observability & Metrics" icon="chart-line" href="/v2/configuration/observability">
   Monitor usage patterns and track costs in real-time
 </Card>
 </CardGroup>
@@ -240,19 +240,19 @@ class BudgetGuard:
 ## Related Resources
 
 <CardGroup cols={2}>
-<Card title="Model Selection Guide" icon="brain" href="/configuration/models">
+<Card title="Model Selection Guide" icon="brain" href="/v2/configuration/models">
   Choose the right LLM for your budget and accuracy requirements
 </Card>
 
-<Card title="Caching Strategies" icon="database" href="/best-practices/caching">
+<Card title="Caching Strategies" icon="database" href="/v2/best-practices/caching">
   Reduce costs with smart action caching and observe patterns
 </Card>
 
-<Card title="Observability & Metrics" icon="chart-line" href="/configuration/observability">
+<Card title="Observability & Metrics" icon="chart-line" href="/v2/configuration/observability">
   Monitor usage patterns and track costs in real-time
 </Card>
 
-<Card title="Browser Configuration" icon="window-maximize" href="/configuration/browser">
+<Card title="Browser Configuration" icon="window-maximize" href="/v2/configuration/browser">
   Optimize Browserbase infrastructure costs and session management
 </Card>
 </CardGroup>
