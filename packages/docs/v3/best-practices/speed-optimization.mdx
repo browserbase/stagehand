@@ -104,31 +104,6 @@ await stagehand.smartAct(page, "Find the cheapest flight option", 'complex');
   Compare model performance and costs
 </Card>
 
-### Page Load Optimization
-
-Skip unnecessary resources during page loads:
-
-```typescript
-// Block heavy resources globally
-await context.route('**/*', (route) => {
-  const resourceType = route.request().resourceType();
-  if (['image', 'font', 'media'].includes(resourceType)) {
-    route.abort();
-  } else {
-    route.continue();
-  }
-});
-
-// Use faster navigation
-await page.goto(url, { 
-  waitUntil: 'domcontentloaded',  // Don't wait for images/fonts
-  timeout: 10000 
-});
-```
-<Card title="Cost Optimization" icon="dollar-sign" href="/best-practices/cost-optimization">
-  Balance speed with cost considerations
-</Card>
-
 ## Performance Monitoring and Benchmarking
 
 Track performance metrics and measure optimization impact:

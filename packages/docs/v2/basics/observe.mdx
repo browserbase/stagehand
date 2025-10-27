@@ -14,16 +14,16 @@ page.observe("Find the login button")
 ## Why use `observe()`?
 
 <CardGroup cols={2}>
-  <Card title="Explore" icon="compass" href="/basics/observe#observe-with-act">
+  <Card title="Explore" icon="compass" href="/v2/basics/observe#observe-with-act">
     When you're unsure what's on a page or need to discover available actions
   </Card>
-  <Card title="Plan" icon="map" href="/basics/observe#plan-ahead">
+  <Card title="Plan" icon="map" href="/v2/basics/observe#plan-ahead">
     When building complex workflows, plan ahead all the actions you'll need to take
   </Card>
-  <Card title="Cache" icon="database" href="/best-practices/caching">
+  <Card title="Cache" icon="database" href="/v2/best-practices/caching">
     When you want to remember actions for the future and avoid LLM calls
   </Card>
-    <Card title="Validate" icon="check" href="/basics/observe#observe-with-act">
+    <Card title="Validate" icon="check" href="/v2/basics/observe#observe-with-act">
     Before performing critical actions to ensure elements exist
   </Card>
 </CardGroup>
@@ -146,7 +146,7 @@ extraction = await page.extract(
 
 Optimize performance by directly passing `ObserveResult` to `act` (e.g., `await page.act(results[0])`) to save LLM tokens. Batch operations by using `observe` once to find elements, then act on each. Cache and reuse stable `observe` results for familiar pages, using self-healing if layouts change.
 
-<Card title="Build your own cache" icon="database" href="/best-practices/caching">
+<Card title="Build your own cache" icon="database" href="/v2/best-practices/caching">
   Check out the guide on how to build your own action cache
 </Card>
 
@@ -154,7 +154,7 @@ Optimize performance by directly passing `ObserveResult` to `act` (e.g., `await 
 
 Be precise with instructions, e.g., "Find the primary CTA in the hero" for better results. For iframes, set `iframes: true` and wait for `networkidle`. Use `observe` selectors in `extract` to limit context.
 
-<Card title="Prompting Best Practices" icon="robot" href="/best-practices/prompting-best-practices">
+<Card title="Prompting Best Practices" icon="robot" href="/v2/best-practices/prompting-best-practices">
   Check out the guide on how to improve the accuracy of your results
 </Card>
 
@@ -216,7 +216,7 @@ except Exception as error:
 - Make sure the element exists on the page
 - Use explicit instructions to find the element
 - Ensure page has fully loaded
-- Look at the [debugging workflows](/best-practices/debugging-workflows) logs, if the element is there then the LLM might be hallucinating/not catching it. 
+- Look at the [debugging logs](/v2/configuration/logging), if the element is there then the LLM might be hallucinating/not catching it. 
 </Accordion>
 
 <Accordion title="Inaccurate element descriptions">
@@ -225,14 +225,14 @@ except Exception as error:
 **Solutions**:
 - Use more capable models: check [evals](https://stagehand.dev/evals) for the best models for your use case
 - Provide more specific instructions
-- Log inference to file (see [debugging workflows](/best-practices/debugging-workflows)) to get an LLM trace
+- Log inference to file (see [debugging logs](/v2/configuration/logging#llm-inference-logging)) to get an LLM trace
 
 </Accordion>
 <Accordion title="Wrong method identified">
 **Problem**: The method identified is not valid
 
 **Solutions**:
-- Check the [supported actions](/basics/act)
+- Check the [supported actions](/v2/basics/act)
 - Provide more specific instructions
 - Validate the method, if invalid override with one of the supported ones
 
@@ -243,19 +243,19 @@ except Exception as error:
 ## Next Steps
 
 <CardGroup cols={2}>
-<Card title="Act Overview" icon="play" href="/basics/act">
+<Card title="Act Overview" icon="play" href="/v2/basics/act">
 Execute actions efficiently using `observe` results
 </Card>
 
-<Card title="Extract Data" icon="download" href="/basics/extract">  
+<Card title="Extract Data" icon="download" href="/v2/basics/extract">  
 Extract structured data from observed elements
 </Card>
 
-<Card title="Observability" icon="chart-line" href="/configuration/observability">
+<Card title="Observability" icon="chart-line" href="/v2/configuration/observability">
 Monitor and debug observation performance  
 </Card>
 
-<Card title="Best Practices" icon="star" href="/best-practices/best-practices">
+<Card title="Best Practices" icon="star" href="/v2/best-practices/prompting-best-practices">
 Advanced patterns and optimization techniques
 </Card>
 </CardGroup>
