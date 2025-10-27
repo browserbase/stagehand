@@ -9,7 +9,7 @@ description: Extract structured data from a webpage
 stagehand.extract("extract the name of the repository");
 ```
 
-`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
+`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
 
 ## Why use `extract()`?
 
@@ -22,68 +22,57 @@ stagehand.extract("extract the name of the repository");
   </Card>
 </CardGroup>
 
-<Note>
-For TypeScript, the extract schemas are defined using zod schemas.
-
-For Python, the extract schemas are defined using pydantic models.
-</Note>
-
 ## Using `extract()`
 
-### Single object Extraction
+### Single Value Extraction
 
-Here is how an `extract` call might look for a single object:
+Here is how an `extract` call might look for a single value:
 
 ```typescript
-const item = await stagehand.extract({
-  instruction: "extract the price of the item",
-  schema: z.object({
-    price: z.number(),
-  }),
-});
+const price = await stagehand.extract(
+  "extract the price of the item",
+  z.number()
+);
 ```
 
-Your output schema will look like:
+Your output will be:
 ```Example
-{ price: number }
+19.99
 ```
 
-### List of objects Extraction
+### Array Extraction
 
-Here is how an `extract` call might look for a list of objects.
+Here is how an `extract` call might look for extracting an array of objects:
 
 ```typescript
-const apartments = await stagehand.extract({
-  instruction:
-    "Extract ALL the apartment listings and their details, including address, price, and square feet.",
-  schema: z.object({
-    list_of_apartments: z.array(
-      z.object({
-        address: z.string(),
-        price: z.string(),
-        square_feet: z.string(),
-      }),
-    ),
-  })
-})
+const apartments = await stagehand.extract(
+  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
+  z.array(
+    z.object({
+      address: z.string(),
+      price: z.string(),
+      square_feet: z.string(),
+    })
+  )
+);
 
 console.log("the apartment list is: ", apartments);
 ```
 
-Your output schema will look like:
+Your output will be:
 ```Example
-list_of_apartments: [
-    {
-      address: "street address here",
-      price: "$1234.00",
-      square_feet: "700"
-    },
-    {
-        address: "another address here",
-        price: "1010.00",
-        square_feet: "500"
-    },
-    ...
+[
+  {
+    address: "street address here",
+    price: "$1234.00",
+    square_feet: "700"
+  },
+  {
+    address: "another address here",
+    price: "1010.00",
+    square_feet: "500"
+  },
+  ...
 ]
 ```
 
@@ -136,38 +125,32 @@ Accessibility Tree:
 You can provide additional context to your schema to help the model extract the data more accurately.
 
 ```typescript
-const apartments = await stagehand.extract({
- instruction:
-   "Extract ALL the apartment listings and their details, including address, price, and square feet.",
- schema: z.object({
-   list_of_apartments: z.array(
-     z.object({
-       address: z.string().describe("the address of the apartment"),
-       price: z.string().describe("the price of the apartment"),
-       square_feet: z.string().describe("the square footage of the apartment"),
-     }),
-   ),
- })
-})
+const apartments = await stagehand.extract(
+  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
+  z.array(
+    z.object({
+      address: z.string().describe("the address of the apartment"),
+      price: z.string().describe("the price of the apartment"),
+      square_feet: z.string().describe("the square footage of the apartment"),
+    })
+  )
+);
 ```
 
 ### Link Extraction
 <Note>
-To extract links or URLs, in the TypeScript version of Stagehand, you'll need to define the relevant field as `z.string().url()`.
-In Python, you'll need to define it as `HttpUrl`.
+To extract links or URLs, define the relevant field as `z.string().url()`.
 </Note>
 
 Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
 
 ```typescript
-const extraction = await stagehand.extract({
-  instruction: "extract the link to the 'contact us' page",
-  schema: z.object({
-    link: z.string().url(), // note the usage of z.string().url() here
-  }),
-});
+const contactLink = await stagehand.extract(
+  "extract the link to the 'contact us' page",
+  z.string().url() // note the usage of z.string().url() for URL validation
+);
 
-console.log("the link to the contact us page is: ", extraction.link);
+console.log("the link to the contact us page is: ", contactLink);
 ```
 
 <Tip>
@@ -189,15 +172,15 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 ```typescript
 // Wait for content before extracting
 await stagehand.act("wait for the product listings to load");
-const products = await stagehand.extract({
-  instruction: "extract all product names and prices",
-  schema: z.object({
+const products = await stagehand.extract(
+  "extract all product names and prices",
+  z.object({
     products: z.array(z.object({
       name: z.string(),
       price: z.string()
     }))
   })
-});
+);
 ```
 </Accordion>
 
@@ -205,9 +188,9 @@ const products = await stagehand.extract({
 **Problem**: Getting schema validation errors or type mismatches
 
 **Solutions**:
-- **Use optional fields**: Make fields optional with `z.optional()` (TypeScript) or `Optional[type]` (Python) if the data might not always be present
+- **Use optional fields**: Make fields optional with `z.optional()` if the data might not always be present
 - **Use flexible types**: Consider using `z.string()` instead of `z.number()` for prices that might include currency symbols
-- **Add descriptions**: Use `.describe()` (TypeScript) or `Field(description="...")` (Python) to help the model understand field requirements
+- **Add descriptions**: Use `.describe()` to help the model understand field requirements
 
 **Solution: More flexible schema**
 ```typescript
@@ -234,15 +217,13 @@ const elements = await stagehand.observe("find all product listings");
 console.log("Found elements:", elements.map(e => e.description));
 
 // Then extract with specific targeting
-const products = await stagehand.extract({
-  instruction: "extract name and price from each product listing shown on the page",
-  schema: z.object({
-    products: z.array(z.object({
-      name: z.string().describe("the product title or name"),
-      price: z.string().describe("the price as displayed, including currency")
-    }))
-  })
-});
+const products = await stagehand.extract(
+  "extract name and price from each product listing shown on the page",
+  z.array(z.object({
+    name: z.string().describe("the product title or name"),
+    price: z.string().describe("the price as displayed, including currency")
+  }))
+);
 ```
 </Accordion>
 
@@ -261,16 +242,21 @@ const products = await stagehand.extract({
 const allData = [];
 const pageNumbers = [1, 2, 3, 4, 5];
 
+const ProductSchema = z.array(z.object({
+  name: z.string(),
+  price: z.number()
+}));
+
 for (const pageNum of pageNumbers) {
   await stagehand.act(`navigate to page ${pageNum}`);
-  
-  const pageData = await stagehand.extract({
-    instruction: "extract product data from the current page only",
-    schema: ProductPageSchema,
-    timeoutMs: 60000 // 60 second timeout
-  });
-  
-  allData.push(...pageData.products);
+
+  const pageData = await stagehand.extract(
+    "extract product data from the current page only",
+    ProductSchema,
+    { timeout: 60000 } // 60 second timeout
+  );
+
+  allData.push(...pageData);
 }
 ```
 </Accordion>
