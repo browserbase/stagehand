@@ -107,7 +107,8 @@
               "v3/references/act",
               "v3/references/extract",
               "v3/references/observe",
-              "v3/references/agent"
+              "v3/references/agent",
+              "v3/references/page"
             ]
           }
         ]
