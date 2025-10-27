@@ -46,7 +46,10 @@ export class GoogleCUAClient extends AgentClient {
 
     // Process client options
     this.apiKey =
-      (clientOptions?.apiKey as string) || process.env.GEMINI_API_KEY || "";
+      (clientOptions?.apiKey as string) ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      "";
 
     // Initialize the Google Generative AI client
     this.client = new GoogleGenAI({
