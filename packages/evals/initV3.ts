@@ -62,7 +62,6 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
-
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model
   const isCUA = modelName in modelToAgentProviderMap;
