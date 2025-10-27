@@ -201,7 +201,9 @@ export async function resolveXpathForLocation(
               finalBackendNodeId = node.backendNodeId;
             }
 
-            await curSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+            await curSession
+              .send("Runtime.releaseObject", { objectId })
+              .catch(() => {});
           }
         } catch {
           // If elementFromPoint fails, fall back to the original backendNodeId
@@ -214,7 +216,11 @@ export async function resolveXpathForLocation(
           finalBackendNodeId,
         );
         return abs
-          ? { frameId: curFrameId, backendNodeId: finalBackendNodeId, absoluteXPath: abs }
+          ? {
+              frameId: curFrameId,
+              backendNodeId: finalBackendNodeId,
+              absoluteXPath: abs,
+            }
           : null;
       }
 

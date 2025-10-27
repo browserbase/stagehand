@@ -17,7 +17,7 @@ test.describe("downloads on browserbase", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("downloaded pdf is available via downloads api", async ({ }, testInfo) => {
+  test("downloaded pdf is available via downloads api", async () => {
     // Skip this test in LOCAL mode as it requires Browserbase session
     test.skip(
       process.env.TEST_ENV === "LOCAL" || !process.env.TEST_ENV,
