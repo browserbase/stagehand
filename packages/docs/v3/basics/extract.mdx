@@ -23,20 +23,140 @@ stagehand.extract("extract the name of the repository");
 </CardGroup>
 
 ## Return value of `extract()`?
+
 When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with the following structure:
-``` typescript
+<Tabs>
+<Tab title="With Schema (Object)">
+
+When extracting with a schema, the return type is inferred from your Zod schema:
+
+```typescript
+const result = await page.extract({
+  instruction: "extract product details",
+  schema: z.object({
+    name: z.string(),
+    price: z.number(),
+    inStock: z.boolean()
+  })
+});
+```
+
+**Example result:**
+```typescript
 {
-  extraction: 'The name of the repository is "Stagehand"',
-  actions: [
-    {
-      selector: 'xpath=/html[1]/body[1]/div[1]/h1[1]',
-      description: 'Repository name',
-      method: 'text',
-      arguments: []
-    }
-  ]
+  name: "Wireless Mouse",
+  price: 29.99,
+  inStock: true
 }
 ```
+
+</Tab>
+<Tab title="With Schema (Array)">
+
+When extracting an array, you get an array of objects:
+
+```typescript
+const apartments = await page.extract({
+  instruction: "extract all apartment listings",
+  schema: z.array(
+    z.object({
+      address: z.string(),
+      price: z.string(),
+      sqft: z.number()
+    })
+  )
+});
+
+// Type: Array<{ address: string; price: string; sqft: number }>
+```
+
+**Example result:**
+```typescript
+[
+  {
+    address: "123 Main St",
+    price: "$1,200/mo",
+    sqft: 750
+  },
+  {
+    address: "456 Oak Ave",
+    price: "$1,500/mo",
+    sqft: 900
+  }
+]
+```
+
+</Tab>
+<Tab title="With Schema (Primitive)">
+
+When extracting a single primitive value:
+
+```typescript
+const price = await page.extract({
+  instruction: "extract the price",
+  schema: z.number()
+});
+
+// Type: number
+```
+
+**Example result:**
+```typescript
+19.99
+```
+
+You can also extract strings, booleans, etc.:
+
+```typescript
+const url = await page.extract({
+  instruction: "extract the contact page link",
+  schema: z.string().url()
+});
+
+// Type: string
+// Result: "https://example.com/contact"
+```
+
+</Tab>
+<Tab title="Instruction Only">
+
+When calling with just an instruction (no schema):
+
+```typescript
+const result = await page.extract("extract the repository name");
+
+// Type: { extraction: string }
+```
+
+**Example result:**
+```typescript
+{
+  extraction: "stagehand"
+}
+```
+
+</Tab>
+<Tab title="No Parameters">
+
+When calling with no parameters:
+
+```typescript
+const result = await page.extract();
+
+// Type: { pageText: string }
+```
+
+**Example result:**
+```typescript
+{
+  pageText: "Accessibility Tree:\n[0-2] RootWebArea: Page Title\n  [0-37] scrollable\n    [0-118] body\n      ..."
+}
+```
+
+This returns the accessibility tree representation of the page without LLM processing.
+
+</Tab>
+</Tabs>
 
 ## Using `extract()`
 
