@@ -45,8 +45,7 @@
               "v3/configuration/browser",
               "v3/configuration/observability",
               "v3/configuration/logging",
-              "v3/configuration/models",
-              "v3/configuration/advanced"
+              "v3/configuration/models"
             ]
           },
           {

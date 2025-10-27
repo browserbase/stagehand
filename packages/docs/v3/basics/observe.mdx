@@ -29,19 +29,6 @@ await stagehand.observe("find the login button");
   </Card>
 </CardGroup>
 
-## Return value of `observe()`?
-When you use `observe()`, Stagehand will return a `Promise<Action[]>` with the following structure:
-``` typescript
-[
-  {
-    description: 'Click me button',
-    method: 'click',
-    arguments: [],
-    selector: 'xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]'
-  }
-]
-```
-
 ## Using `observe()`
 
 Use `observe()` to discover actionable elements on a page. Here's how to find a button:
@@ -56,8 +43,6 @@ const actions = await stagehand.observe("find the login button");
 **iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
 </Note>
 
-The response includes everything you need to act on the element: selector, description, suggested method, and arguments.
-
 <Accordion title="Common use cases">
 
 | Use Case | Example instruction |
@@ -70,6 +55,20 @@ The response includes everything you need to act on the element: selector, descr
 | Validate elements | `find the delete account button` |
 
 </Accordion>
+
+
+## Return value of `observe()`?
+When you use `observe()`, Stagehand will return a `Promise<Action[]>` with the following structure:
+``` typescript
+[
+  {
+    description: 'Click me button',
+    method: 'click',
+    arguments: [],
+    selector: 'xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]'
+  }
+]
+```
 
 <Tabs>
 <Tab title="Do this">
