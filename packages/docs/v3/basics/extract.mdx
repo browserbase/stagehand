@@ -24,11 +24,17 @@ stagehand.extract("extract the name of the repository");
 
 ## Using `extract()`
 
-## Return value of `extract()`?
+You can use `extract()` to extract structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a natural language prompt, or call `extract` with no parameters.
+
+```typescript
+const result = await stagehand.extract("extract the product details");
+```
+
+### Return value of `extract()`?
 
 When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with the following structure:
 <Tabs>
-<Tab title="With Schema (Object)">
+<Tab title="Basic Schema">
 
 When extracting with a schema, the return type is inferred from your Zod schema:
 
@@ -53,7 +59,7 @@ const result = await stagehand.extract(
 ```
 
 </Tab>
-<Tab title="With Schema (Array)">
+<Tab title="Array">
 
 When extracting an array, you get an array of objects:
 
@@ -68,8 +74,6 @@ const apartments = await stagehand.extract(
     })
   )
 );
-
-// Type: Array<{ address: string; price: string; sqft: number }>
 ```
 
 **Example result:**
@@ -89,7 +93,7 @@ const apartments = await stagehand.extract(
 ```
 
 </Tab>
-<Tab title="With Schema (Primitive)">
+<Tab title="Primitive">
 
 When extracting a single primitive value:
 
@@ -98,8 +102,6 @@ const price = await stagehand.extract(
   "extract the price",
   z.number()
 );
-
-// Type: number
 ```
 
 **Example result:**
@@ -114,9 +116,6 @@ const url = await stagehand.extract(
   "extract the contact page link",
   z.string().url()
 );
-
-// Type: string
-// Result: "https://example.com/contact"
 ```
 
 </Tab>
@@ -126,8 +125,6 @@ When calling with just an instruction (no schema):
 
 ```typescript
 const result = await stagehand.extract("extract the repository name");
-
-// Type: { extraction: string }
 ```
 
 **Example result:**
@@ -144,8 +141,6 @@ When calling with no parameters:
 
 ```typescript
 const result = await stagehand.extract();
-
-// Type: { pageText: string }
 ```
 
 **Example result:**
@@ -159,6 +154,17 @@ This returns the accessibility tree representation of the page without LLM proce
 
 </Tab>
 </Tabs>
+
+## Advanced Configuration
+
+You can pass additional options to configure the model, timeout, and selector scope:
+```typescript
+const result = await stagehand.extract("extract the repository name", {
+  model: "openai/gpt-4o",
+  timeout: 30000,
+  selector: "//header" // Focus on specific area
+});
+```
 
 ### Targeted Extract
 
