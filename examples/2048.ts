@@ -1,11 +1,11 @@
 import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v3";
+import StagehandConfig from "../stagehand.config";
 
 async function example() {
   console.log("🎮 Starting 2048 bot...");
   const stagehand = new Stagehand({
-    env: "LOCAL",
-    verbose: 1,
+    ...StagehandConfig,
     domSettleTimeoutMs: 100,
   });
   try {

@@ -1,6 +1,7 @@
 import type { ConstructorParams } from "@/dist";
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const StagehandConfig: ConstructorParams = {
   verbose: 2 /* Verbosity level for logging: 0 = silent, 1 = info, 2 = all */,
