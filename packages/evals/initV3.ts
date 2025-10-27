@@ -72,7 +72,7 @@ export async function initV3({
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
     else if (
-      process.env.GOOGLE_API_KEY ||
+      process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY
     )
       internalModel = "google/gemini-2.0-flash" as AvailableModel;
@@ -80,7 +80,7 @@ export async function initV3({
       internalModel = "anthropic/claude-3-7-sonnet-latest" as AvailableModel;
     else
       throw new Error(
-        "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GOOGLE_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",
+        "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GEMINI_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",
       );
   }
 
