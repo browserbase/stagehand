@@ -16,23 +16,31 @@ icon: 'magnifying-glass'
 <Tab title="TypeScript">
 
 ```typescript
-// With ObserveOptions
-await page.observe(options: ObserveOptions): Promise<ObserveResult[]>
+// String instruction only
+await page.observe(instruction: string): Promise<Action[]>
 
-// String instruction shorthand
-await page.observe(instruction: string): Promise<ObserveResult[]>
+// String instruction with options
+await page.observe(instruction: string, options: ObserveOptions): Promise<Action[]>
 ```
 
 **ObserveOptions Interface:**
 ```typescript
 interface ObserveOptions {
-  instruction?: string;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
-  drawOverlay?: boolean;
-  iframes?: boolean;
+  model?: ModelConfiguration;
+  timeout?: number;
+  selector?: string;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
+
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
 ```
 
 </Tab>
@@ -41,45 +49,69 @@ interface ObserveOptions {
 
 ### Parameters
 
-<ParamField path="instruction" type="string" optional>
-  Natural language description of elements or actions to discover.
+<ParamField path="instruction" type="string" required>
+  Natural language description of elements or actions to discover. If not provided, defaults to finding all interactive elements on the page.
 </ParamField>
 
-<ParamField path="modelName" type="AvailableModel" optional>
-  Override the default LLM model for this observation.
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for this observation. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
 </ParamField>
 
-<ParamField path="modelClientOptions" type="ClientOptions" optional>
-  Model-specific configuration options.
+<ParamField path="timeout" type="number" optional>
+  Maximum time in milliseconds to wait for the observation to complete. Default varies by configuration.
 </ParamField>
 
-<ParamField path="domSettleTimeoutMs" type="number" optional>
-  Maximum time to wait for DOM to stabilize before analysis.
-  
-  **Default:** `30000`
+<ParamField path="selector" type="string" optional>
+  Optional XPath selector to focus the observation on a specific part of the page. Useful for narrowing down the search area.
 </ParamField>
 
-<ParamField path="drawOverlay" type="boolean" optional>
-  Whether to draw visual overlays on discovered elements (debugging).
-  
-  **Default:** `false`
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the observation on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
+
+  If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
-<ParamField path="iframes" type="boolean" optional>
-  Set to `true` to search within iframes.
-  
-  **Default:** `false`
-</ParamField>
-
-### Response
-
-**Returns:** `Promise<ObserveResult[]>`
+### Returns `Promise<Action[]>`
 
 Array of discovered actionable elements, ordered by relevance.
 
-**ObserveResult Interface:**
+<ResponseField name="selector" type="string">
+  XPath selector that precisely locates the element on the page.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable description of the element and its purpose.
+</ResponseField>
+
+<ResponseField name="method" type="string" optional>
+  Suggested interaction method for the element (e.g., `"click"`, `"fill"`, `"type"`).
+</ResponseField>
+
+<ResponseField name="arguments" type="string[]" optional>
+  Additional parameters for the suggested action, if applicable.
+</ResponseField>
+
+**Action Interface:**
 ```typescript
-interface ObserveResult {
+interface Action {
   selector: string;        // XPath selector to locate element
   description: string;     // Human-readable description
   method?: string;         // Suggested action method
@@ -87,36 +119,46 @@ interface ObserveResult {
 }
 ```
 
-<ParamField path="selector" type="string">
-  XPath selector that precisely locates the element.
-</ParamField>
+**Example Response:**
+```json
+[
+  {
+    "selector": "/html/body/div[1]/header/nav/button[1]",
+    "description": "Login button in the navigation bar",
+    "method": "click",
+    "arguments": []
+  },
+  {
+    "selector": "/html/body/main/form/input[1]",
+    "description": "Email input field in the login form",
+    "method": "fill",
+    "arguments": []
+  }
+]
+```
 
-<ParamField path="description" type="string">
-  Human-readable description of the element and its purpose.
-</ParamField>
+### Built-in Support
 
-<ParamField path="method" type="string" optional>
-  Suggested interaction method: `"click"`, `"fill"`, `"selectOptionFromDropdown"`, `"nextChunk"`, `"scrollTo"`, `"prevChunk"`.
-</ParamField>
-
-<ParamField path="arguments" type="string[]" optional>
-  Additional parameters for the suggested action.
-</ParamField>
+<Note>
+**Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
+</Note>
 
 ### Code Examples
 
+#### Basic Usage
+
 ```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com");
+
 // Basic element discovery
 const buttons = await page.observe("find all clickable buttons");
 const formFields = await page.observe("locate form input fields");
-
-// Advanced configuration
-const elements = await page.observe({
-  instruction: "find important call-to-action buttons",
-  modelName: "gpt-4.1-mini",
-  domSettleTimeoutMs: 45000,
-  drawOverlay: true
-});
 
 // Working with results
 const [loginButton] = await page.observe("find the login button");
@@ -125,18 +167,54 @@ if (loginButton) {
   console.log("Selector:", loginButton.selector);
   await page.act(loginButton); // Execute the action
 }
+```
 
-// Filter results
+#### Advanced Configuration
+
+```typescript
+// Using string format model
+const elements = await page.observe("find important call-to-action buttons", {
+  model: "openai/gpt-4o",
+  timeout: 45000
+});
+
+// Using object format with custom configuration
+const actions = await page.observe("find navigation links", {
+  model: {
+    modelName: "claude-3-5-sonnet-20241022",
+    apiKey: process.env.ANTHROPIC_API_KEY
+  },
+  timeout: 30000
+});
+```
+
+#### Focused Observation with Selector
+
+```typescript
+// Focus observation on a specific part of the page
+const tableActions = await page.observe("find all table rows", {
+  selector: "/html/body/main/table"
+});
+```
+
+#### Multi-Page Support
+
+```typescript
+// Observe on specific pages
+const page1 = stagehand.page;
+const page2 = await stagehand.context.newPage();
+
+const page1Actions = await page.observe("find navigation", { page: page1 });
+const page2Actions = await page.observe("find buttons", { page: page2 });
+```
+
+#### Filter Results
+
+```typescript
 const submitButtons = await page.observe("find all submit buttons");
-const primarySubmit = submitButtons.find(btn => 
+const primarySubmit = submitButtons.find(btn =>
   btn.description.toLowerCase().includes('primary')
 );
-
-// Iframe search
-const iframeElements = await page.observe({
-  instruction: "find form fields inside the iframe",
-  iframes: true
-});
 ```
 
 ### Integration Patterns
@@ -165,3 +243,19 @@ if (requiredElements.length === 0) {
   throw new Error("Login form not found");
 }
 ```
+
+### Error Types
+
+The following errors may be thrown by the `observe()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format

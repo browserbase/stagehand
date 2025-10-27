@@ -16,29 +16,41 @@ icon: 'ufo-beam'
 <Tab title="TypeScript">
 
 ```typescript
-// With schema and options
-await page.extract<T extends z.AnyZodObject>(options: ExtractOptions<T>): Promise<ExtractResult<T>>
-
-// String instruction only
-await page.extract(instruction: string): Promise<{ extraction: string }>
-
 // No parameters (raw page content)
 await page.extract(): Promise<{ pageText: string }>
+
+// Options only (for page text with custom options)
+await page.extract(options: ExtractOptions): Promise<{ pageText: string }>
+
+// String instruction only
+await page.extract(instruction: string, options?: ExtractOptions): Promise<{ extraction: string }>
+
+// With schema
+await page.extract<T extends ZodTypeAny>(
+  instruction: string,
+  schema: T,
+  options?: ExtractOptions
+): Promise<z.infer<T>>
 ```
 
 **ExtractOptions Interface:**
 ```typescript
-interface ExtractOptions<T extends z.AnyZodObject> {
-  instruction?: string;
-  schema?: T;
-  modelName?: AvailableModel;
-  modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number;
+interface ExtractOptions {
+  model?: ModelConfiguration;
+  timeout?: number;
   selector?: string;
-  iframes?: boolean;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 }
 
-type ExtractResult<T> = z.infer<T>;
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
 ```
 
 </Tab>
@@ -48,35 +60,47 @@ type ExtractResult<T> = z.infer<T>;
 ### Parameters
 
 <ParamField path="instruction" type="string" optional>
-  Natural language description of what data to extract.
+  Natural language description of what data to extract. If omitted with no schema, returns raw page text.
 </ParamField>
 
-<ParamField path="schema" type="z.ZodSchema | BaseModel" optional>
-  Type schema defining the structure of data to extract. Ensures type safety and validation.
+<ParamField path="schema" type="ZodTypeAny" optional>
+  Zod schema defining the structure of data to extract. Ensures type safety and validation. The return type is automatically inferred from the schema.
+</ParamField>
+
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for this extraction. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time in milliseconds to wait for the extraction to complete. Default varies by configuration.
 </ParamField>
 
 <ParamField path="selector" type="string" optional>
-  XPath selector to limit extraction scope. Reduces token usage and improves accuracy.
+  Optional XPath selector to limit extraction scope to a specific part of the page. Reduces token usage and improves accuracy.
 </ParamField>
 
-<ParamField path="iframes" type="boolean" optional>
-  Set to `true` if content exists within iframes.
-  
-  **Default:** `false`
-</ParamField>
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the extraction on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
 
-<ParamField path="modelName" type="AvailableModel" optional>
-  Override the default LLM model for this extraction.
-</ParamField>
-
-<ParamField path="modelClientOptions" type="ClientOptions" optional>
-  Model-specific configuration options.
-</ParamField>
-
-<ParamField path="domSettleTimeoutMs" type="number" optional>
-  Maximum time to wait for DOM to stabilize.
-  
-  **Default:** `30000`
+  If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
 ### Response Types
