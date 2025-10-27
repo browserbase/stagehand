@@ -11,12 +11,12 @@ Use `act()` for single actions on web pages. Each action should be focused and c
 
 ```typescript
 // Good - Single, specific actions
-await page.act("click the 'Add to Cart' button");
-await page.act("type 'user@example.com' into the email field");
+await stagehand.act("click the 'Add to Cart' button");
+await stagehand.act("type 'user@example.com' into the email field");
 
 // Bad - Multiple actions combined
-await page.act("fill out the form and submit it");
-await page.act("login with credentials and navigate to dashboard");
+await stagehand.act("fill out the form and submit it");
+await stagehand.act("login with credentials and navigate to dashboard");
 ```
 
 ### Use Element Types, Not Colors
@@ -25,24 +25,24 @@ Describe elements by their type and function rather than visual attributes like 
 
 ```typescript
 // Good - Element types and descriptive text
-await page.act("click the 'Sign In' button");
-await page.act("type into the email input field");
+await stagehand.act("click the 'Sign In' button");
+await stagehand.act("type into the email input field");
 
 // Bad - Color-based descriptions
-await page.act("click the blue button");
-await page.act("type into the white input");
+await stagehand.act("click the blue button");
+await stagehand.act("type into the white input");
 ```
 
 ### Use Descriptive Language
 
 ```typescript
 // Good - Clear element identification
-await page.act("click the 'Next' button at the bottom of the form");
-await page.act("type into the search bar at the top of the page");
+await stagehand.act("click the 'Next' button at the bottom of the form");
+await stagehand.act("type into the search bar at the top of the page");
 
 // Bad - Vague descriptions
-await page.act("click next");
-await page.act("type into search");
+await stagehand.act("click next");
+await stagehand.act("type into search");
 ```
 
 ### Choose the Right Action Verbs
@@ -55,12 +55,12 @@ await page.act("type into search");
 
 ```typescript
 // Good
-await page.act("click the submit button");
-await page.act("select 'Option 1' from dropdown");
+await stagehand.act("click the submit button");
+await stagehand.act("select 'Option 1' from dropdown");
 
 // Bad
-await page.act("click submit");
-await page.act("choose option 1");
+await stagehand.act("click submit");
+await stagehand.act("choose option 1");
 ```
 
 ### Protect Sensitive Data
@@ -69,14 +69,14 @@ Variables keep sensitive information out of prompts and logs.
 
 ```typescript
 // Good - Secure approach
-await page.act({
+await stagehand.act({
   action: "enter %username% in the email field",
   variables: {
     username: "user@example.com"
   }
 });
 
-await page.act({
+await stagehand.act({
   action: "enter %password% in the password field", 
   variables: {
     password: process.env.USER_PASSWORD
@@ -84,7 +84,7 @@ await page.act({
 });
 
 // Bad - Insecure approach
-await page.act("type 'mySecretPassword123' into the password field");
+await stagehand.act("type 'mySecretPassword123' into the password field");
 ```
 
 <Warning>
@@ -101,7 +101,7 @@ Use descriptive field names, correct types, and detailed descriptions. Field des
 
 ```typescript
 // Good - Descriptive names, correct types, and helpful descriptions
-const productData = await page.extract({
+const productData = await stagehand.extract({
   instruction: "Extract product information",
   schema: z.object({
     productTitle: z.string().describe("The main product name displayed on the page"),
@@ -111,7 +111,7 @@ const productData = await page.extract({
 });
 
 // Bad - Generic names, wrong types, no descriptions
-const data = await page.extract({
+const data = await stagehand.extract({
   instruction: "Get product details", 
   schema: z.object({
     name: z.string(), // Too generic, no context
@@ -127,7 +127,7 @@ Always wrap schemas in objects for reliable extraction.
 
 ```typescript
 // Good - Array wrapped in object
-const listings = await page.extract({
+const listings = await stagehand.extract({
   instruction: "Extract all apartment listings",
   schema: z.object({
     apartments: z.array(z.object({
@@ -138,7 +138,7 @@ const listings = await page.extract({
 });
 
 // Bad - Bare array
-const listings = await page.extract({
+const listings = await stagehand.extract({
   instruction: "Extract apartment listings",
   schema: z.array(z.string()) // Don't do this
 });
@@ -150,7 +150,7 @@ Specify URL types to tell Stagehand to extract URLs. Without proper URL types, S
 
 ```typescript
 // Good - Tells Stagehand to extract URLs
-const links = await page.extract({
+const links = await stagehand.extract({
   instruction: "Extract navigation links",
   schema: z.object({
     links: z.array(z.object({
@@ -171,10 +171,10 @@ Verify elements exist before taking action to avoid errors.
 
 ```typescript
 // Check for elements first
-const loginButtons = await page.observe("Find the login button");
+const loginButtons = await stagehand.observe("Find the login button");
 
 if (loginButtons.length > 0) {
-  await page.act(loginButtons[0]);
+  await stagehand.act(loginButtons[0]);
 } else {
   console.log("No login button found");
 }
@@ -184,12 +184,12 @@ if (loginButtons.length > 0) {
 
 ```typescript
 // Good - Specific element types
-const submitButtons = await page.observe("Find submit button in the form");
-const dropdowns = await page.observe("Find the state dropdown menu");
+const submitButtons = await stagehand.observe("Find submit button in the form");
+const dropdowns = await stagehand.observe("Find the state dropdown menu");
 
 // Bad - Too vague
-const elements = await page.observe("Find submit stuff");
-const things = await page.observe("Find state selection");
+const elements = await stagehand.observe("Find submit stuff");
+const things = await stagehand.observe("Find state selection");
 ```
 
 ## Agent Method

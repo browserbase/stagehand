@@ -61,8 +61,8 @@ async function main(stagehand: Stagehand) {
 
   // In this example, we'll get the title of the Stagehand quickstart page
   await page.goto("https://docs.stagehand.dev/");
-  await page.act("click the quickstart link");
-  const { title } = await page.extract({
+  await stagehand.act("click the quickstart link");
+  const { title } = await stagehand.extract({
     instruction: "extract the main heading of the page",
     schema: z.object({
       title: z.string(),

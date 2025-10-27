@@ -14,9 +14,9 @@ This means you can continue using familiar patterns:
 ```typescript
 const page = stagehand.page;
 await page.goto("https://example.com");
-await page.act("click the button that opens a new tab");
+await stagehand.act("click the button that opens a new tab");
 // page now automatically points to the new tab
-await page.extract("get data from new tab");
+await stagehand.extract("get data from new tab");
 ```
 
 <Warning>
@@ -63,9 +63,9 @@ page.on("popup", async () => {
   await newPage.close();
 });
 
-await page.act("click the button to open the other page");
+await stagehand.act("click the button to open the other page");
 
-const page_number = await page.extract("extract the page number");
+const page_number = await stagehand.extract("extract the page number");
 console.log(`You're on page ${page_number}`);
 ```
 

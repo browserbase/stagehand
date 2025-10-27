@@ -391,7 +391,7 @@ await iframeButton.click();
 
 ```typescript
 // Use observe to find elements in iframes
-const actions = await page.observe("find buttons in the payment iframe");
+const actions = await stagehand.observe("find buttons in the payment iframe");
 
 // Then use deep locator for precise interaction
 await page.deepLocator("iframe#payment >> button.submit").click();

@@ -5,7 +5,7 @@ description: 'Interact with a web page'
 
 ## What is `act()`?
 ``` typescript
-page.act("click on add to cart")
+stagehand.act("click on add to cart")
 ```
 `act` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes. 
 
@@ -32,8 +32,12 @@ Use `act` to perform single actions in your automation. Here's how to click a bu
 
 ```typescript
 await page.goto("https://example-store.com");
-await page.act("click the add to cart button");
+await stagehand.act("click the add to cart button");
 ```
+
+<Note>
+**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
+</Note>
 
 With `act`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use multiple `act` commands or `agent`.
 
@@ -55,9 +59,9 @@ Break your task into single-step actions.
 
 ```typescript
 // Break it into single-step actions
-await page.act("open the filters panel");
-await page.act("choose 4-star rating");
-await page.act("click the apply button");
+await stagehand.act("open the filters panel");
+await stagehand.act("choose 4-star rating");
+await stagehand.act("click the apply button");
 ```
 </Tab>
 
@@ -66,7 +70,7 @@ For multi-step tasks, use [`agent()`](/basics/agent) instead.
 
 ```typescript
 // Too complex - trying to do multiple things at once
-await page.act("open the filters panel, choose 4-star rating, and click apply");
+await stagehand.act("open the filters panel, choose 4-star rating, and click apply");
 ```
 </Tab>
 </Tabs>
@@ -77,7 +81,7 @@ You can pass additional options to configure the model, timeout, variables, and 
 
 ```typescript
 // Custom model configuration
-await page.act("choose 'Peach' from the favorite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favorite colour dropdown", {
   model: {
     provider: "google",
     model: "gemini-2.5-flash",
@@ -87,9 +91,41 @@ await page.act("choose 'Peach' from the favorite colour dropdown", {
 });
 ```
 
-<Note>
-**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
-</Note>
+### Using with Custom Pages
+
+You can use `act()` with pages from other browser automation libraries like Puppeteer, Playwright, or Patchright by passing the `page` option:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import puppeteer from "puppeteer-core";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+});
+await stagehand.init();
+
+// Connect with Puppeteer
+const browser = await puppeteer.connect({
+  browserWSEndpoint: stagehand.connectURL(),
+  defaultViewport: null,
+});
+
+const pages = await browser.pages();
+const customPage = pages[0];
+
+await customPage.goto("https://www.example.com/blog");
+
+// Use act with the custom Puppeteer page
+await stagehand.act("click the next page button", {
+  page: customPage
+});
+```
+
+This works with:
+- **Puppeteer**: Pass Puppeteer Page objects
+- **Playwright**: Pass Playwright Page objects
+- **Patchright**: Pass Patchright Page objects
+- **Stagehand Page**: Use `stagehand.page` (default)
 
 <Card title="Complete API Reference" icon="book" href="/v3/references/act">
   See the full `act()` reference for detailed parameter documentation, return values, and advanced examples.
@@ -106,10 +142,10 @@ await page.act("choose 'Peach' from the favorite colour dropdown", {
 Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). You can pass an observed action directly to `act` to execute it.
 
 ```typescript
-const [action] = await page.observe("click the login button");
+const [action] = await stagehand.observe("click the login button");
 
 if (action) {
-  await page.act(action);
+  await stagehand.act(action);
 }
 ```
 
@@ -134,7 +170,7 @@ await stagehand.init();
 const page = stagehand.page;
 
 // First run - makes LLM call and caches the action
-await page.act("click the login button");
+await stagehand.act("click the login button");
 ```
 
 <Note>
@@ -155,15 +191,15 @@ Load sensitive data from environment variables using `.env` files. Never hardcod
 
 ```typescript
 // Variables use %variableName% syntax in the instruction
-await page.act("type %username% into the email field", {
+await stagehand.act("type %username% into the email field", {
   variables: { username: "user@example.com" }
 });
 
-await page.act("type %password% into the password field", {
+await stagehand.act("type %password% into the password field", {
   variables: { password: process.env.USER_PASSWORD }
 });
 
-await page.act("click the login button");
+await stagehand.act("click the login button");
 ```
 
 <Warning>
@@ -194,14 +230,14 @@ const prompt = "click the submit button";
 const expectedMethod = "click";
 
 try {
-  await page.act(prompt);
+  await stagehand.act(prompt);
 } catch (error) {
   if (error.message.includes("method not supported")) {
     // Observe the same prompt to get the planned action
-    const [action] = await page.observe(prompt);
+    const [action] = await stagehand.observe(prompt);
 
     if (action && action.method === expectedMethod) {
-      await page.act(action);
+      await stagehand.act(action);
     } else {
       throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
     }
@@ -220,7 +256,7 @@ const maxRetries = 3;
 
 for (let attempt = 0; attempt <= maxRetries; attempt++) {
   try {
-    await page.act(prompt, { timeout: 10000 + (attempt * 5000) });
+    await stagehand.act(prompt, { timeout: 10000 + (attempt * 5000) });
     break; // Success, exit retry loop
   } catch (error) {
     if (error.message.includes("method not supported") && attempt < maxRetries) {
@@ -249,20 +285,20 @@ for (let attempt = 0; attempt <= maxRetries; attempt++) {
 ```typescript
 // Handle timeout and element not found issues
 try {
-  await page.act("click the submit button", { timeout: 30000 });
+  await stagehand.act("click the submit button", { timeout: 30000 });
 } catch (error) {
   // Check if page is fully loaded
   await page.waitForLoadState('domcontentloaded');
 
   // Use observe to check element state
-  const [element] = await page.observe("find the submit button");
+  const [element] = await stagehand.observe("find the submit button");
 
   if (element) {
     console.log("Element found, trying more specific instruction");
-    await page.act("click the submit button at the bottom of the form");
+    await stagehand.act("click the submit button at the bottom of the form");
   } else {
     console.log("Element not found, trying alternative selector");
-    await page.act("click the button with text 'Submit'");
+    await stagehand.act("click the button with text 'Submit'");
   }
 }
 ```
@@ -280,15 +316,15 @@ try {
 ```typescript
 // More precise element targeting
 // Instead of:
-await page.act("click the button");
+await stagehand.act("click the button");
 
 // Use specific context:
-await page.act("click the red 'Delete' button next to the user John Smith");
+await stagehand.act("click the red 'Delete' button next to the user John Smith");
 
 // Or preview with observe first:
-const [action] = await page.observe("click the submit button in the checkout form");
+const [action] = await stagehand.observe("click the submit button in the checkout form");
 if (action.description.includes("checkout")) {
-  await page.act(action);
+  await stagehand.act(action);
 }
 ```
 </Accordion>

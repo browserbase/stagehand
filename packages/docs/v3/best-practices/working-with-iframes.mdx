@@ -13,16 +13,16 @@ Set `iframes: true` in your `act()`, `observe()`, and `extract()` commands.
 
 ```typescript
 // Act within iframes
-await page.act({ action: "click the accept cookies button", iframes: true });
+await stagehand.act({ action: "click the accept cookies button", iframes: true });
 
 // Observe within iframes
-const results = await page.observe({
+const results = await stagehand.observe({
   instruction: "Find the primary action button",
   iframes: true,
 });
 
 // Extract from iframes
-const data = await page.extract({
+const data = await stagehand.extract({
   instruction: "Extract the product price from the payment widget",
   schema: z.object({
     price: z.string(),

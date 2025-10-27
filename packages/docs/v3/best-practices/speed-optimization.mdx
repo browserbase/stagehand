@@ -15,16 +15,16 @@ Use a single `observe()` call to plan multiple actions, then execute them effici
 
 ```typescript
 // Instead of sequential operations with multiple LLM calls
-await page.act("Fill name field");        // LLM call #1
-await page.act("Fill email field");       // LLM call #2
-await page.act("Select country dropdown"); // LLM call #3
+await stagehand.act("Fill name field");        // LLM call #1
+await stagehand.act("Fill email field");       // LLM call #2
+await stagehand.act("Select country dropdown"); // LLM call #3
 
 // Use single observe to plan all form fields - one LLM call
-const formFields = await page.observe("Find all form fields to fill");
+const formFields = await stagehand.observe("Find all form fields to fill");
 
 // Execute all actions without LLM inference
 for (const field of formFields) {
-  await page.act(field); // No LLM calls!
+  await stagehand.act(field); // No LLM calls!
 }
 
 ```
@@ -54,7 +54,7 @@ await page.evaluate(() => {
 });
 
 // Then perform Stagehand operations
-await page.act("Click the submit button");
+await stagehand.act("Click the submit button");
 ```
 
 ### 3. Set Appropriate Timeouts
@@ -63,7 +63,7 @@ Use shorter timeouts for simple operations and longer ones for complex page load
 
 ```typescript
 // Simple actions - reduce action timeout
-await page.act({ 
+await stagehand.act({ 
   instruction: "Click the login button",
   actTimeout: 5000  // Default is 30000ms, reduce for simple clicks
 });
@@ -89,7 +89,7 @@ class SpeedOptimizedStagehand {
 
   async smartAct(page: Page, prompt: string, complexity: 'simple' | 'complex') {
     const model = complexity === 'simple' ? this.fastModel : this.premiumModel;
-    return await model.page.act(prompt);
+    return await model.stagehand.act(prompt);
   }
 }
 
@@ -141,7 +141,7 @@ class PerformanceTracker {
 
   async timedAct(page: Page, prompt: string): Promise<ActResult> {
     const start = Date.now();
-    const result = await page.act(prompt);
+    const result = await stagehand.act(prompt);
     const duration = Date.now() - start;
     
     if (!this.speedMetrics.has(prompt)) {
@@ -172,18 +172,18 @@ Action "Confirm submission" took 5000ms
 ```typescript
 // Before optimization
 console.time("workflow");
-await page.act("Fill form");
-await page.act("Click submit");
-await page.act("Confirm submission");
+await stagehand.act("Fill form");
+await stagehand.act("Click submit");
+await stagehand.act("Confirm submission");
 console.timeEnd("workflow"); // 8000ms
 
 // After optimization with observe planning
 console.time("workflow-optimized");
-const workflowActions = await page.observe("Find form, submit, and confirm elements");
+const workflowActions = await stagehand.observe("Find form, submit, and confirm elements");
 
 // Execute actions sequentially to avoid conflicts
 for (const action of workflowActions) {
-  await page.act(action);
+  await stagehand.act(action);
 }
 console.timeEnd("workflow-optimized"); // 500ms
 ```

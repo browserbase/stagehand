@@ -8,7 +8,7 @@ sidebarTitle: Use Cases
 
 ```typescript
 // Discover product interaction elements
-const productActions = await page.observe({
+const productActions = await stagehand.observe({
   instruction: "Find add to cart buttons, size selectors, and product images"
 });
 
@@ -22,10 +22,10 @@ const sizeOptions = productActions.filter(a =>
 
 // Execute purchase workflow
 if (sizeOptions.length > 0) {
-  await page.act(sizeOptions[0]); // Select size first
+  await stagehand.act(sizeOptions[0]); // Select size first
 }
 if (cartButtons.length > 0) {
-  await page.act(cartButtons[0]); // Then add to cart
+  await stagehand.act(cartButtons[0]); // Then add to cart
 }
 ```
 
@@ -33,7 +33,7 @@ if (cartButtons.length > 0) {
 
 ```typescript
 // Analyze form structure before filling
-const formElements = await page.observe({
+const formElements = await stagehand.observe({
   instruction: "Find form fields, validation messages, and submit buttons"
 });
 
@@ -46,7 +46,7 @@ console.log(`Found ${requiredFields.length} required fields to complete`);
 
 // Fill form systematically
 for (const field of requiredFields) {
-  await page.act(field);
+  await stagehand.act(field);
   // Add appropriate input based on field type
 }
 ```
@@ -57,7 +57,7 @@ for (const field of requiredFields) {
 // Wait for and discover dynamically loaded content
 await page.waitForLoadState('networkidle');
 
-const dynamicElements = await page.observe({
+const dynamicElements = await stagehand.observe({
   instruction: "Find newly loaded content, infinite scroll triggers, or loading indicators",
   domSettleTimeoutMs: 15000 // Wait longer for dynamic content
 });
@@ -69,9 +69,9 @@ const scrollTriggers = dynamicElements.filter(e =>
 );
 
 if (scrollTriggers.length > 0) {
-  await page.act(scrollTriggers[0]);
+  await stagehand.act(scrollTriggers[0]);
   // Recursively observe new content
-  const newContent = await page.observe("Find additional items");
+  const newContent = await stagehand.observe("Find additional items");
 }
 ```
 
@@ -82,13 +82,13 @@ if (scrollTriggers.length > 0) {
 async function planCheckoutWorkflow() {
   // Step 1: Cart page analysis
   await page.goto('/cart');
-  const cartActions = await page.observe("Find checkout and cart modification options");
+  const cartActions = await stagehand.observe("Find checkout and cart modification options");
   
   // Step 2: Checkout page analysis  
   const checkoutButton = cartActions.find(a => a.description.includes('checkout'));
-  if (checkoutButton) await page.act(checkoutButton);
+  if (checkoutButton) await stagehand.act(checkoutButton);
   
-  const checkoutActions = await page.observe("Find payment forms and shipping options");
+  const checkoutActions = await stagehand.observe("Find payment forms and shipping options");
   
   // Step 3: Plan execution order
   const shippingFields = checkoutActions.filter(a => a.description.includes('shipping'));

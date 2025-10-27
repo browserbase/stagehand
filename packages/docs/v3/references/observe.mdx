@@ -17,10 +17,10 @@ icon: 'magnifying-glass'
 
 ```typescript
 // String instruction only
-await page.observe(instruction: string): Promise<Action[]>
+await stagehand.observe(instruction: string): Promise<Action[]>
 
 // String instruction with options
-await page.observe(instruction: string, options: ObserveOptions): Promise<Action[]>
+await stagehand.observe(instruction: string, options: ObserveOptions): Promise<Action[]>
 ```
 
 **ObserveOptions Interface:**
@@ -160,15 +160,15 @@ const page = stagehand.page;
 await page.goto("https://example.com");
 
 // Basic element discovery
-const buttons = await page.observe("find all clickable buttons");
-const formFields = await page.observe("locate form input fields");
+const buttons = await stagehand.observe("find all clickable buttons");
+const formFields = await stagehand.observe("locate form input fields");
 
 // Working with results
-const [loginButton] = await page.observe("find the login button");
+const [loginButton] = await stagehand.observe("find the login button");
 if (loginButton) {
   console.log("Found:", loginButton.description);
   console.log("Selector:", loginButton.selector);
-  await page.act(loginButton); // Execute the action
+  await stagehand.act(loginButton); // Execute the action
 }
 ```
 
@@ -177,13 +177,13 @@ if (loginButton) {
 
 ```typescript
 // Using string format model
-const elements = await page.observe("find important call-to-action buttons", {
+const elements = await stagehand.observe("find important call-to-action buttons", {
   model: "openai/gpt-4o",
   timeout: 45000
 });
 
 // Using object format with custom configuration
-const actions = await page.observe("find navigation links", {
+const actions = await stagehand.observe("find navigation links", {
   model: {
     modelName: "claude-3-5-sonnet-20241022",
     apiKey: process.env.ANTHROPIC_API_KEY
@@ -197,7 +197,7 @@ const actions = await page.observe("find navigation links", {
 
 ```typescript
 // Focus observation on a specific part of the page
-const tableActions = await page.observe("find all table rows", {
+const tableActions = await stagehand.observe("find all table rows", {
   selector: "/html/body/main/table"
 });
 ```
@@ -210,15 +210,15 @@ const tableActions = await page.observe("find all table rows", {
 const page1 = stagehand.page;
 const page2 = await stagehand.context.newPage();
 
-const page1Actions = await page.observe("find navigation", { page: page1 });
-const page2Actions = await page.observe("find buttons", { page: page2 });
+const page1Actions = await stagehand.observe("find navigation", { page: page1 });
+const page2Actions = await stagehand.observe("find buttons", { page: page2 });
 ```
 
 </Tab>
 <Tab title="Filter Results">
 
 ```typescript
-const submitButtons = await page.observe("find all submit buttons");
+const submitButtons = await stagehand.observe("find all submit buttons");
 const primarySubmit = submitButtons.find(btn =>
   btn.description.toLowerCase().includes('primary')
 );
@@ -231,16 +231,16 @@ const primarySubmit = submitButtons.find(btn =>
 
 ```typescript
 // Observe → Act workflow
-const actions = await page.observe("find checkout elements");
+const actions = await stagehand.observe("find checkout elements");
 for (const action of actions) {
-  await page.act(action);
+  await stagehand.act(action);
   await page.waitForTimeout(1000);
 }
 
 // Observe → Extract workflow
-const tables = await page.observe("find data tables");
+const tables = await stagehand.observe("find data tables");
 if (tables.length > 0) {
-  const data = await page.extract({
+  const data = await stagehand.extract({
     instruction: "extract the table data",
     selector: tables[0].selector,
     schema: DataSchema
@@ -248,7 +248,7 @@ if (tables.length > 0) {
 }
 
 // Element validation
-const requiredElements = await page.observe("find the login form");
+const requiredElements = await stagehand.observe("find the login form");
 if (requiredElements.length === 0) {
   throw new Error("Login form not found");
 }

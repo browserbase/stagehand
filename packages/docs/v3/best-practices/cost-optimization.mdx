@@ -29,15 +29,15 @@ Cache successful actions to avoid repeated LLM calls. Learn the basics in our [C
 
 ```typescript
 // Cache successful actions
-const [action] = await page.observe("Click the sign in button");
+const [action] = await stagehand.observe("Click the sign in button");
 await setCache("sign_in_button", action);
 
 // Reuse cached action (no LLM cost)
 const cachedAction = await getCache("sign_in_button");
 if (cachedAction) {
-  await page.act(cachedAction);
+  await stagehand.act(cachedAction);
 } else {
-  await page.act(action);
+  await stagehand.act(action);
 }
 ```
 
@@ -83,8 +83,8 @@ async function smartAct(page: Page, prompt: string) {
     try {
       const stagehand = new Stagehand({ modelName: model });
       await stagehand.init();
-      const [action] = await stagehand.page.observe(prompt);
-      await stagehand.page.act(action);
+      const [action] = await stagehand.stagehand.observe(prompt);
+      await stagehand.stagehand.act(action);
       return;
     } catch (error) {
       console.log(`Falling back to ${model}...`);

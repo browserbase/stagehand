@@ -17,13 +17,13 @@ icon: 'arrow-pointer'
 
 ```typescript
 // String instruction only
-await page.act(instruction: string): Promise<ActResult>
+await stagehand.act(instruction: string): Promise<ActResult>
 
 // Action only - Deterministic (no LLM)
-await page.act(action: Action): Promise<ActResult>
+await stagehand.act(action: Action): Promise<ActResult>
 
 // String instruction with options
-await page.act(instruction: string, options: ActOptions): Promise<ActResult>
+await stagehand.act(instruction: string, options: ActOptions): Promise<ActResult>
 
 ```
 
@@ -105,7 +105,7 @@ type ModelConfiguration =
 
   **Example:**
   ```typescript
-  await page.act("type %password% into the password field", {
+  await stagehand.act("type %password% into the password field", {
     variables: { password: process.env.USER_PASSWORD }
   });
   ```
@@ -198,7 +198,7 @@ const page = stagehand.page;
 await page.goto("https://example.com");
 
 // Simple action
-await page.act("click the login button");
+await stagehand.act("click the login button");
 ```
 
 </Tab>
@@ -206,15 +206,15 @@ await page.act("click the login button");
 
 ```typescript
 // Variables are NOT shared with LLM providers
-await page.act("type %username% into the email field", {
+await stagehand.act("type %username% into the email field", {
   variables: { username: "user@example.com" }
 });
 
-await page.act("type %password% into the password field", {
+await stagehand.act("type %password% into the password field", {
   variables: { password: process.env.USER_PASSWORD }
 });
 
-await page.act("click the login button");
+await stagehand.act("click the login button");
 ```
 
 </Tab>
@@ -222,13 +222,13 @@ await page.act("click the login button");
 
 ```typescript
 // Using string format
-await page.act("choose 'Peach' from the favourite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favourite colour dropdown", {
   model: "google/gemini-2.5-flash",
   timeout: 10000
 });
 
 // Using object format with custom configuration
-await page.act("choose 'Peach' from the favourite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favourite colour dropdown", {
   model: {
     modelName: "gemini-2.5-flash",
     apiKey: process.env.GOOGLE_API_KEY,
@@ -247,8 +247,8 @@ const page1 = stagehand.page;
 const page2 = await stagehand.context.newPage();
 
 // Perform actions on specific pages
-await page.act("click the first link", { page: page1 });
-await page.act("click the second link", { page: page2 });
+await stagehand.act("click the first link", { page: page1 });
+await stagehand.act("click the second link", { page: page2 });
 ```
 
 </Tab>
@@ -256,15 +256,15 @@ await page.act("click the second link", { page: page2 });
 
 ```typescript
 // Observe first to plan the action
-const [action] = await page.observe("click the submit button");
+const [action] = await stagehand.observe("click the submit button");
 
 // Cache and reuse the action
 if (action) {
-  await page.act(action);
+  await stagehand.act(action);
 }
 
 // Later, reuse the same cached action
-await page.act(action);
+await stagehand.act(action);
 ```
 
 </Tab>

@@ -24,7 +24,7 @@ A single `act("click sign in")` can't handle this change. The agent fallback can
 import { Stagehand } from "@browserbasehq/stagehand";
 
 try {
-  await page.act("click the 'Sign In' button");
+  await stagehand.act("click the 'Sign In' button");
 } catch (err) {
   console.log("Agent fallback triggered");
 

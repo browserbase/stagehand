@@ -114,13 +114,13 @@ Use the following rules to write code for this project.
 - To plan an instruction like "click the sign in button", use Stagehand `observe` to get the action to execute.
 
 ```typescript
-const results = await page.observe("Click the sign in button");
+const results = await stagehand.observe("Click the sign in button");
 ```
 
 You can also pass in the following params:
 
 ```typescript
-await page.observe({
+await stagehand.observe({
   instruction: "the instruction to execute",
   returnAction: true 
 });
@@ -128,18 +128,18 @@ await page.observe({
 
 - The result of `observe` is an array of `ObserveResult` objects that can directly be used as params for `act` like this:
   ```typescript
-  const results = await page.observe({
+  const results = await stagehand.observe({
     instruction: "the instruction to execute",
     returnAction: true, // return the action to execute
   });
 
-  await page.act(results[0]);
+  await stagehand.act(results[0]);
   ```
   
 - When writing code that needs to extract data from the page, use Stagehand `extract`. Explicitly pass the following params by default:
 
 ```typescript
-const { someValue } = await page.extract({
+const { someValue } = await stagehand.extract({
   instruction: "the instruction to execute",
   schema: z.object({
     someValue: z.string(),
@@ -183,13 +183,13 @@ const StagehandConfig = {
 You can act directly with string instructions:
 
 ```typescript
-await page.act("Click the sign in button");
+await stagehand.act("Click the sign in button");
 ```
 
 Use variables for dynamic form filling:
 
 ```typescript
-await page.act({
+await stagehand.act({
   action: `Enter the following information:
     Name: %name%
     Email: %email%
@@ -215,7 +215,7 @@ AVOID actions that are more than one step, i.e. "Order me pizza" or "Send an ema
 ### Simple String Extraction
 
 ```typescript
-const signInButtonText = await page.extract("extract the sign in button text");
+const signInButtonText = await stagehand.extract("extract the sign in button text");
 ```
 
 ### Structured Extraction with Schema (Recommended)
@@ -225,7 +225,7 @@ Always use Zod schemas for structured data extraction:
 ```typescript
 import { z } from "zod";
 
-const data = await page.extract({
+const data = await stagehand.extract({
   instruction: "extract the sign in button text",
   schema: z.object({
     text: z.string(),
@@ -238,7 +238,7 @@ const data = await page.extract({
 To extract multiple items, wrap the array in a single object:
 
 ```typescript
-const data = await page.extract({
+const data = await stagehand.extract({
   instruction: "extract the text inside all buttons",
   schema: z.object({
     buttons: z.array(z.string()),
@@ -251,7 +251,7 @@ const data = await page.extract({
 For more complex data structures:
 
 ```typescript
-const productData = await page.extract({
+const productData = await stagehand.extract({
   instruction: "extract product information from this page",
   schema: z.object({
     title: z.string(),

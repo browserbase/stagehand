@@ -376,7 +376,7 @@ const page = stagehand.page;
 
 // Use the page
 await page.goto("https://example.com");
-await page.act("click the login button");
+await stagehand.act("click the login button");
 
 // Cleanup
 await stagehand.close();
@@ -400,7 +400,7 @@ await stagehand.init();
 const page = stagehand.page;
 
 await page.goto("https://example.com");
-const data = await page.extract("get page title", z.object({
+const data = await stagehand.extract("get page title", z.object({
   title: z.string()
 }));
 
@@ -449,7 +449,7 @@ await page2.goto("https://another-site.com");
 stagehand.context.setActivePage(page2);
 
 // Now stagehand.page returns page2
-await stagehand.page.act("click the button");
+await stagehand.stagehand.act("click the button");
 
 await stagehand.close();
 ```
@@ -469,8 +469,8 @@ await stagehand.init();
 const page = stagehand.page;
 
 await page.goto("https://example.com");
-await page.act("fill out the form");
-await page.extract("get form data", schema);
+await stagehand.act("fill out the form");
+await stagehand.extract("get form data", schema);
 
 // Get usage metrics
 const metrics = await stagehand.metrics;

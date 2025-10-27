@@ -6,7 +6,7 @@ description: Extract structured data from a webpage
 ## What is `extract()`?
 
 ```typescript
-page.extract("extract the name of the repository");
+stagehand.extract("extract the name of the repository");
 ```
 
 `extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or [pydantic](https://github.com/pydantic/pydantic) (Python). If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
@@ -35,7 +35,7 @@ For Python, the extract schemas are defined using pydantic models.
 Here is how an `extract` call might look for a single object:
 
 ```typescript
-const item = await page.extract({
+const item = await stagehand.extract({
   instruction: "extract the price of the item",
   schema: z.object({
     price: z.number(),
@@ -53,7 +53,7 @@ Your output schema will look like:
 Here is how an `extract` call might look for a list of objects.
 
 ```typescript
-const apartments = await page.extract({
+const apartments = await stagehand.extract({
   instruction:
     "Extract ALL the apartment listings and their details, including address, price, and square feet.",
   schema: z.object({
@@ -92,7 +92,7 @@ list_of_apartments: [
 You can call `extract` with just a natural language prompt:
 
 ```typescript
-const result = await page.extract("extract the name of the repository");
+const result = await stagehand.extract("extract the name of the repository");
 ```
 
 When you call `extract` with just a prompt, your output schema will look like:
@@ -105,7 +105,7 @@ When you call `extract` with just a prompt, your output schema will look like:
 Here is how you can call `extract` with no parameters.
 
 ```typescript
-const pageText = await page.extract();
+const pageText = await stagehand.extract();
 ```
 
 Output schema:
@@ -136,7 +136,7 @@ Accessibility Tree:
 You can provide additional context to your schema to help the model extract the data more accurately.
 
 ```typescript
-const apartments = await page.extract({
+const apartments = await stagehand.extract({
  instruction:
    "Extract ALL the apartment listings and their details, including address, price, and square feet.",
  schema: z.object({
@@ -160,7 +160,7 @@ In Python, you'll need to define it as `HttpUrl`.
 Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
 
 ```typescript
-const extraction = await page.extract({
+const extraction = await stagehand.extract({
   instruction: "extract the link to the 'contact us' page",
   schema: z.object({
     link: z.string().url(), // note the usage of z.string().url() here
@@ -182,14 +182,14 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 
 **Solutions**:
 - **Check your instruction clarity**: Make sure your instruction is specific and describes exactly what data you want to extract
-- **Verify the data exists**: Use `page.observe()` first to confirm the data is present on the page
-- **Wait for dynamic content**: If the page loads content dynamically, use `page.act("wait for the content to load")` before extracting
+- **Verify the data exists**: Use `stagehand.observe()` first to confirm the data is present on the page
+- **Wait for dynamic content**: If the page loads content dynamically, use `stagehand.act("wait for the content to load")` before extracting
 
 **Solution: Wait for content before extracting**
 ```typescript
 // Wait for content before extracting
-await page.act("wait for the product listings to load");
-const products = await page.extract({
+await stagehand.act("wait for the product listings to load");
+const products = await stagehand.extract({
   instruction: "extract all product names and prices",
   schema: z.object({
     products: z.array(z.object({
@@ -225,16 +225,16 @@ const schema = z.object({
 **Solutions**:
 - **Be more specific in instructions**: Instead of "extract prices", use "extract the numerical price value for each item"
 - **Use context in schema descriptions**: Add field descriptions to guide the model
-- **Combine with observe**: Use `page.observe()` to understand the page structure first
+- **Combine with observe**: Use `stagehand.observe()` to understand the page structure first
 
 **Solution: Validate with observe first**
 ```typescript
 // First observe to understand the page structure
-const elements = await page.observe("find all product listings");
+const elements = await stagehand.observe("find all product listings");
 console.log("Found elements:", elements.map(e => e.description));
 
 // Then extract with specific targeting
-const products = await page.extract({
+const products = await stagehand.extract({
   instruction: "extract name and price from each product listing shown on the page",
   schema: z.object({
     products: z.array(z.object({
@@ -262,9 +262,9 @@ const allData = [];
 const pageNumbers = [1, 2, 3, 4, 5];
 
 for (const pageNum of pageNumbers) {
-  await page.act(`navigate to page ${pageNum}`);
+  await stagehand.act(`navigate to page ${pageNum}`);
   
-  const pageData = await page.extract({
+  const pageData = await stagehand.extract({
     instruction: "extract product data from the current page only",
     schema: ProductPageSchema,
     timeoutMs: 60000 // 60 second timeout

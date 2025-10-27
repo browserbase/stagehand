@@ -32,10 +32,10 @@ await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe
 
 // First run: uses LLM inference and caches
 // Subsequent runs: reuses cached action
-await page.act("scroll to the bottom of the iframe");
+await stagehand.act("scroll to the bottom of the iframe");
 
 // Variables work with caching too
-await page.act("fill the username field with %username%", {
+await stagehand.act("fill the username field with %username%", {
   variables: {
     username: "fakeUsername",
   },

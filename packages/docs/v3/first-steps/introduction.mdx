@@ -35,15 +35,15 @@ Stagehand gives you the best of both worlds through four powerful primitives tha
 
 ```typescript
 // Act - Execute natural language actions
-await page.act("click the login button");
+await stagehand.act("click the login button");
 
 // Extract - Pull structured data
-const { price } = await page.extract({
+const { price } = await stagehand.extract({
   schema: z.object({ price: z.number() })
 });
 
 // Observe - Discover available actions
-const actions = await page.observe("find submit buttons");
+const actions = await stagehand.observe("find submit buttons");
 
 // Agent - Automate entire workflows
 const agent = stagehand.agent({

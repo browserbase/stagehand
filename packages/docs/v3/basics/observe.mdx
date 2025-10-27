@@ -9,7 +9,7 @@ description: 'Discover and plan executable actions on any web page'
 `observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting.
 
 ```typescript
-const actions = await page.observe("find the login button");
+const actions = await stagehand.observe("find the login button");
 ```
 
 Returns:
@@ -59,7 +59,7 @@ const page = stagehand.page;
 await page.goto("https://github.com/login");
 
 // Discover actions
-const actions = await page.observe("find the login form fields");
+const actions = await stagehand.observe("find the login form fields");
 console.log(actions);
 // [
 //   { selector: "xpath=...", description: "Username input field", method: "fill" },
@@ -73,11 +73,11 @@ console.log(actions);
 
 ```typescript
 // Observe, then act without additional LLM calls
-const [loginButton] = await page.observe("find the login button");
+const [loginButton] = await stagehand.observe("find the login button");
 
 if (loginButton) {
   console.log("Found:", loginButton.description);
-  await page.act(loginButton); // No LLM call needed!
+  await stagehand.act(loginButton); // No LLM call needed!
 }
 ```
 
@@ -86,9 +86,9 @@ if (loginButton) {
 
 ```typescript
 // Focus extraction on specific elements
-const [table] = await page.observe("find the pricing table");
+const [table] = await stagehand.observe("find the pricing table");
 
-const pricing = await page.extract({
+const pricing = await stagehand.extract({
   instruction: "extract all pricing tiers",
   schema: z.object({
     tiers: z.array(z.object({
@@ -111,11 +111,11 @@ Discover actions once, then execute them without additional LLM calls.
 
 ```typescript
 // Plan all form actions upfront
-const formFields = await page.observe("find all form input fields");
+const formFields = await stagehand.observe("find all form input fields");
 
 // Execute each action (no LLM calls)
 for (const field of formFields) {
-  await page.act(field);
+  await stagehand.act(field);
 }
 ```
 
@@ -129,10 +129,10 @@ Narrow extraction scope to reduce token usage and improve accuracy.
 
 ```typescript
 // Find the target section
-const [dataSection] = await page.observe("find the main data table");
+const [dataSection] = await stagehand.observe("find the main data table");
 
 // Extract from that section only
-const data = await page.extract({
+const data = await stagehand.extract({
   instruction: "extract all rows",
   schema: DataSchema,
   selector: dataSection.selector // 10x token reduction!
@@ -148,12 +148,12 @@ const data = await page.extract({
 Verify elements exist and check their properties before performing critical operations.
 
 ```typescript
-const [deleteButton] = await page.observe("find the delete account button");
+const [deleteButton] = await stagehand.observe("find the delete account button");
 
 if (deleteButton && deleteButton.method === "click") {
   console.log("Delete button found:", deleteButton.description);
   // Proceed with caution
-  await page.act(deleteButton);
+  await stagehand.act(deleteButton);
 } else {
   throw new Error("Delete button not found or invalid");
 }
@@ -175,12 +175,12 @@ if (deleteButton && deleteButton.method === "click") {
 
 ```typescript
 // Good: Discover then act
-const [button] = await page.observe("find the submit button");
-await page.act(button);
+const [button] = await stagehand.observe("find the submit button");
+await stagehand.act(button);
 
 // Good: Focus extraction
-const [table] = await page.observe("find the data table");
-await page.extract({ instruction: "extract rows", selector: table.selector });
+const [table] = await stagehand.observe("find the data table");
+await stagehand.extract({ instruction: "extract rows", selector: table.selector });
 ```
 
 </Tab>
@@ -193,10 +193,10 @@ await page.extract({ instruction: "extract rows", selector: table.selector });
 
 ```typescript
 // Bad: Using observe for data extraction
-const results = await page.observe("what is the page title?");
+const results = await stagehand.observe("what is the page title?");
 
 // Good: Use extract for data
-const { title } = await page.extract({
+const { title } = await stagehand.extract({
   instruction: "get the page title",
   schema: z.object({ title: z.string() })
 });
@@ -214,9 +214,9 @@ Be specific and descriptive in your instructions:
 
 ```typescript
 // Specific and actionable
-await page.observe("find the primary call-to-action button in the hero section");
-await page.observe("find all input fields in the checkout form");
-await page.observe("find the delete account button in settings");
+await stagehand.observe("find the primary call-to-action button in the hero section");
+await stagehand.observe("find all input fields in the checkout form");
+await stagehand.observe("find the delete account button in settings");
 ```
 
 </Tab>
@@ -224,9 +224,9 @@ await page.observe("find the delete account button in settings");
 
 ```typescript
 // Too vague
-await page.observe("find buttons");
-await page.observe("find stuff");
-await page.observe("find things to click");
+await stagehand.observe("find buttons");
+await stagehand.observe("find stuff");
+await stagehand.observe("find things to click");
 ```
 
 </Tab>
@@ -245,7 +245,7 @@ async function cachedObserve(instruction: string) {
     return actionCache.get(instruction)!;
   }
 
-  const actions = await page.observe(instruction);
+  const actions = await stagehand.observe(instruction);
   actionCache.set(instruction, actions);
   return actions;
 }
@@ -260,7 +260,7 @@ async function cachedObserve(instruction: string) {
 Customize `observe()` behavior with options:
 
 ```typescript
-const actions = await page.observe("find navigation links", {
+const actions = await stagehand.observe("find navigation links", {
   model: "openai/gpt-4o",           // Use a specific model
   timeout: 30000,                    // Custom timeout (ms)
   selector: "//header",              // Focus on specific area
@@ -292,7 +292,7 @@ interface Action {
 
 **Example:**
 ```typescript
-const actions = await page.observe("find login form fields");
+const actions = await stagehand.observe("find login form fields");
 console.log(actions);
 // [
 //   {
@@ -353,7 +353,7 @@ console.log(actions);
 **Solutions**:
 - Validate the method before using it: `if (action.method === "click") { ... }`
 - Check [supported actions](/basics/act) for valid method names
-- Override with a specific method when needed: `await page.act({ ...action, method: "click" })`
+- Override with a specific method when needed: `await stagehand.act({ ...action, method: "click" })`
 
 </Accordion>
 </AccordionGroup>

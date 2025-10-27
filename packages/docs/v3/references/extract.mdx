@@ -17,13 +17,13 @@ icon: 'ufo-beam'
 
 ```typescript
 // No parameters (raw page content)
-await page.extract(): Promise<{ pageText: string }>
+await stagehand.extract(): Promise<{ pageText: string }>
 
 // Options only (for page text with custom options)
-await page.extract(options: ExtractOptions): Promise<{ pageText: string }>
+await stagehand.extract(options: ExtractOptions): Promise<{ pageText: string }>
 
 // String instruction only
-await page.extract(instruction: string, options?: ExtractOptions): Promise<{ extraction: string }>
+await stagehand.extract(instruction: string, options?: ExtractOptions): Promise<{ extraction: string }>
 
 // With schema
 await page.extract<T extends ZodTypeAny>(
@@ -156,7 +156,7 @@ const ProductSchema = z.object({
 });
 
 // Extraction with v3 API
-const product = await page.extract("extract product details", ProductSchema);
+const product = await stagehand.extract("extract product details", ProductSchema);
 ```
 
 #### Example Response
@@ -184,7 +184,7 @@ const ApartmentListingsSchema = z.object({
 });
 
 // Extraction with v3 API
-const listings = await page.extract(
+const listings = await stagehand.extract(
   "extract all apartment listings",
   ApartmentListingsSchema
 );
@@ -223,7 +223,7 @@ const NavigationSchema = z.object({
 });
 
 // Extraction with v3 API
-const links = await page.extract(
+const links = await stagehand.extract(
   "extract navigation links",
   NavigationSchema
 );
@@ -254,7 +254,7 @@ const ProductSchema = z.object({
 });
 
 // Extract from specific page section with v3 API
-const data = await page.extract(
+const data = await stagehand.extract(
   "extract product info from this section",
   ProductSchema,
   { selector: "/html/body/div/div" }
@@ -275,11 +275,11 @@ const data = await page.extract(
 
 ```typescript
 // String only extraction
-const title = await page.extract("get the page title");
+const title = await stagehand.extract("get the page title");
 // Returns: { extraction: "Page Title" }
 
 // Raw page content
-const content = await page.extract();
+const content = await stagehand.extract();
 // Returns: { pageText: "Accessibility Tree: ..." }
 ```
 
@@ -356,14 +356,14 @@ const DataSchema = z.object({
 });
 
 // Using string format
-const data1 = await page.extract(
+const data1 = await stagehand.extract(
   "extract article data",
   DataSchema,
   { model: "openai/gpt-4o" }
 );
 
 // Using object format with custom configuration
-const data2 = await page.extract(
+const data2 = await stagehand.extract(
   "extract article data",
   DataSchema,
   {
@@ -386,8 +386,8 @@ const page2 = await stagehand.context.newPage();
 
 const Schema = z.object({ title: z.string() });
 
-const data1 = await page.extract("get title", Schema, { page: page1 });
-const data2 = await page.extract("get title", Schema, { page: page2 });
+const data1 = await stagehand.extract("get title", Schema, { page: page1 });
+const data2 = await stagehand.extract("get title", Schema, { page: page2 });
 ```
 
 </Tab>

@@ -148,15 +148,15 @@ const settingsPage = await context.newPage("https://example.com/settings");
 
 // Work with specific page
 context.setActivePage(dashboardPage);
-await stagehand.page.act("click the export button");
+await stagehand.stagehand.act("click the export button");
 
 // Switch to another page
 context.setActivePage(settingsPage);
-await stagehand.page.act("enable notifications");
+await stagehand.stagehand.act("enable notifications");
 
 // Back to main page
 context.setActivePage(mainPage);
-await stagehand.page.act("click the logout button");
+await stagehand.stagehand.act("click the logout button");
 
 await stagehand.close();
 ```
@@ -251,7 +251,7 @@ console.log("Active:", context.activePage()?.url());
 // Output: "https://example.com"
 
 // stagehand.page now refers to homePage
-await stagehand.page.act("click the header link");
+await stagehand.stagehand.act("click the header link");
 
 await stagehand.close();
 ```
@@ -315,10 +315,10 @@ const pages = {
 
 // Switch between tabs
 context.setActivePage(pages.dashboard);
-await stagehand.page.act("view report");
+await stagehand.stagehand.act("view report");
 
 context.setActivePage(pages.settings);
-await stagehand.page.act("update preferences");
+await stagehand.stagehand.act("update preferences");
 ```
 
 ### Bulk Data Collection
@@ -337,7 +337,7 @@ const pages = await Promise.all(
 
 // Extract data from each
 const data = await Promise.all(
-  pages.map(page => page.extract("get data", schema))
+  pages.map(page => stagehand.extract("get data", schema))
 );
 ```
 
