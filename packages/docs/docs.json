@@ -16,95 +16,195 @@
     }
   },
   "navigation": {
-    "groups": [
+    "versions": [
       {
-        "group": "First Steps",
-        "pages": [
-          "first-steps/introduction",
-          "first-steps/quickstart",
-          "first-steps/installation",
-          "first-steps/ai-rules"
-        ]
-      },
-      {
-        "group": "The Basics",
-        "pages": [
-          "basics/act",
-          "basics/extract",
-          "basics/observe",
-          "basics/agent"
-        ]
-      },
-      {
-        "group": "Configuration",
-        "pages": [
-          "configuration/browser",
-          "configuration/observability",
-          "configuration/logging",
-          "configuration/models",
-          "configuration/evals"
-        ]
-      },
-      {
-        "group": "Best Practices",
-        "pages": [
-          "best-practices/caching",
-          "best-practices/cost-optimization",
-          "best-practices/using-multiple-tabs",
-          "best-practices/working-with-iframes",
-          "best-practices/deployments",
-          "best-practices/computer-use",
-          "best-practices/contributing",
-          "best-practices/playwright-interop",
-          "best-practices/build-agent",
-          "best-practices/agent-fallbacks",
-          "best-practices/prompting-best-practices",
-          "best-practices/mcp-integrations",
-          "best-practices/speed-optimization"
-        ]
-      },
-      {
-        "group": "Integrations",
-        "pages": [
+        "version": "v3",
+        "groups": [
           {
-            "group": "MCP Server",
+            "group": "First Steps",
             "pages": [
-              "integrations/mcp/introduction",
-              "integrations/mcp/setup",
-              "integrations/mcp/tools",
-              "integrations/mcp/configuration"
+              "first-steps/introduction",
+              "first-steps/quickstart",
+              "first-steps/installation",
+              "first-steps/ai-rules"
             ]
           },
           {
-            "group": "CrewAI",
+            "group": "The Basics",
             "pages": [
-              "integrations/crew-ai/introduction",
-              "integrations/crew-ai/configuration"
+              "basics/act",
+              "basics/extract",
+              "basics/observe",
+              "basics/agent"
             ]
           },
           {
-            "group": "Langchain",
+            "group": "Configuration",
             "pages": [
-              "integrations/langchain/introduction",
-              "integrations/langchain/configuration"
+              "configuration/browser",
+              "configuration/observability",
+              "configuration/logging",
+              "configuration/models",
+              "configuration/evals"
             ]
           },
           {
-            "group": "Next.js + Vercel",
+            "group": "Best Practices",
             "pages": [
-              "integrations/vercel/introduction",
-              "integrations/vercel/configuration"
+              "best-practices/caching",
+              "best-practices/cost-optimization",
+              "best-practices/using-multiple-tabs",
+              "best-practices/working-with-iframes",
+              "best-practices/deployments",
+              "best-practices/computer-use",
+              "best-practices/contributing",
+              "best-practices/playwright-interop",
+              "best-practices/build-agent",
+              "best-practices/agent-fallbacks",
+              "best-practices/prompting-best-practices",
+              "best-practices/mcp-integrations",
+              "best-practices/speed-optimization"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {
+                "group": "MCP Server",
+                "pages": [
+                  "integrations/mcp/introduction",
+                  "integrations/mcp/setup",
+                  "integrations/mcp/tools",
+                  "integrations/mcp/configuration"
+                ]
+              },
+              {
+                "group": "CrewAI",
+                "pages": [
+                  "integrations/crew-ai/introduction",
+                  "integrations/crew-ai/configuration"
+                ]
+              },
+              {
+                "group": "Langchain",
+                "pages": [
+                  "integrations/langchain/introduction",
+                  "integrations/langchain/configuration"
+                ]
+              },
+              {
+                "group": "Next.js + Vercel",
+                "pages": [
+                  "integrations/vercel/introduction",
+                  "integrations/vercel/configuration"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "references/act",
+              "references/extract",
+              "references/observe",
+              "references/agent"
             ]
           }
         ]
       },
       {
-        "group": "Reference",
-        "pages": [
-          "references/act",
-          "references/extract",
-          "references/observe",
-          "references/agent"
+        "version": "v2",
+        "groups": [
+          {
+            "group": "First Steps",
+            "pages": [
+              "v2/first-steps/introduction",
+              "v2/first-steps/quickstart",
+              "v2/first-steps/installation",
+              "v2/first-steps/ai-rules"
+            ]
+          },
+          {
+            "group": "The Basics",
+            "pages": [
+              "v2/basics/act",
+              "v2/basics/extract",
+              "v2/basics/observe",
+              "v2/basics/agent"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "v2/configuration/browser",
+              "v2/configuration/observability",
+              "v2/configuration/logging",
+              "v2/configuration/models",
+              "v2/configuration/evals"
+            ]
+          },
+          {
+            "group": "Best Practices",
+            "pages": [
+              "v2/best-practices/caching",
+              "v2/best-practices/cost-optimization",
+              "v2/best-practices/using-multiple-tabs",
+              "v2/best-practices/working-with-iframes",
+              "v2/best-practices/deployments",
+              "v2/best-practices/computer-use",
+              "v2/best-practices/contributing",
+              "v2/best-practices/playwright-interop",
+              "v2/best-practices/build-agent",
+              "v2/best-practices/agent-fallbacks",
+              "v2/best-practices/prompting-best-practices",
+              "v2/best-practices/mcp-integrations",
+              "v2/best-practices/speed-optimization"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              {
+                "group": "MCP Server",
+                "pages": [
+                  "v2/integrations/mcp/introduction",
+                  "v2/integrations/mcp/setup",
+                  "v2/integrations/mcp/tools",
+                  "v2/integrations/mcp/configuration"
+                ]
+              },
+              {
+                "group": "CrewAI",
+                "pages": [
+                  "v2/integrations/crew-ai/introduction",
+                  "v2/integrations/crew-ai/configuration"
+                ]
+              },
+              {
+                "group": "Langchain",
+                "pages": [
+                  "v2/integrations/langchain/introduction",
+                  "v2/integrations/langchain/configuration"
+                ]
+              },
+              {
+                "group": "Next.js + Vercel",
+                "pages": [
+                  "v2/integrations/vercel/introduction",
+                  "v2/integrations/vercel/configuration"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "v2/references/act",
+              "v2/references/extract",
+              "v2/references/observe",
+              "v2/references/agent"
+            ]
+          }
         ]
       }
     ],

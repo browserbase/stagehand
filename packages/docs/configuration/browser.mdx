@@ -114,7 +114,7 @@ stagehand = Stagehand(
       apiKey: process.env.BROWSERBASE_API_KEY,
       projectId: process.env.BROWSERBASE_PROJECT_ID,
       browserbaseSessionCreateParams: {
-        projectId: process.env.BROWSERBASE_PROJECT_ID!,
+        projectId: process.env.BROWSERBASE_PROJECT_ID!, // Optional: automatically set if given in environment variable or by Stagehand parameter
         proxies: true,
         region: "us-west-2",
         timeout: 3600, // 1 hour session timeout
@@ -124,16 +124,10 @@ stagehand = Stagehand(
           blockAds: true,
           solveCaptchas: true,
           recordSession: false,
+          os: "windows", // Valid: "windows" | "mac" | "linux" | "mobile" | "tablet"
           viewport: {
             width: 1920,
             height: 1080,
-          },
-          fingerprint: {
-            browsers: ["chrome", "edge"],
-            devices: ["desktop"],
-            operatingSystems: ["windows", "macos"],
-            locales: ["en-US", "en-GB"],
-            httpVersion: 2,
           },
         },
         userMetadata: {
@@ -149,7 +143,7 @@ stagehand = Stagehand(
         api_key=os.getenv("BROWSERBASE_API_KEY"),
         project_id=os.getenv("BROWSERBASE_PROJECT_ID"),
         browserbase_session_create_params={
-            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"),
+            "project_id": os.getenv("BROWSERBASE_PROJECT_ID"), # Optional: automatically set if given in environment or by Stagehand parameter
             "proxies": True,
             "region": "us-west-2",
             "timeout": 3600,  # 1 hour session timeout
@@ -159,16 +153,10 @@ stagehand = Stagehand(
                 "block_ads": True,
                 "solve_captchas": True,
                 "record_session": False,
+                "os": "windows",  # "windows" | "mac" | "linux" | "mobile" | "tablet"
                 "viewport": {
                     "width": 1920,
                     "height": 1080,
-                },
-                "fingerprint": {
-                    "browsers": ["chrome", "edge"],
-                    "devices": ["desktop"],
-                    "operating_systems": ["windows", "macos"],
-                    "locales": ["en-US", "en-GB"],
-                    "http_version": 2,
                 },
             },
             "user_metadata": {

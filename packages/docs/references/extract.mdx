@@ -23,7 +23,7 @@ await page.extract<T extends z.AnyZodObject>(options: ExtractOptions<T>): Promis
 await page.extract(instruction: string): Promise<{ extraction: string }>
 
 // No parameters (raw page content)
-await page.extract(): Promise<{ pageText: string }>
+await page.extract(): Promise<{ page_text: string }>
 ```
 
 **ExtractOptions Interface:**
@@ -116,7 +116,7 @@ Simple string extraction without schema validation.
 </Tab>
 
 <Tab title="No Parameters">
-**Returns:** `Promise<{ pageText: string }>`
+**Returns:** `Promise<{ page_text: string }>`
 
 Raw accessibility tree representation of page content.
 </Tab>
@@ -345,7 +345,7 @@ const title = await page.extract("get the page title");
 
 // Raw page content
 const content = await page.extract();
-// Returns: { pageText: "Accessibility Tree: ..." }
+// Returns: { page_text: "Accessibility Tree: ..." }
 ```
 
 ```python Python
@@ -355,7 +355,7 @@ title = await page.extract("get the page title")
 
 # Raw page content
 content = await page.extract()
-# Returns: {"pageText": "Accessibility Tree: ..."}
+# Returns: {"page_text": "Accessibility Tree: ..."}
 ```
 </CodeGroup>
 

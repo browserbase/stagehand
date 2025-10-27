@@ -1,6 +1,6 @@
 ---
 title: Computer Use Agents
-description: Incorporate Computer Use APIs from Anthropic and OpenAI with one line of code in Stagehand.
+description: Incorporate Computer Use APIs from Google, Anthropic and OpenAI with one line of code in Stagehand.
 ---
 
 ## What is a Computer Use Agent?
@@ -14,11 +14,11 @@ description: Incorporate Computer Use APIs from Anthropic and OpenAI with one li
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowfullscreen
 ></iframe>
-You might've heard of [Claude Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use) or [OpenAI's Computer Using Agent](https://openai.com/index/computer-using-agent/).
+You might've heard of [Gemini Computer Use](https://blog.google/technology/google-deepmind/gemini-computer-use-model/), [Claude Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use), or [OpenAI's Computer Using Agent](https://openai.com/index/computer-using-agent/).
 
 These are powerful tools that can convert natural language into actions on the computer. However, you'd otherwise need to write your own code to convert these actions into Playwright commands.
 
-Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between OpenAI and Anthropic models with one line of code.
+Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between Google, OpenAI, and Anthropic models with one line of code. You can find more information on the performance of different computer use models by visiting our [evals page](https://www.stagehand.dev/agent-evals).
 
 ## How to use a Computer Use Agent in Stagehand
 
@@ -29,7 +29,7 @@ Stagehand lets you use Computer Use Agents with one line of code:
 
 Computer Use Agents will often return XY-coordinates to click on the screen, so you'll need to configure your browser dimensions.
 
-If not specified, the default browser dimensions are 1024x768. You can also configure the browser dimensions in the `browserbaseSessionCreateParams` or `localBrowserLaunchOptions` options.
+If not specified, the default browser dimensions are 1288 x 711. You can also configure the browser dimensions in the `browserbaseSessionCreateParams` or `localBrowserLaunchOptions` options.
 </Note>
 
 
@@ -53,8 +53,8 @@ const stagehand = new Stagehand({
       browserSettings: {
 		blockAds: true,
         viewport: {
-          width: 1024,
-          height: 768,
+          width: 1288,
+          height: 711,
         },
       },
   	},
@@ -76,8 +76,8 @@ stagehand = Stagehand(StagehandConfig(
         "browserSettings": {
             "blockAds": True,
             "viewport": {
-                "width": 1024,
-                "height": 768,
+                "width": 1288,
+                "height": 711,
             },
         },
     },
@@ -97,8 +97,8 @@ const stagehand = new Stagehand({
   localBrowserLaunchOptions: {
     headless: false,
     viewport: {
-      width: 1024,
-      height: 768,
+      width: 1288,
+      height: 711,
     },
   }
 });
@@ -113,8 +113,8 @@ stagehand = Stagehand(StagehandConfig(
     local_browser_launch_options={
         "headless": False,
         "viewport": {
-            "width": 1024,
-            "height": 768,
+            "width": 1288,
+            "height": 711,
         },
     }
 ))

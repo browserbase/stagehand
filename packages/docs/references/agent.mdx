@@ -23,7 +23,7 @@ const agent = stagehand.agent(config: AgentConfig): AgentInstance
 **AgentConfig Interface:**
 ```typescript
 interface AgentConfig {
-  provider?: AgentProviderType;  // "openai" | "anthropic"
+  provider?: AgentProviderType;  // "openai" | "anthropic" | "google"
   model?: string;
   instructions?: string;
   options?: Record<string, unknown>;
@@ -59,15 +59,18 @@ agent = stagehand.agent({
 <ParamField path="provider" type="AgentProviderType" optional>
   AI provider for agent functionality.
   
-  **Options:** `"anthropic"`, `"openai"`
+  **Options:** `"anthropic"`, `"openai"`, `"google"`
 </ParamField>
 
 <ParamField path="model" type="string" optional>
   Specific model for agent execution.
-  
+
   **Anthropic:** `"claude-sonnet-4-20250514"`, `"claude-3-5-sonnet-20241022"`
   
   **OpenAI:** `"computer-use-preview"`, `"gpt-4o"`
+
+  **Google:** `"gemini-2.5-computer-use-preview-10-2025"`
+
 </ParamField>
 
 <ParamField path="instructions" type="string" optional>
@@ -168,7 +171,15 @@ await agent.execute({
 
 **Returns:** `Promise<AgentResult>`
 
+<Note>
+When using the Stagehand API, the Python SDK will return the TypeScript `AgentResult` structure. Running Stagehand locally disables the API and returns the Python-native structure.
+</Note>
+
 **AgentResult Interface:**
+
+<Tabs>
+<Tab title="TypeScript">
+
 ```typescript
 interface AgentResult {
   success: boolean;
@@ -183,6 +194,104 @@ interface AgentResult {
   };
 }
 ```
+
+</Tab>
+<Tab title="Python">
+
+```python
+class AgentResult(BaseModel):
+    actions: list[AgentActionType]
+    message: Optional[str]
+    usage: Optional[AgentUsage]
+    completed: bool
+
+class AgentUsage(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    inference_time_ms: int
+```
+
+<Accordion title="AgentActionType">
+```python
+AgentActionType = Union[
+    ClickAction,
+    DoubleClickAction,
+    TypeAction,
+    KeyPressAction,
+    ScrollAction,
+    DragAction,
+    MoveAction,
+    WaitAction,
+    ScreenshotAction,
+    FunctionAction,
+    KeyAction,
+]
+
+class ClickAction(BaseModel):
+    type: Literal["click"]
+    x: int
+    y: int
+    button: Optional[Literal["left", "right", "middle", "back", "forward"]]
+
+class DoubleClickAction(BaseModel):
+    type: Literal["double_click", "doubleClick"]
+    x: int
+    y: int
+
+class TypeAction(BaseModel):
+    type: Literal["type"]
+    text: str
+    x: Optional[int] = None
+    y: Optional[int] = None
+    press_enter_after: Optional[bool] = False
+
+class KeyPressAction(BaseModel):
+    type: Literal["keypress"]
+    keys: list[str]  # e.g., ["CONTROL", "A"]
+
+class ScrollAction(BaseModel):
+    type: Literal["scroll"]
+    x: int
+    y: int
+    scroll_x: Optional[int]
+    scroll_y: Optional[int]
+
+class Point(BaseModel):
+    x: int
+    y: int
+
+class DragAction(BaseModel):
+    type: Literal["drag"]
+    path: list[Point]
+
+class MoveAction(BaseModel):
+    type: Literal["move"]
+    x: int
+    y: int
+
+class WaitAction(BaseModel):
+    type: Literal["wait"]
+    miliseconds: Optional[int] = 0
+
+class ScreenshotAction(BaseModel):
+    type: Literal["screenshot"]
+
+class FunctionArguments(BaseModel):
+    url: str
+
+class FunctionAction(BaseModel):
+    type: Literal["function"]
+    name: str
+    arguments: Optional[FunctionArguments]
+
+class KeyAction(BaseModel):
+    type: Literal["key"]
+    text: str
+```
+</Accordion>
+
+</Tab>
+</Tabs>
 
 <Tabs>
 <Tab title="TypeScript">

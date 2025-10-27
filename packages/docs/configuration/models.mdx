@@ -48,7 +48,7 @@ Stagehand supports major LLM providers with structured output capabilities:
 | Provider | Best Models | Strengths | Use Case |
 |----------|-------------|-----------|----------|
 | **OpenAI** | `gpt-4.1`, `gpt-4.1-mini` | High accuracy, reliable | Production, complex sites |
-| **Anthropic** | `claude-3-7-sonnet-latest` | Excellent reasoning | Complex automation tasks |
+| **Anthropic** | `claude-sonnet-4-5-20250929, claude-haiku-4-5-20251001` | Excellent reasoning | Complex automation tasks |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | Fast, cost-effective | High-volume automation |
 
 ### Additional Providers
@@ -156,7 +156,7 @@ stagehand = Stagehand(
 ## Custom LLM Integration
 
 <Note>
-Custom LLMs are currently only supported in TypeScript.
+Only [LiteLLM compatible providers](https://docs.litellm.ai/docs/providers) are available in Python. Some may require extra setup.
 </Note>
 
 Integrate any LLM with Stagehand using custom clients. The only requirement is **structured output support** for consistent automation behavior.
@@ -164,39 +164,62 @@ Integrate any LLM with Stagehand using custom clients. The only requirement is *
 ### Vercel AI SDK
 The [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) is a popular library for interacting with LLMs. You can use any of the providers supported by the Vercel AI SDK to create a client for your model, **as long as they support structured outputs**.
 
-Vercel AI SDK supports providers for OpenAI, Anthropic, and Google, along with support for **Amazon Bedrock** and **Azure OpenAI**.
+Vercel AI SDK supports providers for OpenAI, Anthropic, and Google, along with support for **Amazon Bedrock** and **Azure OpenAI**. For a full list, see the [Vercel AI SDK providers page](https://sdk.vercel.ai/providers/ai-sdk-providers).
 
-To get started, you'll need to install the `ai` package and the provider you want to use. For example, to use Amazon Bedrock, you'll need to install the `@ai-sdk/amazon-bedrock` package.
+To get started, you'll need to install the `ai` package (version 4) and the provider you want to use (version 1 - both need to be compatible with LanguageModelV1). For example, to use Amazon Bedrock, you'll need to install the `@ai-sdk/amazon-bedrock` package.
 
-You'll also need to use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/aisdk.ts) as a template to create a client for your model.
+You'll also need to import the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/main/lib/llm/aisdk.ts) through Stagehand to create a client for your model.
 
 <Tabs>
 	<Tab title="npm">
 	```bash
-	npm install ai @ai-sdk/amazon-bedrock
+	npm install ai@4 @ai-sdk/amazon-bedrock@1
 	```
 	</Tab>
 
 	<Tab title="pnpm">
 	```bash
-	pnpm install ai @ai-sdk/amazon-bedrock
+	pnpm install ai@4 @ai-sdk/amazon-bedrock@1
 	```
 	</Tab>
 
 	<Tab title="yarn">
 	```bash
-	yarn add ai @ai-sdk/amazon-bedrock
+	yarn add ai@4 @ai-sdk/amazon-bedrock@1
 	```
 	</Tab>
 </Tabs>
 
-To get started, you can use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/aisdk.ts) as a template to create a client for your model.
+<Note>
+The `AISdkClient` is not yet available via the Stagehand npm package. For now, install Stagehand as a git repository to access the `AISdkClient` (this will be included in the npm package in an upcoming release).
+</Note>
+
+<Tabs>
+	<Tab title="npm">
+	```bash
+	npm install @browserbasehq/stagehand@git+https://github.com/browserbase/stagehand.git
+	```
+	</Tab>
+
+	<Tab title="pnpm">
+	```bash
+	pnpm install @browserbasehq/stagehand@git+https://github.com/browserbase/stagehand.git
+	```
+	</Tab>
+
+	<Tab title="yarn">
+	```bash
+	yarn add @browserbasehq/stagehand@git+https://github.com/browserbase/stagehand.git
+	```
+	</Tab>
+</Tabs>
 
 ```ts
 // Install/import the provider you want to use.
-// For example, to use OpenAI, import `openai` from @ai-sdk/openai
+// For example, to use Azure OpenAI, import { createAzure } from '@ai-sdk/azure';
 import { bedrock } from "@ai-sdk/amazon-bedrock";
-import { AISdkClient } from "./external_clients/aisdk";
+// @ts-ignore
+import { AISdkClient } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
   llmClient: new AISdkClient({
