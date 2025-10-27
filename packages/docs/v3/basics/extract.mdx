@@ -31,7 +31,7 @@ When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with 
 When extracting with a schema, the return type is inferred from your Zod schema:
 
 ```typescript
-const result = await page.extract({
+const result = await stagehand.extract({
   instruction: "extract product details",
   schema: z.object({
     name: z.string(),
@@ -56,7 +56,7 @@ const result = await page.extract({
 When extracting an array, you get an array of objects:
 
 ```typescript
-const apartments = await page.extract({
+const apartments = await stagehand.extract({
   instruction: "extract all apartment listings",
   schema: z.array(
     z.object({
@@ -92,7 +92,7 @@ const apartments = await page.extract({
 When extracting a single primitive value:
 
 ```typescript
-const price = await page.extract({
+const price = await stagehand.extract({
   instruction: "extract the price",
   schema: z.number()
 });
@@ -108,7 +108,7 @@ const price = await page.extract({
 You can also extract strings, booleans, etc.:
 
 ```typescript
-const url = await page.extract({
+const url = await stagehand.extract({
   instruction: "extract the contact page link",
   schema: z.string().url()
 });
@@ -123,7 +123,7 @@ const url = await page.extract({
 When calling with just an instruction (no schema):
 
 ```typescript
-const result = await page.extract("extract the repository name");
+const result = await stagehand.extract("extract the repository name");
 
 // Type: { extraction: string }
 ```
@@ -141,7 +141,7 @@ const result = await page.extract("extract the repository name");
 When calling with no parameters:
 
 ```typescript
-const result = await page.extract();
+const result = await stagehand.extract();
 
 // Type: { pageText: string }
 ```
