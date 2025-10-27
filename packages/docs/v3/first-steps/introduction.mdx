@@ -38,21 +38,22 @@ Stagehand gives you the best of both worlds through four powerful primitives tha
 await stagehand.act("click the login button");
 
 // Extract - Pull structured data
-const { price } = await stagehand.extract({
-  schema: z.object({ price: z.number() })
-});
+const price = await stagehand.extract(
+  "extract the price",
+  z.number()
+);
 
 // Observe - Discover available actions
 const actions = await stagehand.observe("find submit buttons");
 
 // Agent - Automate entire workflows
 const agent = stagehand.agent({
-    provider: "anthropic",
-    model: "claude-sonnet-4-20250514",
-    options: {
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    },
-})
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  },
+});
 await agent.execute("apply for this job");
 ```
 

@@ -57,14 +57,18 @@ async function main() {
   const extractResult = await stagehand.extract("Extract the value proposition from the page.");
   console.log(`Extract result:\n`, extractResult);
 
-  const actResult = await stagehand.act("Click the 'Evals' button.");
-  console.log(`Act result:\n`, actResult);
+  await stagehand.act("Click the 'Evals' button.");
 
   const observeResult = await stagehand.observe("What can I click on this page?");
   console.log(`Observe result:\n`, observeResult);
 
-  const agent = await stagehand.agent({
-    instructions: "You're a helpful assistant that can control a web browser.",
+  const agent = stagehand.agent({
+    cua: true,
+    model: {
+      modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+    },
+    systemPrompt: "You're a helpful assistant that can control a web browser.",
   });
 
   const agentResult = await agent.execute("What is the most accurate model to use in Stagehand?");
