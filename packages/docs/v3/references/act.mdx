@@ -167,7 +167,9 @@ type ModelConfiguration =
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({ env: "LOCAL" });
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
 const page = stagehand.page;
 

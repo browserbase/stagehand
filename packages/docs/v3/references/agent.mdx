@@ -260,8 +260,10 @@ interface AgentAction {
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
 
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
 const stagehand = new Stagehand({
-  env: "LOCAL",
+  env: "BROWSERBASE",
   model: "anthropic/claude-sonnet-4-20250514"
 });
 await stagehand.init();
