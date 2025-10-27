@@ -270,7 +270,7 @@ See the [agent() reference](/v3/references/agent) for detailed documentation.
 Access the current active page for automation.
 
 ```typescript
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 ```
 
 **Type:** [`Page`](/v3/references/page)
@@ -372,7 +372,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 // Use the page
 await page.goto("https://example.com");
@@ -397,7 +397,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 await page.goto("https://example.com");
 const data = await stagehand.extract("get page title", z.object({
@@ -466,7 +466,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 await page.goto("https://example.com");
 await stagehand.act("fill out the form");

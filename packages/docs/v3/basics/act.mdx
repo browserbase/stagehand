@@ -191,7 +191,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 // First run - makes LLM call and caches the action
 await stagehand.act("click the login button");

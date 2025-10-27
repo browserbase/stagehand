@@ -11,7 +11,7 @@ Stagehand is built on top of [Playwright](https://playwright.dev/), so you can u
 
 <CodeGroup>
 ```TypeScript TypeScript
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 // Base Playwright methods work
 await page.goto("https://github.com/browserbase/stagehand");
 

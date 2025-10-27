@@ -12,7 +12,7 @@ Stagehand automatically adapts to multitab workflows. The `stagehand.page` objec
 This means you can continue using familiar patterns:
 
 ```typescript
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 await stagehand.act("click the button that opens a new tab");
 // page now automatically points to the new tab
@@ -54,7 +54,7 @@ console.log(`Stagehand-Python stars: ${stagehandPythonStars}`);
 You can also listen for tab events to control what happens when new tabs are opened:
 
 ```typescript
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
 
 // close the new tab after it's opened

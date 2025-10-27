@@ -50,7 +50,7 @@ async function main() {
   console.log(`Stagehand Session Started`);
   console.log(`Watch live: https://browserbase.com/sessions/${stagehand.browserbaseSessionID}`);
 
-  const page = stagehand.page;
+  const page = stagehand.context.pages()[0];
 
   await page.goto("https://stagehand.dev");
 

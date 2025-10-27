@@ -62,7 +62,7 @@ async function main() {
   });
 
   await stagehand.init();
-  const page = stagehand.page;
+  const page = stagehand.context.pages()[0];
 
   await page.goto("https://example.com");
 
