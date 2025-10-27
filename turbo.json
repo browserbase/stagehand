@@ -95,12 +95,28 @@
         "playwright-report/**",
         "test-results/**"
       ],
-      "cache": false
+      "cache": false,
+      "env": [
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY"
+      ]
     },
     "evals": {
       "dependsOn": ["build"],
       "outputs": [],
-      "cache": false
+      "cache": false,
+      "env": [
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "BRAINTRUST_API_KEY",
+        "EVAL_ENV"
+      ]
     },
     "docs": {
       "persistent": true,
