@@ -51,52 +51,6 @@ const stagehand = new Stagehand({
 Self-healing adds a small overhead to failed actions but significantly improves reliability for workflows running against evolving websites.
 </Note>
 
-## DOM Settle Timeout
-
-Configure how long Stagehand waits for the DOM to stabilize before taking actions.
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  domSettleTimeout: 3000 // Wait up to 3 seconds for DOM to settle
-});
-```
-
-### What is DOM Settling?
-
-DOM settling ensures that:
-- **Animations complete** before interacting with elements
-- **Lazy-loaded content** has time to appear
-- **JavaScript updates** finish before actions are taken
-- **Dynamic content** is fully rendered
-
-### When to Adjust
-
-Increase `domSettleTimeout` for pages with:
-- Heavy animations or transitions
-- Lazy-loading or infinite scroll
-- Dynamic JavaScript frameworks (React, Vue, Angular)
-- Complex single-page applications
-
-```typescript
-// For fast, static pages
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  domSettleTimeout: 500 // Minimal wait
-});
-
-// For dynamic, animated pages
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  domSettleTimeout: 5000 // Longer wait for stability
-});
-```
-
-<Warning>
-Setting `domSettleTimeout` too low may cause actions to fail on elements that aren't ready. Setting it too high increases execution time unnecessarily.
-</Warning>
-
-
 ## Action Caching
 
 Cache discovered actions to reduce LLM calls and improve performance. Cached actions are persisted to the local filesystem.

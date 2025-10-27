@@ -241,15 +241,59 @@ await stagehand.init();
 
 ## Advanced Configuration
 
+### DOM Settle Timeout
+
+Configure how long Stagehand waits for the DOM to stabilize before taking actions.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 3000 // Wait up to 3 seconds for DOM to settle
+});
+```
+
+#### What is DOM Settling?
+
+DOM settling ensures that:
+- **Animations complete** before interacting with elements
+- **Lazy-loaded content** has time to appear
+- **JavaScript updates** finish before actions are taken
+- **Dynamic content** is fully rendered
+
+#### When to Adjust
+
+Increase `domSettleTimeout` for pages with:
+- Heavy animations or transitions
+- Lazy-loading or infinite scroll
+- Dynamic JavaScript frameworks (React, Vue, Angular)
+- Complex single-page applications
+
+```typescript
+// For fast, static pages
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 500 // Minimal wait
+});
+
+// For dynamic, animated pages
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  domSettleTimeout: 5000 // Longer wait for stability
+});
+```
+
+<Warning>
+Setting `domSettleTimeout` too low may cause actions to fail on elements that aren't ready. Setting it too high increases execution time unnecessarily.
+</Warning>
+
+
 For performance optimization and resilience features like action caching, self-healing, DOM settling, and experimental features, see the Advanced Configuration guide:
 
-<Card title="Advanced Configuration" icon="sliders" href="/configuration/advanced">
+<Card title="Advanced Configuration" icon="sliders" href="/v3/configuration/advanced">
   Configure caching, self-healing, DOM timeouts, and experimental features for optimal performance
 </Card>
 
 ## Troubleshooting
-
-### Common Issues
 
 <AccordionGroup>
 <Accordion title="Browserbase Authentication Errors">
