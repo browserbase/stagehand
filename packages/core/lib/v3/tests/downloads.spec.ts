@@ -17,7 +17,19 @@ test.describe("downloads on browserbase", () => {
     await v3?.close?.().catch(() => {});
   });
 
-  test("downloaded pdf is available via downloads api", async () => {
+  test("downloaded pdf is available via downloads api", async ({ }, testInfo) => {
+    // Skip this test in LOCAL mode as it requires Browserbase session
+    test.skip(
+      process.env.TEST_ENV === "LOCAL" || !process.env.TEST_ENV,
+      "Skipping Browserbase-only downloads test in LOCAL mode",
+    );
+
+    // Skip if BROWSERBASE_API_KEY is not set
+    test.skip(
+      !process.env.BROWSERBASE_API_KEY,
+      "Skipping test: BROWSERBASE_API_KEY not set",
+    );
+
     // Tiny timeout to force the race to hit the timeout branch
     const page = v3.context.pages()[0];
     await page.goto(

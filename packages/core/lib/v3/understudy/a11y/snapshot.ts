@@ -169,14 +169,52 @@ export async function resolveXpathForLocation(
       }
 
       if (!matchedChild) {
-        // Final target in current frame → build absolute xpath and return
+        // Final target in current frame → drill down to find the deepest element at this coordinate
+        let finalBackendNodeId = be;
+        try {
+          await curSession.send("Runtime.enable").catch(() => {});
+          const ctxId = await executionContexts
+            .waitForMainWorld(curSession, curFrameId)
+            .catch(() => {});
+
+          // Use elementFromPoint to get the deepest element at this coordinate
+          const expr = `(() => {
+            const el = document.elementFromPoint(${curX}, ${curY});
+            return el;
+          })()`;
+
+          const evalParams = ctxId
+            ? { contextId: ctxId, expression: expr, returnByValue: false }
+            : { expression: expr, returnByValue: false };
+
+          const { result } = await curSession.send<{
+            result: { objectId?: string };
+          }>("Runtime.evaluate", evalParams);
+
+          const objectId = result?.objectId;
+          if (objectId) {
+            const { node } = await curSession.send<{
+              node: { backendNodeId?: number };
+            }>("DOM.describeNode", { objectId });
+
+            if (typeof node.backendNodeId === "number") {
+              finalBackendNodeId = node.backendNodeId;
+            }
+
+            await curSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+          }
+        } catch {
+          // If elementFromPoint fails, fall back to the original backendNodeId
+        }
+
+        // Build absolute xpath and return
         const abs = await buildAbsoluteXPathFromChain(
           iframeChain,
           curSession,
-          be,
+          finalBackendNodeId,
         );
         return abs
-          ? { frameId: curFrameId, backendNodeId: be, absoluteXPath: abs }
+          ? { frameId: curFrameId, backendNodeId: finalBackendNodeId, absoluteXPath: abs }
           : null;
       }
 
