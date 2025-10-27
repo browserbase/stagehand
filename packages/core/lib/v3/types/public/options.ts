@@ -56,7 +56,6 @@ export interface LocalBrowserLaunchOptions {
 /** Constructor options for V3 */
 export interface V3Options {
   env: V3Env;
-
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
@@ -86,4 +85,5 @@ export interface V3Options {
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
   domSettleTimeout?: number;
+  disableAPI?: boolean;
 }

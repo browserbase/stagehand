@@ -58,6 +58,7 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
+console.log(`[EVALS] USE_API: ${USE_API}`);
 
 /**
  * generateFilteredTestcases:
