@@ -180,13 +180,15 @@ interface V3Options {
 <ParamField path="selfHeal" type="boolean" optional>
   Enable self-healing mode where actions can recover from failures.
 
-  **Default:** `false`
+  **Default:** `true`
 </ParamField>
 
 <ParamField path="experimental" type="boolean" optional>
   Enable experimental features (may change between versions).
 
   **Default:** `false`
+  <Warning>**Use with caution in production**. Experimental features may break or change between versions without notice.</Warning>
+
 </ParamField>
 
 <ParamField path="domSettleTimeout" type="number" optional>
@@ -360,29 +362,6 @@ interface HistoryEntry {
 ## Code Examples
 
 <Tabs>
-<Tab title="Basic Setup">
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-// Local browser
-const stagehand = new Stagehand({
-  env: "LOCAL",
-  model: "openai/gpt-4o"
-});
-
-await stagehand.init();
-const page = stagehand.context.pages()[0];
-
-// Use the page
-await page.goto("https://example.com");
-await stagehand.act("click the login button");
-
-// Cleanup
-await stagehand.close();
-```
-
-</Tab>
 <Tab title="Browserbase">
 
 ```typescript
@@ -404,6 +383,29 @@ const data = await stagehand.extract("get page title", z.object({
   title: z.string()
 }));
 
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Local">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Local browser
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: "openai/gpt-4o"
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Use the page
+await page.goto("https://example.com");
+await stagehand.act("click the login button");
+
+// Cleanup
 await stagehand.close();
 ```
 

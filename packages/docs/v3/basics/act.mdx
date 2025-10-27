@@ -26,29 +26,6 @@ stagehand.act("click on add to cart")
   </Card>
 </CardGroup>
 
-## Return value of `act()`?
-When you use `act()`, Stagehand will return a `Promise<ActResult>` with the following properties:
-``` typescript
-{
-  success: true,
-  message: 'Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1] → Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
-  actionDescription: 'Favorite Colour',
-  actions: [
-    {
-      selector: 'xpath=/html[1]/body[1]/div[1]/span[1]',
-      description: 'Favorite Colour',
-      method: 'click',
-      arguments: []
-    },
-    {
-      selector: 'xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
-      description: 'Peach',
-      method: 'click',
-      arguments: []
-    }
-  ]
-}
-```
 
 ## Using `act()`
 
@@ -76,6 +53,31 @@ With `act`, breaking complex actions into small, single-step actions works best.
 | Scroll | `scroll to <position>` |
 | Select from dropdown | `select <value> from the dropdown` |
 </Accordion>
+
+### Return value of `act()`?
+When you use `act()`, Stagehand will return a `Promise<ActResult>` with the following structure:
+``` typescript
+{
+  success: true,
+  message: 'Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1] → Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
+  actionDescription: 'Favorite Colour',
+  actions: [
+    {
+      selector: 'xpath=/html[1]/body[1]/div[1]/span[1]',
+      description: 'Favorite Colour',
+      method: 'click',
+      arguments: []
+    },
+    {
+      selector: 'xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
+      description: 'Peach',
+      method: 'click',
+      arguments: []
+    }
+  ]
+}
+```
+
 
 <Tabs>
 <Tab title="Do this">

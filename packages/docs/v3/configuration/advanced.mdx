@@ -1,113 +1,10 @@
 ---
-title: Stagehand Configuration
-sidebarTitle: Stagehand
+title: Advanced Configuration
+sidebarTitle: Advanced
 description: Configure Stagehand for optimal performance and reliability
 ---
 
 Advanced configuration options for optimizing performance, enabling resilience, and accessing experimental features in Stagehand.
-
-## Self-Healing Actions
-
-Enable automatic retry and recovery for failed actions. Self-healing helps actions adapt to minor page changes.
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  selfHeal: true // Enable self-healing
-});
-
-await stagehand.init();
-const page = stagehand.page;
-
-// If the button selector changes slightly, self-heal will try alternative strategies
-await page.act("click the submit button");
-```
-
-### How Self-Healing Works
-
-When `selfHeal` is enabled, Stagehand will:
-- **Retry with alternative selectors** if the initial action fails
-- **Adapt to minor layout changes** without requiring cache invalidation
-- **Use fallback strategies** to complete actions even when the DOM changes
-- **Automatically recover** from transient failures
-
-### Use Cases
-
-Self-healing is particularly useful for:
-- **Dynamic websites** with frequently changing layouts
-- **A/B testing scenarios** where page structure varies
-- **Long-running automations** that need to be resilient
-- **Multi-environment deployments** with slight UI differences
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  selfHeal: true,
-  cacheDir: "./cache" // Combine with caching for best results
-});
-```
-
-<Note>
-Self-healing adds a small overhead to failed actions but significantly improves reliability for workflows running against evolving websites.
-</Note>
-
-## Action Caching
-
-Cache discovered actions to reduce LLM calls and improve performance. Cached actions are persisted to the local filesystem.
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "./stagehand-cache" // Directory for cached actions
-});
-
-await stagehand.init();
-const page = stagehand.page;
-
-// First run: caches the action
-await page.act("click the login button");
-
-// Subsequent runs: uses cached action (no LLM call)
-await page.act("click the login button");
-```
-
-### How Caching Works
-
-When you specify a `cacheDir`:
-1. **First run**: Actions use LLM inference and results are cached to local files
-2. **Subsequent runs**: Cached actions are reused automatically (no LLM calls)
-3. **Cost savings**: Eliminate redundant inference calls for repeated actions
-4. **Performance**: Faster execution by skipping LLM inference (10-100x speedup)
-
-### Caching with Agent
-
-Caching works automatically with agent workflows too:
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "agent-cache" // Cache agent actions
-});
-
-await stagehand.init();
-
-const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514"
-});
-
-// First run: explores and caches
-// Subsequent runs: uses cached workflow
-const result = await agent.execute({
-  instruction: "Complete the checkout process",
-  maxSteps: 15
-});
-```
-
-<Card title="Complete Caching Guide" icon="database" href="/best-practices/caching">
-  Learn advanced caching strategies, cache organization, and best practices
-</Card>
 
 ## Experimental Features
 
@@ -120,14 +17,6 @@ const stagehand = new Stagehand({
 });
 ```
 
-### What's Included
-
-Experimental features may include:
-- **New AI models** or providers being tested
-- **Performance optimizations** not yet stable
-- **Cutting-edge browser capabilities** still in development
-- **Advanced automation techniques** in beta
-
 <Warning>
 **Use with caution in production**. Experimental features:
 - May change or be removed in future versions without notice
@@ -136,32 +25,10 @@ Experimental features may include:
 - Are not covered by standard support SLAs
 </Warning>
 
-### Development Usage
 
-Experimental features are suitable for:
-- **Testing environments** where instability is acceptable
-- **Research and exploration** of new capabilities
-- **Early feedback** to the Stagehand team
-- **Prototyping** before production deployment
+## Disable Stagehand API
 
-```typescript
-// Safe for development/testing
-const devStagehand = new Stagehand({
-  env: "LOCAL",
-  experimental: true,
-  verbose: 2 // Extra logging to debug experimental features
-});
-
-// Avoid in production
-const prodStagehand = new Stagehand({
-  env: "BROWSERBASE",
-  experimental: false // Stick to stable features
-});
-```
-
-## API Endpoint Control
-
-Disable internal API endpoints (advanced use case).
+Disable internal API endpoints (advanced use case) when running on Browserbase. 
 
 ```typescript
 const stagehand = new Stagehand({
@@ -169,59 +36,9 @@ const stagehand = new Stagehand({
   disableAPI: true // Disable internal API endpoints
 });
 ```
-
-### When to Use
-
-The `disableAPI` flag is primarily for:
-- **Minimal deployments** where API endpoints aren't needed
-- **Security-restricted environments** with strict networking policies
-- **Testing scenarios** where API interactions should be isolated
-- **Custom integrations** that bypass standard API usage
-
 <Note>
-Most users should **not** set this flag. It's an internal configuration for advanced use cases and may break certain functionality.
+Most users should **not** set this flag. This will limit observability and metrics on session replay and debugging.
 </Note>
-
-## Configuration Combinations
-
-Combine advanced configurations for optimal results:
-
-### Production: Performance + Reliability
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "./production-cache",
-  selfHeal: true,
-  domSettleTimeout: 2000,
-  experimental: false // Stable features only
-});
-```
-
-### Development: Fast Iteration
-
-```typescript
-const stagehand = new Stagehand({
-  env: "LOCAL",
-  cacheDir: "./dev-cache",
-  selfHeal: false, // Fail fast to catch issues
-  domSettleTimeout: 500,
-  experimental: true, // Test new features
-  verbose: 2 // Extra logging
-});
-```
-
-### Testing: Deterministic Behavior
-
-```typescript
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  cacheDir: "./test-cache",
-  selfHeal: false, // Predictable failures
-  domSettleTimeout: 1000,
-  experimental: false
-});
-```
 
 ## Best Practices
 

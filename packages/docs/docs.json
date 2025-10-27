@@ -35,7 +35,8 @@
               "v3/basics/act",
               "v3/basics/extract",
               "v3/basics/observe",
-              "v3/basics/agent"
+              "v3/basics/agent",
+              "v3/basics/evals"
             ]
           },
           {
@@ -45,7 +46,6 @@
               "v3/configuration/observability",
               "v3/configuration/logging",
               "v3/configuration/models",
-              "v3/configuration/evals",
               "v3/configuration/advanced"
             ]
           },
@@ -106,13 +106,19 @@
             "pages": [
               "v3/references/stagehand",
               "v3/references/page",
+              "v3/references/context",
               "v3/references/act",
               "v3/references/extract",
               "v3/references/observe",
               "v3/references/agent",
-              "v3/references/context",
               "v3/references/locator",
               "v3/references/deeplocator"
+            ]
+          },
+          {
+            "group": "Migration Guides",
+            "pages": [
+              "v3/migrations/v2"
             ]
           }
         ]
