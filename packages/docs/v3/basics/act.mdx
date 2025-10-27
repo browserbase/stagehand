@@ -26,6 +26,30 @@ stagehand.act("click on add to cart")
   </Card>
 </CardGroup>
 
+## Return value of `act()`?
+When you use `act()`, Stagehand will return a `Promise<ActResult>` with the following properties:
+``` typescript
+{
+  success: true,
+  message: 'Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1] → Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
+  actionDescription: 'Favorite Colour',
+  actions: [
+    {
+      selector: 'xpath=/html[1]/body[1]/div[1]/span[1]',
+      description: 'Favorite Colour',
+      method: 'click',
+      arguments: []
+    },
+    {
+      selector: 'xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
+      description: 'Peach',
+      method: 'click',
+      arguments: []
+    }
+  ]
+}
+```
+
 ## Using `act()`
 
 Use `act` to perform single actions in your automation. Here's how to click a button:
