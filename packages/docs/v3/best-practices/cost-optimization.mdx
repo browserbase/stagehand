@@ -76,18 +76,23 @@ Automatically fall back to cheaper models for simple tasks:
 ```typescript
 // Use models from least to most expensive based on task complexity
 // See stagehand.dev/evals for performance comparisons
-async function smartAct(page: Page, prompt: string) {
-  const models = ["cheaper-model", "premium-model"];
-  
+async function smartAct(prompt: string) {
+  const models = ["google/gemini-2.5-flash", "openai/gpt-4o"];
+
   for (const model of models) {
     try {
-      const stagehand = new Stagehand({ modelName: model });
+      const stagehand = new Stagehand({
+        env: "LOCAL",
+        model: model
+      });
       await stagehand.init();
-      const [action] = await stagehand.stagehand.observe(prompt);
-      await stagehand.stagehand.act(action);
+      const [action] = await stagehand.observe(prompt);
+      await stagehand.act(action);
+      await stagehand.close();
       return;
     } catch (error) {
       console.log(`Falling back to ${model}...`);
+      await stagehand.close();
     }
   }
 }
@@ -120,7 +125,7 @@ Track your spending to identify optimization opportunities. See our [Observabili
 
 ```typescript
 // Monitor token usage
-const metrics = stagehand.metrics;
+const metrics = await stagehand.metrics;
 console.log(`Total tokens: ${metrics.totalPromptTokens + metrics.totalCompletionTokens}`);
 console.log(`Estimated cost: $${(metrics.totalPromptTokens + metrics.totalCompletionTokens) * 0.00001}`);
 ```

@@ -62,6 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       env: "BROWSERBASE",
       apiKey: process.env.BROWSERBASE_API_KEY!,
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      disablePino: true,
       model: {
         modelName: "google/gemini-2.5-flash",
         apiKey: process.env.GOOGLE_API_KEY!,
@@ -103,13 +104,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     "type": "module",
     "engines": { "node": ">=18" },
     "dependencies": {
-      "@browserbasehq/stagehand": "^2.4.3",
-      "zod": "^3.25.0"
+      "@browserbasehq/stagehand": "^3.0.0"
     },
     "devDependencies": {
-      "typescript": "^5.6.0",
       "@types/node": "^20.12.12",
-      "@vercel/node": "^3.2.20"
+      "@vercel/node": "^3.2.20",
+      "typescript": "^5.2.2"
     }
 }
 ```
@@ -193,8 +193,21 @@ vercel --prod
 
 ### Execute the function
 
+#### Configure Protection Bypass for Automation
+
+Before invoking the production URL, create a Protection Bypass for Automation:
+
+1. Generate a 32-character secret (you can use `openssl rand -hex 16`)
+2. Go to your project in Vercel
+3. Navigate to Settings → Deployment Protection
+4. Add the secret to "Protection Bypass for Automation"
+
+Then invoke the function with the bypass header:
+
 ```bash
-curl -X POST https://<your-deployment>/api/run
+curl -X POST \
+  -H "x-vercel-protection-bypass: <your-32-character-secret>" \
+  https://<your-deployment>/api/run
 ```
 
 ### Optional: Cron on Vercel

@@ -60,12 +60,12 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/");
 
 const agent = stagehand.agent({
-  provider: "google",
-  model: "gemini-2.5-computer-use-preview-10-2025",
-  instructions: "You are a helpful assistant that can use a web browser.",
-  options: {
-    apiKey: process.env.GOOGLE_API_KEY,
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
   },
+  systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
 await page.goto("https://play2048.co/");

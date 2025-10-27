@@ -57,7 +57,12 @@ const page = stagehand.page;
 await page.goto("https://example.com");
 
 const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514"
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  },
+  systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
 // First run: Uses LLM inference (~20-30 seconds, ~50,000 tokens)
@@ -117,7 +122,12 @@ const page = stagehand.page;
 await page.goto("https://github.com");
 
 const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514"
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  },
+  systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
 console.log("First run: Exploring with agent...");
@@ -159,7 +169,12 @@ const page = stagehand.page;
 await page.goto("https://github.com");
 
 const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514"
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  },
+  systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
 console.log("Subsequent run: Using cached actions...");
@@ -202,7 +217,12 @@ const page = stagehand.page;
 await page.goto("https://example.com");
 
 const agent = stagehand.agent({
-  model: "anthropic/claude-sonnet-4-20250514"
+  cua: true,
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  },
+  systemPrompt: "You are a helpful assistant that can use a web browser.",
 });
 
 await agent.execute({
