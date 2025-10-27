@@ -1,4 +1,5 @@
 import type { ClientOptions as AnthropicClientOptions } from "@anthropic-ai/sdk";
+import { GoogleGenAIOptions as GoogleGenAIClientOptions } from "@google/genai";
 import type { ClientOptions as OpenAIClientOptions } from "openai";
 import { z } from "zod/v3";
 
@@ -44,7 +45,16 @@ export type ModelProvider =
   | "google"
   | "aisdk";
 
-export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
+export type ClientOptions = (
+  | OpenAIClientOptions
+  | AnthropicClientOptions
+  | GoogleGenAIClientOptions
+) &
+  // aisdk client language model options
+  {
+    apiKey?: string;
+    baseURL?: string;
+  };
 
 export interface AnthropicJsonSchemaObject {
   definitions?: {
