@@ -36,7 +36,7 @@ Use `observe()` to discover actionable elements on a page. Here's how to find a 
 ```typescript
 const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
-const actions = await stagehand.observe("find the login button");
+const actions = await stagehand.observe("find the learn more button");
 ```
 
 <Note>
@@ -57,12 +57,12 @@ const actions = await stagehand.observe("find the login button");
 </Accordion>
 
 
-## Return value of `observe()`?
+### Return value of `observe()`?
 When you use `observe()`, Stagehand will return a `Promise<Action[]>` with the following structure:
 ``` typescript
 [
   {
-    description: 'Click me button',
+    description: 'Learn more button',
     method: 'click',
     arguments: [],
     selector: 'xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]'
@@ -95,7 +95,7 @@ await stagehand.observe("what is the page title?");
 </Tab>
 </Tabs>
 
-### Advanced Configuration
+## Advanced Configuration
 
 You can pass additional options to configure the model, timeout, and selector scope:
 
