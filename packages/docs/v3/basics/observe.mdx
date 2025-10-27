@@ -6,17 +6,15 @@ description: 'Discover and plan executable actions on any web page'
 
 ## What is `observe()`?
 
-`observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting.
-
 ```typescript
-const actions = await stagehand.observe("find the login button");
+page.observe("find the login button");
 ```
 
 Returns:
 ```typescript
 [
   {
-    selector: "/html/body/li[3]/a/span",
+    selector: "xpath=//button[@id='login']",
     description: "Login button in the header",
     method: "click",
     arguments: []
@@ -24,220 +22,194 @@ Returns:
 ]
 ```
 
-Use `observe()` to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
+`observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
 
 ## Why use `observe()`?
 
 <CardGroup cols={2}>
-  <Card title="Explore" icon="compass">
+  <Card title="Explore" icon="compass" href="#using-observe">
     Discover what's possible on a page—find buttons, forms, links, and interactive elements
   </Card>
-  <Card title="Plan" icon="map">
+  <Card title="Plan" icon="map" href="#plan-then-execute">
     Map out multi-step workflows by discovering all required actions upfront
   </Card>
   <Card title="Cache" icon="database" href="/best-practices/caching">
     Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
-  <Card title="Validate" icon="check">
+  <Card title="Validate" icon="check" href="#validate-before-acting">
     Verify elements exist and check their properties before performing critical actions
   </Card>
 </CardGroup>
 
-## Quick Start
+## Using `observe()`
 
-<Tabs>
-<Tab title="Basic">
-
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-// Initialize with Browserbase (set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID)
-const stagehand = new Stagehand({ env: "BROWSERBASE" });
-await stagehand.init();
-const page = stagehand.page;
-
-await page.goto("https://github.com/login");
-
-// Discover actions
-const actions = await stagehand.observe("find the login form fields");
-console.log(actions);
-// [
-//   { selector: "xpath=...", description: "Username input field", method: "fill" },
-//   { selector: "xpath=...", description: "Password input field", method: "fill" },
-//   { selector: "xpath=...", description: "Sign in button", method: "click" }
-// ]
-```
-
-</Tab>
-<Tab title="With Act">
+Use `observe()` to discover actionable elements on a page. Here's how to find a button:
 
 ```typescript
-// Observe, then act without additional LLM calls
-const [loginButton] = await stagehand.observe("find the login button");
-
-if (loginButton) {
-  console.log("Found:", loginButton.description);
-  await stagehand.act(loginButton); // No LLM call needed!
-}
-```
-
-</Tab>
-<Tab title="With Extract">
-
-```typescript
-// Focus extraction on specific elements
-const [table] = await stagehand.observe("find the pricing table");
-
-const pricing = await stagehand.extract({
-  instruction: "extract all pricing tiers",
-  schema: z.object({
-    tiers: z.array(z.object({
-      name: z.string(),
-      price: z.string()
-    }))
-  }),
-  selector: table.selector // Reduces tokens by 10x!
-});
-```
-
-</Tab>
-</Tabs>
-
-## Common Patterns
-
-### 1. Observe → Act (Performance Boost)
-
-Discover actions once, then execute them without additional LLM calls.
-
-```typescript
-// Plan all form actions upfront
-const formFields = await stagehand.observe("find all form input fields");
-
-// Execute each action (no LLM calls)
-for (const field of formFields) {
-  await stagehand.act(field);
-}
+await page.goto("https://example.com");
+const actions = await page.observe("find the login button");
 ```
 
 <Note>
-**Performance**: Observing multiple actions upfront and acting on them individually can speed up workflows by 2-3x compared to separate `act()` calls.
+**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
 </Note>
 
-### 2. Observe → Extract (Token Savings)
+The response includes everything you need to act on the element: selector, description, suggested method, and arguments.
 
-Narrow extraction scope to reduce token usage and improve accuracy.
+<Accordion title="Common use cases">
 
-```typescript
-// Find the target section
-const [dataSection] = await stagehand.observe("find the main data table");
+| Use Case | Example instruction |
+|----------|---------------------|
+| Find buttons | `find the submit button` |
+| Locate forms | `find all input fields in the form` |
+| Discover links | `find navigation links` |
+| Identify tables | `find the pricing table` |
+| Map workflows | `find all checkout steps` |
+| Validate elements | `find the delete account button` |
 
-// Extract from that section only
-const data = await stagehand.extract({
-  instruction: "extract all rows",
-  schema: DataSchema,
-  selector: dataSection.selector // 10x token reduction!
-});
-```
-
-<Tip>
-**Token Savings**: Using `selector` from `observe()` can reduce LLM token usage by up to 10x on content-heavy pages.
-</Tip>
-
-### 3. Validation Before Action
-
-Verify elements exist and check their properties before performing critical operations.
-
-```typescript
-const [deleteButton] = await stagehand.observe("find the delete account button");
-
-if (deleteButton && deleteButton.method === "click") {
-  console.log("Delete button found:", deleteButton.description);
-  // Proceed with caution
-  await stagehand.act(deleteButton);
-} else {
-  throw new Error("Delete button not found or invalid");
-}
-```
-
-## Best Practices
-
-### When to use `observe()`
+</Accordion>
 
 <Tabs>
-<Tab title="Do">
-
-**Use `observe()` when you need to:**
-- Discover interactive elements before acting on them
-- Plan multi-step workflows by mapping all required actions upfront
-- Validate that elements exist before performing critical operations
-- Cache action selectors to speed up repeated workflows
-- Narrow the scope for `extract()` to reduce token usage
+<Tab title="Do this">
+Use specific, descriptive instructions.
 
 ```typescript
-// Good: Discover then act
-const [button] = await stagehand.observe("find the submit button");
-await stagehand.act(button);
-
-// Good: Focus extraction
-const [table] = await stagehand.observe("find the data table");
-await stagehand.extract({ instruction: "extract rows", selector: table.selector });
+// Clear and specific
+await page.observe("find the primary call-to-action button in the hero section");
+await page.observe("find all input fields in the checkout form");
+await page.observe("find the delete account button in settings");
 ```
-
 </Tab>
-<Tab title="Don't">
 
-**Don't use `observe()` for:**
-- Getting page information (use `extract()` instead)
-- Questions that don't lead to an action
-- Direct data extraction (use `extract()` instead)
-
-```typescript
-// Bad: Using observe for data extraction
-const results = await stagehand.observe("what is the page title?");
-
-// Good: Use extract for data
-const { title } = await stagehand.extract({
-  instruction: "get the page title",
-  schema: z.object({ title: z.string() })
-});
-```
-
-</Tab>
-</Tabs>
-
-### Write clear instructions
-
-Be specific and descriptive in your instructions:
-
-<Tabs>
-<Tab title="Good">
-
-```typescript
-// Specific and actionable
-await stagehand.observe("find the primary call-to-action button in the hero section");
-await stagehand.observe("find all input fields in the checkout form");
-await stagehand.observe("find the delete account button in settings");
-```
-
-</Tab>
-<Tab title="Avoid">
+<Tab title="Don't do this">
+Avoid vague or data-oriented queries.
 
 ```typescript
 // Too vague
-await stagehand.observe("find buttons");
-await stagehand.observe("find stuff");
-await stagehand.observe("find things to click");
-```
+await page.observe("find buttons");
 
+// Use extract() for data instead
+await page.observe("what is the page title?");
+```
 </Tab>
 </Tabs>
 
-### Cache observed actions
+### Advanced Configuration
 
-Store and reuse observed actions to eliminate redundant LLM calls:
+You can pass additional options to configure the model, timeout, selector scope, and target page:
 
 ```typescript
-// Build a simple cache
+// Custom model configuration
+const actions = await page.observe("find navigation links", {
+  model: {
+    provider: "openai",
+    model: "gpt-4o",
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  timeout: 30000,
+  selector: "//header" // Focus on specific area
+});
+```
+
+### Using with Custom Pages
+
+You can use `observe()` with pages from other browser automation libraries like Puppeteer, Playwright, or Patchright by passing the `page` option:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import puppeteer from "puppeteer-core";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+});
+await stagehand.init();
+
+// Connect with Puppeteer
+const browser = await puppeteer.connect({
+  browserWSEndpoint: stagehand.connectURL(),
+  defaultViewport: null,
+});
+
+const pages = await browser.pages();
+const customPage = pages[0];
+
+await customPage.goto("https://www.example.com/products");
+
+// Use observe with the custom Puppeteer page
+const actions = await page.observe("find all product cards", {
+  page: customPage
+});
+```
+
+This works with:
+- **Puppeteer**: Pass Puppeteer Page objects
+- **Playwright**: Pass Playwright Page objects
+- **Patchright**: Pass Patchright Page objects
+- **Stagehand Page**: Use `stagehand.page` (default)
+
+<Card title="Complete API Reference" icon="book" href="/references/observe">
+  See the full `observe()` reference for detailed parameter documentation, return values, and advanced examples.
+</Card>
+
+## Best practices
+
+### Plan then execute
+
+Discover all actions once, then execute without additional LLM calls. This approach is 2-3x faster than separate `act()` calls.
+
+```typescript
+const formFields = await page.observe("find all form input fields");
+
+for (const field of formFields) {
+  await page.act(field); // No LLM call
+}
+```
+
+<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/references/observe">
+  Complete guide to planning actions with `observe()`.
+</Card>
+
+### Scope extractions
+
+Use `observe()` to narrow extraction scope and reduce token usage by up to 10x.
+
+```typescript
+const [table] = await page.observe("find the pricing table");
+
+const pricing = await page.extract({
+  instruction: "extract all pricing tiers",
+  schema: PricingSchema,
+  selector: table.selector
+});
+```
+
+<Card title="Extract structured data" icon="table" href="/basics/extract">
+  Learn how to use `observe()` with `extract()` for precise data extraction.
+</Card>
+
+### Validate before acting
+
+Check elements exist and verify their properties before performing critical operations.
+
+```typescript
+const [deleteButton] = await page.observe("find the delete account button");
+
+if (deleteButton?.method === "click") {
+  await page.act(deleteButton);
+} else {
+  throw new Error("Delete button not found");
+}
+```
+
+<Card title="Execute actions with act()" icon="play" href="/basics/act">
+  Learn how to execute observed actions reliably.
+</Card>
+
+### Cache observed actions
+
+Store and reuse observed actions to eliminate redundant LLM calls. Build a simple cache:
+
+```typescript
 const actionCache = new Map<string, Action[]>();
 
 async function cachedObserve(instruction: string) {
@@ -245,141 +217,99 @@ async function cachedObserve(instruction: string) {
     return actionCache.get(instruction)!;
   }
 
-  const actions = await stagehand.observe(instruction);
+  const actions = await page.observe(instruction);
   actionCache.set(instruction, actions);
   return actions;
 }
 ```
 
-<Card title="Advanced Caching Guide" icon="database" href="/best-practices/caching">
-  Learn how to build production-ready action caching
-</Card>
-
-## Configuration Options
-
-Customize `observe()` behavior with options:
-
-```typescript
-const actions = await stagehand.observe("find navigation links", {
-  model: "openai/gpt-4o",           // Use a specific model
-  timeout: 30000,                    // Custom timeout (ms)
-  selector: "//header",              // Focus on specific area
-  page: specificPage                 // Target specific page
-});
-```
-
-### Parameters
-
-- **`instruction`** (string): What elements or actions to discover
-- **`model`** (optional): AI model to use (`"provider/model"` or config object)
-- **`timeout`** (optional): Maximum time in milliseconds
-- **`selector`** (optional): XPath to focus observation on specific area
-- **`page`** (optional): Target a specific page (for multi-page scenarios)
-
-### Returns
-
-`Promise<Action[]>` - Array of discovered actions, ordered by relevance.
-
-**Action Interface:**
-```typescript
-interface Action {
-  selector: string;     // XPath to locate element
-  description: string;  // Human-readable description
-  method?: string;      // Suggested action (e.g., "click", "fill")
-  arguments?: string[]; // Additional parameters
-}
-```
-
-**Example:**
-```typescript
-const actions = await stagehand.observe("find login form fields");
-console.log(actions);
-// [
-//   {
-//     selector: "//input[@type='email']",
-//     description: "Email input field",
-//     method: "fill",
-//     arguments: []
-//   },
-//   {
-//     selector: "//input[@type='password']",
-//     description: "Password input field",
-//     method: "fill",
-//     arguments: []
-//   },
-//   {
-//     selector: "//button[@type='submit']",
-//     description: "Login button",
-//     method: "click",
-//     arguments: []
-//   }
-// ]
-```
-
-<Card title="Full API Reference" icon="book" href="/references/observe">
-  Complete documentation for observe() parameters and options
+<Card title="Complete caching guide" icon="database" href="/best-practices/caching">
+  Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
 ## Troubleshooting
 
 <AccordionGroup>
-<Accordion title="No elements found">
 
+<Accordion title="No elements found">
 **Problem**: `observe()` returns empty array
 
 **Solutions**:
 - Verify the element exists on the page
 - Use more specific instructions (e.g., "find the blue submit button" instead of "find button")
 - Ensure page has fully loaded before calling `observe()`
-- Check [debugging workflows](/best-practices/debugging-workflows) to see if elements are visible but not detected
+- Enable verbose logging in Stagehand configuration to inspect detection behavior
 
+```typescript
+// Check page state before observing
+await page.waitForLoadState('domcontentloaded');
+
+const actions = await page.observe("find the submit button");
+
+if (actions.length === 0) {
+  console.log("No elements found, trying alternative instruction");
+  const altActions = await page.observe("find the button at the bottom of the form");
+}
+```
 </Accordion>
 
 <Accordion title="Inaccurate results">
-
 **Problem**: Descriptions or selectors don't match actual elements
 
 **Solutions**:
 - Use more capable models—check [model evals](https://stagehand.dev/evals) for recommendations
 - Provide more context in your instruction (e.g., "find the submit button in the checkout form")
-- Enable inference logging with [debugging workflows](/best-practices/debugging-workflows) to inspect LLM reasoning
+- Enable verbose logging and `logInferenceToFile` in Stagehand configuration to inspect LLM reasoning
 
+```typescript
+// More specific instructions improve accuracy
+// Instead of:
+await page.observe("find the button");
+
+// Use context:
+await page.observe("find the red 'Delete' button in the user settings panel");
+```
 </Accordion>
 
 <Accordion title="Wrong method suggested">
-
 **Problem**: The `method` field has an unexpected value
 
 **Solutions**:
 - Validate the method before using it: `if (action.method === "click") { ... }`
 - Check [supported actions](/basics/act) for valid method names
-- Override with a specific method when needed: `await stagehand.act({ ...action, method: "click" })`
+- Override with a specific method when needed: `await page.act({ ...action, method: "click" })`
 
+```typescript
+const [action] = await page.observe("find the submit button");
+
+// Validate method before acting
+const validMethods = ["click", "fill", "type", "press"];
+if (action && validMethods.includes(action.method || "")) {
+  await page.act(action);
+} else {
+  console.warn(`Unexpected method: ${action?.method}`);
+}
+```
 </Accordion>
+
 </AccordionGroup>
 
-
-## Related Resources
+## Next steps
 
 <CardGroup cols={2}>
-<Card title="act() Method" icon="play" href="/basics/act">
-Execute discovered actions with act()
-</Card>
+  <Card title="Execute actions with act()" icon="play" href="/basics/act">
+    Use `act()` to execute discovered actions reliably.
+  </Card>
 
-<Card title="extract() Method" icon="download" href="/basics/extract">
-Extract data from observed elements
-</Card>
+  <Card title="Extract structured data" icon="table" href="/basics/extract">
+    Combine `observe()` with `extract()` for precise data extraction.
+  </Card>
 
-<Card title="Action Caching" icon="database" href="/best-practices/caching">
-Build action caches to eliminate redundant LLM calls
-</Card>
+  <Card title="Caching actions" icon="bolt" href="/best-practices/caching">
+    Build action caches to eliminate redundant LLM calls.
+  </Card>
 
-<Card title="API Reference" icon="book" href="/references/observe">
-Complete observe() API documentation
-</Card>
+  <Card title="Complete API Reference" icon="book" href="/references/observe">
+    Full `observe()` reference with detailed parameter documentation.
+  </Card>
 </CardGroup>
-
-
-
-
-
