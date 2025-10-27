@@ -19,7 +19,7 @@ test.describe("resolveNodeForLocationDeep", () => {
     const page = await v3.context.awaitActivePage();
 
     // Set consistent viewport size to ensure stable rendering across environments
-    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.setViewportSize(1280, 720);
 
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
