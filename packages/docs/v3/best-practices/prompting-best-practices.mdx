@@ -68,23 +68,14 @@ await stagehand.act("choose option 1");
 Variables keep sensitive information out of prompts and logs.
 
 ```typescript
-// Good - Secure approach
-await stagehand.act({
-  action: "enter %username% in the email field",
-  variables: {
-    username: "user@example.com"
-  }
+// Use variables for sensitive data
+await stagehand.act("type %username% into the email field", {
+  variables: { username: "user@example.com" }
 });
 
-await stagehand.act({
-  action: "enter %password% in the password field", 
-  variables: {
-    password: process.env.USER_PASSWORD
-  }
+await stagehand.act("type %password% into the password field", {
+  variables: { password: process.env.USER_PASSWORD }
 });
-
-// Bad - Insecure approach
-await stagehand.act("type 'mySecretPassword123' into the password field");
 ```
 
 <Warning>
@@ -97,68 +88,49 @@ Use `extract()` to pull structured data from pages. Define clear schemas and pro
 
 ### Schema Best Practices
 
-Use descriptive field names, correct types, and detailed descriptions. Field descriptions provide context that helps the agent understand exactly what to extract.
+Use descriptive field names, correct types, and detailed descriptions. Field descriptions provide context that helps the model understand exactly what to extract.
 
 ```typescript
 // Good - Descriptive names, correct types, and helpful descriptions
-const productData = await stagehand.extract({
-  instruction: "Extract product information",
-  schema: z.object({
+const productData = await stagehand.extract(
+  "Extract product information",
+  z.object({
     productTitle: z.string().describe("The main product name displayed on the page"),
     priceInDollars: z.number().describe("Current selling price as a number, without currency symbol"),
     isInStock: z.boolean().describe("Whether the product is available for purchase")
   })
-});
+);
 
 // Bad - Generic names, wrong types, no descriptions
-const data = await stagehand.extract({
-  instruction: "Get product details", 
-  schema: z.object({
+const data = await stagehand.extract(
+  "Get product details",
+  z.object({
     name: z.string(), // Too generic, no context
     price: z.string(), // Should be number
     stock: z.string() // Should be boolean, no context
   })
-});
-```
-
-### Handle Arrays Correctly
-
-Always wrap schemas in objects for reliable extraction.
-
-```typescript
-// Good - Array wrapped in object
-const listings = await stagehand.extract({
-  instruction: "Extract all apartment listings",
-  schema: z.object({
-    apartments: z.array(z.object({
-      address: z.string(),
-      rent: z.number()
-    }))
-  })
-});
-
-// Bad - Bare array
-const listings = await stagehand.extract({
-  instruction: "Extract apartment listings",
-  schema: z.array(z.string()) // Don't do this
-});
+);
 ```
 
 ### Use Proper URL Types
 
-Specify URL types to tell Stagehand to extract URLs. Without proper URL types, Stagehand won't extract URLs.
+Specify URL types with `z.string().url()` to tell Stagehand to extract URLs.
 
 ```typescript
 // Good - Tells Stagehand to extract URLs
-const links = await stagehand.extract({
-  instruction: "Extract navigation links",
-  schema: z.object({
-    links: z.array(z.object({
-      text: z.string(),
-      url: z.string().url() // Required for URL extraction
-    }))
-  })
-});
+const links = await stagehand.extract(
+  "Extract navigation links",
+  z.array(z.object({
+    text: z.string(),
+    url: z.string().url() // Required for URL extraction
+  }))
+);
+
+// Single URL extraction
+const contactUrl = await stagehand.extract(
+  "extract the contact page URL",
+  z.string().url()
+);
 ```
 
 ## Observe Method
