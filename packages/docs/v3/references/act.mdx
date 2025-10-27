@@ -19,11 +19,22 @@ icon: 'arrow-pointer'
 // String instruction only
 await page.act(instruction: string): Promise<ActResult>
 
+// Action only - Deterministic (no LLM)
+await page.act(action: Action): Promise<ActResult>
+
 // String instruction with options
 await page.act(instruction: string, options: ActOptions): Promise<ActResult>
 
-// Execute observed action
-await page.act(observeResult: ObserveResult): Promise<ActResult>
+```
+
+**Action Interface:**
+```typescript
+interface Action {
+  selector: string;
+  description: string;
+  method?: string;
+  arguments?: string[];
+}
 ```
 
 **ActOptions Interface:**
@@ -52,8 +63,23 @@ type ModelConfiguration =
 
 ### Parameters
 
-<ParamField path="instruction" type="string" required>
-  Natural language description of the action to perform. Use `%variableName%` syntax to reference variables.
+<ParamField path="instruction | action" type="string | Action" required>
+  - **Instruction**: Natural language description of the action to perform. Use `%variableName%` syntax to reference variables.
+  - **Action**: A deterministic action to perform: 
+  <Expandable title="Action">
+    <ParamField path="selector" type="string" required>
+      The selector (XPath, CSS selector, etc.) used to target the element
+    </ParamField>
+    <ParamField path="description" type="string" required>
+      Description of the action
+    </ParamField>
+    <ParamField path="method" type="string" optional>
+      The method used (e.g., "click", "fill", "type")
+    </ParamField>
+    <ParamField path="arguments" type="string[]" optional>
+      Arguments passed to the method
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 <ParamField path="model" type="ModelConfiguration" optional>
@@ -97,10 +123,6 @@ type ModelConfiguration =
   - **Stagehand Page**: Stagehand's wrapped Page object
 
   If not specified, defaults to the current "active" page in your Stagehand instance.
-</ParamField>
-
-<ParamField path="observeResult" type="ObserveResult" optional>
-  Previously observed action to execute directly (enables self-healing and caching).
 </ParamField>
 
 ### Returns `Promise<ActResult>`
