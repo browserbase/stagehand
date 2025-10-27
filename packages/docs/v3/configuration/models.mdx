@@ -1,272 +1,705 @@
 ---
 title: Models
 sidebarTitle: Models
-description: Enhance Stagehand with LLMs for optimal performance, cost, and reliability
+description: Use any LLM model with Stagehand for optimal performance
 ---
 
-Stagehand uses Large Language Models (LLMs) to understand web pages, plan actions, and interact with complex interfaces. The choice of LLM significantly impacts your automation's accuracy, speed, and cost.
+Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
 
-<Card title="Model Evaluation" href="https://www.stagehand.dev/evals" icon="paper-plane">
-Find more details about how to choose the right model on our Model Evaluation page.
-</Card>
+---
 
-## Why LLM Choice Matters
+## Configuration Setup
 
-- **Accuracy**: Better models provide more reliable element detection and action planning
-- **Speed**: Faster models reduce automation latency
-- **Cost**: Different providers offer varying pricing structures
-- **Reliability**: Structured output support ensures consistent automation behavior
+### Quickstart
 
 <Tip>
-Find more details about how to choose the right model on our [Model Evaluation](https://www.stagehand.dev/evals) page.
+Set your API key in `.env` and Stagehand handles the rest. No explicit configuration needed!
 </Tip>
 
-<Warning>
-Small models on **Ollama** struggle with consistent structured outputs. While technically supported, we don't recommend them for production Stagehand workflows.
-</Warning>
-
-## Environment Variables Setup
-
-Set up your API keys before configuring Stagehand:
+Get started with Google Gemini (recommended for speed and cost):
 
 <CodeGroup>
-```bash .env
-# Choose one or more providers
-OPENAI_API_KEY=your_openai_key_here
-ANTHROPIC_API_KEY=your_anthropic_key_here
-GOOGLE_API_KEY=your_google_key_here
-GROQ_API_KEY=your_groq_key_here
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash"
+  // API key auto-loads from GOOGLE_GENERATIVE_AI_API_KEY - set in your .env
+});
+
+await stagehand.init();
 ```
 </CodeGroup>
 
-## Supported Providers
 
-Stagehand supports major LLM providers with structured output capabilities:
+---
 
-### Production-Ready Providers
+### First Class Models
 
-| Provider | Best Models | Strengths | Use Case |
-|----------|-------------|-----------|----------|
-| **OpenAI** | `gpt-4.1`, `gpt-4.1-mini` | High accuracy, reliable | Production, complex sites |
-| **Anthropic** | `claude-3-7-sonnet-latest` | Excellent reasoning | Complex automation tasks |
-| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | Fast, cost-effective | High-volume automation |
-
-### Additional Providers
-
-<Expandable title="More Providers">
-- **Groq** - `llama-3.3-70b-versatile` (Good for speed critical applications)
-- **xAI** - `grok-beta` (Good for complex reasoning)
-- **Azure** - Enterprise OpenAI deployment
-- **Cerebras** - High-speed inference
-- **TogetherAI** - Open-source models
-- **Mistral** - `mixtral-8x7b-32768` (European option)
-- **DeepSeek** - Cost-effective alternative
-- **Perplexity** - Real-time web data
-- **Ollama** - Local deployment (limited accuracy)
-- **Run any model included in AI SDK** - Find supported models in the [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) (Follow the guide 
-     [here](#vercel-ai-sdk) to get started.)
-</Expandable>
-
-## Basic Configuration
-
-### Model Name Format
-
-Stagehand uses the format `provider/model-name` for model specification.
-
-**Examples:**
-- OpenAI: `openai/gpt-4.1`
-- Anthropic: `anthropic/claude-3-7-sonnet-latest`
-- Google: `google/gemini-2.5-flash` (Recommended)
-
-### Quick Start Examples
+Use any model from the following supported providers.
 
 <Tabs>
-<Tab title="Google (Recommended)">
-```typescript
+<Tab title="Google">
+<CodeGroup>
+```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  modelName: "google/gemini-2.5-flash",
-  modelClientOptions: {
-    apiKey: process.env.GOOGLE_API_KEY,
-  },
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash"
+  // API key auto-loads from GOOGLE_GENERATIVE_AI_API_KEY - set in your .env
 });
-```
-</Tab>
-<Tab title="OpenAI">
-```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  modelName: "openai/gpt-4.1",
-  modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY,
-  },
-});
+await stagehand.init();
 ```
+</CodeGroup>
+[View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
 </Tab>
 
 <Tab title="Anthropic">
-```typescript
+
+
+<CodeGroup>
+```typescript TypeScript
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  modelName: "anthropic/claude-3-7-sonnet-latest",
-  modelClientOptions: {
+  env: "BROWSERBASE",
+  model: "anthropic/claude-haiku-4-5"
+  // API key auto-loads from ANTHROPIC_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
+</Tab>
+
+<Tab title="OpenAI">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5"
+  // API key auto-loads from OPENAI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported OpenAI models →](https://platform.openai.com/docs/models)
+</Tab>
+<Tab title="Azure">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "azure/gpt-5"
+  // API key auto-loads from AZURE_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Azure models →](https://ai.azure.com/catalog)
+</Tab>
+
+<Tab title="Cerebras">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "cerebras/llama-4-scout"
+  // API key auto-loads from CEREBRAS_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
+</Tab>
+
+<Tab title="DeepSeek">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "deepseek/deepseek-chat"
+  // API key auto-loads from DEEPSEEK_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported DeepSeek models →](https://api-docs.deepseek.com/quick_start/pricing)
+</Tab>
+
+<Tab title="Groq">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "groq/llama-3.1-8b-instant"
+  // API key auto-loads from GROQ_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Groq models →](https://console.groq.com/docs/models)
+</Tab>
+
+<Tab title="Mistral">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "mistral/codestral-2508"
+  // API key auto-loads from MISTRAL_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Mistral models →](https://docs.mistral.ai/getting-started/models)
+</Tab>
+
+<Tab title="Ollama">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "ollama/llama3.2"
+  // No API key required
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Ollama models →](https://ollama.com/library)
+</Tab>
+
+<Tab title="Perplexity">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "perplexity/sonar-reasoning"
+  // API key auto-loads from PERPLEXITY_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported Perplexity models →](https://docs.perplexity.ai/getting-started/models)
+</Tab>
+<Tab title="TogetherAI">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "togetherai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+  // API key auto-loads from TOGETHER_AI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+[View all supported TogetherAI models →](https://www.together.ai/models)
+
+</Tab>
+<Tab title="xAI">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "xai/grok-4-fast-reasoning"
+  // API key auto-loads from XAI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+</CodeGroup>
+
+[View all xAI models →](https://docs.x.ai/docs/models)
+</Tab>
+
+</Tabs>
+
+---
+
+### Custom Models
+
+Amazon Bedrock, Cohere, all [first class models](/configuration/models#first-class-models), and any model from [the Vercel AI SDK](https://sdk.vercel.ai/providers) is supported.
+
+Use this configuration for custom endpoints and custom retry or caching logic.
+
+We'll use Amazon Bedrock and Google as examples below.
+
+<AccordionGroup>
+<Accordion title="Amazon Bedrock">
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm install @ai-sdk/amazon-bedrock
+```
+</Tab>
+<Tab title="pnpm">
+```bash
+pnpm add @ai-sdk/amazon-bedrock
+```
+</Tab>
+<Tab title="yarn">
+```bash
+yarn add @ai-sdk/amazon-bedrock
+```
+</Tab>
+<Tab title="bun">
+```bash
+bun add @ai-sdk/amazon-bedrock
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Import, create provider, and create client">
+```typescript
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const bedrockProvider = createAmazonBedrock({
+  region: 'us-east-1',
+  accessKeyId: 'xxxxxxxxx',
+  secretAccessKey: 'xxxxxxxxx',
+  sessionToken: 'xxxxxxxxx',
+});
+
+const bedrockClient = new AISdkClient({
+  model: bedrockProvider("amazon/nova-pro-latest"),
+});
+```
+</Step>
+
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: bedrockClient
+});
+
+await stagehand.init();
+```
+
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="Google">
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm install @ai-sdk/google
+```
+</Tab>
+<Tab title="pnpm">
+```bash
+pnpm add @ai-sdk/google
+```
+</Tab>
+<Tab title="yarn">
+```bash
+yarn add @ai-sdk/google
+```
+</Tab>
+<Tab title="bun">
+```bash
+bun add @ai-sdk/google
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Import, create provider, and create client">
+```typescript
+import { createGoogle } from '@ai-sdk/google';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const googleProvider = createGoogle({
+  apiKey: 'xxxxxxxxx',
+});
+
+const googleClient = new AISdkClient({
+  model: googleProvider("google/gemini-2.5-flash"),
+});
+```
+</Step>
+
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: googleClient
+});
+
+await stagehand.init();
+```
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="All Providers">
+
+To implement a custom model, follow the steps for the provider you are using. See the Amazon Bedrock and Google examples above. All supported providers and models are in [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+</Step>
+<Step title="Import, create provider, and create client">
+```typescript
+import { createProvider } from '@ai-sdk/provider';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const provider = createProvider({
+  apiKey: 'xxxxxxxxx',
+});
+
+const providerClient = new AISdkClient({
+  model: provider("model/name"),
+});
+```
+</Step>
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: providerClient
+});
+
+await stagehand.init();
+```
+</Step>
+</Steps>
+</Accordion>
+</AccordionGroup>
+---
+
+## Choose a Model
+
+Different models excel at different tasks. Consider speed, accuracy, and cost for your use case.
+
+**Quick Recommendations**
+
+| Use Case                  | Recommended Model                    | Why                            |
+| ------------------------- | ------------------------------------ | ------------------------------ |
+| **Production** | `google/gemini-2.5-flash`            | Fast, accurate, cost-effective |
+| **Intelligence**     | `google/gemini-2.5-pro` | Best accuracy on hard tasks    |
+| **Speed**        | `google/gemini-2.5-flash`                 | Fastest response times         |
+| **Cost**     | `google/gemini-2.5-flash`            | Best value per token           |
+| **Local/offline**         | `ollama/llama3.2`                    | No API costs, full control     |
+
+<Card title="Model Selection Guide" href="https://www.stagehand.dev/evals" icon="scale-balanced">
+  Find detailed model comparisons and recommendations on our Model Evaluation page.
+</Card>
+
+---
+
+## Advanced Options
+
+### Custom Endpoints
+
+If you need Azure OpenAI deployments or enterprise deployments.
+
+<Tabs>
+<Tab title="OpenAI">
+
+For OpenAI, you can pass configuration directly without using `llmClient` using the `model` parameter:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    model: "openai/gpt-5",
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: "https://custom-openai-endpoint.com/v1"
+  }
+});
+```
+
+</Tab>
+
+<Tab title="Anthropic">
+
+For Anthropic, you can pass configuration directly without using `llmClient` using the `model` parameter:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    model: "anthropic/claude-haiku-4-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
-  },
+    baseURL: "https://custom-anthropic-endpoint.com"
+  }
+});
+```
+  </Tab>
+<Tab title="All Other Providers">
+For all other providers, use `llmClient`. Here's an example with Hugging Face:
+
+```typescript
+// pnpm add @ai-sdk/huggingface
+
+import { createHuggingFace } from '@ai-sdk/huggingface';
+import { AISdkClient } from "@browserbasehq/stagehand";
+
+const huggingFaceProvider = createHuggingFace({
+  apiKey: process.env.HUGGINGFACE_API_KEY,
+  baseURL: "https://custom-huggingface-endpoint.com",
+});
+
+const huggingFaceClient = new AISdkClient({
+  model: huggingFaceProvider("meta-llama/Llama-3.1-8B-Instruct"),
+});
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: huggingFaceClient,
 });
 ```
 </Tab>
 </Tabs>
 
-## Custom LLM Integration
+### Extending the AI SDK Client
 
-<Note>
-Custom LLMs are currently only supported in TypeScript.
-</Note>
+For advanced use cases like custom retries or caching logic, you can extend the `AISdkClient`:
 
-Integrate any LLM with Stagehand using custom clients. The only requirement is **structured output support** for consistent automation behavior.
+```typescript
+import { LLMClient } from "@browserbasehq/stagehand";
 
-### Vercel AI SDK
-The [Vercel AI SDK](https://sdk.vercel.ai/providers/ai-sdk-providers) is a popular library for interacting with LLMs. You can use any of the providers supported by the Vercel AI SDK to create a client for your model, **as long as they support structured outputs**.
-
-Vercel AI SDK supports providers for OpenAI, Anthropic, and Google, along with support for **Amazon Bedrock** and **Azure OpenAI**.
-
-To get started, you'll need to install the `ai` package and the provider you want to use. For example, to use Amazon Bedrock, you'll need to install the `@ai-sdk/amazon-bedrock` package.
-
-You'll also need to use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/main/examples/external_clients/aisdk.ts) as a template to create a client for your model.
-
-<Tabs>
-	<Tab title="npm">
-	```bash
-	npm install ai @ai-sdk/amazon-bedrock
-	```
-	</Tab>
-
-	<Tab title="pnpm">
-	```bash
-	pnpm install ai @ai-sdk/amazon-bedrock
-	```
-	</Tab>
-
-	<Tab title="yarn">
-	```bash
-	yarn add ai @ai-sdk/amazon-bedrock
-	```
-	</Tab>
-</Tabs>
-
-To get started, you can use the [Vercel AI SDK external client](https://github.com/browserbase/stagehand/blob/84f810b4631291307a32a47addad7e26e9c1deb3/examples/external_clients/aisdk.ts) as a template to create a client for your model.
-
-```ts
-// Install/import the provider you want to use.
-// For example, to use OpenAI, import `openai` from @ai-sdk/openai
-import { bedrock } from "@ai-sdk/amazon-bedrock";
-import { AISdkClient } from "./external_clients/aisdk";
-
-const stagehand = new Stagehand({
-  llmClient: new AISdkClient({
-	model: bedrock("anthropic.claude-3-7-sonnet-20250219-v1:0"),
-  }),
-});
+class CustomRetryClient extends LLMClient {
+  async createChatCompletion(options) {
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        return await super.createChatCompletion(options);
+      } catch (error) {
+        retries--;
+        if (retries === 0) throw error;
+        await new Promise((r) => setTimeout(r, 1000 * (4 - retries)));
+      }
+    }
+  }
+}
 ```
 
-## Troubleshooting
+<Tip>
+  Need custom caching? Consider using built-in [caching
+  feature](/best-practices/caching).
+</Tip>
 
-### Common Issues
+### Legacy Model Format
 
-<AccordionGroup>
-<Accordion title="Model doesn't support structured outputs">
-**Error**: `Model does not support structured outputs`
+<Tip>
+**Recommendation:** Use `provider/model` format. Example:
+- `model: "openai/gpt-4o"` (recommended)
+- `model: "gpt-4o"` (legacy)
 
-**Solution**:
-Use models that support function calling/structured outputs. The minimum requirements are:
+</Tip>
 
-- Model must support JSON/structured outputs
-- Model must have strong reasoning capabilities
-- Model must be able to handle complex instructions
+The following models work without the `provider/` prefix in the model parameter as part of legacy support:
 
-For each provider, use their latest models that meet these requirements. Some examples:
+<AccordionGroup title="Legacy Model Format">
+<Accordion title="Google">
 
-- **OpenAI**: GPT-4 series or newer
-- **Anthropic**: Claude 3 series or newer 
-- **Google**: Gemini 2 series or newer
-- **Other providers**: Latest models with structured output support
+- `gemini-2.5-flash-preview-04-17`
+- `gemini-2.5-pro-preview-03-25`
+- `gemini-2.0-flash`
+- `gemini-2.0-flash-lite`
+- `gemini-1.5-flash`
+- `gemini-1.5-flash-8b`
+- `gemini-1.5-pro`
 
-**Note**: Avoid base language models without structured output capabilities or fine-tuning for instruction following. When in doubt, check our [Model Evaluation](https://www.stagehand.dev/evals) page for up-to-date recommendations.
 </Accordion>
+<Accordion title="Anthropic">
 
-<Accordion title="Authentication errors">
-**Error**: `Invalid API key` or `Unauthorized`
+- `claude-3-7-sonnet-latest`
+- `claude-3-7-sonnet-20250219`
+- `claude-3-5-sonnet-latest`
+- `claude-3-5-sonnet-20241022`
+- `claude-3-5-sonnet-20240620`
 
-**Solution**:
-- Verify your environment variables are set correctly
-- Check API key permissions and quotas
-- Ensure you're using the correct API key for the provider
-- For Anthropic, make sure you have access to the Claude API
 </Accordion>
+<Accordion title="OpenAI">
+- `gpt-4o`
+- `gpt-4o-mini`
+- `o1`
+- `o1-mini`
+- `o3`
+- `o3-mini`
+- `gpt-4.1`
+- `gpt-4.1-mini`
+- `gpt-4.1-nano`
+- `o4-mini`
+- `gpt-4.5-preview`
+- `gpt-4o-2024-08-06`
+- `o1-preview`
 
-<Accordion title="Inconsistent automation results">
-**Symptoms**: Actions work sometimes but fail other times
-
-**Causes & Solutions**:
-- **Weak models**: Use more capable models - check our [Model Evaluation](https://www.stagehand.dev/evals) page for current recommendations
-- **High temperature**: Set temperature to 0 for deterministic outputs
-- **Complex pages**: Switch to models with higher accuracy scores on our [Model Evaluation](https://www.stagehand.dev/evals) page
-- **Rate limits**: Implement retry logic with exponential backoff
-- **Context limits**: Reduce page complexity or use models with larger context windows
-- **Prompt clarity**: Ensure your automation instructions are clear and specific
 </Accordion>
+<Accordion title="Cerebras">
 
-<Accordion title="Slow performance">
-**Issue**: Automation takes too long to respond
+- `cerebras-llama-3.3-70b`
+- `cerebras-llama-3.1-8b`
 
-**Solutions**:
-- **Use fast models**: Choose models optimized for speed
-  - Any model with < 1s response time
-  - Models with "fast" or "flash" variants
-- **Optimize settings**: 
-  - Use `verbose: 0` to minimize token usage
-  - Set temperature to 0 for fastest processing
-  - Keep max tokens as low as possible
-- **Consider local deployment**: Local models can provide lowest latency
-- **Batch operations**: Group multiple actions when possible
 </Accordion>
+<Accordion title="Groq">
 
-<Accordion title="High costs">
-**Issue**: LLM usage costs are too high
+- `groq-llama-3.3-70b-versatile`
+- `groq-llama-3.3-70b-specdec`
+- `moonshotai/kimi-k2-instruct`
 
-**Cost Optimization Strategies**:
-1. **Switch to cost-effective models**: 
-   - Check our [Model Evaluation](https://www.stagehand.dev/evals) page for current cost-performance benchmarks
-   - Choose models with lower cost per token that still meet accuracy requirements
-   - Consider models optimized for speed to reduce total runtime costs
-2. **Optimize token usage**: 
-   - Set `verbose: 0` to reduce logging overhead
-   - Use concise prompts and limit response length
-3. **Smart model selection**: Start with cheaper models, fallback to premium ones only when needed
-4. **Cache responses**: Implement LLM response caching for repeated automation patterns
-5. **Monitor usage**: Set up billing alerts and track costs per automation run
-6. **Batch processing**: Process multiple similar tasks together
 </Accordion>
 </AccordionGroup>
 
-### Next Steps
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Error: API key not found">
+**Error:** `API key not found`
+
+**Solutions:**
+
+- Check `.env` file has the correct variable name for the provider you are using
+- Ensure environment variables are loaded (use `dotenv`)
+- Restart your application after updating `.env` file
+
+| Provider | Environment Variable |
+|----------|---------------------|
+| Google | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Azure | `AZURE_API_KEY` |
+| Cerebras | `CEREBRAS_API_KEY` |
+| DeepSeek | `DEEPSEEK_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| Mistral | `MISTRAL_API_KEY` |
+| Ollama | None (local) |
+| Perplexity | `PERPLEXITY_API_KEY` |
+| TogetherAI | `TOGETHER_AI_API_KEY` |
+| xAI | `XAI_API_KEY` |
+
+</Accordion>
+
+<Accordion title="Error: Model not supported">
+**Error:** `Unsupported model`
+
+**Solutions:**
+
+- Use the `provider/model` format: `openai/gpt-5`
+- Verify the model name exists in the provider's documentation
+- Check model name is spelled correctly
+- Ensure your Model API key can access the model
+</Accordion>
+
+<Accordion title="Model doesn't support structured outputs">
+**Error:** `Model does not support structured outputs`
+
+**Solutions:**
+
+- Check our [Model Evaluation page](https://www.stagehand.dev/evals) for recommended models
+</Accordion>
+
+<Accordion title="High costs or slow performance">
+**Symptoms:** Automation is expensive or slow
+
+**Solutions:**
+
+- Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
+- Use faster models for simple tasks, powerful ones for complex tasks
+- Implement [caching](/best-practices/caching) for repeated patterns
+</Accordion>
+<Accordion title="Python support for Stagehand v3 or custom models">
+We are working on Python support for Stagehand v3 and custom models.
+
+**Solutions:**
+- Request updates on Python support from our support team at [support@browserbase.com](mailto:support@browserbase.com)
+</Accordion>
+</AccordionGroup>
+
+### Need Help? Contact Support
+
+Can't find a solution? Have a question? Reach out to our support team:
+
+<Card
+  title="Contact Support"
+  icon="envelope"
+  href="mailto:support@browserbase.com"
+>
+  Email us at support@browserbase.com
+</Card>
+
+---
+
+## Next Steps
+
 <CardGroup cols={2}>
-<Card title="Choose Models" href="https://www.stagehand.dev/evals" icon="robot">
-  See our Model Evaluation page
+<Card title="Prompting Guide" href="/best-practices/prompting-best-practices" icon="brain">
+  Learn how to prompt LLMs for optimal results
+</Card>
+<Card title="Run Evals" href="/configuration/evals" icon="flask-vial">
+  Test which models work best for your specific use case
 </Card>
 
-<Card title="Test Models" href="/configuration/evals" icon="flask-vial">
-  Evaluate performance on your specific use cases in our Model Evaluation guide
+<Card title="Caching Guide" href="/best-practices/caching" icon="database">
+  Cache responses to reduce costs and improve speed
 </Card>
-
-<Card title="Track Costs" href="/configuration/observability" icon="chart-line">
-  Monitor token usage and set alerts using our Observability tools
-</Card>
-
-<Card title="Cache Results" href="/best-practices/caching" icon="database">
-  Store successful patterns using our Caching Guide
+<Card
+  title="Optimize Costs"
+  href="/best-practices/cost-optimization"
+  icon="dollar-sign"
+>
+  Reduce LLM spending with caching and smart model selection
 </Card>
 </CardGroup>
