@@ -225,7 +225,7 @@ const signInButtonText = await page.extract("extract the sign in button text");
 Always use Zod schemas for structured data extraction:
 
 ```typescript
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const data = await page.extract({
   instruction: "extract the sign in button text",
@@ -269,7 +269,7 @@ const productData = await page.extract({
 
 ```typescript
 import { validateZodSchema } from "./utils.js";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const schema = z.object({ name: z.string() });
 const isValid = validateZodSchema(schema, { name: "John" }); // true
