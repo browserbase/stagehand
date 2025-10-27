@@ -44,16 +44,15 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
 	env: "BROWSERBASE",
-  	apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
-    projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
+    model: "google/gemini-2.5-flash",
   
     browserbaseSessionCreateParams: {
       projectId: process.env.BROWSERBASE_PROJECT_ID!,
       browserSettings: {
 		blockAds: true,
         viewport: {
-          width: 1024,
-          height: 768,
+          width: 1288,
+          height: 711,
         },
       },
   	},
@@ -71,8 +70,8 @@ const stagehand = new Stagehand({
   localBrowserLaunchOptions: {
     headless: false,
     viewport: {
-      width: 1024,
-      height: 768,
+      width: 1288,
+      height: 711,
     },
   }
 });
@@ -86,31 +85,62 @@ await stagehand.init();
 
 Call `execute` on the agent to assign a task to the agent.
 
-```typescript
-// Navigate to a website
-await stagehand.page.goto("https://www.google.com");
-
+<CodeGroup>
+```typescript Google
+await page.goto("https://www.google.com/");
 const agent = stagehand.agent({
-	// You can use either OpenAI or Anthropic
-	provider: "anthropic",
-	// The model to use (computer-use-preview for OpenAI)
-	model: "claude-sonnet-4-20250514",
-
-	// Customize the system prompt
-	instructions: `You are a helpful assistant that can use a web browser.
-	Do not ask follow up questions, the user will trust your judgement.`,
-
-	// Customize the API key
-	options: {
-		apiKey: process.env.ANTHROPIC_API_KEY,
-	},
+    cua: true,
+    model: {
+        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
 });
 
-// Execute the agent
-await agent.execute("Apply for a library card at the San Francisco Public Library");
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
 ```
 
-You can also define the maximum number of steps the agent can take with:
+```typescript OpenAI
+await page.goto("https://www.google.com/");
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "openai/computer-use-preview",
+        apiKey: process.env.OPENAI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+```typescript Anthropic
+await page.goto("https://www.google.com/");
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "anthropic/claude-sonnet-4-20250514",
+        apiKey: process.env.ANTHROPIC_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+</CodeGroup>
+
+You can define the maximum number of steps the agent can take with `maxSteps`:
 
 ```typescript
 await agent.execute({
