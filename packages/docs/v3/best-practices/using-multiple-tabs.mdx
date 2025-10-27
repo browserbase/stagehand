@@ -41,32 +41,12 @@ await pythonPage.goto("https://github.com/browserbase/stagehand-python");
 
 // Extract data from both pages simultaneously
 const [stagehandStars, stagehandPythonStars] = await Promise.all([
-  githubPage.extract("extract the repository stars"),
-  pythonPage.extract("extract the repository stars")
+  stagehand.extract("extract the repository stars", { page: githubPage }),
+  stagehand.extract("extract the repository stars", { page: pythonPage })
 ]);
 
 console.log(`Stagehand stars: ${stagehandStars}`);
 console.log(`Stagehand-Python stars: ${stagehandPythonStars}`);
-```
-
-## Handling Tab Events
-
-You can also listen for tab events to control what happens when new tabs are opened:
-
-```typescript
-const page = stagehand.context.pages()[0];
-await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
-
-// close the new tab after it's opened
-page.on("popup", async () => {
-  const newPage = stagehand.context.pages()[1];
-  await newPage.close();
-});
-
-await stagehand.act("click the button to open the other page");
-
-const page_number = await stagehand.extract("extract the page number");
-console.log(`You're on page ${page_number}`);
 ```
 
 ## Next Steps
