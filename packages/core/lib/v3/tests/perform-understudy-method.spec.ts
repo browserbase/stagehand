@@ -86,7 +86,7 @@ test.describe("tests performUnderstudyMethod", () => {
       page,
       page.mainFrame(),
       "selectOptionFromDropdown",
-      "xpath=/html/body/form/div[1]/div[3]/article/div[2]/div[1]/select[2]",
+      "xpath=//*[@id='licenseType']",
       ["Smog Check Technician"],
       30000,
     );
