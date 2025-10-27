@@ -103,13 +103,19 @@ type ModelConfiguration =
   If not specified, defaults to the current "active" page in your Stagehand instance.
 </ParamField>
 
+### Built-in Support
+
+<Note>
+**Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
+</Note>
+
 ### Response Types
 
 <Tabs>
 <Tab title="With Schema">
-**Returns:** `Promise<ExtractResult<T>>` where T matches your schema
+**Returns:** `Promise<z.infer<T>>` where T is your schema
 
-The returned object will be strictly typed according to your schema definition.
+The returned object will be strictly typed according to your Zod schema definition.
 </Tab>
 
 <Tab title="String Only">
@@ -131,7 +137,14 @@ Raw accessibility tree representation of page content.
 <Tab title="Single Object">
 
 ```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from 'zod';
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com/product");
 
 // Schema definition
 const ProductSchema = z.object({
@@ -140,11 +153,8 @@ const ProductSchema = z.object({
   inStock: z.boolean()
 });
 
-// Extraction
-const product = await page.extract({
-  instruction: "extract product details",
-  schema: ProductSchema
-});
+// Extraction with v3 API
+const product = await page.extract("extract product details", ProductSchema);
 ```
 
 #### Example Response
@@ -171,11 +181,11 @@ const ApartmentListingsSchema = z.object({
   }))
 });
 
-// Extraction
-const listings = await page.extract({
-  instruction: "extract all apartment listings", 
-  schema: ApartmentListingsSchema
-});
+// Extraction with v3 API
+const listings = await page.extract(
+  "extract all apartment listings",
+  ApartmentListingsSchema
+);
 ```
 
 #### Example Response
@@ -210,11 +220,11 @@ const NavigationSchema = z.object({
   }))
 });
 
-// Extraction
-const links = await page.extract({
-  instruction: "extract navigation links",
-  schema: NavigationSchema
-});
+// Extraction with v3 API
+const links = await page.extract(
+  "extract navigation links",
+  NavigationSchema
+);
 ```
 
 #### Example Response
@@ -241,12 +251,12 @@ const ProductSchema = z.object({
   description: z.string()
 });
 
-// Extract from specific page section
-const data = await page.extract({
-  instruction: "extract product info from this section",
-  selector: "xpath=/html/body/div/div",
-  schema: ProductSchema
-});
+// Extract from specific page section with v3 API
+const data = await page.extract(
+  "extract product info from this section",
+  ProductSchema,
+  { selector: "/html/body/div/div" }
+);
 ```
 
 #### Example Response
@@ -329,3 +339,66 @@ const EcommerceSchema = z.object({
 
 </Tab>
 </Tabs>
+
+### Additional Examples
+
+#### Using Custom Model Configuration
+
+```typescript
+import { z } from 'zod';
+
+const DataSchema = z.object({
+  title: z.string(),
+  content: z.string()
+});
+
+// Using string format
+const data1 = await page.extract(
+  "extract article data",
+  DataSchema,
+  { model: "openai/gpt-4o" }
+);
+
+// Using object format with custom configuration
+const data2 = await page.extract(
+  "extract article data",
+  DataSchema,
+  {
+    model: {
+      modelName: "claude-3-5-sonnet-20241022",
+      apiKey: process.env.ANTHROPIC_API_KEY
+    }
+  }
+);
+```
+
+#### Multi-Page Extraction
+
+```typescript
+import { z } from 'zod';
+
+const page1 = stagehand.page;
+const page2 = await stagehand.context.newPage();
+
+const Schema = z.object({ title: z.string() });
+
+const data1 = await page.extract("get title", Schema, { page: page1 });
+const data2 = await page.extract("get title", Schema, { page: page2 });
+```
+
+### Error Types
+
+The following errors may be thrown by the `extract()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **ZodSchemaValidationError** - Extracted data does not match the provided Zod schema
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
