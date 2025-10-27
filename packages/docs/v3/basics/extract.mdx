@@ -33,14 +33,14 @@ When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with 
 When extracting with a schema, the return type is inferred from your Zod schema:
 
 ```typescript
-const result = await stagehand.extract({
-  instruction: "extract product details",
-  schema: z.object({
+const result = await stagehand.extract(
+  "extract product details",
+  z.object({
     name: z.string(),
     price: z.number(),
     inStock: z.boolean()
   })
-});
+);
 ```
 
 **Example result:**
@@ -58,16 +58,16 @@ const result = await stagehand.extract({
 When extracting an array, you get an array of objects:
 
 ```typescript
-const apartments = await stagehand.extract({
-  instruction: "extract all apartment listings",
-  schema: z.array(
+const apartments = await stagehand.extract(
+  "extract all apartment listings",
+  z.array(
     z.object({
       address: z.string(),
       price: z.string(),
       sqft: z.number()
     })
   )
-});
+);
 
 // Type: Array<{ address: string; price: string; sqft: number }>
 ```
@@ -94,10 +94,10 @@ const apartments = await stagehand.extract({
 When extracting a single primitive value:
 
 ```typescript
-const price = await stagehand.extract({
-  instruction: "extract the price",
-  schema: z.number()
-});
+const price = await stagehand.extract(
+  "extract the price",
+  z.number()
+);
 
 // Type: number
 ```
@@ -110,10 +110,10 @@ const price = await stagehand.extract({
 You can also extract strings, booleans, etc.:
 
 ```typescript
-const url = await stagehand.extract({
-  instruction: "extract the contact page link",
-  schema: z.string().url()
-});
+const url = await stagehand.extract(
+  "extract the contact page link",
+  z.string().url()
+);
 
 // Type: string
 // Result: "https://example.com/contact"
@@ -160,99 +160,6 @@ This returns the accessibility tree representation of the page without LLM proce
 </Tab>
 </Tabs>
 
-### Single Value Extraction
-
-Here is how an `extract` call might look for a single value:
-
-```typescript
-const price = await stagehand.extract(
-  "extract the price of the item",
-  z.number()
-);
-```
-
-Your output will be:
-```Example
-19.99
-```
-
-### Array Extraction
-
-Here is how an `extract` call might look for extracting an array of objects:
-
-```typescript
-const apartments = await stagehand.extract(
-  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
-  z.array(
-    z.object({
-      address: z.string(),
-      price: z.string(),
-      square_feet: z.string(),
-    })
-  )
-);
-
-console.log("the apartment list is: ", apartments);
-```
-
-Your output will be:
-```Example
-[
-  {
-    address: "street address here",
-    price: "$1234.00",
-    square_feet: "700"
-  },
-  {
-    address: "another address here",
-    price: "1010.00",
-    square_feet: "500"
-  },
-  ...
-]
-```
-
-### Prompt-only Extraction
-
-You can call `extract` with just a natural language prompt:
-
-```typescript
-const result = await stagehand.extract("extract the name of the repository");
-```
-
-When you call `extract` with just a prompt, your output schema will look like:
-```Example
-{ extraction: string }
-```
-
-### Extract with no parameters
-
-Here is how you can call `extract` with no parameters.
-
-```typescript
-const pageText = await stagehand.extract();
-```
-
-Output schema:
-```Example
-{ pageText: string }
-```
-
-Calling `extract` with no parameters will return hierarchical tree representation of the root DOM. This will not be passed through an LLM. It will look something like this:
-
-```
-Accessibility Tree:
-[0-2] RootWebArea: What is Stagehand? - 🤘 Stagehand
-  [0-37] scrollable
-    [0-118] body
-      [0-241] scrollable
-        [0-242] div
-          [0-244] link: 🤘 Stagehand home page light logo
-            [0-245] span
-              [0-246] StaticText: 🤘 Stagehand
-              [0-247] StaticText: home page
-```
-
 ### Targeted Extract
 
 Pass a selector to `extract` to target a specific element on the page.
@@ -260,10 +167,13 @@ Pass a selector to `extract` to target a specific element on the page.
 This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
 </Tip>
 ```typescript
-const pageText = await stagehand.extract(
-  "Extract the values of the third row", 
+const tableData = await stagehand.extract(
+  "Extract the values of the third row",
+  z.object({
+    values: z.array(z.string())
+  }),
   {
-    selector: "xpath=/html/body/div/table/",
+    selector: "xpath=/html/body/div/table/"
   }
 );
 ```
@@ -326,12 +236,10 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 await stagehand.act("wait for the product listings to load");
 const products = await stagehand.extract(
   "extract all product names and prices",
-  z.object({
-    products: z.array(z.object({
-      name: z.string(),
-      price: z.string()
-    }))
-  })
+  z.array(z.object({
+    name: z.string(),
+    price: z.string()
+  }))
 );
 ```
 </Accordion>
@@ -394,17 +302,15 @@ const products = await stagehand.extract(
 const allData = [];
 const pageNumbers = [1, 2, 3, 4, 5];
 
-const ProductSchema = z.array(z.object({
-  name: z.string(),
-  price: z.number()
-}));
-
 for (const pageNum of pageNumbers) {
   await stagehand.act(`navigate to page ${pageNum}`);
 
   const pageData = await stagehand.extract(
     "extract product data from the current page only",
-    ProductSchema,
+    z.array(z.object({
+      name: z.string(),
+      price: z.number()
+    })),
     { timeout: 60000 } // 60 second timeout
   );
 
@@ -418,11 +324,11 @@ for (const pageNum of pageNumbers) {
 
 <CardGroup cols={2}>
 
-  <Card title="Act" icon="play" href="/basics/act">
+  <Card title="Act" icon="play" href="/v3/basics/act">
     Execute actions efficiently using observe results
   </Card>
 
-  <Card title="Observe" icon="magnifying-glass" href="/basics/observe">
+  <Card title="Observe" icon="magnifying-glass" href="/v3/basics/observe">
     Analyze pages with observe()
   </Card>
 </CardGroup>
