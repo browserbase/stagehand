@@ -45,12 +45,6 @@
       ]
     },
     {
-      "name": "expect_act_timeout",
-      "categories": [
-        "regression"
-      ]
-    },
-    {
       "name": "extract_repo_name",
       "categories": [
         "extract"

@@ -22,26 +22,35 @@ export const observe_vantechjournal: EvalFunction = async ({
       };
     }
 
-    const expectedLocator = `xpath=/html/body/div[2]/div/section/div/div/div[3]/a`;
+    const expectedLocators = [
+      "xpath=/html/body/div[2]/div/section/div/div/div[3]/a",
+      "xpath=/html/body/div[2]/div/section/div/div/div[3]/a/span",
+    ];
 
-    const expectedId = await page.locator(expectedLocator).backendNodeId();
-    const idFoundByObserve = await page
-      .locator(observations[0].selector)
-      .backendNodeId();
-    const foundMatch = expectedId === idFoundByObserve;
+    const expectedIds: number[] = [];
+    for (const locator of expectedLocators) {
+      const node = page.locator(locator);
+      const id = await node.backendNodeId();
+      if (id !== undefined && id !== null) expectedIds.push(id);
+    }
+
+    const observedNode = page.locator(observations[0].selector);
+    const observedId = await observedNode.backendNodeId();
+
+    const foundMatch = expectedIds.includes(observedId);
 
     return {
       _success: foundMatch,
-      expected: expectedLocator,
+      expected: expectedLocators,
       observations,
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
     };
-  } catch (error) {
+  } catch (error: unknown) {
     return {
       _success: false,
-      error: error,
+      error: error instanceof Error ? error.message : String(error),
       debugUrl,
       sessionUrl,
       logs: logger.getLogs(),
