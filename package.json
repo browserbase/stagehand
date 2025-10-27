@@ -14,7 +14,7 @@
     "e2e": "turbo run e2e",
     "e2e:bb": "turbo run e2e:bb",
     "e2e:local": "turbo run e2e:local",
-    "evals": "pnpm --filter @browserbasehq/stagehand-evals run evals --",
+    "evals": "pnpm --filter @browserbasehq/stagehand-evals run evals",
     "docs": "turbo run docs",
     "dev": "turbo run dev",
     "example": "pnpm --filter @browserbasehq/orca run example --",
