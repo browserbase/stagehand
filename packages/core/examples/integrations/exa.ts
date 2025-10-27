@@ -28,6 +28,7 @@ async function example(stagehand: Stagehand) {
     model: "openai/gpt-4.1",
     verbose: 1,
     logInferenceToFile: true,
+    experimental: true,
   });
 
   try {
