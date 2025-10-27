@@ -110,7 +110,8 @@
               "v3/references/agent",
               "v3/references/page",
               "v3/references/stagehand",
-              "v3/references/context"
+              "v3/references/context",
+              "v3/references/locator"
             ]
           }
         ]

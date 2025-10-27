@@ -1,0 +1,643 @@
+---
+title: locator
+description: 'Complete API reference for the Locator class'
+icon: 'crosshairs'
+---
+
+<CardGroup cols={1}>
+<Card title="Page" icon="browser" href="/v3/references/page">
+  Learn about the Page object that creates locators
+</Card>
+</CardGroup>
+
+## Overview
+
+The `Locator` class provides precise element interaction capabilities. It resolves CSS or XPath selectors within a frame and performs low-level actions using Chrome DevTools Protocol (CDP).
+
+Create a locator through the page object:
+
+```typescript
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.page;
+
+// Create a locator
+const button = page.locator("button.submit");
+await button.click();
+```
+
+## Key Features
+
+- **Lazy resolution** - Selectors are resolved fresh on each action
+- **Isolated execution** - Runs in an isolated world, separate from page scripts
+- **CDP-based** - Uses Chrome DevTools Protocol for reliable interactions
+- **Automatic cleanup** - Releases remote objects automatically
+- **Iframe support** - Works seamlessly with iframes and shadow DOM
+
+## Interaction Methods
+
+### click()
+
+Click the element at its visual center.
+
+```typescript
+await locator.click(options?: ClickOptions): Promise<void>
+```
+
+<ParamField path="button" type='"left" | "right" | "middle"' optional>
+  Mouse button to use for the click.
+
+  **Default:** `"left"`
+</ParamField>
+
+<ParamField path="clickCount" type="number" optional>
+  Number of consecutive clicks (for double-click, triple-click).
+
+  **Default:** `1`
+</ParamField>
+
+The method:
+1. Scrolls element into view
+2. Gets element geometry
+3. Moves mouse to center
+4. Dispatches mousePressed and mouseReleased events
+
+### fill()
+
+Fill an input, textarea, or contenteditable element.
+
+```typescript
+await locator.fill(value: string): Promise<void>
+```
+
+<ParamField path="value" type="string" required>
+  The text value to fill into the element.
+</ParamField>
+
+The method intelligently handles different input types:
+- Uses native value setter for special inputs (date, number, etc.)
+- Types text character-by-character for regular inputs
+- Clears existing content before filling
+
+### type()
+
+Type text into the element with optional delay between keystrokes.
+
+```typescript
+await locator.type(text: string, options?: TypeOptions): Promise<void>
+```
+
+<ParamField path="text" type="string" required>
+  The text to type.
+</ParamField>
+
+<ParamField path="delay" type="number" optional>
+  Delay in milliseconds between each keystroke.
+
+  If not specified, uses `Input.insertText` for efficiency.
+</ParamField>
+
+### hover()
+
+Move the mouse cursor to the element's center without clicking.
+
+```typescript
+await locator.hover(): Promise<void>
+```
+
+Scrolls the element into view and dispatches a mouse move event.
+
+### selectOption()
+
+Select one or more options in a `<select>` element.
+
+```typescript
+await locator.selectOption(values: string | string[]): Promise<string[]>
+```
+
+<ParamField path="values" type="string | string[]" required>
+  Option value(s) to select. For multi-select elements, pass an array.
+</ParamField>
+
+**Returns:** `Promise<string[]>` - Array of values that were actually selected.
+
+### setInputFiles()
+
+Set files on an `<input type="file">` element.
+
+```typescript
+await locator.setInputFiles(files: FileInput): Promise<void>
+```
+
+<ParamField path="files" type="string | string[] | FilePayload | FilePayload[]" required>
+  File paths or file payloads to upload.
+
+  **File Path:** Absolute or relative path to a file
+
+  **File Payload:** Object with `{ name, mimeType, buffer }`
+</ParamField>
+
+**FilePayload Interface:**
+```typescript
+interface FilePayload {
+  name: string;
+  mimeType: string;
+  buffer: ArrayBuffer | Uint8Array | Buffer | string;
+}
+```
+
+Pass an empty array to clear the file selection.
+
+## State Methods
+
+### isVisible()
+
+Check if the element is visible.
+
+```typescript
+await locator.isVisible(): Promise<boolean>
+```
+
+**Returns:** `Promise<boolean>` - `true` if element is attached and visible.
+
+### isChecked()
+
+Check if a checkbox or radio button is checked.
+
+```typescript
+await locator.isChecked(): Promise<boolean>
+```
+
+**Returns:** `Promise<boolean>` - `true` if checked. Also considers `aria-checked` for ARIA widgets.
+
+### inputValue()
+
+Get the current value of an input element.
+
+```typescript
+await locator.inputValue(): Promise<string>
+```
+
+**Returns:** `Promise<string>` - The element's input value.
+
+Works with: `<input>`, `<textarea>`, `<select>`, contenteditable elements.
+
+### textContent()
+
+Get the element's text content (raw).
+
+```typescript
+await locator.textContent(): Promise<string>
+```
+
+**Returns:** `Promise<string>` - The element's `textContent` property.
+
+### innerText()
+
+Get the element's visible text (layout-aware).
+
+```typescript
+await locator.innerText(): Promise<string>
+```
+
+**Returns:** `Promise<string>` - The element's `innerText` property.
+
+### innerHtml()
+
+Get the element's HTML content.
+
+```typescript
+await locator.innerHTML(): Promise<string>
+```
+
+**Returns:** `Promise<string>` - The element's `innerHTML`.
+
+## Selection Methods
+
+### count()
+
+Get the number of elements matching the selector.
+
+```typescript
+await locator.count(): Promise<number>
+```
+
+**Returns:** `Promise<number>` - Count of matching elements.
+
+### nth()
+
+Get a locator for the element at a specific index.
+
+```typescript
+locator.nth(index: number): Locator
+```
+
+<ParamField path="index" type="number" required>
+  Zero-based index of the element to select.
+</ParamField>
+
+**Returns:** `Locator` - New locator targeting the nth element.
+
+```typescript
+// Get the third button
+const thirdButton = page.locator("button").nth(2);
+await thirdButton.click();
+```
+
+### first()
+
+Get a locator for the first matching element.
+
+```typescript
+locator.first(): Locator
+```
+
+**Returns:** `Locator` - Returns the same locator (querySelector already returns first match).
+
+## Utility Methods
+
+### highlight()
+
+Visually highlight the element with an overlay.
+
+```typescript
+await locator.highlight(options?: HighlightOptions): Promise<void>
+```
+
+<ParamField path="durationMs" type="number" optional>
+  How long to display the highlight in milliseconds.
+
+  **Default:** `800`
+</ParamField>
+
+<ParamField path="borderColor" type="{ r, g, b, a? }" optional>
+  Border color RGBA values (0-255).
+
+  **Default:** `{ r: 255, g: 0, b: 0, a: 0.9 }` (red)
+</ParamField>
+
+<ParamField path="contentColor" type="{ r, g, b, a? }" optional>
+  Content fill color RGBA values (0-255).
+
+  **Default:** `{ r: 255, g: 200, b: 0, a: 0.2 }` (yellow)
+</ParamField>
+
+Useful for debugging and visual verification.
+
+### scrollTo()
+
+Scroll the element to a specific position.
+
+```typescript
+await locator.scrollTo(percent: number | string): Promise<void>
+```
+
+<ParamField path="percent" type="number | string" required>
+  Scroll position as percentage (0-100).
+</ParamField>
+
+For `<html>` or `<body>` elements, scrolls the window. Otherwise, scrolls the element itself.
+
+### centroid()
+
+Get the center coordinates of the element.
+
+```typescript
+await locator.centroid(): Promise<{ x: number; y: number }>
+```
+
+**Returns:** `Promise<{ x, y }>` - Center point in CSS pixels.
+
+### backendNodeId()
+
+Get the DOM backend node ID for the element.
+
+```typescript
+await locator.backendNodeId(): Promise<BackendNodeId>
+```
+
+**Returns:** `Promise<BackendNodeId>` - Unique identifier for the DOM node.
+
+Useful for identity comparisons without maintaining element handles.
+
+### sendClickEvent()
+
+Dispatch a DOM click event directly on the element.
+
+```typescript
+await locator.sendClickEvent(options?: EventOptions): Promise<void>
+```
+
+<ParamField path="bubbles" type="boolean" optional>
+  Whether the event bubbles.
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="cancelable" type="boolean" optional>
+  Whether the event is cancelable.
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="composed" type="boolean" optional>
+  Whether the event crosses shadow DOM boundaries.
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="detail" type="number" optional>
+  Click count detail.
+
+  **Default:** `1`
+</ParamField>
+
+This dispatches an event directly without synthesizing real pointer input. Useful for elements that rely on click handlers without needing hit-testing.
+
+## Code Examples
+
+<Tabs>
+<Tab title="Basic Interaction">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.page;
+
+await page.goto("https://example.com");
+
+// Click a button
+const submitButton = page.locator("button[type=submit]");
+await submitButton.click();
+
+// Fill an input
+const emailInput = page.locator("input[name=email]");
+await emailInput.fill("user@example.com");
+
+// Type with delay
+const searchBox = page.locator("input[type=search]");
+await searchBox.type("stagehand", { delay: 100 });
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Forms">
+
+```typescript
+// Fill multiple form fields
+const form = page.locator("form#login");
+
+await page.locator("#username").fill("myuser");
+await page.locator("#password").fill("mypass");
+
+// Select from dropdown
+await page.locator("select#country").selectOption("US");
+
+// Multi-select
+await page.locator("select#skills").selectOption(["js", "ts", "react"]);
+
+// Check checkbox
+const termsCheckbox = page.locator("input#terms");
+const isChecked = await termsCheckbox.isChecked();
+if (!isChecked) {
+  await termsCheckbox.click();
+}
+
+// Submit
+await page.locator("button[type=submit]").click();
+```
+
+</Tab>
+<Tab title="File Upload">
+
+```typescript
+// Upload from file path
+const fileInput = page.locator("input[type=file]");
+await fileInput.setInputFiles("/path/to/document.pdf");
+
+// Upload multiple files
+await fileInput.setInputFiles([
+  "/path/to/image1.jpg",
+  "/path/to/image2.jpg"
+]);
+
+// Upload from buffer
+await fileInput.setInputFiles({
+  name: "data.json",
+  mimeType: "application/json",
+  buffer: JSON.stringify({ key: "value" })
+});
+
+// Clear file selection
+await fileInput.setInputFiles([]);
+```
+
+</Tab>
+<Tab title="Element Selection">
+
+```typescript
+// Count elements
+const buttons = page.locator("button");
+const count = await buttons.count();
+console.log(`Found ${count} buttons`);
+
+// Click the first button
+await buttons.first().click();
+
+// Click the third button
+await buttons.nth(2).click();
+
+// Iterate with nth
+for (let i = 0; i < count; i++) {
+  const button = buttons.nth(i);
+  const text = await button.innerText();
+  console.log(`Button ${i}: ${text}`);
+}
+```
+
+</Tab>
+<Tab title="State Checks">
+
+```typescript
+// Check visibility
+const modal = page.locator(".modal");
+if (await modal.isVisible()) {
+  console.log("Modal is visible");
+}
+
+// Check checkbox state
+const checkbox = page.locator("input#subscribe");
+const checked = await checkbox.isChecked();
+console.log("Subscribed:", checked);
+
+// Get input value
+const email = page.locator("input#email");
+const value = await email.inputValue();
+console.log("Email:", value);
+
+// Get text content
+const heading = page.locator("h1");
+const text = await heading.textContent();
+console.log("Heading:", text);
+```
+
+</Tab>
+<Tab title="Advanced Actions">
+
+```typescript
+// Hover to reveal menu
+const menuButton = page.locator("button.menu");
+await menuButton.hover();
+
+// Wait for submenu
+await page.waitForLoadState("networkidle");
+
+// Click submenu item
+await page.locator("a.submenu-item").click();
+
+// Highlight for debugging
+await page.locator("div.error").highlight({
+  durationMs: 2000,
+  borderColor: { r: 255, g: 0, b: 0 },
+  contentColor: { r: 255, g: 0, b: 0, a: 0.1 }
+});
+
+// Scroll element into position
+const section = page.locator("#section-3");
+await section.scrollTo(50); // Scroll to 50%
+
+// Get element position
+const { x, y } = await section.centroid();
+console.log(`Element center: ${x}, ${y}`);
+```
+
+</Tab>
+</Tabs>
+
+## Selector Support
+
+Locators support both CSS and XPath selectors:
+
+### CSS Selectors
+
+```typescript
+page.locator("button");                    // Tag
+page.locator(".submit-btn");              // Class
+page.locator("#login-form");              // ID
+page.locator("button.primary");           // Tag + class
+page.locator("input[type=email]");        // Attribute
+page.locator("div > p");                  // Child
+page.locator("h1 + p");                   // Adjacent sibling
+page.locator("div.container button");     // Descendant
+```
+
+### XPath Selectors
+
+```typescript
+page.locator("//button");                               // Tag
+page.locator("//button[@class='submit']");             // Attribute
+page.locator("//div[@id='content']//p");               // Descendant
+page.locator("//button[contains(text(), 'Submit')]");  // Text content
+page.locator("(//button)[1]");                         // First button
+page.locator("//input[@type='text'][1]");              // First text input
+```
+
+## Best Practices
+
+1. **Use specific selectors** - Prefer IDs or unique attributes over generic selectors
+2. **Chain with nth()** - Use `locator().nth()` instead of putting index in selector
+3. **Check state before action** - Use `isVisible()`, `isChecked()` for conditional logic
+4. **Let locators auto-resolve** - Don't store element handles, use locators which re-resolve
+5. **Use fill() for inputs** - Prefer `fill()` over `click()` + `type()` for better reliability
+6. **Handle file uploads properly** - Use absolute paths or buffer payloads for `setInputFiles()`
+7. **Highlight for debugging** - Use `highlight()` during development to verify targeting
+
+## Common Patterns
+
+### Conditional Interaction
+
+```typescript
+const errorMessage = page.locator(".error-message");
+if (await errorMessage.isVisible()) {
+  const text = await errorMessage.textContent();
+  console.log("Error:", text);
+}
+```
+
+### Wait and Interact
+
+```typescript
+// Locators automatically wait during actions
+const dynamicButton = page.locator("button.dynamic");
+await dynamicButton.click(); // Waits for element to exist
+```
+
+### Loop Through Elements
+
+```typescript
+const items = page.locator("li.item");
+const count = await items.count();
+
+for (let i = 0; i < count; i++) {
+  const item = items.nth(i);
+  const text = await item.innerText();
+  console.log(`Item ${i}:`, text);
+}
+```
+
+## Error Handling
+
+Locator methods may throw the following errors:
+
+- **Element not found** - Selector doesn't match any elements
+- **Element not visible** - Element exists but is not visible (for actions requiring visibility)
+- **Invalid selector** - Malformed CSS or XPath selector
+- **Timeout errors** - Operation exceeded timeout limits
+- **CDP errors** - Chrome DevTools Protocol communication errors
+
+Handle errors appropriately:
+
+```typescript
+try {
+  await page.locator("button.submit").click();
+} catch (error) {
+  console.error("Click failed:", error.message);
+}
+```
+
+## Type Definitions
+
+```typescript
+interface Locator {
+  // Actions
+  click(options?: { button?: MouseButton; clickCount?: number }): Promise<void>;
+  fill(value: string): Promise<void>;
+  type(text: string, options?: { delay?: number }): Promise<void>;
+  hover(): Promise<void>;
+  selectOption(values: string | string[]): Promise<string[]>;
+  setInputFiles(files: FileInput): Promise<void>;
+
+  // State
+  isVisible(): Promise<boolean>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
+  textContent(): Promise<string>;
+  innerText(): Promise<string>;
+  innerHTML(): Promise<string>;
+
+  // Selection
+  count(): Promise<number>;
+  nth(index: number): Locator;
+  first(): Locator;
+
+  // Utilities
+  highlight(options?: HighlightOptions): Promise<void>;
+  scrollTo(percent: number | string): Promise<void>;
+  centroid(): Promise<{ x: number; y: number }>;
+  backendNodeId(): Promise<BackendNodeId>;
+  sendClickEvent(options?: EventOptions): Promise<void>;
+}
+```
