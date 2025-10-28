@@ -138,8 +138,8 @@ const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 const context = stagehand.context;
 
-// Start with main page
-const mainPage = stagehand.page;
+// Start with the main page
+const mainPage = context.pages()[0];
 await mainPage.goto("https://example.com");
 
 // Open additional pages
@@ -250,8 +250,8 @@ context.setActivePage(homePage);
 console.log("Active:", context.activePage()?.url());
 // Output: "https://example.com"
 
-// stagehand.page now refers to homePage
-awaitstagehand.act("click the header link");
+// Now act on the active page (homePage)
+await stagehand.act("click the header link");
 
 await stagehand.close();
 ```
@@ -259,22 +259,22 @@ await stagehand.close();
 </Tab>
 </Tabs>
 
-## Integration with Stagehand.page
+## Working with Active Pages
 
-The `stagehand.page` property returns the currently active page from the context:
+The context tracks which page is currently active:
 
 ```typescript
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
-// stagehand.page === context.activePage()
-const page = stagehand.context.pages()[0];
+// Get the current active page
+const activePage = stagehand.context.activePage();
 
 // Create a new page - it becomes active
 const newPage = await stagehand.context.newPage();
 
-// Now stagehand.page === newPage
-await stagehand.page.goto("https://example.com");
+// Now context.activePage() returns newPage
+await newPage.goto("https://example.com");
 ```
 
 ## Relationship Between Context and Page
@@ -283,20 +283,21 @@ await stagehand.page.goto("https://example.com");
 - **Page** represents a single tab/window with content
 - Creating a new page via `context.newPage()` automatically sets it as active
 - You can explicitly control the active page with `context.setActivePage()`
-- `stagehand.page` always returns `context.activePage()`
+- Use `context.activePage()` to get the currently active page
 
 ```typescript
-// These are equivalent:
-const page1 = stagehand.page;
-const page2 = stagehand.context.activePage();
-// page1 === page2
+// Get the active page
+const activePage = stagehand.context.activePage();
+
+// Or get the first page directly
+const firstPage = stagehand.context.pages()[0];
 ```
 
 ## Best Practices
 
 1. **Create pages explicitly** - Use `context.newPage()` instead of relying on popups or window.open
 2. **Track page references** - Store page objects in variables for easier management
-3. **Set active page before operations** - Ensure the correct page is active before calling `stagehand.page` methods
+3. **Set active page before operations** - Ensure the correct page is active before calling Stagehand methods
 4. **Clean up properly** - Call `stagehand.close()` to close all pages and the context
 5. **Handle page order** - Remember that `context.pages()` returns pages in creation order
 6. **Use parallel operations** - Work with multiple pages simultaneously for better performance
