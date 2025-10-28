@@ -6,7 +6,7 @@ import type { Action } from "../../types/public/methods";
 export const createFillFormTool = (v3: V3, executionModel?: string) =>
   tool({
     description: `📝 FORM FILL - MULTI-FIELD INPUT TOOL\nFor any form with 2+ inputs/textareas. Faster than individual typing.`,
-    parameters: z.object({
+    inputSchema: z.object({
       fields: z
         .array(
           z.object({
@@ -21,6 +21,17 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         .min(1, "Provide at least one field to fill"),
     }),
     execute: async ({ fields }) => {
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: fillForm`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify(fields),
+            type: "object",
+          },
+        },
+      });
       const instruction = `Return observation results for the following actions: ${fields
         .map((f) => f.action)
         .join(", ")}`;
@@ -45,6 +56,10 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         observeResults,
         actions: replayableActions,
       });
-      return { success: true, actions: completed };
+      return {
+        success: true,
+        actions: completed,
+        playwrightArguments: replayableActions,
+      };
     },
   });

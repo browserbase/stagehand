@@ -36,9 +36,13 @@ async function main(): Promise<void> {
   const bundleRaw = fs.readFileSync(bundleOutfile, "utf8").trim();
   const bootstrap = `if (!globalThis.__stagehandLocatorScripts) { ${bundleRaw}\n  globalThis.__stagehandLocatorScripts = __stagehandLocatorScriptsFactory;\n}`;
 
-  const compiledModule = (await import(pathToFileURL(moduleOutfile).href)) as Record<string, unknown>;
+  const compiledModule = (await import(
+    pathToFileURL(moduleOutfile).href
+  )) as Record<string, unknown>;
 
-  const entries = Object.entries(compiledModule).filter(([, value]) => typeof value === "function");
+  const entries = Object.entries(compiledModule).filter(
+    ([, value]) => typeof value === "function",
+  );
   const sorted = entries.sort(([a], [b]) => a.localeCompare(b));
 
   const scriptMap: Record<string, string> = Object.fromEntries(
@@ -51,7 +55,10 @@ async function main(): Promise<void> {
   const banner = `/*\n * AUTO-GENERATED FILE. DO NOT EDIT.\n * Update sources in lib/v3/dom/locatorScripts and run genLocatorScripts.ts.\n */`;
 
   const globalRefs: Record<string, string> = Object.fromEntries(
-    sorted.map(([name]) => [name, `globalThis.__stagehandLocatorScripts.${name}`]),
+    sorted.map(([name]) => [
+      name,
+      `globalThis.__stagehandLocatorScripts.${name}`,
+    ]),
   );
 
   const content = `${banner}\nexport const locatorScriptBootstrap = ${JSON.stringify(bootstrap)};\nexport const locatorScriptSources = ${JSON.stringify(scriptMap, null, 2)} as const;\nexport const locatorScriptGlobalRefs = ${JSON.stringify(globalRefs, null, 2)} as const;\nexport type LocatorScriptName = keyof typeof locatorScriptSources;\n`;

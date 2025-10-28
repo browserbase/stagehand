@@ -56,7 +56,6 @@ export interface LocalBrowserLaunchOptions {
 /** Constructor options for V3 */
 export interface V3Options {
   env: V3Env;
-
   // Browserbase (required when env = "BROWSERBASE")
   apiKey?: string;
   projectId?: string;
@@ -83,10 +82,8 @@ export interface V3Options {
   disablePino?: boolean;
   /** Optional external logger hook for integrating with host apps. */
   logger?: (line: LogLine) => void;
-
-  /** Show a visual cursor overlay that follows our mouse events. */
-  includeCursor?: boolean;
   /** Directory used to persist cached actions for act(). */
   cacheDir?: string;
   domSettleTimeout?: number;
+  disableAPI?: boolean;
 }

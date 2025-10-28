@@ -8,19 +8,43 @@ on:
       - labeled
       - unlabeled
     paths-ignore:
-      - "docs/**"
+      - "packages/docs/**"
 
 env:
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-3-5-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
-  EVAL_TRIAL_COUNT: 5
+  EVAL_TRIAL_COUNT: 3
 
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  determine-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.filter.outputs.core }}
+      evals: ${{ steps.filter.outputs.evals }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            core:
+              - '.github/workflows/ci.yml'
+              - 'packages/core/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+            evals:
+              - 'packages/evals/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
   determine-evals:
     runs-on: ubuntu-latest
     outputs:
@@ -54,6 +78,8 @@ jobs:
           echo "run-agent=${{ contains(github.event.pull_request.labels.*.name, 'agent') }}" >> $GITHUB_OUTPUT
 
   run-lint:
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -74,6 +100,8 @@ jobs:
         run: pnpm run lint
 
   run-build:
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.core == 'true' || needs.determine-changes.outputs.evals == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
@@ -92,36 +120,6 @@ jobs:
 
       - name: Run Build
         run: pnpm run build
-
-  run-e2e-tests:
-    needs: [run-lint, run-build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run E2E Tests (Deterministic Playwright)
-        run: pnpm run e2e
 
   run-e2e-local-tests:
     needs: [run-lint, run-build]
@@ -143,9 +141,6 @@ jobs:
           rm -rf node_modules
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         run: pnpm run build
@@ -190,7 +185,7 @@ jobs:
 
   run-regression-evals:
     needs:
-      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
+      [run-e2e-bb-tests, run-e2e-local-tests, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:

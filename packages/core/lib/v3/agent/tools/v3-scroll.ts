@@ -5,11 +5,22 @@ import type { V3 } from "../../v3";
 export const createScrollTool = (v3: V3) =>
   tool({
     description: "Scroll the page",
-    parameters: z.object({
+    inputSchema: z.object({
       pixels: z.number().describe("Number of pixels to scroll up or down"),
       direction: z.enum(["up", "down"]).describe("Direction to scroll"),
     }),
     execute: async ({ pixels, direction }) => {
+      v3.logger({
+        category: "agent",
+        message: `Agent calling tool: scroll`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: JSON.stringify({ pixels, direction }),
+            type: "object",
+          },
+        },
+      });
       const page = await v3.context.awaitActivePage();
       // Determine a reasonable anchor (center of viewport)
       const { w, h } = await page.mainFrame().evaluate<{

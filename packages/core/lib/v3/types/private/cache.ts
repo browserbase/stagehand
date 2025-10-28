@@ -1,6 +1,67 @@
-import type { AgentResult } from "./agent";
-import type { Action } from "./methods";
-import type { LoadState } from "./page";
+import type {
+  ActOptions,
+  ActResult,
+  AvailableModel,
+  Logger,
+  AgentResult,
+  Action,
+  LoadState,
+} from "../public";
+import { CacheStorage } from "../../cache/CacheStorage";
+import type { ActHandler } from "../../handlers/actHandler";
+import type { V3Context } from "../../understudy/context";
+import type { LLMClient } from "../../llm/LLMClient";
+
+export type ActFn = (
+  instruction: string,
+  options?: ActOptions,
+) => Promise<ActResult>;
+
+export type AgentCacheContext = {
+  instruction: string;
+  startUrl: string;
+  options: SanitizedAgentExecuteOptions;
+  configSignature: string;
+  cacheKey: string;
+};
+
+export type AgentCacheDeps = {
+  storage: CacheStorage;
+  logger: Logger;
+  getActHandler: () => ActHandler | null;
+  getContext: () => V3Context | null;
+  getDefaultLlmClient: () => LLMClient;
+  getBaseModelName: () => AvailableModel;
+  getSystemPrompt: () => string | undefined;
+  domSettleTimeoutMs?: number;
+  act: ActFn;
+};
+
+export type ActCacheContext = {
+  instruction: string;
+  cacheKey: string;
+  pageUrl: string;
+  variables: Record<string, string>;
+};
+
+export type ActCacheDeps = {
+  storage: CacheStorage;
+  logger: Logger;
+  getActHandler: () => ActHandler | null;
+  getDefaultLlmClient: () => LLMClient;
+  domSettleTimeoutMs?: number;
+};
+
+export type ReadJsonResult<T> = {
+  value: T | null;
+  path?: string;
+  error?: unknown;
+};
+
+export type WriteJsonResult = {
+  path?: string;
+  error?: unknown;
+};
 
 export interface CachedActEntry {
   version: 1;
@@ -62,9 +123,7 @@ export interface AgentReplayNavBackStep {
 
 export interface SanitizedAgentExecuteOptions {
   maxSteps?: number;
-  autoScreenshot?: boolean;
-  waitBetweenActions?: number;
-  context?: string;
+  highlightCursor?: boolean;
 }
 
 export interface CachedAgentEntry {

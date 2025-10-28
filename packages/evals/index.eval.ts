@@ -10,7 +10,7 @@
  * - Supports filtering which tasks to run either by evaluation category or by specific task name.
  * - Supports multiple models, defaulting to certain sets of models depending on the category.
  * - Runs each selected task against each selected model in parallel, collecting results.
- * - Saves a summary of the evaluation results to `eval-summary.json`.
+ * - Saves a summary of the evaluation results to `../../eval-summary.json`.
  */
 import path from "path";
 import process from "process";
@@ -22,7 +22,7 @@ import {
 import { generateExperimentName } from "./utils";
 import { exactMatch, errorMatch } from "./scoring";
 import { tasksByName, tasksConfig, getModelList } from "./taskConfig";
-import { Eval, wrapAISDKModel } from "braintrust";
+import { Eval } from "braintrust";
 import { SummaryResult, Testcase, EvalInput } from "./types/evals";
 import { EvalLogger } from "./logger";
 import {
@@ -33,7 +33,7 @@ import {
   loadApiKeyFromEnv,
   LogLine,
 } from "@browserbasehq/orca";
-import { AISdkClient } from "@browserbasehq/orca/lib/v3/llm/aisdk";
+import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
 import { getAISDKLanguageModel } from "@browserbasehq/orca/lib/v3/llm/LLMProvider";
 import { env } from "./env";
 import dotenv from "dotenv";
@@ -58,6 +58,7 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
+console.log(`[EVALS] USE_API: ${USE_API}`);
 
 /**
  * generateFilteredTestcases:
@@ -347,12 +348,10 @@ const generateFilteredTestcases = (): Testcase[] => {
           } else {
             let llmClient: LLMClient;
             if (input.modelName.includes("/")) {
-              llmClient = new AISdkClient({
-                model: wrapAISDKModel(
-                  getAISDKLanguageModel(
-                    input.modelName.split("/")[0],
-                    input.modelName.split("/")[1],
-                  ),
+              llmClient = new AISdkClientWrapped({
+                model: getAISDKLanguageModel(
+                  input.modelName.split("/")[0],
+                  input.modelName.split("/")[1],
                 ),
               });
             }

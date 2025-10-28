@@ -12,7 +12,7 @@ import {
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
-import { ToolSet } from "ai/dist";
+import { ToolSet } from "ai";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -121,7 +121,7 @@ export class OpenAICUAClient extends AgentClient {
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
-          level: 2,
+          level: 1,
         });
 
         const result = await this.executeStep(
@@ -393,7 +393,7 @@ export class OpenAICUAClient extends AgentClient {
           function: {
             name,
             description: tool.description,
-            parameters: tool.parameters,
+            parameters: tool.inputSchema,
           },
         }));
 

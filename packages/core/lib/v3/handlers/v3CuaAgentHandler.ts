@@ -55,6 +55,8 @@ export class V3CuaAgentHandler {
 
     // Provide action executor
     this.agentClient.setActionHandler(async (action) => {
+      action.pageUrl = (await this.v3.context.awaitActivePage()).url();
+
       const defaultDelay = 1000;
       const waitBetween =
         (this.options.clientOptions?.waitBetweenActions as number) ||
@@ -70,6 +72,9 @@ export class V3CuaAgentHandler {
         }
         await new Promise((r) => setTimeout(r, 300));
         await this.executeAction(action);
+
+        action.timestamp = Date.now();
+
         await new Promise((r) => setTimeout(r, waitBetween));
         try {
           await this.captureAndSendScreenshot();
@@ -363,6 +368,43 @@ export class V3CuaAgentHandler {
       }
       case "screenshot": {
         // Already handled around actions
+        return { success: true };
+      }
+      case "goto": {
+        const { url } = action;
+        await page.goto(String(url ?? ""), { waitUntil: "load" });
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "goto",
+            url: String(url ?? ""),
+          });
+        }
+        return { success: true };
+      }
+      case "back": {
+        await page.goBack();
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "back",
+          });
+        }
+        return { success: true };
+      }
+      case "forward": {
+        await page.goForward();
+        if (recording) {
+          this.v3.recordAgentReplayStep({
+            type: "forward",
+          });
+        }
+        return { success: true };
+      }
+      case "open_web_browser": {
+        // Browser is already open, this is a no-op
+        return { success: true };
+      }
+      case "custom_tool": {
+        // Custom tools are handled by the agent client directly
         return { success: true };
       }
       default:
