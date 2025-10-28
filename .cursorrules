@@ -128,9 +128,9 @@ Use the `agent` method to automonously execute larger tasks like "Get the stock 
 await stagehand.page.goto("https://www.google.com");
 
 const agent = stagehand.agent({
-  // You can use either OpenAI or Anthropic
+  // You can use either OpenAI, Anthropic or Google
   provider: "openai",
-  // The model to use (claude-3-7-sonnet-20250219 or claude-3-5-sonnet-20240620 for Anthropic)
+  // The model to use (claude-haiku-4-5-20251001 for Anthropic or gemini-2.5-computer-use-preview-10-2025)
   model: "computer-use-preview",
 
   // Customize the system prompt
