@@ -49,7 +49,7 @@ async function main() {
       instruction,
       maxSteps: 20,
     });
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    await new Promise((resolve) => setTimeout(resolve, 30000));
 
     console.log(`${chalk.green("✓")} Execution complete`);
     console.log(`${chalk.yellow("⤷")} Result:`);
