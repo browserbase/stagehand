@@ -1,0 +1,558 @@
+---
+title: Stagehand
+description: 'Complete API reference for the Stagehand class'
+icon: 'wand-magic-sparkles'
+---
+
+<CardGroup cols={1}>
+<Card title="Getting Started" icon="rocket" href="/v3/getting-started">
+  Learn how to initialize and use Stagehand
+</Card>
+</CardGroup>
+
+## Overview
+
+The `Stagehand` class is the main entry point for Stagehand v3. It manages browser lifecycle, provides AI-powered automation methods, and handles both local and remote browser environments.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand(options);
+await stagehand.init();
+```
+
+## Constructor
+
+### new Stagehand()
+
+Create a new Stagehand instance.
+
+```typescript
+const stagehand = new Stagehand(options: V3Options);
+```
+
+**V3Options Interface:**
+```typescript
+interface V3Options {
+  env: "LOCAL" | "BROWSERBASE";
+
+  // Browserbase options (required when env = "BROWSERBASE")
+  apiKey?: string;
+  projectId?: string;
+  browserbaseSessionID?: string;
+  browserbaseSessionCreateParams?: Browserbase.Sessions.SessionCreateParams;
+
+  // Local browser options
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+
+  // AI/LLM configuration
+  model?: ModelConfiguration;
+  llmClient?: LLMClient;
+  systemPrompt?: string;
+
+  // Behavior options
+  selfHeal?: boolean;
+  experimental?: boolean;
+  domSettleTimeout?: number;
+  cacheDir?: string;
+
+  // Logging options
+  verbose?: 0 | 1 | 2;
+  logInferenceToFile?: boolean;
+  disablePino?: boolean;
+  logger?: (line: LogLine) => void;
+}
+```
+
+### Configuration Parameters
+
+<ParamField path="env" type='"LOCAL" | "BROWSERBASE"' required>
+  Environment to run the browser in.
+
+  - **`"LOCAL"`** - Run browser locally using Chrome/Chromium
+  - **`"BROWSERBASE"`** - Run browser on Browserbase cloud platform
+</ParamField>
+
+#### Browserbase Options
+
+<ParamField path="apiKey" type="string" optional>
+  Browserbase API key. Required when `env` is `"BROWSERBASE"`.
+
+  Can also be set via `BROWSERBASE_API_KEY` environment variable.
+</ParamField>
+
+<ParamField path="projectId" type="string" optional>
+  Browserbase project ID. Required when `env` is `"BROWSERBASE"`.
+
+  Can also be set via `BROWSERBASE_PROJECT_ID` environment variable.
+</ParamField>
+
+<ParamField path="browserbaseSessionID" type="string" optional>
+  Resume an existing Browserbase session by ID instead of creating a new one.
+</ParamField>
+
+<ParamField path="browserbaseSessionCreateParams" type="object" optional>
+  Additional parameters for Browserbase session creation. See [Browserbase documentation](https://docs.browserbase.com) for details.
+</ParamField>
+
+#### Local Browser Options
+
+<ParamField path="localBrowserLaunchOptions" type="LocalBrowserLaunchOptions" optional>
+  Configuration for local Chrome/Chromium browser.
+
+  <Expandable title="LocalBrowserLaunchOptions">
+    <ParamField path="headless" type="boolean" optional>
+      Run browser in headless mode.
+
+      **Default:** `true`
+    </ParamField>
+
+    <ParamField path="executablePath" type="string" optional>
+      Path to Chrome/Chromium executable.
+    </ParamField>
+
+    <ParamField path="args" type="string[]" optional>
+      Additional Chrome launch arguments.
+    </ParamField>
+
+    <ParamField path="userDataDir" type="string" optional>
+      Path to user data directory for browser profile.
+    </ParamField>
+
+    <ParamField path="viewport" type="{ width: number; height: number }" optional>
+      Default viewport size.
+    </ParamField>
+
+    <ParamField path="devtools" type="boolean" optional>
+      Auto-open DevTools for each tab.
+
+      **Default:** `false`
+    </ParamField>
+
+    <ParamField path="proxy" type="object" optional>
+      Proxy configuration.
+
+      **Properties:** `server`, `bypass`, `username`, `password`
+    </ParamField>
+
+    <ParamField path="ignoreHTTPSErrors" type="boolean" optional>
+      Ignore HTTPS certificate errors.
+
+      **Default:** `false`
+    </ParamField>
+
+    <ParamField path="cdpUrl" type="string" optional>
+      Attach to existing Chrome instance via CDP WebSocket URL.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### AI/LLM Configuration
+
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for automation. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-3-5-sonnet-20241022"`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., "gpt-4o", "claude-3-5-sonnet-20241022", "gemini-2.5-flash")
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides environment variables)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="llmClient" type="LLMClient" optional>
+  Provide a custom LLM client implementation instead of using the default.
+</ParamField>
+
+<ParamField path="systemPrompt" type="string" optional>
+  Custom system prompt to guide AI behavior across all operations.
+</ParamField>
+
+#### Behavior Options
+
+<ParamField path="selfHeal" type="boolean" optional>
+  Enable self-healing mode where actions can recover from failures.
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="experimental" type="boolean" optional>
+  Enable experimental features (may change between versions).
+
+  **Default:** `false`
+  <Warning>**Use with caution in production**. Experimental features may break or change between versions without notice.</Warning>
+
+</ParamField>
+
+<ParamField path="domSettleTimeout" type="number" optional>
+  Default timeout for waiting for DOM to stabilize (in milliseconds).
+
+  **Default:** `30000`
+</ParamField>
+
+<ParamField path="cacheDir" type="string" optional>
+  Directory path for caching action observations to improve performance.
+</ParamField>
+
+#### Logging Options
+
+<ParamField path="verbose" type="0 | 1 | 2" optional>
+  Logging verbosity level.
+
+  - **`0`** - Minimal logging
+  - **`1`** - Standard logging (default)
+  - **`2`** - Detailed debug logging
+
+  **Default:** `1`
+</ParamField>
+
+<ParamField path="logInferenceToFile" type="boolean" optional>
+  Log AI inference details to files for debugging.
+
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="disablePino" type="boolean" optional>
+  Disable the Pino logging backend (useful for custom logging integrations).
+
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="logger" type="(line: LogLine) => void" optional>
+  Custom logger function to receive log events.
+</ParamField>
+
+## Methods
+
+### init()
+
+Initialize the Stagehand instance and launch the browser.
+
+```typescript
+await stagehand.init(): Promise<void>
+```
+
+**Must be called before using any other methods.**
+
+### close()
+
+Close the browser and clean up resources.
+
+```typescript
+await stagehand.close(options?: { force?: boolean }): Promise<void>
+```
+
+<ParamField path="force" type="boolean" optional>
+  Force close even if already closing.
+
+  **Default:** `false`
+</ParamField>
+
+### agent()
+
+Create an AI agent instance for autonomous multi-step workflows.
+
+```typescript
+stagehand.agent(config?: AgentConfig): AgentInstance
+```
+
+See the [agent() reference](/v3/references/agent) for detailed documentation.
+
+## Properties
+
+### page
+
+Access the current active page for automation.
+
+```typescript
+const page = stagehand.context.pages()[0];
+```
+
+**Type:** [`Page`](/v3/references/page)
+
+The page object provides methods for:
+- Navigation (`goto()`, `reload()`, `goBack()`, `goForward()`)
+- Interaction (`click()`, `type()`, `locator()`)
+- Inspection (`url()`, `title()`, `screenshot()`)
+- JavaScript evaluation (`evaluate()`)
+- **AI-powered methods** ([`act()`](/v3/references/act), [`extract()`](/v3/references/extract), [`observe()`](/v3/references/observe))
+
+### context
+
+Access the browser context for managing multiple pages.
+
+```typescript
+const context = stagehand.context;
+```
+
+**Type:** `V3Context`
+
+The context object provides:
+- `newPage()` - Create a new page/tab
+- `pages()` - Get all open pages
+- `setActivePage(page)` - Switch active page
+
+### metrics
+
+Get usage metrics for AI operations.
+
+```typescript
+const metrics = await stagehand.metrics;
+```
+
+**Returns:** `Promise<V3Metrics>`
+
+**V3Metrics Interface:**
+```typescript
+interface V3Metrics {
+  // Act metrics
+  actPromptTokens: number;
+  actCompletionTokens: number;
+  actInferenceTimeMs: number;
+
+  // Extract metrics
+  extractPromptTokens: number;
+  extractCompletionTokens: number;
+  extractInferenceTimeMs: number;
+
+  // Observe metrics
+  observePromptTokens: number;
+  observeCompletionTokens: number;
+  observeInferenceTimeMs: number;
+
+  // Agent metrics
+  agentPromptTokens: number;
+  agentCompletionTokens: number;
+  agentInferenceTimeMs: number;
+
+  // Totals
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalInferenceTimeMs: number;
+}
+```
+
+### history
+
+Get the history of all operations performed.
+
+```typescript
+const history = await stagehand.history;
+```
+
+**Returns:** `Promise<ReadonlyArray<HistoryEntry>>`
+
+**HistoryEntry Interface:**
+```typescript
+interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate";
+  parameters: unknown;
+  result: unknown;
+  timestamp: string;
+}
+```
+
+## Code Examples
+
+<Tabs>
+<Tab title="Browserbase">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Remote browser on Browserbase
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: "anthropic/claude-3-5-sonnet-20241022"
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+const data = await stagehand.extract("get page title", z.object({
+  title: z.string()
+}));
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Local">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Local browser
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: "openai/gpt-4o"
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Use the page
+await page.goto("https://example.com");
+await stagehand.act("click the login button");
+
+// Cleanup
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Custom Model Config">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: {
+    modelName: "gpt-4o",
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: "https://custom-proxy.com/v1"
+  },
+  systemPrompt: "You are a helpful automation assistant.",
+  verbose: 2,
+  selfHeal: true
+});
+
+await stagehand.init();
+```
+
+</Tab>
+<Tab title="Multi-Page">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Access main page
+const page1 = stagehand.page;
+await page1.goto("https://example.com");
+
+// Create second page
+const page2 = await stagehand.context.newPage();
+await page2.goto("https://another-site.com");
+
+// Switch active page
+stagehand.context.setActivePage(page2);
+
+// Now stagehand.page returns page2
+await stagehand.stagehand.act("click the button");
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="With Metrics">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  model: "openai/gpt-4o"
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+await stagehand.act("fill out the form");
+await stagehand.extract("get form data", schema);
+
+// Get usage metrics
+const metrics = await stagehand.metrics;
+console.log("Total tokens used:", metrics.totalPromptTokens + metrics.totalCompletionTokens);
+console.log("Act operations:", {
+  tokens: metrics.actPromptTokens + metrics.actCompletionTokens,
+  time: metrics.actInferenceTimeMs
+});
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="With Custom Logger">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 2,
+  logger: (logLine) => {
+    console.log(`[${logLine.category}] ${logLine.message}`);
+    if (logLine.auxiliary) {
+      console.log("Details:", logLine.auxiliary);
+    }
+  }
+});
+
+await stagehand.init();
+// All operations will now log through your custom logger
+```
+
+</Tab>
+</Tabs>
+
+## Error Handling
+
+Stagehand methods may throw the following errors:
+
+- **StagehandInitError** - Failed to initialize Stagehand
+- **StagehandNotInitializedError** - Methods called before `init()`
+- **BrowserbaseSessionNotFoundError** - Browserbase session not found
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **MissingEnvironmentVariableError** - Required environment variable not set
+- **StagehandEnvironmentError** - Invalid environment configuration
+
+Always handle errors appropriately:
+
+```typescript
+try {
+  const stagehand = new Stagehand({ env: "LOCAL" });
+  await stagehand.init();
+  // ... use stagehand
+} catch (error) {
+  console.error("Stagehand error:", error.message);
+} finally {
+  await stagehand?.close();
+}
+```
+
+## Best Practices
+
+1. **Always call `init()`** before using any other methods
+2. **Always call `close()`** when done to clean up resources
+3. **Use try-finally** to ensure cleanup even on errors
+4. **Set appropriate timeouts** based on your use case
+5. **Enable `selfHeal`** for more robust automation
+6. **Use metrics** to monitor token usage and costs
+7. **Configure custom logger** for production debugging
+8. **Cache directory** can significantly improve performance for repeated actions
+
+## Environment Variables
+
+Stagehand recognizes the following environment variables:
+
+- `BROWSERBASE_API_KEY` - Browserbase API key
+- `BROWSERBASE_PROJECT_ID` - Browserbase project ID
+- `OPENAI_API_KEY` - OpenAI API key
+- `ANTHROPIC_API_KEY` - Anthropic API key
+- `GOOGLE_API_KEY` - Google AI API key
+
+These can be overridden by passing values in the constructor options.

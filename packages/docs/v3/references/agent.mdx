@@ -1,0 +1,402 @@
+---
+title: agent()
+description: 'Complete API reference for the agent() method'
+icon: 'robot'
+---
+
+<CardGroup cols={1}>
+<Card title="Agent" icon="robot" href="/basics/agent">
+  See how to use agent() to create autonomous AI agents for multi-step browser workflows
+</Card>
+</CardGroup>
+
+### Agent Creation
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// Create agent instance
+const agent = stagehand.agent(config?: AgentConfig): AgentInstance
+```
+
+**AgentConfig Interface:**
+```typescript
+interface AgentConfig {
+  systemPrompt?: string;
+  integrations?: (Client | string)[];
+  tools?: ToolSet;
+  cua?: boolean;
+  model?: string | AgentModelConfig<string>;
+  executionModel?: string | AgentModelConfig<string>;
+}
+
+// AgentModelConfig for advanced configuration
+type AgentModelConfig<TModelName extends string = string> = {
+  modelName: TModelName;
+} & Record<string, unknown>;
+```
+
+**AgentInstance Interface:**
+```typescript
+interface AgentInstance {
+  execute: (instructionOrOptions: string | AgentExecuteOptions) => Promise<AgentResult>;
+}
+```
+
+</Tab>
+
+</Tabs>
+
+### Agent Configuration
+
+<ParamField path="systemPrompt" type="string" optional>
+  Custom system prompt to provide to the agent. Overrides the default system prompt and defines agent behavior.
+</ParamField>
+
+<ParamField path="model" type="string | AgentModelConfig" optional>
+  The model to use for agent functionality. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/computer-use-preview"`, `"anthropic/claude-sonnet-4-20250514"`)
+  - An object with `modelName` and additional provider-specific options
+
+  **Available CUA Models:**
+  - `"openai/computer-use-preview"`
+  - `"openai/computer-use-preview-2025-03-11"`
+  - `"anthropic/claude-3-7-sonnet-latest"`
+  - `"anthropic/claude-haiku-4-5-20251001"`
+  - `"anthropic/claude-sonnet-4-20250514"`
+  - `"anthropic/claude-sonnet-4-5-20250929"`
+  - `"google/gemini-2.5-computer-use-preview-10-2025"`
+
+  <Expandable title="AgentModelConfig Object">
+    <ParamField path="modelName" type="string" required>
+      The model name
+    </ParamField>
+    <ParamField path="[key: string]" type="unknown" optional>
+      Additional provider-specific options (e.g., `apiKey`, `baseURL`)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="executionModel" type="string | AgentModelConfig" optional>
+  The model to use for tool execution (observe/act calls within agent tools). If not specified, inherits from the main model configuration.
+
+  **Format:** `"provider/model"` (e.g., `"openai/gpt-4o-mini"`, `"google/gemini-2.0-flash-exp"`)
+</ParamField>
+
+<ParamField path="cua" type="boolean" optional>
+  Indicates whether Computer Use Agent (CUA) mode is enabled. When false, the agent uses standard tool-based operation instead of computer control.
+</ParamField>
+
+<ParamField path="integrations" type="(Client | string)[]" optional>
+  MCP (Model Context Protocol) integrations for external tools and services.
+
+  **Array of:** MCP server URLs (strings) or connected Client objects
+</ParamField>
+
+<ParamField path="tools" type="ToolSet" optional>
+  Custom tool definitions to extend agent capabilities using the AI SDK ToolSet format.
+</ParamField>
+
+### Execute Method
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// String instruction
+await agent.execute(instruction: string): Promise<AgentResult>
+
+// With options
+await agent.execute(options: AgentExecuteOptions): Promise<AgentResult>
+```
+
+**AgentExecuteOptions Interface:**
+```typescript
+interface AgentExecuteOptions {
+  instruction: string;
+  maxSteps?: number;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  highlightCursor?: boolean;
+}
+```
+
+</Tab>
+
+</Tabs>
+
+### Execute Parameters
+
+<ParamField path="instruction" type="string" required>
+  High-level task description in natural language.
+</ParamField>
+
+<ParamField path="maxSteps" type="number" optional>
+  Maximum number of actions the agent can take before stopping.
+
+  **Default:** Varies by configuration
+</ParamField>
+
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the agent execution on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
+
+  If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+<ParamField path="highlightCursor" type="boolean" optional>
+  Whether to show a visual cursor on the page during agent execution. Useful for debugging and demonstrations.
+
+  **Default:** `false`
+</ParamField>
+
+### Response
+
+**Returns:** `Promise<AgentResult>`
+
+**AgentResult Interface:**
+```typescript
+interface AgentResult {
+  success: boolean;
+  message: string;
+  actions: AgentAction[];
+  completed: boolean;
+  metadata?: Record<string, unknown>;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    inference_time_ms: number;
+  };
+}
+
+// AgentAction can contain various tool-specific fields
+interface AgentAction {
+  type: string;
+  reasoning?: string;
+  taskCompleted?: boolean;
+  action?: string;
+  timeMs?: number;        // wait tool
+  pageText?: string;      // ariaTree tool
+  pageUrl?: string;       // ariaTree tool
+  instruction?: string;   // various tools
+  [key: string]: unknown; // Additional tool-specific fields
+}
+```
+
+<ResponseField name="success" type="boolean">
+  Whether the task was completed successfully.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Description of the execution result and status.
+</ResponseField>
+
+<ResponseField name="actions" type="AgentAction[]">
+  Array of individual actions taken during execution. Each action contains tool-specific data.
+</ResponseField>
+
+<ResponseField name="completed" type="boolean">
+  Whether the agent believes the task is fully complete.
+</ResponseField>
+
+<ResponseField name="metadata" type="Record<string, unknown>" optional>
+  Additional execution metadata and debugging information.
+</ResponseField>
+
+<ResponseField name="usage" type="object" optional>
+  Token usage and performance metrics.
+
+  <Expandable title="Usage Metrics">
+    <ResponseField name="input_tokens" type="number">
+      Number of input tokens used
+    </ResponseField>
+    <ResponseField name="output_tokens" type="number">
+      Number of output tokens generated
+    </ResponseField>
+    <ResponseField name="inference_time_ms" type="number">
+      Total inference time in milliseconds
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+```json
+{
+  "success": true,
+  "message": "Task completed successfully",
+  "actions": [
+    {
+      "type": "act",
+      "instruction": "click the submit button",
+      "reasoning": "User requested to submit the form",
+      "taskCompleted": false
+    },
+    {
+      "type": "observe",
+      "instruction": "check if submission was successful",
+      "taskCompleted": true
+    }
+  ],
+  "completed": true,
+  "metadata": {
+    "steps_taken": 2
+  },
+  "usage": {
+    "input_tokens": 1250,
+    "output_tokens": 340,
+    "inference_time_ms": 2500
+  }
+}
+```
+
+### Code Examples
+
+<Tabs>
+<Tab title="Basic Usage">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "anthropic/claude-sonnet-4-20250514"
+});
+await stagehand.init();
+
+// Create agent with default configuration
+const agent = stagehand.agent();
+
+// Navigate to a page
+await stagehand.page.goto("https://www.google.com");
+
+// Execute a task
+const result = await agent.execute("Search for 'Stagehand automation' and click the first result");
+
+console.log(result.message);
+console.log(`Completed: ${result.completed}`);
+console.log(`Actions taken: ${result.actions.length}`);
+```
+
+</Tab>
+<Tab title="Custom Configuration">
+
+```typescript
+// Create agent with custom model and system prompt
+const agent = stagehand.agent({
+  model: "openai/computer-use-preview",
+  systemPrompt: "You are a helpful assistant that can navigate websites efficiently. Always verify actions before proceeding.",
+  executionModel: "openai/gpt-4o-mini"  // Use faster model for tool execution
+});
+
+await stagehand.page.goto("https://example.com");
+
+const result = await agent.execute({
+  instruction: "Fill out the contact form with test data",
+  maxSteps: 10,
+  highlightCursor: true
+});
+```
+
+</Tab>
+<Tab title="Advanced Model Config">
+
+```typescript
+// Using AgentModelConfig for advanced configuration
+const agent = stagehand.agent({
+  model: {
+    modelName: "anthropic/claude-sonnet-4-20250514",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL: "https://custom-proxy.com/v1"
+  }
+});
+
+const result = await agent.execute("Complete the checkout process");
+```
+
+</Tab>
+<Tab title="Multi-Page">
+
+```typescript
+const page1 = stagehand.page;
+const page2 = await stagehand.context.newPage();
+
+const agent = stagehand.agent();
+
+// Execute on specific page
+await page2.goto("https://example.com/dashboard");
+const result = await agent.execute({
+  instruction: "Export the data table",
+  page: page2
+});
+```
+
+</Tab>
+<Tab title="MCP Integrations">
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+
+// Create agent with MCP integrations
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-20250514",
+  integrations: [
+    "https://mcp-server.example.com",  // MCP server URL
+    mcpClientInstance  // Or pre-connected Client object
+  ]
+});
+
+const result = await agent.execute("Use the external tool to process this data");
+```
+
+</Tab>
+<Tab title="Custom Tools">
+
+```typescript
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+// Define custom tools using AI SDK format
+const customTools = {
+  calculateTotal: tool({
+    description: "Calculate the total of items in cart",
+    parameters: z.object({
+      items: z.array(z.object({
+        price: z.number(),
+        quantity: z.number()
+      }))
+    }),
+    execute: async ({ items }) => {
+      const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      return { total };
+    }
+  })
+};
+
+const agent = stagehand.agent({
+  model: "openai/computer-use-preview",
+  tools: customTools
+});
+
+const result = await agent.execute("Calculate the total cost of items in the shopping cart");
+```
+
+</Tab>
+</Tabs>
+
+### Error Types
+
+The following errors may be thrown by the `agent()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **StagehandInitError** - Agent was not properly initialized
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for agent functionality
+- **UnsupportedModelProviderError** - The specified model provider is not supported
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
+- **MCPConnectionError** - Failed to connect to MCP server
+- **StagehandDefaultError** - General execution error with detailed message

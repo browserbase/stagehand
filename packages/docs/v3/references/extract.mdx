@@ -1,0 +1,412 @@
+---
+title: extract()
+description: 'Complete API reference for the extract() method'
+icon: 'ufo-beam'
+---
+
+<CardGroup cols={1}>
+<Card title="Extract" icon="ufo-beam" href="/basics/extract">
+  See how to use extract() to extract structured data from web pages
+</Card>
+</CardGroup>
+
+### Method Signatures
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// No parameters (raw page content)
+await stagehand.extract(): Promise<{ pageText: string }>
+
+// Options only (for example, for targeted extraction)
+await stagehand.extract(options: ExtractOptions): Promise<{ pageText: string }>
+
+// String instruction only
+await stagehand.extract(instruction: string): Promise<{ extraction: string }>
+
+// With schema
+await page.extract<T extends ZodTypeAny>(
+  instruction: string,
+  schema: T,
+  options?: ExtractOptions
+): Promise<z.infer<T>>
+```
+
+**ExtractOptions Interface:**
+```typescript
+interface ExtractOptions {
+  model?: ModelConfiguration;
+  timeout?: number;
+  selector?: string;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+}
+
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-5-mini", "anthropic/claude-sonnet-4-5")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
+```
+
+</Tab>
+
+</Tabs>
+
+### Parameters
+
+<ParamField path="instruction" type="string" optional>
+  Natural language description of what data to extract. If omitted with no schema, returns raw page text.
+</ParamField>
+
+<ParamField path="schema" type="ZodTypeAny" optional>
+  Zod schema defining the structure of data to extract. Ensures type safety and validation. The return type is automatically inferred from the schema.
+</ParamField>
+
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for this action. Can be either:
+  - A string in the format `"provider/model"` (e.g., `openai/gpt-5`, `google/gemini-2.5-flash`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., `anthropic/claude-sonnet-4-5`, `google/gemini-2.5-flash`)
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time in milliseconds to wait for the extraction to complete. Default varies by configuration.
+</ParamField>
+
+<ParamField path="selector" type="string" optional>
+  Optional selector (XPath, CSS selector, etc.) to limit extraction scope to a specific part of the page. Reduces token usage and improves accuracy.
+</ParamField>
+
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the extraction on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
+
+  If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+### Built-in Support
+
+<Note>
+**Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
+</Note>
+
+### Response Types
+
+<Tabs>
+<Tab title="With Schema">
+**Returns:** `Promise<z.infer<T>>` where T is your schema
+
+The returned object will be strictly typed according to your Zod schema definition.
+</Tab>
+
+<Tab title="String Only">
+**Returns:** `Promise<{ extraction: string }>`
+
+`extraction`: Simple string extraction without schema validation.
+</Tab>
+
+<Tab title="No Parameters">
+**Returns:** `Promise<{ pageText: string }>`
+
+`pageText`: Raw accessibility tree representation of page content.
+</Tab>
+</Tabs>
+
+### Code Examples
+
+<Tabs>
+<Tab title="Single Object">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from 'zod';
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com/product");
+
+// Schema definition
+const ProductSchema = z.object({
+  name: z.string(),
+  price: z.number(),
+  inStock: z.boolean()
+});
+
+// Extraction with v3 API
+const product = await stagehand.extract(
+  "extract product details", 
+  ProductSchema
+);
+```
+
+#### Example Response
+```json
+{
+  "name": "Product Name",
+  "price": 100,
+  "inStock": true
+}
+```
+
+</Tab>
+<Tab title="Arrays">
+
+```typescript
+import { z } from 'zod';
+
+// Schema definition
+const ApartmentListingsSchema = z.array(
+  z.object({
+    address: z.string(),
+    price: z.string(),
+    bedrooms: z.number()
+  })
+);
+
+// Extraction with v3 API
+const listings = await stagehand.extract(
+  "extract all apartment listings",
+  ApartmentListingsSchema
+);
+```
+
+#### Example Response
+```json
+[
+  {
+    "address": "123 Main St",
+    "price": "$100,000",
+    "bedrooms": 3
+  },
+  {
+    "address": "456 Elm St",
+    "price": "$150,000",
+    "bedrooms": 2
+  }
+]
+```
+
+</Tab>
+<Tab title="URLs">
+
+```typescript
+import { z } from 'zod';
+
+// Schema definition
+const NavigationSchema = z.object({
+  links: z.array(z.object({
+    text: z.string(),
+    url: z.string().url()  // URL validation
+  }))
+});
+
+// Extraction with v3 API
+const links = await stagehand.extract(
+  "extract navigation links",
+  NavigationSchema
+);
+```
+
+#### Example Response
+```json
+{
+  "links": [
+    {
+      "text": "Home",
+      "url": "https://example.com"
+    }
+  ]
+}
+```
+
+</Tab>
+<Tab title="Scoped">
+
+```typescript
+import { z } from 'zod';
+
+const ProductSchema = z.object({
+  name: z.string(),
+  price: z.number(),
+  description: z.string()
+});
+
+// Extract from specific page section with v3 API
+const data = await stagehand.extract(
+  "extract product info from this section",
+  ProductSchema,
+  { selector: "/html/body/div/div" }
+);
+```
+
+#### Example Response
+```json
+{
+  "name": "Product Name",
+  "price": 100,
+  "description": "Product description"
+}
+```
+
+</Tab>
+<Tab title="Schema-less">
+
+```typescript
+// String only extraction
+const title = await stagehand.extract("get the page title");
+// Returns: { extraction: "Page Title" }
+
+// Raw page content
+const content = await stagehand.extract();
+// Returns: { pageText: "Accessibility Tree: ..." }
+```
+
+#### Example Response
+```json
+{
+  "extraction": "Page Title"
+}
+```
+
+</Tab>
+<Tab title="Advanced">
+
+```typescript
+import { z } from 'zod';
+
+// Schema with descriptions and validation
+const ProductSchema = z.object({
+  price: z.number().describe("Product price in USD"),
+  rating: z.number().min(0).max(5).describe("Customer rating out of 5"),
+  available: z.boolean().describe("Whether product is in stock"),
+  tags: z.array(z.string()).optional()
+});
+
+// Nested schema
+const EcommerceSchema = z.object({
+  product: z.object({
+    name: z.string(),
+    price: z.object({
+      current: z.number(),
+      original: z.number().optional()
+    })
+  }),
+  reviews: z.array(z.object({
+    rating: z.number(),
+    comment: z.string()
+  }))
+});
+```
+
+#### Example Response
+```json
+{
+  "product": {
+    "name": "Product Name",
+    "price": {
+      "current": 100,
+      "original": 120
+    }
+  },
+  "reviews": [
+    {
+      "rating": 4,
+      "comment": "Great product!"
+    }
+  ]
+}
+```
+
+</Tab>
+</Tabs>
+
+### Additional Examples
+
+<Tabs>
+<Tab title="Custom Model">
+
+```typescript
+import { z } from 'zod';
+
+const DataSchema = z.object({
+  title: z.string(),
+  content: z.string()
+});
+
+// Using string format
+const data1 = await stagehand.extract(
+  "extract article data",
+  DataSchema,
+  { model: "openai/gpt-5-mini" }
+);
+
+// Using object format with custom configuration
+const data2 = await stagehand.extract(
+  "extract article data",
+  DataSchema,
+  {
+    model: {
+      modelName: "claude-3-5-sonnet-20241022",
+      apiKey: process.env.ANTHROPIC_API_KEY
+    }
+  }
+);
+```
+
+</Tab>
+<Tab title="Multi-Page">
+
+```typescript
+import { z } from 'zod';
+
+const page1 = stagehand.page;
+const page2 = await stagehand.context.newPage();
+
+const Schema = z.object({ title: z.string() });
+
+const data1 = await stagehand.extract("get title", Schema, { page: page1 });
+const data2 = await stagehand.extract("get title", Schema, { page: page2 });
+```
+
+</Tab>
+</Tabs>
+
+### Error Types
+
+The following errors may be thrown by the `extract()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **ZodSchemaValidationError** - Extracted data does not match the provided Zod schema
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format

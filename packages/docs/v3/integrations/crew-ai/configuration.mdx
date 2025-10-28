@@ -1,0 +1,74 @@
+---
+title: "Use CrewAI to Automate Browser Tasks"
+sidebarTitle: Configuration
+description: "Create intelligent agents that can interact with websites and automate browser tasks using natural language instructions"
+---
+
+This guide walks you through setting up CrewAI with Browserbase to create agents that can perform web automation tasks using natural language instructions.
+
+## Step 1: Install Dependencies
+
+Install the required packages for CrewAI and Stagehand integration:
+
+```bash
+pip install stagehand-py crewai crewai-tools
+```
+
+## Step 2: Configure Environment Variables
+
+You'll need API keys from three services:
+
+1. **Browserbase API Key and Project ID**: Get these from your [Browserbase dashboard](https://www.browserbase.com/)
+2. **LLM API Key**: Get an API key from [OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/)
+
+Store your API keys securely as environment variables:
+
+```bash
+BROWSERBASE_API_KEY="your-browserbase-api-key"
+BROWSERBASE_PROJECT_ID="your-browserbase-project-id"
+OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
+## Step 3: Create Your First Agent
+
+Create a Python script with a basic CrewAI agent:
+
+## Step 4: Create and Run a Task
+
+Define a task for your agent and execute it:
+
+## Step 5: Run Your Script
+
+Execute your Python script:
+
+```bash
+python your_crew_script.py
+```
+
+## Advanced Configuration
+
+Customize the StagehandTool behavior with additional parameters:
+
+## Example Tasks
+
+<Tabs>
+  <Tab title="Form Submission" value="form-submission" label="Python">
+    
+  </Tab>
+  <Tab title="Data Extraction" value="data-extraction" label="Python">
+    
+  </Tab>
+  <Tab title="Multi-step Navigation" value="multi-step-navigation" label="Python">
+    
+  </Tab>
+</Tabs>
+
+<CardGroup cols={2}>
+  <Card title="CrewAI Documentation" icon="book" href="https://docs.crewai.com/">
+    Dive into the CrewAI documentation to learn more about its capabilities and integrations.
+  </Card>
+  <Card title="Browserbase Documentation" icon="book" href="https://docs.browserbase.com/">
+    Access the Browserbase documentation for comprehensive guides and resources.
+  </Card>
+</CardGroup>
