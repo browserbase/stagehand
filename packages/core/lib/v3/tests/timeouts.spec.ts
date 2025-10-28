@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
-import { z } from "zod";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
+import { z } from "zod/v3";
 
 test.describe("V3 hard timeouts", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3TestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
