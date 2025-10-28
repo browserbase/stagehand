@@ -62,8 +62,8 @@ export const generateSummary = async (
   };
 
   fs.writeFileSync(
-    "eval-summary.json",
+    "../../eval-summary.json",
     JSON.stringify(formattedSummary, null, 2),
   );
-  console.log("Evaluation summary written to eval-summary.json");
+  console.log("Evaluation summary written to ../../eval-summary.json");
 };

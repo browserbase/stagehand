@@ -6,7 +6,7 @@ import {
   AnthropicMessage,
   AnthropicTextBlock,
   AnthropicToolResult,
-  CuaAgentExecutionOptions,
+  AgentExecutionOptions,
   ToolUseItem,
 } from "../types/public/agent";
 import { LogLine } from "../types/public/logs";
@@ -99,9 +99,7 @@ export class AnthropicCUAClient extends AgentClient {
    * This is the main entry point for the agent
    * @implements AgentClient.execute
    */
-  async execute(
-    executionOptions: CuaAgentExecutionOptions,
-  ): Promise<AgentResult> {
+  async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
     const { options, logger } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
@@ -132,7 +130,7 @@ export class AnthropicCUAClient extends AgentClient {
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
-          level: 2,
+          level: 1,
         });
 
         const result = await this.executeStep(inputItems, logger);

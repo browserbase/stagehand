@@ -8,7 +8,7 @@ on:
       - labeled
       - unlabeled
     paths-ignore:
-      - "docs/**"
+      - "packages/docs/**"
 
 jobs:
   check-parity-label:

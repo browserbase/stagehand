@@ -56,6 +56,10 @@ export const createFillFormTool = (v3: V3, executionModel?: string) =>
         observeResults,
         actions: replayableActions,
       });
-      return { success: true, actions: completed };
+      return {
+        success: true,
+        actions: completed,
+        playwrightArguments: replayableActions,
+      };
     },
   });

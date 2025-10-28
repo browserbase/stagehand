@@ -41,9 +41,6 @@ export async function performUnderstudyMethod(
   args: ReadonlyArray<unknown>,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
-  // Proactively wait for the DOM/network to be quiet before acting
-  await waitForDomNetworkQuiet(frame, domSettleTimeoutMs);
-
   const selectorRaw = normalizeRootXPath(rawXPath);
   // Unified resolver: supports '>>' hops and XPath across iframes
   const locator: Locator = await resolveLocatorWithHops(
@@ -279,7 +276,7 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, xpath } = ctx;
+  const { args, xpath, page } = ctx;
   const key = args[0] ?? "";
   try {
     v3Logger({
@@ -291,16 +288,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         xpath: { value: xpath, type: "string" },
       },
     });
-    await frame.session.send<never>("Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key,
-      text: key.length === 1 ? key : undefined,
-    } as Protocol.Input.DispatchKeyEventRequest);
-    await frame.session.send<never>("Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key,
-      text: key.length === 1 ? key : undefined,
-    } as Protocol.Input.DispatchKeyEventRequest);
+    await page.keyPress(key);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     v3Logger({
@@ -516,7 +504,7 @@ async function getFrameUrl(frame: Frame): Promise<string> {
  * More robust DOM settle using Network + Page events to detect network quiet.
  * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
  */
-async function waitForDomNetworkQuiet(
+export async function waitForDomNetworkQuiet(
   frame: Frame,
   timeoutMs?: number,
 ): Promise<void> {

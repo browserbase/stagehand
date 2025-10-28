@@ -1,17 +1,21 @@
-import type { ActOptions,
+import type {
+  ActOptions,
   ActResult,
   AvailableModel,
   Logger,
   AgentResult,
   Action,
-  LoadState
+  LoadState,
 } from "../public";
 import { CacheStorage } from "../../cache/CacheStorage";
 import type { ActHandler } from "../../handlers/actHandler";
 import type { V3Context } from "../../understudy/context";
 import type { LLMClient } from "../../llm/LLMClient";
 
-export type ActFn = (instruction: string, options?: ActOptions) => Promise<ActResult>;
+export type ActFn = (
+  instruction: string,
+  options?: ActOptions,
+) => Promise<ActResult>;
 
 export type AgentCacheContext = {
   instruction: string;
@@ -47,7 +51,6 @@ export type ActCacheDeps = {
   getDefaultLlmClient: () => LLMClient;
   domSettleTimeoutMs?: number;
 };
-
 
 export type ReadJsonResult<T> = {
   value: T | null;

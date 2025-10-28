@@ -4,7 +4,7 @@ import {
   AgentAction,
   AgentResult,
   AgentType,
-  CuaAgentExecutionOptions,
+  AgentExecutionOptions,
   ResponseInputItem,
   ResponseItem,
   ComputerCallItem,
@@ -12,7 +12,7 @@ import {
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
 import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
-import { ToolSet } from "ai/dist";
+import { ToolSet } from "ai";
 
 /**
  * Client for OpenAI's Computer Use Assistant API
@@ -96,9 +96,7 @@ export class OpenAICUAClient extends AgentClient {
    * This is the main entry point for the agent
    * @implements AgentClient.execute
    */
-  async execute(
-    executionOptions: CuaAgentExecutionOptions,
-  ): Promise<AgentResult> {
+  async execute(executionOptions: AgentExecutionOptions): Promise<AgentResult> {
     const { options, logger } = executionOptions;
     const { instruction } = options;
     const maxSteps = options.maxSteps || 10;
@@ -123,7 +121,7 @@ export class OpenAICUAClient extends AgentClient {
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
-          level: 2,
+          level: 1,
         });
 
         const result = await this.executeStep(

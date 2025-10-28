@@ -10,7 +10,7 @@
  * - Supports filtering which tasks to run either by evaluation category or by specific task name.
  * - Supports multiple models, defaulting to certain sets of models depending on the category.
  * - Runs each selected task against each selected model in parallel, collecting results.
- * - Saves a summary of the evaluation results to `eval-summary.json`.
+ * - Saves a summary of the evaluation results to `../../eval-summary.json`.
  */
 import path from "path";
 import process from "process";
@@ -58,6 +58,7 @@ const TRIAL_COUNT = process.env.EVAL_TRIAL_COUNT
   : 3;
 
 const USE_API: boolean = (process.env.USE_API ?? "").toLowerCase() === "true";
+console.log(`[EVALS] USE_API: ${USE_API}`);
 
 /**
  * generateFilteredTestcases:

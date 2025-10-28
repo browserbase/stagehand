@@ -30,10 +30,9 @@ export type WaitForIdleOptions = {
 };
 
 export const DEFAULT_IDLE_WAIT = 500;
-export const IGNORED_RESOURCE_TYPES = new Set<Protocol.Network.ResourceType | undefined>([
-  "EventSource",
-  "WebSocket",
-]);
+export const IGNORED_RESOURCE_TYPES = new Set<
+  Protocol.Network.ResourceType | undefined
+>(["EventSource", "WebSocket"]);
 
 /** The handle returned by the network manager idle helper. */
 export type WaitForIdleHandle = {

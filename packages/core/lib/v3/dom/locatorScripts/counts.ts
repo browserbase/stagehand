@@ -37,7 +37,7 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
       const doc =
         root instanceof Document
           ? root
-          : (root as Element)?.ownerDocument ?? document;
+          : ((root as Element)?.ownerDocument ?? document);
       const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -119,8 +119,8 @@ export function countCssMatchesPierce(selectorRaw: string): number {
         root instanceof Document
           ? root
           : root instanceof ShadowRoot
-          ? root.host?.ownerDocument ?? document
-          : (root as Element).ownerDocument ?? document;
+            ? (root.host?.ownerDocument ?? document)
+            : ((root as Element).ownerDocument ?? document);
       const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       let node: Node | null;
       while ((node = walker.nextNode())) {
@@ -213,7 +213,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
       const doc =
         root instanceof Document
           ? root
-          : (root as Element)?.ownerDocument ?? document;
+          : ((root as Element)?.ownerDocument ?? document);
       return doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     } catch {
       return null;
@@ -303,10 +303,21 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
   if (!xp) return 0;
 
   const parseSteps = (input: string) => {
-    const path = String(input || "").trim().replace(/^xpath=/i, "");
-    if (!path) return [] as Array<{ axis: "child" | "desc"; tag: string; index: number | null }>;
+    const path = String(input || "")
+      .trim()
+      .replace(/^xpath=/i, "");
+    if (!path)
+      return [] as Array<{
+        axis: "child" | "desc";
+        tag: string;
+        index: number | null;
+      }>;
 
-    const steps: Array<{ axis: "child" | "desc"; tag: string; index: number | null }> = [];
+    const steps: Array<{
+      axis: "child" | "desc";
+      tag: string;
+      index: number | null;
+    }> = [];
     let i = 0;
     while (i < path.length) {
       let axis: "child" | "desc" = "child";
@@ -388,7 +399,9 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
     return out;
   };
 
-  let current: (Document | Element | ShadowRoot | DocumentFragment)[] = [document];
+  let current: (Document | Element | ShadowRoot | DocumentFragment)[] = [
+    document,
+  ];
 
   for (const step of steps) {
     const next: Element[] = [];
@@ -396,7 +409,10 @@ export function countXPathMatchesMainWorld(rawXp: string): number {
 
     for (const root of current) {
       if (!root) continue;
-      const pool = step.axis === "child" ? composedChildren(root) : composedDescendants(root);
+      const pool =
+        step.axis === "child"
+          ? composedChildren(root)
+          : composedDescendants(root);
       if (!pool.length) continue;
 
       const matches = pool.filter((candidate) => {
