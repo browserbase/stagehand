@@ -38,8 +38,7 @@
   "license": "MIT",
   "peerDependencies": {
     "deepmerge": "^4.3.1",
-    "dotenv": "^16.4.5",
-    "zod": "^4.1.8"
+    "dotenv": "^16.4.5"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -55,7 +54,8 @@
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "playwright": "^1.52.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.1.8"
   },
   "optionalDependencies": {
     "@ai-sdk/anthropic": "^2.0.34",
