@@ -140,8 +140,8 @@ await stagehand.init();
 const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or get the active page
+const page = await stagehand.context.awaitActivePage();
 await page.goto("https://example.com");
 ```
 
@@ -173,7 +173,7 @@ const newPage = await stagehand.context.newPage();
 // Set active page
 stagehand.context.setActivePage(newPage);
 
-// Now stagehand.page returns newPage
+// automatically takes action on the active page
 await stagehand.act("click button");  // Acts on newPage
 ```
 
@@ -651,7 +651,7 @@ const result = await agent.execute("Complete the checkout process");
 v3 agents can now specify which page to operate on.
 
 ```typescript v3 icon="/images/typescript.svg"
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0]
 const page2 = await stagehand.context.newPage();
 
 const agent = stagehand.agent({
@@ -886,7 +886,7 @@ await stagehand.close();
 
 ### Error: Cannot find property 'page' on Stagehand instance
 
-**Problem**: Direct `stagehand.page` access may not work immediately after init.
+**Problem**: Direct `stagehand.page` is not supported in v3.
 
 **Solution**: Use the Context API or ensure you're using the getter method:
 
@@ -894,8 +894,8 @@ await stagehand.close();
 // Use context API (recommended)
 const page = stagehand.context.pages()[0];
 
-// Or use the convenience getter
-const page = stagehand.page;
+// Or get the active page
+const page = await stagehand.context.awaitActivePage();
 ```
 
 ### Error: act() method not found on page
@@ -981,7 +981,7 @@ await agent.execute({
 
 1. **Use the string model format** for simplicity: `model: "openai/gpt-5"`
 2. **Leverage automatic iframe support** - remove all `iframes` flags
-3. **Use the Context API** for multi-page scenarios
+3. **Use the Context API** for accessing pages
 4. **Monitor metrics** to track token usage and optimize costs
 5. **Use history** for debugging and understanding automation flow
 6. **Set appropriate timeouts** based on your use case
