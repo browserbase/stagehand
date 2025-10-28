@@ -35,6 +35,7 @@ jobs:
         with:
           filters: |
             core:
+              - '.github/workflows/ci.yml'
               - 'packages/core/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
