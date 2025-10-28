@@ -448,6 +448,10 @@ await stagehand.init();
 
 Different models excel at different tasks. Consider speed, accuracy, and cost for your use case.
 
+<Card title="Model Selection Guide" href="https://www.stagehand.dev/evals" icon="scale-balanced">
+  Find detailed model comparisons and recommendations on our Model Evaluation page.
+</Card>
+
 **Quick Recommendations**
 
 | Use Case                  | Recommended Model                    | Why                            |
@@ -456,11 +460,8 @@ Different models excel at different tasks. Consider speed, accuracy, and cost fo
 | **Intelligence**     | `google/gemini-2.5-pro` | Best accuracy on hard tasks    |
 | **Speed**        | `google/gemini-2.5-flash`                 | Fastest response times         |
 | **Cost**     | `google/gemini-2.5-flash`            | Best value per token           |
-| **Local/offline**         | `ollama/llama3.2`                    | No API costs, full control     |
+| **Local/offline**         | `ollama/qwen3`                    | No API costs, full control     |
 
-<Card title="Model Selection Guide" href="https://www.stagehand.dev/evals" icon="scale-balanced">
-  Find detailed model comparisons and recommendations on our Model Evaluation page.
-</Card>
 
 ---
 
@@ -539,13 +540,13 @@ const agent = stagehand.agent({
 <Accordion title="All Supported CUA Models">
 | Provider | Model |
 | -------- | ----- |
-| Google   | google/gemini-2.5-computer-use-preview-10-2025 |
-| Anthropic | anthropic/claude-3-7-sonnet-latest |
-| Anthropic | anthropic/claude-haiku-4-5-20251001 |
-| Anthropic | anthropic/claude-sonnet-4-20250514 |
-| Anthropic | anthropic/claude-sonnet-4-5-20250929 |
-| OpenAI   | openai/computer-use-preview |
-| OpenAI   | openai/computer-use-preview-2025-03-11 |
+| Google   | `google/gemini-2.5-computer-use-preview-10-2025` |
+| Anthropic | `anthropic/claude-3-7-sonnet-latest` |
+| Anthropic | `anthropic/claude-haiku-4-5-20251001` |
+| Anthropic | `anthropic/claude-sonnet-4-20250514` |
+| Anthropic | `anthropic/claude-sonnet-4-5-20250929` |
+| OpenAI   | `openai/computer-use-preview` |
+| OpenAI   | `openai/computer-use-preview-2025-03-11` |
 </Accordion>
 
 <Note>
