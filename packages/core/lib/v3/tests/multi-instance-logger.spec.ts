@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
-import { getV3TestConfig } from "./v3.config";
+import { getV3DynamicTestConfig } from "./v3.dynamic.config";
 import type { LogLine } from "../types/public/logs";
 
 test.describe("V3 Multi-Instance Logger Isolation", () => {
@@ -15,7 +15,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         const logs: LogLine[] = [];
         instanceLogs.set(i, logs);
 
-        const config = getV3TestConfig({
+        const config = getV3DynamicTestConfig({
           verbose: 2,
           disablePino: true,
           logger: (line: LogLine) => {
@@ -79,7 +79,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     const instance2Logs: LogLine[] = [];
 
     const v3Instance1 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 2,
         disablePino: true,
         logger: (line: LogLine) => instance1Logs.push(line),
@@ -87,7 +87,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     );
 
     const v3Instance2 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 2,
         disablePino: true,
         logger: (line: LogLine) => instance2Logs.push(line),
@@ -132,14 +132,14 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
   test("V3 instances without external loggers use shared global logger", async () => {
     // Create instances without external loggers
     const v3Instance1 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 1,
         disablePino: true,
       }),
     );
 
     const v3Instance2 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 1,
         disablePino: true,
       }),
@@ -177,7 +177,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     for (let i = 0; i < iterations; i++) {
       const logs: LogLine[] = [];
       const v3 = new V3(
-        getV3TestConfig({
+        getV3DynamicTestConfig({
           verbose: 1, // Capture INFO logs for verification
           disablePino: true,
           logger: (line: LogLine) => logs.push(line),
@@ -206,9 +206,9 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
     const instances: V3[] = [];
     const configs = [
       // With Pino disabled
-      getV3TestConfig({ verbose: 1, disablePino: true }),
+      getV3DynamicTestConfig({ verbose: 1, disablePino: true }),
       // With external logger
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 2,
         disablePino: true,
         //eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -217,9 +217,9 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         },
       }),
       // Without external logger
-      getV3TestConfig({ verbose: 0, disablePino: true }),
+      getV3DynamicTestConfig({ verbose: 0, disablePino: true }),
       // High verbosity
-      getV3TestConfig({ verbose: 2, disablePino: true }),
+      getV3DynamicTestConfig({ verbose: 2, disablePino: true }),
     ];
 
     try {
@@ -256,7 +256,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
   test("V3 instance logger is properly cleaned up on close", async () => {
     const logs: LogLine[] = [];
     const v3 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 2,
         disablePino: true,
         logger: (line: LogLine) => logs.push(line),
@@ -277,7 +277,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
   test("logger works correctly across instance lifecycle", async () => {
     const logs: LogLine[] = [];
     const v3 = new V3(
-      getV3TestConfig({
+      getV3DynamicTestConfig({
         verbose: 2,
         disablePino: true,
         logger: (line: LogLine) => logs.push(line),
@@ -326,7 +326,7 @@ test.describe("V3 Multi-Instance Logger Isolation", () => {
         instanceLogs.set(i, logs);
 
         const v3 = new V3(
-          getV3TestConfig({
+          getV3DynamicTestConfig({
             verbose: 1,
             disablePino: true,
             logger: (line: LogLine) => logs.push(line),

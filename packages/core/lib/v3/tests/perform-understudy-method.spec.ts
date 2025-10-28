@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils";
 
 test.describe("tests performUnderstudyMethod", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3TestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
@@ -86,7 +86,7 @@ test.describe("tests performUnderstudyMethod", () => {
       page,
       page.mainFrame(),
       "selectOptionFromDropdown",
-      "xpath=/html/body/form/div[1]/div[3]/article/div[2]/div[1]/select[2]",
+      "xpath=//*[@id='licenseType']",
       ["Smog Check Technician"],
       30000,
     );

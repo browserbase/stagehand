@@ -15,7 +15,11 @@ import type {
   V3Options,
   AgentModelConfig,
 } from "@browserbasehq/orca";
-import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "@browserbasehq/orca";
+import {
+  loadApiKeyFromEnv,
+  modelToAgentProviderMap,
+  V3,
+} from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
@@ -58,7 +62,6 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
-
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model
   const isCUA = modelName in modelToAgentProviderMap;
@@ -124,7 +127,6 @@ export async function initV3({
   logger.init(v3);
   await v3.init();
 
-
   let agent: AgentInstance | undefined;
   if (createAgent) {
     if (isCUA) {
@@ -144,8 +146,7 @@ export async function initV3({
       agent = v3.agent({
         cua: true,
         model: cuaModel,
-        systemPrompt:
-          `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+        systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
       });
     } else {
       agent = v3.agent({
