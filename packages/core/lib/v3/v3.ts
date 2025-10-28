@@ -461,26 +461,6 @@ export class V3 {
       await Promise.all(instances.map((i) => i._immediateShutdown(reason)));
     };
 
-    const exitAfter = async (label: string) => {
-      try {
-        // Give all instances up to 3s to close
-        await Promise.race([
-          (async () => {
-            const instances = Array.from(V3._instances);
-            await Promise.all(instances.map((i) => i.close({ force: true })));
-          })(),
-          new Promise((r) => setTimeout(r, 3000)),
-        ]);
-      } finally {
-        v3Logger({
-          category: "v3",
-          message: `${label}: shutdown complete`,
-          level: 0,
-        });
-        process.exit(1);
-      }
-    };
-
     process.once("SIGINT", () => {
       v3Logger({
         category: "v3",
@@ -494,7 +474,6 @@ export class V3 {
         }
       }
       void shutdownAllImmediate("signal SIGINT");
-      void exitAfter("SIGINT");
     });
     process.once("SIGTERM", () => {
       v3Logger({
@@ -509,7 +488,7 @@ export class V3 {
         }
       }
       void shutdownAllImmediate("signal SIGTERM");
-      void exitAfter("SIGTERM");
+
     });
     process.once("uncaughtException", (err: unknown) => {
       v3Logger({
@@ -518,7 +497,6 @@ export class V3 {
         level: 0,
         auxiliary: { err: { value: String(err), type: "string" } },
       });
-      void exitAfter("uncaughtException");
     });
     process.once("unhandledRejection", (reason: unknown) => {
       v3Logger({
@@ -527,7 +505,6 @@ export class V3 {
         level: 0,
         auxiliary: { reason: { value: String(reason), type: "string" } },
       });
-      void exitAfter("unhandledRejection");
     });
   }
 
