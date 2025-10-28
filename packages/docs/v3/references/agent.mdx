@@ -268,11 +268,12 @@ const stagehand = new Stagehand({
 });
 await stagehand.init();
 
+const page = stagehand.context.pages()[0];
 // Create agent with default configuration
 const agent = stagehand.agent();
 
 // Navigate to a page
-await stagehand.page.goto("https://www.google.com");
+await page.goto("https://www.google.com");
 
 // Execute a task
 const result = await agent.execute("Search for 'Stagehand automation' and click the first result");
@@ -293,7 +294,8 @@ const agent = stagehand.agent({
   executionModel: "openai/gpt-4o-mini"  // Use faster model for tool execution
 });
 
-await stagehand.page.goto("https://example.com");
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
 
 const result = await agent.execute({
   instruction: "Fill out the contact form with test data",
@@ -322,7 +324,7 @@ const result = await agent.execute("Complete the checkout process");
 <Tab title="Multi-Page">
 
 ```typescript
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0];
 const page2 = await stagehand.context.newPage();
 
 const agent = stagehand.agent();
