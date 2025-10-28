@@ -9,10 +9,10 @@ import {
   ChatCompletionSystemMessageParam,
   ChatCompletionUserMessageParam,
 } from "openai/resources/chat";
-import zodToJsonSchema from "zod-to-json-schema";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import { validateZodSchema } from "../../utils";
+import { z } from "zod";
 import {
   ChatCompletionOptions,
   ChatMessage,
@@ -158,7 +158,7 @@ export class OpenAIClient extends LLMClient {
       if (this.modelName.startsWith("o1") || this.modelName.startsWith("o3")) {
         try {
           const parsedSchema = JSON.stringify(
-            zodToJsonSchema(options.response_model.schema),
+            z.toJSONSchema(options.response_model.schema),
           );
           options.messages.push({
             role: "user",

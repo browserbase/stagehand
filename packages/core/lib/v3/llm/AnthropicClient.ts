@@ -5,7 +5,7 @@ import {
   TextBlockParam,
   Tool,
 } from "@anthropic-ai/sdk/resources";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import { LogLine } from "../types/public/logs";
 import {
   AnthropicJsonSchemaObject,
@@ -145,7 +145,7 @@ export class AnthropicClient extends LLMClient {
 
     let toolDefinition: Tool | undefined;
     if (options.response_model) {
-      const jsonSchema = zodToJsonSchema(options.response_model.schema);
+      const jsonSchema = z.toJSONSchema(options.response_model.schema);
       const { properties: schemaProperties, required: schemaRequired } =
         extractSchemaProperties(jsonSchema);
 

@@ -1,6 +1,6 @@
 import type { ClientOptions } from "openai";
 import OpenAI from "openai";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
 import {
@@ -100,7 +100,7 @@ export class GroqClient extends LLMClient {
 
     // Add response model as a tool if provided
     if (options.response_model) {
-      const jsonSchema = zodToJsonSchema(options.response_model.schema) as {
+      const jsonSchema = z.toJSONSchema(options.response_model.schema) as {
         properties?: Record<string, unknown>;
         required?: string[];
       };
