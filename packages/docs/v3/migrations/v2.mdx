@@ -44,7 +44,7 @@ Stagehand v3 introduces significant improvements to the API design and functiona
 
 The `modelName` and `modelClientOptions` parameters have been unified into a single `model` parameter.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
@@ -59,7 +59,7 @@ const stagehand = new Stagehand({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 import { Stagehand } from "@browserbasehq/stagehand";
 
 // Option 1: String format (recommended for simplicity, auto-loads model API key from env)
@@ -87,14 +87,14 @@ const stagehand = new Stagehand({
 
 The `domSettleTimeoutMs` parameter has been renamed to `domSettleTimeout` for consistency.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const stagehand = new Stagehand({
   env: "LOCAL",
   domSettleTimeoutMs: 5000
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const stagehand = new Stagehand({
   env: "LOCAL",
   domSettleTimeout: 5000
@@ -105,14 +105,14 @@ const stagehand = new Stagehand({
 
 The `enableCaching` boolean has been replaced with a `cacheDir` string for more flexible cache management.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const stagehand = new Stagehand({
   env: "LOCAL",
   enableCaching: true
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const stagehand = new Stagehand({
   env: "LOCAL",
   cacheDir: "./stagehand-cache"  // Specify cache directory
@@ -123,7 +123,7 @@ const stagehand = new Stagehand({
 
 Direct page access has changed to use the Context API.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
@@ -132,7 +132,7 @@ const page = stagehand.page;
 await page.goto("https://example.com");
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
@@ -151,7 +151,7 @@ await page.goto("https://example.com");
 
 v3 introduces a structured Context API for managing multiple pages.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
@@ -159,7 +159,7 @@ await stagehand.init();
 const page = stagehand.page;
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
@@ -183,7 +183,7 @@ await stagehand.act("click button");  // Acts on newPage
 
 The `action` parameter has been removed from `ActOptions`. Now you only pass the instruction as a string.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 await page.act({
   action: "click the login button",
   modelName: "openai/gpt-5-mini",
@@ -194,7 +194,7 @@ await page.act({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // Clean, simple string instruction
 await stagehand.act("click the login button");
 
@@ -215,7 +215,7 @@ await stagehand.act("click the login button", {
 
 Model configuration follows the same pattern as initialization.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 await page.act({
   action: "fill the form",
   modelName: "anthropic/claude-sonnet-4-5",
@@ -225,7 +225,7 @@ await page.act({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // String format
 await stagehand.act("fill the form", {
   model: "anthropic/claude-sonnet-4-5"
@@ -244,14 +244,14 @@ await stagehand.act("fill the form", {
 
 `timeoutMs` has been renamed to `timeout`.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 await page.act({
   action: "click button",
   timeoutMs: 15000
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 await stagehand.act("click button", {
   timeout: 15000
 });
@@ -261,14 +261,14 @@ await stagehand.act("click button", {
 
 The `iframes` flag has been removed. iframe support is now automatic.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 await page.act({
   action: "click button inside iframe",
   iframes: true  // Required to interact with iframes
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // Automatic iframe support - no flag needed
 await stagehand.act("click button inside iframe");
 ```
@@ -281,12 +281,12 @@ await stagehand.act("click button inside iframe");
 
 The `ActResult` structure has been enhanced with more detailed information.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const result = await page.act("click the button");
 console.log(result.action);  // Single action string
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const result = await stagehand.act("click the button");
 console.log(result.actionDescription);  // Overall description
 console.log(result.actions);  // Array of action details
@@ -311,7 +311,7 @@ console.log(result.actions);  // Array of action details
 
 `extract()` has moved from the page object to the stagehand instance, with a cleaner parameter structure.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 import { z } from 'zod/v3';
 
 const result = await page.extract({
@@ -327,7 +327,7 @@ const result = await page.extract({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 import { z } from 'zod/v3';
 
 // Cleaner parameter structure
@@ -339,7 +339,7 @@ const result = await stagehand.extract(
   }),
   {
     model: "openai/gpt-5",
-    selector: "/html/body/div",
+    selector: ".container", // NEW: CSS selector support
     timeout: 10000,
     page: page  // Optional: specify which page
   }
@@ -354,7 +354,7 @@ const result = await stagehand.extract(
 
 Schema-less extraction also has a simpler interface.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 // String instruction
 const result = await page.extract("get the page title");
 // Returns: { extraction: "Page Title" }
@@ -364,7 +364,7 @@ const content = await page.extract();
 // Returns: { page_text: "..." }
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // String instruction
 const result = await stagehand.extract("get the page title");
 // Returns: { extraction: "Page Title" }
@@ -376,7 +376,7 @@ const content = await stagehand.extract();
 
 #### Model Configuration in extract()
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const data = await page.extract({
   instruction: "extract data",
   schema: DataSchema,
@@ -387,7 +387,7 @@ const data = await page.extract({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const data = await stagehand.extract(
   "extract data",
   DataSchema,
@@ -399,7 +399,7 @@ const data = await stagehand.extract(
 
 #### Automatic iframe Support
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const data = await page.extract({
   instruction: "extract data from iframe",
   schema: DataSchema,
@@ -407,7 +407,7 @@ const data = await page.extract({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // Automatic iframe support
 const data = await stagehand.extract(
   "extract data from iframe",
@@ -419,7 +419,7 @@ const data = await stagehand.extract(
 
 Array extraction now has a more ergonomic syntax.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 import { z } from 'zod/v3';
 
 // Had to wrap array in object
@@ -439,7 +439,7 @@ const result = await page.extract({
 // Access via: result.apartments
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 import { z } from 'zod/v3';
 
 // Can use array schema directly
@@ -464,7 +464,7 @@ console.log(result[0].address);
 
 #### Method Signature Updates
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const results = await page.observe({
   instruction: "find all buttons",
   modelName: "openai/gpt-5",
@@ -474,11 +474,11 @@ const results = await page.observe({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const results = await stagehand.observe("find all buttons", {
   model: "openai/gpt-5",
   timeout: 10000,
-  selector: ".container",  // New: scope observation to selector
+  selector: ".container",  // NEW: scope observation to selector
   page: page  // Optional: specify which page
 });
 ```
@@ -491,29 +491,28 @@ const results = await stagehand.observe("find all buttons", {
 
 The `drawOverlay` option has been removed in v3.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const results = await page.observe({
   instruction: "find buttons",
   drawOverlay: true  // Visual debugging
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // drawOverlay is no longer available
-// Use browser DevTools or logging for debugging
 const results = await stagehand.observe("find buttons");
 ```
 
 #### Automatic iframe Support
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const results = await page.observe({
   instruction: "find elements in iframe",
   iframes: true
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // Automatic iframe support
 const results = await stagehand.observe("find elements in iframe");
 ```
@@ -522,12 +521,12 @@ const results = await stagehand.observe("find elements in iframe");
 
 The observe → act workflow remains similar but with updated method signatures.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const [action] = await page.observe("find the login button");
 await page.act(action);
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const [action] = await stagehand.observe("find the login button");
 await stagehand.act(action);
 ```
@@ -538,7 +537,7 @@ await stagehand.act(action);
 
 The agent configuration has been significantly restructured in v3 with renamed parameters and new capabilities.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const agent = stagehand.agent({
   provider: "google",
   model: "gemini-2.5-computer-use-preview-10-2025",
@@ -551,7 +550,7 @@ const agent = stagehand.agent({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const agent = stagehand.agent({
   model: "google/gemini-2.5-computer-use-preview-10-2025",  // Provider now in model string
   systemPrompt: "You are a helpful assistant that can navigate websites.",  // Renamed from 'instructions'
@@ -574,7 +573,7 @@ const agent = stagehand.agent({
 
 Model configuration follows the same unified pattern as other methods.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const agent = stagehand.agent({
   provider: "google",
   model: "gemini-2.5-computer-use-preview-10-2025",
@@ -585,7 +584,7 @@ const agent = stagehand.agent({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 // String format (recommended)
 const agent = stagehand.agent({
   model: "google/gemini-2.5-computer-use-preview-10-2025"
@@ -605,7 +604,7 @@ const agent = stagehand.agent({
 
 The `execute()` method has been simplified with some options removed and new ones added.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const result = await agent.execute({
   instruction: "Search for products",
   maxSteps: 20,
@@ -615,7 +614,7 @@ const result = await agent.execute({
 });
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const result = await agent.execute({
   instruction: "Search for products",
   maxSteps: 20,
@@ -635,7 +634,7 @@ const result = await agent.execute({
 
 v3 introduces a new `executionModel` option to use a different (often faster/cheaper) model for tool execution.
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const agent = stagehand.agent({
   model: "anthropic/claude-sonnet-4-5",  // Main reasoning model
   executionModel: "anthropic/claude-haiku-4-5"  // Faster model for tool execution (act, extract, observe)
@@ -650,7 +649,7 @@ const result = await agent.execute("Complete the checkout process");
 
 v3 agents can now specify which page to operate on.
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const page1 = stagehand.page;
 const page2 = await stagehand.context.newPage();
 
@@ -672,11 +671,11 @@ const result = await agent.execute({
 
 History is now async and returns a promise.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const history = stagehand.history;
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const history = await stagehand.history;
 ```
 
@@ -684,11 +683,11 @@ const history = await stagehand.history;
 
 Metrics is now async and returns a promise.
 
-```typescript v2 icon="/images/typescript.svg"
+```typescript Stagehand v2 icon="/images/typescript.svg"
 const metrics = stagehand.metrics;
 ```
 
-```typescript v3 icon="/images/typescript.svg"
+```typescript Stagehand v3 icon="/images/typescript.svg"
 const metrics = await stagehand.metrics;
 ```
 
@@ -940,13 +939,13 @@ model: {
 const agent = stagehand.agent({
   provider: "anthropic",
   model: "claude-sonnet-4-5",
-  instructions: "You are helpful"
+  instructions: "You are a helpful assistant that..."
 });
 
 // v3 ✅
 const agent = stagehand.agent({
   model: "anthropic/claude-sonnet-4-5",
-  systemPrompt: "You are helpful"
+  systemPrompt: "You are a helpful assistant that..."
 });
 ```
 
@@ -968,7 +967,7 @@ await agent.execute({
 // v3 ✅
 const agent = stagehand.agent({
   model: "google/gemini-2.5-computer-use-preview-10-2025",
-  systemPrompt: "You are helpful. Additional context here."  // Move context to systemPrompt
+  systemPrompt: "Your context here."  // Move context to systemPrompt
 });
 
 await agent.execute({

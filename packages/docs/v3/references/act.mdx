@@ -222,13 +222,13 @@ await stagehand.act("click the login button");
 
 ```typescript
 // Using string format
-await stagehand.act("choose 'Peach' from the favourite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
   model: "google/gemini-2.5-flash",
   timeout: 10000
 });
 
 // Using object format with custom configuration
-await stagehand.act("choose 'Peach' from the favourite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
   model: {
     modelName: "gemini-2.5-flash",
     apiKey: process.env.GOOGLE_API_KEY,

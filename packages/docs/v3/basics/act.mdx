@@ -5,7 +5,7 @@ description: 'Interact with a web page'
 
 ## What is `act()`?
 ``` typescript
-stagehand.act("click on add to cart")
+await stagehand.act("click on add to cart")
 ```
 `act` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes. 
 
@@ -80,7 +80,7 @@ When you use `act()`, Stagehand will return a `Promise<ActResult>` with the foll
 
 
 <Tabs>
-<Tab title="Do this">
+<Tab title="Do this" icon="check">
 Break your task into single-step actions.
 
 ```typescript
@@ -91,7 +91,7 @@ await stagehand.act("click the apply button");
 ```
 </Tab>
 
-<Tab title="Don't do this">
+<Tab title="Don't do this" icon="xmark">
 For multi-step tasks, use [`agent()`](/basics/agent) instead.
 
 ```typescript
@@ -107,11 +107,10 @@ You can pass additional options to configure the model, timeout, variables, and 
 
 ```typescript
 // Custom model configuration
-await stagehand.act("choose 'Peach' from the favorite colour dropdown", {
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
   model: {
-    provider: "google",
-    model: "gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_API_KEY
+    modelName: "google/gemini-2.5-flash",
+    apiKey: process.env.GEMINI_API_KEY
   },
   timeout: 10000
 });
@@ -363,19 +362,19 @@ if (action.description.includes("checkout")) {
 
 <CardGroup cols={2}>
 
-  <Card title="Orchestrate complex workflows with Agent" icon="robot" iconType="sharp-solid" href="/basics/agent">
+  <Card title="Orchestrate complex workflows with Agent" icon="robot" iconType="sharp-solid" href="/v3/basics/agent">
     Use `Agent` to autonomously execute multi-step tasks and complex workflows.
   </Card>
 
-   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/best-practices/caching">
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/caching">
     Speed up repeated automations by caching actions.
   </Card>
 
-  <Card title="Extract data with extract()" icon="table" iconType="sharp-solid" href="/basics/extract">
+  <Card title="Extract data with extract()" icon="table" iconType="sharp-solid" href="/v3/basics/extract">
     Use `extract` with a data schema to pull clean, typed data from any page.
   </Card>
 
-  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/best-practices/working-with-iframes">
-    Learn best practices for interacting with elements inside iframes.
+  <Card title="Preview actions with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/v3/basics/observe">
+    Preview actions with `observe()` before executing them.
   </Card>
 </CardGroup>

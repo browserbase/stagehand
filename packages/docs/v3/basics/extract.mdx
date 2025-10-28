@@ -6,7 +6,7 @@ description: Extract structured data from a webpage
 ## What is `extract()`?
 
 ```typescript
-stagehand.extract("extract the name of the repository");
+await stagehand.extract("extract the name of the repository");
 ```
 
 `extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
@@ -160,7 +160,7 @@ This returns the accessibility tree representation of the page without LLM proce
 You can pass additional options to configure the model, timeout, and selector scope:
 ```typescript
 const result = await stagehand.extract("extract the repository name", {
-  model: "openai/gpt-4o",
+  model: "anthropic/claude-sonnet-4-5",
   timeout: 30000,
   selector: "//header" // Focus on specific area
 });
@@ -179,7 +179,8 @@ const tableData = await stagehand.extract(
     values: z.array(z.string())
   }),
   {
-    selector: "xpath=/html/body/div/table/"
+    // xPath or CSS selector
+    selector: "xpath=/html/body/div/table/" 
   }
 );
 ```
@@ -331,10 +332,10 @@ for (const pageNum of pageNumbers) {
 <CardGroup cols={2}>
 
   <Card title="Act" icon="play" href="/v3/basics/act">
-    Execute actions efficiently using observe results
+    Execute actions efficiently
   </Card>
 
   <Card title="Observe" icon="magnifying-glass" href="/v3/basics/observe">
-    Analyze pages with observe()
+    Analyze pages and preview actions
   </Card>
 </CardGroup>
