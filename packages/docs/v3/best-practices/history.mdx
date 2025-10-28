@@ -46,7 +46,7 @@ interface HistoryEntry {
 
 ```typescript
 try {
-  await page.act("click login button");
+  await stagehand.act("click login button");
 } catch (error) {
   const history = await stagehand.history;
 
@@ -147,9 +147,9 @@ Only Stagehand methods are tracked in history:
 
 ```typescript
 // Tracked
-await page.act("click button");              // ✓
-await page.extract({ instruction: "..." }); // ✓
-await page.observe("find elements");         // ✓
+await stagehand.act("click button");              // ✓
+await stagehand.extract({ instruction: "..." }); // ✓
+await stagehand.observe("find elements");         // ✓
 await page.goto("https://example.com");      // ✓
 
 // Not tracked
