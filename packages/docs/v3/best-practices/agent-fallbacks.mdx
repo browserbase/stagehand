@@ -29,8 +29,7 @@ try {
   console.log("Agent fallback triggered");
 
   const agent = stagehand.agent({
-    provider: "anthropic",
-    model: "claude-sonnet-4-20250514",
+    model: "anthropic/claude-sonnet-4-20250514",
     instructions: "You are a helpful assistant that can use a web browser.",
   });
 
@@ -45,3 +44,4 @@ try {
 }
 ```
 
+See all available agent models on the [models page](/v3/configuration/models#agent-models-with-cua-support).
