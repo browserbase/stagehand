@@ -10,7 +10,8 @@ import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
-
+import type { StagehandAPIClient } from "../api";
+import type { LocalBrowserLaunchOptions } from "../types/public";
 /**
  * Page
  *
@@ -52,15 +53,22 @@ export class Page {
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
 
+  private navigationCommandSeq = 0;
+  private latestNavigationCommandId = 0;
+
   private readonly networkManager: NetworkManager;
+  /** Optional API client for routing page operations to the API */
+  private readonly apiClient: StagehandAPIClient | null = null;
 
   private constructor(
     private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
+    apiClient?: StagehandAPIClient | null,
   ) {
     this.pageId = _targetId;
+    this.apiClient = apiClient ?? null;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -183,6 +191,8 @@ export class Page {
     conn: CdpConnection,
     session: CDPSessionLike,
     targetId: string,
+    apiClient?: StagehandAPIClient | null,
+    localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -193,10 +203,19 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId);
+    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+      if (localBrowserLaunchOptions?.viewport) {
+        await page.setViewportSize(
+          localBrowserLaunchOptions.viewport.width,
+          localBrowserLaunchOptions.viewport.height,
+          {
+            deviceScaleFactor: localBrowserLaunchOptions.deviceScaleFactor ?? 1,
+          },
+        );
+      }
     } catch {
       // ignore
     }
@@ -489,15 +508,28 @@ export class Page {
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
+    const navigationCommandId = this.beginNavigationCommand();
+
     const watcher = new LifecycleWatcher({
       page: this,
       mainSession: this.mainSession,
       networkManager: this.networkManager,
       waitUntil,
       timeoutMs: timeout,
+      navigationCommandId,
     });
 
     try {
+      // Route to API if available
+      if (this.apiClient) {
+        await this.apiClient.goto(
+          url,
+          { waitUntil: options?.waitUntil },
+          this.mainFrameId(),
+        );
+        this._currentUrl = url;
+        return;
+      }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
           "Page.navigate",
@@ -522,6 +554,8 @@ export class Page {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
+    const navigationCommandId = this.beginNavigationCommand();
+
     const watcher = waitUntil
       ? new LifecycleWatcher({
           page: this,
@@ -529,6 +563,7 @@ export class Page {
           networkManager: this.networkManager,
           waitUntil,
           timeoutMs: timeout,
+          navigationCommandId,
         })
       : null;
 
@@ -561,6 +596,8 @@ export class Page {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
+    const navigationCommandId = this.beginNavigationCommand();
+
     const watcher = waitUntil
       ? new LifecycleWatcher({
           page: this,
@@ -568,6 +605,7 @@ export class Page {
           networkManager: this.networkManager,
           waitUntil,
           timeoutMs: timeout,
+          navigationCommandId,
         })
       : null;
 
@@ -601,6 +639,8 @@ export class Page {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
+    const navigationCommandId = this.beginNavigationCommand();
+
     const watcher = waitUntil
       ? new LifecycleWatcher({
           page: this,
@@ -608,6 +648,7 @@ export class Page {
           networkManager: this.networkManager,
           waitUntil,
           timeoutMs: timeout,
+          navigationCommandId,
         })
       : null;
 
@@ -630,6 +671,16 @@ export class Page {
    */
   url(): string {
     return this._currentUrl;
+  }
+
+  private beginNavigationCommand(): number {
+    const id = ++this.navigationCommandSeq;
+    this.latestNavigationCommandId = id;
+    return id;
+  }
+
+  public isCurrentNavigationCommand(id: number): boolean {
+    return this.latestNavigationCommandId === id;
   }
 
   /**

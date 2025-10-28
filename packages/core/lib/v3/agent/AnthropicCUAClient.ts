@@ -130,7 +130,7 @@ export class AnthropicCUAClient extends AgentClient {
         logger({
           category: "agent",
           message: `Executing step ${currentStep + 1}/${maxSteps}`,
-          level: 2,
+          level: 1,
         });
 
         const result = await this.executeStep(inputItems, logger);
