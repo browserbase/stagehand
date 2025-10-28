@@ -380,11 +380,11 @@ import { createGoogle } from '@ai-sdk/google';
 import { AISdkClient } from '@browserbasehq/stagehand';
 
 const googleProvider = createGoogle({
-apiKey: 'xxxxxxxxx',
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 const googleClient = new AISdkClient({
-model: googleProvider("google/gemini-2.5-flash"),
+  model: googleProvider("google/gemini-2.5-flash"),
 });
 
 ```
@@ -417,11 +417,11 @@ import { createProvider } from '@ai-sdk/provider';
 import { AISdkClient } from '@browserbasehq/stagehand';
 
 const provider = createProvider({
-apiKey: 'xxxxxxxxx',
+  apiKey: 'xxxxxxxxx',
 });
 
 const providerClient = new AISdkClient({
-model: provider("model/name"),
+  model: provider("model/name"),
 });
 
 ```
@@ -729,7 +729,7 @@ The following models work without the `provider/` prefix in the model parameter 
 
 | Provider   | Environment Variable           |
 | ---------- | ------------------------------ |
-| Google     | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
 | OpenAI     | `OPENAI_API_KEY`               |
 | Azure      | `AZURE_API_KEY`                |

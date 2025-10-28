@@ -64,10 +64,7 @@ async function main() {
 
   const agent = stagehand.agent({
     cua: true,
-    model: {
-      modelName: "google/gemini-2.5-computer-use-preview-10-2025",
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
-    },
+    model: "google/gemini-2.5-computer-use-preview-10-2025",
     systemPrompt: "You're a helpful assistant that can control a web browser.",
   });
 
