@@ -9,10 +9,33 @@ description: Next.js is a popular framework for developing web-based application
   icon="github"
   href="https://github.com/browserbase/stagehand-nextjs-quickstart"
 >
-  Clone our [GitHub repo](https://github.com/browserbase/stagehand-nextjs-quickstart) to get started with Stagehand in Next.js.
+  Clone our [GitHub repo](https://github.com/browserbase/stagehand-nextjs-quickstart) to get started with Stagehand (v2) in Next.js.
 </Card>
 
 ## Add Stagehand to an existing Next.js project
+If you'd like to start from scratch, you can run:
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm create next-app@latest stagehand-nextjs --yes
+cd stagehand-nextjs
+```
+</Tab>
+<Tab title="pnpm">
+```bash
+pnpm create next-app@latest stagehand-nextjs --yes
+cd stagehand-nextjs
+```
+</Tab>
+<Tab title="yarn">
+```bash
+yarn create next-app@latest stagehand-nextjs --yes
+cd stagehand-nextjs
+```
+</Tab>
+</Tabs>
+
 If you'd like to add Stagehand to an existing Next.js project, you can do so by installing the dependencies:
 <Tabs>
 	<Tab title="npm">
@@ -33,6 +56,14 @@ If you'd like to add Stagehand to an existing Next.js project, you can do so by 
 	```
 	</Tab>
 </Tabs>
+
+### Add environment variables
+Next, let's add the environment variables to a `.env` file.
+```env
+BROWSERBASE_API_KEY=your-browserbase-api-key
+BROWSERBASE_PROJECT_ID=your-browserbase-project-id
+OPENAI_API_KEY=your-openai-api-key
+```
 
 ### Write a server action
 Next, let's define our `main` function as a server action in `app/stagehand/main.ts`. This file will have the following three functions:
@@ -57,17 +88,17 @@ import { Browserbase } from "@browserbasehq/sdk";
 async function main(stagehand: Stagehand) {
   // You can use the `page` instance to write any Playwright code
   // For more info: https://playwright.dev/docs/pom
-  const page = stagehand.context.pages()[0];
+  const page = stagehand.context.activePage();
 
   // In this example, we'll get the title of the Stagehand quickstart page
-  await page.goto("https://docs.stagehand.dev/");
+  await page?.goto("https://docs.stagehand.dev/");
   await stagehand.act("click the quickstart link");
-  const { title } = await stagehand.extract({
-    instruction: "extract the main heading of the page",
-    schema: z.object({
+  const { title } = await stagehand.extract(
+    "extract the main heading of the page",
+    z.object({
       title: z.string(),
     }),
-  });
+  );
 
   return title;
 }
@@ -86,7 +117,8 @@ export async function runStagehand(sessionId?: string) {
     disablePino: true,
   });
   await stagehand.init();
-  await main(stagehand);
+  const result = await main(stagehand);
+  console.log(result);
   await stagehand.close();
 }
 
@@ -150,6 +182,20 @@ export default function Home() {
 		</main>
 	)
 }
+```
+
+### Run the app
+To run the app, you can use the following command:
+```bash
+npm run dev
+```
+or
+```bash
+pnpm dev
+```
+or
+```bash
+yarn dev
 ```
 
 ## References
