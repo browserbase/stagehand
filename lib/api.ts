@@ -60,10 +60,13 @@ export class StagehandAPI {
     browserbaseSessionCreateParams,
     browserbaseSessionID,
   }: StartSessionParams): Promise<StartSessionResult> {
-    if (!modelApiKey) {
+    // Only require modelApiKey for built-in providers, inferred from modelName
+    const builtInProviders = ["openai", "anthropic", "google", "aisdk"];
+    const provider = modelName?.split("/")[0]?.toLowerCase();
+    if (!modelApiKey && builtInProviders.includes(provider)) {
       throw new StagehandAPIError("modelApiKey is required");
     }
-    this.modelApiKey = modelApiKey;
+    this.modelApiKey = modelApiKey ?? "";
 
     const sessionCreateParams = applyDefaultBrowserSettingsViewport(
       browserbaseSessionCreateParams,
