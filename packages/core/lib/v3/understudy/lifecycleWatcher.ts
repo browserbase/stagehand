@@ -98,10 +98,7 @@ export class LifecycleWatcher {
 
       while (true) {
         await this.awaitWithAbort(
-          this.page.waitForMainLoadState(
-            "load",
-            this.timeRemaining(deadline),
-          ),
+          this.page.waitForMainLoadState("load", this.timeRemaining(deadline)),
         );
 
         if (this.waitUntil !== "networkidle") break;

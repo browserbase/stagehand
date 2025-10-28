@@ -5,7 +5,7 @@ import { chromium as playwrightChromium } from "playwright";
 import { chromium as patchrightChromium } from "patchright-core";
 import { Action } from "../types/public/methods";
 import { AnyPage } from "../types/public/page";
-import { v3TestConfig } from "./v3.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 
 /**
  * IMPORTANT:
@@ -184,7 +184,7 @@ test.describe.parallel("Stagehand v3: shadow <-> iframe scenarios", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3TestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 

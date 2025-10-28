@@ -282,7 +282,9 @@ export class AgentCache {
             modelOptions as Record<string, unknown>,
           )
         : undefined;
-    return sanitizedOptions ? { modelName, options: sanitizedOptions } : modelName;
+    return sanitizedOptions
+      ? { modelName, options: sanitizedOptions }
+      : modelName;
   }
 
   private buildAgentCacheKey(
@@ -315,7 +317,9 @@ export class AgentCache {
       }
     }
 
-    return Object.keys(sanitizedEntries).length > 0 ? sanitizedEntries : undefined;
+    return Object.keys(sanitizedEntries).length > 0
+      ? sanitizedEntries
+      : undefined;
   }
 
   private sanitizeModelValueForCache(value: unknown): unknown {
@@ -327,7 +331,9 @@ export class AgentCache {
     }
 
     if (value && typeof value === "object") {
-      return this.sanitizeModelOptionsForCache(value as Record<string, unknown>);
+      return this.sanitizeModelOptionsForCache(
+        value as Record<string, unknown>,
+      );
     }
 
     return value;
