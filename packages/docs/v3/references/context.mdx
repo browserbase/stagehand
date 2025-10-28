@@ -148,15 +148,15 @@ const settingsPage = await context.newPage("https://example.com/settings");
 
 // Work with specific page
 context.setActivePage(dashboardPage);
-await stagehand.stagehand.act("click the export button");
+await stagehand.act("click the export button");
 
 // Switch to another page
 context.setActivePage(settingsPage);
-await stagehand.stagehand.act("enable notifications");
+await stagehand.act("enable notifications");
 
 // Back to main page
 context.setActivePage(mainPage);
-await stagehand.stagehand.act("click the logout button");
+await stagehand.act("click the logout button");
 
 await stagehand.close();
 ```
