@@ -148,3 +148,37 @@ await agent.execute({
 	maxSteps: 10,
 });
 ``` 
+
+### Select Your Computer Use Model
+
+Stagehand supports computer use models from Google, Anthropic, and OpenAI. You can find all supported models on the [models page](/v3/configuration/models#agent-models-with-cua-support).
+
+<Tabs>
+<Tab title="Google">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "google/gemini-2.5-computer-use-preview-10-2025",
+    // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+<Tab title="Anthropic">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "anthropic/claude-sonnet-4-20250514",
+    // ANTHROPIC_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+<Tab title="OpenAI">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "openai/computer-use-preview",
+    // OPENAI_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+</Tabs>

@@ -10,10 +10,11 @@ Understand web pages, plan actions, and interact with complex interfaces with Go
 
 ## Configuration Setup
 
-### Quickstart
+### Quick Start
 
 <Tip>
-Set your API key in `.env` and Stagehand handles the rest. No explicit configuration needed!
+  Set your API key in `.env` and Stagehand handles the rest. No explicit
+  configuration needed!
 </Tip>
 
 Get started with Google Gemini (recommended for speed and cost):
@@ -29,6 +30,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 
@@ -53,12 +55,12 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
 </Tab>
 
 <Tab title="Anthropic">
-
 
 <CodeGroup>
 ```typescript TypeScript
@@ -71,6 +73,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 [View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
@@ -91,6 +94,7 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported OpenAI models →](https://platform.openai.com/docs/models)
 </Tab>
@@ -107,6 +111,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 [View all supported Azure models →](https://ai.azure.com/catalog)
@@ -125,12 +130,12 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
 </Tab>
 
 <Tab title="DeepSeek">
-
 
 <CodeGroup>
 ```typescript TypeScript
@@ -143,6 +148,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 [View all supported DeepSeek models →](https://api-docs.deepseek.com/quick_start/pricing)
@@ -163,12 +169,12 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported Groq models →](https://console.groq.com/docs/models)
 </Tab>
 
 <Tab title="Mistral">
-
 
 <CodeGroup>
 ```typescript TypeScript
@@ -181,6 +187,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 [View all supported Mistral models →](https://docs.mistral.ai/getting-started/models)
@@ -201,6 +208,7 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported Ollama models →](https://ollama.com/library)
 </Tab>
@@ -217,6 +225,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 [View all supported Perplexity models →](https://docs.perplexity.ai/getting-started/models)
@@ -234,6 +243,7 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </CodeGroup>
 [View all supported TogetherAI models →](https://www.together.ai/models)
 
@@ -251,6 +261,7 @@ const stagehand = new Stagehand({
 });
 
 await stagehand.init();
+
 ```
 </CodeGroup>
 
@@ -263,7 +274,7 @@ await stagehand.init();
 
 ### Custom Models
 
-Amazon Bedrock, Cohere, all [first class models](/configuration/models#first-class-models), and any model from [the Vercel AI SDK](https://sdk.vercel.ai/providers) is supported.
+Amazon Bedrock, Cohere, all [first class models](/v3/configuration/models#first-class-models), and any model from [the Vercel AI SDK](https://sdk.vercel.ai/providers) is supported.
 
 Use this configuration for custom endpoints and custom retry or caching logic.
 
@@ -281,6 +292,7 @@ Install the Vercel AI SDK for your provider.
 ```bash
 npm install @ai-sdk/amazon-bedrock
 ```
+
 </Tab>
 <Tab title="pnpm">
 ```bash
@@ -315,6 +327,7 @@ const bedrockProvider = createAmazonBedrock({
 const bedrockClient = new AISdkClient({
   model: bedrockProvider("amazon/nova-pro-latest"),
 });
+
 ```
 </Step>
 
@@ -367,12 +380,13 @@ import { createGoogle } from '@ai-sdk/google';
 import { AISdkClient } from '@browserbasehq/stagehand';
 
 const googleProvider = createGoogle({
-  apiKey: 'xxxxxxxxx',
+apiKey: 'xxxxxxxxx',
 });
 
 const googleClient = new AISdkClient({
-  model: googleProvider("google/gemini-2.5-flash"),
+model: googleProvider("google/gemini-2.5-flash"),
 });
+
 ```
 </Step>
 
@@ -385,6 +399,7 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </Step>
 </Steps>
 </Accordion>
@@ -402,12 +417,13 @@ import { createProvider } from '@ai-sdk/provider';
 import { AISdkClient } from '@browserbasehq/stagehand';
 
 const provider = createProvider({
-  apiKey: 'xxxxxxxxx',
+apiKey: 'xxxxxxxxx',
 });
 
 const providerClient = new AISdkClient({
-  model: provider("model/name"),
+model: provider("model/name"),
 });
+
 ```
 </Step>
 <Step title="Pass client to Stagehand">
@@ -419,10 +435,13 @@ const stagehand = new Stagehand({
 
 await stagehand.init();
 ```
+
 </Step>
 </Steps>
 </Accordion>
 </AccordionGroup>
+
+
 ---
 
 ## Choose a Model
@@ -446,6 +465,93 @@ Different models excel at different tasks. Consider speed, accuracy, and cost fo
 ---
 
 ## Advanced Options
+
+### Agent Models (with CUA Support)
+
+**Default**
+
+The Stagehand agent by default uses the same model passed to Stagehand. All models ([first class](/v3/configuration/models#first-class-models) and [custom](/v3/configuration/models#custom-models)) are supported. Here's an example with Gemini:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other stagehand options
+});
+
+// Agent will use google/gemini-2.5-flash
+const agent = stagehand.agent();
+```
+
+**Override (with CUA support)**
+
+However, the stagehand agent also accepts a `model` parameter, which accepts any [first class](/v3/configuration/models#first-class-models) model, including [computer use agents (CUA)](/v3/configuration/models#agent-models-with-cua-support). This is useful when you'd like the agent to use a different model than the one passed to Stagehand.
+
+<Tip>
+  To use a cua model, you must pass the `cua` parameter to the `agent()` method. If a non-cua model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
+</Tip>
+
+<Tabs>
+<Tab title="Google CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "google/gemini-2.5-computer-use-preview-10-2025",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="Anthropic CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "anthropic/claude-3-7-sonnet-latest",
+  // ANTHROPIC_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="OpenAI CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "openai/computer-use-preview",
+  // OPENAI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="Example First Class Model">
+All [first class models](/v3/configuration/models#first-class-models) are supported. Here's an example with Gemini:
+
+```typescript
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-pro",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+</Tabs>
+
+<Accordion title="All Supported CUA Models">
+| Provider | Model |
+| -------- | ----- |
+| Google   | google/gemini-2.5-computer-use-preview-10-2025 |
+| Anthropic | anthropic/claude-3-7-sonnet-latest |
+| Anthropic | anthropic/claude-haiku-4-5-20251001 |
+| Anthropic | anthropic/claude-sonnet-4-20250514 |
+| Anthropic | anthropic/claude-sonnet-4-5-20250929 |
+| OpenAI   | openai/computer-use-preview |
+| OpenAI   | openai/computer-use-preview-2025-03-11 |
+</Accordion>
+
+<Note>
+  For overriding the agent API key, using a corporate proxy, adding provider-specific options, or other advanced use cases, the agent model can also take the form of an object. To learn more, see the [Agent Reference](/v3/references/agent).
+</Note>
+---
 
 ### Custom Endpoints
 
@@ -479,10 +585,11 @@ const stagehand = new Stagehand({
   model: {
     model: "anthropic/claude-haiku-4-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
-    baseURL: "https://custom-anthropic-endpoint.com"
-  }
+    baseURL: "https://custom-anthropic-endpoint.com",
+  },
 });
 ```
+
   </Tab>
 <Tab title="All Other Providers">
 For all other providers, use `llmClient`. Here's an example with Hugging Face:
@@ -490,7 +597,7 @@ For all other providers, use `llmClient`. Here's an example with Hugging Face:
 ```typescript
 // pnpm add @ai-sdk/huggingface
 
-import { createHuggingFace } from '@ai-sdk/huggingface';
+import { createHuggingFace } from "@ai-sdk/huggingface";
 import { AISdkClient } from "@browserbasehq/stagehand";
 
 const huggingFaceProvider = createHuggingFace({
@@ -507,8 +614,11 @@ const stagehand = new Stagehand({
   llmClient: huggingFaceClient,
 });
 ```
+
 </Tab>
 </Tabs>
+
+---
 
 ### Extending the AI SDK Client
 
@@ -537,6 +647,8 @@ class CustomRetryClient extends LLMClient {
   Need custom caching? Consider using built-in [caching
   feature](/best-practices/caching).
 </Tip>
+
+---
 
 ### Legacy Model Format
 
@@ -615,20 +727,20 @@ The following models work without the `provider/` prefix in the model parameter 
 - Ensure environment variables are loaded (use `dotenv`)
 - Restart your application after updating `.env` file
 
-| Provider | Environment Variable |
-|----------|---------------------|
-| Google | `GOOGLE_GENERATIVE_AI_API_KEY` |
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Azure | `AZURE_API_KEY` |
-| Cerebras | `CEREBRAS_API_KEY` |
-| DeepSeek | `DEEPSEEK_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
-| Ollama | None (local) |
-| Perplexity | `PERPLEXITY_API_KEY` |
-| TogetherAI | `TOGETHER_AI_API_KEY` |
-| xAI | `XAI_API_KEY` |
+| Provider   | Environment Variable           |
+| ---------- | ------------------------------ |
+| Google     | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| Anthropic  | `ANTHROPIC_API_KEY`            |
+| OpenAI     | `OPENAI_API_KEY`               |
+| Azure      | `AZURE_API_KEY`                |
+| Cerebras   | `CEREBRAS_API_KEY`             |
+| DeepSeek   | `DEEPSEEK_API_KEY`             |
+| Groq       | `GROQ_API_KEY`                 |
+| Mistral    | `MISTRAL_API_KEY`              |
+| Ollama     | None (local)                   |
+| Perplexity | `PERPLEXITY_API_KEY`           |
+| TogetherAI | `TOGETHER_AI_API_KEY`          |
+| xAI        | `XAI_API_KEY`                  |
 
 </Accordion>
 
@@ -664,6 +776,7 @@ The following models work without the `provider/` prefix in the model parameter 
 We are working on Python support for Stagehand v3 and custom models.
 
 **Solutions:**
+
 - Request updates on Python support from our support team at [support@browserbase.com](mailto:support@browserbase.com)
 </Accordion>
 </AccordionGroup>
@@ -688,7 +801,7 @@ Can't find a solution? Have a question? Reach out to our support team:
 <Card title="Prompting Guide" href="/best-practices/prompting-best-practices" icon="brain">
   Learn how to prompt LLMs for optimal results
 </Card>
-<Card title="Run Evals" href="/configuration/evals" icon="flask-vial">
+<Card title="Run Evals" href="/v3/configuration/evals" icon="flask-vial">
   Test which models work best for your specific use case
 </Card>
 
