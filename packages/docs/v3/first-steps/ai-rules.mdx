@@ -90,252 +90,267 @@ Drop these in `.cursorrules`, `windsurfrules`, `claude.md`, or any agent rule fr
 ``````md
 # Stagehand Project
 
-This is a project that uses [Stagehand](https://github.com/browserbase/stagehand), which amplifies Playwright with AI-powered `act`, `extract`, and `observe` methods added to the Page class.
+This is a project that uses Stagehand V3, a browser automation framework with AI-powered `act`, `extract`, `observe`, and `agent` methods.
 
-`Stagehand` is a class that provides configuration and browser automation capabilities with:
-- `stagehand.page`: A StagehandPage object (extends Playwright Page)
-- `stagehand.context`: A StagehandContext object (extends Playwright BrowserContext)
-- `stagehand.agent()`: Create AI-powered agents for autonomous multi-step workflows
-- `stagehand.init()`: Initialize the browser session
-- `stagehand.close()`: Clean up resources
+The main class can be imported as `Stagehand` from `@browserbasehq/stagehand`.
 
-`Page` extends Playwright's Page class with AI-powered methods:
-- `act()`: Perform actions on web elements using natural language
-- `extract()`: Extract structured data from pages using schemas
-- `observe()`: Plan actions and get selectors before executing
+**Key Classes:**
 
-`Agent` provides autonomous Computer Use Agent capabilities:
-- `execute()`: Perform complex multi-step tasks using natural language instructions
-
-`Context` extends Playwright's BrowserContext class for browser session management.
-
-Use the following rules to write code for this project.
-
-- To plan an instruction like "click the sign in button", use Stagehand `observe` to get the action to execute.
-
-```typescript
-const results = await stagehand.observe("Click the sign in button");
-```
-
-You can also pass in the following params:
-
-```typescript
-await stagehand.observe({
-  instruction: "the instruction to execute",
-  returnAction: true 
-});
-```
-
-- The result of `observe` is an array of `ObserveResult` objects that can directly be used as params for `act` like this:
-  ```typescript
-  const results = await stagehand.observe({
-    instruction: "the instruction to execute",
-    returnAction: true, // return the action to execute
-  });
-
-  await stagehand.act(results[0]);
-  ```
-  
-- When writing code that needs to extract data from the page, use Stagehand `extract`. Explicitly pass the following params by default:
-
-```typescript
-const { someValue } = await stagehand.extract({
-  instruction: "the instruction to execute",
-  schema: z.object({
-    someValue: z.string(),
-  }), // The schema to extract
-});
-```
+- `Stagehand`: Main orchestrator class providing `act`, `extract`, `observe`, and `agent` methods
+- `context`: A `V3Context` object that manages browser contexts and pages
+- `page`: Individual page objects accessed via `stagehand.context.pages()[i]` or created with `stagehand.context.newPage()`
 
 ## Initialize
 
 ```typescript
-import { Stagehand, Page, BrowserContext } from "@browserbasehq/stagehand";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({
-  env: "BROWSERBASE"
+  env: "LOCAL", // or "BROWSERBASE"
+  verbose: 2, // 0, 1, or 2
+  model: "openai/gpt-4.1-mini", // or any supported model
 });
 
 await stagehand.init();
 
-const page = stagehand.context.pages()[0]; // Playwright Page with act, extract, and observe methods
+// Access the browser context and pages
+const page = stagehand.context.pages()[0];
+const context = stagehand.context;
 
-const context = stagehand.context; // Playwright BrowserContext
+// Create new pages if needed
+const page2 = await stagehand.context.newPage();
 ```
-### Configuration Options
-```typescript
-const StagehandConfig = {
-  env: "BROWSERBASE" | "LOCAL", // Environment to run in
-  apiKey: process.env.BROWSERBASE_API_KEY, // Browserbase API key
-  projectId: process.env.BROWSERBASE_PROJECT_ID, // Browserbase project ID
-  debugDom: true, // Enable DOM debugging features
-  headless: false, // Run browser in headless mode
-  domSettleTimeoutMs: 30_000, // Timeout for DOM to settle
-  enableCaching: true, // Enable action caching
-  modelName: "gpt-4o", // AI model to use
-  modelClientOptions: {
-    apiKey: process.env.OPENAI_API_KEY, // OpenAI API key
-  },
-};
-```
+
 ## Act
 
-You can act directly with string instructions:
+Actions are called on the `stagehand` instance (not the page). Use atomic, specific instructions:
 
 ```typescript
-await stagehand.act("Click the sign in button");
+// Act on the current active page
+await stagehand.act("click the sign in button");
+
+// Act on a specific page (when you need to target a page that isn't currently active)
+await stagehand.act("click the sign in button", { page: page2 });
 ```
 
-Use variables for dynamic form filling:
+**Important:** Act instructions should be atomic and specific:
+
+- ✅ Good: "Click the sign in button" or "Type 'hello' into the search input"
+- ❌ Bad: "Order me pizza" or "Type in the search bar and hit enter" (multi-step)
+
+### Observe + Act Pattern (Recommended)
+
+Cache the results of `observe` to avoid unexpected DOM changes:
 
 ```typescript
-await stagehand.act({
-  action: `Enter the following information:
-    Name: %name%
-    Email: %email%
-    Phone: %phone%`,
-  variables: {
-    name: "John Doe",
-    email: "john@example.com", 
-    phone: "+1-555-0123"
-  }
+const instruction = "Click the sign in button";
+
+// Get candidate actions
+const actions = await stagehand.observe(instruction);
+
+// Execute the first action
+await stagehand.act(actions[0]);
+```
+
+To target a specific page:
+
+```typescript
+const actions = await stagehand.observe("select blue as the favorite color", {
+  page: page2,
 });
+await stagehand.act(actions[0], { page: page2 });
 ```
-
-**Best Practices:**
-- Cache the results of `observe` to avoid unexpected DOM changes
-- Keep actions atomic and specific (e.g., "Click the sign in button" not "Sign in to the website")
-- Use variable substitution for dynamic data entry
-
-Act `action` should be as atomic and specific as possible, i.e. "Click the sign in button" or "Type 'hello' into the search input".
-AVOID actions that are more than one step, i.e. "Order me pizza" or "Send an email to Paul asking him to call me".
 
 ## Extract
 
-### Simple String Extraction
+Extract data from pages using natural language instructions. The `extract` method is called on the `stagehand` instance.
 
-```typescript
-const signInButtonText = await stagehand.extract("extract the sign in button text");
-```
-
-### Structured Extraction with Schema (Recommended)
-
-Always use Zod schemas for structured data extraction:
+### Basic Extraction (with schema)
 
 ```typescript
 import { z } from "zod/v3";
 
-const data = await stagehand.extract({
-  instruction: "extract the sign in button text",
-  schema: z.object({
-    text: z.string(),
+// Extract with explicit schema
+const data = await stagehand.extract(
+  "extract all apartment listings with prices and addresses",
+  z.object({
+    listings: z.array(
+      z.object({
+        price: z.string(),
+        address: z.string(),
+      }),
+    ),
   }),
-});
+);
+
+console.log(data.listings);
 ```
 
-### Array Extraction
-
-To extract multiple items, wrap the array in a single object:
+### Simple Extraction (without schema)
 
 ```typescript
-const data = await stagehand.extract({
-  instruction: "extract the text inside all buttons",
-  schema: z.object({
-    buttons: z.array(z.string()),
-  })
-});
+// Extract returns a default object with 'extraction' field
+const result = await stagehand.extract("extract the sign in button text");
+
+console.log(result);
+// Output: { extraction: "Sign in" }
+
+// Or destructure directly
+const { extraction } = await stagehand.extract(
+  "extract the sign in button text",
+);
+console.log(extraction); // "Sign in"
 ```
 
-### Complex Object Extraction
+### Targeted Extraction
 
-For more complex data structures:
+Extract data from a specific element using a selector:
 
 ```typescript
-const productData = await stagehand.extract({
-  instruction: "extract product information from this page",
-  schema: z.object({
-    title: z.string(),
-    price: z.number(),
-    description: z.string(),
-    features: z.array(z.string()),
-    availability: z.boolean(),
+const reason = await stagehand.extract(
+  "extract the reason why script injection fails",
+  z.string(),
+  { selector: "/html/body/div[2]/div[3]/iframe/html/body/p[2]" },
+);
+```
+
+### URL Extraction
+
+When extracting links or URLs, use `z.string().url()`:
+
+```typescript
+const { links } = await stagehand.extract(
+  "extract all navigation links",
+  z.object({
+    links: z.array(z.string().url()),
   }),
+);
+```
+
+### Extracting from a Specific Page
+
+```typescript
+// Extract from a specific page (when you need to target a page that isn't currently active)
+const data = await stagehand.extract(
+  "extract the placeholder text on the name field",
+  { page: page2 },
+);
+```
+
+## Observe
+
+Plan actions before executing them. Returns an array of candidate actions:
+
+```typescript
+// Get candidate actions on the current active page
+const [action] = await stagehand.observe("Click the sign in button");
+
+// Execute the action
+await stagehand.act(action);
+```
+
+Observing on a specific page:
+
+```typescript
+// Target a specific page (when you need to target a page that isn't currently active)
+const actions = await stagehand.observe("find the next page button", {
+  page: page2,
 });
+await stagehand.act(actions[0], { page: page2 });
 ```
 
-### Schema Validation
+## Agent
+
+Use the `agent` method to autonomously execute complex, multi-step tasks.
+
+### Basic Agent Usage
 
 ```typescript
-import { validateZodSchema } from "./utils.js";
-import { z } from "zod/v3";
+const page = stagehand.context.pages()[0];
+await page.goto("https://www.google.com");
 
-const schema = z.object({ name: z.string() });
-const isValid = validateZodSchema(schema, { name: "John" }); // true
-```
-
-## Agent System
-
-Stagehand provides an Agent System for autonomous web browsing using Computer Use Agents (CUA). Agents execute multi-step workflows using natural language instructions.
-
-### Creating Agents
-
-```typescript
-// Basic agent (default)
-const agent = stagehand.agent();
-
-// OpenAI agent
 const agent = stagehand.agent({
-  provider: "openai",
-  model: "computer-use-preview",
-  instructions: "You are a helpful assistant that can use a web browser.",
-  options: { 
-    apiKey: process.env.OPENAI_API_KEY 
-  }
+  model: "google/gemini-2.0-flash",
+  executionModel: "google/gemini-2.0-flash",
 });
 
-// Anthropic agent
-const agent = stagehand.agent({
-  provider: "anthropic", 
-  model: "claude-sonnet-4-20250514",
-  instructions: "You are a helpful assistant that can use a web browser.",
-  options: { 
-    apiKey: process.env.ANTHROPIC_API_KEY 
-  }
-});
-```
-### Agent Execution
-```typescript
-// Simple task
-const result = await agent.execute("Extract the title from this webpage");
-
-// Complex multi-step task
 const result = await agent.execute({
-  instruction: "Apply for the first engineer position with mock data",
+  instruction: "Search for the stock price of NVDA",
   maxSteps: 20,
-  autoScreenshot: true
+});
+
+console.log(result.message);
+```
+
+### Computer Use Agent (CUA)
+
+For more advanced scenarios using computer-use models:
+
+```typescript
+const agent = stagehand.agent({
+  cua: true, // Enable Computer Use Agent mode
+  model: "anthropic/claude-sonnet-4-20250514",
+  // or "google/gemini-2.5-computer-use-preview-10-2025"
+  systemPrompt: `You are a helpful assistant that can use a web browser.
+    Do not ask follow up questions, the user will trust your judgement.`,
+});
+
+await agent.execute({
+  instruction: "Apply for a library card at the San Francisco Public Library",
+  maxSteps: 30,
 });
 ```
 
-### Best Practices
-- Be specific with instructions: `"Fill out the contact form with name 'John Doe' and submit it"`
-- Break down complex tasks into smaller steps
-- Use error handling with try/catch blocks
-- Combine agents for navigation with traditional methods for precise data extraction
+### Agent with Custom Model Configuration
 
 ```typescript
-// Good: Specific instructions
-await agent.execute("Navigate to products page and filter by 'Electronics'");
-
-// Avoid: Vague instructions  
-await agent.execute("Do some stuff on this page");
+const agent = stagehand.agent({
+  model: {
+    modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+  systemPrompt: `You are a helpful assistant.`,
+});
 ```
 
-## Project Structure Best Practices
+### Agent with Integrations (MCP/External Tools)
 
-- Store configurations in `stagehand.config.ts`
-- Use environment variables for API keys (see `.env.example`)
-- Implement main automation logic in functions that accept `{ page, context, stagehand }`
-- Use TypeScript with proper imports from `@browserbasehq/stagehand`
+```typescript
+const agent = stagehand.agent({
+  integrations: [`https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`],
+  systemPrompt: `You have access to the Exa search tool.`,
+});
+```
+
+## Advanced Features
+
+### DeepLocator (XPath Targeting)
+
+Target specific elements across shadow DOM and iframes:
+
+```typescript
+await page
+  .deepLocator("/html/body/div[2]/div[3]/iframe/html/body/p")
+  .highlight({
+    durationMs: 5000,
+    contentColor: { r: 255, g: 0, b: 0 },
+  });
+```
+
+### Multi-Page Workflows
+
+```typescript
+const page1 = stagehand.context.pages()[0];
+await page1.goto("https://example.com");
+
+const page2 = await stagehand.context.newPage();
+await page2.goto("https://example2.com");
+
+// Act/extract/observe operate on the current active page by default
+// Pass { page } option to target a specific page
+await stagehand.act("click button", { page: page1 });
+await stagehand.extract("get title", { page: page2 });
+```
 ``````
 
 </Accordion>
