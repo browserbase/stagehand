@@ -112,9 +112,17 @@ export class StagehandLogger {
     externalLogger?: (logLine: LogLine) => void,
   ) {
     this.isTest = isTestEnvironment();
+    this.externalLogger = externalLogger;
 
     // In test environments, default to not using Pino to avoid worker thread issues
-    this.usePino = this.isTest ? false : options.usePino !== false; // Default to using Pino if not specified and not in test
+    if (this.isTest) {
+      this.usePino = false;
+    } else {
+      const hasExternalLogger = typeof this.externalLogger !== "undefined";
+      const wantsPino = options.usePino !== false;
+      // use pino is not explicitly disabled, AND there is no external logger passed in
+      this.usePino = wantsPino && !hasExternalLogger;
+    }
 
     if (this.usePino) {
       // Re-use (or create) a single shared Pino logger instance
