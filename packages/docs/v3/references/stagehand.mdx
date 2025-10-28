@@ -439,8 +439,8 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 
-// Access main page
-const page1 = stagehand.page;
+// Get the first page
+const page1 = stagehand.context.pages()[0];
 await page1.goto("https://example.com");
 
 // Create second page
@@ -450,7 +450,7 @@ await page2.goto("https://another-site.com");
 // Switch active page
 stagehand.context.setActivePage(page2);
 
-// Now stagehand.page returns page2
+// Now context.activePage() returns page2
 await stagehand.act("click the button");
 
 await stagehand.close();
