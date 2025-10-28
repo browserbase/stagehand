@@ -488,7 +488,6 @@ export class V3 {
         }
       }
       void shutdownAllImmediate("signal SIGTERM");
-
     });
     process.once("uncaughtException", (err: unknown) => {
       v3Logger({
