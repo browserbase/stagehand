@@ -382,7 +382,7 @@ const data2 = await stagehand.extract(
 ```typescript
 import { z } from 'zod';
 
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0];
 const page2 = await stagehand.context.newPage();
 
 const Schema = z.object({ title: z.string() });

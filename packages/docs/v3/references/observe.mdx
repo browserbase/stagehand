@@ -207,7 +207,7 @@ const tableActions = await stagehand.observe("find all table rows", {
 
 ```typescript
 // Observe on specific pages
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0];
 const page2 = await stagehand.context.newPage();
 
 const page1Actions = await stagehand.observe("find navigation", { page: page1 });

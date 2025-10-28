@@ -243,7 +243,7 @@ await stagehand.act("choose 'Peach' from the favourite colour dropdown", {
 
 ```typescript
 // Create multiple pages
-const page1 = stagehand.page;
+const page1 = stagehand.context.pages()[0];
 const page2 = await stagehand.context.newPage();
 
 // Perform actions on specific pages

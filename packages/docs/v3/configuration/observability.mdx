@@ -130,10 +130,10 @@ const startTime = Date.now();
 const initialMetrics = await stagehand.metrics;
 
 // ... perform automation tasks
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
-await page.act("click button");
-await page.extract({ instruction: "get data", schema: DataSchema });
+await stagehand.act("click button");
+await stagehand.extract({ instruction: "get data", schema: DataSchema });
 
 const finalMetrics = await stagehand.metrics;
 const executionTime = Date.now() - startTime;
@@ -221,10 +221,10 @@ const startTime = Date.now();
 const initialMetrics = await stagehand.metrics;
 
 // ... perform automation tasks
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 await page.goto("https://example.com");
-await page.act("click the login button");
-const data = await page.extract({
+await stagehand.act("click the login button");
+const data = await stagehand.extract({
   instruction: "extract user info",
   schema: UserSchema
 });
