@@ -207,10 +207,10 @@ await locator.innerText(): Promise<string>
 Get the element's HTML content.
 
 ```typescript
-await locator.innerHTML(): Promise<string>
+await locator.innerHtml(): Promise<string>
 ```
 
-**Returns:** `Promise<string>` - The element's `innerHTML`.
+**Returns:** `Promise<string>` - The element's `innerHtml`.
 
 ## Selection Methods
 
@@ -628,7 +628,7 @@ interface Locator {
   inputValue(): Promise<string>;
   textContent(): Promise<string>;
   innerText(): Promise<string>;
-  innerHTML(): Promise<string>;
+  innerHtml(): Promise<string>;
 
   // Selection
   count(): Promise<number>;
