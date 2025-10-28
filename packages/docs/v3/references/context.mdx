@@ -216,9 +216,9 @@ const schema = z.object({
 
 // Extract data from all pages in parallel
 const results = await Promise.all([
-  page1.extract("get page info", schema),
-  page2.extract("get page info", schema),
-  page3.extract("get page info", schema)
+  stagehand.extract("get page info", schema, { page: page1 }),
+  stagehand.extract("get page info", schema, { page: page2 }),
+  stagehand.extract("get page info", schema, { page: page3 })
 ]);
 
 console.log("Extracted data:", results);
@@ -338,7 +338,7 @@ const pages = await Promise.all(
 
 // Extract data from each
 const data = await Promise.all(
-  pages.map(page => stagehand.extract("get data", schema))
+  pages.map(page => stagehand.extract("get data", schema, { page }))
 );
 ```
 
@@ -348,7 +348,8 @@ const data = await Promise.all(
 // Only create a page if needed
 if (needsDashboard) {
   const dashboard = await context.newPage("https://example.com/dashboard");
-  await dashboard.act("generate report");
+  context.setActivePage(dashboard);
+  await stagehand.act("generate report");
 }
 
 // Check if we have multiple pages
