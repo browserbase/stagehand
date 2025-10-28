@@ -40,7 +40,7 @@ import {
   AgentResult,
   AVAILABLE_CUA_MODELS,
   LogLine,
-  V3Metrics,
+  StagehandMetrics,
   Action,
   ActOptions,
   ActResult,
@@ -150,7 +150,7 @@ export class V3 {
   private agentCache: AgentCache;
   private apiClient: StagehandAPIClient | null = null;
 
-  public v3Metrics: V3Metrics = {
+  public stagehandMetrics: StagehandMetrics = {
     actPromptTokens: 0,
     actCompletionTokens: 0,
     actInferenceTimeMs: 0,
@@ -278,8 +278,8 @@ export class V3 {
    * Async property for metrics so callers can `await v3.metrics`.
    * Returning a Promise future-proofs async aggregation/storage.
    */
-  public get metrics(): Promise<V3Metrics> {
-    return Promise.resolve(this.v3Metrics);
+  public get metrics(): Promise<StagehandMetrics> {
+    return Promise.resolve(this.stagehandMetrics);
   }
 
   private resolveLlmClient(model?: ModelConfiguration): LLMClient {
@@ -393,27 +393,27 @@ export class V3 {
   ): void {
     switch (functionName) {
       case V3FunctionName.ACT:
-        this.v3Metrics.actPromptTokens += promptTokens;
-        this.v3Metrics.actCompletionTokens += completionTokens;
-        this.v3Metrics.actInferenceTimeMs += inferenceTimeMs;
+        this.stagehandMetrics.actPromptTokens += promptTokens;
+        this.stagehandMetrics.actCompletionTokens += completionTokens;
+        this.stagehandMetrics.actInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.EXTRACT:
-        this.v3Metrics.extractPromptTokens += promptTokens;
-        this.v3Metrics.extractCompletionTokens += completionTokens;
-        this.v3Metrics.extractInferenceTimeMs += inferenceTimeMs;
+        this.stagehandMetrics.extractPromptTokens += promptTokens;
+        this.stagehandMetrics.extractCompletionTokens += completionTokens;
+        this.stagehandMetrics.extractInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.OBSERVE:
-        this.v3Metrics.observePromptTokens += promptTokens;
-        this.v3Metrics.observeCompletionTokens += completionTokens;
-        this.v3Metrics.observeInferenceTimeMs += inferenceTimeMs;
+        this.stagehandMetrics.observePromptTokens += promptTokens;
+        this.stagehandMetrics.observeCompletionTokens += completionTokens;
+        this.stagehandMetrics.observeInferenceTimeMs += inferenceTimeMs;
         break;
 
       case V3FunctionName.AGENT:
-        this.v3Metrics.agentPromptTokens += promptTokens;
-        this.v3Metrics.agentCompletionTokens += completionTokens;
-        this.v3Metrics.agentInferenceTimeMs += inferenceTimeMs;
+        this.stagehandMetrics.agentPromptTokens += promptTokens;
+        this.stagehandMetrics.agentCompletionTokens += completionTokens;
+        this.stagehandMetrics.agentInferenceTimeMs += inferenceTimeMs;
         break;
     }
     this.updateTotalMetrics(promptTokens, completionTokens, inferenceTimeMs);
@@ -424,9 +424,9 @@ export class V3 {
     completionTokens: number,
     inferenceTimeMs: number,
   ): void {
-    this.v3Metrics.totalPromptTokens += promptTokens;
-    this.v3Metrics.totalCompletionTokens += completionTokens;
-    this.v3Metrics.totalInferenceTimeMs += inferenceTimeMs;
+    this.stagehandMetrics.totalPromptTokens += promptTokens;
+    this.stagehandMetrics.totalCompletionTokens += completionTokens;
+    this.stagehandMetrics.totalInferenceTimeMs += inferenceTimeMs;
   }
 
   private async _immediateShutdown(reason: string): Promise<void> {
