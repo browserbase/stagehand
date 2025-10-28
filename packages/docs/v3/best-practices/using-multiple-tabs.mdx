@@ -7,7 +7,7 @@ Many modern web applications open new tabs when users click certain buttons or l
 
 ## The Stagehand Page
 
-Stagehand automatically adapts to multitab workflows. The `stagehand.page` object always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created.
+Stagehand automatically adapts to multitab workflows. The active page (accessed via `context.activePage()`) always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created.
 
 This means you can continue using familiar patterns:
 
@@ -20,7 +20,7 @@ await stagehand.extract("get data from new tab");
 ```
 
 <Warning>
-**Important**: [Stagehand Agent](/basics/agent) will always operate on the `stagehand.page`. If you need an agent to work across specific tabs, you'll need to manage page switching manually.
+**Important**: [Stagehand Agent](/basics/agent) will always operate on the active page. If you need an agent to work across specific tabs, you'll need to manage page switching manually.
 </Warning>
 
 ## Manual Page Management
