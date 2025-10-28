@@ -1,5 +1,5 @@
 import Browserbase from "@browserbasehq/sdk";
-import { ZodTypeAny } from "zod/v3";
+import { ZodTypeAny } from "zod";
 import {
   Action,
   ActOptions,

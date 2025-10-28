@@ -9,9 +9,11 @@ import { LangchainClient } from "./external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
 async function example() {
+  // @ts-expect-error Type instantiation is excessively deep and possibly infinite
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
     verbose: 1,
+    // @ts-expect-error Type instantiation is excessively deep and possibly infinite
     llmClient: new LangchainClient(
       new ChatOpenAI({
         model: "gpt-4o",
