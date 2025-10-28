@@ -23,280 +23,6 @@ agent.execute("apply for a job at browserbase")
   </Card>
 </CardGroup>
 
-## Return value of `agent()`?
-
-When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the following structure:
-
-<Tabs>
-<Tab title="Successful Completion">
-
-When the agent successfully completes the task:
-
-```typescript
-const result = await agent.execute({
-  instruction: "Fill in the first name with 'John' and email with 'john@example.com'",
-  maxSteps: 10
-});
-```
-
-**Example result:**
-```typescript
-{
-  success: true,
-  message: "The first name and email fields have been filled successfully with 'John' and 'john@example.com'.",
-  actions: [
-    {
-      type: 'ariaTree',
-      reasoning: undefined,
-      taskCompleted: true,
-      pageUrl: 'https://example.com',
-      timestamp: 1761598722055
-    },
-    {
-      type: 'act',
-      reasoning: undefined,
-      taskCompleted: true,
-      action: 'type "John" into the First Name textbox',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com',
-      timestamp: 1761598731643
-    },
-    {
-      type: 'close',
-      reasoning: "The first name and email fields have been filled successfully.",
-      taskCompleted: true,
-      taskComplete: true,
-      pageUrl: 'https://example.com',
-      timestamp: 1761598732861
-    }
-  ],
-  completed: true,
-  usage: {
-    input_tokens: 2040,
-    output_tokens: 28,
-    inference_time_ms: 14079
-  }
-}
-```
-
-</Tab>
-<Tab title="Task Not Completed">
-
-When the agent runs out of steps before completing the task:
-
-```typescript
-const result = await agent.execute({
-  instruction: "Complete the entire multi-page checkout process",
-  maxSteps: 5 // Too few steps for this task
-});
-```
-
-**Example result:**
-```typescript
-{
-  success: false,
-  message: "Maximum steps reached without completing the task. Consider increasing maxSteps.",
-  actions: [
-    {
-      type: 'ariaTree',
-      reasoning: undefined,
-      taskCompleted: false,
-      pageUrl: 'https://example.com/checkout',
-      timestamp: 1761598722055
-    },
-    {
-      type: 'act',
-      reasoning: "Need to fill in shipping address",
-      taskCompleted: false,
-      action: 'type "123 Main St" into the Address field',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com/checkout',
-      timestamp: 1761598724000
-    },
-    {
-      type: 'act',
-      reasoning: "Need to proceed to payment",
-      taskCompleted: false,
-      action: 'click the Continue button',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com/checkout',
-      timestamp: 1761598726000
-    }
-  ],
-  completed: false,
-  usage: {
-    input_tokens: 5240,
-    output_tokens: 180,
-    inference_time_ms: 24500
-  }
-}
-```
-
-</Tab>
-<Tab title="With Wait Actions">
-
-When the agent needs to wait for content to load:
-
-```typescript
-const result = await agent.execute({
-  instruction: "Search for 'laptops' and wait for results to load",
-  maxSteps: 10
-});
-```
-
-**Example result:**
-```typescript
-{
-  success: true,
-  message: "Search completed and results loaded successfully.",
-  actions: [
-    {
-      type: 'ariaTree',
-      reasoning: undefined,
-      taskCompleted: false,
-      pageUrl: 'https://example.com',
-      timestamp: 1761598722055
-    },
-    {
-      type: 'act',
-      reasoning: "Type search query",
-      taskCompleted: false,
-      action: 'type "laptops" into the search field',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com',
-      timestamp: 1761598724000
-    },
-    {
-      type: 'act',
-      reasoning: "Submit search",
-      taskCompleted: false,
-      action: 'click the search button',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com',
-      timestamp: 1761598726000
-    },
-    {
-      type: 'wait',
-      reasoning: "Waiting for search results to load",
-      taskCompleted: false,
-      timeMs: 2000,
-      pageUrl: 'https://example.com/search',
-      timestamp: 1761598728000
-    },
-    {
-      type: 'close',
-      reasoning: "Search results have loaded successfully.",
-      taskCompleted: true,
-      taskComplete: true,
-      pageUrl: 'https://example.com/search',
-      timestamp: 1761598730000
-    }
-  ],
-  completed: true,
-  usage: {
-    input_tokens: 3850,
-    output_tokens: 95,
-    inference_time_ms: 18200
-  }
-}
-```
-
-</Tab>
-<Tab title="With Extract Actions">
-
-When the agent needs to extract data during execution:
-
-```typescript
-const result = await agent.execute({
-  instruction: "Find the product price and add it to cart",
-  maxSteps: 10
-});
-```
-
-**Example result:**
-```typescript
-{
-  success: true,
-  message: "Product price found ($299.99) and item added to cart successfully.",
-  actions: [
-    {
-      type: 'ariaTree',
-      reasoning: undefined,
-      taskCompleted: false,
-      pageUrl: 'https://example.com/product',
-      timestamp: 1761598722055
-    },
-    {
-      type: 'extract',
-      reasoning: "Need to find the product price",
-      taskCompleted: false,
-      instruction: "extract the product price",
-      result: { price: "$299.99" },
-      pageUrl: 'https://example.com/product',
-      timestamp: 1761598724000
-    },
-    {
-      type: 'act',
-      reasoning: "Add product to cart",
-      taskCompleted: false,
-      action: 'click the Add to Cart button',
-      playwrightArguments: {...},
-      pageUrl: 'https://example.com/product',
-      timestamp: 1761598726000
-    },
-    {
-      type: 'close',
-      reasoning: "Product added to cart successfully.",
-      taskCompleted: true,
-      taskComplete: true,
-      pageUrl: 'https://example.com/cart',
-      timestamp: 1761598728000
-    }
-  ],
-  completed: true,
-  usage: {
-    input_tokens: 4120,
-    output_tokens: 142,
-    inference_time_ms: 21300
-  }
-}
-```
-
-</Tab>
-<Tab title="Interface Definition">
-
-The complete TypeScript interface:
-
-```typescript
-interface AgentResult {
-  success: boolean;          // Whether the task completed successfully
-  message: string;           // Summary of what the agent accomplished
-  actions: AgentAction[];    // Array of all actions taken
-  completed: boolean;        // Whether execution finished (true even if unsuccessful)
-  metadata?: Record<string, unknown>;  // Optional additional data
-  usage?: {                  // Token and performance metrics
-    input_tokens: number;
-    output_tokens: number;
-    inference_time_ms: number;
-  };
-}
-
-interface AgentAction {
-  type: string;              // Action type: 'act', 'extract', 'wait', 'ariaTree', 'close'
-  reasoning?: string;        // Why the agent took this action
-  taskCompleted?: boolean;   // Whether this action completed the task
-  action?: string;           // The specific action taken (for 'act' type)
-  timeMs?: number;           // Wait duration (for 'wait' type)
-  pageText?: string;         // Page content (for 'ariaTree' type)
-  pageUrl?: string;          // URL where action occurred
-  instruction?: string;      // Instruction used (for 'extract' type)
-  [key: string]: unknown;    // Additional tool-specific fields
-}
-```
-
-</Tab>
-</Tabs>
-
 ## Using `agent()`
 
 There are two ways to create agents in Stagehand:
@@ -373,6 +99,48 @@ await agent.execute("apply for a job at Browserbase")
   Check out the guide on how to use different models with Stagehand.
 </Card>
 
+### Return value of `agent()`?
+
+When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the following structure:
+
+```typescript
+{
+  success: true,
+  message: "The first name and email fields have been filled successfully with 'John' and 'john@example.com'.",
+  actions: [
+    {
+      type: 'ariaTree',
+      reasoning: undefined,
+      taskCompleted: true,
+      pageUrl: 'https://example.com',
+      timestamp: 1761598722055
+    },
+    {
+      type: 'act',
+      reasoning: undefined,
+      taskCompleted: true,
+      action: 'type "John" into the First Name textbox',
+      playwrightArguments: {...},
+      pageUrl: 'https://example.com',
+      timestamp: 1761598731643
+    },
+    {
+      type: 'close',
+      reasoning: "The first name and email fields have been filled successfully.",
+      taskCompleted: true,
+      taskComplete: true,
+      pageUrl: 'https://example.com',
+      timestamp: 1761598732861
+    }
+  ],
+  completed: true,
+  usage: {
+    input_tokens: 2040,
+    output_tokens: 28,
+    inference_time_ms: 14079
+  }
+}
+```
 
 ## MCP Integrations
 
