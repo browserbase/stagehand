@@ -11,7 +11,7 @@ import {
   streamText,
 } from "ai";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
-import { ZodType } from "zod/v3";
+import { ZodType } from "zod";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel, ClientOptions } from "../types/public/model";
 

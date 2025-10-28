@@ -39,7 +39,7 @@
   "peerDependencies": {
     "deepmerge": "^4.3.1",
     "dotenv": "^16.4.5",
-    "zod": "4.0.0"
+    "zod": "^4.1.8"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",

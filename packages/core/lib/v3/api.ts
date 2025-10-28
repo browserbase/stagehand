@@ -1,6 +1,6 @@
 import makeFetchCookie from "fetch-cookie";
 import zodToJsonSchema from "zod-to-json-schema";
-import z from "zod/v3";
+import z from "zod";
 import { Action } from "./types/public";
 import { STAGEHAND_VERSION } from "../version";
 import {
@@ -132,7 +132,7 @@ export class StagehandAPIClient {
     });
   }
 
-  async extract<T extends z.AnyZodObject>({
+  async extract<T extends z.ZodObject>({
     instruction,
     schema: zodSchema,
     options,

@@ -2,7 +2,7 @@ import { Part, FunctionCall, FunctionDeclaration, Type } from "@google/genai";
 import { ToolSet } from "ai";
 import { LogLine } from "../../types/public/logs";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 /**
  * Result of executing a custom tool for Google CUA
