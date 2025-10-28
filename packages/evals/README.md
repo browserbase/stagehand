@@ -124,29 +124,37 @@ pnpm evals run b:webvoyager -l 50
 ## Available Benchmarks
 
 ### OnlineMind2Web (`b:onlineMind2Web`)
+
 Real-world web interaction tasks for evaluating web agents.
 
 ### GAIA (`b:gaia`)
+
 General AI Assistant benchmark for complex reasoning.
 
 **Filters:**
+
 - `level`: 1, 2, 3 (difficulty levels)
 
 ### WebVoyager (`b:webvoyager`)
+
 Web navigation and task completion benchmark.
 
 ### WebBench (`b:webbench`)
+
 Real-world web automation tasks across live websites.
 
 **Filters:**
+
 - `difficulty`: easy, hard
 - `category`: READ, CREATE, UPDATE, DELETE, FILE_MANIPULATION
 - `use_hitl`: true/false
 
 ### OSWorld (`b:osworld`)
+
 Chrome browser automation tasks from the OSWorld benchmark.
 
 **Filters:**
+
 - `source`: Mind2Web, test_task_1, etc.
 - `evaluation_type`: url_match, string_match, dom_state, custom
 
@@ -183,12 +191,14 @@ While the CLI reduces the need for environment variables, some are still support
 ### Command not found
 
 If `evals` command is not found, make sure you've:
+
 1. Run `pnpm install` from the project root
 2. Run `pnpm run build:cli` to compile the CLI
 
 ### Build errors
 
 If you encounter build errors:
+
 ```bash
 # Clean and rebuild
 rm -rf dist/evals
@@ -198,6 +208,7 @@ pnpm run build:cli
 ### Permission errors
 
 If you get permission errors:
+
 ```bash
 chmod +x dist/evals/cli.js
 ```
