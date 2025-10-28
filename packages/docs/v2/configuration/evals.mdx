@@ -25,33 +25,114 @@ Evaluations help you understand how well your automation performs, which models 
 
 Evaluations help you systematically test and improve your automation workflows. Stagehand provides both built-in evaluations and tools to create your own.
 
-<Tip>
-To run evals, you'll need to clone the [Stagehand repo](https://github.com/browserbase/stagehand) and run `npm install` to install the dependencies.
-</Tip>
-
-We have three types of evals:
-1. **Deterministic Evals** - These are evals that are deterministic and can be run without any LLM inference.
+We have 2 types of evals:
+1. **Deterministic Evals** - These include unit tests, integration tests, and E2E tests that can be run without any LLM inference.
 2. **LLM-based Evals** - These are evals that test the underlying functionality of Stagehand's AI primitives.
 
 
-### LLM-based Evals
+### Evals CLI
+![Evals CLI](/media/evals-cli.png)
 
 <Tip>
-To run LLM evals, you'll need a [Braintrust account](https://www.braintrust.dev/docs/).
+To run evals, you'll need to clone the [Stagehand repo](https://github.com/browserbase/stagehand) and set up the CLI.
+
+We recommend using [Braintrust](https://www.braintrust.dev/docs/) to help visualize evals results and metrics.
 </Tip>
 
-To run LLM-based evals, you can run `npm run evals` from within the Stagehand repo. This will test the functionality of the LLM primitives within Stagehand to make sure they're working as expected.
+The Stagehand CLI provides a powerful interface for running evaluations. You can run specific evals, categories, or external benchmarks with customizable settings.
 
-Evals are grouped into three categories:
+Evals are grouped into:
 1. **Act Evals** - These are evals that test the functionality of the `act` method.
 2. **Extract Evals** - These are evals that test the functionality of the `extract` method.
 3. **Observe Evals** - These are evals that test the functionality of the `observe` method.
 4. **Combination Evals** - These are evals that test the functionality of the `act`, `extract`, and `observe` methods together.
+5. **Experimental Evals** - These are experimental custom evals that test the functionality of the stagehand primitives.
+6. **Agent Evals** - These are evals that test the functionality of `agent`.
+7. **(NEW) External Benchmarks** - Run external benchmarks like WebBench, GAIA, WebVoyager, OnlineMind2Web, and OSWorld.
 
-#### Configuring and Running Evals
-You can view the specific evals in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks). Each eval is grouped into eval categories based on [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json). You can specify models to run and other general task config in [`evals/taskConfig.ts`](https://github.com/browserbase/stagehand/blob/main/evals/taskConfig.ts).
+#### Installation
 
-To run a specific eval, you can run `npm run evals <eval>`, or run all evals in a category with `npm run evals category <category>`.
+<Steps> 
+<Step title="Install Dependencies">
+```bash
+# From the stagehand root directory
+pnpm install
+```
+</Step>
+
+<Step title="Build the CLI">
+```bash
+pnpm run build:cli
+```
+</Step>
+
+<Step title="Verify Installation">
+```bash
+evals help
+```
+</Step>
+</Steps>
+
+#### CLI Commands and Options
+
+##### Basic Commands
+
+```bash
+# Run all evals
+evals run all
+
+# Run specific category
+evals run act
+evals run extract
+evals run observe
+evals run agent
+
+# Run specific eval
+evals run extract/extract_text
+
+# List available evals
+evals list
+evals list --detailed
+
+# Configure defaults
+evals config
+evals config set env browserbase
+evals config set trials 5
+```
+
+##### Command Options
+
+- **`-e, --env`**: Environment (`local` or `browserbase`)
+- **`-t, --trials`**: Number of trials per eval (default: 3)
+- **`-c, --concurrency`**: Max parallel sessions (default: 10)
+- **`-m, --model`**: Model override
+- **`-p, --provider`**: Provider override
+- **`--api`**: Use Stagehand API instead of SDK
+
+##### Running External Benchmarks
+
+The CLI supports several industry-standard benchmarks:
+
+```bash
+# WebBench with filters
+evals run benchmark:webbench -l 10 -f difficulty=easy -f category=READ
+
+# GAIA benchmark
+evals run b:gaia -s 100 -l 25 -f level=1
+
+# WebVoyager
+evals run b:webvoyager -l 50
+
+# OnlineMind2Web
+evals run b:onlineMind2Web
+
+# OSWorld
+evals run b:osworld -f source=Mind2Web
+```
+
+#### Configuration Files
+
+You can view the specific evals in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks). Each eval is grouped into eval categories based on [`evals/evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json).
 
 
 #### Viewing eval results
@@ -65,7 +146,7 @@ You can use the Braintrust UI to filter by model/eval and aggregate results acro
 
 ### Deterministic Evals
 
-To run deterministic evals, you can just run `npm run e2e` from within the Stagehand repo. This will test the functionality of Playwright within Stagehand to make sure it's working as expected.
+To run deterministic evals, you can run `npm run e2e` from within the Stagehand repo. This will test the functionality of Playwright within Stagehand to make sure it's working as expected.
 
 These tests are in [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic) and test on both Browserbase browsers and local headless Chromium browsers.
 
@@ -92,8 +173,8 @@ export const customEvalTask: EvalTask = {
   // The actual test
   task: async ({ stagehand, page }) => {
     // Your automation logic
-    await stagehand.act({ action: 'click the login button' });
-    const result = await stagehand.extract({ 
+    await page.act({ action: 'click the login button' });
+    const result = await page.extract({ 
       instruction: 'Get the user name',
       schema: { username: 'string' }
     });
@@ -139,10 +220,13 @@ Update `evals/evals.config.json`:
 <Step title="Run Your Evaluation">
 ```bash
 # Test your custom evaluation
-npm run evals custom_task_name
+evals run custom_task_name
 
 # Run the entire custom category
-npm run evals category custom
+evals run custom
+
+# Run with specific settings
+evals run custom_task_name -e browserbase -t 5 -m gpt-4o
 ```
 </Step>
 </Steps>
