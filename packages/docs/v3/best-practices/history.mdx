@@ -13,10 +13,10 @@ import { Stagehand } from "@browserbasehq/stagehand";
 
 const stagehand = new Stagehand({ env: "BROWSERBASE" });
 await stagehand.init();
-const page = stagehand.page;
+const page = stagehand.context.pages()[0];
 
 await page.goto("https://example.com");
-await page.act("click login button");
+await stagehand.act("click login button");
 
 // Get complete history
 const history = await stagehand.history;

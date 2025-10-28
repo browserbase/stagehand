@@ -138,7 +138,7 @@ const stagehand = new Stagehand({ env: "LOCAL" });
 await stagehand.init();
 const context = stagehand.context;
 
-// Start with the main page
+// Start with main page
 const mainPage = context.pages()[0];
 await mainPage.goto("https://example.com");
 
