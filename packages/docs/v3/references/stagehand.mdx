@@ -269,20 +269,30 @@ See the [agent() reference](/v3/references/agent) for detailed documentation.
 
 ### page
 
-Access the current active page for automation.
+Access pages for browser automation. Pages are accessed through the context.
 
 ```typescript
+// Get the first page (created automatically on init)
 const page = stagehand.context.pages()[0];
+
+// Or get the active page
+const activePage = stagehand.context.activePage();
+
+// Create a new page
+const newPage = await stagehand.context.newPage();
 ```
 
 **Type:** [`Page`](/v3/references/page)
 
 The page object provides methods for:
 - Navigation (`goto()`, `reload()`, `goBack()`, `goForward()`)
-- Interaction (`click()`, `type()`, `locator()`)
+- Interaction (`click()`, `type()`, `keyPress()`, `locator()`, `deepLocator()`)
 - Inspection (`url()`, `title()`, `screenshot()`)
 - JavaScript evaluation (`evaluate()`)
-- **AI-powered methods** ([`act()`](/v3/references/act), [`extract()`](/v3/references/extract), [`observe()`](/v3/references/observe))
+
+<Note>
+**Important:** AI-powered methods ([`act()`](/v3/references/act), [`extract()`](/v3/references/extract), [`observe()`](/v3/references/observe)) are called on the stagehand instance, not on the page object.
+</Note>
 
 ### context
 
