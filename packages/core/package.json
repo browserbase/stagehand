@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/orca",
-  "version": "3.0.0-preview.7",
+  "version": "3.0.0-test.1",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
