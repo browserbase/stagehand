@@ -4,7 +4,7 @@ import { injectUrls, transformSchema } from "../../utils";
 import { v3Logger } from "../logger";
 import { V3FunctionName } from "../types/public/methods";
 import { captureHybridSnapshot } from "../understudy/a11y/snapshot";
-import { z, ZodTypeAny } from "zod/v3";
+import { z, ZodTypeAny } from "zod";
 import { LLMClient } from "../llm/LLMClient";
 import { ExtractHandlerParams } from "../types/private/handlers";
 import { EncodedId, ZodPathSegments } from "../types/private/internal";
@@ -39,7 +39,7 @@ interface ExtractionResponseBase {
   inference_time_ms: number;
 }
 
-type ExtractionResponse<T extends z.AnyZodObject> = ExtractionResponseBase &
+type ExtractionResponse<T extends z.ZodObject> = ExtractionResponseBase &
   z.infer<T>;
 
 export class ExtractHandler {

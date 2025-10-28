@@ -4,7 +4,7 @@ import {
   LLMClient,
   AvailableModel,
 } from "../../lib/v3";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import {
   AIMessage,
   BaseMessageLike,
@@ -60,9 +60,8 @@ export class LangchainClient extends LLMClient {
     );
 
     if (options.response_model) {
-      const responseSchema = zodToJsonSchema(options.response_model.schema, {
-        $refStrategy: "none",
-      });
+      //ref string no longer needed, this is now default behavior
+      const responseSchema = z.toJSONSchema(options.response_model.schema);
       const structuredModel = this.model.withStructuredOutput(responseSchema);
       const response = await structuredModel.invoke(formattedMessages);
 

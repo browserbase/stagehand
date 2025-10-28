@@ -1,8 +1,7 @@
 import { Part, FunctionCall, FunctionDeclaration, Type } from "@google/genai";
 import { ToolSet } from "ai";
 import { LogLine } from "../../types/public/logs";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 /**
  * Result of executing a custom tool for Google CUA
@@ -122,7 +121,7 @@ function convertToolToFunctionDeclaration(
 ): FunctionDeclaration | null {
   try {
     // Convert Zod schema to JSON schema
-    const jsonSchema = zodToJsonSchema(tool.inputSchema as z.ZodType) as {
+    const jsonSchema = z.toJSONSchema(tool.inputSchema as z.ZodType) as {
       properties?: Record<string, unknown>;
       required?: string[];
       type?: string;

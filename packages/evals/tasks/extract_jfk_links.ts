@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { z } from "zod/v3";
+import { z } from "zod";
 
 export const extract_jfk_links: EvalFunction = async ({
   logger,

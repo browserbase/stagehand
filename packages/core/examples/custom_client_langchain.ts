@@ -3,15 +3,17 @@
  *
  * You will need to reference the Langchain Client in /external_clients/langchain.ts
  */
-import { z } from "zod/v3";
+import { z } from "zod";
 import { Stagehand } from "../lib/v3";
 import { LangchainClient } from "./external_clients/langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
 async function example() {
+  // @ts-expect-error Type instantiation is excessively deep and possibly infinite
   const stagehand = new Stagehand({
     env: "BROWSERBASE",
     verbose: 1,
+    // @ts-expect-error Type instantiation is excessively deep and possibly infinite
     llmClient: new LangchainClient(
       new ChatOpenAI({
         model: "gpt-4o",
