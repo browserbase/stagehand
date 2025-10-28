@@ -363,7 +363,7 @@ await stagehand.extract("get title", { page: page2 });
 This is a project that uses [Stagehand Python](https://github.com/browserbase/stagehand-python), which provides AI-powered browser automation with `act`, `extract`, and `observe` methods.
 
 `Stagehand` is a class that provides configuration and browser automation capabilities with:
-- `stagehand.page`: A StagehandPage object (extends Playwright Page)
+- Pages accessed via `stagehand.context.pages()` or `stagehand.context.activePage()`
 - `stagehand.context`: A StagehandContext object (extends Playwright BrowserContext)
 - `stagehand.agent()`: Create AI-powered agents for autonomous multi-step workflows
 - `stagehand.init()`: Initialize the browser session

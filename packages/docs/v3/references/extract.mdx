@@ -26,7 +26,7 @@ await stagehand.extract(options: ExtractOptions): Promise<{ pageText: string }>
 await stagehand.extract(instruction: string): Promise<{ extraction: string }>
 
 // With schema
-await page.extract<T extends ZodTypeAny>(
+await stagehand.extract<T extends ZodTypeAny>(
   instruction: string,
   schema: T,
   options?: ExtractOptions
