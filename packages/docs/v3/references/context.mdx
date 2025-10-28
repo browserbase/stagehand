@@ -251,7 +251,7 @@ console.log("Active:", context.activePage()?.url());
 // Output: "https://example.com"
 
 // stagehand.page now refers to homePage
-await stagehand.stagehand.act("click the header link");
+awaitstagehand.act("click the header link");
 
 await stagehand.close();
 ```
@@ -315,10 +315,10 @@ const pages = {
 
 // Switch between tabs
 context.setActivePage(pages.dashboard);
-await stagehand.stagehand.act("view report");
+await stagehand.act("view report");
 
 context.setActivePage(pages.settings);
-await stagehand.stagehand.act("update preferences");
+await stagehand.act("update preferences");
 ```
 
 ### Bulk Data Collection

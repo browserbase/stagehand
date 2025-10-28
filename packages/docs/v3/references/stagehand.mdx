@@ -451,7 +451,7 @@ await page2.goto("https://another-site.com");
 stagehand.context.setActivePage(page2);
 
 // Now stagehand.page returns page2
-await stagehand.stagehand.act("click the button");
+await stagehand.act("click the button");
 
 await stagehand.close();
 ```
