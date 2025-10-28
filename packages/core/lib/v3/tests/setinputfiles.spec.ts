@@ -19,9 +19,15 @@ test.describe("tests setInputFiles()", () => {
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-iframe/",
     );
-    await page.deepLocator("/html/body/div/iframe/html/body/div/div[1]/input").setInputFiles("fake.html")
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    const successMessage = await page.deepLocator("body > div > iframe >> html > body > div > div:nth-of-type(2)").textContent();
+    await page
+      .deepLocator("/html/body/div/iframe/html/body/div/div[1]/input")
+      .setInputFiles("fake.html");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const successMessage = await page
+      .deepLocator(
+        "body > div > iframe >> html > body > div > div:nth-of-type(2)",
+      )
+      .textContent();
     expect(successMessage).toContain("file uploaded successfully");
   });
 
@@ -30,9 +36,13 @@ test.describe("tests setInputFiles()", () => {
     await page.goto(
       "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads/",
     );
-    await page.locator("/html/body/div/div[1]/input").setInputFiles("fake.html")
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    const successMessage = await page.locator("body > div > div:nth-of-type(2)").textContent();
+    await page
+      .locator("/html/body/div/div[1]/input")
+      .setInputFiles("fake.html");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const successMessage = await page
+      .locator("body > div > div:nth-of-type(2)")
+      .textContent();
     expect(successMessage).toContain("file uploaded successfully");
   });
 });
