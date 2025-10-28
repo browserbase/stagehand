@@ -50,7 +50,7 @@ const stagehand = new Stagehand({
 Create the toolkit that provides LangChain-compatible tools:
 
 ```typescript
-import { StagehandToolkit } from '@langchain/community/tools/stagehand';
+import { StagehandToolkit } from '@langchain/community/agents/toolkits/stagehand';
 
 const stagehandToolkit = await StagehandToolkit.fromStagehand(stagehand);
 ```
@@ -69,6 +69,8 @@ The toolkit provides four specialized tools for web automation:
 ### Basic Tool Usage
 
 ```typescript
+import { z } from "zod";
+
 // Navigate to a website
 const navigateTool = stagehandToolkit.tools.find(
     (t) => t.name === "stagehand_navigate"
@@ -89,6 +91,19 @@ const result = await observeTool.invoke(
     "What actions can be performed on the current page?"
 );
 console.log(JSON.parse(result));
+
+// Extract structured data
+const extractTool = stagehandToolkit.tools.find(
+    (t) => t.name === "stagehand_extract"
+);
+const extractResult = await extractTool.invoke({
+    instruction: "Extract the main heading and description",
+    schema: z.object({
+        heading: z.string(),
+        description: z.string(),
+    }),
+});
+console.log(extractResult);
 ```
 
 ## Step 6: Build LangGraph Agents
@@ -96,7 +111,6 @@ console.log(JSON.parse(result));
 Integrate with LangGraph for complex automation workflows:
 
 ```typescript
-npm install @langchain/langgraph @langchain/community @langchain/core @langchain/openai @browserbasehq/stagehand
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
 // Create an LLM
