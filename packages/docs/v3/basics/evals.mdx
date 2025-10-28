@@ -1,5 +1,5 @@
 ---
-title: Evaluations & Metrics
+title: Evals & Metrics
 sidebarTitle: Evals
 description: Monitor performance, optimize costs, and evaluate LLM effectiveness
 ---
@@ -29,9 +29,9 @@ Evaluations help you systematically test and improve your automation workflows. 
 To run evals, you'll need to clone the [Stagehand repo](https://github.com/browserbase/stagehand) and run `npm install` to install the dependencies.
 </Tip>
 
-We have three types of evals:
-1. **Deterministic Evals** - These are evals that are deterministic and can be run without any LLM inference.
-2. **LLM-based Evals** - These are evals that test the underlying functionality of Stagehand's AI primitives.
+We have two types of evals:
+1. **LLM-based Evals** - These are evals that test the underlying functionality of Stagehand's AI primitives.
+2. **Agent Benchmarks** - These are evals that test the performance of the agents against public benchmarks.
 
 
 ### LLM-based Evals
@@ -62,12 +62,6 @@ Eval results are viewable on Braintrust. You can view the results of a specific 
 By default, each eval will run five times per model. The "Exact Match" column shows the percentage of times the eval was correct. The "Error Rate" column shows the percentage of times the eval errored out.
 
 You can use the Braintrust UI to filter by model/eval and aggregate results across all evals.
-
-### Deterministic Evals
-
-To run deterministic evals, you can just run `npm run e2e` from within the Stagehand repo. This will test the functionality of Playwright within Stagehand to make sure it's working as expected.
-
-These tests are in [`evals/deterministic`](https://github.com/browserbase/stagehand/tree/main/evals/deterministic) and test on both Browserbase browsers and local headless Chromium browsers.
 
 ## Creating Custom Evaluations
 
