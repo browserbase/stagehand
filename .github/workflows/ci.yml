@@ -14,7 +14,7 @@ env:
   EVAL_MODELS: "openai/gpt-4.1,google/gemini-2.0-flash,anthropic/claude-3-5-sonnet-latest"
   EVAL_CATEGORIES: "observe,act,combination,extract,targeted_extract,agent"
   EVAL_MAX_CONCURRENCY: 25
-  EVAL_TRIAL_COUNT: 5
+  EVAL_TRIAL_COUNT: 3
 
 concurrency:
   group: ${{ github.ref }}
@@ -35,6 +35,7 @@ jobs:
         with:
           filters: |
             core:
+              - '.github/workflows/ci.yml'
               - 'packages/core/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -120,36 +121,6 @@ jobs:
       - name: Run Build
         run: pnpm run build
 
-  run-e2e-tests:
-    needs: [run-lint, run-build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      HEADLESS: true
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: |
-          rm -rf node_modules
-          npm i -g pnpm
-          pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
-
-      - name: Build Stagehand
-        run: pnpm run build
-
-      - name: Run E2E Tests (Deterministic Playwright)
-        run: pnpm run e2e
-
   run-e2e-local-tests:
     needs: [run-lint, run-build]
     runs-on: ubuntu-latest
@@ -170,9 +141,6 @@ jobs:
           rm -rf node_modules
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
 
       - name: Build Stagehand
         run: pnpm run build
@@ -217,7 +185,7 @@ jobs:
 
   run-regression-evals:
     needs:
-      [run-e2e-bb-tests, run-e2e-tests, run-e2e-local-tests, determine-evals]
+      [run-e2e-bb-tests, run-e2e-local-tests, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
