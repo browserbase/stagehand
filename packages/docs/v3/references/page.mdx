@@ -141,7 +141,7 @@ await page.title(): Promise<string>
 Click at absolute page coordinates.
 
 ```typescript
-await page.click(x: number, y: number, options?: ClickOptions): Promise<void>
+await page.click(x: number, y: number, options?: ClickOptions): Promise<void | string>
 ```
 
 <ParamField path="x" type="number" required>
@@ -152,18 +152,28 @@ await page.click(x: number, y: number, options?: ClickOptions): Promise<void>
   Y coordinate in CSS pixels.
 </ParamField>
 
-<ParamField path="button" type="string" optional>
-  Mouse button to use.
+<ParamField path="options" type="object" optional>
+  Optional click configuration.
 
-  **Options:** `"left"`, `"right"`, `"middle"`
+  <Expandable title="properties">
+    <ParamField path="button" type="string">
+      Mouse button to use: `"left"` | `"right"` | `"middle"`
 
-  **Default:** `"left"`
-</ParamField>
+      Default: `"left"`
+    </ParamField>
 
-<ParamField path="clickCount" type="number" optional>
-  Number of consecutive clicks.
+    <ParamField path="clickCount" type="number">
+      Number of consecutive clicks.
 
-  **Default:** `1`
+      Default: `1`
+    </ParamField>
+
+    <ParamField path="returnXpath" type="boolean">
+      If `true`, returns the XPath of the clicked element instead of void.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 ### type()
@@ -178,8 +188,20 @@ await page.type(text: string, options?: TypeOptions): Promise<void>
   The text to type.
 </ParamField>
 
-<ParamField path="delay" type="number" optional>
-  Delay between key presses in milliseconds.
+<ParamField path="options" type="object" optional>
+  Optional typing configuration.
+
+  <Expandable title="properties">
+    <ParamField path="delay" type="number">
+      Delay between key presses in milliseconds.
+    </ParamField>
+
+    <ParamField path="withMistakes" type="boolean">
+      Simulates typing with occasional mistakes and corrections.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
 </ParamField>
 
 ### locator()
