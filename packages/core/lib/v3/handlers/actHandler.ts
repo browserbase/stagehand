@@ -71,6 +71,12 @@ export class ActHandler {
 
     const llmClient = this.resolveLlmClient(model);
 
+    v3Logger({
+      category: "action",
+      message: `[act] ${instruction}`,
+      level: 1,
+    });
+
     const doObserveAndAct = async (): Promise<ActResult> => {
       await waitForDomNetworkQuiet(
         page.mainFrame(),
@@ -325,6 +331,13 @@ export class ActHandler {
   ): Promise<ActResult> {
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
     const effectiveClient = llmClientOverride ?? this.llmClient;
+
+    v3Logger({
+      category: "action",
+      message: `[act] ${action.description}`,
+      level: 1,
+    });
+
     const method = action.method?.trim();
     if (!method || method === "not-supported") {
       v3Logger({
