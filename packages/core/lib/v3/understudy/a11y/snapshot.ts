@@ -600,11 +600,7 @@ export async function captureHybridSnapshot(
         /*attemptOwnerLookup=*/ sameSessionAsParent,
       );
 
-      const {
-        outline,
-        urlMap,
-        scopeApplied,
-      } = await a11yForFrame(
+      const { outline, urlMap, scopeApplied } = await a11yForFrame(
         owningSess,
         targetFrameId,
         {
