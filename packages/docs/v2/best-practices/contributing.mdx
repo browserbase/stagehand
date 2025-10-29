@@ -44,8 +44,8 @@ Get listed as [one of our beloved contributors](https://github.com/browserbase/s
     ![Draft PR](/images/pr_draft.png)
     
 2. **Provide a reproducible test plan.** Include an eval (preferred) or example. We can’t merge your PR if we can’t run anything that specifically highlights your contribution. 
-    1. Write a script in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/main/evals/tasks) as `someTask.ts` 
-    2. Add your script to [`evals.config.json`](https://github.com/browserbase/stagehand/blob/main/evals/evals.config.json) with default category `combination` (*or act/extract/observe if you’re* *only* *testing* *act/extract/observe*).
+    1. Write a script in [`evals/tasks`](https://github.com/browserbase/stagehand/tree/v2/evals/tasks) as `someTask.ts`
+    2. Add your script to [`evals.config.json`](https://github.com/browserbase/stagehand/blob/v2/evals/evals.config.json) with default category `combination` (*or act/extract/observe if you’re* *only* *testing* *act/extract/observe*).
 3. **Add a changeset.** Run `npx changeset` in TS or `uvx changeset` in Python to add a changeset that will directly reflect in the `CHANGELOG` in the upcoming release.
     1. `patch` - no net new functionality to an end-user
     2. `minor` - some net new functionality to an end-user (new function parameter, new exposed type, etc.)
