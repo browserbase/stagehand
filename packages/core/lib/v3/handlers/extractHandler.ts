@@ -123,7 +123,9 @@ export class ExtractHandler {
 
       v3Logger({
         category: "extraction",
-        message: instruction ? `[extract] ${instruction}` : "[extract] Extracting page text",
+        message: instruction
+          ? `[extract] ${instruction}`
+          : "[extract] Extracting page text",
         level: 1,
       });
 
