@@ -72,20 +72,16 @@ function isTestEnvironment(): boolean {
 /**
  * StagehandLogger class that wraps Pino for our specific needs
  *
- * LOGGING PRECEDENCE (when both Pino and external logger are configured):
+ * LOGGING PRECEDENCE:
  *
- * 1. **External Logger Has Precedence**: When an external logger is provided,
- *    it receives ALL logs regardless of usePino setting.
+ * Test environments:
+ *   - External logger provided -> external logger only.
+ *   - No external logger -> console fallback only (Pino disabled).
  *
- * 2. **Pino Logging Behavior**:
- *    - When usePino=true && externalLogger provided: BOTH Pino and external logger receive logs
- *    - When usePino=true && NO externalLogger: Only Pino receives logs
- *    - When usePino=false && externalLogger provided: Only external logger receives logs
- *    - When usePino=false && NO externalLogger: Console fallback receives logs
- *
- * 3. **Test Environment Override**: In test environments (NODE_ENV=test, JEST_WORKER_ID, etc.):
- *    - usePino defaults to false to avoid worker thread issues
- *    - External logger still works if provided
+ * Non-test environments:
+ *   - usePino === true -> emit via Pino and also call the external logger when present.
+ *   - usePino === false -> disable Pino; use the external logger when present, otherwise console fallback.
+ *   - usePino === undefined -> prefer the external logger when present; otherwise use Pino.
  *
  * SHARED PINO OPTIMIZATION:
  * We maintain a single shared Pino instance when `usePino` is enabled.
@@ -114,14 +110,17 @@ export class StagehandLogger {
     this.isTest = isTestEnvironment();
     this.externalLogger = externalLogger;
 
-    // In test environments, default to not using Pino to avoid worker thread issues
+    const externalProvided = typeof externalLogger === "function";
+    const explicitUsePino = options.usePino;
+
     if (this.isTest) {
       this.usePino = false;
+    } else if (explicitUsePino === true) {
+      this.usePino = true;
+    } else if (explicitUsePino === false) {
+      this.usePino = false;
     } else {
-      const hasExternalLogger = typeof this.externalLogger !== "undefined";
-      const wantsPino = options.usePino !== false;
-      // use pino is not explicitly disabled, AND there is no external logger passed in
-      this.usePino = wantsPino && !hasExternalLogger;
+      this.usePino = !externalProvided;
     }
 
     if (this.usePino) {
@@ -133,7 +132,6 @@ export class StagehandLogger {
     }
 
     this.verbose = 1; // Default verbosity level
-    this.externalLogger = externalLogger;
   }
 
   /**
