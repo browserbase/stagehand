@@ -1,0 +1,203 @@
+---
+title: Playwright
+description: Use Stagehand with Playwright for browser automation
+---
+
+## Overview
+
+Stagehand v3 can work seamlessly with Playwright, allowing you to use Playwright's `Page` objects directly with Stagehand's AI-powered methods like `act()`, `extract()`, and `observe()`.
+
+## Installation
+
+First, install both Stagehand and Playwright:
+
+```bash
+npm install @browserbasehq/stagehand playwright-core
+```
+
+## Quickstart
+
+### Basic Setup
+
+Connect Playwright to Stagehand's browser instance using Chrome DevTools Protocol (CDP):
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { chromium } from "playwright-core";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE", // or "LOCAL"
+  model: "openai/gpt-5",
+});
+
+await stagehand.init();
+
+// Connect Playwright to Stagehand's browser
+const browser = await chromium.connectOverCDP({
+  wsEndpoint: stagehand.connectURL(),
+});
+
+const pwContext = browser.contexts()[0];
+const pwPage = pwContext.pages()[0];
+```
+
+### Using Playwright Pages with Stagehand
+
+Once connected, you can use Playwright's `Page` objects with Stagehand's AI-powered methods:
+
+```typescript
+// Navigate using Playwright
+await pwPage.goto("https://example.com");
+
+// Use Stagehand's AI methods with the Playwright page
+await stagehand.act("click the login button", { page: pwPage });
+
+const data = await stagehand.extract(
+  "extract the article title",
+  z.object({ title: z.string() }),
+  { page: pwPage }
+);
+```
+
+## Multi-Page Example
+
+Stagehand works great with multiple Playwright pages:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { chromium } from "playwright-core";
+import { z } from "zod/v3";
+
+// Initialize Stagehand
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5",
+});
+
+await stagehand.init();
+
+// Connect Playwright
+const browser = await chromium.connectOverCDP({
+  wsEndpoint: stagehand.connectURL(),
+});
+
+const pwContext = browser.contexts()[0];
+const pwPage1 = pwContext.pages()[0];
+
+// Create a second page
+const pwPage2 = await pwContext.newPage();
+
+// Navigate both pages
+await pwPage1.goto("https://docs.stagehand.dev/first-steps/introduction");
+await pwPage2.goto("https://docs.stagehand.dev/configuration/observability");
+
+// Extract data from both pages concurrently
+const [page1Data, page2Data] = await Promise.all([
+  stagehand.extract(
+    "extract the names of the four stagehand primitives",
+    z.array(z.string()),
+    { page: pwPage1 }
+  ),
+  stagehand.extract(
+    "extract the list of session dashboard features",
+    z.array(z.string()),
+    { page: pwPage2 }
+  ),
+]);
+
+console.log("Page 1 primitives:", page1Data);
+console.log("Page 2 features:", page2Data);
+```
+
+## Complete Example
+
+Here's a full working example:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { chromium } from "playwright-core";
+import { z } from "zod/v3";
+
+async function main() {
+  // Initialize Stagehand
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    model: "openai/gpt-5",
+    verbose: 1,
+  });
+
+  await stagehand.init();
+  console.log("Stagehand initialized");
+
+  // Connect Playwright to Stagehand's browser
+  const browser = await chromium.connectOverCDP({
+    wsEndpoint: stagehand.connectURL(),
+  });
+
+  const pwContext = browser.contexts()[0];
+  const pwPage = pwContext.pages()[0];
+
+  // Navigate and interact
+  await pwPage.goto("https://example.com");
+
+  // Use Stagehand's AI methods
+  const actions = await stagehand.observe("find the main heading", {
+    page: pwPage,
+  });
+
+  console.log("Found actions:", actions);
+
+  // Extract data
+  const heading = await stagehand.extract(
+    "extract the main heading text",
+    z.object({ heading: z.string() }),
+    { page: pwPage }
+  );
+
+  console.log("Heading:", heading);
+
+  // Cleanup
+  await stagehand.close();
+}
+
+main();
+```
+
+## Key Points
+
+- **Connect via CDP**: Use `chromium.connectOverCDP()` with `stagehand.connectURL()` as the WebSocket endpoint
+- **Pass the page**: Always pass the Playwright `page` object to Stagehand methods using the `{ page }` option
+- **Multi-page support**: Create multiple pages with `pwContext.newPage()` and pass them to Stagehand methods
+- **Concurrent operations**: Use `Promise.all()` to run multiple Stagehand operations in parallel across different pages
+
+## Environment Variables
+
+When using Browserbase, set your credentials:
+
+```bash
+BROWSERBASE_API_KEY=your_api_key
+BROWSERBASE_PROJECT_ID=your_project_id
+```
+
+For OpenAI (or other providers):
+
+```bash
+OPENAI_API_KEY=your_api_key
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agent" icon="robot" href="/v3/references/agent">
+    Automate entire workflows
+  </Card>
+  <Card title="Act" icon="play" href="/v3/references/act">
+    Execute actions on web pages
+  </Card>
+  <Card title="Extract" icon="ufo-beam" href="/v3/references/extract">
+    Extract structured data from pages
+  </Card>
+  <Card title="Observe" icon="eye" href="/v3/references/observe">
+    Observe and find elements on pages
+  </Card>
+</CardGroup>

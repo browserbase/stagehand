@@ -1,0 +1,128 @@
+---
+title: Selenium
+description: Use Stagehand with Selenium to operate the same browser in tandem
+---
+
+## Overview
+
+Stagehand v3 can work alongside Selenium WebDriver, allowing both tools to operate on the same browser session simultaneously. This enables you to combine Stagehand's AI-powered automation with Selenium's precise element interactions.
+
+<Warning>
+**Browserbase Only**: This integration requires Browserbase. It does not work with `env: "LOCAL"` because Selenium needs a remote WebDriver endpoint.
+</Warning>
+
+## Installation
+
+Install Stagehand, Selenium, and the Browserbase SDK:
+
+```bash
+npm install @browserbasehq/stagehand selenium-webdriver @browserbasehq/sdk
+```
+
+## Quickstart
+
+### Create Shared Session
+
+Use the Browserbase SDK to create a session that both tools can connect to:
+
+```typescript
+import http from "http";
+import { Builder, Key } from "selenium-webdriver";
+import Browserbase from "@browserbasehq/sdk";
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const bb = new Browserbase({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+});
+
+// Create shared session
+const session = await bb.sessions.create({
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+});
+
+console.log("Session created:", session.id);
+```
+
+### Connect Stagehand
+
+Initialize Stagehand with the session ID:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionID: session.id,
+  model: "openai/gpt-5",
+  verbose: 2,
+});
+
+await stagehand.init();
+```
+
+### Connect Selenium
+
+Use a custom HTTP agent with the session's signing key:
+
+```typescript
+// Create custom HTTP agent with signing key
+const customHttpAgent = new http.Agent({});
+(customHttpAgent as any).addRequest = (req: any, options: any) => {
+  req.setHeader("x-bb-signing-key", session.signingKey);
+  (http.Agent.prototype as any).addRequest.call(customHttpAgent, req, options);
+};
+
+// Connect Selenium WebDriver
+const driver = new Builder()
+  .forBrowser("chrome")
+  .usingHttpAgent(customHttpAgent)
+  .usingServer(session.seleniumRemoteUrl)
+  .build();
+```
+
+### Use Both Tools Together
+
+Now both Stagehand and Selenium operate on the same browser:
+
+```typescript
+// Navigate with Stagehand
+const page = stagehand.context.pages()[0];
+await page.goto("https://www.google.com");
+
+// Extract page content with Stagehand AI
+const pageContent = await stagehand.extract();
+console.log("Page content:", pageContent);
+
+// Use Selenium for precise element interaction
+const searchBox = await driver.findElement({ name: "q" });
+await searchBox.sendKeys("Browserbase automation");
+await searchBox.sendKeys(Key.RETURN);
+
+// Wait for results
+await driver.sleep(2000);
+
+console.log("Search completed!");
+```
+
+## Key Points
+
+- **Shared Session**: Both tools connect to the same Browserbase session
+- **Signing Key**: Selenium requires the session's `signingKey` in HTTP headers
+- **Remote URL**: Use `session.seleniumRemoteUrl` for Selenium's server endpoint
+- **Concurrent Usage**: Both tools can operate on the browser simultaneously
+- **Cleanup**: Close both Stagehand (`await stagehand.close()`) and Selenium (`await driver.quit()`)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agent" icon="robot" href="/v3/references/agent">
+    Automate entire workflows
+  </Card>
+  <Card title="Act" icon="play" href="/v3/references/act">
+    Execute actions on web pages
+  </Card>
+  <Card title="Extract" icon="ufo-beam" href="/v3/references/extract">
+    Extract structured data from pages
+  </Card>
+  <Card title="Observe" icon="eye" href="/v3/references/observe">
+    Observe and find elements on pages
+  </Card>
+</CardGroup>

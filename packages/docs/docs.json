@@ -58,7 +58,6 @@
               "v3/best-practices/deployments",
               "v3/best-practices/history",
               "v3/best-practices/computer-use",
-              "v3/best-practices/contributing",
               "v3/best-practices/agent-fallbacks",
               "v3/best-practices/prompting-best-practices",
               "v3/best-practices/mcp-integrations",
@@ -97,7 +96,10 @@
                   "v3/integrations/vercel/introduction",
                   "v3/integrations/vercel/configuration"
                 ]
-              }
+              },
+              "v3/integrations/playwright",
+              "v3/integrations/puppeteer",
+              "v3/integrations/selenium"
             ]
           },
           {
