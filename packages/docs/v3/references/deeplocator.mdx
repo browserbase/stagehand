@@ -1,0 +1,450 @@
+---
+title: deepLocator
+description: 'Complete API reference for the deepLocator method'
+icon: 'layer-group'
+---
+
+<CardGroup cols={1}>
+<Card title="Locator" icon="crosshairs" href="/v3/references/locator">
+  Learn about the standard Locator class
+</Card>
+</CardGroup>
+
+## Overview
+
+The `deepLocator()` method creates a special locator that can traverse iframe boundaries and shadow DOM using a simplified syntax. It automatically resolves the correct frame for each operation, making cross-frame interactions seamless.
+
+Access via the page object:
+
+```typescript
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Deep locator with iframe traversal
+const button = page.deepLocator("iframe#myframe >> button.submit");
+await button.click();
+```
+
+## Syntax
+
+### page.deepLocator()
+
+Create a deep locator that can cross iframe and shadow DOM boundaries.
+
+```typescript
+page.deepLocator(selector: string): DeepLocatorDelegate
+```
+
+<ParamField path="selector" type="string" required>
+  Selector string with optional iframe hop notation (`>>`).
+
+  Supports:
+  - **CSS selectors** - Standard CSS syntax
+  - **XPath** - Prefix with `xpath=` or start with `/`
+  - **Hop notation** - Use `>>` to traverse into iframes
+  - **Deep XPath** - Automatically handles iframe steps in XPath
+</ParamField>
+
+**Returns:** `DeepLocatorDelegate` - A locator-like object that resolves frames on each action.
+
+## Hop Notation
+
+The `>>` operator allows you to traverse into iframes in a readable way:
+
+```typescript
+// Syntax: parent-selector >> child-selector >> target-selector
+page.deepLocator("iframe#outer >> iframe.inner >> button")
+```
+
+Each segment before `>>` represents an iframe to traverse into. The final segment is the target element.
+
+### Examples
+
+```typescript
+// Single iframe hop
+page.deepLocator("iframe#payment >> input#card-number")
+
+// Multiple iframe hops
+page.deepLocator("iframe#level1 >> iframe#level2 >> div.content")
+
+// XPath with hops
+page.deepLocator("//iframe[@id='myframe'] >> //button[@class='submit']")
+
+// CSS with XPath target
+page.deepLocator("iframe.widget >> xpath=//div[@data-id='123']")
+```
+
+## Deep XPath
+
+When using XPath, `deepLocator` automatically recognizes `iframe` steps and traverses into them:
+
+```typescript
+// Automatically traverses into iframes
+page.deepLocator("//iframe//button")
+page.deepLocator("//iframe[@id='myframe']//input[@name='email']")
+page.deepLocator("//iframe[1]//iframe[2]//div[@class='target']")
+```
+
+The locator intelligently parses the XPath, identifies iframe boundaries, and resolves the correct frame for the final selector.
+
+## Methods
+
+`DeepLocatorDelegate` provides the same API as `Locator`, with automatic frame resolution:
+
+### Interaction Methods
+
+All interaction methods from [`Locator`](/v3/references/locator) are available:
+
+- **`click(options?)`** - Click the element
+- **`fill(value)`** - Fill an input
+- **`type(text, options?)`** - Type text
+- **`hover()`** - Hover over element
+- **`selectOption(values)`** - Select dropdown options
+- **`scrollTo(percent)`** - Scroll element
+
+### State Methods
+
+- **`isVisible()`** - Check visibility
+- **`isChecked()`** - Check checkbox state
+- **`inputValue()`** - Get input value
+- **`textContent()`** - Get text content
+- **`innerText()`** - Get visible text
+- **`innerHtml()`** - Get HTML content
+
+### Selection Methods
+
+- **`count()`** - Count matching elements
+- **`nth(index)`** - Select by index
+- **`first()`** - Get first element
+
+### Utility Methods
+
+- **`highlight(options?)`** - Highlight element
+- **`centroid()`** - Get center coordinates
+- **`backendNodeId()`** - Get DOM node ID
+- **`sendClickEvent(options?)`** - Dispatch click event
+
+All methods work identically to `Locator`, but automatically resolve the correct frame before executing.
+
+## Code Examples
+
+<Tabs>
+<Tab title="Basic Iframe Traversal">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Click button inside iframe
+const button = page.deepLocator("iframe#widget >> button.submit");
+await button.click();
+
+// Fill input in nested iframe
+const input = page.deepLocator("iframe#outer >> iframe#inner >> input#email");
+await input.fill("user@example.com");
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Multiple Iframes">
+
+```typescript
+// Three-level iframe nesting
+await page.deepLocator(
+  "iframe#level1 >> iframe#level2 >> iframe#level3 >> div.target"
+).click();
+
+// Different selectors at each level
+await page.deepLocator(
+  "iframe.container >> #payment-frame >> input[name=cardNumber]"
+).fill("4111111111111111");
+
+// Mixed CSS and XPath
+await page.deepLocator(
+  "iframe.widget >> xpath=//button[contains(text(), 'Submit')]"
+).click();
+```
+
+</Tab>
+<Tab title="Deep XPath">
+
+```typescript
+// Simple iframe traversal with XPath
+const content = page.deepLocator("//iframe//div[@class='content']");
+const text = await content.textContent();
+
+// Multiple iframe levels
+const button = page.deepLocator(
+  "//iframe[@id='outer']//iframe[@class='inner']//button"
+);
+await button.click();
+
+// XPath with predicates
+const input = page.deepLocator(
+  "//iframe[1]//form[@id='myform']//input[@type='text'][1]"
+);
+await input.fill("test value");
+```
+
+</Tab>
+<Tab title="Element Selection">
+
+```typescript
+// Count elements across iframes
+const buttons = page.deepLocator("iframe#widget >> button");
+const count = await buttons.count();
+console.log(`Found ${count} buttons in iframe`);
+
+// Select specific element
+const firstButton = buttons.first();
+await firstButton.click();
+
+const thirdButton = buttons.nth(2);
+await thirdButton.click();
+
+// Get text from all elements
+for (let i = 0; i < count; i++) {
+  const btn = buttons.nth(i);
+  const text = await btn.innerText();
+  console.log(`Button ${i}:`, text);
+}
+```
+
+</Tab>
+<Tab title="Payment Forms">
+
+```typescript
+// Common use case: payment iframe
+const paymentFrame = "iframe#stripe-payment-element";
+
+// Fill card details
+await page.deepLocator(`${paymentFrame} >> input[name="cardnumber"]`)
+  .fill("4242424242424242");
+
+await page.deepLocator(`${paymentFrame} >> input[name="exp-date"]`)
+  .fill("12/25");
+
+await page.deepLocator(`${paymentFrame} >> input[name="cvc"]`)
+  .fill("123");
+
+await page.deepLocator(`${paymentFrame} >> input[name="postal"]`)
+  .fill("12345");
+
+// Submit
+await page.deepLocator(`${paymentFrame} >> button[type="submit"]`)
+  .click();
+```
+
+</Tab>
+<Tab title="State Checks">
+
+```typescript
+// Check visibility across iframe
+const modal = page.deepLocator("iframe#app >> .modal");
+if (await modal.isVisible()) {
+  console.log("Modal is visible in iframe");
+}
+
+// Get values from iframe inputs
+const email = page.deepLocator("iframe#form >> input#email");
+const value = await email.inputValue();
+console.log("Email value:", value);
+
+// Check checkbox in iframe
+const checkbox = page.deepLocator("iframe#settings >> input#subscribe");
+const checked = await checkbox.isChecked();
+console.log("Subscribed:", checked);
+
+// Highlight element in iframe for debugging
+await page.deepLocator("iframe#widget >> .error-message")
+  .highlight({ durationMs: 2000 });
+```
+
+</Tab>
+</Tabs>
+
+## Comparison with Standard Locator
+
+### Standard Locator (Single Frame)
+
+```typescript
+// Only works in the main frame
+const button = page.locator("button.submit");
+await button.click();
+
+// Cannot access elements inside iframes
+const iframeButton = page.locator("iframe >> button"); // ❌ Won't work
+```
+
+### Deep Locator (Cross-Frame)
+
+```typescript
+// Works across iframe boundaries
+const button = page.deepLocator("iframe#widget >> button.submit");
+await button.click(); // ✅ Automatically traverses into iframe
+
+// Can handle nested iframes
+const nested = page.deepLocator("iframe#a >> iframe#b >> button");
+await nested.click(); // ✅ Handles multiple levels
+```
+
+## When to Use deepLocator
+
+Use `deepLocator()` when:
+
+1. **Targeting elements inside iframes** - Payment forms, embedded widgets, third-party content
+2. **Working with nested iframes** - Multiple levels of iframe nesting
+3. **XPath crosses iframe boundaries** - When XPath naturally includes iframe steps
+4. **Simpler syntax preferred** - Use `>>` instead of manual frame switching
+
+Use standard `locator()` when:
+
+1. **Elements are in main frame** - No iframe traversal needed
+2. **Performance critical** - Standard locator is slightly faster (no frame resolution)
+3. **Working with frame references** - You already have the frame object
+
+## Best Practices
+
+1. **Use specific selectors** - Make each segment unique to avoid ambiguity
+2. **Keep hop chains short** - Simpler is better for maintainability
+3. **Name your iframes** - Use IDs or classes on iframes for easier targeting
+4. **Test incrementally** - Verify each segment works before adding more
+5. **Cache selectors** - Store complex selectors in variables for reuse
+6. **Use highlight() for debugging** - Verify you're targeting the right element
+
+## Common Patterns
+
+### Named Iframe References
+
+```typescript
+// Define iframe selectors
+const PAYMENT_FRAME = "iframe#stripe-payment";
+const WIDGET_FRAME = "iframe.embedded-widget";
+
+// Use in deep locators
+await page.deepLocator(`${PAYMENT_FRAME} >> input#card`).fill("4242");
+await page.deepLocator(`${WIDGET_FRAME} >> button`).click();
+```
+
+### Conditional Iframe Interaction
+
+```typescript
+const errorInIframe = page.deepLocator("iframe#form >> .error-message");
+if (await errorInIframe.isVisible()) {
+  const errorText = await errorInIframe.textContent();
+  console.error("Form error:", errorText);
+}
+```
+
+### Dynamic Frame Selection
+
+```typescript
+// Select iframe by attribute
+const frameSelector = `iframe[data-widget-id="${widgetId}"]`;
+const button = page.deepLocator(`${frameSelector} >> button.action`);
+await button.click();
+```
+
+## Error Handling
+
+Deep locator operations may throw:
+
+- **Element not found** - Selector doesn't match in the target frame
+- **Frame not found** - Iframe selector doesn't resolve
+- **Timeout errors** - Frame or element resolution timed out
+- **Invalid selector** - Malformed selector syntax
+
+Handle errors appropriately:
+
+```typescript
+try {
+  await page.deepLocator("iframe#widget >> button").click();
+} catch (error) {
+  console.error("Deep locator failed:", error.message);
+  // Fallback or retry logic
+}
+```
+
+## Advanced Usage
+
+### Combining with Page Methods
+
+```typescript
+// Navigate then use deep locator
+await page.goto("https://example.com");
+await page.waitForLoadState("networkidle");
+
+const iframeButton = page.deepLocator("iframe#app >> button");
+await iframeButton.click();
+```
+
+### With AI-Powered Methods
+
+```typescript
+// Use observe to find elements in iframes
+const actions = await stagehand.observe("find buttons in the payment iframe");
+
+// Then use deep locator for precise interaction
+await page.deepLocator("iframe#payment >> button.submit").click();
+```
+
+## Technical Details
+
+### How It Works
+
+1. **Parse selector** - Splits on `>>` or parses XPath for iframe steps
+2. **Build frame chain** - Creates FrameLocator chain for each iframe segment
+3. **Resolve final frame** - Navigates through frames to find target frame
+4. **Create locator** - Returns a locator in the correct frame context
+5. **Lazy execution** - Frame resolution happens fresh on each action
+
+### Frame Resolution
+
+Deep locators use the internal `FrameLocator` and `resolveLocatorWithHops` logic to:
+
+- Track frame hierarchies
+- Handle OOPIF (out-of-process iframes)
+- Support shadow DOM piercing
+- Maintain frame references during navigation
+
+## Type Definitions
+
+```typescript
+interface DeepLocatorDelegate {
+  // Actions
+  click(options?: { button?: MouseButton; clickCount?: number }): Promise<void>;
+  fill(value: string): Promise<void>;
+  type(text: string, options?: { delay?: number }): Promise<void>;
+  hover(): Promise<void>;
+  selectOption(values: string | string[]): Promise<string[]>;
+  scrollTo(percent: number | string): Promise<void>;
+
+  // State
+  isVisible(): Promise<boolean>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
+  textContent(): Promise<string>;
+  innerText(): Promise<string>;
+  innerHtml(): Promise<string>;
+
+  // Selection
+  count(): Promise<number>;
+  nth(index: number): DeepLocatorDelegate;
+  first(): DeepLocatorDelegate;
+
+  // Utilities
+  highlight(options?: HighlightOptions): Promise<void>;
+  centroid(): Promise<{ x: number; y: number }>;
+  backendNodeId(): Promise<BackendNodeId>;
+  sendClickEvent(options?: EventOptions): Promise<void>;
+}
+```

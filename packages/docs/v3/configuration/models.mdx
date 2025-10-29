@@ -1,0 +1,819 @@
+---
+title: Models
+sidebarTitle: Models
+description: Use any LLM model with Stagehand for optimal performance
+---
+
+Understand web pages, plan actions, and interact with complex interfaces with Google, OpenAI, Anthropic, xAI, DeepSeek, Perplexity, Azure, Ollama, or any other LLM model from [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+
+---
+
+## Configuration Setup
+
+### Quick Start
+
+<Tip>
+  Set your API key in `.env` and Stagehand handles the rest. No explicit
+  configuration needed!
+</Tip>
+
+Get started with Google Gemini (recommended for speed and cost):
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash"
+  // API key auto-loads from GOOGLE_GENERATIVE_AI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+
+
+---
+
+### First Class Models
+
+Use any model from the following supported providers.
+
+<Tabs>
+<Tab title="Google">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash"
+  // API key auto-loads from GOOGLE_GENERATIVE_AI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
+</Tab>
+
+<Tab title="Anthropic">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "anthropic/claude-haiku-4-5"
+  // API key auto-loads from ANTHROPIC_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+[View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
+</Tab>
+
+<Tab title="OpenAI">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "openai/gpt-5"
+  // API key auto-loads from OPENAI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported OpenAI models →](https://platform.openai.com/docs/models)
+</Tab>
+<Tab title="Azure">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "azure/gpt-5"
+  // API key auto-loads from AZURE_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+[View all supported Azure models →](https://ai.azure.com/catalog)
+</Tab>
+
+<Tab title="Cerebras">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "cerebras/llama-4-scout"
+  // API key auto-loads from CEREBRAS_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
+</Tab>
+
+<Tab title="DeepSeek">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "deepseek/deepseek-chat"
+  // API key auto-loads from DEEPSEEK_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+[View all supported DeepSeek models →](https://api-docs.deepseek.com/quick_start/pricing)
+</Tab>
+
+<Tab title="Groq">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "groq/llama-3.1-8b-instant"
+  // API key auto-loads from GROQ_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported Groq models →](https://console.groq.com/docs/models)
+</Tab>
+
+<Tab title="Mistral">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "mistral/codestral-2508"
+  // API key auto-loads from MISTRAL_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+[View all supported Mistral models →](https://docs.mistral.ai/getting-started/models)
+</Tab>
+
+<Tab title="Ollama">
+
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "ollama/llama3.2"
+  // No API key required
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported Ollama models →](https://ollama.com/library)
+</Tab>
+
+<Tab title="Perplexity">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "perplexity/sonar-reasoning"
+  // API key auto-loads from PERPLEXITY_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+[View all supported Perplexity models →](https://docs.perplexity.ai/getting-started/models)
+</Tab>
+<Tab title="TogetherAI">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "togetherai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput"
+  // API key auto-loads from TOGETHER_AI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported TogetherAI models →](https://www.together.ai/models)
+
+</Tab>
+<Tab title="xAI">
+
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "xai/grok-4-fast-reasoning"
+  // API key auto-loads from XAI_API_KEY - set in your .env
+});
+
+await stagehand.init();
+
+```
+</CodeGroup>
+
+[View all xAI models →](https://docs.x.ai/docs/models)
+</Tab>
+
+</Tabs>
+
+---
+
+### Custom Models
+
+Amazon Bedrock, Cohere, all [first class models](/v3/configuration/models#first-class-models), and any model from [the Vercel AI SDK](https://sdk.vercel.ai/providers) is supported.
+
+Use this configuration for custom endpoints and custom retry or caching logic.
+
+We'll use Amazon Bedrock and Google as examples below.
+
+<AccordionGroup>
+<Accordion title="Amazon Bedrock">
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm install @ai-sdk/amazon-bedrock
+```
+
+</Tab>
+<Tab title="pnpm">
+```bash
+pnpm add @ai-sdk/amazon-bedrock
+```
+</Tab>
+<Tab title="yarn">
+```bash
+yarn add @ai-sdk/amazon-bedrock
+```
+</Tab>
+<Tab title="bun">
+```bash
+bun add @ai-sdk/amazon-bedrock
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Import, create provider, and create client">
+```typescript
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const bedrockProvider = createAmazonBedrock({
+  region: 'us-east-1',
+  accessKeyId: 'xxxxxxxxx',
+  secretAccessKey: 'xxxxxxxxx',
+  sessionToken: 'xxxxxxxxx',
+});
+
+const bedrockClient = new AISdkClient({
+  model: bedrockProvider("amazon/nova-pro-latest"),
+});
+
+```
+</Step>
+
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: bedrockClient
+});
+
+await stagehand.init();
+```
+
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="Google">
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm install @ai-sdk/google
+```
+</Tab>
+<Tab title="pnpm">
+```bash
+pnpm add @ai-sdk/google
+```
+</Tab>
+<Tab title="yarn">
+```bash
+yarn add @ai-sdk/google
+```
+</Tab>
+<Tab title="bun">
+```bash
+bun add @ai-sdk/google
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Import, create provider, and create client">
+```typescript
+import { createGoogle } from '@ai-sdk/google';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const googleProvider = createGoogle({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
+const googleClient = new AISdkClient({
+  model: googleProvider("google/gemini-2.5-flash"),
+});
+
+```
+</Step>
+
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: googleClient
+});
+
+await stagehand.init();
+```
+
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="All Providers">
+
+To implement a custom model, follow the steps for the provider you are using. See the Amazon Bedrock and Google examples above. All supported providers and models are in [the Vercel AI SDK](https://sdk.vercel.ai/providers).
+
+<Steps>
+<Step title="Install dependencies">
+Install the Vercel AI SDK for your provider.
+</Step>
+<Step title="Import, create provider, and create client">
+```typescript
+import { createProvider } from '@ai-sdk/provider';
+import { AISdkClient } from '@browserbasehq/stagehand';
+
+const provider = createProvider({
+  apiKey: 'xxxxxxxxx',
+});
+
+const providerClient = new AISdkClient({
+  model: provider("model/name"),
+});
+
+```
+</Step>
+<Step title="Pass client to Stagehand">
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: providerClient
+});
+
+await stagehand.init();
+```
+
+</Step>
+</Steps>
+</Accordion>
+</AccordionGroup>
+
+
+---
+
+## Choose a Model
+
+Different models excel at different tasks. Consider speed, accuracy, and cost for your use case.
+
+<Card title="Model Selection Guide" href="https://www.stagehand.dev/evals" icon="scale-balanced">
+  Find detailed model comparisons and recommendations on our Model Evaluation page.
+</Card>
+
+**Quick Recommendations**
+
+| Use Case                  | Recommended Model                    | Why                            |
+| ------------------------- | ------------------------------------ | ------------------------------ |
+| **Production** | `google/gemini-2.5-flash`            | Fast, accurate, cost-effective |
+| **Intelligence**     | `google/gemini-2.5-pro` | Best accuracy on hard tasks    |
+| **Speed**        | `google/gemini-2.5-flash`                 | Fastest response times         |
+| **Cost**     | `google/gemini-2.5-flash`            | Best value per token           |
+| **Local/offline**         | `ollama/qwen3`                    | No API costs, full control     |
+
+
+---
+
+## Advanced Options
+
+### Agent Models (with CUA Support)
+
+**Default**
+
+The Stagehand agent by default uses the same model passed to Stagehand. All models ([first class](/v3/configuration/models#first-class-models) and [custom](/v3/configuration/models#custom-models)) are supported. Here's an example with Gemini:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "google/gemini-2.5-flash",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other stagehand options
+});
+
+// Agent will use google/gemini-2.5-flash
+const agent = stagehand.agent();
+```
+
+**Override (with CUA support)**
+
+However, the stagehand agent also accepts a `model` parameter, which accepts any [first class](/v3/configuration/models#first-class-models) model, including [computer use agents (CUA)](/v3/configuration/models#agent-models-with-cua-support). This is useful when you'd like the agent to use a different model than the one passed to Stagehand.
+
+<Tip>
+  To use a cua model, you must pass the `cua` parameter to the `agent()` method. If a non-cua model is used, whether specified in Stagehand or overridden in the `agent()` method, an error will be thrown.
+</Tip>
+
+<Tabs>
+<Tab title="Google CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "google/gemini-2.5-computer-use-preview-10-2025",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="Anthropic CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "anthropic/claude-3-7-sonnet-latest",
+  // ANTHROPIC_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="OpenAI CUA">
+```typescript
+const agent = stagehand.agent({
+  cua: true,
+  model: "openai/computer-use-preview",
+  // OPENAI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+<Tab title="Example First Class Model">
+All [first class models](/v3/configuration/models#first-class-models) are supported. Here's an example with Gemini:
+
+```typescript
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-pro",
+  // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded from .env
+  // ... other agent options
+});
+```
+</Tab>
+</Tabs>
+
+<Accordion title="All Supported CUA Models">
+| Provider | Model |
+| -------- | ----- |
+| Google   | `google/gemini-2.5-computer-use-preview-10-2025` |
+| Anthropic | `anthropic/claude-3-7-sonnet-latest` |
+| Anthropic | `anthropic/claude-haiku-4-5-20251001` |
+| Anthropic | `anthropic/claude-sonnet-4-20250514` |
+| Anthropic | `anthropic/claude-sonnet-4-5-20250929` |
+| OpenAI   | `openai/computer-use-preview` |
+| OpenAI   | `openai/computer-use-preview-2025-03-11` |
+</Accordion>
+
+<Note>
+  For overriding the agent API key, using a corporate proxy, adding provider-specific options, or other advanced use cases, the agent model can also take the form of an object. To learn more, see the [Agent Reference](/v3/references/agent).
+</Note>
+---
+
+### Custom Endpoints
+
+If you need Azure OpenAI deployments or enterprise deployments.
+
+<Tabs>
+<Tab title="OpenAI">
+
+For OpenAI, you can pass configuration directly without using `llmClient` using the `model` parameter:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    model: "openai/gpt-5",
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: "https://custom-openai-endpoint.com/v1"
+  }
+});
+```
+
+</Tab>
+
+<Tab title="Anthropic">
+
+For Anthropic, you can pass configuration directly without using `llmClient` using the `model` parameter:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    model: "anthropic/claude-haiku-4-5",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL: "https://custom-anthropic-endpoint.com",
+  },
+});
+```
+
+  </Tab>
+<Tab title="All Other Providers">
+For all other providers, use `llmClient`. Here's an example with Hugging Face:
+
+```typescript
+// pnpm add @ai-sdk/huggingface
+
+import { createHuggingFace } from "@ai-sdk/huggingface";
+import { AISdkClient } from "@browserbasehq/stagehand";
+
+const huggingFaceProvider = createHuggingFace({
+  apiKey: process.env.HUGGINGFACE_API_KEY,
+  baseURL: "https://custom-huggingface-endpoint.com",
+});
+
+const huggingFaceClient = new AISdkClient({
+  model: huggingFaceProvider("meta-llama/Llama-3.1-8B-Instruct"),
+});
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  llmClient: huggingFaceClient,
+});
+```
+
+</Tab>
+</Tabs>
+
+---
+
+### Extending the AI SDK Client
+
+For advanced use cases like custom retries or caching logic, you can extend the `AISdkClient`:
+
+```typescript
+import { LLMClient } from "@browserbasehq/stagehand";
+
+class CustomRetryClient extends LLMClient {
+  async createChatCompletion(options) {
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        return await super.createChatCompletion(options);
+      } catch (error) {
+        retries--;
+        if (retries === 0) throw error;
+        await new Promise((r) => setTimeout(r, 1000 * (4 - retries)));
+      }
+    }
+  }
+}
+```
+
+<Tip>
+  Need custom caching? Consider using built-in [caching
+  feature](/v3/best-practices/caching).
+</Tip>
+
+---
+
+### Legacy Model Format
+
+<Tip>
+**Recommendation:** Use `provider/model` format. Example:
+- `model: "openai/gpt-4o"` (recommended)
+- `model: "gpt-4o"` (legacy)
+
+</Tip>
+
+The following models work without the `provider/` prefix in the model parameter as part of legacy support:
+
+<AccordionGroup title="Legacy Model Format">
+<Accordion title="Google">
+
+- `gemini-2.5-flash-preview-04-17`
+- `gemini-2.5-pro-preview-03-25`
+- `gemini-2.0-flash`
+- `gemini-2.0-flash-lite`
+- `gemini-1.5-flash`
+- `gemini-1.5-flash-8b`
+- `gemini-1.5-pro`
+
+</Accordion>
+<Accordion title="Anthropic">
+
+- `claude-3-7-sonnet-latest`
+- `claude-3-7-sonnet-20250219`
+- `claude-3-5-sonnet-latest`
+- `claude-3-5-sonnet-20241022`
+- `claude-3-5-sonnet-20240620`
+
+</Accordion>
+<Accordion title="OpenAI">
+- `gpt-4o`
+- `gpt-4o-mini`
+- `o1`
+- `o1-mini`
+- `o3`
+- `o3-mini`
+- `gpt-4.1`
+- `gpt-4.1-mini`
+- `gpt-4.1-nano`
+- `o4-mini`
+- `gpt-4.5-preview`
+- `gpt-4o-2024-08-06`
+- `o1-preview`
+
+</Accordion>
+<Accordion title="Cerebras">
+
+- `cerebras-llama-3.3-70b`
+- `cerebras-llama-3.1-8b`
+
+</Accordion>
+<Accordion title="Groq">
+
+- `groq-llama-3.3-70b-versatile`
+- `groq-llama-3.3-70b-specdec`
+- `moonshotai/kimi-k2-instruct`
+
+</Accordion>
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Error: API key not found">
+**Error:** `API key not found`
+
+**Solutions:**
+
+- Check `.env` file has the correct variable name for the provider you are using
+- Ensure environment variables are loaded (use `dotenv`)
+- Restart your application after updating `.env` file
+
+| Provider   | Environment Variable           |
+| ---------- | ------------------------------ |
+| Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
+| Anthropic  | `ANTHROPIC_API_KEY`            |
+| OpenAI     | `OPENAI_API_KEY`               |
+| Azure      | `AZURE_API_KEY`                |
+| Cerebras   | `CEREBRAS_API_KEY`             |
+| DeepSeek   | `DEEPSEEK_API_KEY`             |
+| Groq       | `GROQ_API_KEY`                 |
+| Mistral    | `MISTRAL_API_KEY`              |
+| Ollama     | None (local)                   |
+| Perplexity | `PERPLEXITY_API_KEY`           |
+| TogetherAI | `TOGETHER_AI_API_KEY`          |
+| xAI        | `XAI_API_KEY`                  |
+
+</Accordion>
+
+<Accordion title="Error: Model not supported">
+**Error:** `Unsupported model`
+
+**Solutions:**
+
+- Use the `provider/model` format: `openai/gpt-5`
+- Verify the model name exists in the provider's documentation
+- Check model name is spelled correctly
+- Ensure your Model API key can access the model
+</Accordion>
+
+<Accordion title="Model doesn't support structured outputs">
+**Error:** `Model does not support structured outputs`
+
+**Solutions:**
+
+- Check our [Model Evaluation page](https://www.stagehand.dev/evals) for recommended models
+</Accordion>
+
+<Accordion title="High costs or slow performance">
+**Symptoms:** Automation is expensive or slow
+
+**Solutions:**
+
+- Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
+- Use faster models for simple tasks, powerful ones for complex tasks
+- Implement [caching](/v3/best-practices/caching) for repeated patterns
+</Accordion>
+<Accordion title="Python support for Stagehand v3 or custom models">
+We are working on Python support for Stagehand v3 and custom models.
+
+**Solutions:**
+
+- Request updates on Python support from our support team at [support@browserbase.com](mailto:support@browserbase.com)
+</Accordion>
+</AccordionGroup>
+
+### Need Help? Contact Support
+
+Can't find a solution? Have a question? Reach out to our support team:
+
+<Card
+  title="Contact Support"
+  icon="envelope"
+  href="mailto:support@browserbase.com"
+>
+  Email us at support@browserbase.com
+</Card>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Prompting Guide" href="/v3/best-practices/prompting-best-practices" icon="brain">
+  Learn how to prompt LLMs for optimal results
+</Card>
+<Card title="Run Evals" href="/v3/basics/evals" icon="flask-vial">
+  Test which models work best for your specific use case
+</Card>
+
+<Card title="Caching Guide" href="/v3/best-practices/caching" icon="database">
+  Cache responses to reduce costs and improve speed
+</Card>
+<Card
+  title="Optimize Costs"
+  href="/v3/best-practices/cost-optimization"
+  icon="dollar-sign"
+>
+  Reduce LLM spending with caching and smart model selection
+</Card>
+</CardGroup>

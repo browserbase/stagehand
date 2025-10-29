@@ -1,0 +1,184 @@
+---
+title: Computer Use Agents
+description: Incorporate Computer Use APIs from Google, Anthropic, and OpenAI with one line of code in Stagehand.
+---
+
+## What is a Computer Use Agent?
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/ODaHJzOyVCQ"
+  title="YouTube video player"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+></iframe>
+You might've heard of [Gemini Computer Use](https://blog.google/technology/google-deepmind/gemini-computer-use-model/), [Claude Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use), or [OpenAI's Computer Using Agent](https://openai.com/index/computer-using-agent/).
+
+These are powerful tools that can convert natural language into actions on the computer. However, you'd otherwise need to write your own code to convert these actions into Playwright commands.
+
+Stagehand not only handles the execution of Computer Use outputs, but also lets you hot-swap between Google, OpenAI, and Anthropic models with one line of code. You can find more information on the performance of different computer use models by visiting our [evals page](https://www.stagehand.dev/agent-evals).
+
+## How to use a Computer Use Agent in Stagehand
+
+Stagehand lets you use Computer Use Agents with one line of code:
+
+<Note>
+**IMPORTANT! Configure your browser dimensions**
+
+Computer Use Agents will often return XY-coordinates to click on the screen, so you'll need to configure your browser dimensions.
+
+If not specified, the default browser dimensions are 1288 x 711. You can also configure the browser dimensions in the `browserbaseSessionCreateParams` or `localBrowserLaunchOptions` options.
+</Note>
+
+
+### Configuring browser dimensions
+
+Browser configuration differs by environment:
+
+<Tabs>
+<Tab title="BROWSERBASE">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+	env: "BROWSERBASE",
+    model: "google/gemini-2.5-flash",
+  
+    browserbaseSessionCreateParams: {
+      projectId: process.env.BROWSERBASE_PROJECT_ID!,
+      browserSettings: {
+		blockAds: true,
+        viewport: {
+          width: 1288,
+          height: 711,
+        },
+      },
+  	},
+});
+
+await stagehand.init();
+```
+</Tab>
+<Tab title="LOCAL">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    headless: false,
+    viewport: {
+      width: 1288,
+      height: 711,
+    },
+  }
+});
+
+await stagehand.init();
+```
+</Tab>
+</Tabs>
+
+### Direct your Computer Use Agent
+
+Call `execute` on the agent to assign a task to the agent.
+
+<CodeGroup>
+```typescript Google
+await page.goto("https://www.google.com/");
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+
+```typescript OpenAI
+await page.goto("https://www.google.com/");
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "openai/computer-use-preview",
+        apiKey: process.env.OPENAI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+```typescript Anthropic
+await page.goto("https://www.google.com/");
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "anthropic/claude-sonnet-4-20250514",
+        apiKey: process.env.ANTHROPIC_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+</CodeGroup>
+
+You can define the maximum number of steps the agent can take with `maxSteps`:
+
+```typescript
+await agent.execute({
+	instructions: "Apply for a library card at the San Francisco Public Library",
+	maxSteps: 10,
+});
+``` 
+
+### Select Your Computer Use Model
+
+Stagehand supports computer use models from Google, Anthropic, and OpenAI. You can find all supported models on the [models page](/v3/configuration/models#agent-models-with-cua-support).
+
+<Tabs>
+<Tab title="Google">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "google/gemini-2.5-computer-use-preview-10-2025",
+    // GOOGLE_GENERATIVE_AI_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+<Tab title="Anthropic">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "anthropic/claude-sonnet-4-20250514",
+    // ANTHROPIC_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+<Tab title="OpenAI">
+```typescript
+const agent = stagehand.agent({
+    cua: true,
+    model: "openai/computer-use-preview",
+    // OPENAI_API_KEY is auto-loaded - set in your .env
+});
+```
+</Tab>
+</Tabs>

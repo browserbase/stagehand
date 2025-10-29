@@ -1,0 +1,997 @@
+---
+title: Migrate Stagehand v2 to v3
+sidebarTitle: Migrate Stagehand v2 to v3
+description: Complete migration guide from Stagehand v2 to v3
+icon: 'arrow-up-right-dots'
+---
+
+## Recommended Migration Process
+
+1. **Backup your project**. If you use a version control system, make sure all previous versions are committed.
+2. **Upgrade to Stagehand v3**.
+3. Follow the breaking changes guide below.
+4. Verify your project is working as expected.
+5. Commit your changes.
+
+## Stagehand v3 Package Version
+
+Update your `package.json` to use Stagehand v3:
+
+```bash Bash
+npm install @browserbasehq/stagehand@latest
+```
+
+## Overview of Major Changes
+
+Stagehand v3 introduces significant improvements to the API design and functionality:
+
+- **Removing Playwright Dependency**: Stagehand v3 is now a standalone library that does not depend on Playwright. **You can still use Stagehand with Playwright, check out our [Playwright integration](/integrations/playwright) for more details.**
+- **Simplified Method Signatures**: Cleaner, more intuitive parameter structures.
+- **Unified Model Configuration**: Model configuration is now consolidated into a single `model` parameter.
+- **Automatic iframe & Shadow DOM Support**: No more manual flags required.
+- **Improved Type Safety**: Better TypeScript inference and type checking.
+- **Enhanced Multi-Page Support**: New Context API for managing multiple pages.
+- **Streamlined Timeouts**: Consistent timeout naming across all methods.
+- **Auto-caching**: Stagehand v3 now automatically caches actions and agent steps using the [file system cache](/best-practices/caching).
+- **Agent Improvements**: Renamed parameters (`instructions` → `systemPrompt`), unified model configuration, and new `executionModel` option for cost optimization.
+
+
+## Breaking Changes
+
+### Stagehand Initialization
+
+#### Model Configuration Consolidation
+
+The `modelName` and `modelClientOptions` parameters have been unified into a single `model` parameter.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  modelName: "openai/gpt-5",
+  modelClientOptions: {
+    apiKey: process.env.OPENAI_API_KEY
+    baseURL: "https://custom-proxy.com/v1"
+  }
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Option 1: String format (recommended for simplicity, auto-loads model API key from env)
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: "openai/gpt-5"
+});
+
+// Option 2: Object format (for advanced configuration)
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: {
+    modelName: "gpt-5",
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: "https://custom-proxy.com/v1"
+  }
+});
+```
+
+#### DOM Settle Timeout Rename
+
+The `domSettleTimeoutMs` parameter has been renamed to `domSettleTimeout` for consistency.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  domSettleTimeoutMs: 5000
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  domSettleTimeout: 5000
+});
+```
+
+#### Caching Changes
+
+The `enableCaching` boolean has been replaced with a `cacheDir` string for more flexible cache management.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  enableCaching: true
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  cacheDir: "./stagehand-cache"  // Specify cache directory
+});
+```
+
+#### Page Access Changes
+
+Direct page access has changed to use the Context API.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Direct page access
+const page = stagehand.page;
+await page.goto("https://example.com");
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Access via context
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+
+// Or use the convenience getter
+const page = stagehand.page;
+await page.goto("https://example.com");
+```
+
+### Context and Multi-Page Management
+
+#### New Context API
+
+v3 introduces a structured Context API for managing multiple pages.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Limited multi-page support
+const page = stagehand.page;
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Access all pages
+const pages = stagehand.context.pages();
+const mainPage = pages[0];
+
+// Create new page
+const newPage = await stagehand.context.newPage();
+
+// Set active page
+stagehand.context.setActivePage(newPage);
+
+// Now stagehand.page returns newPage
+await stagehand.act("click button");  // Acts on newPage
+```
+
+### act() Method Changes
+
+#### Method Signature Simplification
+
+The `action` parameter has been removed from `ActOptions`. Now you only pass the instruction as a string.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+await page.act({
+  action: "click the login button",
+  modelName: "openai/gpt-5-mini",
+  variables: { username: "john" },
+  timeoutMs: 10000,
+  domSettleTimeoutMs: 5000,
+  iframes: true
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// Clean, simple string instruction
+await stagehand.act("click the login button");
+
+// With options
+await stagehand.act("click the login button", {
+  model: "openai/gpt-5-mini",
+  variables: { username: "john" },
+  timeout: 10000,
+  page: page  // Optional: specify which page
+});
+```
+
+<Note>
+**Method Location Change**: In v3, `act()` is called on the `stagehand` instance, not the `page` object.
+</Note>
+
+#### Model Configuration in act()
+
+Model configuration follows the same pattern as initialization.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+await page.act({
+  action: "fill the form",
+  modelName: "anthropic/claude-sonnet-4-5",
+  modelClientOptions: {
+    apiKey: process.env.ANTHROPIC_API_KEY
+  }
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// String format
+await stagehand.act("fill the form", {
+  model: "anthropic/claude-sonnet-4-5"
+});
+
+// Object format
+await stagehand.act("fill the form", {
+  model: {
+    modelName: "anthropic/claude-sonnet-4-5",
+    apiKey: process.env.ANTHROPIC_API_KEY
+  }
+});
+```
+
+#### Timeout Parameter Rename
+
+`timeoutMs` has been renamed to `timeout`.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+await page.act({
+  action: "click button",
+  timeoutMs: 15000
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+await stagehand.act("click button", {
+  timeout: 15000
+});
+```
+
+#### Automatic iframe Support
+
+The `iframes` flag has been removed. iframe support is now automatic.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+await page.act({
+  action: "click button inside iframe",
+  iframes: true  // Required to interact with iframes
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// Automatic iframe support - no flag needed
+await stagehand.act("click button inside iframe");
+```
+
+<Note>
+**Automatic Support**: Stagehand v3 automatically handles iframe and Shadow DOM interactions without requiring explicit flags.
+</Note>
+
+#### Result Structure Changes
+
+The `ActResult` structure has been enhanced with more detailed information.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const result = await page.act("click the button");
+console.log(result.action);  // Single action string
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const result = await stagehand.act("click the button");
+console.log(result.actionDescription);  // Overall description
+console.log(result.actions);  // Array of action details
+
+// ActResult structure:
+// {
+//   success: boolean;
+//   message: string;
+//   actionDescription: string;
+//   actions: Array<{
+//     selector: string;
+//     description: string;
+//     method?: string;
+//     arguments?: string[];
+//   }>;
+// }
+```
+
+### extract() Method Changes
+
+#### Method Location and Signature
+
+`extract()` has moved from the page object to the stagehand instance, with a cleaner parameter structure.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+import { z } from 'zod/v3';
+
+const result = await page.extract({
+  instruction: "extract product details",
+  schema: z.object({
+    name: z.string(),
+    price: z.number()
+  }),
+  modelName: "openai/gpt-5",
+  domSettleTimeoutMs: 5000,
+  selector: "xpath=/html/body/div",
+  iframes: true
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+import { z } from 'zod/v3';
+
+// Cleaner parameter structure
+const result = await stagehand.extract(
+  "extract product details",
+  z.object({
+    name: z.string(),
+    price: z.number()
+  }),
+  {
+    model: "openai/gpt-5",
+    selector: ".container", // NEW: CSS selector support
+    timeout: 10000,
+    page: page  // Optional: specify which page
+  }
+);
+```
+
+<Note>
+**Parameter Order**: In v3, `instruction` and `schema` are separate positional parameters, with `options` as an optional third parameter.
+</Note>
+
+#### Extract Without Schema
+
+Schema-less extraction also has a simpler interface.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+// String instruction
+const result = await page.extract("get the page title");
+// Returns: { extraction: "Page Title" }
+
+// Raw page content
+const content = await page.extract();
+// Returns: { page_text: "..." }
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// String instruction
+const result = await stagehand.extract("get the page title");
+// Returns: { extraction: "Page Title" }
+
+// Raw page content
+const content = await stagehand.extract();
+// Returns: { pageText: "..." }
+```
+
+#### Model Configuration in extract()
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const data = await page.extract({
+  instruction: "extract data",
+  schema: DataSchema,
+  modelName: "anthropic/claude-sonnet-4-5",
+  modelClientOptions: {
+    apiKey: process.env.ANTHROPIC_API_KEY
+  }
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const data = await stagehand.extract(
+  "extract data",
+  DataSchema,
+  {
+    model: "anthropic/claude-sonnet-4-5"
+  }
+);
+```
+
+#### Automatic iframe Support
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const data = await page.extract({
+  instruction: "extract data from iframe",
+  schema: DataSchema,
+  iframes: true  // Required for iframe content
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// Automatic iframe support
+const data = await stagehand.extract(
+  "extract data from iframe",
+  DataSchema
+);
+```
+
+#### Array Schema Changes
+
+Array extraction now has a more ergonomic syntax.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+import { z } from 'zod/v3';
+
+// Had to wrap array in object
+const ApartmentListingsSchema = z.object({
+  apartments: z.array(z.object({
+    address: z.string(),
+    price: z.string(),
+    bedrooms: z.number()
+  }))
+});
+
+const result = await page.extract({
+  instruction: "extract all apartment listings",
+  schema: ApartmentListingsSchema
+});
+
+// Access via: result.apartments
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+import { z } from 'zod/v3';
+
+// Can use array schema directly
+const ApartmentListingsSchema = z.array(
+  z.object({
+    address: z.string(),
+    price: z.string(),
+    bedrooms: z.number()
+  })
+);
+
+const result = await stagehand.extract(
+  "extract all apartment listings",
+  ApartmentListingsSchema
+);
+
+// Result is directly the array
+console.log(result[0].address);
+```
+
+### observe() Method Changes
+
+#### Method Signature Updates
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const results = await page.observe({
+  instruction: "find all buttons",
+  modelName: "openai/gpt-5",
+  domSettleTimeoutMs: 5000,
+  drawOverlay: true,
+  iframes: true
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const results = await stagehand.observe("find all buttons", {
+  model: "openai/gpt-5",
+  timeout: 10000,
+  selector: ".container",  // NEW: scope observation to selector
+  page: page  // Optional: specify which page
+});
+```
+
+<Note>
+**Method Location Change**: Like `act()` and `extract()`, `observe()` is now called on the `stagehand` instance.
+</Note>
+
+#### Draw Overlay Removed
+
+The `drawOverlay` option has been removed in v3.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const results = await page.observe({
+  instruction: "find buttons",
+  drawOverlay: true  // Visual debugging
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// drawOverlay is no longer available
+const results = await stagehand.observe("find buttons");
+```
+
+#### Automatic iframe Support
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const results = await page.observe({
+  instruction: "find elements in iframe",
+  iframes: true
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// Automatic iframe support
+const results = await stagehand.observe("find elements in iframe");
+```
+
+#### Observe with act() Integration
+
+The observe → act workflow remains similar but with updated method signatures.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const [action] = await page.observe("find the login button");
+await page.act(action);
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const [action] = await stagehand.observe("find the login button");
+await stagehand.act(action);
+```
+
+### agent() Method Changes
+
+#### Agent Configuration Updates
+
+The agent configuration has been significantly restructured in v3 with renamed parameters and new capabilities.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const agent = stagehand.agent({
+  provider: "google",
+  model: "gemini-2.5-computer-use-preview-10-2025",
+  instructions: "You are a helpful assistant that can navigate websites.",
+  options: {
+    apiKey: process.env.GEMINI_API_KEY
+  },
+  integrations: ["https://mcp-server.example.com"],
+  tools: customTools
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-computer-use-preview-10-2025",  // Provider now in model string
+  systemPrompt: "You are a helpful assistant that can navigate websites.",  // Renamed from 'instructions'
+  cua: true,  // NEW: Computer Use Agent mode
+  integrations: ["https://mcp-server.example.com"],
+  tools: customTools
+});
+```
+
+<Note>
+**Key Changes**:
+- `provider` removed - now part of the model string (e.g., `"anthropic/claude-sonnet-4-5"`)
+- `instructions` renamed to `systemPrompt`
+- `options` removed - use model object format for advanced configuration
+- `executionModel` added - specify a different model for tool execution
+- `cua` flag added - enable/disable Computer Use Agent mode
+</Note>
+
+#### Model Configuration in agent()
+
+Model configuration follows the same unified pattern as other methods.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const agent = stagehand.agent({
+  provider: "google",
+  model: "gemini-2.5-computer-use-preview-10-2025",
+  options: {
+    apiKey: process.env.GEMINI_API_KEY,
+    baseURL: "https://custom-proxy.com/v1"
+  }
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+// String format (recommended)
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-computer-use-preview-10-2025"
+});
+
+// Object format for advanced configuration
+const agent = stagehand.agent({
+  model: {
+    modelName: "gemini-2.5-computer-use-preview-10-2025",
+    apiKey: process.env.GEMINI_API_KEY,
+    baseURL: "https://custom-proxy.com/v1"
+  }
+});
+```
+
+#### Execute Method Changes
+
+The `execute()` method has been simplified with some options removed and new ones added.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const result = await agent.execute({
+  instruction: "Search for products",
+  maxSteps: 20,
+  autoScreenshot: true,
+  waitBetweenActions: 1000,
+  context: "Focus on electronics category"
+});
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const result = await agent.execute({
+  instruction: "Search for products",
+  maxSteps: 20,
+  page: page,  // NEW: specify which page to operate on
+  highlightCursor: true  // NEW: visual cursor for debugging
+});
+```
+
+<Warning>
+**Removed Options**:
+- `autoScreenshot` - no longer available
+- `waitBetweenActions` - no longer available
+- `context` - use the `systemPrompt` in agent config instead
+</Warning>
+
+#### Execution Model Configuration
+
+v3 introduces a new `executionModel` option to use a different (often faster/cheaper) model for tool execution.
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5",  // Main reasoning model
+  executionModel: "anthropic/claude-haiku-4-5"  // Faster model for tool execution (act, extract, observe)
+});
+
+// The agent will use claude-sonnet-4-5 for high-level reasoning
+// but claude-haiku-4-5 for executing individual actions
+const result = await agent.execute("Complete the checkout process");
+```
+
+#### Agent with Multi-Page Support
+
+v3 agents can now specify which page to operate on.
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const page1 = stagehand.page;
+const page2 = await stagehand.context.newPage();
+
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-computer-use-preview-10-2025"
+});
+
+// Execute on specific page
+await page2.goto("https://example.com/dashboard");
+const result = await agent.execute({
+  instruction: "Export the data table",
+  page: page2  // Operate on page2 instead of default page
+});
+```
+
+### History and Metrics
+
+#### History API
+
+History is now async and returns a promise.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const history = stagehand.history;
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const history = await stagehand.history;
+```
+
+#### Metrics API
+
+Metrics is now async and returns a promise.
+
+```typescript Stagehand v2 icon="/images/typescript.svg"
+const metrics = stagehand.metrics;
+```
+
+```typescript Stagehand v3 icon="/images/typescript.svg"
+const metrics = await stagehand.metrics;
+```
+
+## Complete Migration Example
+
+Here's a complete example showing a full migration:
+
+<Tabs>
+<Tab title="Stagehand v2">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from 'zod/v3';
+
+// Initialize
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  modelName: "openai/gpt-5",
+  modelClientOptions: {
+    apiKey: process.env.OPENAI_API_KEY
+  },
+  enableCaching: true,
+  domSettleTimeoutMs: 5000
+});
+
+await stagehand.init();
+const page = stagehand.page;
+
+// Navigate
+await page.goto("https://example.com");
+
+// Act
+await page.act({
+  action: "click the login button",
+  timeoutMs: 10000,
+  iframes: true
+});
+
+// Extract
+const ProductSchema = z.object({
+  name: z.string(),
+  price: z.number(),
+  inStock: z.boolean()
+});
+
+const product = await page.extract({
+  instruction: "extract product details",
+  schema: ProductSchema,
+  domSettleTimeoutMs: 5000,
+  iframes: true
+});
+
+// Observe
+const actions = await page.observe({
+  instruction: "find all buttons",
+  drawOverlay: false,
+  iframes: true
+});
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Stagehand v3">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from 'zod/v3';
+
+// Initialize - simplified configuration
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+  model: "openai/gpt-5",  // Unified model configuration
+  cacheDir: "./cache",      // Flexible cache directory
+  domSettleTimeout: 5000    // Consistent naming
+});
+
+await stagehand.init();
+const page = stagehand.context.pages()[0];  // Context API
+
+// Navigate
+await page.goto("https://example.com");
+
+// Act - cleaner interface, automatic iframe support
+await stagehand.act("click the login button", {
+  timeout: 10000
+  // No iframes flag needed - automatic!
+});
+
+// Extract - cleaner parameter order
+const ProductSchema = z.object({
+  name: z.string(),
+  price: z.number(),
+  inStock: z.boolean()
+});
+
+const product = await stagehand.extract(
+  "extract product details",
+  ProductSchema
+  // Automatic iframe support, no extra flags needed
+);
+
+// Observe - simplified
+const actions = await stagehand.observe("find all buttons");
+// Automatic iframe support
+
+// Get metrics
+const metrics = await stagehand.metrics;
+console.log('Total tokens used:',
+  metrics.totalPromptTokens + metrics.totalCompletionTokens);
+
+await stagehand.close();
+```
+
+</Tab>
+</Tabs>
+
+## Quick Reference: Breaking Changes
+
+<Expandable title="Stagehand Initialization">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **Model Config** | `modelName` + `modelClientOptions` | `model: "provider/model"` or `{ modelName, apiKey, baseURL }` |
+| **DOM Settle** | `domSettleTimeoutMs` | `domSettleTimeout` |
+| **Caching** | `enableCaching: boolean` | `cacheDir: string` |
+| **Page Access** | `stagehand.page` | `stagehand.context.pages()[0]` |
+
+</Expandable>
+
+<Expandable title="act()">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **Method location** | `page.act()` | `stagehand.act()` |
+| **Parameters** | `{ action, ...options }` | `(instruction, options?)` |
+| **Timeout** | `timeoutMs` | `timeout` |
+| **Result structure** | `{ action }` | `{ actionDescription, actions[] }` |
+
+</Expandable>
+
+<Expandable title="extract()">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **Method location** | `page.extract()` | `stagehand.extract()` |
+| **Parameters** | `{ instruction, schema, ...options }` | `(instruction, schema, options?)` |
+
+</Expandable>
+
+<Expandable title="observe()">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **Method location** | `page.observe()` | `stagehand.observe()` |
+| **Draw overlay** | `drawOverlay: boolean` | Removed |
+
+</Expandable>
+
+<Expandable title="agent()">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **Provider** | `provider: "openai" \| "anthropic"` | Part of model string |
+| **Instructions** | `instructions: string` | `systemPrompt: string` |
+| **Model** | `model: "model-name"` | `model: "provider/model-name"` |
+| **Options** | `options: Record<string, unknown>` | Use model object format |
+| **Execute params** | `autoScreenshot`, `waitBetweenActions`, `context` | Removed; added `page`, `highlightCursor` |
+
+</Expandable>
+
+<Expandable title="Automatic Features">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **iframe support** | `iframes: true` flag required | Automatic (no flag needed) |
+| **Shadow DOM** | Manual handling | Automatic (no flag needed) |
+
+</Expandable>
+
+<Expandable title="Properties & Methods">
+
+| Feature | Stagehand v2 | Stagehand v3 |
+|---------|--------------|--------------|
+| **History** | `stagehand.history` | `await stagehand.history` |
+| **Metrics** | `stagehand.metrics` | `await stagehand.metrics` |
+
+</Expandable>
+
+## Troubleshooting
+
+### Error: Cannot find property 'page' on Stagehand instance
+
+**Problem**: Direct `stagehand.page` access may not work immediately after init.
+
+**Solution**: Use the Context API or ensure you're using the getter method:
+
+```typescript
+// Use context API (recommended)
+const page = stagehand.context.pages()[0];
+
+// Or use the convenience getter
+const page = stagehand.page;
+```
+
+### Error: act() method not found on page
+
+**Problem**: v3 moved `act()`, `extract()`, and `observe()` to the stagehand instance.
+
+**Solution**: Call these methods on the stagehand instance:
+
+```typescript
+// v2 ❌
+await page.act("click button");
+
+// v3 ✅
+await stagehand.act("click button");
+```
+
+### TypeScript: Model configuration type errors
+
+**Problem**: TypeScript errors with model configuration.
+
+**Solution**: Use the proper format:
+
+```typescript
+// String format
+model: "openai/gpt-5"
+
+// Object format
+model: {
+  modelName: "openai/gpt-5",
+  apiKey: process.env.OPENAI_API_KEY
+}
+```
+
+### Agent configuration errors
+
+**Problem**: Using old `provider` and `instructions` parameters.
+
+**Solution**: Update to v3 format:
+
+```typescript
+// v2 ❌
+const agent = stagehand.agent({
+  provider: "anthropic",
+  model: "claude-sonnet-4-5",
+  instructions: "You are a helpful assistant that..."
+});
+
+// v3 ✅
+const agent = stagehand.agent({
+  model: "anthropic/claude-sonnet-4-5",
+  systemPrompt: "You are a helpful assistant that..."
+});
+```
+
+### Agent execute options not recognized
+
+**Problem**: Using removed options like `autoScreenshot`, `waitBetweenActions`, or `context`.
+
+**Solution**: Remove these options and use v3 alternatives:
+
+```typescript
+// v2 ❌
+await agent.execute({
+  instruction: "task",
+  autoScreenshot: true,
+  waitBetweenActions: 1000,
+  context: "additional context"
+});
+
+// v3 ✅
+const agent = stagehand.agent({
+  model: "google/gemini-2.5-computer-use-preview-10-2025",
+  systemPrompt: "Your context here."  // Move context to systemPrompt
+});
+
+await agent.execute({
+  instruction: "task",
+  highlightCursor: true  // Use new option for visual feedback
+});
+```
+
+## Best Practices for v3
+
+1. **Use the string model format** for simplicity: `model: "openai/gpt-5"`
+2. **Leverage automatic iframe support** - remove all `iframes` flags
+3. **Use the Context API** for multi-page scenarios
+4. **Monitor metrics** to track token usage and optimize costs
+5. **Use history** for debugging and understanding automation flow
+6. **Set appropriate timeouts** based on your use case
+7. **Specify cache directory** to improve performance for repeated actions
+8. **Use executionModel for agents** - configure a faster/cheaper model for tool execution while keeping a powerful model for reasoning (e.g., `model: "anthropic/claude-sonnet-4-5"`, `executionModel: "google/gemini-2.0-flash"`)
+
+## Additional Resources
+
+- [Stagehand v3 Documentation](/v3/first-steps/introduction)
+- [API Reference](/v3/references/stagehand)
+- [Best Practices](/v3/best-practices/caching)
+- [GitHub Issues](https://github.com/browserbase/stagehand/issues)
+
+If you encounter any issues during migration, please [open an issue](https://github.com/browserbase/stagehand/issues) on our GitHub repository.

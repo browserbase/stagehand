@@ -1,0 +1,235 @@
+---
+title: "Browserbase MCP Server"
+sidebarTitle: "Introduction"
+description: "AI-powered browser automation through Model Context Protocol integration with Stagehand"
+---
+
+## Overview
+
+The Browserbase MCP Server brings powerful browser automation capabilities to Claude through the Model Context Protocol (MCP). Built on top of [Stagehand](https://docs.stagehand.dev/), this integration provides AI-powered web automation using natural language commands.
+
+<Info>
+This server enables Claude to control browsers, navigate websites, interact with web elements, and extract data—all through simple conversational commands.
+</Info>
+
+<Note>
+**Two Ways to Use MCP:**
+1. **Browserbase MCP Server**: Provides browser automation tools to Claude Desktop and other MCP clients
+2. **MCP Integrations in Stagehand**: Add external tools (like Exa search, Supabase) to Stagehand agents
+
+This documentation covers the Browserbase MCP Server. For using MCP integrations within Stagehand agents, see [MCP Integrations](/best-practices/mcp-integrations).
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+<Card title="Natural Language Automation" icon="wand-magic-sparkles">
+Control browsers using plain English commands like "click the login button" or "fill out the contact form"
+</Card>
+
+<Card title="Web Interaction" icon="browser">
+Navigate, click, and fill forms with ease
+</Card>
+
+<Card title="Data Extraction" icon="download">
+Extract structured data from any website automatically
+
+</Card>
+
+<Card title="Multi-Session Management" icon="window-restore">
+Run multiple browser sessions simultaneously for complex workflows
+</Card>
+
+<Card title="Screenshot Capture" icon="camera">
+Capture and analyze webpage screenshots programmatically
+</Card>
+
+<Card title="Cookie Management" icon="cookie-bite">
+Handle authentication and session persistence across interactions
+</Card>
+</CardGroup>
+
+## Core Benefits
+
+<Tabs>
+<Tab title="Ease of Use">
+<CardGroup cols={2}>
+<Card title="Intuitive Commands" icon="wand-magic-sparkles">
+No need to learn complex selectors or automation syntax. Simply describe what you want to do in natural language.
+</Card>
+
+<Card title="Quick Setup" icon="rocket">
+Get started in minutes with our NPM package or our remote hosted URL.
+</Card>
+
+<Card title="Smart Automation" icon="brain">
+Stagehand's AI understands web page context and can adapt to different layouts and designs.
+</Card>
+</CardGroup>
+</Tab>
+
+<Tab title="Powerful Capabilities">
+<CardGroup cols={2}>
+<Card title="Full Browser Control" icon="browser">
+Navigate, click, type, scroll, and interact with any web element.
+</Card>
+
+<Card title="Data Intelligence" icon="chart-line">
+Extract structured information from complex web pages automatically.
+</Card>
+
+<Card title="Session Persistence" icon="cookie-bite">
+Maintain authentication states and cookies across multiple interactions.
+</Card>
+
+<Card title="Multi-Session Support" icon="window-restore">
+Run parallel browser instances for complex workflows.
+</Card>
+</CardGroup>
+</Tab>
+
+<Tab title="Enterprise Ready">
+<CardGroup cols={2}>
+<Card title="Reliable Infrastructure" icon="server">
+Built on Browserbase's cloud browser platform for consistent performance.
+</Card>
+
+<Card title="Scalable Architecture" icon="arrows-up-to-line">
+Handle multiple concurrent sessions and high-volume automation tasks.
+</Card>
+
+<Card title="Security Features" icon="shield-check">
+Stealth mode, proxy support, and advanced anti-detection capabilities.
+</Card>
+
+<Card title="Comprehensive Logging" icon="file-lines">
+Detailed session recordings and debugging information.
+</Card>
+</CardGroup>
+</Tab>
+</Tabs>
+
+## Use Cases
+
+<Tabs>
+<Tab title="Web Scraping & Data Collection">
+<CardGroup cols={2}>
+<Card title="E-commerce Monitoring" icon="store">
+Track product prices, availability, and competitor information
+</Card>
+
+<Card title="Market Research" icon="chart-bar">
+Gather data from multiple sources for analysis and reporting
+</Card>
+
+<Card title="Content Aggregation" icon="newspaper">
+Collect articles, posts, and media from various websites
+</Card>
+
+<Card title="Lead Generation" icon="users">
+Extract contact information and business data from directories
+</Card>
+</CardGroup>
+</Tab>
+
+<Tab title="Testing">
+<CardGroup cols={2}>
+<Card title="Automated Testing" icon="flask">
+Create comprehensive test suites for web applications
+</Card>
+
+<Card title="Cross-Browser Validation" icon="browsers">
+Test functionality across different browser environments
+</Card>
+
+<Card title="User Journey Testing" icon="route">
+Simulate real user interactions and workflows
+</Card>
+
+<Card title="Performance Monitoring" icon="gauge">
+Track page load times and user experience metrics
+</Card>
+</CardGroup>
+</Tab>
+
+<Tab title="Workflow Automation">
+<CardGroup cols={2}>
+<Card title="Form Automation" icon="file-contract">
+Automatically fill and submit complex web forms
+</Card>
+
+<Card title="Report Generation" icon="chart-line">
+Extract data and generate automated reports
+</Card>
+
+<Card title="Social Media Management" icon="share-nodes">
+Schedule posts and monitor engagement across platforms
+</Card>
+
+<Card title="Administrative Tasks" icon="clipboard-check">
+Automate repetitive web-based business processes
+</Card>
+</CardGroup>
+</Tab>
+</Tabs>
+
+## Session Management
+
+<Info>
+The Browserbase MCP Server supports both single and multi-session architectures to accommodate different automation needs.
+</Info>
+
+<Tabs>
+<Tab title="Single Session Mode">
+**Traditional Approach**
+- One active browser session at a time
+- Simpler for basic automation tasks  
+- Automatic session lifecycle management
+- Ideal for sequential workflows
+</Tab>
+
+<Tab title="Multi-Session Mode">
+**Advanced Parallel Processing**
+- Multiple independent browser sessions
+- Each session maintains separate state
+- Parallel execution capabilities
+- Perfect for complex workflows
+</Tab>
+</Tabs>
+
+## Getting Started
+
+<Steps>
+<Step title="Install the MCP Server">
+Choose from NPM installation, remote hosted URL, or local development based on your needs.
+</Step>
+
+<Step title="Configure Authentication">
+Set up your Browserbase API credentials in the MCP configuration. 
+Get your API keys from the [Browserbase Dashboard](https://www.browserbase.com/overview).
+</Step>
+
+<Step title="Start Automating">
+Begin using natural language commands to control browsers through Claude.
+</Step>
+</Steps>
+
+<Tip>
+Ready to get started? Check out our [Setup Guide](/integrations/mcp/setup) for detailed installation instructions.
+</Tip>
+
+## Further Reading
+
+<CardGroup cols={3}>
+<Card title="Setup Guide" icon="rocket" href="/integrations/mcp/setup">
+Get started with installation and configuration
+</Card>
+
+<Card title="Available Tools" icon="wrench" href="/integrations/mcp/tools">
+Explore all available automation tools
+</Card>
+
+<Card title="Configuration Options" icon="gear" href="/integrations/mcp/configuration">
+Customize your browser automation setup
+</Card>
+</CardGroup>
