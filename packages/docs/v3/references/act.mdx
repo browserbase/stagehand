@@ -1,0 +1,292 @@
+---
+title: act()
+description: 'Complete API reference for the act() method'
+icon: 'arrow-pointer'
+---
+
+<CardGroup cols={1}>
+<Card title="Act" icon="arrow-pointer" href="/v3/basics/act">
+  See how to use act() to perform browser actions
+</Card>
+</CardGroup>
+
+### Method Signatures
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// String instruction only
+await stagehand.act(instruction: string): Promise<ActResult>
+
+// Action only - Deterministic (no LLM)
+await stagehand.act(action: Action): Promise<ActResult>
+
+// String instruction with options
+await stagehand.act(instruction: string, options: ActOptions): Promise<ActResult>
+
+```
+
+**Action Interface:**
+```typescript
+interface Action {
+  selector: string;
+  description: string;
+  method: string;
+  arguments: string[];
+}
+```
+
+**ActOptions Interface:**
+```typescript
+interface ActOptions {
+  model?: ModelConfiguration;
+  variables?: Record<string, string>;
+  timeout?: number;
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+}
+
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
+```
+
+</Tab>
+
+</Tabs>
+
+### Parameters
+
+<ParamField path="instruction | action" type="string | Action" required>
+  - **Instruction**: Natural language description of the action to perform. Use `%variableName%` syntax to reference variables.
+  - **Action**: A deterministic action to perform: 
+  <Expandable title="Action">
+    <ParamField path="selector" type="string" required>
+      The selector (XPath, CSS selector, etc.) used to target the element
+    </ParamField>
+    <ParamField path="description" type="string" required>
+      Description of the action - used for self-healing
+    </ParamField>
+    <ParamField path="method" type="string" required>
+      The method used (e.g., "click", "fill", "type")
+    </ParamField>
+    <ParamField path="arguments" type="string[]" required>
+      Arguments passed to the method
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for this action. Can be either:
+  - A string in the format `"provider/model"` (e.g., `openai/gpt-5`, `google/gemini-2.5-flash`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., `anthropic/claude-sonnet-4-5`, `google/gemini-2.5-flash`)
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="variables" type="Record<string, string>" optional>
+  Key-value pairs for variable substitution using `%variableName%` syntax in your instruction. Variables are **not shared with LLM providers**, making them ideal for sensitive data like passwords and API keys.
+
+  **Example:**
+  ```typescript
+  await stagehand.act("type %password% into the password field", {
+    variables: { password: process.env.USER_PASSWORD }
+  });
+  ```
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time in **milliseconds** to wait for the action to complete. Default varies by configuration.
+</ParamField>
+
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the action on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
+
+  If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+### Returns `Promise<ActResult>`
+
+<ResponseField name="success" type="boolean" required>
+  Whether the action completed successfully
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable message describing the result
+</ResponseField>
+
+<ResponseField name="actionDescription" type="string" required>
+  Instruction that was used to perform the action
+</ResponseField>
+
+<ResponseField name="actions" type="Action[]">
+  Array of actions that were executed
+
+  <Expandable title="Action">
+    <ResponseField name="selector" type="string">
+      The selector (XPath) used to target the element
+    </ResponseField>
+    <ResponseField name="description" type="string">
+      Description of the action
+    </ResponseField>
+    <ResponseField name="method" type="string">
+      The method used (e.g., "click", "fill", "type")
+    </ResponseField>
+    <ResponseField name="arguments" type="string[]">
+      Arguments passed to the method
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "message": "Action completed successfully",
+  "actionDescription": "Clicked the submit button",
+  "actions": [
+    {
+      "selector": "/html/body/form/button[1]",
+      "description": "Submit button at bottom of form",
+      "method": "click",
+      "arguments": []
+    }
+  ]
+}
+```
+
+### Built-in Support
+
+<Note>
+**Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
+</Note>
+
+### Code Examples
+
+<Tabs>
+<Tab title="Basic Usage">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Simple action
+await stagehand.act("click the login button");
+```
+
+</Tab>
+<Tab title="Variables">
+
+```typescript
+// Variables are NOT shared with LLM providers
+await stagehand.act("type %username% into the email field", {
+  variables: { username: "user@example.com" }
+});
+
+await stagehand.act("type %password% into the password field", {
+  variables: { password: process.env.USER_PASSWORD }
+});
+
+await stagehand.act("click the login button");
+```
+
+</Tab>
+<Tab title="Custom Model">
+
+```typescript
+// Using string format
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
+  model: "google/gemini-2.5-flash",
+  timeout: 10000
+});
+
+// Using object format with custom configuration
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
+  model: {
+    modelName: "gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY,
+    baseURL: "https://custom-api-endpoint.com"
+  },
+  timeout: 10000
+});
+```
+
+</Tab>
+<Tab title="Multi-Page">
+
+```typescript
+// Create multiple pages
+const page1 = stagehand.context.pages()[0];
+const page2 = await stagehand.context.newPage();
+
+// Perform actions on specific pages
+await stagehand.act("click the first link", { page: page1 });
+await stagehand.act("click the second link", { page: page2 });
+```
+
+</Tab>
+<Tab title="Caching">
+
+<Tip>
+**Auto-caching is now available in v3.** See the [caching guide](/v3/best-practices/caching) for more details.
+</Tip>
+```typescript
+// Observe first to plan the action
+const [action] = await stagehand.observe("click the submit button");
+
+// Cache and reuse the action
+if (action) {
+  await stagehand.act(action);
+}
+
+// Later, reuse the same cached action
+await stagehand.act(action);
+```
+
+</Tab>
+</Tabs>
+
+### Error Types
+
+The following errors may be thrown by the `act()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **StagehandElementNotFoundError** - Target element could not be located using the provided selector(s)
+- **StagehandClickError** - Failed to click on the target element
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
