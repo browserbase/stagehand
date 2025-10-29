@@ -85,13 +85,14 @@ You can combine multiple MCP integrations in a single agent:
 
 ```typescript
 const databaseClient = await connectToMCPServer(/* database config */);
+const searchClient = await connectToMCPServer(/* search config */);
 
 const agent = stagehand.agent({
   integrations: [
-    `https://search-service.example.com/mcp?apiKey=${process.env.SEARCH_API_KEY}`,
+    searchClient,
     databaseClient
   ],
-  instructions: `You have access to external tools for search and data storage. Use these tools strategically to complete tasks efficiently.`
+  systemPrompt: `You have access to external tools for search and data storage. Use these tools strategically to complete tasks efficiently.`
 });
 ```
 
@@ -137,6 +138,13 @@ DATABASE_URL=your_database_url
 DATABASE_API_KEY=your_database_key
 ```
 
+```typescript
+const agent = stagehand.agent({
+  integrations: [`https://mcp.database-tools.com/mcp?apiKey=${process.env.DATABASE_API_KEY}`],
+  systemPrompt: `You have access to database tools. Use them to store and retrieve data.`
+});
+```
+
 ### Instructions Best Practices
 
 Provide clear instructions about available tools:
@@ -146,8 +154,8 @@ Provide clear instructions about available tools:
 ```typescript
 instructions: `You have access to:
 1. Web search tools - Use to find current information
-2. Database tools - Use to store/retrieve data
-3. Browser automation - Use for web interactions
+2. Database tools - Use to store/retrieve data. Don't use the \`execute_sql\` tool directly. Use the \`query\` tool instead.
+3. Browser automation - Use for web interactions. Only use the \`navigate\` tool to navigate to a URL, use \`goBack\` and \`goForward\` to navigate back and forward in the browser history.
 
 Always search for current information before making decisions.
 Store important data for later reference.`
@@ -267,3 +275,4 @@ await agent.execute("Research competitor pricing, compare with our site, and sto
   Create custom MCP tools
 </Card>
 </CardGroup>
+
