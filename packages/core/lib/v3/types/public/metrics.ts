@@ -1,4 +1,4 @@
-export interface V3Metrics {
+export interface StagehandMetrics {
   actPromptTokens: number;
   actCompletionTokens: number;
   actInferenceTimeMs: number;

@@ -10,27 +10,18 @@
   "benchmarks": {
     "webbench": {
       "limit": 25,
-      "filters": [
-        "difficulty",
-        "category",
-        "use_hitl"
-      ]
+      "filters": ["difficulty", "category", "use_hitl"]
     },
     "gaia": {
       "limit": 25,
-      "filters": [
-        "level"
-      ]
+      "filters": ["level"]
     },
     "webvoyager": {
       "limit": 25
     },
     "osworld": {
       "limit": 25,
-      "filters": [
-        "source",
-        "evaluation_type"
-      ],
+      "filters": ["source", "evaluation_type"],
       "timeout": 60000
     },
     "onlineMind2Web": {
@@ -40,805 +31,523 @@
   "tasks": [
     {
       "name": "history",
-      "categories": [
-        "combination"
-      ]
-    },
-    {
-      "name": "expect_act_timeout",
-      "categories": [
-        "regression"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "extract_repo_name",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "amazon_add_to_cart",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "instructions",
-      "categories": [
-        "regression",
-        "combination"
-      ]
+      "categories": ["regression", "combination"]
     },
     {
       "name": "bidnet",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "ionwave",
-      "categories": [
-        "act",
-        "regression"
-      ]
+      "categories": ["act", "regression"]
     },
     {
       "name": "nonsense_action",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "peeler_simple",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "simple_google_search",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "vantechjournal",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "wikipedia",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "allrecipes",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "arxiv",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "extract_collaborators",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "extract_github_commits",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "imdb_movie_details",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "peeler_complex",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "sciquest",
-      "categories": [
-        "combination"
-      ]
+      "categories": ["combination"]
     },
     {
       "name": "wichita",
-      "categories": [
-        "combination",
-        "regression"
-      ]
+      "categories": ["combination", "regression"]
     },
     {
       "name": "hn_aisdk",
-      "categories": [
-        "llm_clients"
-      ]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_langchain",
-      "categories": [
-        "llm_clients"
-      ]
+      "categories": ["llm_clients"]
     },
     {
       "name": "hn_customOpenAI",
-      "categories": [
-        "llm_clients"
-      ]
+      "categories": ["llm_clients"]
     },
     {
       "name": "apple",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "combination_sauce",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "costar",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_aigrant_companies",
-      "categories": [
-        "regression"
-      ]
+      "categories": ["regression"]
     },
     {
       "name": "extract_capacitor_info",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_partners",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_press_releases",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_snowshoeing_destinations",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "homedepot",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "rakuten_jp",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "stock_x",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "ted_talk",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_baptist_health",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_github_stars",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_memorial_healthcare",
-      "categories": [
-        "extract",
-        "regression"
-      ]
+      "categories": ["extract", "regression"]
     },
     {
       "name": "extract_nhl_stats",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_professional_info",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_csa",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_resistor_info",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_rockauto",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_staff_members",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "ionwave_observe",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "panamcs",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "vanta_h",
-      "categories": [
-        "experimental"
-      ]
+      "categories": ["experimental"]
     },
     {
       "name": "extract_area_codes",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_public_notices",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_jstor_news",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_apartments",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_zillow",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "observe_github",
-      "categories": [
-        "observe",
-        "regression"
-      ]
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_vantechjournal",
-      "categories": [
-        "observe",
-        "regression"
-      ]
+      "categories": ["observe", "regression"]
     },
     {
       "name": "observe_amazon_add_to_cart",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "observe_simple_google_search",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "observe_yc_startup",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "observe_taxes",
-      "categories": [
-        "observe"
-      ]
+      "categories": ["observe"]
     },
     {
       "name": "observe_iframes1",
-      "categories": [
-        "regression",
-        "observe"
-      ]
+      "categories": ["regression", "observe"]
     },
     {
       "name": "observe_iframes2",
-      "categories": [
-        "regression",
-        "observe"
-      ]
+      "categories": ["regression", "observe"]
     },
     {
       "name": "extract_hamilton_weather",
-      "categories": [
-        "targeted_extract",
-        "regression"
-      ]
+      "categories": ["targeted_extract", "regression"]
     },
     {
       "name": "extract_regulations_table",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_recipe",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_aigrant_targeted",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_aigrant_targeted_2",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_geniusee",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "extract_geniusee_2",
-      "categories": [
-        "targeted_extract"
-      ]
+      "categories": ["targeted_extract"]
     },
     {
       "name": "scroll_50",
-      "categories": [
-        "regression",
-        "act"
-      ]
+      "categories": ["regression", "act"]
     },
     {
       "name": "scroll_75",
-      "categories": [
-        "regression",
-        "act"
-      ]
+      "categories": ["regression", "act"]
     },
     {
       "name": "next_chunk",
-      "categories": [
-        "regression",
-        "act"
-      ]
+      "categories": ["regression", "act"]
     },
     {
       "name": "prev_chunk",
-      "categories": [
-        "regression",
-        "act"
-      ]
+      "categories": ["regression", "act"]
     },
     {
       "name": "google_flights",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "extract_jfk_links",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "extract_single_link",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "dropdown",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "radio_btn",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "checkboxes",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "agent/iframe_form",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/iframe_form_multiple",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/google_flights",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/github_react_version",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/steam_games",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/ubereats",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/kith",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/apple_tv",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/apple_trade_in",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/arxiv_gpt_report",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/sf_library_card",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/sf_library_card_multiple",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/hugging_face",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/google_maps_3",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "login",
-      "categories": [
-        "act",
-        "regression"
-      ]
+      "categories": ["act", "regression"]
     },
     {
       "name": "iframe_hn",
-      "categories": [
-        "extract"
-      ]
+      "categories": ["extract"]
     },
     {
       "name": "iframe_same_proc",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "iframe_form_filling",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "iframes_nested",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "no_js_click",
-      "categories": [
-        "act",
-        "regression"
-      ]
+      "categories": ["act", "regression"]
     },
     {
       "name": "tab_handling",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "agent/kayak",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "multi_tab",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "shadow_dom",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "os_dropdown",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "custom_dropdown",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "hidden_input_dropdown",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "nested_iframes_2",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "heal_scroll_50",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "heal_simple_google_search",
-      "categories": [
-        "regression",
-        "act"
-      ]
+      "categories": ["regression", "act"]
     },
     {
       "name": "heal_custom_dropdown",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "agent/trivago",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/google_maps",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/google_maps_2",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/youtube",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/sign_in",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "osr_in_oopif",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "csr_in_oopif",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "csr_in_spif",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "csr_in_spif",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "spif_in_osr",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "oopif_in_osr",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "spif_in_csr",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "oopif_in_csr",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "osr_in_spif",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "namespace_xpath",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "iframe_scroll",
-      "categories": [
-        "act"
-      ]
+      "categories": ["act"]
     },
     {
       "name": "agent/gaia",
-      "categories": [
-        "external_agent_benchmarks"
-      ]
+      "categories": ["external_agent_benchmarks"]
     },
     {
       "name": "agent/webvoyager",
-      "categories": [
-        "external_agent_benchmarks"
-      ]
+      "categories": ["external_agent_benchmarks"]
     },
     {
       "name": "agent/nba_trades",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/hotel_booking",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/github",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/all_recipes",
-      "categories": [
-        "agent"
-      ]
+      "categories": ["agent"]
     },
     {
       "name": "agent/onlineMind2Web",
-      "categories": [
-        "external_agent_benchmarks"
-      ]
+      "categories": ["external_agent_benchmarks"]
     }
   ]
 }

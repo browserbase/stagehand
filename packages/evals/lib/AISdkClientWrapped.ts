@@ -15,7 +15,10 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { LogLine } from "@browserbasehq/orca/lib/v3/types/public/logs";
 import { AvailableModel } from "@browserbasehq/orca/lib/v3/types/public/model";
-import { CreateChatCompletionOptions, LLMClient } from "@browserbasehq/orca/lib/v3/llm/LLMClient";
+import {
+  CreateChatCompletionOptions,
+  LLMClient,
+} from "@browserbasehq/orca/lib/v3/llm/LLMClient";
 
 // Wrap AI SDK functions with Braintrust for tracing
 const { generateObject, generateText } = wrapAISDK(ai);
