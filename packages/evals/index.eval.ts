@@ -32,9 +32,9 @@ import {
   AgentProvider,
   loadApiKeyFromEnv,
   LogLine,
-} from "@browserbasehq/orca";
+} from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "./lib/AISdkClientWrapped";
-import { getAISDKLanguageModel } from "@browserbasehq/orca/lib/v3/llm/LLMProvider";
+import { getAISDKLanguageModel } from "@browserbasehq/stagehand/lib/v3/llm/LLMProvider";
 import { env } from "./env";
 import dotenv from "dotenv";
 import { initV3 } from "./initV3";

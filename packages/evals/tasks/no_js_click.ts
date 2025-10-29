@@ -1,5 +1,5 @@
 import { EvalFunction } from "../types/evals";
-import { Action } from "@browserbasehq/orca";
+import { Action } from "@browserbasehq/stagehand";
 
 export const no_js_click: EvalFunction = async ({
   debugUrl,

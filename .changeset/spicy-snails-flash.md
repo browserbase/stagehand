@@ -1,6 +1,6 @@
 ---
 "@browserbasehq/stagehand-evals": patch
-"@browserbasehq/orca": patch
+"@browserbasehq/stagehand": patch
 ---
 
 update ci for v3

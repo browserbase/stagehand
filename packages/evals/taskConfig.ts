@@ -12,7 +12,7 @@
 
 import fs from "fs";
 import path from "path";
-import { AvailableModel } from "@browserbasehq/orca";
+import { AvailableModel } from "@browserbasehq/stagehand";
 import { filterByEvalName } from "./args";
 
 const ALL_EVAL_MODELS = [
