@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/orca",
-  "version": "3.0.0-preview.6",
+  "version": "3.0.0-preview.7",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -14,6 +14,9 @@
     "build": "pnpm run gen-version && pnpm run build-dom-scripts && pnpm run build-js && pnpm run typecheck",
     "example": "node --import tsx -e \"const args=process.argv.slice(1).filter(a=>a!=='--'); const [p]=args; const n=(p||'example').replace(/^\\.\\//,'').replace(/\\.ts$/i,''); import(new URL(require('node:path').resolve('examples', n + '.ts'), 'file:'));\" --",
     "test": "playwright test --config=lib/v3/tests/v3.playwright.config.ts",
+    "e2e": "playwright test --config=lib/v3/tests/v3.local.playwright.config.ts",
+    "e2e:local": "playwright test --config=lib/v3/tests/v3.local.playwright.config.ts",
+    "e2e:bb": "playwright test --config=lib/v3/tests/v3.bb.playwright.config.ts",
     "lint": "cd ../.. && prettier --check packages/core && cd packages/core && eslint .",
     "format": "prettier --write ."
   },

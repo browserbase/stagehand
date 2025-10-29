@@ -217,6 +217,23 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).sendClickEvent(options);
   }
+  async setInputFiles(
+    files:
+      | string
+      | string[]
+      | {
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
+      | Array<{
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
+  ) {
+    return (await this.real()).setInputFiles(files);
+  }
   first() {
     return this.nth(0);
   }

@@ -15,7 +15,11 @@ import type {
   V3Options,
   AgentModelConfig,
 } from "@browserbasehq/orca";
-import { loadApiKeyFromEnv, modelToAgentProviderMap, V3 } from "@browserbasehq/orca";
+import {
+  loadApiKeyFromEnv,
+  modelToAgentProviderMap,
+  V3,
+} from "@browserbasehq/orca";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";
@@ -58,7 +62,6 @@ export async function initV3({
   configOverrides,
   modelName,
   createAgent,
-
 }: InitV3Args): Promise<V3InitResult> {
   // Determine if the requested model is a CUA model
   const isCUA = modelName in modelToAgentProviderMap;
@@ -69,7 +72,7 @@ export async function initV3({
     if (process.env.OPENAI_API_KEY)
       internalModel = "openai/gpt-4.1-mini" as AvailableModel;
     else if (
-      process.env.GOOGLE_API_KEY ||
+      process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY
     )
       internalModel = "google/gemini-2.0-flash" as AvailableModel;
@@ -77,7 +80,7 @@ export async function initV3({
       internalModel = "anthropic/claude-3-7-sonnet-latest" as AvailableModel;
     else
       throw new Error(
-        "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GOOGLE_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",
+        "V3 init: No AISDK API key found. Set one of OPENAI_API_KEY, GEMINI_API_KEY/GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY to run CUA evals.",
       );
   }
 
@@ -124,7 +127,6 @@ export async function initV3({
   logger.init(v3);
   await v3.init();
 
-
   let agent: AgentInstance | undefined;
   if (createAgent) {
     if (isCUA) {
@@ -144,8 +146,7 @@ export async function initV3({
       agent = v3.agent({
         cua: true,
         model: cuaModel,
-        systemPrompt:
-          `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
+        systemPrompt: `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, YOU WILL ALWAYS BE PROVIDED WITH AN OPENED PAGE, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE. Simple perform the task provided, do not overthink or overdo it. The user trusts you to complete the task without any additional instructions, or answering any questions.`,
       });
     } else {
       agent = v3.agent({

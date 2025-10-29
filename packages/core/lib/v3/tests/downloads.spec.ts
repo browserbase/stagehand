@@ -2,14 +2,14 @@ import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
 import Browserbase from "@browserbasehq/sdk";
 import AdmZip from "adm-zip";
-import { v3BBTestConfig } from "./v3.bb.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 
 const pdfRe = /sample-(\d{13})+\.pdf/;
 test.describe("downloads on browserbase", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3BBTestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
@@ -18,6 +18,18 @@ test.describe("downloads on browserbase", () => {
   });
 
   test("downloaded pdf is available via downloads api", async () => {
+    // Skip this test in LOCAL mode as it requires Browserbase session
+    test.skip(
+      process.env.TEST_ENV === "LOCAL" || !process.env.TEST_ENV,
+      "Skipping Browserbase-only downloads test in LOCAL mode",
+    );
+
+    // Skip if BROWSERBASE_API_KEY is not set
+    test.skip(
+      !process.env.BROWSERBASE_API_KEY,
+      "Skipping test: BROWSERBASE_API_KEY not set",
+    );
+
     // Tiny timeout to force the race to hit the timeout branch
     const page = v3.context.pages()[0];
     await page.goto(

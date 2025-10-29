@@ -73,6 +73,7 @@ export class AgentProvider {
             modelName,
             userProvidedInstructions,
             clientOptions,
+            tools,
           );
         default:
           throw new UnsupportedModelProviderError(

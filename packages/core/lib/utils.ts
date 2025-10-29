@@ -395,11 +395,11 @@ function makeIdStringSchema(orig: z.ZodString): z.ZodString {
  * Mapping from LLM provider names to their corresponding environment variable names for API keys.
  */
 export const providerEnvVarMap: Partial<
-  Record<ModelProvider | string, string>
+  Record<ModelProvider | string, string | Array<string>>
 > = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  google: ["GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
   groq: "GROQ_API_KEY",
   cerebras: "CEREBRAS_API_KEY",
   togetherai: "TOGETHER_AI_API_KEY",
@@ -435,17 +435,16 @@ export function loadApiKeyFromEnv(
     return undefined;
   }
 
-  const apiKeyFromEnv = process.env[envVarName];
+  const apiKeyFromEnv = Array.isArray(envVarName)
+    ? envVarName
+        .map((name) => process.env[name])
+        .find((key) => key && key.length > 0)
+    : process.env[envVarName as string];
   if (typeof apiKeyFromEnv === "string" && apiKeyFromEnv.length > 0) {
     return apiKeyFromEnv;
   }
 
-  logger({
-    category: "init",
-    message: `API key for ${provider} not found in environment variable ${envVarName}`,
-    level: 0,
-  });
-
+  // Don't log - this is expected when llmClient is provided or API key will be set later
   return undefined;
 }
 

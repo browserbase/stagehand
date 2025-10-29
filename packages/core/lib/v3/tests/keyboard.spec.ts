@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { V3 } from "../v3";
-import { v3TestConfig } from "./v3.config";
+import { v3DynamicTestConfig } from "./v3.dynamic.config";
 
 function dataUrl(html: string): string {
   return "data:text/html;charset=utf-8," + encodeURIComponent(html);
@@ -10,7 +10,7 @@ test.describe("V3 keyboard shortcuts and typing", () => {
   let v3: V3;
 
   test.beforeEach(async () => {
-    v3 = new V3(v3TestConfig);
+    v3 = new V3(v3DynamicTestConfig);
     await v3.init();
   });
 
