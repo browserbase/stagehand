@@ -78,7 +78,7 @@ Here's how to build a sample browser automation with Stagehand:
 ```typescript
 // Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
 const page = stagehand.context.pages()[0];
-await stagehand.goto("https://github.com/browserbase");
+await page.goto("https://github.com/browserbase");
 
 // Use act() to execute individual actions
 await stagehand.act("click on the stagehand repo");
