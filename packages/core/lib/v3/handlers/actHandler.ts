@@ -332,11 +332,6 @@ export class ActHandler {
     const settleTimeout = domSettleTimeoutMs ?? this.defaultDomSettleTimeoutMs;
     const effectiveClient = llmClientOverride ?? this.llmClient;
 
-    v3Logger({
-      category: "action",
-      message: `[act] ${action.description}`,
-      level: 1,
-    });
 
     const method = action.method?.trim();
     if (!method || method === "not-supported") {
