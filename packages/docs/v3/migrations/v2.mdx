@@ -339,7 +339,7 @@ const result = await stagehand.extract(
   }),
   {
     model: "openai/gpt-5",
-    selector: ".container", // NEW: CSS selector support
+    selector: "div > container", // NEW: CSS selector support
     timeout: 10000,
     page: page  // Optional: specify which page
   }
