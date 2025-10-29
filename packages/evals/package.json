@@ -13,7 +13,7 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@browserbasehq/orca": "workspace:*",
+    "@browserbasehq/stagehand": "workspace:*",
     "ai": "^5.0.0",
     "@ai-sdk/provider": "^2.0.0",
     "openai": "^4.87.1",

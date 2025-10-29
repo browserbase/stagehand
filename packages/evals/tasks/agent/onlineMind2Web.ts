@@ -1,5 +1,5 @@
 import { EvalFunction } from "../../types/evals";
-import { V3Evaluator } from "@browserbasehq/orca";
+import { V3Evaluator } from "@browserbasehq/stagehand";
 import { ScreenshotCollector } from "../../utils/ScreenshotCollector";
 import dotenv from "dotenv";
 import fs from "fs";

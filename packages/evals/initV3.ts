@@ -14,12 +14,12 @@ import type {
   ModelConfiguration,
   V3Options,
   AgentModelConfig,
-} from "@browserbasehq/orca";
+} from "@browserbasehq/stagehand";
 import {
   loadApiKeyFromEnv,
   modelToAgentProviderMap,
   V3,
-} from "@browserbasehq/orca";
+} from "@browserbasehq/stagehand";
 import dotenv from "dotenv";
 import { env } from "./env";
 import { EvalLogger } from "./logger";

@@ -17,7 +17,7 @@
     "evals": "pnpm --filter @browserbasehq/stagehand-evals run evals",
     "docs": "turbo run docs",
     "dev": "turbo run dev",
-    "example": "pnpm --filter @browserbasehq/orca run example --",
+    "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
     "release": "turbo run build && changeset publish",

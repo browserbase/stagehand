@@ -259,7 +259,7 @@ importers:
       '@ai-sdk/provider':
         specifier: ^2.0.0
         version: 2.0.0
-      '@browserbasehq/orca':
+      '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../core
       ai:
