@@ -81,14 +81,14 @@ const page = stagehand.context.pages()[0];
 await page.goto("https://github.com/browserbase");
 
 // Use act() to execute individual actions
-await page.act("click on the stagehand repo");
+await stagehand.act("click on the stagehand repo");
 
 // Use agent() for multi-step tasks
 const agent = stagehand.agent();
 await agent.execute("Get to the latest PR");
 
 // Use extract() to get structured data from the page
-const { author, title } = await page.extract(
+const { author, title } = await stagehand.extract(
   "extract the author and title of the PR",
   z.object({
     author: z.string().describe("The username of the PR author"),
