@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import type { ActHandler } from "../handlers/actHandler";
 import type { LLMClient } from "../llm/LLMClient";
-import type { ActResult, Logger } from "../types/public";
+import type { Action, ActResult, Logger } from "../types/public";
 import type { Page } from "../understudy/page";
 import { CacheStorage } from "./CacheStorage";
 import { safeGetPageUrl } from "./utils";
@@ -100,7 +100,7 @@ export class ActCache {
       },
     });
 
-    return await this.replayCachedActions(entry, page, timeout);
+    return await this.replayCachedActions(context, entry, page, timeout);
   }
 
   async store(context: ActCacheContext, result: ActResult): Promise<void> {
@@ -157,6 +157,7 @@ export class ActCache {
   }
 
   private async replayCachedActions(
+    context: ActCacheContext,
     entry: CachedActEntry,
     page: Page,
     timeout?: number,
@@ -206,6 +207,19 @@ export class ActCache {
         actionResults[actionResults.length - 1]?.actionDescription ||
         entry.actions[entry.actions.length - 1]?.description ||
         entry.instruction;
+
+      if (
+        success &&
+        actions.length > 0 &&
+        this.haveActionsChanged(entry.actions, actions)
+      ) {
+        await this.refreshCacheEntry(context, {
+          ...entry,
+          actions,
+          message,
+          actionDescription,
+        });
+      }
       return {
         success,
         message,
@@ -215,6 +229,78 @@ export class ActCache {
     };
 
     return await this.runWithTimeout(execute, timeout);
+  }
+
+  private haveActionsChanged(original: Action[], updated: Action[]): boolean {
+    if (original.length !== updated.length) {
+      return true;
+    }
+
+    for (let i = 0; i < original.length; i += 1) {
+      const orig = original[i];
+      const next = updated[i];
+      if (!next) {
+        return true;
+      }
+
+      if (orig.selector !== next.selector) {
+        return true;
+      }
+
+      if (orig.description !== next.description) {
+        return true;
+      }
+
+      if ((orig.method ?? "") !== (next.method ?? "")) {
+        return true;
+      }
+
+      const origArgs = orig.arguments ?? [];
+      const nextArgs = next.arguments ?? [];
+      if (origArgs.length !== nextArgs.length) {
+        return true;
+      }
+
+      for (let j = 0; j < origArgs.length; j += 1) {
+        if (origArgs[j] !== nextArgs[j]) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private async refreshCacheEntry(
+    context: ActCacheContext,
+    entry: CachedActEntry,
+  ): Promise<void> {
+    const { error, path } = await this.storage.writeJson(
+      `${context.cacheKey}.json`,
+      entry,
+    );
+
+    if (error && path) {
+      this.logger({
+        category: "cache",
+        message: "failed to update act cache entry after self-heal",
+        level: 0,
+        auxiliary: {
+          error: { value: String(error), type: "string" },
+        },
+      });
+      return;
+    }
+
+    this.logger({
+      category: "cache",
+      message: "act cache entry updated after self-heal",
+      level: 2,
+      auxiliary: {
+        instruction: { value: context.instruction, type: "string" },
+        url: { value: context.pageUrl, type: "string" },
+      },
+    });
   }
 
   private async runWithTimeout<T>(
