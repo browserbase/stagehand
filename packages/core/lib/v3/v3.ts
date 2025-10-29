@@ -6,7 +6,7 @@ import process from "process";
 import type { ZodTypeAny } from "zod/v3";
 import { z } from "zod/v3";
 import { loadApiKeyFromEnv } from "../utils";
-import { StagehandLogger } from "../logger";
+import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
 import { CacheStorage } from "./cache/CacheStorage";
@@ -179,14 +179,16 @@ export class V3 {
     // Create per-instance StagehandLogger (handles usePino, verbose, externalLogger)
     // This gives each V3 instance independent logger configuration
     // while still sharing the underlying Pino worker thread via StagehandLogger.sharedPinoLogger
-    this.stagehandLogger = new StagehandLogger(
-      {
-        usePino: !opts.disablePino,
-        pretty: true,
-        level: "info", // Most permissive - filtering happens at instance level
-      },
-      opts.logger,
-    );
+    const loggerOptions: LoggerOptions = {
+      pretty: true,
+      level: "info", // Most permissive - filtering happens at instance level
+    };
+
+    if (opts.disablePino !== undefined) {
+      loggerOptions.usePino = !opts.disablePino;
+    }
+
+    this.stagehandLogger = new StagehandLogger(loggerOptions, opts.logger);
     this.stagehandLogger.setVerbosity(this.verbose);
 
     // Also bind to AsyncLocalStorage for v3Logger() calls from handlers
