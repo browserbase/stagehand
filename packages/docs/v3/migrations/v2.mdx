@@ -478,7 +478,7 @@ const results = await page.observe({
 const results = await stagehand.observe("find all buttons", {
   model: "openai/gpt-5",
   timeout: 10000,
-  selector: ".container",  // NEW: scope observation to selector
+  selector: "div > container",  // NEW: scope observation to selector
   page: page  // Optional: specify which page
 });
 ```
