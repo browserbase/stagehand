@@ -124,13 +124,11 @@ nano .env # Edit the .env file to add API keys
 > [!NOTE]  
 > We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg).
 
-At a high level, we're focused on improving reliability, speed, and cost in that order of priority. If you're interested in contributing, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
 
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 
 ## Acknowledgements
-
-This project heavily relies on [Playwright](https://playwright.dev/) as a resilient backbone to automate the web. It also would not be possible without the awesome techniques and discoveries made by [tarsier](https://github.com/reworkd/tarsier), [gemini-zod](https://github.com/jbeoris/gemini-zod), and [fuji-web](https://github.com/normal-computing/fuji-web).
 
 We'd like to thank the following people for their major contributions to Stagehand:
 - [Paul Klein](https://github.com/pkiv)
