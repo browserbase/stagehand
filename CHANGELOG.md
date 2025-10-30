@@ -1,5 +1,27 @@
 # @browserbasehq/stagehand
 
+## 3.0.0
+
+### Major Changes 
+
+- Removes internal Playwright dependency
+- A generous 20-40% speed increase across `act`, `extract`, & `observe` calls
+- Compatibility with Playwright, Puppeteer, and Patchright
+- Automatic action caching (agent, stagehand.act). Go from CUA → deterministic scripts w/o inference
+- A suite of non AI primitives:
+    - `page`
+    - `locator` (built in closed mode shadow root traversal, with xpaths & css selectors)
+    - `frameLocator`
+    - `deepLocator` (crosses iframes & shadow roots)
+- bun compatibility
+- Simplified extract schemas
+- CSS selector support (id-based support coming soon)
+- Targeted extract and observe across iframes & shadow roots
+- More intuitive type names (observeResult is now action, act accepts an instruction string instead of an action string, solidified ModelConfiguration)
+
+Check the [migration guide](https://docs.stagehand.dev/v3/migrations/v2) for more information
+
+
 ## 2.5.0
 
 ### Minor Changes
