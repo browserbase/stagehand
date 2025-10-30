@@ -65,7 +65,7 @@ Most existing browser automation tools either require you to write low-level cod
 
 ## Getting Started
 
-Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/get_started/quickstart) for more information:
+Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/v3/first-steps/quickstart) for more information:
 
 ```bash
 npx create-browser-app
