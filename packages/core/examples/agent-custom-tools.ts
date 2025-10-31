@@ -41,7 +41,7 @@ async function main() {
   const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 2,
-    // experimental: true, // You must enable experimental mode to use custom tools / MCP integrations
+    experimental: true, // You must enable experimental mode to use custom tools / MCP integrations
     model: "anthropic/claude-sonnet-4-5",
   });
   await stagehand.init();
