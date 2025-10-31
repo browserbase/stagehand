@@ -7,6 +7,7 @@ import { Stagehand } from "../lib/v3";
 import chalk from "chalk";
 
 // Mock weather API, replace with your own API/tool logic
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const fetchWeatherAPI = async (location: string) => {
   return {
     temp: 70,
