@@ -61,7 +61,7 @@ Most existing browser automation tools either require you to write low-level cod
 
 2. **Go from AI-driven to repeatable workflows**: Stagehand lets you preview AI actions before running them, and also helps you easily cache repeatable actions to save time and tokens.
 
-3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks. 
+3. **Write once, run forever**: Stagehand's auto-caching combined with self-healing remembers previous actions, runs without LLM inference, and knows when to involve AI whenever the website changes and your automation breaks.
 
 ## Getting Started
 
@@ -101,7 +101,6 @@ const { author, title } = await stagehand.extract(
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-
 ### Build and Run from Source
 
 ```bash
@@ -131,6 +130,7 @@ At a high level, we're focused on improving reliability, extensibility, speed, a
 ## Acknowledgements
 
 We'd like to thank the following people for their major contributions to Stagehand:
+
 - [Paul Klein](https://github.com/pkiv)
 - [Sean McGuire](https://github.com/seanmcguire12)
 - [Miguel Gonzalez](https://github.com/miguelg719)

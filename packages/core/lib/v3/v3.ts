@@ -1363,25 +1363,34 @@ export class V3 {
   } {
     this.logger({
       category: "agent",
-      message: "Creating v3 agent instance with options:",
+      message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
       level: 1,
       auxiliary: {
         cua: { value: options?.cua ? "true" : "false", type: "boolean" },
-        model:
-          typeof options?.model === "string"
+        model: options?.model
+          ? typeof options?.model === "string"
             ? { value: options.model, type: "string" }
-            : { value: options.model.modelName, type: "string" },
+            : { value: options.model.modelName, type: "string" }
+          : { value: this.llmClient.modelName, type: "string" },
         systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
-        integrations: {
-          value: JSON.stringify(options?.integrations ?? []),
-          type: "object",
-        },
+        ...(options?.integrations && {
+          integrations: {
+            value: JSON.stringify(options.integrations),
+            type: "object",
+          },
+        }),
       },
     });
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
+      if ((options?.integrations || options?.tools) && !this.experimental) {
+        throw new Error(
+          "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+        );
+      }
+
       const modelToUse = options?.model || {
         modelName: this.modelName,
         ...this.modelClientOptions,
@@ -1499,9 +1508,9 @@ export class V3 {
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
-          if (options?.integrations && !this.experimental) {
+          if ((options?.integrations || options?.tools) && !this.experimental) {
             throw new Error(
-              "MCP integrations are experimental. Enable experimental: true in V3 options.",
+              "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
             );
           }
 

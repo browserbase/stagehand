@@ -142,6 +142,139 @@ When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the 
 }
 ```
 
+## Custom Tools
+
+Agents can be enhanced with custom tools for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
+
+<Note>Custom tools provide a cleaner, more performant alternative to MCP integrations when you need specific functionality.</Note>
+
+### Defining Custom Tools
+
+Use the `tool` helper from the Vercel AI SDK to define custom tools:
+
+<CodeGroup>
+```typescript Basic Tool
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  model: "openai/gpt-5",
+  tools: {
+    getWeather: tool({
+      description: 'Get the current weather in a location',
+      inputSchema: z.object({
+        location: z.string().describe('The location to get weather for'),
+      }),
+      execute: async ({ location }) => {
+        // Your custom logic here
+        const weather = await fetchWeatherAPI(location);
+        return {
+          location,
+          temperature: weather.temp,
+          conditions: weather.conditions,
+        };
+      },
+    }),
+  },
+  systemPrompt: 'You are a helpful assistant with access to weather data.',
+});
+
+await agent.execute("What's the weather in San Francisco and should I bring an umbrella?");
+```
+
+```typescript Multiple Tools
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  cua: true,
+  model: "anthropic/claude-sonnet-4-20250514",
+  tools: {
+    searchDatabase: tool({
+      description: 'Search for records in the database',
+      inputSchema: z.object({
+        query: z.string().describe('The search query'),
+        limit: z.number().optional().describe('Max results to return'),
+      }),
+      execute: async ({ query, limit = 10 }) => {
+        const results = await db.search(query, limit);
+        return { results };
+      },
+    }),
+
+    calculatePrice: tool({
+      description: 'Calculate the total price with tax',
+      inputSchema: z.object({
+        amount: z.number().describe('The base amount'),
+        taxRate: z.number().describe('Tax rate as decimal (e.g., 0.08 for 8%)'),
+      }),
+      execute: async ({ amount, taxRate }) => {
+        const total = amount * (1 + taxRate);
+        return { total: total.toFixed(2) };
+      },
+    }),
+  },
+});
+
+await agent.execute("Find products under $50 and calculate the total with 8% tax");
+```
+
+```typescript Tool with API Integration
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  model: "google/gemini-2.0-flash",
+  tools: {
+    sendEmail: tool({
+      description: 'Send an email via SendGrid',
+      inputSchema: z.object({
+        to: z.string().email().describe('Recipient email address'),
+        subject: z.string().describe('Email subject'),
+        body: z.string().describe('Email body content'),
+      }),
+      execute: async ({ to, subject, body }) => {
+        const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email: to }] }],
+            from: { email: 'noreply@example.com' },
+            subject,
+            content: [{ type: 'text/plain', value: body }],
+          }),
+        });
+
+        return {
+          sent: response.ok,
+          messageId: response.headers.get('X-Message-Id'),
+        };
+      },
+    }),
+  },
+});
+
+await agent.execute("Fill out the contact form and send me a confirmation email at user@example.com");
+```
+</CodeGroup>
+
+### Custom Tools vs MCP Integrations
+
+| Custom Tools                           | MCP Integrations                        |
+|----------------------------------------|-----------------------------------------|
+| Defined inline with your code          | Connect to external services            |
+| Direct function execution              | Standard protocol                       |
+| Better performance & optimized context | Reusable across applications            |
+| Type-safe with TypeScript              | Access to pre-built integrations        |
+| Granular control                       | Network-based communication             |
+
+<Tip>
+Use custom tools when you need specific functionality within your application. Use MCP integrations when connecting to external services or when you need standardized cross-application tools.
+</Tip>
+
 ## MCP Integrations
 
 Agents can be enhanced with external tools and services through MCP (Model Context Protocol) integrations. This allows your agent to access external APIs and data sources beyond just browser interactions.
@@ -188,11 +321,11 @@ await agent.execute("Search for restaurants and save the first result to the dat
 MCP integrations enable agents to be more powerful by combining browser automation with external APIs, databases, and services. The agent can intelligently decide when to use browser actions versus external tools.
 </Tip>
 
-<Warning>
-Stagehand uses a 1288x711 viewport by default (the optimal size for Computer Use Agents). Other viewport sizes may reduce performance. If you need to modify the viewport, you can edit in the [Browser Configuration](/v3/configuration/browser).
-</Warning>
-
 ## Agent Execution Configuration
+
+<Warning>
+Stagehand uses a 1288x711 viewport by default. Other viewport sizes may reduce performance. If you need to modify the viewport, you can edit in the [Browser Configuration](/v3/configuration/browser).
+</Warning>
 
 Control the maximum number of steps the agent can take to complete the task using the `maxSteps` parameter.
 
