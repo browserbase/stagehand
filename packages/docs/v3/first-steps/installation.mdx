@@ -69,12 +69,12 @@ async function main() {
   await page.goto("https://example.com");
 
   // Act on the page
-  await stagehand.act("Click the sign in button");
+  await stagehand.act("Click the learn more button");
 
   // Extract structured data
-  const title = await stagehand.extract("extract the page title", z.string());
+  const description = await stagehand.extract("extract the description", z.string());
 
-  console.log(title);
+  console.log(description);
   await stagehand.close();
 }
 
