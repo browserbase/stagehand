@@ -13,8 +13,8 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 import {
   CreateChatCompletionOptions,
   LLMClient,
-  AvailableModel,
-} from "../../lib/v3";
+} from "../../lib/v3/llm/LLMClient";
+import { AvailableModel } from "../../lib/v3/types/public";
 import { ChatCompletion } from "openai/resources";
 
 export class AISdkClient extends LLMClient {
