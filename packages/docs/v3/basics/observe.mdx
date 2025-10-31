@@ -102,9 +102,9 @@ You can pass additional options to configure the model, timeout, and selector sc
 ```typescript
 // Custom model configuration
 const actions = await stagehand.observe("find navigation links", {
-  model: "openai/gpt-4o",
+  model: "openai/gpt-4.1-mini",
   timeout: 30000,
-  selector: "//header" // Focus on specific area
+  selector: "/html/div/body/div[3]" // Focus on specific area
 });
 ```
 

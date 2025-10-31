@@ -162,7 +162,7 @@ You can pass additional options to configure the model, timeout, and selector sc
 const result = await stagehand.extract("extract the repository name", {
   model: "anthropic/claude-sonnet-4-5",
   timeout: 30000,
-  selector: "//header" // Focus on specific area
+  selector: "/html/div/body/div[3]" // Focus on specific area
 });
 ```
 
