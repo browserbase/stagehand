@@ -30,7 +30,7 @@ try {
 
   const agent = stagehand.agent({
     model: "anthropic/claude-sonnet-4-20250514",
-    instructions: "You are a helpful assistant that can use a web browser.",
+    systemPrompt: "You are a helpful assistant that can use a web browser.",
   });
 
   const result = await agent.execute({
