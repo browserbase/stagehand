@@ -47,11 +47,10 @@ await agent.execute("apply for a job at Browserbase")
 
 ```python Python
 agent = stagehand.agent(
-    provider="anthropic",
     model="claude-sonnet-4-20250514",
     instructions="You are a helpful assistant that can use a web browser.",
     options={
-        "apiKey": os.getenv("ANTHROPIC_API_KEY"),
+        "api_key": os.getenv("ANTHROPIC_API_KEY"),
     },
 )
 await agent.execute("apply for a job at Browserbase")
