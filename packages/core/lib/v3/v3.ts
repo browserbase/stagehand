@@ -1371,7 +1371,7 @@ export class V3 {
           ? typeof options?.model === "string"
             ? { value: options.model, type: "string" }
             : { value: options.model.modelName, type: "string" }
-          : { value: this.llmClient.modelName, type: "string" },
+          : { value: this.modelName, type: "string" },
         systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {
@@ -1473,8 +1473,13 @@ export class V3 {
             try {
               if (this.apiClient && !this.experimental) {
                 const page = await this.ctx!.awaitActivePage();
+                // Ensure model is set for API calls - use the resolved modelName
+                const agentConfigWithModel: AgentConfig = {
+                  ...options,
+                  model: options?.model || modelName,
+                };
                 result = await this.apiClient.agentExecute(
-                  options,
+                  agentConfigWithModel,
                   resolvedOptions,
                   page.mainFrameId(),
                 );
@@ -1576,8 +1581,13 @@ export class V3 {
           try {
             if (this.apiClient && !this.experimental) {
               const page = await this.ctx!.awaitActivePage();
+              // Ensure model is set for API calls - default to V3's modelName if not specified
+              const agentConfigWithModel: AgentConfig = {
+                ...options,
+                model: options?.model || this.modelName,
+              };
               result = await this.apiClient.agentExecute(
-                options,
+                agentConfigWithModel,
                 resolvedOptions,
                 page.mainFrameId(),
               );
