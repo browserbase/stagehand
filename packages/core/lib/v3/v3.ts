@@ -131,6 +131,9 @@ export class V3 {
   private readonly domSettleTimeoutMs?: number;
   private _isClosing = false;
   public browserbaseSessionId?: string;
+  public get browserbaseSessionID(): string | undefined {
+    return this.browserbaseSessionId;
+  }
   private _onCdpClosed = (why: string) => {
     // Single place to react to the transport closing
     this._immediateShutdown(`CDP transport closed: ${why}`).catch(() => {});
