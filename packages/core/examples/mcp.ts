@@ -31,7 +31,7 @@
 //       provider: "anthropic",
 //       // For Anthropic, use claude-sonnet-4-20250514 or claude-3-7-sonnet-latest
 //       model: "claude-sonnet-4-20250514",
-//       systemPrompt: `You are a helpful assistant that can use a web browser.
+//       instructions: `You are a helpful assistant that can use a web browser.
 //       You are currently on the following page: ${page.url()}.
 //       Do not ask follow up questions, the user will trust your judgement.
 //       You have access to the Notion MCP.`,
