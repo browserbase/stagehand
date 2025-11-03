@@ -10,6 +10,7 @@ import { StagehandLogger, LoggerOptions } from "../logger";
 import { ActCache } from "./cache/ActCache";
 import { AgentCache } from "./cache/AgentCache";
 import { CacheStorage } from "./cache/CacheStorage";
+import { cloneForCache } from "./cache/utils";
 import { ActHandler } from "./handlers/actHandler";
 import { ExtractHandler } from "./handlers/extractHandler";
 import { ObserveHandler } from "./handlers/observeHandler";
@@ -365,6 +366,37 @@ export class V3 {
 
   public recordAgentReplayStep(step: AgentReplayStep): void {
     this.agentCache.recordStep(step);
+  }
+
+  private stashReplayStepsOnResult(
+    result: AgentResult,
+    steps: AgentReplayStep[],
+  ): void {
+    if (!Array.isArray(steps) || steps.length === 0) {
+      return;
+    }
+    result.metadata = {
+      ...(result.metadata ?? {}),
+      cacheReplaySteps: cloneForCache(steps),
+    };
+  }
+
+  private extractReplayStepsFromMetadata(
+    metadata?: Record<string, unknown>,
+  ): AgentReplayStep[] {
+    if (!metadata) return [];
+    const raw = metadata["cacheReplaySteps"];
+    if (!Array.isArray(raw)) return [];
+    const steps = raw.filter((step): step is AgentReplayStep =>
+      this.isAgentReplayStep(step),
+    );
+    return steps.length > 0 ? cloneForCache(steps) : [];
+  }
+
+  private isAgentReplayStep(value: unknown): value is AgentReplayStep {
+    if (!value || typeof value !== "object") return false;
+    const maybeStep = value as { type?: unknown };
+    return typeof maybeStep.type === "string";
   }
 
   /**
@@ -1486,6 +1518,17 @@ export class V3 {
                 agentSteps = this.endAgentReplayRecording();
               }
 
+              if (agentSteps.length === 0) {
+                const metadataSteps = this.extractReplayStepsFromMetadata(
+                  result.metadata,
+                );
+                if (metadataSteps.length > 0) {
+                  agentSteps = metadataSteps;
+                }
+              }
+
+              this.stashReplayStepsOnResult(result, agentSteps);
+
               if (cacheContext && result.success && agentSteps.length > 0) {
                 await this.agentCache.store(cacheContext, agentSteps, result);
               }
@@ -1588,6 +1631,17 @@ export class V3 {
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
             }
+
+            if (agentSteps.length === 0) {
+              const metadataSteps = this.extractReplayStepsFromMetadata(
+                result.metadata,
+              );
+              if (metadataSteps.length > 0) {
+                agentSteps = metadataSteps;
+              }
+            }
+
+            this.stashReplayStepsOnResult(result, agentSteps);
 
             if (cacheContext && result.success && agentSteps.length > 0) {
               await this.agentCache.store(cacheContext, agentSteps, result);

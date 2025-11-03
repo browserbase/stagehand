@@ -346,7 +346,8 @@ export class AgentCache {
     const handler = this.getActHandler();
     if (!ctx || !handler) return null;
     try {
-      for (const step of entry.steps ?? []) {
+      const replaySteps = cloneForCache(entry.steps ?? []);
+      for (const step of replaySteps) {
         await this.executeAgentReplayStep(step, ctx, handler);
       }
       const result = cloneForCache(entry.result);
@@ -355,11 +356,15 @@ export class AgentCache {
         output_tokens: 0,
         inference_time_ms: 0,
       };
-      result.metadata = {
+      const metadata = {
         ...(result.metadata ?? {}),
         cacheHit: true,
         cacheTimestamp: entry.timestamp,
-      };
+      } as Record<string, unknown>;
+      if (replaySteps.length > 0) {
+        metadata.cacheReplaySteps = cloneForCache(replaySteps);
+      }
+      result.metadata = metadata;
       return result;
     } catch (err) {
       this.logger({
