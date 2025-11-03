@@ -13,7 +13,7 @@ export function mapToolResultToActions({
     case "fillForm":
       return mapFillFormToolResult(toolResult, args, reasoning);
     default:
-      return [createStandardAction(toolCallName, args, reasoning)];
+      return [createStandardAction(toolCallName, toolResult, args, reasoning)];
   }
 }
 
@@ -23,7 +23,7 @@ function mapActToolResult(
   reasoning?: string,
 ): AgentAction[] {
   if (!toolResult || typeof toolResult !== "object") {
-    return [createStandardAction("act", args, reasoning)];
+    return [createStandardAction("act", toolResult, args, reasoning)];
   }
 
   const result = toolResult as Record<string, unknown>;
@@ -52,7 +52,7 @@ function mapFillFormToolResult(
   reasoning?: string,
 ): AgentAction[] {
   if (!toolResult || typeof toolResult !== "object") {
-    return [createStandardAction("fillForm", args, reasoning)];
+    return [createStandardAction("fillForm", toolResult, args, reasoning)];
   }
 
   const result = toolResult as Record<string, unknown>;
@@ -87,14 +87,24 @@ function mapFillFormToolResult(
 
 function createStandardAction(
   toolCallName: string,
+  toolResult: unknown,
   args: Record<string, unknown>,
   reasoning?: string,
 ): AgentAction {
-  return {
+  const action: AgentAction = {
     type: toolCallName,
     reasoning,
     taskCompleted:
       toolCallName === "close" ? (args?.taskComplete as boolean) : false,
     ...args,
   };
+
+  // Spread the output from the tool result if it exists, exclude ariaTree tool result as it is very large and unnecessary
+  // todo : add better typing for every tool to avoid type casting
+  if (toolCallName !== "ariaTree" && toolResult) {
+    const { output } = toolResult as { output: unknown };
+    Object.assign(action, output);
+  }
+
+  return action;
 }
