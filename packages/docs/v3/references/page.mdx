@@ -1,0 +1,472 @@
+---
+title: page
+description: 'Complete API reference for the Stagehand Page object'
+icon: 'page'
+---
+<CardGroup cols={1}>
+<Card title="Page" icon="browser" href="/v3/references/page">
+  Learn about the Stagehand Page object and browser navigation
+</Card>
+</CardGroup>
+
+## Overview
+
+The `page` object is the main interface for interacting with browser pages in Stagehand. It provides standard browser automation capabilities for navigation, interaction, and page inspection.
+
+Access the page object through your Stagehand instance:
+
+```typescript
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+```
+
+## Navigation Methods
+
+### goto()
+
+Navigate the page to a URL and wait for a lifecycle state.
+
+```typescript
+await page.goto(url: string, options?: GotoOptions): Promise<void>
+```
+
+<ParamField path="url" type="string" required>
+  The URL to navigate to. Can be absolute or relative.
+</ParamField>
+
+<ParamField path="waitUntil" type="LoadState" optional>
+  When to consider navigation succeeded.
+
+  **Options:**
+  - `"load"` - Wait for the load event
+  - `"domcontentloaded"` - Wait for DOMContentLoaded event (default)
+  - `"networkidle"` - Wait for network to be idle
+
+  **Default:** `"domcontentloaded"`
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum time to wait for navigation in milliseconds.
+
+  **Default:** `15000`
+</ParamField>
+
+### reload()
+
+Reload the current page.
+
+```typescript
+await page.reload(options?: ReloadOptions): Promise<void>
+```
+
+<ParamField path="waitUntil" type="LoadState" optional>
+  When to consider reload complete. See `goto()` for options.
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum time to wait for reload in milliseconds.
+
+  **Default:** `15000`
+</ParamField>
+
+<ParamField path="ignoreCache" type="boolean" optional>
+  Whether to bypass the browser cache.
+
+  **Default:** `false`
+</ParamField>
+
+### goBack()
+
+Navigate back in browser history.
+
+```typescript
+await page.goBack(options?: NavigationOptions): Promise<void>
+```
+
+<ParamField path="waitUntil" type="LoadState" optional>
+  When to consider navigation complete.
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum time to wait in milliseconds.
+
+  **Default:** `15000`
+</ParamField>
+
+### goForward()
+
+Navigate forward in browser history.
+
+```typescript
+await page.goForward(options?: NavigationOptions): Promise<void>
+```
+
+<ParamField path="waitUntil" type="LoadState" optional>
+  When to consider navigation complete.
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum time to wait in milliseconds.
+
+  **Default:** `15000`
+</ParamField>
+
+## Page Information
+
+### url()
+
+Get the current page URL (synchronous).
+
+```typescript
+page.url(): string
+```
+
+**Returns:** The current page URL as a string.
+
+### title()
+
+Get the current page title.
+
+```typescript
+await page.title(): Promise<string>
+```
+
+**Returns:** The page title as a string.
+
+## Interaction Methods
+
+### click()
+
+Click at absolute page coordinates.
+
+```typescript
+await page.click(x: number, y: number, options?: ClickOptions): Promise<void | string>
+```
+
+<ParamField path="x" type="number" required>
+  X coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="y" type="number" required>
+  Y coordinate in CSS pixels.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional click configuration.
+
+  <Expandable title="properties">
+    <ParamField path="button" type="string">
+      Mouse button to use: `"left"` | `"right"` | `"middle"`
+
+      Default: `"left"`
+    </ParamField>
+
+    <ParamField path="clickCount" type="number">
+      Number of consecutive clicks.
+
+      Default: `1`
+    </ParamField>
+
+    <ParamField path="returnXpath" type="boolean">
+      If `true`, returns the XPath of the clicked element instead of void.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### type()
+
+Type text into the page (dispatches keyboard events).
+
+```typescript
+await page.type(text: string, options?: TypeOptions): Promise<void>
+```
+
+<ParamField path="text" type="string" required>
+  The text to type.
+</ParamField>
+
+<ParamField path="options" type="object" optional>
+  Optional typing configuration.
+
+  <Expandable title="properties">
+    <ParamField path="delay" type="number">
+      Delay between key presses in milliseconds.
+    </ParamField>
+
+    <ParamField path="withMistakes" type="boolean">
+      Simulates typing with occasional mistakes and corrections.
+
+      Default: `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### locator()
+
+Create a locator for querying elements.
+
+```typescript
+page.locator(selector: string): Locator
+```
+
+<ParamField path="selector" type="string" required>
+  CSS selector or XPath for the element.
+</ParamField>
+
+**Returns:** A `Locator` object for interacting with the element.
+
+## Evaluation
+
+### evaluate()
+
+Evaluate JavaScript code in the page context.
+
+```typescript
+await page.evaluate<R, Arg>(
+  pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
+  arg?: Arg
+): Promise<R>
+```
+
+<ParamField path="pageFunctionOrExpression" type="string | function" required>
+  JavaScript expression as a string or a function to execute in the page context.
+</ParamField>
+
+<ParamField path="arg" type="any" optional>
+  Optional argument to pass to the function.
+</ParamField>
+
+**Returns:** The result of the evaluation (must be JSON-serializable).
+
+## Screenshot
+
+### screenshot()
+
+Capture a screenshot of the page.
+
+```typescript
+await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
+```
+
+<ParamField path="fullPage" type="boolean" optional>
+  Whether to capture the full scrollable page.
+
+  **Default:** `false`
+</ParamField>
+
+**Returns:** A Buffer containing the PNG image data.
+
+## Viewport
+
+### setViewportSize()
+
+Set the page viewport size.
+
+```typescript
+await page.setViewportSize(
+  width: number,
+  height: number,
+  options?: ViewportOptions
+): Promise<void>
+```
+
+<ParamField path="width" type="number" required>
+  Viewport width in CSS pixels.
+</ParamField>
+
+<ParamField path="height" type="number" required>
+  Viewport height in CSS pixels.
+</ParamField>
+
+<ParamField path="deviceScaleFactor" type="number" optional>
+  Device scale factor (pixel ratio).
+
+  **Default:** `1`
+</ParamField>
+
+## Wait Methods
+
+### waitForLoadState()
+
+Wait for the page to reach a specific lifecycle state.
+
+```typescript
+await page.waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void>
+```
+
+<ParamField path="state" type="LoadState" required>
+  The lifecycle state to wait for.
+
+  **Options:** `"load"`, `"domcontentloaded"`, `"networkidle"`
+</ParamField>
+
+<ParamField path="timeoutMs" type="number" optional>
+  Maximum time to wait in milliseconds.
+
+  **Default:** `15000`
+</ParamField>
+
+## Code Examples
+
+<Tabs>
+<Tab title="Basic Navigation">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+// Navigate to a URL
+await page.goto("https://example.com");
+
+// Get current URL and title
+console.log("URL:", page.url());
+console.log("Title:", await page.title());
+
+// Navigate back and forward
+await page.goBack();
+await page.goForward();
+
+// Reload the page
+await page.reload();
+```
+
+</Tab>
+<Tab title="Screenshots">
+
+```typescript
+// Capture viewport screenshot
+const screenshot = await page.screenshot();
+await fs.writeFile("screenshot.png", screenshot);
+
+// Capture full page screenshot
+const fullPage = await page.screenshot({ fullPage: true });
+await fs.writeFile("fullpage.png", fullPage);
+```
+
+</Tab>
+<Tab title="JavaScript Evaluation">
+
+```typescript
+// Execute JavaScript expression
+const pageHeight = await page.evaluate("document.body.scrollHeight");
+console.log("Page height:", pageHeight);
+
+// Execute function with arguments
+const result = await page.evaluate((selector) => {
+  const element = document.querySelector(selector);
+  return element ? element.textContent : null;
+}, "h1");
+console.log("H1 text:", result);
+
+// Async function evaluation
+const data = await page.evaluate(async () => {
+  const response = await fetch("/api/data");
+  return response.json();
+});
+```
+
+</Tab>
+<Tab title="Interaction">
+
+```typescript
+// Click at coordinates
+await page.click(100, 200);
+
+// Double click
+await page.click(100, 200, { clickCount: 2 });
+
+// Type text
+await page.type("Hello, World!");
+
+// Type with delay between keystrokes
+await page.type("Slow typing", { delay: 100 });
+
+// Use locator for element interaction
+const button = page.locator("button.submit");
+await button.click();
+```
+
+</Tab>
+<Tab title="Wait for Load">
+
+```typescript
+// Navigate and wait for full load
+await page.goto("https://example.com", {
+  waitUntil: "load",
+  timeoutMs: 30000
+});
+
+// Wait for network idle after navigation
+await page.goto("https://spa-app.com", {
+  waitUntil: "networkidle"
+});
+
+// Wait for specific load state
+await page.waitForLoadState("domcontentloaded");
+```
+
+</Tab>
+<Tab title="Viewport">
+
+```typescript
+// Set viewport size
+await page.setViewportSize(1920, 1080);
+
+// Set mobile viewport with device scale
+await page.setViewportSize(375, 667, {
+  deviceScaleFactor: 2
+});
+
+// Then take a screenshot at this size
+const screenshot = await page.screenshot();
+```
+
+</Tab>
+</Tabs>
+
+## Types
+
+### LoadState
+
+```typescript
+type LoadState = "load" | "domcontentloaded" | "networkidle";
+```
+
+- **`"load"`** - Wait for the `load` event (all resources loaded)
+- **`"domcontentloaded"`** - Wait for the `DOMContentLoaded` event (DOM is ready)
+- **`"networkidle"`** - Wait for network connections to be idle
+
+### AnyPage
+
+```typescript
+type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+```
+
+Stagehand supports multiple browser automation libraries. The `AnyPage` type represents any compatible page object.
+
+## Error Handling
+
+Page methods may throw the following errors:
+
+- **Navigation Errors** - Timeout or network issues during navigation
+- **Evaluation Errors** - JavaScript execution errors in `evaluate()`
+- **Interaction Errors** - Failed clicks or typing operations
+- **Screenshot Errors** - Issues capturing screenshots
+
+All errors should be caught and handled appropriately:
+
+```typescript
+try {
+  await page.goto("https://example.com");
+} catch (error) {
+  console.error("Navigation failed:", error.message);
+}
+```

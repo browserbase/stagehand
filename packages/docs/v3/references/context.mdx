@@ -1,0 +1,389 @@
+---
+title: context
+description: 'Complete API reference for the browser context'
+icon: 'window'
+---
+
+<CardGroup cols={1}>
+<Card title="Stagehand" icon="wand-magic-sparkles" href="/v3/references/stagehand">
+  Learn about the main Stagehand object
+</Card>
+</CardGroup>
+
+## Overview
+
+The `context` object manages the browser context, which is a container for multiple pages (tabs). It provides methods for creating new pages, accessing existing pages, and managing which page is currently active.
+
+Access the context through your Stagehand instance:
+
+```typescript
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const context = stagehand.context;
+```
+
+## Methods
+
+### newPage()
+
+Create a new page (tab) in the browser.
+
+```typescript
+await context.newPage(url?: string): Promise<Page>
+```
+
+<ParamField path="url" type="string" optional>
+  The URL to navigate to in the new page.
+
+  **Default:** `"about:blank"`
+</ParamField>
+
+**Returns:** `Promise<Page>` - The newly created page object.
+
+The new page is automatically set as the active page.
+
+### pages()
+
+Get all open pages in the browser context.
+
+```typescript
+context.pages(): Page[]
+```
+
+**Returns:** `Page[]` - Array of all open pages, ordered from oldest to newest.
+
+### activePage()
+
+Get the currently active page.
+
+```typescript
+context.activePage(): Page | undefined
+```
+
+**Returns:** `Page | undefined` - The most recently used page, or `undefined` if no pages exist.
+
+The active page is determined by:
+1. Most recently interacted with page
+2. Most recently created page if no interaction history
+3. `undefined` if all pages have been closed
+
+### setActivePage()
+
+Set a specific page as the active page.
+
+```typescript
+context.setActivePage(page: Page): void
+```
+
+<ParamField path="page" type="Page" required>
+  The page to set as active. Must be a page that exists in this context.
+</ParamField>
+
+This method:
+- Marks the page as most recently used
+- Brings the tab to the foreground (in headed mode)
+- Makes it the default page for subsequent operations
+
+### close()
+
+Close the browser context and all associated pages.
+
+```typescript
+await context.close(): Promise<void>
+```
+
+This method:
+- Closes the CDP connection
+- Cleans up all pages
+- Clears all internal mappings
+
+**Note:** This is typically called internally by `stagehand.close()`. You usually don't need to call this directly.
+
+## Code Examples
+
+<Tabs>
+<Tab title="Basic Usage">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key and project ID from environment variables)
+// Set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Create a new page
+const page1 = await context.newPage("https://example.com");
+console.log("Created page 1");
+
+// Create another page
+const page2 = await context.newPage("https://another-site.com");
+console.log("Created page 2");
+
+// Get all pages
+const allPages = context.pages();
+console.log(`Total pages: ${allPages.length}`);
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Multi-Page Workflow">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Start with main page
+const mainPage = context.pages()[0];
+await mainPage.goto("https://example.com");
+
+// Open additional pages
+const dashboardPage = await context.newPage("https://example.com/dashboard");
+const settingsPage = await context.newPage("https://example.com/settings");
+
+// Work with specific page
+context.setActivePage(dashboardPage);
+await stagehand.act("click the export button");
+
+// Switch to another page
+context.setActivePage(settingsPage);
+await stagehand.act("enable notifications");
+
+// Back to main page
+context.setActivePage(mainPage);
+await stagehand.act("click the logout button");
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Page Management">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Create multiple pages
+const pages = await Promise.all([
+  context.newPage("https://site1.com"),
+  context.newPage("https://site2.com"),
+  context.newPage("https://site3.com"),
+]);
+
+console.log(`Opened ${pages.length} pages`);
+
+// Get the active page
+const active = context.activePage();
+console.log(`Active page URL: ${active?.url()}`);
+
+// Iterate through all pages
+for (const page of context.pages()) {
+  console.log(`Page URL: ${page.url()}`);
+  console.log(`Page title: ${await page.title()}`);
+}
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Parallel Operations">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v3";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Create pages for different sites
+const page1 = await context.newPage("https://site1.com");
+const page2 = await context.newPage("https://site2.com");
+const page3 = await context.newPage("https://site3.com");
+
+const schema = z.object({
+  title: z.string(),
+  description: z.string()
+});
+
+// Extract data from all pages in parallel
+const results = await Promise.all([
+  stagehand.extract("get page info", schema, { page: page1 }),
+  stagehand.extract("get page info", schema, { page: page2 }),
+  stagehand.extract("get page info", schema, { page: page3 })
+]);
+
+console.log("Extracted data:", results);
+
+await stagehand.close();
+```
+
+</Tab>
+<Tab title="Active Page Tracking">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+const context = stagehand.context;
+
+// Create pages
+const homePage = await context.newPage("https://example.com");
+const aboutPage = await context.newPage("https://example.com/about");
+const contactPage = await context.newPage("https://example.com/contact");
+
+// The last created page (contactPage) is now active
+console.log("Active:", context.activePage()?.url());
+// Output: "https://example.com/contact"
+
+// Switch to home page
+context.setActivePage(homePage);
+console.log("Active:", context.activePage()?.url());
+// Output: "https://example.com"
+
+// Now act on the active page (homePage)
+await stagehand.act("click the header link");
+
+await stagehand.close();
+```
+
+</Tab>
+</Tabs>
+
+## Working with Active Pages
+
+The context tracks which page is currently active:
+
+```typescript
+const stagehand = new Stagehand({ env: "LOCAL" });
+await stagehand.init();
+
+// Get the current active page
+const activePage = stagehand.context.activePage();
+
+// Create a new page - it becomes active
+const newPage = await stagehand.context.newPage();
+
+// Now context.activePage() returns newPage
+await newPage.goto("https://example.com");
+```
+
+## Relationship Between Context and Page
+
+- **Context** manages the browser-level state and multiple pages
+- **Page** represents a single tab/window with content
+- Creating a new page via `context.newPage()` automatically sets it as active
+- You can explicitly control the active page with `context.setActivePage()`
+- Use `context.activePage()` to get the currently active page
+
+```typescript
+// Get the active page
+const activePage = stagehand.context.activePage();
+
+// Or get the first page directly
+const firstPage = stagehand.context.pages()[0];
+```
+
+## Best Practices
+
+1. **Create pages explicitly** - Use `context.newPage()` instead of relying on popups or window.open
+2. **Track page references** - Store page objects in variables for easier management
+3. **Set active page before operations** - Ensure the correct page is active before calling Stagehand methods
+4. **Clean up properly** - Call `stagehand.close()` to close all pages and the context
+5. **Handle page order** - Remember that `context.pages()` returns pages in creation order
+6. **Use parallel operations** - Work with multiple pages simultaneously for better performance
+
+## Common Patterns
+
+### Tab Management
+
+```typescript
+// Keep track of pages by purpose
+const pages = {
+  home: await context.newPage("https://example.com"),
+  dashboard: await context.newPage("https://example.com/dashboard"),
+  settings: await context.newPage("https://example.com/settings")
+};
+
+// Switch between tabs
+context.setActivePage(pages.dashboard);
+await stagehand.act("view report");
+
+context.setActivePage(pages.settings);
+await stagehand.act("update preferences");
+```
+
+### Bulk Data Collection
+
+```typescript
+const urls = [
+  "https://site1.com",
+  "https://site2.com",
+  "https://site3.com"
+];
+
+// Open all pages
+const pages = await Promise.all(
+  urls.map(url => context.newPage(url))
+);
+
+// Extract data from each
+const data = await Promise.all(
+  pages.map(page => stagehand.extract("get data", schema, { page }))
+);
+```
+
+### Conditional Page Management
+
+```typescript
+// Only create a page if needed
+if (needsDashboard) {
+  const dashboard = await context.newPage("https://example.com/dashboard");
+  context.setActivePage(dashboard);
+  await stagehand.act("generate report");
+}
+
+// Check if we have multiple pages
+if (context.pages().length > 1) {
+  console.log("Multiple tabs open");
+}
+```
+
+## Error Handling
+
+Context methods may throw the following errors:
+
+- **Timeout errors** - `newPage()` timeout waiting for page to attach
+- **CDP errors** - Connection errors with Chrome DevTools Protocol
+- **Invalid page errors** - Attempting to set an active page that doesn't exist in the context
+
+Always handle errors appropriately:
+
+```typescript
+try {
+  const page = await context.newPage("https://example.com");
+} catch (error) {
+  console.error("Failed to create page:", error.message);
+}
+```
+
+## Type Definitions
+
+```typescript
+interface V3Context {
+  newPage(url?: string): Promise<Page>;
+  pages(): Page[];
+  activePage(): Page | undefined;
+  setActivePage(page: Page): void;
+  close(): Promise<void>;
+}
+```

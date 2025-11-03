@@ -1,9 +1,9 @@
-import { z } from "zod";
-import type { AvailableModel } from "@browserbasehq/orca";
-import type { LogLine } from "@browserbasehq/orca";
-import type { AgentInstance } from "@browserbasehq/orca";
+import { z } from "zod/v3";
+import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { LogLine } from "@browserbasehq/stagehand";
+import type { AgentInstance } from "@browserbasehq/stagehand";
 import type { EvalCase } from "braintrust";
-import type { V3 } from "@browserbasehq/orca";
+import type { V3 } from "@browserbasehq/stagehand";
 import { EvalLogger } from "../logger";
 
 export type StagehandInitResult = {

@@ -1,0 +1,260 @@
+---
+title: 'Stagehand'
+description: 'Complete API reference for initializing Stagehand'
+icon: 'wand-magic-sparkles'
+---
+
+### Constructor Signature
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  // ... other options
+});
+await stagehand.init();
+```
+
+**ConstructorParams Interface:**
+```typescript
+interface ConstructorParams {
+  env: "BROWSERBASE" | "LOCAL";
+  apiKey?: string;
+  projectId?: string;
+  verbose?: 0 | 1 | 2;
+  llmProvider?: LLMProvider;
+  logger?: (message: LogLine) => void | Promise<void>;
+  domSettleTimeoutMs?: number;
+  browserbaseSessionCreateParams?: Omit<Browserbase.Sessions.SessionCreateParams, "projectId"> & { projectId?: string };
+  enableCaching?: boolean;
+  browserbaseSessionID?: string;
+  modelName?: AvailableModel;
+  llmClient?: LLMClient;
+  modelClientOptions?: ClientOptions;
+  systemPrompt?: string;
+  useAPI?: boolean;
+  waitForCaptchaSolves?: boolean;
+  localBrowserLaunchOptions?: LocalBrowserLaunchOptions;
+  logInferenceToFile?: boolean;
+  selfHeal?: boolean;
+  disablePino?: boolean;
+  experimental?: boolean;
+}
+```
+
+</Tab>
+<Tab title="Python">
+
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    env: Literal["BROWSERBASE", "LOCAL"] = "BROWSERBASE",
+    api_key: str = None,
+    project_id: str = None,
+    api_url: str = None,
+    model_name: str = None,
+    model_api_key: str = None,
+    model_client_options: Dict[str, Any] = None,
+    verbose: int = 1,
+    logger: Callable = None,
+    use_rich_logging: bool = True,
+    dom_settle_timeout_ms: int = 3000,
+    browserbase_session_create_params: Dict = None,
+    browserbase_session_id: str = None,
+    enable_caching: bool = False,
+    self_heal: bool = True,
+    wait_for_captcha_solves: bool = False,
+    system_prompt: str = None,
+    local_browser_launch_options: Dict[str, Any] = None,
+    use_api: bool = True,
+    experimental: bool = False,
+)
+await stagehand.init()
+```
+
+</Tab>
+</Tabs>
+
+<CardGroup cols={1}>
+<Card title="Model Configuration" icon="brain" href="/configuration/models">
+  Learn how to configure different LLM models for Stagehand
+</Card>
+</CardGroup>
+
+### Parameters
+
+#### Required Parameters
+
+<ParamField path="env" type="'BROWSERBASE' | 'LOCAL'" required>
+  The environment to use for Stagehand.
+
+  - `BROWSERBASE` - Run browser on Browserbase cloud infrastructure
+  - `LOCAL` - Run browser locally on your machine
+
+  **Default:** `"BROWSERBASE"` (Python only)
+</ParamField>
+
+#### Browserbase Configuration
+
+<ParamField path="apiKey" type="string" optional>
+  Your Browserbase API key. Required when `env` is `BROWSERBASE`.
+</ParamField>
+
+<ParamField path="projectId" type="string" optional>
+  Your Browserbase project ID. Required when `env` is `BROWSERBASE`.
+</ParamField>
+
+<ParamField path="browserbaseSessionID" type="string" optional>
+  The ID of an existing Browserbase session to resume. Useful for continuing previous browser sessions.
+</ParamField>
+
+<ParamField path="browserbaseSessionCreateParams" type="object" optional>
+  Parameters to use when creating a Browserbase session. See [Browserbase API documentation](https://docs.browserbase.com/reference/api/create-a-session) for available options.
+</ParamField>
+
+<ParamField path="waitForCaptchaSolves" type="boolean" optional>
+  Wait for captchas to be solved after navigation when using Browserbase environment.
+
+  **Default:** `false`
+</ParamField>
+
+#### Local Browser Configuration
+
+<ParamField path="localBrowserLaunchOptions" type="LocalBrowserLaunchOptions" optional>
+  Configuration options for launching a local browser. Only used when `env` is `LOCAL`.
+
+  See the [full interface definition](https://github.com/browserbase/stagehand/blob/v2/types/stagehand.ts#L174) for all available options.
+</ParamField>
+
+#### LLM Configuration
+
+<CardGroup cols={1}>
+<Card title="Model Configuration" icon="brain" href="/configuration/models">
+  Learn how to configure different LLM models for Stagehand
+</Card>
+</CardGroup>
+
+<ParamField path="modelName" type="AvailableModel" optional>
+  The LLM model to use for Stagehand operations.
+
+  **Examples:** `gpt-4o`, `gpt-4o-mini`, `claude-3-5-sonnet-20241022`
+
+  **Python Default:** `"gpt-4o"`
+</ParamField>
+
+<ParamField path="modelApiKey" type="string" optional>
+  API key for the LLM model provider. **Python only.**
+
+  In TypeScript, use `modelClientOptions.apiKey` instead.
+</ParamField>
+
+<ParamField path="llmProvider" type="LLMProvider" optional>
+  The LLM provider to use for Stagehand. Custom provider implementation. **TypeScript only.**
+</ParamField>
+
+<ParamField path="llmClient" type="LLMClient" optional>
+  Custom LLM client instance to use for Stagehand operations. **TypeScript only.**
+</ParamField>
+
+<ParamField path="modelClientOptions" type="ClientOptions" optional>
+  LLM client configuration options. Useful for parameterizing LLM API keys and other settings.
+
+  **Common options:** `apiKey` (TypeScript), `api_base`, `temperature`, `maxTokens`
+</ParamField>
+
+<ParamField path="enableCaching" type="boolean" optional>
+  Enable caching of LLM responses to reduce API calls and costs.
+
+  **TypeScript Default:** `true`
+  **Python Default:** `false`
+</ParamField>
+
+#### Logging and Debugging
+
+<Note>
+**Security tip:** Use `verbose: 0` when your automation handles secrets to prevent sensitive data from appearing in logs.
+</Note>
+
+<ParamField path="verbose" type="0 | 1 | 2" optional>
+  The verbosity level of the Stagehand logger.
+
+  - `0` - Minimal (ERROR only)
+  - `1` - Medium (INFO level)
+  - `2` - Detailed (DEBUG level)
+
+  **Default:** `1`
+</ParamField>
+
+<ParamField path="logger" type="(message: LogLine) => void | Promise<void>" optional>
+  Custom logger function to handle log messages from Stagehand.
+</ParamField>
+
+<ParamField path="useRichLogging" type="boolean" optional>
+  Whether to use Rich for colorized logging output. **Python only.**
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="disablePino" type="boolean" optional>
+  Disable Pino logger. Helpful for Next.js or test environments where Pino causes issues. **TypeScript only.**
+
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="logInferenceToFile" type="boolean" optional>
+  Log LLM inference details to a file for debugging purposes. **TypeScript only.**
+
+  **Default:** `false`
+</ParamField>
+
+#### Performance and Behavior
+
+<ParamField path="domSettleTimeoutMs" type="number" optional>
+  Default timeout to wait for the DOM to settle before performing operations.
+
+  **TypeScript Default:** `10000` (10 seconds)
+  **Python Default:** `3000` (3 seconds)
+</ParamField>
+
+<ParamField path="selfHeal" type="boolean" optional>
+  Enable self-healing capabilities to automatically recover from failures.
+
+  **Python Default:** `true`
+</ParamField>
+
+<ParamField path="systemPrompt" type="string" optional>
+  Customize the Stagehand system prompt used for LLM interactions.
+</ParamField>
+
+<ParamField path="useAPI" type="boolean" optional>
+  Offload Stagehand method calls to the Stagehand API.
+
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="experimental" type="boolean" optional>
+  Enable the latest experimental features. Use with caution in production.
+
+  **Default:** `false`
+</ParamField>
+
+### Returns `InitResult`
+
+After calling `stagehand.init()`, you receive an `InitResult` object:
+
+<ParamField path="debugUrl" type="string" required>
+  URL for debugging the browser session (e.g., Chrome DevTools).
+</ParamField>
+
+<ParamField path="sessionUrl" type="string" required>
+  URL of the browser session (especially useful with Browserbase).
+</ParamField>
+
+<ParamField path="sessionId" type="string" required>
+  Unique identifier for the browser session.
+</ParamField>

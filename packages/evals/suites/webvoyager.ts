@@ -1,6 +1,6 @@
 import path from "path";
 import type { Testcase, EvalInput } from "../types/evals";
-import type { AvailableModel } from "@browserbasehq/orca";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig";
 import { readJsonlFile, parseJsonlRows, applySampling } from "../utils";
 
