@@ -219,6 +219,7 @@ export class V3 {
     if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
+      this.disableAPI = true;
     } else {
       // Ensure API key is set
       let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
