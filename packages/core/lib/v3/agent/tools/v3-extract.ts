@@ -25,8 +25,7 @@ export const createExtractTool = (
   logger?: (message: LogLine) => void,
 ) =>
   tool({
-    description:
-     `Extract structured data from the current page based on a provided schema.
+    description: `Extract structured data from the current page based on a provided schema.
     
     USAGE GUIDELINES:
     - Keep schemas MINIMAL - only include fields essential for the task
