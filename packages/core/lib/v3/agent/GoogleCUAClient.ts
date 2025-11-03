@@ -31,7 +31,6 @@ import { ToolSet } from "ai";
  * This implementation uses the Google Generative AI SDK for Computer Use
  */
 export class GoogleCUAClient extends AgentClient {
-  private apiKey: string;
   private client: GoogleGenAI;
   private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
@@ -53,16 +52,15 @@ export class GoogleCUAClient extends AgentClient {
 
     this.tools = tools;
     // Process client options
-    this.apiKey =
-      (clientOptions?.apiKey as string) ||
+    clientOptions = clientOptions || {};
+    clientOptions.apiKey =
+      (clientOptions.apiKey as string) ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      "";
+      undefined;
 
     // Initialize the Google Generative AI client
-    this.client = new GoogleGenAI({
-      apiKey: this.apiKey,
-    });
+    this.client = new GoogleGenAI(clientOptions);
 
     // Get environment if specified
     if (
@@ -90,9 +88,7 @@ export class GoogleCUAClient extends AgentClient {
     };
 
     // Store client options for reference
-    this.clientOptions = {
-      apiKey: this.apiKey,
-    };
+    this.clientOptions = clientOptions;
 
     // Initialize tools if provided
     if (this.tools && Object.keys(this.tools).length > 0) {
