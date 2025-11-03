@@ -1,5 +1,8 @@
 import { AgentAction } from "../../types/public/agent";
 import { ActionMappingOptions } from "../../types/private/agent";
+import { ToolResult } from "../../types/private/agent";
+
+
 
 export function mapToolResultToActions({
   toolCallName,
@@ -12,24 +15,21 @@ export function mapToolResultToActions({
       return mapActToolResult(toolResult, args, reasoning);
     case "fillForm":
       return mapFillFormToolResult(toolResult, args, reasoning);
+    case "extract":
+      return mapExtractToolResult(toolResult, args, reasoning);
     default:
       return [createStandardAction(toolCallName, args, reasoning)];
   }
 }
 
 function mapActToolResult(
-  toolResult: unknown,
+  toolResult: ToolResult,
   args: Record<string, unknown>,
   reasoning?: string,
 ): AgentAction[] {
   if (!toolResult || typeof toolResult !== "object") {
     return [createStandardAction("act", args, reasoning)];
   }
-
-  const result = toolResult as Record<string, unknown>;
-
-  // AI SDK wraps the tool result in an output property
-  const output = (result.output as Record<string, unknown>) || result;
 
   // Extract playwright arguments if they exist
   const action: AgentAction = {
@@ -39,15 +39,15 @@ function mapActToolResult(
     ...args,
   };
 
-  if (output.playwrightArguments) {
-    action.playwrightArguments = output.playwrightArguments;
+  if (toolResult.output?.playwrightArguments) {
+    action.playwrightArguments = toolResult.output.playwrightArguments;
   }
 
   return [action];
 }
 
 function mapFillFormToolResult(
-  toolResult: unknown,
+  toolResult: ToolResult,
   args: Record<string, unknown>,
   reasoning?: string,
 ): AgentAction[] {
@@ -55,13 +55,8 @@ function mapFillFormToolResult(
     return [createStandardAction("fillForm", args, reasoning)];
   }
 
-  const result = toolResult as Record<string, unknown>;
-
-  // AI SDK wraps the tool result in an output property
-  const output = (result.output as Record<string, unknown>) || result;
-
-  const observeResults = Array.isArray(output?.playwrightArguments)
-    ? output.playwrightArguments
+  const observeResults = Array.isArray(toolResult.output?.playwrightArguments)
+    ? toolResult.output.playwrightArguments
     : [];
 
   const actions: AgentAction[] = [];
@@ -83,6 +78,25 @@ function mapFillFormToolResult(
   }
 
   return actions;
+}
+
+function mapExtractToolResult(
+  toolResult: ToolResult,
+  args: Record<string, unknown>,
+  reasoning?: string,
+): AgentAction[] {
+  const action: AgentAction = {
+    type: "extract",
+    reasoning,
+    taskCompleted: false,
+    ...args,
+  };
+
+  if (toolResult?.output?.result !== undefined) {
+    action.result = toolResult.output.result;
+  }
+
+  return [action];
 }
 
 function createStandardAction(
