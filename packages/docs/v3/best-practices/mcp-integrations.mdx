@@ -33,7 +33,7 @@ const agent = stagehand.agent({
   integrations: [
     `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
   ],
-  instructions: `You have access to web search through Exa. Use it to find current information before browsing.`,
+  systemPrompt: `You have access to web search through Exa. Use it to find current information before browsing.`,
   options: {
     apiKey: process.env.OPENAI_API_KEY,
   },
@@ -68,7 +68,7 @@ const agent = stagehand.agent({
   provider: "openai", 
   model: "computer-use-preview",
   integrations: [supabaseClient, notionClient],
-  instructions: `You can interact with Supabase databases and Notion. Use these tools to store and retrieve data.`,
+  systemPrompt: `You can interact with Supabase databases and Notion. Use these tools to store and retrieve data.`,
   options: {
     apiKey: process.env.OPENAI_API_KEY,
   },
@@ -91,7 +91,7 @@ const agent = stagehand.agent({
     `https://search-service.example.com/mcp?apiKey=${process.env.SEARCH_API_KEY}`,
     databaseClient
   ],
-  instructions: `You have access to external tools for search and data storage. Use these tools strategically to complete tasks efficiently.`
+  systemPrompt: `You have access to external tools for search and data storage. Use these tools strategically to complete tasks efficiently.`
 });
 ```
 
@@ -144,7 +144,7 @@ Provide clear instructions about available tools:
 <Tabs>
 <Tab title="Good Instructions">
 ```typescript
-instructions: `You have access to:
+systemPrompt: `You have access to:
 1. Web search tools - Use to find current information
 2. Database tools - Use to store/retrieve data
 3. Browser automation - Use for web interactions
@@ -156,7 +156,7 @@ Store important data for later reference.`
 
 <Tab title="Poor Instructions">
 ```typescript
-instructions: "You can search and save data."
+systemPrompt: "You can search and save data."
 ```
 </Tab>
 </Tabs>
@@ -221,7 +221,7 @@ try {
 ```typescript
 const agent = stagehand.agent({
   integrations: [`https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`],
-  instructions: `First search for current information, then use the browser to complete tasks based on what you find.`
+  systemPrompt: `First search for current information, then use the browser to complete tasks based on what you find.`
 });
 
 await agent.execute("Find the best laptop deals for 2025 and navigate to purchase the top recommendation");
@@ -233,7 +233,7 @@ const supabaseClient = await connectToMCPServer(/* config */);
 
 const agent = stagehand.agent({
   integrations: [supabaseClient],
-  instructions: `Extract data from websites and store it using available database tools.`
+  systemPrompt: `Extract data from websites and store it using available database tools.`
 });
 
 await agent.execute("Extract all restaurant information from this directory and save it to the database");
@@ -246,7 +246,7 @@ const agent = stagehand.agent({
     `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
     supabaseClient
   ],
-  instructions: `Use all available tools strategically: search for current info, browse websites, and store important data.`
+  systemPrompt: `Use all available tools strategically: search for current info, browse websites, and store important data.`
 });
 
 await agent.execute("Research competitor pricing, compare with our site, and store the analysis");
