@@ -2,8 +2,8 @@
   <ul style="list-style: none; margin: 0; padding: 0;">
     <a href="https://stagehand.dev">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="media/dark_logo.png" />
-        <img alt="Stagehand" src="media/light_logo.png" width="200" style="margin-right: 30px;" />
+        <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_logo.png" />
+        <img alt="Stagehand" src="../../media/light_logo.png" width="200" style="margin-right: 30px;" />
       </picture>
     </a>
   </ul>
@@ -16,14 +16,14 @@
 <p align="center">
   <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_license.svg" />
-      <img alt="MIT License" src="media/light_license.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_license.svg" />
+      <img alt="MIT License" src="../../media/light_license.svg" />
     </picture>
   </a>
   <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_slack.svg" />
-      <img alt="Slack Community" src="media/light_slack.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_slack.svg" />
+      <img alt="Slack Community" src="../../media/light_slack.svg" />
     </picture>
   </a>
 </p>
@@ -45,7 +45,7 @@ If you're looking for the Python implementation, you can find it
   </a>
   <span> </span>
   <picture>
-    <img alt="Director" src="media/director_icon.svg" width="25" />
+    <img alt="Director" src="../../media/director_icon.svg" width="25" />
   </picture>
 </div>
 
@@ -116,6 +116,16 @@ Stagehand is best when you have an API key for an LLM provider and Browserbase c
 ```bash
 cp .env.example .env
 nano .env # Edit the .env file to add API keys
+```
+
+### Installing from a branch
+
+You can install and build Stagehand directly from a github branch using [gitpkg](https://github.com/EqualMa/gitpkg)
+
+In your project's `package.json` set:
+
+```json
+"@browserbasehq/stagehand": "https://gitpkg.now.sh/browserbase/stagehand/packages/core?<branchName>",
 ```
 
 ## Contributing

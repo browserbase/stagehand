@@ -119,6 +119,16 @@ cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
 
+### Installing from a branch
+
+You can install and build Stagehand directly from a github branch using [gitpkg](https://github.com/EqualMa/gitpkg)
+
+In your project's `package.json` set:
+```json
+"@browserbasehq/stagehand": "https://gitpkg.now.sh/browserbase/stagehand/packages/core?<branchName>",
+```
+
+
 ## Contributing
 
 > [!NOTE]  
