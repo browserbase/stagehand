@@ -159,13 +159,44 @@ export class Frame implements FrameManager {
   async screenshot(options?: {
     fullPage?: boolean;
     clip?: { x: number; y: number; width: number; height: number };
+    type?: "png" | "jpeg";
+    quality?: number;
+    scale?: number;
   }): Promise<Buffer> {
     await this.session.send("Page.enable");
-    const params: Protocol.Page.CaptureScreenshotRequest = {
-      format: "png",
+    const format = options?.type ?? "png";
+    const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
+      format,
+      fromSurface: true,
       captureBeyondViewport: options?.fullPage,
     };
-    if (options?.clip) params.clip = { ...options.clip, scale: 1 };
+
+    const clampScale = (value: number): number =>
+      Math.min(2, Math.max(0.1, value));
+
+    const normalizedScale =
+      typeof options?.scale === "number"
+        ? clampScale(options.scale)
+        : undefined;
+
+    if (options?.clip) {
+      const clip = {
+        x: options.clip.x,
+        y: options.clip.y,
+        width: options.clip.width,
+        height: options.clip.height,
+        scale: normalizedScale ?? 1,
+      };
+      params.clip = clip;
+    } else if (normalizedScale !== undefined && normalizedScale !== 1) {
+      params.scale = normalizedScale;
+    }
+
+    if (format === "jpeg" && typeof options?.quality === "number") {
+      const q = Math.round(options.quality);
+      params.quality = Math.min(100, Math.max(0, q));
+    }
+
     const { data } =
       await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
         "Page.captureScreenshot",
