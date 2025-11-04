@@ -33,6 +33,12 @@
 </p>
 
 <p align="center">
+  <a href="https://deepwiki.com/browserbase/stagehand">
+    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+  </a>
+</p>
+
+<p align="center">
 If you're looking for the Python implementation, you can find it 
 <a href="https://github.com/browserbase/stagehand-python"> here</a>
 </p>
