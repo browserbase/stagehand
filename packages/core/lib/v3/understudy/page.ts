@@ -10,6 +10,7 @@ import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
 /**
@@ -59,6 +60,11 @@ export class Page {
   private readonly networkManager: NetworkManager;
   /** Optional API client for routing page operations to the API */
   private readonly apiClient: StagehandAPIClient | null = null;
+  private readonly consoleListeners = new Set<ConsoleListener>();
+  private readonly consoleHandlers = new Map<
+    string,
+    (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
+  >();
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -320,6 +326,10 @@ export class Page {
 
     this.networkManager.trackSession(childSession);
 
+    if (this.consoleListeners.size > 0) {
+      this.installConsoleTap(childSession);
+    }
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -382,6 +392,7 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
+    this.teardownConsoleTap(sessionId);
     this.sessions.delete(sessionId);
     this.networkManager.untrackSession(sessionId);
   }
@@ -417,6 +428,48 @@ export class Page {
 
   public unregisterSessionForNetwork(sessionId: string | undefined): void {
     this.networkManager.untrackSession(sessionId);
+  }
+
+  public on(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const firstListener = this.consoleListeners.size === 0;
+    this.consoleListeners.add(listener);
+
+    if (firstListener) {
+      this.ensureConsoleTaps();
+    }
+
+    return this;
+  }
+
+  public once(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const wrapper: ConsoleListener = (message) => {
+      this.off("console", wrapper);
+      listener(message);
+    };
+
+    return this.on("console", wrapper);
+  }
+
+  public off(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    this.consoleListeners.delete(listener);
+
+    if (this.consoleListeners.size === 0) {
+      this.removeAllConsoleTaps();
+    }
+
+    return this;
   }
 
   // ---------------- MAIN APIs ----------------
@@ -468,6 +521,8 @@ export class Page {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.networkManager.dispose();
+    this.removeAllConsoleTaps();
+    this.consoleListeners.clear();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -493,6 +548,85 @@ export class Page {
 
   public listAllFrameIds(): string[] {
     return this.registry.listAllFrames();
+  }
+
+  private ensureConsoleTaps(): void {
+    if (this.consoleListeners.size === 0) return;
+
+    this.installConsoleTap(this.mainSession);
+    for (const session of this.sessions.values()) {
+      this.installConsoleTap(session);
+    }
+  }
+
+  private installConsoleTap(session: CDPSessionLike): void {
+    const key = this.sessionKey(session);
+    if (this.consoleHandlers.has(key)) return;
+
+    void session.send("Runtime.enable").catch(() => {});
+
+    const handler = (evt: Protocol.Runtime.ConsoleAPICalledEvent) => {
+      this.emitConsole(evt);
+    };
+
+    session.on<Protocol.Runtime.ConsoleAPICalledEvent>(
+      "Runtime.consoleAPICalled",
+      handler,
+    );
+
+    this.consoleHandlers.set(key, handler);
+  }
+
+  private sessionKey(session: CDPSessionLike): string {
+    return session.id ?? "__root__";
+  }
+
+  private resolveSessionByKey(key: string): CDPSessionLike | undefined {
+    if (this.mainSession.id) {
+      if (this.mainSession.id === key) return this.mainSession;
+    } else if (key === "__root__") {
+      return this.mainSession;
+    }
+
+    return this.sessions.get(key);
+  }
+
+  private teardownConsoleTap(key: string): void {
+    const handler = this.consoleHandlers.get(key);
+    if (!handler) return;
+
+    const session = this.resolveSessionByKey(key);
+    session?.off("Runtime.consoleAPICalled", handler);
+    this.consoleHandlers.delete(key);
+  }
+
+  private removeAllConsoleTaps(): void {
+    for (const key of [...this.consoleHandlers.keys()]) {
+      this.teardownConsoleTap(key);
+    }
+  }
+
+  private emitConsole(evt: Protocol.Runtime.ConsoleAPICalledEvent): void {
+    if (this.consoleListeners.size === 0) return;
+
+    const message = new ConsoleMessage(evt, this);
+    const listeners = [...this.consoleListeners];
+
+    for (const listener of listeners) {
+      try {
+        listener(message);
+      } catch (error) {
+        v3Logger({
+          category: "page",
+          message: "Console listener threw",
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+            type: { value: evt.type, type: "string" },
+          },
+        });
+      }
+    }
   }
 
   // -------- Convenience APIs delegated to the current main frame --------
