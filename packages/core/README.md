@@ -20,7 +20,7 @@
       <img alt="MIT License" src="../../media/light_license.svg" />
     </picture>
   </a>
-  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg">
+  <a href="https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="../../media/dark_slack.svg" />
       <img alt="Slack Community" src="../../media/light_slack.svg" />
@@ -30,6 +30,12 @@
 
 <p align="center">
 	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
+<p align="center">
+  <a href="https://deepwiki.com/browserbase/stagehand">
+    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+  </a>
 </p>
 
 <p align="center">
@@ -131,9 +137,9 @@ In your project's `package.json` set:
 ## Contributing
 
 > [!NOTE]  
-> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg).
+> We highly value contributions to Stagehand! For questions or support, please join our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ).
 
-At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-38khc8iv5-T2acb50_0OILUaX7lxeBOg) before starting to ensure that your contribution aligns with our goals.
+At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Slack community](https://join.slack.com/t/stagehand-dev/shared_invite/zt-3hgv6bwqu-s7MXXgPd7_rD53aViGo1MQ) before starting to ensure that your contribution aligns with our goals.
 
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 
