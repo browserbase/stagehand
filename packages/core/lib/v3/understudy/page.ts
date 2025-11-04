@@ -781,7 +781,9 @@ export class Page {
     }
 
     if (type === "png" && typeof opts.quality === "number") {
-      throw new Error("screenshot: quality option is only valid for type=\"jpeg\"");
+      throw new Error(
+        'screenshot: quality option is only valid for type="jpeg"',
+      );
     }
 
     const caretMode: ScreenshotCaretOption = opts.caret ?? "hide";
@@ -791,8 +793,8 @@ export class Page {
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
     const captureScale = await computeScreenshotScale(this, scaleMode);
-    const maskLocators = (opts.mask ?? []).filter((locator): locator is Locator =>
-      Boolean(locator),
+    const maskLocators = (opts.mask ?? []).filter(
+      (locator): locator is Locator => Boolean(locator),
     );
 
     const cleanupTasks: ScreenshotCleanup[] = [];
@@ -819,10 +821,7 @@ export class Page {
 
         if (maskLocators.length > 0) {
           cleanupTasks.push(
-            await applyMaskOverlays(
-              maskLocators,
-              opts.maskColor ?? "#FF00FF",
-            ),
+            await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"),
           );
         }
 
@@ -853,7 +852,6 @@ export class Page {
   locator(selector: string): ReturnType<Frame["locator"]> {
     return this.mainFrameWrapper.locator(selector);
   }
-
 
   /**
    * Deep locator that supports cross-iframe traversal.

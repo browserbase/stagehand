@@ -165,11 +165,12 @@ export class Frame implements FrameManager {
   }): Promise<Buffer> {
     await this.session.send("Page.enable");
     const format = options?.type ?? "png";
-    const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
-      format,
-      fromSurface: true,
-      captureBeyondViewport: options?.fullPage,
-    };
+    const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } =
+      {
+        format,
+        fromSurface: true,
+        captureBeyondViewport: options?.fullPage,
+      };
 
     const clampScale = (value: number): number =>
       Math.min(2, Math.max(0.1, value));

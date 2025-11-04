@@ -48,9 +48,9 @@ test.describe("Page.screenshot options", () => {
     const page = v3.context.pages()[0];
     await page.goto("data:text/html,<html><body>noop</body></html>");
 
-    await expect(
-      page.screenshot({ type: "png", quality: 50 }),
-    ).rejects.toThrow(/quality option is only valid/);
+    await expect(page.screenshot({ type: "png", quality: 50 })).rejects.toThrow(
+      /quality option is only valid/,
+    );
   });
 
   test("honours timeout option", async () => {
@@ -60,7 +60,11 @@ test.describe("Page.screenshot options", () => {
     const mainFrame = page.mainFrame();
     const originalScreenshot = mainFrame.screenshot.bind(mainFrame);
 
-    (mainFrame as typeof mainFrame & { screenshot: typeof mainFrame.screenshot }).screenshot = async () => {
+    (
+      mainFrame as typeof mainFrame & {
+        screenshot: typeof mainFrame.screenshot;
+      }
+    ).screenshot = async () => {
       await wait(50);
       return Buffer.from("late");
     };
@@ -68,7 +72,11 @@ test.describe("Page.screenshot options", () => {
     try {
       await expect(page.screenshot({ timeout: 10 })).rejects.toThrow(/timeout/);
     } finally {
-      (mainFrame as typeof mainFrame & { screenshot: typeof mainFrame.screenshot }).screenshot = originalScreenshot;
+      (
+        mainFrame as typeof mainFrame & {
+          screenshot: typeof mainFrame.screenshot;
+        }
+      ).screenshot = originalScreenshot;
     }
   });
 
@@ -122,10 +130,7 @@ test.describe("Page.screenshot options", () => {
     };
 
     // Spy on Frame.evaluate to capture the arguments used to inject CSS/masks.
-    Frame.prototype.evaluate = async function evaluateSpy(
-      expression,
-      arg?,
-    ) {
+    Frame.prototype.evaluate = async function evaluateSpy(expression, arg?) {
       const frame = this as Frame;
       if (frame.pageId === targetId) {
         evaluateCalls.push({ frameId: frame.frameId, arg });
@@ -134,14 +139,19 @@ test.describe("Page.screenshot options", () => {
     } as Frame["evaluate"];
 
     const internalPage = page as unknown as {
-      mainSession: { send: (method: string, params?: unknown) => Promise<unknown> };
+      mainSession: {
+        send: (method: string, params?: unknown) => Promise<unknown>;
+      };
     };
     const sendCalls: Array<{ method: string; params: unknown }> = [];
     const originalSend = internalPage.mainSession.send.bind(
       internalPage.mainSession,
     ) as (method: string, params?: unknown) => Promise<unknown>;
     // Capture background overrides so we can confirm omitBackground toggles on/off.
-    internalPage.mainSession.send = async (method: string, params?: unknown) => {
+    internalPage.mainSession.send = async (
+      method: string,
+      params?: unknown,
+    ) => {
       sendCalls.push({ method, params });
       return originalSend(method, params);
     };
@@ -166,7 +176,12 @@ test.describe("Page.screenshot options", () => {
       expect(screenshotCalls.length).toBeGreaterThanOrEqual(1);
       const recorded = screenshotCalls[0]?.options ?? {};
       expect(recorded).toMatchObject({ type: "jpeg", quality: 80 });
-      expect(recorded?.clip).toMatchObject({ x: 0, y: 0, width: 200, height: 200 });
+      expect(recorded?.clip).toMatchObject({
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 200,
+      });
       if (typeof recorded?.scale === "number") {
         expect(recorded.scale).toBeGreaterThan(0);
         expect(recorded.scale).toBeLessThanOrEqual(2);
@@ -197,8 +212,10 @@ test.describe("Page.screenshot options", () => {
         ),
       ).toBeTruthy();
       expect(
-        backgroundCalls.some((call) =>
-          !call.params || Object.keys(call.params as Record<string, unknown>).length === 0,
+        backgroundCalls.some(
+          (call) =>
+            !call.params ||
+            Object.keys(call.params as Record<string, unknown>).length === 0,
         ),
       ).toBeTruthy();
 
@@ -221,7 +238,9 @@ test.describe("Page.screenshot options", () => {
       expect(tokens.some((token) => token.includes("caret"))).toBeTruthy();
       expect(tokens.some((token) => token.includes("custom"))).toBeTruthy();
       // Custom style should bubble through so we check the actual CSS text.
-      expect(cssArgs.some((css) => css.includes("border: 3px solid black"))).toBeTruthy();
+      expect(
+        cssArgs.some((css) => css.includes("border: 3px solid black")),
+      ).toBeTruthy();
 
       expect(
         evaluateCalls.some((entry) => {

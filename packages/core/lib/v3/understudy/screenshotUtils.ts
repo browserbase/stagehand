@@ -3,7 +3,10 @@ import type { CDPSessionLike } from "./cdp";
 import type { Frame } from "./frame";
 import type { Locator } from "./locator";
 import type { Page } from "./page";
-import type { ScreenshotClip, ScreenshotScaleOption } from "../types/public/screenshotTypes";
+import type {
+  ScreenshotClip,
+  ScreenshotScaleOption,
+} from "../types/public/screenshotTypes";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
@@ -128,7 +131,9 @@ export async function applyStyleToFrames(
   };
 }
 
-export async function disableAnimations(frames: Frame[]): Promise<ScreenshotCleanup> {
+export async function disableAnimations(
+  frames: Frame[],
+): Promise<ScreenshotCleanup> {
   const css = `
 *,
 *::before,
