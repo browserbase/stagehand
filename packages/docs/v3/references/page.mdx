@@ -309,6 +309,55 @@ await page.waitForLoadState(state: LoadState, timeoutMs?: number): Promise<void>
   **Default:** `15000`
 </ParamField>
 
+
+## Events
+
+### on("console")
+
+Listen for console output produced by the page and any adopted iframe sessions. Returns the page instance so calls can be chained.
+
+```typescript
+import type { ConsoleMessage } from "@browserbasehq/stagehand";
+
+const handleConsole = (message: ConsoleMessage) => {
+  console.log(`[${message.type()}] ${message.text()}`);
+  console.log("Arguments:", message.args());
+  const location = message.location();
+  if (location?.url) {
+    console.log(`Emitted from ${location.url}:${location.lineNumber ?? 0}`);
+  }
+};
+
+page.on("console", handleConsole);
+```
+
+`ConsoleMessage` exposes helpers for working with console events:
+
+- `message.type()` – console API category such as `log`, `error`, or `warning`
+- `message.text()` – string representation of the console arguments
+- `message.args()` – underlying CDP `RemoteObject` arguments array
+- `message.location()` – source URL, line, and column when available
+- `message.timestamp()` – CDP timestamp for the event
+- `message.raw()` – access to the original `Runtime.consoleAPICalledEvent`
+
+### once("console")
+
+Register a listener that removes itself after the first console event.
+
+```typescript
+page.once("console", (message) => {
+  console.log("First console message:", message.text());
+});
+```
+
+### off("console")
+
+Remove a previously registered listener. The reference must match the original listener passed to `on()`.
+
+```typescript
+page.off("console", handleConsole);
+```
+
 ## Code Examples
 
 <Tabs>
