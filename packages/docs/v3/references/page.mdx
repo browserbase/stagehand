@@ -252,12 +252,77 @@ await page.screenshot(options?: ScreenshotOptions): Promise<Buffer>
 ```
 
 <ParamField path="fullPage" type="boolean" optional>
-  Whether to capture the full scrollable page.
+  Capture the entire scrollable page instead of just the current viewport.
 
   **Default:** `false`
 </ParamField>
 
-**Returns:** A Buffer containing the PNG image data.
+<ParamField path="clip" type="ScreenshotClip" optional>
+  Limit the capture to the provided rectangle in CSS pixels (`{ x, y, width, height }`).
+  Cannot be combined with `fullPage`.
+</ParamField>
+
+<ParamField path="type" type="'png' | 'jpeg'" optional>
+  Image format for the screenshot.
+
+  **Default:** `"png"`
+</ParamField>
+
+<ParamField path="quality" type="number" optional>
+  JPEG quality (0–100). Only used when `type` is `"jpeg"`.
+</ParamField>
+
+<ParamField path="scale" type="'css' | 'device'" optional>
+  Rendering scale. Use `"css"` for one pixel per CSS pixel, or `"device"` for the
+  device pixel ratio.
+
+  **Default:** `"device"`
+</ParamField>
+
+<ParamField path="animations" type="'allow' | 'disabled'" optional>
+  Control CSS/Web animations and transitions. `"disabled"` fast-forwards finite
+  animations and pauses infinite ones before capture.
+
+  **Default:** `"allow"`
+</ParamField>
+
+<ParamField path="caret" type="hide | initial" optional>
+  Hide the text caret during capture (`"hide"`) or leave it untouched (`"initial"`).
+
+  **Default:** `"hide"`
+</ParamField>
+
+<ParamField path="mask" type="Locator[]" optional>
+  List of locators to cover with a colored overlay while the screenshot is taken.
+</ParamField>
+
+<ParamField path="maskColor" type="string" optional>
+  CSS color to use for masked overlays.
+
+  **Default:** `#FF00FF`
+</ParamField>
+
+<ParamField path="style" type="string" optional>
+  Additional CSS text injected into every frame just before capture. Useful for
+  hiding or tweaking dynamic UI.
+</ParamField>
+
+<ParamField path="omitBackground" type="boolean" optional>
+  Make the default page background transparent (PNG only).
+
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time in milliseconds to wait for the capture before throwing.
+</ParamField>
+
+<ParamField path="path" type="string" optional>
+  Write the screenshot to the provided file path. The image is still returned as
+  a buffer.
+</ParamField>
+
+**Returns:** A `Promise<Buffer>` containing the screenshot image data.
 
 ## Viewport
 
@@ -349,6 +414,16 @@ await fs.writeFile("screenshot.png", screenshot);
 // Capture full page screenshot
 const fullPage = await page.screenshot({ fullPage: true });
 await fs.writeFile("fullpage.png", fullPage);
+
+// Capture JPEG with styling overrides and a masked element
+const styled = await page.screenshot({
+  type: "jpeg",
+  quality: 80,
+  style: "body { filter: grayscale(1); }",
+  mask: [page.locator(".ads-banner")],
+  maskColor: "rgba(0, 0, 0, 0.3)",
+});
+await fs.writeFile("styled.jpg", styled);
 ```
 
 </Tab>
@@ -451,6 +526,42 @@ type AnyPage = PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
 ```
 
 Stagehand supports multiple browser automation libraries. The `AnyPage` type represents any compatible page object.
+
+### ScreenshotClip
+
+```typescript
+interface ScreenshotClip {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+```
+
+Represents the CSS-pixel rectangle to capture when `clip` is provided.
+
+### ScreenshotOptions
+
+```typescript
+interface ScreenshotOptions {
+  fullPage?: boolean;
+  clip?: ScreenshotClip;
+  type?: "png" | "jpeg";
+  quality?: number;
+  scale?: "css" | "device";
+  animations?: "allow" | "disabled";
+  caret?: "hide" | "initial";
+  mask?: Locator[];
+  maskColor?: string;
+  style?: string;
+  omitBackground?: boolean;
+  timeout?: number;
+  path?: string;
+}
+```
+
+Matches Playwright's screenshot signature with sensible defaults to control how a
+capture is produced.
 
 ## Error Handling
 
