@@ -317,11 +317,11 @@ Get usage metrics for AI operations.
 const metrics = await stagehand.metrics;
 ```
 
-**Returns:** `Promise<V3Metrics>`
+**Returns:** `Promise<StagehandMetrics>`
 
-**V3Metrics Interface:**
+**StagehandMetrics Interface:**
 ```typescript
-interface V3Metrics {
+interface StagehandMetrics {
   // Act metrics
   actPromptTokens: number;
   actCompletionTokens: number;
