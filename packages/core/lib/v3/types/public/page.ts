@@ -10,3 +10,4 @@ export { ConsoleMessage } from "../../understudy/consoleMessage";
 export type { ConsoleListener } from "../../understudy/consoleMessage";
 
 export type LoadState = "load" | "domcontentloaded" | "networkidle";
+export { StagehandResponse } from "../../understudy/stagehandResponse";
