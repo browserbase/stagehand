@@ -1,16 +1,17 @@
 import {
   CoreAssistantMessage,
-  CoreMessage,
+  ModelMessage,
   CoreSystemMessage,
   CoreUserMessage,
   generateObject,
   generateText,
   ImagePart,
-  LanguageModel,
   NoObjectGeneratedError,
   TextPart,
   ToolSet,
+  Tool,
 } from "ai";
+import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { ChatCompletion } from "openai/resources";
 import { LogLine } from "../types/public/logs";
 import { AvailableModel } from "../types/public/model";
@@ -18,14 +19,14 @@ import { CreateChatCompletionOptions, LLMClient } from "./LLMClient";
 
 export class AISdkClient extends LLMClient {
   public type = "aisdk" as const;
-  private model: LanguageModel;
+  private model: LanguageModelV2;
   private logger?: (message: LogLine) => void;
 
   constructor({
     model,
     logger,
   }: {
-    model: LanguageModel;
+    model: LanguageModelV2;
     logger?: (message: LogLine) => void;
   }) {
     super(model.modelId as AvailableModel);
@@ -33,7 +34,7 @@ export class AISdkClient extends LLMClient {
     this.logger = logger;
   }
 
-  public getLanguageModel(): LanguageModel {
+  public getLanguageModel(): LanguageModelV2 {
     return this.model;
   }
 
@@ -69,58 +70,60 @@ export class AISdkClient extends LLMClient {
       },
     });
 
-    const formattedMessages: CoreMessage[] = options.messages.map((message) => {
-      if (Array.isArray(message.content)) {
-        if (message.role === "system") {
-          const systemMessage: CoreSystemMessage = {
-            role: "system",
-            content: message.content
-              .map((c) => ("text" in c ? c.text : ""))
-              .join("\n"),
-          };
-          return systemMessage;
-        }
-
-        const contentParts = message.content.map((content) => {
-          if ("image_url" in content) {
-            const imageContent: ImagePart = {
-              type: "image",
-              image: content.image_url.url,
+    const formattedMessages: ModelMessage[] = options.messages.map(
+      (message) => {
+        if (Array.isArray(message.content)) {
+          if (message.role === "system") {
+            const systemMessage: CoreSystemMessage = {
+              role: "system",
+              content: message.content
+                .map((c) => ("text" in c ? c.text : ""))
+                .join("\n"),
             };
-            return imageContent;
-          } else {
-            const textContent: TextPart = {
-              type: "text",
-              text: content.text,
-            };
-            return textContent;
+            return systemMessage;
           }
-        });
 
-        if (message.role === "user") {
-          const userMessage: CoreUserMessage = {
-            role: "user",
-            content: contentParts,
-          };
-          return userMessage;
-        } else {
-          const textOnlyParts = contentParts.map((part) => ({
-            type: "text" as const,
-            text: part.type === "image" ? "[Image]" : part.text,
-          }));
-          const assistantMessage: CoreAssistantMessage = {
-            role: "assistant",
-            content: textOnlyParts,
-          };
-          return assistantMessage;
+          const contentParts = message.content.map((content) => {
+            if ("image_url" in content) {
+              const imageContent: ImagePart = {
+                type: "image",
+                image: content.image_url.url,
+              };
+              return imageContent;
+            } else {
+              const textContent: TextPart = {
+                type: "text",
+                text: content.text,
+              };
+              return textContent;
+            }
+          });
+
+          if (message.role === "user") {
+            const userMessage: CoreUserMessage = {
+              role: "user",
+              content: contentParts,
+            };
+            return userMessage;
+          } else {
+            const textOnlyParts = contentParts.map((part) => ({
+              type: "text" as const,
+              text: part.type === "image" ? "[Image]" : part.text,
+            }));
+            const assistantMessage: CoreAssistantMessage = {
+              role: "assistant",
+              content: textOnlyParts,
+            };
+            return assistantMessage;
+          }
         }
-      }
 
-      return {
-        role: message.role,
-        content: message.content,
-      };
-    });
+        return {
+          role: message.role,
+          content: message.content,
+        };
+      },
+    );
 
     let objectResponse: Awaited<ReturnType<typeof generateObject>>;
     const isGPT5 = this.model.modelId.includes("gpt-5");
@@ -182,8 +185,8 @@ export class AISdkClient extends LLMClient {
       const result = {
         data: objectResponse.object,
         usage: {
-          prompt_tokens: objectResponse.usage.promptTokens ?? 0,
-          completion_tokens: objectResponse.usage.completionTokens ?? 0,
+          prompt_tokens: objectResponse.usage.inputTokens ?? 0,
+          completion_tokens: objectResponse.usage.outputTokens ?? 0,
           total_tokens: objectResponse.usage.totalTokens ?? 0,
         },
       } as T;
@@ -217,8 +220,8 @@ export class AISdkClient extends LLMClient {
       for (const tool of options.tools) {
         tools[tool.name] = {
           description: tool.description,
-          parameters: tool.parameters,
-        };
+          inputSchema: tool.parameters,
+        } as Tool;
       }
     }
 
@@ -246,7 +249,7 @@ export class AISdkClient extends LLMClient {
         type: "function",
         function: {
           name: toolCall.toolName,
-          arguments: JSON.stringify(toolCall.args),
+          arguments: JSON.stringify(toolCall.input),
         },
       }),
     );
@@ -268,8 +271,8 @@ export class AISdkClient extends LLMClient {
         },
       ],
       usage: {
-        prompt_tokens: textResponse.usage.promptTokens ?? 0,
-        completion_tokens: textResponse.usage.completionTokens ?? 0,
+        prompt_tokens: textResponse.usage.inputTokens ?? 0,
+        completion_tokens: textResponse.usage.outputTokens ?? 0,
         total_tokens: textResponse.usage.totalTokens ?? 0,
       },
     } as T;

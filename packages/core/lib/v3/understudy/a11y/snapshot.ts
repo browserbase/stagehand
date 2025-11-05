@@ -3,6 +3,7 @@ import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
 import { executionContexts } from "../executionContextRegistry";
+import { v3Logger } from "../../logger";
 
 /**
  * a11y/snapshot
@@ -542,6 +543,19 @@ export async function captureHybridSnapshot(
   // the full-tree and trimming after.
   const requestedFocus = options?.focusSelector?.trim();
   if (requestedFocus) {
+    const logScopeFallback = () => {
+      v3Logger({
+        message: `Unable to narrow scope with selector. Falling back to using full DOM`,
+        level: 1,
+        auxiliary: {
+          arguments: {
+            value: `selector: ${options?.focusSelector?.trim()}`,
+            type: "string",
+          },
+        },
+      });
+    };
+
     try {
       let targetFrameId: string;
       let tailSelector: string | undefined;
@@ -586,7 +600,7 @@ export async function captureHybridSnapshot(
         /*attemptOwnerLookup=*/ sameSessionAsParent,
       );
 
-      const { outline, urlMap } = await a11yForFrame(
+      const { outline, urlMap, scopeApplied } = await a11yForFrame(
         owningSess,
         targetFrameId,
         {
@@ -613,7 +627,7 @@ export async function captureHybridSnapshot(
 
       const combinedUrlMap: Record<string, string> = { ...urlMap };
 
-      return {
+      const snapshot: HybridSnapshot = {
         combinedTree: outline,
         combinedXpathMap,
         combinedUrlMap,
@@ -626,7 +640,14 @@ export async function captureHybridSnapshot(
           },
         ],
       };
+
+      if (scopeApplied) {
+        return snapshot;
+      }
+
+      logScopeFallback();
     } catch {
+      logScopeFallback();
       // If traversal fails for any reason, fall back to full snapshot below.
     }
   }
@@ -1274,6 +1295,7 @@ async function a11yForFrame(
 ): Promise<{
   outline: string;
   urlMap: Record<string, string>;
+  scopeApplied: boolean;
 }> {
   await session.send("Accessibility.enable").catch(() => {});
   // Runtime/DOM often already enabled; enable defensively for XPath resolution.
@@ -1311,6 +1333,8 @@ async function a11yForFrame(
     urlMap[enc] = url;
   }
   // If focusSelector provided, filter the AX nodes to the subtree rooted at that selector
+  let scopeApplied = false;
+
   const nodesForOutline = await (async () => {
     const sel = opts.focusSelector?.trim();
     if (!sel) return nodes;
@@ -1328,6 +1352,7 @@ async function a11yForFrame(
       if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
       if (!target) return nodes;
+      scopeApplied = true;
       const keep = new Set<string>([target.nodeId]);
       const queue: Protocol.Accessibility.AXNode[] = [target];
       while (queue.length) {
@@ -1353,7 +1378,7 @@ async function a11yForFrame(
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
-  return { outline: simplified.trimEnd(), urlMap };
+  return { outline: simplified.trimEnd(), urlMap, scopeApplied };
 }
 
 /** Resolve an XPath to a Runtime remoteObjectId in the given CDP session. */
@@ -1532,15 +1557,11 @@ async function buildHierarchicalTree(
 ): Promise<{ tree: A11yNode[] }> {
   const nodeMap = new Map<string, A11yNode>();
 
-  // Keep named, described, or container nodes and any non-structural role
+  // Keep named or container nodes and any non-structural role
   for (const n of nodes) {
-    const hasName = Boolean(n.name?.trim());
-    const hasDescription = Boolean(n.description?.trim());
-    const hasChildren = !!(n.childIds && n.childIds.length);
     const keep =
-      hasName ||
-      hasDescription ||
-      hasChildren ||
+      !!(n.name && n.name.trim()) ||
+      !!(n.childIds && n.childIds.length) ||
       !isStructural(n.role);
     if (!keep) continue;
     nodeMap.set(n.nodeId, { ...n });
@@ -1569,12 +1590,9 @@ async function buildHierarchicalTree(
   async function pruneStructuralSafe(node: A11yNode): Promise<A11yNode | null> {
     if (+node.nodeId < 0) return null;
 
-    const hasDescription = Boolean(node.description?.trim());
-    const structuralRole = isStructural(node.role) && !hasDescription;
-
     const children = node.children ?? [];
     if (!children.length) {
-      return structuralRole ? null : node;
+      return isStructural(node.role) ? null : node;
     }
 
     const cleanedKids = (
@@ -1584,7 +1602,7 @@ async function buildHierarchicalTree(
     // Remove StaticText children whose combined text equals the parent's name
     const prunedStatic = removeRedundantStaticTextChildren(node, cleanedKids);
 
-    if (structuralRole) {
+    if (isStructural(node.role)) {
       if (prunedStatic.length === 1) return prunedStatic[0]!;
       if (prunedStatic.length === 0) return null;
     }

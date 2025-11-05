@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-evals",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Evaluation suite for Stagehand",
   "main": "./",
@@ -9,12 +9,14 @@
     "build": "pnpm run typecheck",
     "build:cli": "tsup cli.ts --outDir ../../dist/evals --format cjs && cp evals.config.json ../../dist/evals/ && chmod +x ../../dist/evals/cli.js",
     "evals": "tsx run.ts",
-    "e2e": "playwright test --config deterministic/e2e.playwright.config.ts",
-    "e2e:bb": "playwright test --config deterministic/bb.playwright.config.ts",
-    "e2e:local": "playwright test --config deterministic/local.playwright.config.ts"
+    "lint": "cd ../.. && prettier --check packages/evals && cd packages/evals && eslint .",
+    "format": "prettier --write ."
   },
   "dependencies": {
-    "@browserbasehq/orca": "workspace:*",
+    "@browserbasehq/stagehand": "workspace:*",
+    "ai": "^5.0.0",
+    "@ai-sdk/provider": "^2.0.0",
+    "openai": "^4.87.1",
     "dotenv": "16.4.5",
     "zod": "3.25.67"
   },

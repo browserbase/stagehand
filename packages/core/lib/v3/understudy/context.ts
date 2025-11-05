@@ -5,6 +5,8 @@ import { CdpConnection, CDPSessionLike } from "./cdp";
 import { Page } from "./page";
 import { installV3PiercerIntoSession } from "./piercer";
 import { executionContexts } from "./executionContextRegistry";
+import type { StagehandAPIClient } from "../api";
+import { LocalBrowserLaunchOptions } from "../types/public";
 
 type TargetId = string;
 type SessionId = string;
@@ -31,6 +33,8 @@ export class V3Context {
   private constructor(
     readonly conn: CdpConnection,
     private readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
+    private readonly apiClient: StagehandAPIClient | null = null,
+    private readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
   ) {}
 
   private readonly _piercerInstalled = new Set<string>();
@@ -56,13 +60,19 @@ export class V3Context {
    */
   static async create(
     wsUrl: string,
-    opts?: { env?: "LOCAL" | "BROWSERBASE" },
+    opts?: {
+      env?: "LOCAL" | "BROWSERBASE";
+      apiClient?: StagehandAPIClient | null;
+      localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
+    },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
     await conn.enableAutoAttach();
     const ctx = new V3Context(
       conn,
       opts?.env ?? "LOCAL",
+      opts?.apiClient ?? null,
+      opts?.localBrowserLaunchOptions ?? null,
     );
     await ctx.bootstrap();
     await ctx.waitForFirstTopLevelPage(5000);
@@ -350,7 +360,13 @@ export class V3Context {
 
     // Top-level handling
     if (isTopLevelPage(info)) {
-      const page = await Page.create(this.conn, session, info.targetId);
+      const page = await Page.create(
+        this.conn,
+        session,
+        info.targetId,
+        this.apiClient,
+        this.localBrowserLaunchOptions,
+      );
       this.wireSessionToOwnerPage(sessionId, page);
       this.pagesByTarget.set(info.targetId, page);
       this.mainFrameToTarget.set(page.mainFrameId(), info.targetId);

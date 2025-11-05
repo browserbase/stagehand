@@ -1,0 +1,27 @@
+
+### User Data Directory
+
+Persist browser data between sessions using a custom user data directory:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// For Browserbase sessions
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionCreateParams: {
+    userDataDir: "/path/to/user/data/directory",
+  },
+});
+
+// For Local sessions
+const localStagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    userDataDir: "./browser-data",
+  },
+});
+
+await stagehand.init();
+console.log("Session ID:", stagehand.sessionId);
+```

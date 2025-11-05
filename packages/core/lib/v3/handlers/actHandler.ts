@@ -18,7 +18,10 @@ import {
   ModelConfiguration,
 } from "../types/public/model";
 import type { Page } from "../understudy/page";
-import { performUnderstudyMethod } from "./handlerUtils/actHandlerUtils";
+import {
+  performUnderstudyMethod,
+  waitForDomNetworkQuiet,
+} from "./handlerUtils/actHandlerUtils";
 
 export class ActHandler {
   private readonly llmClient: LLMClient;
@@ -69,6 +72,10 @@ export class ActHandler {
     const llmClient = this.resolveLlmClient(model);
 
     const doObserveAndAct = async (): Promise<ActResult> => {
+      await waitForDomNetworkQuiet(
+        page.mainFrame(),
+        this.defaultDomSettleTimeoutMs,
+      );
       const snapshot = await captureHybridSnapshot(page as Page, {
         experimental: true,
       });

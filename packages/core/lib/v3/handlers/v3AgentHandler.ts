@@ -1,7 +1,7 @@
 import { createAgentTools } from "../agent/tools";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
-import { CoreMessage, LanguageModel, ToolSet, wrapLanguageModel } from "ai";
+import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
@@ -10,6 +10,7 @@ import {
   AgentResult,
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
+import { mapToolResultToActions } from "../agent/utils/actionMapping";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -50,6 +51,8 @@ export class V3AgentHandler {
     let completed = false;
     const collectedReasoning: string[] = [];
 
+    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+
     try {
       const systemPrompt = this.buildSystemPrompt(
         options.instruction,
@@ -57,7 +60,7 @@ export class V3AgentHandler {
       );
       const tools = this.createTools();
       const allTools = { ...tools, ...this.mcpTools };
-      const messages: CoreMessage[] = [
+      const messages: ModelMessage[] = [
         { role: "user", content: options.instruction },
       ];
 
@@ -66,13 +69,13 @@ export class V3AgentHandler {
           "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
         );
       }
-      const baseModel: LanguageModel = this.llmClient.getLanguageModel();
+      const baseModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({
         model: baseModel,
         middleware: {
           transformParams: async ({ params }) => {
             const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt };
+            return { ...params, prompt: processedPrompt } as typeof params;
           },
         },
       });
@@ -82,7 +85,7 @@ export class V3AgentHandler {
         system: systemPrompt,
         messages,
         tools: allTools,
-        maxSteps,
+        stopWhen: stepCountIs(maxSteps),
         temperature: 1,
         toolChoice: "auto",
         onStepFinish: async (event) => {
@@ -93,8 +96,10 @@ export class V3AgentHandler {
           });
 
           if (event.toolCalls && event.toolCalls.length > 0) {
-            for (const toolCall of event.toolCalls) {
-              const args = toolCall.args as Record<string, unknown>;
+            for (let i = 0; i < event.toolCalls.length; i++) {
+              const toolCall = event.toolCalls[i];
+              const args = toolCall.input as Record<string, unknown>;
+              const toolResult = event.toolResults?.[i];
 
               if (event.text.length > 0) {
                 collectedReasoning.push(event.text);
@@ -108,25 +113,27 @@ export class V3AgentHandler {
               if (toolCall.toolName === "close") {
                 completed = true;
                 if (args?.taskComplete) {
-                  const closeReasoning = args.reasoning as string;
+                  const closeReasoning = args.reasoning;
                   const allReasoning = collectedReasoning.join(" ");
                   finalMessage = closeReasoning
                     ? `${allReasoning} ${closeReasoning}`.trim()
                     : allReasoning || "Task completed successfully";
                 }
               }
-
-              const action: AgentAction = {
-                type: toolCall.toolName,
+              const mappedActions = mapToolResultToActions({
+                toolCallName: toolCall.toolName,
+                toolResult,
+                args,
                 reasoning: event.text || undefined,
-                taskCompleted:
-                  toolCall.toolName === "close"
-                    ? (args?.taskComplete as boolean)
-                    : false,
-                ...args,
-              };
-              actions.push(action);
+              });
+
+              for (const action of mappedActions) {
+                action.pageUrl = currentPageUrl;
+                action.timestamp = Date.now();
+                actions.push(action);
+              }
             }
+            currentPageUrl = (await this.v3.context.awaitActivePage()).url();
           }
         },
       });
@@ -141,8 +148,8 @@ export class V3AgentHandler {
       if (result.usage) {
         this.v3.updateMetrics(
           V3FunctionName.AGENT,
-          result.usage.promptTokens || 0,
-          result.usage.completionTokens || 0,
+          result.usage.inputTokens || 0,
+          result.usage.outputTokens || 0,
           inferenceTimeMs,
         );
       }
@@ -154,8 +161,8 @@ export class V3AgentHandler {
         completed,
         usage: result.usage
           ? {
-              input_tokens: result.usage.promptTokens || 0,
-              output_tokens: result.usage.completionTokens || 0,
+              input_tokens: result.usage.inputTokens || 0,
+              output_tokens: result.usage.outputTokens || 0,
               inference_time_ms: inferenceTimeMs,
             }
           : undefined,
@@ -181,7 +188,7 @@ export class V3AgentHandler {
     systemInstructions?: string,
   ): string {
     if (systemInstructions) {
-      return `${systemInstructions}\nYour current goal: ${executionInstruction}`;
+      return `${systemInstructions}\nYour current goal: ${executionInstruction} when the task is complete, use the "close" tool with taskComplete: true`;
     }
     return `You are a web automation assistant using browser automation tools to accomplish the user's goal.\n\nYour task: ${executionInstruction}\n\nYou have access to various browser automation tools. Use them step by step to complete the task.\n\nIMPORTANT GUIDELINES:\n1. Always start by understanding the current page state\n2. Use the screenshot tool to verify page state when needed\n3. Use appropriate tools for each action\n4. When the task is complete, use the "close" tool with taskComplete: true\n5. If the task cannot be completed, use "close" with taskComplete: false\n\nTOOLS OVERVIEW:\n- screenshot: Take a PNG screenshot for quick visual context (use sparingly)\n- ariaTree: Get an accessibility (ARIA) hybrid tree for full page context\n- act: Perform a specific atomic action (click, type, etc.)\n- extract: Extract structured data\n- goto: Navigate to a URL\n- wait/navback/refresh: Control timing and navigation\n- scroll: Scroll the page x pixels up or down\n\nSTRATEGY:\n- Prefer ariaTree to understand the page before acting; use screenshot for confirmation.\n- Keep actions atomic and verify outcomes before proceeding.`;
   }

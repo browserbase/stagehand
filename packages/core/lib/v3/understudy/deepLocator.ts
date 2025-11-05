@@ -145,7 +145,11 @@ export class DeepLocatorDelegate {
   ) {}
 
   private async real(): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
+    const base = await resolveLocatorWithHops(
+      this.page,
+      this.root,
+      this.selector,
+    );
     return base.nth(this.nthIndex);
   }
 
@@ -213,6 +217,23 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).sendClickEvent(options);
   }
+  async setInputFiles(
+    files:
+      | string
+      | string[]
+      | {
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }
+      | Array<{
+          name: string;
+          mimeType: string;
+          buffer: ArrayBuffer | Uint8Array | Buffer | string;
+        }>,
+  ) {
+    return (await this.real()).setInputFiles(files);
+  }
   first() {
     return this.nth(0);
   }
@@ -225,7 +246,12 @@ export class DeepLocatorDelegate {
     const nextIndex = Math.floor(value);
     if (nextIndex === this.nthIndex) return this;
 
-    return new DeepLocatorDelegate(this.page, this.root, this.selector, nextIndex);
+    return new DeepLocatorDelegate(
+      this.page,
+      this.root,
+      this.selector,
+      nextIndex,
+    );
   }
 }
 

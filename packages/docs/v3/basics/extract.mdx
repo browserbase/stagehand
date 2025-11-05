@@ -1,0 +1,341 @@
+---
+title: Extract
+description: Extract structured data from a webpage
+---
+
+## What is `extract()`?
+
+```typescript
+await stagehand.extract("extract the name of the repository");
+```
+
+`extract` grabs structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a [natural language prompt](#extract-with-just-a-prompt), or call `extract` [with no parameters](#extract-with-no-parameters).
+
+## Why use `extract()`?
+
+<CardGroup cols={2}>
+  <Card title="Structured" icon="brackets-curly" href="#list-of-objects-extraction">
+    Turn messy webpage data into clean objects that follow a schema.
+  </Card>
+  <Card title="Resilient" icon="dumbbell" href="#extract-with-context">
+    Build resilient extractions that don't break when the website changes
+  </Card>
+</CardGroup>
+
+## Using `extract()`
+
+You can use `extract()` to extract structured data from a webpage. You can define your schema with [zod](https://github.com/colinhacks/zod) (TypeScript) or JSON. If you do not want to define a schema, you can also call `extract` with just a natural language prompt, or call `extract` with no parameters.
+
+```typescript
+const result = await stagehand.extract("extract the product details");
+```
+
+### Return value of `extract()`?
+
+When you use `extract()`, Stagehand will return a `Promise<ExtractResult>` with the following structure:
+<Tabs>
+<Tab title="Basic Schema">
+
+When extracting with a schema, the return type is inferred from your Zod schema:
+
+```typescript
+const result = await stagehand.extract(
+  "extract product details",
+  z.object({
+    name: z.string(),
+    price: z.number(),
+    inStock: z.boolean()
+  })
+);
+```
+
+**Example result:**
+```typescript
+{
+  name: "Wireless Mouse",
+  price: 29.99,
+  inStock: true
+}
+```
+
+</Tab>
+<Tab title="Array">
+
+When extracting an array, you get an array of objects:
+
+```typescript
+const apartments = await stagehand.extract(
+  "extract all apartment listings",
+  z.array(
+    z.object({
+      address: z.string(),
+      price: z.string(),
+      sqft: z.number()
+    })
+  )
+);
+```
+
+**Example result:**
+```typescript
+[
+  {
+    address: "123 Main St",
+    price: "$1,200/mo",
+    sqft: 750
+  },
+  {
+    address: "456 Oak Ave",
+    price: "$1,500/mo",
+    sqft: 900
+  }
+]
+```
+
+</Tab>
+<Tab title="Primitive">
+
+When extracting a single primitive value:
+
+```typescript
+const price = await stagehand.extract(
+  "extract the price",
+  z.number()
+);
+```
+
+**Example result:**
+```typescript
+19.99
+```
+
+You can also extract strings, booleans, etc.:
+
+```typescript
+const url = await stagehand.extract(
+  "extract the contact page link",
+  z.string().url()
+);
+```
+
+</Tab>
+<Tab title="Instruction Only">
+
+When calling with just an instruction (no schema):
+
+```typescript
+const result = await stagehand.extract("extract the repository name");
+```
+
+**Example result:**
+```typescript
+{
+  extraction: "stagehand"
+}
+```
+
+</Tab>
+<Tab title="No Parameters">
+
+When calling with no parameters:
+
+```typescript
+const result = await stagehand.extract();
+```
+
+**Example result:**
+```typescript
+{
+  pageText: "Accessibility Tree:\n[0-2] RootWebArea: Page Title\n  [0-37] scrollable\n    [0-118] body\n      ..."
+}
+```
+
+This returns the accessibility tree representation of the page without LLM processing.
+
+</Tab>
+</Tabs>
+
+## Advanced Configuration
+
+You can pass additional options to configure the model, timeout, and selector scope:
+```typescript
+const result = await stagehand.extract("extract the repository name", {
+  model: "anthropic/claude-sonnet-4-5",
+  timeout: 30000,
+  selector: "//header" // Focus on specific area
+});
+```
+
+### Targeted Extract
+
+Pass a selector to `extract` to target a specific element on the page.
+<Tip>
+This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
+</Tip>
+```typescript
+const tableData = await stagehand.extract(
+  "Extract the values of the third row",
+  z.object({
+    values: z.array(z.string())
+  }),
+  {
+    // xPath or CSS selector
+    selector: "xpath=/html/body/div/table/" 
+  }
+);
+```
+
+
+## Best practices
+
+
+### Extract with Context
+
+You can provide additional context to your schema to help the model extract the data more accurately.
+
+```typescript
+const apartments = await stagehand.extract(
+  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
+  z.array(
+    z.object({
+      address: z.string().describe("the address of the apartment"),
+      price: z.string().describe("the price of the apartment"),
+      square_feet: z.string().describe("the square footage of the apartment"),
+    })
+  )
+);
+```
+
+### Link Extraction
+<Note>
+To extract links or URLs, define the relevant field as `z.string().url()`.
+</Note>
+
+Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
+
+```typescript
+const contactLink = await stagehand.extract(
+  "extract the link to the 'contact us' page",
+  z.string().url() // note the usage of z.string().url() for URL validation
+);
+
+console.log("the link to the contact us page is: ", contactLink);
+```
+
+<Tip>
+Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs -> URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final `ExtractResult`.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Empty or partial results">
+**Problem**: `extract()` returns empty or incomplete data
+
+**Solutions**:
+- **Check your instruction clarity**: Make sure your instruction is specific and describes exactly what data you want to extract
+- **Verify the data exists**: Use `stagehand.observe()` first to confirm the data is present on the page
+- **Wait for dynamic content**: If the page loads content dynamically, use `stagehand.act("wait for the content to load")` before extracting
+
+**Solution: Wait for content before extracting**
+```typescript
+// Wait for content before extracting
+await stagehand.act("wait for the product listings to load");
+const products = await stagehand.extract(
+  "extract all product names and prices",
+  z.array(z.object({
+    name: z.string(),
+    price: z.string()
+  }))
+);
+```
+</Accordion>
+
+<Accordion title="Schema validation errors">
+**Problem**: Getting schema validation errors or type mismatches
+
+**Solutions**:
+- **Use optional fields**: Make fields optional with `z.optional()` if the data might not always be present
+- **Use flexible types**: Consider using `z.string()` instead of `z.number()` for prices that might include currency symbols
+- **Add descriptions**: Use `.describe()` to help the model understand field requirements
+
+**Solution: More flexible schema**
+```typescript
+const schema = z.object({
+  price: z.string().describe("price including currency symbol, e.g., '$19.99'"),
+  availability: z.string().optional().describe("stock status if available"),
+  rating: z.number().optional()
+});
+```
+</Accordion>
+
+<Accordion title="Inconsistent results">
+**Problem**: Extraction results vary between runs
+
+**Solutions**:
+- **Be more specific in instructions**: Instead of "extract prices", use "extract the numerical price value for each item"
+- **Use context in schema descriptions**: Add field descriptions to guide the model
+- **Combine with observe**: Use `stagehand.observe()` to understand the page structure first
+
+**Solution: Validate with observe first**
+```typescript
+// First observe to understand the page structure
+const elements = await stagehand.observe("find all product listings");
+console.log("Found elements:", elements.map(e => e.description));
+
+// Then extract with specific targeting
+const products = await stagehand.extract(
+  "extract name and price from each product listing shown on the page",
+  z.array(z.object({
+    name: z.string().describe("the product title or name"),
+    price: z.string().describe("the price as displayed, including currency")
+  }))
+);
+```
+</Accordion>
+
+<Accordion title="Performance issues">
+**Problem**: Extraction is slow or timing out
+
+**Solutions**:
+- **Reduce scope**: Extract smaller chunks of data in multiple calls rather than everything at once
+- **Use targeted instructions**: Be specific about which part of the page to focus on
+- **Consider pagination**: For large datasets, extract one page at a time
+- **Increase timeout**: Use `timeoutMs` parameter for complex extractions
+
+**Solution: Break down large extractions**
+```typescript
+// Instead of extracting everything at once
+const allData = [];
+const pageNumbers = [1, 2, 3, 4, 5];
+
+for (const pageNum of pageNumbers) {
+  await stagehand.act(`navigate to page ${pageNum}`);
+
+  const pageData = await stagehand.extract(
+    "extract product data from the current page only",
+    z.array(z.object({
+      name: z.string(),
+      price: z.number()
+    })),
+    { timeout: 60000 } // 60 second timeout
+  );
+
+  allData.push(...pageData);
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+
+  <Card title="Act" icon="play" href="/v3/basics/act">
+    Execute actions efficiently
+  </Card>
+
+  <Card title="Observe" icon="magnifying-glass" href="/v3/basics/observe">
+    Analyze pages and preview actions
+  </Card>
+</CardGroup>

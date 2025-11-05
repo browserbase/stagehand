@@ -71,14 +71,29 @@ function isTestEnvironment(): boolean {
 
 /**
  * StagehandLogger class that wraps Pino for our specific needs
+ *
+ * LOGGING PRECEDENCE:
+ *
+ * Test environments:
+ *   - External logger provided -> external logger only.
+ *   - No external logger -> console fallback only (Pino disabled).
+ *
+ * Non-test environments:
+ *   - usePino === true -> emit via Pino and also call the external logger when present.
+ *   - usePino === false -> disable Pino; use the external logger when present, otherwise console fallback.
+ *   - usePino === undefined -> prefer the external logger when present; otherwise use Pino.
+ *
+ * SHARED PINO OPTIMIZATION:
+ * We maintain a single shared Pino instance when `usePino` is enabled.
+ * This prevents spawning a new worker thread for every Stagehand instance
+ * (which happens when `pino-pretty` transport is used), eliminating the
+ * memory/RSS growth observed when many Stagehand objects are created and
+ * disposed within the same process (e.g. a request-per-instance API).
  */
 export class StagehandLogger {
   /**
-   * We maintain a single shared Pino instance when `usePino` is enabled.
-   * This prevents spawning a new worker thread for every Stagehand instance
-   * (which happens when `pino-pretty` transport is used), eliminating the
-   * memory/RSS growth observed when many Stagehand objects are created and
-   * disposed within the same process (e.g. a request-per-instance API).
+   * Shared Pino logger instance across all StagehandLogger instances.
+   * First instance to enable Pino creates it, subsequent instances reuse it.
    */
   private static sharedPinoLogger: pino.Logger | null = null;
 
@@ -93,9 +108,20 @@ export class StagehandLogger {
     externalLogger?: (logLine: LogLine) => void,
   ) {
     this.isTest = isTestEnvironment();
+    this.externalLogger = externalLogger;
 
-    // In test environments, default to not using Pino to avoid worker thread issues
-    this.usePino = this.isTest ? false : options.usePino !== false; // Default to using Pino if not specified and not in test
+    const externalProvided = typeof externalLogger === "function";
+    const explicitUsePino = options.usePino;
+
+    if (this.isTest) {
+      this.usePino = false;
+    } else if (explicitUsePino === true) {
+      this.usePino = true;
+    } else if (explicitUsePino === false) {
+      this.usePino = false;
+    } else {
+      this.usePino = !externalProvided;
+    }
 
     if (this.usePino) {
       // Re-use (or create) a single shared Pino logger instance
@@ -106,7 +132,6 @@ export class StagehandLogger {
     }
 
     this.verbose = 1; // Default verbosity level
-    this.externalLogger = externalLogger;
   }
 
   /**
@@ -149,17 +174,39 @@ export class StagehandLogger {
 
     if (shouldFallbackToConsole) {
       const level = logLine.level ?? 1;
-      const prefix = `[${logLine.category || "log"}] `;
+      const ts = logLine.timestamp ?? new Date().toISOString();
+      const levelStr = level === 0 ? "ERROR" : level === 2 ? "DEBUG" : "INFO";
+
+      // Format like Pino: [timestamp] LEVEL: message
+      let output = `[${ts}] ${levelStr}: ${logLine.message}`;
+
+      // Add auxiliary data on separate indented lines (like Pino pretty format)
+      if (logLine.auxiliary) {
+        const formattedData = this.formatAuxiliaryData(logLine.auxiliary);
+        for (const [key, value] of Object.entries(formattedData)) {
+          let formattedValue: string;
+          if (typeof value === "object" && value !== null) {
+            // Pretty print objects with indentation
+            formattedValue = JSON.stringify(value, null, 2)
+              .split("\n")
+              .map((line, i) => (i === 0 ? line : `    ${line}`))
+              .join("\n");
+          } else {
+            formattedValue = String(value);
+          }
+          output += `\n    ${key}: ${formattedValue}`;
+        }
+      }
 
       switch (level) {
         case 0:
-          console.error(prefix + logLine.message);
+          console.error(output);
           break;
         case 1:
-          console.log(prefix + logLine.message);
+          console.log(output);
           break;
         case 2:
-          console.debug(prefix + logLine.message);
+          console.debug(output);
           break;
       }
 
@@ -193,8 +240,11 @@ export class StagehandLogger {
       }
     }
 
-    // Use external logger if provided and either Pino is disabled or we're in a test
-    if (this.externalLogger && (!this.usePino || this.isTest)) {
+    // IMPORTANT: External logger receives logs ALWAYS when provided (takes precedence)
+    // This ensures user-provided loggers (e.g., EvalLogger, custom loggers) capture all logs
+    // regardless of Pino configuration. Pino is used for console output, external logger
+    // is used for programmatic log capture.
+    if (this.externalLogger) {
       this.externalLogger(logLine);
     }
   }
@@ -208,27 +258,40 @@ export class StagehandLogger {
     const formattedData: Record<string, unknown> = {};
 
     for (const [key, { value, type }] of Object.entries(auxiliary)) {
+      let formattedValue: unknown;
+
       // Convert values based on their type
       switch (type) {
         case "integer":
-          formattedData[key] = parseInt(value, 10);
+          formattedValue = parseInt(value, 10);
           break;
         case "float":
-          formattedData[key] = parseFloat(value);
+          formattedValue = parseFloat(value);
           break;
         case "boolean":
-          formattedData[key] = value === "true";
+          formattedValue = value === "true";
           break;
         case "object":
           try {
-            formattedData[key] = JSON.parse(value);
+            formattedValue = JSON.parse(value);
           } catch {
-            formattedData[key] = value;
+            formattedValue = value;
           }
           break;
         default:
-          formattedData[key] = value;
+          formattedValue = value;
       }
+
+      // Skip undefined values and empty objects/arrays
+      if (formattedValue === undefined) continue;
+      if (typeof formattedValue === "object" && formattedValue !== null) {
+        const isEmpty = Array.isArray(formattedValue)
+          ? formattedValue.length === 0
+          : Object.keys(formattedValue).length === 0;
+        if (isEmpty) continue;
+      }
+
+      formattedData[key] = formattedValue;
     }
 
     return formattedData;

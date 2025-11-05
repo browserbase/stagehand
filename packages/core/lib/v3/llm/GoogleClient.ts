@@ -226,14 +226,14 @@ export class GoogleClient extends LLMClient {
       tools,
       temperature,
       top_p,
-      maxTokens,
+      maxOutputTokens,
     } = options;
 
     const formattedMessages = this.formatMessages(options.messages, image);
     const formattedTools = this.formatTools(tools);
 
     const generationConfig = {
-      maxOutputTokens: maxTokens,
+      maxOutputTokens: maxOutputTokens,
       temperature: temperature,
       topP: top_p,
       responseMimeType: response_model ? "application/json" : undefined,

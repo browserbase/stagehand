@@ -13,19 +13,21 @@ import type {
   SanitizedAgentExecuteOptions,
   ActFn,
   AgentCacheContext,
-  AgentCacheDeps
+  AgentCacheDeps,
 } from "../types/private";
 import type {
   AvailableModel,
   AgentResult,
   AgentConfig,
-  AnyAgentExecuteOptions,
-  Logger
+  AgentExecuteOptions,
+  Logger,
 } from "../types/public";
 import type { Page } from "../understudy/page";
 import type { V3Context } from "../understudy/context";
 import { CacheStorage } from "./CacheStorage";
 import { cloneForCache, safeGetPageUrl } from "./utils";
+
+const SENSITIVE_CONFIG_KEYS = new Set(["apikey", "api_key", "api-key"]);
 
 export class AgentCache {
   private readonly storage: CacheStorage;
@@ -71,7 +73,7 @@ export class AgentCache {
   }
 
   sanitizeExecuteOptions(
-    options?: AnyAgentExecuteOptions,
+    options?: AgentExecuteOptions,
   ): SanitizedAgentExecuteOptions {
     if (!options) return {};
     const sanitized: SanitizedAgentExecuteOptions = {};
@@ -80,9 +82,12 @@ export class AgentCache {
     }
     if (
       "highlightCursor" in options &&
-      typeof (options as { highlightCursor?: unknown }).highlightCursor === "boolean"
+      typeof (options as { highlightCursor?: unknown }).highlightCursor ===
+        "boolean"
     ) {
-      sanitized.highlightCursor = (options as { highlightCursor?: boolean }).highlightCursor;
+      sanitized.highlightCursor = (
+        options as { highlightCursor?: boolean }
+      ).highlightCursor;
     }
     return sanitized;
   }
@@ -96,16 +101,19 @@ export class AgentCache {
           typeof integration === "string" ? integration : "client",
         )
       : undefined;
-    const serializedModel = this.serializeAgentModelForCache(agentOptions?.model);
+    const serializedModel = this.serializeAgentModelForCache(
+      agentOptions?.model,
+    );
+    const serializedExecutionModel = this.serializeAgentModelForCache(
+      agentOptions?.executionModel,
+    );
     return JSON.stringify({
       v3Model: this.getBaseModelName(),
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
         cua: agentOptions?.cua ?? false,
         model: serializedModel ?? null,
-        executionModel: agentOptions?.cua
-          ? null
-          : (agentOptions?.executionModel ?? null),
+        executionModel: agentOptions?.cua ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
         toolKeys,
         integrations: integrationSignatures,
@@ -142,7 +150,11 @@ export class AgentCache {
   async tryReplay(context: AgentCacheContext): Promise<AgentResult | null> {
     if (!this.enabled) return null;
 
-    const { value: entry, error, path } = await this.storage.readJson<CachedAgentEntry>(
+    const {
+      value: entry,
+      error,
+      path,
+    } = await this.storage.readJson<CachedAgentEntry>(
       `agent-${context.cacheKey}.json`,
     );
     if (error && path) {
@@ -264,11 +276,15 @@ export class AgentCache {
     if (typeof model === "string") return model;
 
     const { modelName, ...modelOptions } = model;
-    const options =
+    const sanitizedOptions =
       Object.keys(modelOptions).length > 0
-        ? (modelOptions as Record<string, unknown>)
+        ? this.sanitizeModelOptionsForCache(
+            modelOptions as Record<string, unknown>,
+          )
         : undefined;
-    return options ? { modelName, options } : modelName;
+    return sanitizedOptions
+      ? { modelName, options: sanitizedOptions }
+      : modelName;
   }
 
   private buildAgentCacheKey(
@@ -286,6 +302,43 @@ export class AgentCache {
     return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   }
 
+  private sanitizeModelOptionsForCache(
+    value: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
+    const sanitizedEntries: Record<string, unknown> = {};
+    for (const [key, rawValue] of Object.entries(value)) {
+      if (SENSITIVE_CONFIG_KEYS.has(key.toLowerCase())) {
+        continue;
+      }
+
+      const sanitizedValue = this.sanitizeModelValueForCache(rawValue);
+      if (sanitizedValue !== undefined) {
+        sanitizedEntries[key] = sanitizedValue;
+      }
+    }
+
+    return Object.keys(sanitizedEntries).length > 0
+      ? sanitizedEntries
+      : undefined;
+  }
+
+  private sanitizeModelValueForCache(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      const sanitizedArray = value
+        .map((item) => this.sanitizeModelValueForCache(item))
+        .filter((item) => item !== undefined);
+      return sanitizedArray;
+    }
+
+    if (value && typeof value === "object") {
+      return this.sanitizeModelOptionsForCache(
+        value as Record<string, unknown>,
+      );
+    }
+
+    return value;
+  }
+
   private async replayAgentCacheEntry(
     entry: CachedAgentEntry,
   ): Promise<AgentResult | null> {
@@ -297,6 +350,11 @@ export class AgentCache {
         await this.executeAgentReplayStep(step, ctx, handler);
       }
       const result = cloneForCache(entry.result);
+      result.usage = {
+        input_tokens: 0,
+        output_tokens: 0,
+        inference_time_ms: 0,
+      };
       result.metadata = {
         ...(result.metadata ?? {}),
         cacheHit: true,
@@ -326,7 +384,11 @@ export class AgentCache {
         await this.replayAgentActStep(step as AgentReplayActStep, ctx, handler);
         return;
       case "fillForm":
-        await this.replayAgentFillFormStep(step as AgentReplayFillFormStep, ctx, handler);
+        await this.replayAgentFillFormStep(
+          step as AgentReplayFillFormStep,
+          ctx,
+          handler,
+        );
         return;
       case "goto":
         await this.replayAgentGotoStep(step as AgentReplayGotoStep, ctx);

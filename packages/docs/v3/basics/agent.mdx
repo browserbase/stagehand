@@ -1,0 +1,459 @@
+---
+title: Agent
+description: 'Automate complex workflows with AI powered browser agents'
+---
+
+## What is `agent()?`
+
+``` typescript
+await agent.execute("apply for a job at browserbase")
+```
+`agent` turns high level tasks into **fully autonomous** browser workflows. You can customize the agent by specifying the LLM provider and model, setting custom instructions for behavior, and configuring max steps.
+
+<img src="/images/agent.gif" alt="Agent" />
+
+## Why use `agent()`?
+
+<CardGroup cols={2}>
+  <Card title="Multi-Step Workflows" icon="route" href="#agent-execution-configuration">
+    Execute complex sequences automatically.
+  </Card>
+  <Card title="Visual Understanding" icon="eye" href="/v3/best-practices/computer-use">
+    Sees and understands web interfaces like humans do using computer vision.
+  </Card>
+</CardGroup>
+
+## Using `agent()`
+
+There are two ways to create agents in Stagehand:
+1. Use a Computer Use Agent
+2. Use Agent with any LLM (non-computer-use)
+
+### Computer Use Agents
+
+You can use specialized computer use models from either Google, OpenAI, or Anthropic as shown below, with `cua` set to `true`. To compare the performance of different computer use models, you can visit our [evals page](https://www.stagehand.dev/agent-evals).
+
+<CodeGroup>
+```typescript Google
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "google/gemini-2.5-computer-use-preview-10-2025",
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+
+```typescript OpenAI
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "openai/computer-use-preview",
+        apiKey: process.env.OPENAI_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+```typescript Anthropic
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "anthropic/claude-sonnet-4-20250514",
+        apiKey: process.env.ANTHROPIC_API_KEY
+    },
+    systemPrompt: "You are a helpful assistant...",
+});
+
+await agent.execute({
+    instruction: "Go to Hacker News and find the most controversial post from today, then read the top 3 comments and summarize the debate.",
+    maxSteps: 20,
+    highlightCursor: true
+})
+```
+</CodeGroup>
+
+### Use Stagehand Agent with Any LLM
+
+Use the agent without specifying a provider to utilize any model or LLM provider:
+
+<Note>Non CUA agents are currently only supported in TypeScript</Note>
+
+```typescript TypeScript
+const agent = stagehand.agent();
+await agent.execute("apply for a job at Browserbase")
+```
+<Card title="Available Agent Models" icon="robot" href="/v3/configuration/models#agent-models-with-cua-support">
+  Check out the guide on how to use different models with Stagehand Agent.
+</Card>
+
+### Return value of `agent()`?
+
+When you use `agent()`, Stagehand will return a `Promise<AgentResult>` with the following structure:
+
+```typescript
+{
+  success: true,
+  message: "The first name and email fields have been filled successfully with 'John' and 'john@example.com'.",
+  actions: [
+    {
+      type: 'ariaTree',
+      reasoning: undefined,
+      taskCompleted: true,
+      pageUrl: 'https://example.com',
+      timestamp: 1761598722055
+    },
+    {
+      type: 'act',
+      reasoning: undefined,
+      taskCompleted: true,
+      action: 'type "John" into the First Name textbox',
+      playwrightArguments: {...},
+      pageUrl: 'https://example.com',
+      timestamp: 1761598731643
+    },
+    {
+      type: 'close',
+      reasoning: "The first name and email fields have been filled successfully.",
+      taskCompleted: true,
+      taskComplete: true,
+      pageUrl: 'https://example.com',
+      timestamp: 1761598732861
+    }
+  ],
+  completed: true,
+  usage: {
+    input_tokens: 2040,
+    output_tokens: 28,
+    inference_time_ms: 14079
+  }
+}
+```
+
+## Custom Tools
+
+Agents can be enhanced with custom tools for more granular control and better performance. Unlike MCP integrations, custom tools are defined inline and execute directly within your application.
+
+<Note>Custom tools provide a cleaner, more performant alternative to MCP integrations when you need specific functionality.</Note>
+
+### Defining Custom Tools
+
+Use the `tool` helper from the [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) to define custom tools:
+
+<CodeGroup>
+```typescript Basic Tool
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  model: "openai/gpt-5",
+  tools: {
+    getWeather: tool({
+      description: 'Get the current weather in a location',
+      inputSchema: z.object({
+        location: z.string().describe('The location to get weather for'),
+      }),
+      execute: async ({ location }) => {
+        // Your custom logic here
+        const weather = await fetchWeatherAPI(location);
+        return {
+          location,
+          temperature: weather.temp,
+          conditions: weather.conditions,
+        };
+      },
+    }),
+  },
+  systemPrompt: 'You are a helpful assistant with access to weather data.',
+});
+
+await agent.execute("What's the weather in San Francisco and should I bring an umbrella?");
+```
+
+```typescript Multiple Tools
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  cua: true,
+  model: "anthropic/claude-sonnet-4-20250514",
+  tools: {
+    searchDatabase: tool({
+      description: 'Search for records in the database',
+      inputSchema: z.object({
+        query: z.string().describe('The search query'),
+        limit: z.number().optional().describe('Max results to return'),
+      }),
+      execute: async ({ query, limit = 10 }) => {
+        const results = await db.search(query, limit);
+        return { results };
+      },
+    }),
+
+    calculatePrice: tool({
+      description: 'Calculate the total price with tax',
+      inputSchema: z.object({
+        amount: z.number().describe('The base amount'),
+        taxRate: z.number().describe('Tax rate as decimal (e.g., 0.08 for 8%)'),
+      }),
+      execute: async ({ amount, taxRate }) => {
+        const total = amount * (1 + taxRate);
+        return { total: total.toFixed(2) };
+      },
+    }),
+  },
+});
+
+await agent.execute("Find products under $50 and calculate the total with 8% tax");
+```
+
+```typescript Tool with API Integration
+import { tool } from "ai";
+import { z } from "zod/v3";
+
+const agent = stagehand.agent({
+  model: "google/gemini-2.0-flash",
+  tools: {
+    sendEmail: tool({
+      description: 'Send an email via SendGrid',
+      inputSchema: z.object({
+        to: z.string().email().describe('Recipient email address'),
+        subject: z.string().describe('Email subject'),
+        body: z.string().describe('Email body content'),
+      }),
+      execute: async ({ to, subject, body }) => {
+        const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email: to }] }],
+            from: { email: 'noreply@example.com' },
+            subject,
+            content: [{ type: 'text/plain', value: body }],
+          }),
+        });
+
+        return {
+          sent: response.ok,
+          messageId: response.headers.get('X-Message-Id'),
+        };
+      },
+    }),
+  },
+});
+
+await agent.execute("Fill out the contact form and send me a confirmation email at user@example.com");
+```
+</CodeGroup>
+
+### Custom Tools vs MCP Integrations
+
+| Custom Tools                           | MCP Integrations                        |
+|----------------------------------------|-----------------------------------------|
+| Defined inline with your code          | Connect to external services            |
+| Direct function execution              | Standard protocol                       |
+| Better performance & optimized context | Reusable across applications            |
+| Type-safe with TypeScript              | Access to pre-built integrations        |
+| Granular control                       | Network-based communication             |
+
+<Tip>
+Use custom tools when you need specific functionality within your application. Use MCP integrations when connecting to external services or when you need standardized cross-application tools.
+</Tip>
+
+## MCP Integrations
+
+Agents can be enhanced with external tools and services through MCP (Model Context Protocol) integrations. This allows your agent to access external APIs and data sources beyond just browser interactions.
+
+<CodeGroup>
+```typescript Pass URL
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "openai/computer-use-preview",
+        apiKey: process.env.OPENAI_API_KEY
+    },
+    integrations: [
+      `https://mcp.exa.ai/mcp?exaApiKey=${process.env.EXA_API_KEY}`,
+    ],
+    systemPrompt: `You have access to web search through Exa. Use it to find current information before browsing.`
+});
+
+await agent.execute("Search for the best headphones of 2025 and go through checkout for the top recommendation");
+```
+
+```typescript Create Connection
+import { connectToMCPServer } from "@browserbasehq/stagehand";
+
+const supabaseClient = await connectToMCPServer(
+  `https://server.smithery.ai/@supabase-community/supabase-mcp/mcp?api_key=${process.env.SMITHERY_API_KEY}`
+);
+
+const agent = stagehand.agent({
+    cua: true,
+    model: {
+        modelName: "openai/computer-use-preview",
+        apiKey: process.env.OPENAI_API_KEY
+    },
+    integrations: [supabaseClient],
+    systemPrompt: `You can interact with Supabase databases. Use these tools to store and retrieve data.`
+});
+
+await agent.execute("Search for restaurants and save the first result to the database");
+```
+</CodeGroup>
+
+<Tip>
+MCP integrations enable agents to be more powerful by combining browser automation with external APIs, databases, and services. The agent can intelligently decide when to use browser actions versus external tools.
+</Tip>
+
+## Agent Execution Configuration
+
+<Warning>
+Stagehand uses a 1288x711 viewport by default. Other viewport sizes may reduce performance. If you need to modify the viewport, you can edit in the [Browser Configuration](/v3/configuration/browser).
+</Warning>
+
+Control the maximum number of steps the agent can take to complete the task using the `maxSteps` parameter.
+
+<CodeGroup>
+```typescript TypeScript
+// Set maxSteps to control how many actions the agent can take
+await agent.execute({
+  instruction: "Sign me up for a library card",
+  maxSteps: 15 // Agent will stop after 15 steps if task isn't complete
+});
+```
+
+For complex tasks, increase the `maxSteps` limit and check task success.
+
+```typescript
+// Complex multi-step task requiring more actions
+const result = await agent.execute({
+  instruction: "Find and apply for software engineering jobs, filtering by remote work and saving 3 applications",
+  maxSteps: 30, // Higher limit for complex workflows
+});
+
+// Check if the task completed successfully
+if (result.success === true) {
+  console.log("Task completed successfully!");
+} else {
+  console.log("Task failed or was incomplete");
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+Following these best practices will improve your agent's success rate, reduce execution time, and minimize unexpected errors during task completion.
+
+### Start on the Right Page
+Navigate to your target page before executing tasks:
+
+<Tabs>
+<Tab title="Do this">
+```typescript
+await page.goto('https://github.com/browserbase/stagehand');
+await agent.execute('Get me the latest PR on the stagehand repo');
+```
+</Tab>
+
+<Tab title="Don't do this">
+```typescript
+await agent.execute('Go to GitHub and find the latest PR on browserbase/stagehand');
+```
+</Tab>
+</Tabs>
+
+
+### Be Specific
+Provide detailed instructions for better results:
+
+<Tabs>
+<Tab title="Do this">
+```typescript
+await agent.execute("Find Italian restaurants in Brooklyn that are open after 10pm and have outdoor seating");
+```
+</Tab>
+
+<Tab title="Don't do this">
+```typescript
+await agent.execute("Find a restaurant");
+```
+</Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+
+<Accordion title="Agent is stopping before completing the task">
+**Problem**: Agent stops before finishing the requested task
+
+**Solutions**:
+- Check if the agent is hitting the maxSteps limit (default is 20)
+- Increase maxSteps for complex tasks: `maxSteps: 30` or higher
+- Break very complex tasks into smaller sequential executions
+
+```typescript
+// Increase maxSteps for complex tasks
+await agent.execute({
+  instruction: "Complete the multi-page registration form with all required information",
+  maxSteps: 40 // Increased limit for complex task
+});
+
+// Or break into smaller tasks with success checking
+const firstResult = await agent.execute({
+  instruction: "Fill out page 1 of the registration form", 
+  maxSteps: 15
+});
+
+// Only proceed if the first task was successful
+if (firstResult.success === true) {
+  await agent.execute({
+    instruction: "Navigate to page 2 and complete remaining fields",
+    maxSteps: 15
+  });
+} else {
+  console.log("First task failed, stopping execution");
+}
+```
+</Accordion>
+
+<Accordion title="Agent is failing to click the proper elements">
+**Problem**: Agent clicks on wrong elements or fails to interact with the correct UI components
+
+**Solutions**:
+- Ensure proper viewport size: Stagehand uses `1288x711` by default (optimal for Computer Use models)
+- Avoid changing viewport dimensions as other sizes may reduce performance
+</Accordion>
+
+
+</AccordionGroup>
+
+
+## Next steps
+
+<CardGroup cols={2}>
+<Card title="Act" icon="play" href="/v3/basics/act">
+  Execute actions efficiently using observe results
+</Card>
+
+<Card title="Extract" icon="download" href="/v3/basics/extract">
+  Extract structured data from observed elements
+</Card>
+</CardGroup>

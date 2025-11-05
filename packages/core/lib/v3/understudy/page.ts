@@ -8,7 +8,11 @@ import { deepLocatorFromPage } from "./deepLocator";
 import { resolveXpathForLocation } from "./a11y/snapshot";
 import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
-
+import { NetworkManager } from "./networkManager";
+import { LifecycleWatcher } from "./lifecycleWatcher";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
+import type { StagehandAPIClient } from "../api";
+import type { LocalBrowserLaunchOptions } from "../types/public";
 /**
  * Page
  *
@@ -50,13 +54,27 @@ export class Page {
   /** Cached current URL for synchronous page.url() */
   private _currentUrl: string = "about:blank";
 
+  private navigationCommandSeq = 0;
+  private latestNavigationCommandId = 0;
+
+  private readonly networkManager: NetworkManager;
+  /** Optional API client for routing page operations to the API */
+  private readonly apiClient: StagehandAPIClient | null = null;
+  private readonly consoleListeners = new Set<ConsoleListener>();
+  private readonly consoleHandlers = new Map<
+    string,
+    (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
+  >();
+
   private constructor(
     private readonly conn: CdpConnection,
     private readonly mainSession: CDPSessionLike,
     private readonly _targetId: string,
     mainFrameId: string,
+    apiClient?: StagehandAPIClient | null,
   ) {
     this.pageId = _targetId;
+    this.apiClient = apiClient ?? null;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -70,6 +88,9 @@ export class Page {
       mainFrameId,
       this.pageId,
     );
+
+    this.networkManager = new NetworkManager();
+    this.networkManager.trackSession(this.mainSession);
   }
 
   // --- Optional visual cursor overlay management ---
@@ -176,6 +197,8 @@ export class Page {
     conn: CdpConnection,
     session: CDPSessionLike,
     targetId: string,
+    apiClient?: StagehandAPIClient | null,
+    localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
   ): Promise<Page> {
     await session.send("Page.enable").catch(() => {});
     await session
@@ -186,10 +209,19 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId);
+    const page = new Page(conn, session, targetId, mainFrameId, apiClient);
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
+      if (localBrowserLaunchOptions?.viewport) {
+        await page.setViewportSize(
+          localBrowserLaunchOptions.viewport.width,
+          localBrowserLaunchOptions.viewport.height,
+          {
+            deviceScaleFactor: localBrowserLaunchOptions.deviceScaleFactor ?? 1,
+          },
+        );
+      }
     } catch {
       // ignore
     }
@@ -292,6 +324,12 @@ export class Page {
   ): void {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
+    this.networkManager.trackSession(childSession);
+
+    if (this.consoleListeners.size > 0) {
+      this.installConsoleTap(childSession);
+    }
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -354,7 +392,9 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
+    this.teardownConsoleTap(sessionId);
     this.sessions.delete(sessionId);
+    this.networkManager.untrackSession(sessionId);
   }
 
   // ---------------- Ownership helpers / lookups ----------------
@@ -382,10 +422,86 @@ export class Page {
     return this.sessions.get(id);
   }
 
+  public registerSessionForNetwork(session: CDPSessionLike): void {
+    this.networkManager.trackSession(session);
+  }
+
+  public unregisterSessionForNetwork(sessionId: string | undefined): void {
+    this.networkManager.untrackSession(sessionId);
+  }
+
+  public on(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const firstListener = this.consoleListeners.size === 0;
+    this.consoleListeners.add(listener);
+
+    if (firstListener) {
+      this.ensureConsoleTaps();
+    }
+
+    return this;
+  }
+
+  public once(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const wrapper: ConsoleListener = (message) => {
+      this.off("console", wrapper);
+      listener(message);
+    };
+
+    return this.on("console", wrapper);
+  }
+
+  public off(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    this.consoleListeners.delete(listener);
+
+    if (this.consoleListeners.size === 0) {
+      this.removeAllConsoleTaps();
+    }
+
+    return this;
+  }
+
   // ---------------- MAIN APIs ----------------
 
   public targetId(): string {
     return this._targetId;
+  }
+
+  /**
+   * Send a CDP command through the main session.
+   * Allows external consumers to execute arbitrary Chrome DevTools Protocol commands.
+   *
+   * @param method - The CDP method name (e.g., "Page.enable", "Runtime.evaluate")
+   * @param params - Optional parameters for the CDP command
+   * @returns Promise resolving to the typed CDP response
+   *
+   * @example
+   * // Enable the Runtime domain
+   * await page.sendCDP("Runtime.enable");
+   *
+   * @example
+   * // Evaluate JavaScript with typed response
+   * const result = await page.sendCDP<Protocol.Runtime.EvaluateResponse>(
+   *   "Runtime.evaluate",
+   *   { expression: "1 + 1" }
+   * );
+   */
+  public async sendCDP<T = unknown>(
+    method: string,
+    params?: object,
+  ): Promise<T> {
+    return this.mainSession.send<T>(method, params);
   }
 
   /** Seed the cached URL before navigation events converge. */
@@ -422,6 +538,7 @@ export class Page {
       try {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
+          this.networkManager.dispose();
           return;
         }
       } catch {
@@ -429,6 +546,9 @@ export class Page {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
+    this.networkManager.dispose();
+    this.removeAllConsoleTaps();
+    this.consoleListeners.clear();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -456,6 +576,85 @@ export class Page {
     return this.registry.listAllFrames();
   }
 
+  private ensureConsoleTaps(): void {
+    if (this.consoleListeners.size === 0) return;
+
+    this.installConsoleTap(this.mainSession);
+    for (const session of this.sessions.values()) {
+      this.installConsoleTap(session);
+    }
+  }
+
+  private installConsoleTap(session: CDPSessionLike): void {
+    const key = this.sessionKey(session);
+    if (this.consoleHandlers.has(key)) return;
+
+    void session.send("Runtime.enable").catch(() => {});
+
+    const handler = (evt: Protocol.Runtime.ConsoleAPICalledEvent) => {
+      this.emitConsole(evt);
+    };
+
+    session.on<Protocol.Runtime.ConsoleAPICalledEvent>(
+      "Runtime.consoleAPICalled",
+      handler,
+    );
+
+    this.consoleHandlers.set(key, handler);
+  }
+
+  private sessionKey(session: CDPSessionLike): string {
+    return session.id ?? "__root__";
+  }
+
+  private resolveSessionByKey(key: string): CDPSessionLike | undefined {
+    if (this.mainSession.id) {
+      if (this.mainSession.id === key) return this.mainSession;
+    } else if (key === "__root__") {
+      return this.mainSession;
+    }
+
+    return this.sessions.get(key);
+  }
+
+  private teardownConsoleTap(key: string): void {
+    const handler = this.consoleHandlers.get(key);
+    if (!handler) return;
+
+    const session = this.resolveSessionByKey(key);
+    session?.off("Runtime.consoleAPICalled", handler);
+    this.consoleHandlers.delete(key);
+  }
+
+  private removeAllConsoleTaps(): void {
+    for (const key of [...this.consoleHandlers.keys()]) {
+      this.teardownConsoleTap(key);
+    }
+  }
+
+  private emitConsole(evt: Protocol.Runtime.ConsoleAPICalledEvent): void {
+    if (this.consoleListeners.size === 0) return;
+
+    const message = new ConsoleMessage(evt, this);
+    const listeners = [...this.consoleListeners];
+
+    for (const listener of listeners) {
+      try {
+        listener(message);
+      } catch (error) {
+        v3Logger({
+          category: "page",
+          message: "Console listener threw",
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+            type: { value: evt.type, type: "string" },
+          },
+        });
+      }
+    }
+  }
+
   // -------- Convenience APIs delegated to the current main frame --------
 
   /**
@@ -466,13 +665,42 @@ export class Page {
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
   ): Promise<void> {
-    await this.mainSession.send<Protocol.Page.NavigateResponse>(
-      "Page.navigate",
-      { url },
-    );
-    this._currentUrl = url;
-    const waitUntil: LoadState = options?.waitUntil ?? "networkidle";
-    await this.waitForMainLoadState(waitUntil, options?.timeoutMs ?? 15000);
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const navigationCommandId = this.beginNavigationCommand();
+
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeoutMs: timeout,
+      navigationCommandId,
+    });
+
+    try {
+      // Route to API if available
+      if (this.apiClient) {
+        await this.apiClient.goto(
+          url,
+          { waitUntil: options?.waitUntil },
+          this.mainFrameId(),
+        );
+        this._currentUrl = url;
+        return;
+      }
+      const response =
+        await this.mainSession.send<Protocol.Page.NavigateResponse>(
+          "Page.navigate",
+          { url },
+        );
+      this._currentUrl = url;
+      if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
+      await watcher.wait();
+    } finally {
+      watcher.dispose();
+    }
   }
 
   /**
@@ -483,14 +711,32 @@ export class Page {
     timeoutMs?: number;
     ignoreCache?: boolean;
   }): Promise<void> {
-    await this.mainSession.send("Page.reload", {
-      ignoreCache: options?.ignoreCache ?? false,
-    });
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const navigationCommandId = this.beginNavigationCommand();
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+          navigationCommandId,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.reload", {
+        ignoreCache: options?.ignoreCache ?? false,
+      });
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -507,15 +753,33 @@ export class Page {
       );
     const prev = entries[currentIndex - 1];
     if (!prev) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: prev.id,
-    });
-    this._currentUrl = prev.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const navigationCommandId = this.beginNavigationCommand();
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+          navigationCommandId,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: prev.id,
+      });
+      this._currentUrl = prev.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -532,15 +796,33 @@ export class Page {
       );
     const next = entries[currentIndex + 1];
     if (!next) return; // nothing to do
-    await this.mainSession.send("Page.navigateToHistoryEntry", {
-      entryId: next.id,
-    });
-    this._currentUrl = next.url ?? this._currentUrl;
-    if (options?.waitUntil) {
-      await this.waitForMainLoadState(
-        options.waitUntil,
-        options.timeoutMs ?? 15000,
-      );
+    const waitUntil = options?.waitUntil;
+    const timeout = options?.timeoutMs ?? 15000;
+
+    const navigationCommandId = this.beginNavigationCommand();
+
+    const watcher = waitUntil
+      ? new LifecycleWatcher({
+          page: this,
+          mainSession: this.mainSession,
+          networkManager: this.networkManager,
+          waitUntil,
+          timeoutMs: timeout,
+          navigationCommandId,
+        })
+      : null;
+
+    try {
+      await this.mainSession.send("Page.navigateToHistoryEntry", {
+        entryId: next.id,
+      });
+      this._currentUrl = next.url ?? this._currentUrl;
+
+      if (watcher) {
+        await watcher.wait();
+      }
+    } finally {
+      watcher?.dispose();
     }
   }
 
@@ -549,6 +831,16 @@ export class Page {
    */
   url(): string {
     return this._currentUrl;
+  }
+
+  private beginNavigationCommand(): number {
+    const id = ++this.navigationCommandSeq;
+    this.latestNavigationCommandId = id;
+    return id;
+  }
+
+  public isCurrentNavigationCommand(id: number): boolean {
+    return this.latestNavigationCommandId === id;
   }
 
   /**
@@ -1478,7 +1770,7 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  private async waitForMainLoadState(
+  async waitForMainLoadState(
     state: LoadState,
     timeoutMs = 15000,
   ): Promise<void> {

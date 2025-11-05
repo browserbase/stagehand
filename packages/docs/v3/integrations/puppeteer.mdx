@@ -1,0 +1,177 @@
+---
+title: Puppeteer
+description: Use Stagehand with Puppeteer for browser automation
+---
+
+## Overview
+
+Stagehand v3 can work seamlessly with Puppeteer, allowing you to use Puppeteer's `Page` objects directly with Stagehand's AI-powered methods like `act()`, `extract()`, and `observe()`.
+
+## Installation
+
+First, install both Stagehand and Puppeteer:
+
+```bash
+npm install @browserbasehq/stagehand puppeteer-core
+```
+
+## Quickstart
+
+### Basic Setup
+
+Connect Puppeteer to Stagehand's browser instance:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import puppeteer from "puppeteer-core";
+
+const stagehand = new Stagehand({
+  env: "LOCAL", // or "BROWSERBASE"
+  model: "openai/gpt-5",
+});
+
+await stagehand.init();
+
+// Connect Puppeteer to Stagehand's browser
+const browser = await puppeteer.connect({
+  browserWSEndpoint: stagehand.connectURL(),
+  defaultViewport: null,
+});
+
+const pages = await browser.pages();
+const ppPage = pages[0];
+```
+
+### Using Puppeteer Pages with Stagehand
+
+Once connected, you can use Puppeteer's `Page` objects with Stagehand's AI-powered methods:
+
+```typescript
+// Navigate using Puppeteer
+await ppPage.goto("https://example.com");
+
+// Use Stagehand's AI methods with the Puppeteer page
+await stagehand.act("click the sign in button", { page: ppPage });
+
+const data = await stagehand.extract(
+  "extract the page title",
+  z.object({ title: z.string() }),
+  { page: ppPage }
+);
+```
+
+## Advanced: Multi-Page Usage
+
+Create and manage multiple Puppeteer pages with Stagehand:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import puppeteer from "puppeteer-core";
+import { z } from "zod/v3";
+
+async function multiPageExample() {
+  const stagehand = new Stagehand({
+    env: "BROWSERBASE",
+    model: "openai/gpt-5",
+  });
+
+  await stagehand.init();
+
+  // Connect Puppeteer
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: stagehand.connectURL(),
+    defaultViewport: null,
+  });
+
+  // Get the first page
+  const pages = await browser.pages();
+  const ppPage1 = pages[0];
+
+  // Create a second page
+  const ppPage2 = await browser.newPage();
+
+  // Navigate both pages
+  await ppPage1.goto("https://example.com");
+  await ppPage2.goto("https://another-site.com");
+
+  // Use Stagehand on different pages
+  await stagehand.act("click the button", { page: ppPage1 });
+
+  const data = await stagehand.extract(
+    "extract the title",
+    z.object({ title: z.string() }),
+    { page: ppPage2 }
+  );
+
+  console.log("Extracted from page 2:", data);
+
+  await stagehand.close();
+}
+```
+
+## Observe + Act Pattern
+
+The recommended pattern for reliable automation:
+
+```typescript
+// Step 1: Observe to find candidate actions
+const actions = await stagehand.observe(
+  "find the submit button",
+  { page: ppPage }
+);
+
+// Step 2: Execute the first action
+if (actions.length > 0) {
+  await stagehand.act(actions[0], { page: ppPage });
+}
+```
+
+This pattern helps avoid DOM changes between observation and action execution.
+
+## Key Points
+
+- **Connect via WebSocket**: Use `puppeteer.connect()` with `stagehand.connectURL()` as the `browserWSEndpoint`
+- **Pass the page**: Always pass the Puppeteer `page` object to Stagehand methods using the `{ page }` option
+- **Disable viewport**: Set `defaultViewport: null` to use Stagehand's viewport settings
+- **Multi-page support**: Create multiple pages with `browser.newPage()` and pass them to Stagehand methods
+
+## Environment Variables
+
+When using Browserbase, set your credentials:
+
+```bash
+BROWSERBASE_API_KEY=your_api_key
+BROWSERBASE_PROJECT_ID=your_project_id
+```
+
+For OpenAI (or other providers):
+
+```bash
+OPENAI_API_KEY=your_api_key
+```
+
+## Comparison: Stagehand Native vs Puppeteer
+
+| Feature | Stagehand Native | With Puppeteer |
+|---------|------------------|----------------|
+| **Setup** | Simple - use `stagehand.context.pages()` | Requires `puppeteer.connect()` |
+| **Page Access** | `stagehand.context.pages()[0]` | `await browser.pages()` |
+| **AI Methods** | `stagehand.act("click")` | `stagehand.act("click", { page: ppPage })` |
+| **Best For** | Pure Stagehand workflows | Existing Puppeteer codebases |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agent" icon="robot" href="/v3/references/agent">
+    Automate entire workflows
+  </Card>
+  <Card title="Act" icon="play" href="/v3/references/act">
+    Execute actions on web pages
+  </Card>
+  <Card title="Extract" icon="ufo-beam" href="/v3/references/extract">
+    Extract structured data from pages
+  </Card>
+  <Card title="Observe" icon="eye" href="/v3/references/observe">
+    Observe and find elements on pages
+  </Card>
+</CardGroup>
