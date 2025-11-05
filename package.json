@@ -1,8 +1,31 @@
 {
-  "name": "stagehand-workspace",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Stagehand monorepo workspace",
+  "name": "@browserbasehq/stagehand",
+  "version": "3.0.1",
+  "description": "An AI web browsing framework focused on simplicity and extensibility.",
+  "main": "./packages/core/dist/index.js",
+  "module": "./packages/core/dist/index.js",
+  "types": "./packages/core/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./packages/core/dist/index.d.ts",
+      "import": "./packages/core/dist/index.js",
+      "default": "./packages/core/dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "packages/core/dist/**/*",
+    "packages/core/package.json"
+  ],
+  "keywords": [
+    "ai",
+    "browser",
+    "automation",
+    "web-scraping",
+    "testing"
+  ],
+  "author": "Browserbase",
+  "license": "MIT",
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
@@ -20,6 +43,7 @@
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
+    "postinstall": "node -e \"if(require('fs').existsSync('.git')){process.exit(0)}else{require('child_process').execSync('pnpm install && turbo run build',{stdio:'inherit'})}\"",
     "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
@@ -59,6 +83,10 @@
     "turbo": "^2.5.8",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.17.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",
