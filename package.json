@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.0.1",
+  "version": "0.0.0",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "main": "./packages/core/dist/index.js",
   "module": "./packages/core/dist/index.js",
@@ -44,6 +44,7 @@
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
     "postinstall": "node -e \"if(require('fs').existsSync('.git')||require('fs').existsSync('node_modules')){process.exit(0)}else{require('child_process').execSync('pnpm install --ignore-scripts && turbo run build',{stdio:'inherit'})}\"",
+    "sync-version": "node scripts/sync-version.js",
     "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
