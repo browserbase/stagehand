@@ -40,7 +40,7 @@ async function runDemo(runNumber: number) {
   const endTime = Date.now();
   const duration = (endTime - startTime) / 1000;
 
-  await stagehand.context.close();
+  await stagehand.close();
 
   return {
     duration,
