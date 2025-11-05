@@ -478,6 +478,32 @@ export class Page {
     return this._targetId;
   }
 
+  /**
+   * Send a CDP command through the main session.
+   * Allows external consumers to execute arbitrary Chrome DevTools Protocol commands.
+   *
+   * @param method - The CDP method name (e.g., "Page.enable", "Runtime.evaluate")
+   * @param params - Optional parameters for the CDP command
+   * @returns Promise resolving to the typed CDP response
+   *
+   * @example
+   * // Enable the Runtime domain
+   * await page.sendCDP("Runtime.enable");
+   *
+   * @example
+   * // Evaluate JavaScript with typed response
+   * const result = await page.sendCDP<Protocol.Runtime.EvaluateResponse>(
+   *   "Runtime.evaluate",
+   *   { expression: "1 + 1" }
+   * );
+   */
+  public async sendCDP<T = unknown>(
+    method: string,
+    params?: object,
+  ): Promise<T> {
+    return this.mainSession.send<T>(method, params);
+  }
+
   /** Seed the cached URL before navigation events converge. */
   public seedCurrentUrl(url: string | undefined | null): void {
     if (!url) return;
