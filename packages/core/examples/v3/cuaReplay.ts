@@ -1,4 +1,4 @@
-import { V3 } from "../../lib/v3";
+import { Stagehand } from "../../lib/v3";
 import { v3Logger } from "../../lib/v3/logger";
 import dotenv from "dotenv";
 
@@ -13,21 +13,21 @@ async function runDemo(runNumber: number) {
     message: `RUN ${runNumber}: ${runNumber === 1 ? "BUILDING CACHE" : "USING CACHE"}`,
   });
 
-  const v3 = new V3({
+  const stagehand = new Stagehand({
     env: "LOCAL",
     verbose: 1,
     cacheDir: "cua-agent-cache",
   });
 
-  await v3.init();
+  await stagehand.init();
 
-  const page = v3.context.pages()[0];
+  const page = stagehand.context.pages()[0];
 
   await page.goto("https://v0-modern-login-flow.vercel.app/", {
     waitUntil: "networkidle",
   });
 
-  const agent = v3.agent({
+  const agent = stagehand.agent({
     cua: true,
     model: "anthropic/claude-sonnet-4-20250514",
   });
@@ -40,7 +40,7 @@ async function runDemo(runNumber: number) {
   const endTime = Date.now();
   const duration = (endTime - startTime) / 1000;
 
-  await v3.context.close();
+  await stagehand.context.close();
 
   return {
     duration,
