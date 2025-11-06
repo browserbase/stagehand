@@ -1,8 +1,22 @@
 {
-  "name": "stagehand-workspace",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Stagehand monorepo workspace",
+  "name": "@browserbasehq/stagehand",
+  "version": "3.0.1",
+  "description": "An AI web browsing framework focused on simplicity and extensibility.",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/**/*",
+    "packages/core/**/*"
+  ],
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
@@ -21,7 +35,8 @@
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
     "release": "turbo run build && changeset publish",
-    "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
+    "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha",
+    "postinstall": "cd packages/core && pnpm install --ignore-scripts && pnpm run build && cp -r dist ../.. && cp package.json ../.."
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",
