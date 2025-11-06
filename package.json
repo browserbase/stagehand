@@ -15,7 +15,9 @@
   },
   "files": [
     "packages/core/dist/**/*",
-    "packages/core/package.json"
+    "packages/core/package.json",
+    "packages/core/node_modules/**/*",
+    "pnpm-workspace.yaml"
   ],
   "keywords": [
     "ai",
