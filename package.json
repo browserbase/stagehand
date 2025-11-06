@@ -14,10 +14,7 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "packages/core/dist/**/*",
-    "packages/core/package.json",
-    "packages/core/node_modules/**/*",
-    "pnpm-workspace.yaml"
+    "packages/core/dist/**/*"
   ],
   "peerDependencies": {
     "deepmerge": "^4.3.1",
@@ -77,7 +74,6 @@
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
-    "postinstall": "node -e \"if(require('fs').existsSync('.git')||require('fs').existsSync('node_modules')){process.exit(0)}else{require('child_process').execSync('pnpm install --ignore-scripts && turbo run build',{stdio:'inherit'})}\"",
     "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
