@@ -49,8 +49,6 @@ export class NavigationResponseTracker {
     handler: (event: unknown) => void;
   }> = [];
 
-  private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
   /**
    * Create a tracker bound to a specific navigation command. The tracker begins
    * listening for network events immediately so it should be constructed before
@@ -69,10 +67,6 @@ export class NavigationResponseTracker {
       this.resolveResponse = (value) => {
         if (this.responseResolved) return;
         this.responseResolved = true;
-        if (this.fallbackTimer) {
-          clearTimeout(this.fallbackTimer);
-          this.fallbackTimer = null;
-        }
         resolve(value);
       };
     });
@@ -82,10 +76,6 @@ export class NavigationResponseTracker {
 
   /** Stop listening for CDP events and release any pending bookkeeping. */
   public dispose(): void {
-    if (this.fallbackTimer) {
-      clearTimeout(this.fallbackTimer);
-      this.fallbackTimer = null;
-    }
     for (const { event, handler } of this.listeners) {
       this.session.off(event, handler as never);
     }
@@ -120,25 +110,13 @@ export class NavigationResponseTracker {
 
   /**
    * Returns a promise that resolves with the matched response (or `null` when
-   * no document response was observed). A fallback timeout can be supplied to
-   * guard against sites that complete without triggering network events
-   * (commonly `about:blank` or `data:` navigations).
+   * no document response was observed).
    */
-  public async navigationCompleted(
-    fallbackTimeoutMs = 0,
-  ): Promise<StagehandResponse | null> {
+  public async navigationCompleted(): Promise<StagehandResponse | null> {
     if (!this.responseResolved) {
-      if (fallbackTimeoutMs > 0) {
-        if (!this.fallbackTimer) {
-          this.fallbackTimer = setTimeout(() => {
-            if (!this.responseResolved) this.resolveResponse(null);
-          }, fallbackTimeoutMs);
-        }
-      } else {
-        queueMicrotask(() => {
-          if (!this.responseResolved) this.resolveResponse(null);
-        });
-      }
+      queueMicrotask(() => {
+        if (!this.responseResolved) this.resolveResponse(null);
+      });
     }
     return this.responsePromise;
   }
