@@ -17,15 +17,6 @@
     "packages/core/dist/**/*",
     "packages/core/package.json"
   ],
-  "keywords": [
-    "ai",
-    "browser",
-    "automation",
-    "web-scraping",
-    "testing"
-  ],
-  "author": "Browserbase",
-  "license": "MIT",
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
@@ -43,8 +34,7 @@
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
     "prepare": "turbo run build",
-    "postinstall": "node -e \"if(require('fs').existsSync('.git')||require('fs').existsSync('node_modules')){process.exit(0)}else{require('child_process').execSync('pnpm install --ignore-scripts && turbo run build',{stdio:'inherit'})}\"",
-    "release": "turbo run build && changeset publish",
+   "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "devDependencies": {
