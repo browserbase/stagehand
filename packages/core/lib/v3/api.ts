@@ -20,6 +20,7 @@ import {
   AgentResult,
   ExtractResult,
   LogLine,
+  StagehandMetrics,
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
   StagehandHttpError,
@@ -27,6 +28,26 @@ import {
   StagehandResponseParseError,
   StagehandServerError,
 } from "./types/public";
+
+/**
+ * API response structure for replay metrics endpoint
+ */
+interface ReplayMetricsResponse {
+  success: boolean;
+  data?: {
+    pages?: Array<{
+      actions?: Array<{
+        method?: string;
+        tokenUsage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          timeMs?: number;
+        };
+      }>;
+    }>;
+  };
+  error?: string;
+}
 
 export class StagehandAPIClient {
   private apiKey: string;
@@ -225,6 +246,99 @@ export class StagehandAPIClient {
       method: "POST",
     });
     return response;
+  }
+
+  async getReplayMetrics(): Promise<StagehandMetrics> {
+    if (!this.sessionId) {
+      throw new StagehandAPIError("sessionId is required to fetch metrics.");
+    }
+
+    const response = await this.request(`/sessions/${this.sessionId}/replay`, {
+      method: "GET",
+    });
+
+    if (response.status !== 200) {
+      const errorText = await response.text();
+      this.logger({
+        category: "api",
+        message: `Failed to fetch metrics. Status ${response.status}: ${errorText}`,
+        level: 0,
+      });
+      throw new StagehandHttpError(
+        `Failed to fetch metrics with status ${response.status}: ${errorText}`,
+      );
+    }
+
+    const data = (await response.json()) as ReplayMetricsResponse;
+
+    if (!data.success) {
+      throw new StagehandAPIError(
+        `Failed to fetch metrics: ${data.error || "Unknown error"}`,
+      );
+    }
+
+    // Parse the API data into StagehandMetrics format
+    const apiData = data.data || {};
+    const metrics: StagehandMetrics = {
+      actPromptTokens: 0,
+      actCompletionTokens: 0,
+      actInferenceTimeMs: 0,
+      extractPromptTokens: 0,
+      extractCompletionTokens: 0,
+      extractInferenceTimeMs: 0,
+      observePromptTokens: 0,
+      observeCompletionTokens: 0,
+      observeInferenceTimeMs: 0,
+      agentPromptTokens: 0,
+      agentCompletionTokens: 0,
+      agentInferenceTimeMs: 0,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalInferenceTimeMs: 0,
+    };
+
+    // Parse pages and their actions
+    const pages = apiData.pages || [];
+    for (const page of pages) {
+      const actions = page.actions || [];
+      for (const action of actions) {
+        // Get method name and token usage
+        const method = (action.method || "").toLowerCase();
+        const tokenUsage = action.tokenUsage;
+
+        if (tokenUsage) {
+          const inputTokens = tokenUsage.inputTokens || 0;
+          const outputTokens = tokenUsage.outputTokens || 0;
+          const timeMs = tokenUsage.timeMs || 0;
+
+          // Map method to metrics fields
+          if (method === "act") {
+            metrics.actPromptTokens += inputTokens;
+            metrics.actCompletionTokens += outputTokens;
+            metrics.actInferenceTimeMs += timeMs;
+          } else if (method === "extract") {
+            metrics.extractPromptTokens += inputTokens;
+            metrics.extractCompletionTokens += outputTokens;
+            metrics.extractInferenceTimeMs += timeMs;
+          } else if (method === "observe") {
+            metrics.observePromptTokens += inputTokens;
+            metrics.observeCompletionTokens += outputTokens;
+            metrics.observeInferenceTimeMs += timeMs;
+          } else if (method === "agent") {
+            metrics.agentPromptTokens += inputTokens;
+            metrics.agentCompletionTokens += outputTokens;
+            metrics.agentInferenceTimeMs += timeMs;
+          }
+
+          // Always update totals for any method with token usage
+          metrics.totalPromptTokens += inputTokens;
+          metrics.totalCompletionTokens += outputTokens;
+          metrics.totalInferenceTimeMs += timeMs;
+        }
+      }
+    }
+
+    return metrics;
   }
 
   private async execute<T>({

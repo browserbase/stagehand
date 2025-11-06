@@ -282,9 +282,22 @@ export class V3 {
 
   /**
    * Async property for metrics so callers can `await v3.metrics`.
-   * Returning a Promise future-proofs async aggregation/storage.
+   * When using API mode, fetches metrics from the API. Otherwise returns local metrics.
    */
   public get metrics(): Promise<StagehandMetrics> {
+    if (this.apiClient) {
+      // Fetch metrics from the API
+      return this.apiClient.getReplayMetrics().catch((error) => {
+        this.logger({
+          category: "metrics",
+          message: `Failed to fetch metrics from API: ${error}`,
+          level: 0,
+        });
+        // Fall back to local metrics on error
+        return this.stagehandMetrics;
+      });
+    }
+    // Return local metrics wrapped in a Promise for consistency
     return Promise.resolve(this.stagehandMetrics);
   }
 
