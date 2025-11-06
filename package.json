@@ -19,15 +19,47 @@
     "packages/core/node_modules/**/*",
     "pnpm-workspace.yaml"
   ],
-  "keywords": [
-    "ai",
-    "browser",
-    "automation",
-    "web-scraping",
-    "testing"
-  ],
-  "author": "Browserbase",
-  "license": "MIT",
+  "peerDependencies": {
+    "deepmerge": "^4.3.1",
+    "dotenv": "^16.4.5",
+    "zod": ">=3.25.0 <3.25.68"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "@anthropic-ai/sdk": "0.39.0",
+    "@browserbasehq/sdk": "^2.4.0",
+    "@google/genai": "^1.22.0",
+    "@langchain/openai": "^0.4.4",
+    "@modelcontextprotocol/sdk": "^1.17.2",
+    "ai": "^5.0.0",
+    "devtools-protocol": "^0.0.1464554",
+    "fetch-cookie": "^3.1.0",
+    "openai": "^4.87.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "playwright": "^1.52.0",
+    "ws": "^8.18.0",
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/anthropic": "^2.0.34",
+    "@ai-sdk/azure": "^2.0.54",
+    "@ai-sdk/cerebras": "^1.0.25",
+    "@ai-sdk/deepseek": "^1.0.23",
+    "@ai-sdk/google": "^2.0.23",
+    "@ai-sdk/groq": "^2.0.24",
+    "@ai-sdk/mistral": "^2.0.19",
+    "@ai-sdk/openai": "^2.0.53",
+    "@ai-sdk/perplexity": "^2.0.13",
+    "@ai-sdk/togetherai": "^1.0.23",
+    "@ai-sdk/xai": "^2.0.26",
+    "@langchain/core": "^0.3.40",
+    "chrome-launcher": "^1.2.0",
+    "ollama-ai-provider-v2": "^1.5.0",
+    "patchright-core": "^1.55.2",
+    "playwright-core": "^1.54.1",
+    "puppeteer-core": "^22.8.0"
+  },
   "scripts": {
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
