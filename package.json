@@ -36,7 +36,7 @@
     "prepare": "turbo run build",
     "release": "turbo run build && changeset publish",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha",
-    "postinstall": "cd packages/core && pnpm install --ignore-scripts && pnpm run build && cp -r dist ../.. && cp package.json ../.."
+    "postinstall": "node -e \"const {execSync} = require('child_process'); const fs = require('fs'); const path = require('path'); try { const coreDir = path.join(__dirname, 'packages/core'); if (fs.existsSync(coreDir)) { process.chdir(coreDir); console.log('Installing dependencies...'); execSync('npm install --ignore-scripts', {stdio: 'inherit'}); console.log('Building...'); execSync('npm run build', {stdio: 'inherit'}); console.log('Copying dist...'); execSync('cp -r dist ../..', {stdio: 'inherit'}); execSync('cp package.json ../..', {stdio: 'inherit'}); } } catch(e) { console.error('Postinstall failed:', e.message); process.exit(0); }\""
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",
