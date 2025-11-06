@@ -250,7 +250,7 @@ export class NavigationResponseTracker {
     if (this.responseResolved) return;
     if (this.selectedResponse) return;
 
-    const protocol = (event.response?.protocol ?? "").toLowerCase();
+    const protocol = event.response?.protocol?.toLowerCase() ?? "";
     const url = event.response?.url ?? "";
     const isDataUrl = protocol === "data" || url.startsWith("data:");
     const isAboutUrl = protocol === "about" || url.startsWith("about:");

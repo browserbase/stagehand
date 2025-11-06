@@ -153,11 +153,6 @@ export class StagehandResponse {
     return this.response.url;
   }
 
-  /** Convenience accessor for the response protocol (e.g. http/https/data). */
-  protocol(): string {
-    return this.response.protocol ?? "";
-  }
-
   /** HTTP status code reported by Chrome. */
   status(): number {
     return this.response.status;
@@ -350,15 +345,5 @@ export class StagehandResponse {
     } else {
       this.finishedDeferred.resolve(null);
     }
-  }
-
-  /** Returns the CDP request id backing this response. */
-  public getRequestId(): string {
-    return this.requestId;
-  }
-
-  /** Returns the loader id associated with this navigation, if any. */
-  public getLoaderId(): string | undefined {
-    return this.loaderId;
   }
 }
