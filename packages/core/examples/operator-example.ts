@@ -18,10 +18,13 @@ async function main() {
 
   // Initialize Stagehand
   const stagehand = new Stagehand({
-    env: "LOCAL",
+    env: "BROWSERBASE",
     verbose: 2,
-    cacheDir: "stagehand-agent-cache",
     logInferenceToFile: false,
+    model: {
+      modelName: "anthropic/claude-haiku-4-5",
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    },
   });
 
   await stagehand.init();
@@ -29,19 +32,14 @@ async function main() {
   try {
     const page = stagehand.context.pages()[0];
     await page.goto(
-      "https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/",
+      "https://v0-modern-login-flow.vercel.app/",
     );
-    const agent = stagehand.agent();
+   
+    await stagehand.act("type  into the email field");
+    await stagehand.act("type Into the password field");
 
-    const result = await agent.execute({
-      instruction: "click the button",
-      maxSteps: 20,
-    });
+    await stagehand.close();
 
-    console.log(`${chalk.green("✓")} Execution complete`);
-    console.log(`${chalk.yellow("⤷")} Result:`);
-    console.log(JSON.stringify(result, null, 2));
-    console.log(chalk.white(result.message));
   } catch (error) {
     console.log(`${chalk.red("✗")} Error: ${error}`);
   } finally {
