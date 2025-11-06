@@ -19,8 +19,9 @@ test.describe("Page.goto() response surface", () => {
 
     const response = await page.goto("https://example.com");
 
-    expect(response.status()).toBe(200);
-    expect(response.ok()).toBeTruthy();
+    expect(response).not.toBeNull();
+    expect(response!.status()).toBe(200);
+    expect(response!.ok()).toBeTruthy();
 
     const headers = await response.headersArray();
     expect(headers.length).toBeGreaterThan(0);
