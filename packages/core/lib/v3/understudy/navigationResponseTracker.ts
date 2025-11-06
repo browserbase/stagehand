@@ -7,7 +7,7 @@
  * related APIs. The tracker listens for `Network.responseReceived` events that
  * correspond to the targeted document navigation, handles loader-id churn that
  * arises from redirects or preloading, and enriches the resulting
- * `StagehandResponse` with extra header information. It also observes
+ * `Response` with extra header information. It also observes
  * `Network.loadingFinished` / `Network.loadingFailed` to fulfil the
  * `response.finished()` contract exposed to consumers.
  */
@@ -210,13 +210,13 @@ export class NavigationResponseTracker {
     if (!event || !event.requestId) return;
     // Only the tracked document request should toggle the response state
     if (event.requestId !== this.selectedRequestId) return;
-    // Surface Chrome's failure text through StagehandResponse.finished()
+    // Surface Chrome's failure text through response.finished()
     const errorText = event.errorText || "Navigation request failed";
     this.selectedResponse?.markFinished(new Error(errorText));
   }
 
   /**
-   * Create the `StagehandResponse` wrapper for the chosen document response and
+   * Create the `Response` wrapper for the chosen document response and
    * resolve awaiting consumers. Subsequent events flesh out the header/body
    * helpers and mark the request as finished.
    */

@@ -1,5 +1,5 @@
 /**
- * StagehandResponse
+ * Response
  * -----------------
  *
  * This module implements a Playwright-inspired response wrapper that exposes
