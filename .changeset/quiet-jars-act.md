@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-make page.goto() return a StagehandResponse object
+make page.goto() return a Response object

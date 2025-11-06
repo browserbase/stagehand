@@ -15,7 +15,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import type { Page } from "./page";
-import { StagehandResponse } from "./stagehandResponse";
+import { Response } from "./response";
 
 /**
  * Watches CDP events on a given session and resolves with the navigation's
@@ -28,12 +28,12 @@ export class NavigationResponseTracker {
 
   private expectedLoaderId: string | undefined;
   private selectedRequestId: string | null = null;
-  private selectedResponse: StagehandResponse | null = null;
+  private selectedResponse: Response | null = null;
   private acceptNextWithoutLoader = false;
 
   private responseResolved = false;
-  private resolveResponse!: (value: StagehandResponse | null) => void;
-  private responsePromise: Promise<StagehandResponse | null>;
+  private resolveResponse!: (value: Response | null) => void;
+  private responsePromise: Promise<Response | null>;
 
   private readonly pendingResponsesByLoader = new Map<
     string,
@@ -63,7 +63,7 @@ export class NavigationResponseTracker {
     this.session = params.session;
     this.navigationCommandId = params.navigationCommandId;
 
-    this.responsePromise = new Promise<StagehandResponse | null>((resolve) => {
+    this.responsePromise = new Promise<Response | null>((resolve) => {
       this.resolveResponse = (value) => {
         if (this.responseResolved) return;
         this.responseResolved = true;
@@ -112,7 +112,7 @@ export class NavigationResponseTracker {
    * Returns a promise that resolves with the matched response (or `null` when
    * no document response was observed).
    */
-  public async navigationCompleted(): Promise<StagehandResponse | null> {
+  public async navigationCompleted(): Promise<Response | null> {
     if (!this.responseResolved) {
       queueMicrotask(() => {
         if (!this.responseResolved) this.resolveResponse(null);
@@ -122,7 +122,7 @@ export class NavigationResponseTracker {
   }
 
   /** Expose the raw response promise (mainly for tests). */
-  public async response(): Promise<StagehandResponse | null> {
+  public async response(): Promise<Response | null> {
     return this.responsePromise;
   }
 
@@ -241,7 +241,7 @@ export class NavigationResponseTracker {
       return;
     }
 
-    const response = new StagehandResponse({
+    const response = new Response({
       page: this.page,
       session: this.session,
       requestId: event.requestId,

@@ -81,7 +81,7 @@ function parseHeadersText(
  * Playwright's `Response` class. The class intentionally keeps the same method
  * names so upstream integrations can transition with minimal code changes.
  */
-export class StagehandResponse {
+export class Response {
   private readonly page: Page;
   private readonly session: CDPSessionLike;
   private readonly requestId: string;

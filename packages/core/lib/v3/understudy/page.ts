@@ -11,7 +11,7 @@ import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { StagehandResponse } from "./stagehandResponse";
+import { Response } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
@@ -666,7 +666,7 @@ export class Page {
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
-  ): Promise<StagehandResponse | null> {
+  ): Promise<Response | null> {
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -722,7 +722,7 @@ export class Page {
     waitUntil?: LoadState;
     timeoutMs?: number;
     ignoreCache?: boolean;
-  }): Promise<StagehandResponse | null> {
+  }): Promise<Response | null> {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
@@ -767,7 +767,7 @@ export class Page {
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<StagehandResponse | null> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
@@ -819,7 +819,7 @@ export class Page {
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<StagehandResponse | null> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",

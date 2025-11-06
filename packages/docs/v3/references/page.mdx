@@ -28,10 +28,10 @@ const page = stagehand.context.pages()[0];
 Navigate the page to a URL and wait for a lifecycle state.
 
 ```typescript
-await page.goto(url: string, options?: GotoOptions): Promise<StagehandResponse | null>
+await page.goto(url: string, options?: GotoOptions): Promise<Response | null>
 ```
 
-Returns a [StagehandResponse](/v3/references/response) when the navigation produces a network document request, otherwise `null` (e.g. `data:` URLs or same-document navigations).
+Returns a [Response](/v3/references/response) when the navigation produces a network document request, otherwise `null` (e.g. `data:` URLs or same-document navigations).
 
 <ParamField path="url" type="string" required>
   The URL to navigate to. Can be absolute or relative.
@@ -59,10 +59,10 @@ Returns a [StagehandResponse](/v3/references/response) when the navigation produ
 Reload the current page.
 
 ```typescript
-await page.reload(options?: ReloadOptions): Promise<StagehandResponse | null>
+await page.reload(options?: ReloadOptions): Promise<Response | null>
 ```
 
-Resolves with a [StagehandResponse](/v3/references/response) for the refreshed document when one is reported, otherwise `null`.
+Resolves with a [Response](/v3/references/response) for the refreshed document when one is reported, otherwise `null`.
 
 <ParamField path="waitUntil" type="LoadState" optional>
   When to consider reload complete. See `goto()` for options.
@@ -85,10 +85,10 @@ Resolves with a [StagehandResponse](/v3/references/response) for the refreshed d
 Navigate back in browser history.
 
 ```typescript
-await page.goBack(options?: NavigationOptions): Promise<StagehandResponse | null>
+await page.goBack(options?: NavigationOptions): Promise<Response | null>
 ```
 
-Returns a [StagehandResponse](/v3/references/response) when the history entry triggers a network fetch; otherwise `null`.
+Returns a [Response](/v3/references/response) when the history entry triggers a network fetch; otherwise `null`.
 
 <ParamField path="waitUntil" type="LoadState" optional>
   When to consider navigation complete.
@@ -105,10 +105,10 @@ Returns a [StagehandResponse](/v3/references/response) when the history entry tr
 Navigate forward in browser history.
 
 ```typescript
-await page.goForward(options?: NavigationOptions): Promise<StagehandResponse | null>
+await page.goForward(options?: NavigationOptions): Promise<Response | null>
 ```
 
-Returns a [StagehandResponse](/v3/references/response) when the navigation loads a new document from the network; otherwise `null`.
+Returns a [Response](/v3/references/response) when the navigation loads a new document from the network; otherwise `null`.
 
 <ParamField path="waitUntil" type="LoadState" optional>
   When to consider navigation complete.

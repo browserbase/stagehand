@@ -1,22 +1,22 @@
 ---
-title: StagehandResponse
-description: 'Complete API reference for the StagehandResponse object'
+title: Response
+description: 'Complete API reference for the Response object'
 icon: 'reply'
 ---
 
 <CardGroup cols={1}>
 <Card title="Navigation" icon="compass" href="/v3/references/page">
-  See how pages expose StagehandResponse objects from navigation methods
+  See how pages expose Response objects from navigation methods
 </Card>
 </CardGroup>
 
 ## Overview
 
-`StagehandResponse` mirrors Playwright’s [Response](https://playwright.dev/docs/api/class-response) interface and is returned from Stagehand navigation helpers such as `page.goto()`, `page.reload()`, `page.goBack()`, and `page.goForward()`. It provides a convenient way to inspect the HTTP metadata associated with a navigation, retrieve the response body on demand, and monitor when the underlying request finishes.
+`Response` mirrors Playwright’s [Response](https://playwright.dev/docs/api/class-response) interface and is returned from Stagehand navigation helpers such as `page.goto()`, `page.reload()`, `page.goBack()`, and `page.goForward()`. It provides a convenient way to inspect the HTTP metadata associated with a navigation, retrieve the response body on demand, and monitor when the underlying request finishes.
 
 Stagehand automatically returns `null` for navigations that do not yield a network request (for example `data:` URLs, `about:blank`, or same-document history changes), matching Playwright’s behaviour.
 
-## Getting a StagehandResponse
+## Getting a Response
 
 ```typescript
 const response = await page.goto("https://example.com", {
@@ -243,7 +243,7 @@ if (response) {
 - `await page.goBack(options?)`
 - `await page.goForward(options?)`
 
-Each method resolves with `StagehandResponse | null` depending on whether Chrome reported a document-level network response.
+Each method resolves with `Response | null` depending on whether Chrome reported a document-level network response.
 
 ## See Also
 
