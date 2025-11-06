@@ -708,7 +708,7 @@ export class Page {
         tracker.setExpectedLoaderId(response.loaderId);
       }
       await watcher.wait();
-      return await tracker.navigationCompleted(timeout);
+      return await tracker.navigationCompleted();
     } finally {
       watcher.dispose();
       tracker.dispose();
@@ -754,7 +754,7 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
-      return await tracker.navigationCompleted(timeout);
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
       tracker.dispose();
@@ -806,7 +806,7 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
-      return await tracker.navigationCompleted(timeout);
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
       tracker.dispose();
@@ -858,7 +858,7 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
-      return await tracker.navigationCompleted(timeout);
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
       tracker.dispose();
