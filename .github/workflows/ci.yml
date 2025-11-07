@@ -55,6 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       skip-all-evals: ${{ steps.check-labels.outputs.skip-all-evals }}
+      run-regression: ${{ steps.check-labels.outputs.run-regression }}
       run-combination: ${{ steps.check-labels.outputs.run-combination }}
       run-extract: ${{ steps.check-labels.outputs.run-extract }}
       run-act: ${{ steps.check-labels.outputs.run-act }}
@@ -68,6 +69,7 @@ jobs:
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-evals') }}" == "true" ]]; then
             echo "skip-evals label found - skipping all evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
+            echo "run-regression=false" >> $GITHUB_OUTPUT
             echo "run-combination=false" >> $GITHUB_OUTPUT
             echo "run-extract=false" >> $GITHUB_OUTPUT
             echo "run-act=false" >> $GITHUB_OUTPUT
@@ -81,6 +83,7 @@ jobs:
           if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" && "${{ github.ref }}" != "refs/heads/main" ]]; then
             echo "Only docs/examples changed - skipping evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
+            echo "run-regression=false" >> $GITHUB_OUTPUT
             echo "run-combination=false" >> $GITHUB_OUTPUT
             echo "run-extract=false" >> $GITHUB_OUTPUT
             echo "run-act=false" >> $GITHUB_OUTPUT
@@ -94,6 +97,7 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "Running all tests for main branch"
             echo "skip-all-evals=false" >> $GITHUB_OUTPUT
+            echo "run-regression=true" >> $GITHUB_OUTPUT
             echo "run-combination=true" >> $GITHUB_OUTPUT
             echo "run-extract=true" >> $GITHUB_OUTPUT
             echo "run-act=true" >> $GITHUB_OUTPUT
@@ -101,6 +105,15 @@ jobs:
             echo "run-targeted-extract=true" >> $GITHUB_OUTPUT
             echo "run-agent=true" >> $GITHUB_OUTPUT
             exit 0
+          fi
+
+          # Check for skip-regression-evals label
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-regression-evals') }}" == "true" ]]; then
+            echo "skip-regression-evals label found - regression evals will be skipped"
+            echo "run-regression=false" >> $GITHUB_OUTPUT
+          else
+            echo "Regression evals will run by default"
+            echo "run-regression=true" >> $GITHUB_OUTPUT
           fi
 
           # Check for specific labels
@@ -225,7 +238,7 @@ jobs:
   run-regression-evals:
     needs:
       [run-e2e-bb-tests, run-e2e-local-tests, determine-evals]
-    if: needs.determine-evals.outputs.skip-all-evals != 'true'
+    if: needs.determine-evals.outputs.skip-all-evals != 'true' && needs.determine-evals.outputs.run-regression == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 9
     outputs:
