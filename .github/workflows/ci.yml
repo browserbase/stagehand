@@ -171,6 +171,15 @@ jobs:
       - name: Run Build
         run: pnpm run build
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            packages/*/dist/
+            packages/*/lib/
+          retention-days: 1
+
   run-e2e-local-tests:
     needs: [run-lint, run-build]
     runs-on: ubuntu-latest
@@ -237,7 +246,7 @@ jobs:
 
   run-regression-evals:
     needs:
-      [run-e2e-bb-tests, run-e2e-local-tests, determine-evals]
+      [run-e2e-bb-tests, run-e2e-local-tests, run-build, determine-evals]
     if: needs.determine-evals.outputs.skip-all-evals != 'true' && needs.determine-evals.outputs.run-regression == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 9
@@ -268,8 +277,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
-        run: pnpm run build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Regression Evals
         run: pnpm run evals category regression trials=2 concurrency=20 env=BROWSERBASE
@@ -291,7 +302,7 @@ jobs:
           fi
 
   run-combination-evals:
-    needs: [run-regression-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -334,9 +345,11 @@ jobs:
         if: needs.determine-evals.outputs.run-combination == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-combination == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Combination Evals
         if: needs.determine-evals.outputs.run-combination == 'true'
@@ -357,7 +370,7 @@ jobs:
           fi
 
   run-act-evals:
-    needs: [run-combination-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -400,9 +413,11 @@ jobs:
         if: needs.determine-evals.outputs.run-act == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-act == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Act Evals
         if: needs.determine-evals.outputs.run-act == 'true'
@@ -426,7 +441,7 @@ jobs:
           fi
 
   run-extract-evals:
-    needs: [run-act-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -469,9 +484,11 @@ jobs:
         if: needs.determine-evals.outputs.run-extract == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-extract == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       # 1. Run extract category with domExtract
       - name: Run Extract Evals (domExtract)
@@ -498,7 +515,7 @@ jobs:
           fi
 
   run-observe-evals:
-    needs: [run-extract-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -541,9 +558,11 @@ jobs:
         if: needs.determine-evals.outputs.run-observe == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-observe == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Observe Evals
         if: needs.determine-evals.outputs.run-observe == 'true'
@@ -567,7 +586,7 @@ jobs:
           fi
 
   run-targeted-extract-evals:
-    needs: [run-observe-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -610,9 +629,11 @@ jobs:
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run targeted extract Evals
         if: needs.determine-evals.outputs.run-targeted-extract == 'true'
@@ -636,7 +657,7 @@ jobs:
           fi
 
   run-agent-evals:
-    needs: [run-targeted-extract-evals, determine-evals]
+    needs: [run-regression-evals, run-build, determine-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 90 # Agent evals can be long-running
     env:
@@ -683,9 +704,11 @@ jobs:
         if: needs.determine-evals.outputs.run-agent == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Build Stagehand
+      - name: Download build artifacts
         if: needs.determine-evals.outputs.run-agent == 'true'
-        run: pnpm run build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Run Agent Evals
         if: needs.determine-evals.outputs.run-agent == 'true'
