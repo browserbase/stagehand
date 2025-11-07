@@ -61,10 +61,11 @@ export type AvailableModel =
 export type ModelProvider =
   | "openai"
   | "anthropic"
-  | "cerebras"
-  | "groq"
   | "google"
-  | "aisdk";
+  | "groq"
+  | "cerebras"
+  | "aisdk"
+  | "deepseek";
 
 export type ClientOptions = OpenAIClientOptions | AnthropicClientOptions;
 

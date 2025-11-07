@@ -16,6 +16,7 @@ import { GoogleClient } from "./GoogleClient";
 import { GroqClient } from "./GroqClient";
 import { LLMClient } from "./LLMClient";
 import { OpenAIClient } from "./OpenAIClient";
+import { DeepseekAIClient } from "./DeepseekAIClient";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { google, createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -91,6 +92,11 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.0-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
+  "deepseek/deepseek-chat": "deepseek",
+  "deepseek/deepseek-coder": "deepseek",
+  "deepseek-chat": "deepseek",
+  "deepseek-coder": "deepseek",
+  deepseek: "deepseek",
 };
 
 export function getAISDKLanguageModel(
@@ -188,6 +194,12 @@ export class LLMProvider {
         });
       case "google":
         return new GoogleClient({
+          logger: this.logger,
+          modelName: availableModel,
+          clientOptions,
+        });
+      case "deepseek":
+        return new DeepseekAIClient({
           logger: this.logger,
           modelName: availableModel,
           clientOptions,
