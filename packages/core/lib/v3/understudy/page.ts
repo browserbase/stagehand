@@ -717,6 +717,45 @@ export class Page {
           this.mainFrameId(),
         );
         this._currentUrl = url;
+
+        // Reconstruct Response instance from serialized data
+        if (result && typeof result === 'object' && 'requestId' in result && 'response' in result) {
+          const serialized = result as unknown as {
+            requestId: string;
+            frameId?: string;
+            loaderId?: string;
+            response: Protocol.Network.Response;
+            fromServiceWorkerFlag?: boolean;
+            finishedSettled?: boolean;
+            extraInfoHeaders?: Protocol.Network.Headers | null;
+            extraInfoHeadersText?: string;
+          };
+          const reconstructed = new Response({
+            page: this,
+            session: this.mainSession,
+            requestId: serialized.requestId,
+            frameId: serialized.frameId,
+            loaderId: serialized.loaderId,
+            response: serialized.response,
+            fromServiceWorker: serialized.fromServiceWorkerFlag ?? false,
+          });
+
+          // Apply extra info if present
+          if (serialized.extraInfoHeaders) {
+            reconstructed.applyExtraInfo({
+              requestId: serialized.requestId,
+              headers: serialized.extraInfoHeaders,
+              headersText: serialized.extraInfoHeadersText,
+            } as Protocol.Network.ResponseReceivedExtraInfoEvent);
+          }
+
+          // Mark as finished if it was already finished on the server
+          if (serialized.finishedSettled) {
+            reconstructed.markFinished(null);
+          }
+
+          return reconstructed;
+        }
         return result;
       }
       const response =
