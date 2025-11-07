@@ -11,6 +11,8 @@ import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
+import { NavigationResponseTracker } from "./navigationResponseTracker";
+import { Response } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
@@ -686,11 +688,16 @@ export class Page {
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
-  ): Promise<void> {
+  ): Promise<Response | null> {
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
 
     const watcher = new LifecycleWatcher({
       page: this,
@@ -710,7 +717,7 @@ export class Page {
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return;
+        return null;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
@@ -718,10 +725,15 @@ export class Page {
           { url },
         );
       this._currentUrl = url;
-      if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
+      if (response?.loaderId) {
+        watcher.setExpectedLoaderId(response.loaderId);
+        tracker.setExpectedLoaderId(response.loaderId);
+      }
       await watcher.wait();
+      return await tracker.navigationCompleted();
     } finally {
       watcher.dispose();
+      tracker.dispose();
     }
   }
 
@@ -732,11 +744,18 @@ export class Page {
     waitUntil?: LoadState;
     timeoutMs?: number;
     ignoreCache?: boolean;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -757,8 +776,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
@@ -768,17 +789,24 @@ export class Page {
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const prev = entries[currentIndex - 1];
-    if (!prev) return; // nothing to do
+    if (!prev) return null; // nothing to do
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -800,8 +828,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
@@ -811,17 +841,24 @@ export class Page {
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const next = entries[currentIndex + 1];
-    if (!next) return; // nothing to do
+    if (!next) return null; // nothing to do
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -843,8 +880,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
