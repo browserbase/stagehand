@@ -711,13 +711,13 @@ export class Page {
     try {
       // Route to API if available
       if (this.apiClient) {
-        await this.apiClient.goto(
+        const result = await this.apiClient.goto(
           url,
           { waitUntil: options?.waitUntil },
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return null;
+        return result;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(

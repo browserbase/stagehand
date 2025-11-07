@@ -20,6 +20,7 @@ import {
   AgentResult,
   ExtractResult,
   LogLine,
+  Response as StagehandNavigateResponse,
   StagehandMetrics,
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
@@ -209,8 +210,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<void> {
-    return this.execute<void>({
+  ): Promise<StagehandNavigateResponse | null> {
+    return this.execute<StagehandNavigateResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });
