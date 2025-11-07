@@ -1,4 +1,5 @@
 import { Protocol } from "devtools-protocol";
+import { promises as fs } from "fs";
 import { v3Logger } from "../logger";
 import type { CDPSessionLike } from "./cdp";
 import { CdpConnection } from "./cdp";
@@ -10,8 +11,31 @@ import { FrameRegistry } from "./frameRegistry";
 import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
+import { NavigationResponseTracker } from "./navigationResponseTracker";
+import { Response } from "./response";
+import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
+import type { Locator } from "./locator";
+import type {
+  ScreenshotAnimationsOption,
+  ScreenshotCaretOption,
+  ScreenshotOptions,
+  ScreenshotScaleOption,
+} from "../types/public/screenshotTypes";
+import {
+  applyMaskOverlays,
+  applyStyleToFrames,
+  collectFramesForScreenshot,
+  computeScreenshotScale,
+  disableAnimations,
+  hideCaret,
+  normalizeScreenshotClip,
+  runScreenshotCleanups,
+  setTransparentBackground,
+  withScreenshotTimeout,
+  type ScreenshotCleanup,
+} from "./screenshotUtils";
 /**
  * Page
  *
@@ -25,6 +49,7 @@ import type { LocalBrowserLaunchOptions } from "../types/public";
  * Page exposes convenient APIs (goto/reload/url/screenshot/locator),
  * and simple bridges that Context uses to feed Page/Target events in.
  */
+
 const LIFECYCLE_NAME: Record<LoadState, string> = {
   load: "load",
   domcontentloaded: "DOMContentLoaded",
@@ -59,6 +84,11 @@ export class Page {
   private readonly networkManager: NetworkManager;
   /** Optional API client for routing page operations to the API */
   private readonly apiClient: StagehandAPIClient | null = null;
+  private readonly consoleListeners = new Set<ConsoleListener>();
+  private readonly consoleHandlers = new Map<
+    string,
+    (evt: Protocol.Runtime.ConsoleAPICalledEvent) => void
+  >();
 
   private constructor(
     private readonly conn: CdpConnection,
@@ -320,6 +350,10 @@ export class Page {
 
     this.networkManager.trackSession(childSession);
 
+    if (this.consoleListeners.size > 0) {
+      this.installConsoleTap(childSession);
+    }
+
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(
       childSession.id ?? "child",
@@ -382,6 +416,7 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
+    this.teardownConsoleTap(sessionId);
     this.sessions.delete(sessionId);
     this.networkManager.untrackSession(sessionId);
   }
@@ -419,10 +454,78 @@ export class Page {
     this.networkManager.untrackSession(sessionId);
   }
 
+  public on(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const firstListener = this.consoleListeners.size === 0;
+    this.consoleListeners.add(listener);
+
+    if (firstListener) {
+      this.ensureConsoleTaps();
+    }
+
+    return this;
+  }
+
+  public once(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    const wrapper: ConsoleListener = (message) => {
+      this.off("console", wrapper);
+      listener(message);
+    };
+
+    return this.on("console", wrapper);
+  }
+
+  public off(event: "console", listener: ConsoleListener): Page {
+    if (event !== "console") {
+      throw new Error(`Unsupported event: ${event}`);
+    }
+
+    this.consoleListeners.delete(listener);
+
+    if (this.consoleListeners.size === 0) {
+      this.removeAllConsoleTaps();
+    }
+
+    return this;
+  }
+
   // ---------------- MAIN APIs ----------------
 
   public targetId(): string {
     return this._targetId;
+  }
+
+  /**
+   * Send a CDP command through the main session.
+   * Allows external consumers to execute arbitrary Chrome DevTools Protocol commands.
+   *
+   * @param method - The CDP method name (e.g., "Page.enable", "Runtime.evaluate")
+   * @param params - Optional parameters for the CDP command
+   * @returns Promise resolving to the typed CDP response
+   *
+   * @example
+   * // Enable the Runtime domain
+   * await page.sendCDP("Runtime.enable");
+   *
+   * @example
+   * // Evaluate JavaScript with typed response
+   * const result = await page.sendCDP<Protocol.Runtime.EvaluateResponse>(
+   *   "Runtime.evaluate",
+   *   { expression: "1 + 1" }
+   * );
+   */
+  public async sendCDP<T = unknown>(
+    method: string,
+    params?: object,
+  ): Promise<T> {
+    return this.mainSession.send<T>(method, params);
   }
 
   /** Seed the cached URL before navigation events converge. */
@@ -468,6 +571,8 @@ export class Page {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.networkManager.dispose();
+    this.removeAllConsoleTaps();
+    this.consoleListeners.clear();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -495,6 +600,85 @@ export class Page {
     return this.registry.listAllFrames();
   }
 
+  private ensureConsoleTaps(): void {
+    if (this.consoleListeners.size === 0) return;
+
+    this.installConsoleTap(this.mainSession);
+    for (const session of this.sessions.values()) {
+      this.installConsoleTap(session);
+    }
+  }
+
+  private installConsoleTap(session: CDPSessionLike): void {
+    const key = this.sessionKey(session);
+    if (this.consoleHandlers.has(key)) return;
+
+    void session.send("Runtime.enable").catch(() => {});
+
+    const handler = (evt: Protocol.Runtime.ConsoleAPICalledEvent) => {
+      this.emitConsole(evt);
+    };
+
+    session.on<Protocol.Runtime.ConsoleAPICalledEvent>(
+      "Runtime.consoleAPICalled",
+      handler,
+    );
+
+    this.consoleHandlers.set(key, handler);
+  }
+
+  private sessionKey(session: CDPSessionLike): string {
+    return session.id ?? "__root__";
+  }
+
+  private resolveSessionByKey(key: string): CDPSessionLike | undefined {
+    if (this.mainSession.id) {
+      if (this.mainSession.id === key) return this.mainSession;
+    } else if (key === "__root__") {
+      return this.mainSession;
+    }
+
+    return this.sessions.get(key);
+  }
+
+  private teardownConsoleTap(key: string): void {
+    const handler = this.consoleHandlers.get(key);
+    if (!handler) return;
+
+    const session = this.resolveSessionByKey(key);
+    session?.off("Runtime.consoleAPICalled", handler);
+    this.consoleHandlers.delete(key);
+  }
+
+  private removeAllConsoleTaps(): void {
+    for (const key of [...this.consoleHandlers.keys()]) {
+      this.teardownConsoleTap(key);
+    }
+  }
+
+  private emitConsole(evt: Protocol.Runtime.ConsoleAPICalledEvent): void {
+    if (this.consoleListeners.size === 0) return;
+
+    const message = new ConsoleMessage(evt, this);
+    const listeners = [...this.consoleListeners];
+
+    for (const listener of listeners) {
+      try {
+        listener(message);
+      } catch (error) {
+        v3Logger({
+          category: "page",
+          message: "Console listener threw",
+          level: 2,
+          auxiliary: {
+            error: { value: String(error), type: "string" },
+            type: { value: evt.type, type: "string" },
+          },
+        });
+      }
+    }
+  }
+
   // -------- Convenience APIs delegated to the current main frame --------
 
   /**
@@ -504,11 +688,16 @@ export class Page {
   async goto(
     url: string,
     options?: { waitUntil?: LoadState; timeoutMs?: number },
-  ): Promise<void> {
+  ): Promise<Response | null> {
     const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
 
     const watcher = new LifecycleWatcher({
       page: this,
@@ -528,7 +717,7 @@ export class Page {
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return;
+        return null;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
@@ -536,10 +725,15 @@ export class Page {
           { url },
         );
       this._currentUrl = url;
-      if (response?.loaderId) watcher.setExpectedLoaderId(response.loaderId);
+      if (response?.loaderId) {
+        watcher.setExpectedLoaderId(response.loaderId);
+        tracker.setExpectedLoaderId(response.loaderId);
+      }
       await watcher.wait();
+      return await tracker.navigationCompleted();
     } finally {
       watcher.dispose();
+      tracker.dispose();
     }
   }
 
@@ -550,11 +744,18 @@ export class Page {
     waitUntil?: LoadState;
     timeoutMs?: number;
     ignoreCache?: boolean;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -575,8 +776,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
@@ -586,17 +789,24 @@ export class Page {
   async goBack(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const prev = entries[currentIndex - 1];
-    if (!prev) return; // nothing to do
+    if (!prev) return null; // nothing to do
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -618,8 +828,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
@@ -629,17 +841,24 @@ export class Page {
   async goForward(options?: {
     waitUntil?: LoadState;
     timeoutMs?: number;
-  }): Promise<void> {
+  }): Promise<Response | null> {
     const { entries, currentIndex } =
       await this.mainSession.send<Protocol.Page.GetNavigationHistoryResponse>(
         "Page.getNavigationHistory",
       );
     const next = entries[currentIndex + 1];
-    if (!next) return; // nothing to do
+    if (!next) return null; // nothing to do
     const waitUntil = options?.waitUntil;
     const timeout = options?.timeoutMs ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
+
+    const tracker = new NavigationResponseTracker({
+      page: this,
+      session: this.mainSession,
+      navigationCommandId,
+    });
+    tracker.expectNavigationWithoutKnownLoader();
 
     const watcher = waitUntil
       ? new LifecycleWatcher({
@@ -661,8 +880,10 @@ export class Page {
       if (watcher) {
         await watcher.wait();
       }
+      return await tracker.navigationCompleted();
     } finally {
       watcher?.dispose();
+      tracker.dispose();
     }
   }
 
@@ -717,10 +938,111 @@ export class Page {
   }
 
   /**
-   * Capture a screenshot (delegated to the current main frame).
+   * Capture a screenshot with Playwright-style options.
+   *
+   * @param options Optional screenshot configuration.
+   * @param options.animations Control CSS/Web animations during capture. Use
+   * "disabled" to fast-forward finite animations and pause infinite ones.
+   * @param options.caret Either hide the text caret (default) or leave it
+   * visible via "initial".
+   * @param options.clip Restrict capture to a specific rectangle (in CSS
+   * pixels). Cannot be combined with `fullPage`.
+   * @param options.fullPage Capture the full scrollable page instead of the
+   * current viewport.
+   * @param options.mask Array of locators that should be covered with an
+   * overlay while the screenshot is taken.
+   * @param options.maskColor CSS color used for the mask overlay (default
+   * `#FF00FF`).
+   * @param options.omitBackground Make the default page background transparent
+   * (PNG only).
+   * @param options.path File path to write the screenshot to. The file extension
+   * determines the image type when `type` is not explicitly provided.
+   * @param options.quality JPEG quality (0–100). Only applies when
+   * `type === "jpeg"`.
+   * @param options.scale Render scale: use "css" for one pixel per CSS pixel,
+   * otherwise the default "device" leverages the current device pixel ratio.
+   * @param options.style Additional CSS text injected into every frame before
+   * capture (removed afterwards).
+   * @param options.timeout Maximum capture duration in milliseconds before a
+   * timeout error is thrown.
+   * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: { fullPage?: boolean }): Promise<Buffer> {
-    return this.mainFrameWrapper.screenshot(options);
+  async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+    const opts = options ?? {};
+    const type = opts.type ?? "png";
+
+    if (type !== "png" && type !== "jpeg") {
+      throw new Error(`screenshot: unsupported image type "${type}"`);
+    }
+
+    if (opts.fullPage && opts.clip) {
+      throw new Error("screenshot: clip and fullPage cannot be used together");
+    }
+
+    if (type === "png" && typeof opts.quality === "number") {
+      throw new Error(
+        'screenshot: quality option is only valid for type="jpeg"',
+      );
+    }
+
+    const caretMode: ScreenshotCaretOption = opts.caret ?? "hide";
+    const animationsMode: ScreenshotAnimationsOption =
+      opts.animations ?? "allow";
+    const scaleMode: ScreenshotScaleOption = opts.scale ?? "device";
+    const frames = collectFramesForScreenshot(this);
+    const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
+    const captureScale = await computeScreenshotScale(this, scaleMode);
+    const maskLocators = (opts.mask ?? []).filter(
+      (locator): locator is Locator => Boolean(locator),
+    );
+
+    const cleanupTasks: ScreenshotCleanup[] = [];
+
+    const exec = async (): Promise<Buffer> => {
+      try {
+        if (opts.omitBackground) {
+          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+        }
+
+        if (animationsMode === "disabled") {
+          cleanupTasks.push(await disableAnimations(frames));
+        }
+
+        if (caretMode === "hide") {
+          cleanupTasks.push(await hideCaret(frames));
+        }
+
+        if (opts.style && opts.style.trim()) {
+          cleanupTasks.push(
+            await applyStyleToFrames(frames, opts.style, "custom"),
+          );
+        }
+
+        if (maskLocators.length > 0) {
+          cleanupTasks.push(
+            await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"),
+          );
+        }
+
+        const buffer = await this.mainFrameWrapper.screenshot({
+          fullPage: opts.fullPage,
+          clip,
+          type,
+          quality: type === "jpeg" ? opts.quality : undefined,
+          scale: captureScale,
+        });
+
+        if (opts.path) {
+          await fs.writeFile(opts.path, buffer);
+        }
+
+        return buffer;
+      } finally {
+        await runScreenshotCleanups(cleanupTasks);
+      }
+    };
+
+    return withScreenshotTimeout(opts.timeout, exec);
   }
 
   /**
