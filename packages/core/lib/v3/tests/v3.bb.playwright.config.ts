@@ -16,7 +16,9 @@ export default defineConfig({
   testDir: ".",
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  workers: 2,
+  // Conservative worker count for Browserbase tests (external service dependency)
+  // Can be increased if Browserbase API handles higher concurrency well
+  workers: process.env.CI ? 3 : 4,
   fullyParallel: true,
   reporter: "list",
   use: {
