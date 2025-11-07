@@ -5,7 +5,7 @@ import type { LogLine } from "../types/public/logs";
 
 test.describe("V3 Multi-Instance Logger Isolation", () => {
   // Run tests serially to avoid resource exhaustion from creating many Chrome instances
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: "serial" });
   // Increase timeout for stress tests that create/destroy multiple instances
   test.setTimeout(120_000);
 
