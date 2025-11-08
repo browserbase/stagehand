@@ -20,7 +20,6 @@ import {
   AgentResult,
   ExtractResult,
   LogLine,
-  Response as StagehandNavigateResponse,
   StagehandMetrics,
   StagehandAPIError,
   StagehandAPIUnauthorizedError,
@@ -29,6 +28,7 @@ import {
   StagehandResponseParseError,
   StagehandServerError,
 } from "./types/public";
+import type { SerializableResponse } from "./types/private";
 
 /**
  * API response structure for replay metrics endpoint
@@ -210,8 +210,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<StagehandNavigateResponse | null> {
-    return this.execute<StagehandNavigateResponse | null>({
+  ): Promise<SerializableResponse | null> {
+    return this.execute<SerializableResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });
