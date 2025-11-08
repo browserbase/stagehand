@@ -37,4 +37,5 @@ export enum SupportedPlaywrightAction {
   NEXT_CHUNK = "nextChunk",
   PREV_CHUNK = "prevChunk",
   SELECT_OPTION_FROM_DROPDOWN = "selectOptionFromDropdown",
+  HOVER = "hover",
 }
