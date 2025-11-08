@@ -144,6 +144,7 @@ const METHOD_HANDLER_MAP: Record<
   prevChunk: scrollToPreviousChunk,
   selectOptionFromDropdown: selectOption,
   selectOption: selectOption,
+  hover: hover,
 };
 
 export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
@@ -489,6 +490,25 @@ async function scrollByElementHeight(
     await ownerSession
       .send("Runtime.releaseObject", { objectId })
       .catch(() => {});
+  }
+}
+
+export async function hover(ctx: UnderstudyMethodHandlerContext) {
+  const { locator, xpath } = ctx;
+  try {
+    await locator.hover();
+  } catch (e) {
+    v3Logger({
+      category: "action",
+      message: "error attempting to hover",
+      level: 0,
+      auxiliary: {
+        error: { value: e.message, type: "string" },
+        trace: { value: e.stack, type: "string" },
+        xpath: { value: xpath, type: "string" },
+      },
+    });
+    throw new UnderstudyCommandException(e.message);
   }
 }
 
