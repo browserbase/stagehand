@@ -209,6 +209,15 @@ export class ExperimentalNotConfiguredError extends StagehandError {
   }
 }
 
+export class CuaModelRequiredError extends StagehandError {
+  constructor(availableModels: readonly string[]) {
+    super(
+      `To use the computer use agent (CUA), please provide a CUA model in the agent constructor or stagehand config. ` +
+        `Try one of our supported CUA models: ${availableModels.join(", ")}`,
+    );
+  }
+}
+
 export class ZodSchemaValidationError extends Error {
   constructor(
     public readonly received: unknown,

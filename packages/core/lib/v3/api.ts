@@ -27,6 +27,7 @@ import {
   StagehandResponseBodyError,
   StagehandResponseParseError,
   StagehandServerError,
+  ExperimentalNotConfiguredError,
 } from "./types/public";
 
 /**
@@ -223,9 +224,7 @@ export class StagehandAPIClient {
   ): Promise<AgentResult> {
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
-      throw new StagehandAPIError(
-        "MCP integrations are not supported in API mode. Set experimental: true to use MCP integrations.",
-      );
+      throw new ExperimentalNotConfiguredError("MCP integrations");
     }
     if (typeof executeOptions === "object") {
       if (executeOptions.page) {
