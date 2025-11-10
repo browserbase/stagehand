@@ -7,6 +7,7 @@ import {
   LogLine,
   ObserveOptions,
 } from "../public";
+import type { Protocol } from "devtools-protocol";
 
 export interface StagehandAPIConstructorParams {
   apiKey: string;
@@ -68,4 +69,15 @@ export interface APIObserveParameters {
   instruction?: string;
   options?: ObserveOptions;
   frameId?: string;
+}
+
+export interface SerializableResponse {
+  requestId: string;
+  frameId?: string;
+  loaderId?: string;
+  response: Protocol.Network.Response;
+  fromServiceWorkerFlag?: boolean;
+  finishedSettled?: boolean;
+  extraInfoHeaders?: Protocol.Network.Headers | null;
+  extraInfoHeadersText?: string;
 }
