@@ -29,6 +29,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   let page: AnyPage;
   if (framework === "v3") {
     page = v3.context.pages()[0];
+    await page.goto(c.url, {waitUntil: "networkidle"});
   } else if (framework === "puppeteer") {
     const browser = await puppeteer.connect({
       browserWSEndpoint: v3.connectURL(),
@@ -36,6 +37,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     });
     const pages = await browser.pages();
     page = pages[0];
+    await page.goto(c.url, {waitUntil: "networkidle0"});
     cleanup = async () => {
       try {
         await browser.close();
@@ -47,6 +49,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     const pwBrowser = await playwrightChromium.connectOverCDP(v3.connectURL());
     const pwContext = pwBrowser.contexts()[0];
     page = pwContext.pages()[0];
+    await page.goto(c.url, {waitUntil: "networkidle"});
     cleanup = async () => {
       try {
         await pwBrowser.close();
@@ -58,6 +61,7 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
     const prBrowser = await patchrightChromium.connectOverCDP(v3.connectURL());
     const prContext = prBrowser.contexts()[0];
     page = prContext.pages()[0];
+    await page.goto(c.url, {waitUntil: "networkidle"});
     cleanup = async () => {
       try {
         await prBrowser.close();
@@ -68,7 +72,6 @@ async function runCase(v3: V3, c: Case, framework: Framework): Promise<void> {
   }
 
   try {
-    await page.goto(c.url);
     await v3.act(c.action, { page });
     // Post-action extraction; verify expected text appears
     const extraction = await v3.extract({ page });
