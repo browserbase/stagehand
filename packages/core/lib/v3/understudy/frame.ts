@@ -2,6 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp";
 import { Locator } from "./locator";
+import { StagehandEvalError } from "../types/public/sdkErrors";
 
 interface FrameManager {
   session: CDPSessionLike;
@@ -150,7 +151,9 @@ export class Frame implements FrameManager {
       },
     );
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new StagehandEvalError(
+        res.exceptionDetails.text ?? "Evaluation failed",
+      );
     }
     return res.result.value as R;
   }

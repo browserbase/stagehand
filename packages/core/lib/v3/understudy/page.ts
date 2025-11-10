@@ -17,6 +17,10 @@ import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
 import type { Locator } from "./locator";
+import {
+  StagehandInvalidArgumentError,
+  StagehandEvalError,
+} from "../types/public/sdkErrors";
 import type {
   ScreenshotAnimationsOption,
   ScreenshotCaretOption,
@@ -456,7 +460,7 @@ export class Page {
 
   public on(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const firstListener = this.consoleListeners.size === 0;
@@ -471,7 +475,7 @@ export class Page {
 
   public once(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     const wrapper: ConsoleListener = (message) => {
@@ -484,7 +488,7 @@ export class Page {
 
   public off(event: "console", listener: ConsoleListener): Page {
     if (event !== "console") {
-      throw new Error(`Unsupported event: ${event}`);
+      throw new StagehandInvalidArgumentError(`Unsupported event: ${event}`);
     }
 
     this.consoleListeners.delete(listener);
@@ -972,15 +976,19 @@ export class Page {
     const type = opts.type ?? "png";
 
     if (type !== "png" && type !== "jpeg") {
-      throw new Error(`screenshot: unsupported image type "${type}"`);
+      throw new StagehandInvalidArgumentError(
+        `screenshot: unsupported image type "${type}"`,
+      );
     }
 
     if (opts.fullPage && opts.clip) {
-      throw new Error("screenshot: clip and fullPage cannot be used together");
+      throw new StagehandInvalidArgumentError(
+        "screenshot: clip and fullPage cannot be used together",
+      );
     }
 
     if (type === "png" && typeof opts.quality === "number") {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         'screenshot: quality option is only valid for type="jpeg"',
       );
     }
@@ -1141,7 +1149,7 @@ export class Page {
         exceptionDetails.text ||
         exceptionDetails.exception?.description ||
         "Evaluation failed";
-      throw new Error(msg);
+      throw new StagehandEvalError(msg);
     }
 
     return result?.value as R;

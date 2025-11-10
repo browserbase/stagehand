@@ -7,6 +7,10 @@ import { Buffer } from "buffer";
 import { locatorScriptSources } from "../dom/build/locatorScripts.generated";
 import type { Frame } from "./frame";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
+import {
+  StagehandElementNotFoundError,
+  StagehandInvalidArgumentError,
+} from "../types/public/sdkErrors";
 
 type MouseButton = "left" | "right" | "middle";
 
@@ -96,7 +100,9 @@ export class Locator {
       if (data instanceof Uint8Array) return Buffer.from(data);
       if (typeof data === "string") return Buffer.from(data);
       if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data));
-      throw new Error("Unsupported file payload buffer type");
+      throw new StagehandInvalidArgumentError(
+        "Unsupported file payload buffer type",
+      );
     };
 
     try {
@@ -112,9 +118,11 @@ export class Locator {
         );
         const ok = Boolean(res.result.value);
         if (!ok)
-          throw new Error('Target is not an <input type="file"> element');
+          throw new StagehandInvalidArgumentError(
+            'Target is not an <input type="file"> element',
+          );
       } catch (e) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           e instanceof Error
             ? e.message
             : "Unable to verify file input element",
@@ -151,7 +159,7 @@ export class Locator {
           filePaths.push(tmp);
           continue;
         }
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "Unsupported setInputFiles item – expected path or payload",
         );
       }
@@ -571,7 +579,9 @@ export class Locator {
           typeof result?.reason === "string" && result.reason.length > 0
             ? result.reason
             : "Failed to fill element";
-        throw new Error(`Failed to fill element (${reason})`);
+        throw new StagehandInvalidArgumentError(
+          `Failed to fill element (${reason})`,
+        );
       }
 
       // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
@@ -797,7 +807,9 @@ export class Locator {
   nth(index: number): Locator {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
-      throw new Error("locator().nth() expects a non-negative index");
+      throw new StagehandInvalidArgumentError(
+        "locator().nth() expects a non-negative index",
+      );
     }
 
     const nextIndex = Math.floor(value);
@@ -828,7 +840,7 @@ export class Locator {
       this.nthIndex,
     );
     if (!resolved) {
-      throw new Error(`Element not found for selector: ${this.selector}`);
+      throw new StagehandElementNotFoundError([this.selector]);
     }
 
     return resolved;
@@ -838,7 +850,7 @@ export class Locator {
   private centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
     if (!content || content.length < 8) {
-      throw new Error("Invalid box model content quad");
+      throw new StagehandInvalidArgumentError("Invalid box model content quad");
     }
     const xs = [content[0], content[2], content[4], content[6]];
     const ys = [content[1], content[3], content[5], content[7]];
