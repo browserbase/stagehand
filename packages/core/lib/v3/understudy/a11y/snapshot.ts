@@ -1008,7 +1008,7 @@ async function resolveFocusFrameAndTail(
     );
     if (!objectId)
       throw new StagehandIframeError(
-        hops[i],
+        selectorForIframe,
         "Failed to resolve iframe element by XPath",
       );
 
@@ -1037,7 +1037,7 @@ async function resolveFocusFrameAndTail(
       }
       if (!childFrameId)
         throw new StagehandIframeError(
-          hops[i],
+          selectorForIframe,
           "Could not map iframe to child frameId",
         );
 
@@ -1093,7 +1093,7 @@ async function resolveCssFocusFrameAndTail(
     );
     if (!objectId)
       throw new StagehandIframeError(
-        hop,
+        parts[i]!,
         "Failed to resolve iframe via CSS hop",
       );
     try {
@@ -1120,7 +1120,7 @@ async function resolveCssFocusFrameAndTail(
       }
       if (!childFrameId)
         throw new StagehandIframeError(
-          hop,
+          parts[i]!,
           "Could not map CSS iframe hop to child frameId",
         );
       ctxFrameId = childFrameId;
