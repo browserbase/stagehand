@@ -283,3 +283,39 @@ export class StagehandShadowSegmentNotFoundError extends StagehandError {
     );
   }
 }
+
+export class ElementNotVisibleError extends StagehandError {
+  constructor(selector: string) {
+    super(`Element not visible (no box model): ${selector}`);
+  }
+}
+
+export class ResponseBodyError extends StagehandError {
+  constructor(message: string) {
+    super(`Failed to retrieve response body: ${message}`);
+  }
+}
+
+export class ResponseParseError extends StagehandError {
+  constructor(message: string) {
+    super(`Failed to parse response: ${message}`);
+  }
+}
+
+export class TimeoutError extends StagehandError {
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} timed out after ${timeoutMs}ms`);
+  }
+}
+
+export class PageNotFoundError extends StagehandError {
+  constructor(identifier: string) {
+    super(`No Page found for ${identifier}`);
+  }
+}
+
+export class ConnectionTimeoutError extends StagehandError {
+  constructor(message: string) {
+    super(`Connection timeout: ${message}`);
+  }
+}

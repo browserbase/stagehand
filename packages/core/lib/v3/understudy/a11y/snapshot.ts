@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "../cdp";
 import { Page } from "../page";
 import { executionContexts } from "../executionContextRegistry";
 import { v3Logger } from "../../logger";
+import { StagehandIframeError } from "../../types/public/sdkErrors";
 
 /**
  * a11y/snapshot
@@ -1005,7 +1006,11 @@ async function resolveFocusFrameAndTail(
       selectorForIframe,
       ctxFrameId,
     );
-    if (!objectId) throw new Error("Failed to resolve iframe element by XPath");
+    if (!objectId)
+      throw new StagehandIframeError(
+        hops[i],
+        "Failed to resolve iframe element by XPath",
+      );
 
     try {
       await parentSess.send("DOM.enable").catch(() => {});
@@ -1031,7 +1036,10 @@ async function resolveFocusFrameAndTail(
         }
       }
       if (!childFrameId)
-        throw new Error("Could not map iframe to child frameId");
+        throw new StagehandIframeError(
+          hops[i],
+          "Could not map iframe to child frameId",
+        );
 
       // Update absolute prefix with the iframe element path within the parent document
       absPrefix = prefixXPath(absPrefix || "/", selectorForIframe);
@@ -1083,7 +1091,11 @@ async function resolveCssFocusFrameAndTail(
       parts[i]!,
       ctxFrameId,
     );
-    if (!objectId) throw new Error("Failed to resolve iframe via CSS hop");
+    if (!objectId)
+      throw new StagehandIframeError(
+        hop,
+        "Failed to resolve iframe via CSS hop",
+      );
     try {
       await parentSess.send("DOM.enable").catch(() => {});
       const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>(
@@ -1107,7 +1119,10 @@ async function resolveCssFocusFrameAndTail(
         }
       }
       if (!childFrameId)
-        throw new Error("Could not map CSS iframe hop to child frameId");
+        throw new StagehandIframeError(
+          hop,
+          "Could not map CSS iframe hop to child frameId",
+        );
       ctxFrameId = childFrameId;
     } finally {
       await parentSess

@@ -10,6 +10,7 @@ import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver";
 import {
   StagehandElementNotFoundError,
   StagehandInvalidArgumentError,
+  ElementNotVisibleError,
 } from "../types/public/sdkErrors";
 
 type MouseButton = "left" | "right" | "middle";
@@ -228,7 +229,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
@@ -332,7 +333,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       await session.send<never>("Input.dispatchMouseEvent", {
@@ -375,7 +376,7 @@ export class Locator {
         "DOM.getBoxModel",
         { objectId },
       );
-      if (!box.model) throw new Error("Element not visible (no box model)");
+      if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
       // Dispatch input (from the same session)

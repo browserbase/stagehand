@@ -3,6 +3,7 @@ import type { LoadState } from "../types/public/page";
 import type { CDPSessionLike } from "./cdp";
 import type { NetworkManager } from "./networkManager";
 import type { Page } from "./page";
+import { TimeoutError } from "../types/public/sdkErrors";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
@@ -201,7 +202,7 @@ export class LifecycleWatcher {
   private timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error(`Lifecycle wait timed out after ${this.timeoutMs}ms`);
+      throw new TimeoutError("Lifecycle wait", this.timeoutMs);
     }
     return remaining;
   }
