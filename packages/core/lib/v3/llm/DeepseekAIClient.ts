@@ -102,7 +102,7 @@ export class DeepseekAIClient extends LLMClient {
         options.messages.push({
           role: "user",
           content: `Respond in this zod schema format:\n${parsedSchema}\n
-          You must respond in JSON format. Your response must include the word 'json'. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
+          You must respond in JSON format. respond WITH JSON. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
         });
         responseFormat = { type: "json_object" };
       } catch (error) {
@@ -239,7 +239,7 @@ export class DeepseekAIClient extends LLMClient {
     });
 
     if (options.response_model) {
-      const extractedData = response.choices[0].message.content;
+      const extractedData = response.choices[0]?.message.content;
 
       if (extractedData === null) {
         const errorMessage = "Response content is null.";
