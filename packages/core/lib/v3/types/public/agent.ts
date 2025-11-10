@@ -1,5 +1,11 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ToolSet } from "ai";
+import type {
+  ToolSet,
+  StreamTextOnStepFinishCallback,
+  StreamTextOnFinishCallback,
+  StreamTextOnErrorCallback,
+  StreamTextOnChunkCallback,
+} from "ai";
 import { LogLine } from "./logs";
 import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
@@ -37,6 +43,11 @@ export interface AgentExecuteOptions {
   maxSteps?: number;
   page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
   highlightCursor?: boolean;
+  abortSignal?: AbortSignal;
+  onStepFinish?: StreamTextOnStepFinishCallback<ToolSet>;
+  onFinish?: StreamTextOnFinishCallback<ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
 }
 export type AgentType = "openai" | "anthropic" | "google";
 

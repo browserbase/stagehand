@@ -1,7 +1,14 @@
-import { createAgentTools } from "../agent/tools";
+import { createAgentTools, AgentTools } from "../agent/tools";
 import { LogLine } from "../types/public/logs";
 import { V3 } from "../v3";
-import { ModelMessage, ToolSet, wrapLanguageModel, stepCountIs } from "ai";
+import {
+  ModelMessage,
+  ToolSet,
+  wrapLanguageModel,
+  stepCountIs,
+  StreamTextResult,
+  LanguageModel,
+} from "ai";
 import { processMessages } from "../agent/utils/messageProcessing";
 import { LLMClient } from "../llm/LLMClient";
 import {
@@ -54,31 +61,8 @@ export class V3AgentHandler {
     let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
 
     try {
-      const systemPrompt = this.buildSystemPrompt(
-        options.instruction,
-        this.systemInstructions,
-      );
-      const tools = this.createTools();
-      const allTools = { ...tools, ...this.mcpTools };
-      const messages: ModelMessage[] = [
-        { role: "user", content: options.instruction },
-      ];
-
-      if (!this.llmClient?.getLanguageModel) {
-        throw new Error(
-          "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
-        );
-      }
-      const baseModel = this.llmClient.getLanguageModel();
-      const wrappedModel = wrapLanguageModel({
-        model: baseModel,
-        middleware: {
-          transformParams: async ({ params }) => {
-            const { processedPrompt } = processMessages(params);
-            return { ...params, prompt: processedPrompt } as typeof params;
-          },
-        },
-      });
+      const { systemPrompt, messages, allTools, wrappedModel } =
+        this.prepareLLM(options.instruction);
 
       const result = await this.llmClient.generateText({
         model: wrappedModel,
@@ -120,18 +104,16 @@ export class V3AgentHandler {
                     : allReasoning || "Task completed successfully";
                 }
               }
-              const mappedActions = mapToolResultToActions({
+
+              const mappedActions = this.buildActions({
                 toolCallName: toolCall.toolName,
                 toolResult,
                 args,
                 reasoning: event.text || undefined,
+                currentPageUrl,
               });
 
-              for (const action of mappedActions) {
-                action.pageUrl = currentPageUrl;
-                action.timestamp = Date.now();
-                actions.push(action);
-              }
+              actions.push(...mappedActions);
             }
             currentPageUrl = (await this.v3.context.awaitActivePage()).url();
           }
@@ -198,5 +180,161 @@ export class V3AgentHandler {
       executionModel: this.executionModel,
       logger: this.logger,
     });
+  }
+
+  public async stream(
+    instructionOrOptions: string | AgentExecuteOptions,
+  ): Promise<StreamTextResult<ToolSet, never>> {
+    const options =
+      typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions }
+        : instructionOrOptions;
+
+    const maxSteps = options.maxSteps || 10;
+    const actions: AgentAction[] = [];
+    const collectedReasoning: string[] = [];
+
+    let currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+
+    try {
+      const { systemPrompt, messages, allTools, wrappedModel } =
+        this.prepareLLM(options.instruction);
+
+      const result = this.llmClient.streamText({
+        model: wrappedModel,
+        system: systemPrompt,
+        messages,
+        tools: allTools,
+        stopWhen: stepCountIs(maxSteps),
+        temperature: 1,
+        toolChoice: "auto",
+        abortSignal: (
+          options as AgentExecuteOptions & { abortSignal?: AbortSignal }
+        ).abortSignal,
+        onStepFinish: async (event) => {
+          this.logger({
+            category: "agent",
+            message: `Step finished: ${event.finishReason}`,
+            level: 2,
+          });
+
+          if (event.toolCalls && event.toolCalls.length > 0) {
+            for (const toolCall of event.toolCalls) {
+              const args = toolCall.input as Record<string, unknown>;
+
+              if (event.text.length > 0) {
+                collectedReasoning.push(event.text);
+                this.logger({
+                  category: "agent",
+                  message: `reasoning: ${event.text}`,
+                  level: 1,
+                });
+              }
+
+              const mappedActions = this.buildActions({
+                toolCallName: toolCall.toolName,
+                args,
+                reasoning: event.text || undefined,
+                currentPageUrl,
+              });
+
+              actions.push(...mappedActions);
+            }
+            currentPageUrl = (await this.v3.context.awaitActivePage()).url();
+          }
+
+          if ((options as AgentExecuteOptions).onStepFinish) {
+            await (options as AgentExecuteOptions).onStepFinish(event);
+          }
+        },
+        onFinish: async (event) => {
+          if ((options as AgentExecuteOptions).onFinish) {
+            await (options as AgentExecuteOptions).onFinish(event);
+          }
+        },
+        onError: async (event) => {
+          this.logger({
+            category: "agent",
+            message: `Error during streaming: ${event.error}`,
+            level: 0,
+          });
+          if ((options as AgentExecuteOptions).onError) {
+            await (options as AgentExecuteOptions).onError(event);
+          }
+        },
+        onChunk: (options as AgentExecuteOptions).onChunk,
+      });
+
+      return result;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger({
+        category: "agent",
+        message: `Error setting up stream: ${errorMessage}`,
+        level: 0,
+      });
+
+      throw error;
+    }
+  }
+
+  private prepareLLM(instruction: string): {
+    systemPrompt: string;
+    messages: ModelMessage[];
+    allTools: AgentTools & ToolSet;
+    wrappedModel: LanguageModel;
+  } {
+    const systemPrompt = this.buildSystemPrompt(
+      instruction,
+      this.systemInstructions,
+    );
+    const tools = this.createTools();
+    const allTools = { ...tools, ...this.mcpTools } as AgentTools & ToolSet;
+    const messages: ModelMessage[] = [
+      { role: "user", content: instruction },
+    ];
+
+    if (!this.llmClient?.getLanguageModel) {
+      throw new Error(
+        "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
+      );
+    }
+    const baseModel = this.llmClient.getLanguageModel();
+    const wrappedModel = wrapLanguageModel({
+      model: baseModel,
+      middleware: {
+        transformParams: async ({ params }) => {
+          const { processedPrompt } = processMessages(params);
+          return { ...params, prompt: processedPrompt } as typeof params;
+        },
+      },
+    });
+
+    return { systemPrompt, messages, allTools, wrappedModel };
+  }
+
+  private buildActions(params: {
+    toolCallName: string;
+    toolResult?: unknown;
+    args: Record<string, unknown>;
+    reasoning?: string;
+    currentPageUrl: string;
+  }): AgentAction[] {
+    const { toolCallName, toolResult, args, reasoning, currentPageUrl } =
+      params;
+    const mappedActions = mapToolResultToActions({
+      toolCallName,
+      toolResult,
+      args,
+      reasoning,
+    });
+
+    for (const action of mappedActions) {
+      action.pageUrl = currentPageUrl;
+      action.timestamp = Date.now();
+    }
+
+    return mappedActions;
   }
 }

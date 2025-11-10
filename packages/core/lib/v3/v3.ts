@@ -64,6 +64,7 @@ import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
 import { resolveModel } from "../modelUtils";
 import { StagehandAPIClient } from "./api";
+import { StreamTextResult, ToolSet } from "ai";
 
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
@@ -1377,6 +1378,10 @@ export class V3 {
     execute: (
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
+    stream: (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ) => Promise<StreamTextResult<ToolSet, never>>;
+    stop: () => void;
   } {
     this.logger({
       category: "agent",
@@ -1516,55 +1521,89 @@ export class V3 {
               }
             }
           }),
+        stream: async () => {
+          throw new Error(
+            "Stream method is not supported for CUA agents. Please create an agent without the cua: true option to use the stream method.",
+          );
+        },
+        stop: () => {
+          this.logger({
+            category: "agent",
+            message: "Stop is not supported for CUA agents",
+            level: 0,
+          });
+        },
       };
     }
 
     // Default: AISDK tools-based agent
     const agentConfigSignature = this.agentCache.buildConfigSignature(options);
+    let abortController = new AbortController();
+
+    const ensureIntegrationsAllowed = () => {
+      if ((options?.integrations || options?.tools) && !this.experimental) {
+        throw new Error(
+          "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+        );
+      }
+    };
+
+    const getTools = async () =>
+      options?.integrations
+        ? await resolveTools(options.integrations, options.tools)
+        : (options?.tools ?? {});
+
+    const ensureAbortSignal = () => {
+      if (abortController.signal.aborted) {
+        abortController = new AbortController();
+      }
+      return abortController.signal;
+    };
+
+    const normalizeOptionsWithAbort = (
+      instructionOrOptions: string | AgentExecuteOptions,
+    ): AgentExecuteOptions & { abortSignal: AbortSignal } => {
+      const signal = ensureAbortSignal();
+      return typeof instructionOrOptions === "string"
+        ? { instruction: instructionOrOptions, abortSignal: signal }
+        : {
+            ...instructionOrOptions,
+            abortSignal: instructionOrOptions.abortSignal || signal,
+          };
+    };
+
+    const createHandler = (tools: ToolSet) => {
+      const agentLlmClient = options?.model
+        ? this.resolveLlmClient(options.model)
+        : this.llmClient;
+
+      return new V3AgentHandler(
+        this,
+        this.logger,
+        agentLlmClient,
+        typeof options?.executionModel === "string"
+          ? options.executionModel
+          : options?.executionModel?.modelName,
+        options?.systemPrompt,
+        tools,
+      );
+    };
 
     return {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
-          if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new Error(
-              "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
-            );
-          }
+          ensureIntegrationsAllowed();
+          const tools = await getTools();
+          const execOptions = normalizeOptionsWithAbort(instructionOrOptions);
+          const handler = createHandler(tools);
 
-          const tools = options?.integrations
-            ? await resolveTools(options.integrations, options.tools)
-            : (options?.tools ?? {});
-
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
-
-          const handler = new V3AgentHandler(
-            this,
-            this.logger,
-            agentLlmClient,
-            typeof options?.executionModel === "string"
-              ? options.executionModel
-              : options?.executionModel?.modelName,
-            options?.systemPrompt,
-            tools,
-          );
-
-          const resolvedOptions: AgentExecuteOptions =
-            typeof instructionOrOptions === "string"
-              ? { instruction: instructionOrOptions }
-              : instructionOrOptions;
-          if (resolvedOptions.page) {
-            const normalizedPage = await this.normalizeToV3Page(
-              resolvedOptions.page,
-            );
+          if (execOptions.page) {
+            const normalizedPage = await this.normalizeToV3Page(execOptions.page);
             this.ctx!.setActivePage(normalizedPage);
           }
-          const instruction = resolvedOptions.instruction.trim();
+          const instruction = execOptions.instruction.trim();
           const sanitizedOptions =
-            this.agentCache.sanitizeExecuteOptions(resolvedOptions);
+            this.agentCache.sanitizeExecuteOptions(execOptions);
 
           let cacheContext: AgentCacheContext | null = null;
           if (this.agentCache.shouldAttemptCache(instruction)) {
@@ -1595,11 +1634,11 @@ export class V3 {
               const page = await this.ctx!.awaitActivePage();
               result = await this.apiClient.agentExecute(
                 options,
-                resolvedOptions,
+                execOptions,
                 page.mainFrameId(),
               );
             } else {
-              result = await handler.execute(instructionOrOptions);
+              result = await handler.execute(execOptions);
             }
             if (recording) {
               agentSteps = this.endAgentReplayRecording();
@@ -1619,6 +1658,32 @@ export class V3 {
             }
           }
         }),
+      stream: async (
+        instructionOrOptions: string | AgentExecuteOptions,
+      ): Promise<StreamTextResult<ToolSet, never>> =>
+        withInstanceLogContext(this.instanceId, async () => {
+          ensureIntegrationsAllowed();
+          const tools = await getTools();
+          const streamOptions = normalizeOptionsWithAbort(instructionOrOptions);
+          const handler = createHandler(tools);
+
+          if (streamOptions.page) {
+            const normalizedPage = await this.normalizeToV3Page(
+              streamOptions.page,
+            );
+            this.ctx!.setActivePage(normalizedPage);
+          }
+
+          return handler.stream(streamOptions);
+        }),
+      stop: () => {
+        this.logger({
+          category: "agent",
+          message: "Stopping agent execution",
+          level: 1,
+        });
+        abortController.abort();
+      },
     };
   }
 }
