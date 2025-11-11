@@ -14,6 +14,7 @@ import {
   ClientOptions,
   ModelConfiguration,
 } from "../types/public/model";
+import { StagehandInvalidArgumentError } from "../types/public/sdkErrors";
 
 /**
  * Scans the provided Zod schema for any `z.string().url()` fields and
@@ -105,7 +106,7 @@ export class ExtractHandler {
       }
 
       if (!instruction && schema) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "extract() requires an instruction when a schema is provided.",
         );
       }

@@ -15,7 +15,10 @@ import {
   AgentExecutionOptions,
 } from "../types/public/agent";
 import { AgentClient } from "./AgentClient";
-import { AgentScreenshotProviderError } from "../types/public/sdkErrors";
+import {
+  AgentScreenshotProviderError,
+  LLMResponseError,
+} from "../types/public/sdkErrors";
 import { buildGoogleCUASystemPrompt } from "../../prompt";
 import { compressGoogleConversationImages } from "./utils/imageCompression";
 import { mapKeyToPlaywright } from "./utils/cuaKeyMapping";
@@ -312,7 +315,7 @@ export class GoogleCUAClient extends AgentClient {
 
           // Check if we have valid response content
           if (!response.candidates || response.candidates.length === 0) {
-            throw new Error("Response has no candidates!");
+            throw new LLMResponseError("agent", "Response has no candidates!");
           }
 
           // Success - we have a valid response
