@@ -151,7 +151,9 @@ test.describe("Locator count() method with iframes", () => {
       expect(true).toBe(false);
     } catch (error) {
       // Expected behavior - frameLocator should throw when iframe doesn't exist
-      expect(error.message).toContain("Element not found for selector");
+      expect(error.message).toContain(
+        "Could not find an element for the given xPath(s):",
+      );
     }
   });
 });

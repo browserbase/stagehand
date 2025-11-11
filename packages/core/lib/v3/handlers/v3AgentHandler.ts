@@ -11,6 +11,7 @@ import {
 } from "../types/public/agent";
 import { V3FunctionName } from "../types/public/methods";
 import { mapToolResultToActions } from "../agent/utils/actionMapping";
+import { MissingLLMConfigurationError } from "../types/public/sdkErrors";
 
 export class V3AgentHandler {
   private v3: V3;
@@ -65,9 +66,7 @@ export class V3AgentHandler {
       ];
 
       if (!this.llmClient?.getLanguageModel) {
-        throw new Error(
-          "V3AgentHandler requires an AISDK-backed LLM client. Ensure your model is configured like 'openai/gpt-4.1-mini'.",
-        );
+        throw new MissingLLMConfigurationError();
       }
       const baseModel = this.llmClient.getLanguageModel();
       const wrappedModel = wrapLanguageModel({

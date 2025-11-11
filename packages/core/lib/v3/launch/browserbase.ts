@@ -1,4 +1,8 @@
 import Browserbase from "@browserbasehq/sdk";
+import {
+  BrowserbaseSessionNotFoundError,
+  StagehandInitError,
+} from "../types/public/sdkErrors";
 
 export async function createBrowserbaseSession(
   apiKey: string,
@@ -16,12 +20,12 @@ export async function createBrowserbaseSession(
       resumeSessionId,
     )) as unknown as { id: string; connectUrl?: string; status?: string };
     if (!existing?.id) {
-      throw new Error(`Browserbase session not found: ${resumeSessionId}`);
+      throw new BrowserbaseSessionNotFoundError();
     }
 
     const ws = existing.connectUrl;
     if (!ws) {
-      throw new Error(
+      throw new StagehandInitError(
         `Browserbase session resume missing connectUrl for ${resumeSessionId}`,
       );
     }
@@ -55,7 +59,7 @@ export async function createBrowserbaseSession(
   };
 
   if (!created?.connectUrl || !created?.id) {
-    throw new Error(
+    throw new StagehandInitError(
       "Browserbase session creation returned an unexpected shape.",
     );
   }

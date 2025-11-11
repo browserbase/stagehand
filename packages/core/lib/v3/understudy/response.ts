@@ -14,10 +14,14 @@
  */
 
 import type { Protocol } from "devtools-protocol";
+import type { SerializableResponse } from "../types/private";
+import {
+  ResponseBodyError,
+  ResponseParseError,
+} from "../types/public/sdkErrors";
 import type { CDPSessionLike } from "./cdp";
 import type { Frame } from "./frame";
 import type { Page } from "./page";
-import type { SerializableResponse } from "../types/private";
 
 type ServerAddr = { ipAddress: string; port: number };
 
@@ -291,7 +295,7 @@ export class Response {
         { requestId: this.requestId },
       )
       .catch((error) => {
-        throw new Error(`Failed to retrieve response body: ${String(error)}`);
+        throw new ResponseBodyError(String(error));
       });
 
     if (result.base64Encoded) {
@@ -312,7 +316,7 @@ export class Response {
     try {
       return JSON.parse(text) as T;
     } catch (error) {
-      throw new Error(`Failed to parse JSON response: ${String(error)}`);
+      throw new ResponseParseError(String(error));
     }
   }
 

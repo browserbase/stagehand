@@ -59,6 +59,13 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
+  ExperimentalApiConflictError,
+  ExperimentalNotConfiguredError,
+  CuaModelRequiredError,
+  StagehandInvalidArgumentError,
+  StagehandNotInitializedError,
+  MissingEnvironmentVariableError,
+  StagehandInitError,
 } from "./types/public";
 import { V3Context } from "./understudy/context";
 import { Page } from "./understudy/page";
@@ -87,7 +94,7 @@ function resolveModelConfiguration(
   if (model && typeof model === "object") {
     const { modelName, ...clientOptions } = model;
     if (!modelName) {
-      throw new Error(
+      throw new StagehandInvalidArgumentError(
         "model.modelName is required when providing client options.",
       );
     }
@@ -216,6 +223,11 @@ export class V3 {
     this.llmProvider = new LLMProvider(this.logger);
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
+
+    // Validate that experimental and API are not both enabled
+    if (this.experimental && !this.disableAPI) {
+      throw new ExperimentalApiConflictError();
+    }
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
@@ -713,8 +725,9 @@ export class V3 {
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
           if (!apiKey || !projectId) {
-            throw new Error(
-              "BROWSERBASE credentials missing. Provide in your v3 constructor, or set BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID in your .env",
+            throw new MissingEnvironmentVariableError(
+              "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID",
+              "Browserbase environment",
             );
           }
           this.logger({
@@ -811,7 +824,7 @@ export class V3 {
         }
 
         const neverEnv: never = this.opts.env;
-        throw new Error(`Unsupported env: ${neverEnv}`);
+        throw new StagehandInitError(`Unsupported env: ${neverEnv}`);
       });
     } catch (error) {
       // Cleanup instanceLoggers map on init failure to prevent memory leak
@@ -873,8 +886,7 @@ export class V3 {
 
   async act(input: string | Action, options?: ActOptions): Promise<ActResult> {
     return await withInstanceLogContext(this.instanceId, async () => {
-      if (!this.actHandler)
-        throw new Error("V3 not initialized. Call init() before act().");
+      if (!this.actHandler) throw new StagehandNotInitializedError("act()");
 
       let actResult: ActResult;
 
@@ -911,7 +923,7 @@ export class V3 {
       }
       // instruction path
       if (typeof input !== "string" || !input.trim()) {
-        throw new Error(
+        throw new StagehandInvalidArgumentError(
           "act(): instruction string is required unless passing an Action",
         );
       }
@@ -1022,7 +1034,7 @@ export class V3 {
   ): Promise<unknown> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.extractHandler) {
-        throw new Error("V3 not initialized. Call init() before extract().");
+        throw new StagehandNotInitializedError("extract()");
       }
 
       // Normalize args
@@ -1049,7 +1061,9 @@ export class V3 {
       }
 
       if (!instruction && schema) {
-        throw new Error("extract(): schema provided without instruction");
+        throw new StagehandInvalidArgumentError(
+          "extract(): schema provided without instruction",
+        );
       }
 
       // If instruction without schema → defaultExtractSchema
@@ -1098,7 +1112,7 @@ export class V3 {
   ): Promise<Action[]> {
     return await withInstanceLogContext(this.instanceId, async () => {
       if (!this.observeHandler) {
-        throw new Error("V3 not initialized. Call init() before observe().");
+        throw new StagehandNotInitializedError("observe()");
       }
 
       // Normalize args
@@ -1150,7 +1164,7 @@ export class V3 {
   /** Return the browser-level CDP WebSocket endpoint. */
   connectURL(): string {
     if (this.state.kind === "UNINITIALIZED") {
-      throw new Error("V3 not initialized. Call await v3.init() first.");
+      throw new StagehandNotInitializedError("connectURL()");
     }
     return this.state.ws;
   }
@@ -1238,10 +1252,9 @@ export class V3 {
       const missing: string[] = [];
       if (!apiKey) missing.push("BROWSERBASE_API_KEY");
       if (!projectId) missing.push("BROWSERBASE_PROJECT_ID");
-      throw new Error(
-        `BROWSERBASE credentials missing. Provide in your v3 constructor, or set ${missing.join(
-          ", ",
-        )} in your .env`,
+      throw new MissingEnvironmentVariableError(
+        missing.join(", "),
+        "Browserbase",
       );
     }
 
@@ -1300,7 +1313,9 @@ export class V3 {
       return frameTree.frame.id;
     }
 
-    throw new Error("Unsupported page object passed to V3.act()");
+    throw new StagehandInvalidArgumentError(
+      "Unsupported page object passed to V3.act()",
+    );
   }
 
   private isPlaywrightPage(p: unknown): p is PlaywrightPage {
@@ -1334,9 +1349,7 @@ export class V3 {
     }
     const ctx = this.ctx;
     if (!ctx) {
-      throw new Error(
-        "V3 context not initialized. Call init() before resolving pages.",
-      );
+      throw new StagehandNotInitializedError("resolvePage()");
     }
     return await ctx.awaitActivePage();
   }
@@ -1349,24 +1362,30 @@ export class V3 {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Playwright page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Playwright page.",
+        );
       return page;
     }
     if (this.isPatchrightPage(input)) {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Playwright page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Patchright page.",
+        );
       return page;
     }
     if (this.isPuppeteerPage(input)) {
       const frameId = await this.resolveTopFrameId(input);
       const page = this.ctx!.resolvePageByMainFrameId(frameId);
       if (!page)
-        throw new Error("Failed to resolve V3 Page from Puppeteer page.");
+        throw new StagehandInitError(
+          "Failed to resolve V3 Page from Puppeteer page.",
+        );
       return page;
     }
-    throw new Error("Unsupported page object.");
+    throw new StagehandInvalidArgumentError("Unsupported page object.");
   }
 
   /**
@@ -1403,8 +1422,8 @@ export class V3 {
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
       if ((options?.integrations || options?.tools) && !this.experimental) {
-        throw new Error(
-          "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+        throw new ExperimentalNotConfiguredError(
+          "MCP integrations and custom tools",
         );
       }
 
@@ -1416,10 +1435,7 @@ export class V3 {
       const { modelName, isCua, clientOptions } = resolveModel(modelToUse);
 
       if (!isCua) {
-        throw new Error(
-          "To use the computer use agent, please provide a CUA model in the agent constructor or stagehand config. Try one of our supported CUA models: " +
-            AVAILABLE_CUA_MODELS.join(", "),
-        );
+        throw new CuaModelRequiredError(AVAILABLE_CUA_MODELS);
       }
 
       const agentConfigSignature =
@@ -1428,9 +1444,7 @@ export class V3 {
         execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
           withInstanceLogContext(this.instanceId, async () => {
             if (options?.integrations && !this.experimental) {
-              throw new Error(
-                "MCP integrations are experimental. Enable experimental: true in V3 options.",
-              );
+              throw new ExperimentalNotConfiguredError("MCP integrations");
             }
             const tools = options?.integrations
               ? await resolveTools(options.integrations, options.tools)
@@ -1526,8 +1540,8 @@ export class V3 {
       execute: async (instructionOrOptions: string | AgentExecuteOptions) =>
         withInstanceLogContext(this.instanceId, async () => {
           if ((options?.integrations || options?.tools) && !this.experimental) {
-            throw new Error(
-              "MCP integrations and custom tools are experimental. Enable experimental: true in V3 options.",
+            throw new ExperimentalNotConfiguredError(
+              "MCP integrations and custom tools",
             );
           }
 
