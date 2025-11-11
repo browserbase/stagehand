@@ -8,10 +8,11 @@ import {
   FunctionCall,
   Schema,
   Type,
+  GoogleGenAIOptions as ClientOptions,
 } from "@google/genai";
 
 import { LogLine } from "../types/public/logs";
-import { AvailableModel, ClientOptions } from "../types/public/model";
+import { AvailableModel } from "../types/public/model";
 import {
   validateZodSchema,
   toGeminiSchema,
@@ -71,7 +72,7 @@ export class GoogleClient extends LLMClient {
   }: {
     logger: (message: LogLine) => void; // Added logger type
     modelName: AvailableModel;
-    clientOptions?: ClientOptions; // Expecting { apiKey: string } here
+    clientOptions?: ClientOptions;
   }) {
     super(modelName);
     if (!clientOptions?.apiKey) {
@@ -79,7 +80,7 @@ export class GoogleClient extends LLMClient {
       clientOptions.apiKey = loadApiKeyFromEnv("google_legacy", logger);
     }
     this.clientOptions = clientOptions;
-    this.client = new GoogleGenAI({ apiKey: clientOptions.apiKey });
+    this.client = new GoogleGenAI(clientOptions);
     this.modelName = modelName;
     this.logger = logger;
     // Determine vision capability based on model name (adjust as needed)
