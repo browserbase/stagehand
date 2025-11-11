@@ -29,6 +29,7 @@ import {
   StagehandServerError,
   ExperimentalNotConfiguredError,
 } from "./types/public";
+import type { SerializableResponse } from "./types/private";
 
 /**
  * API response structure for replay metrics endpoint
@@ -210,8 +211,8 @@ export class StagehandAPIClient {
     url: string,
     options?: { waitUntil?: "load" | "domcontentloaded" | "networkidle" },
     frameId?: string,
-  ): Promise<void> {
-    return this.execute<void>({
+  ): Promise<SerializableResponse | null> {
+    return this.execute<SerializableResponse | null>({
       method: "navigate",
       args: { url, options, frameId },
     });

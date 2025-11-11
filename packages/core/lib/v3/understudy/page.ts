@@ -12,7 +12,7 @@ import { LoadState } from "../types/public/page";
 import { NetworkManager } from "./networkManager";
 import { LifecycleWatcher } from "./lifecycleWatcher";
 import { NavigationResponseTracker } from "./navigationResponseTracker";
-import { Response } from "./response";
+import { Response, isSerializableResponse } from "./response";
 import { ConsoleMessage, ConsoleListener } from "./consoleMessage";
 import type { StagehandAPIClient } from "../api";
 import type { LocalBrowserLaunchOptions } from "../types/public";
@@ -715,13 +715,20 @@ export class Page {
     try {
       // Route to API if available
       if (this.apiClient) {
-        await this.apiClient.goto(
+        const result = await this.apiClient.goto(
           url,
           { waitUntil: options?.waitUntil },
           this.mainFrameId(),
         );
         this._currentUrl = url;
-        return null;
+
+        if (isSerializableResponse(result)) {
+          return Response.fromSerializable(result, {
+            page: this,
+            session: this.mainSession,
+          });
+        }
+        return result;
       }
       const response =
         await this.mainSession.send<Protocol.Page.NavigateResponse>(
