@@ -9,10 +9,13 @@ const publicApiShape = {
   AnnotatedScreenshotText: Stagehand.AnnotatedScreenshotText,
   BrowserbaseSessionNotFoundError: Stagehand.BrowserbaseSessionNotFoundError,
   CaptchaTimeoutError: Stagehand.CaptchaTimeoutError,
+  ConnectionTimeoutError: Stagehand.ConnectionTimeoutError,
   ConsoleMessage: Stagehand.ConsoleMessage,
   ContentFrameNotFoundError: Stagehand.ContentFrameNotFoundError,
   CreateChatCompletionResponseError:
     Stagehand.CreateChatCompletionResponseError,
+  CuaModelRequiredError: Stagehand.CuaModelRequiredError,
+  ElementNotVisibleError: Stagehand.ElementNotVisibleError,
   ExperimentalApiConflictError: Stagehand.ExperimentalApiConflictError,
   ExperimentalNotConfiguredError: Stagehand.ExperimentalNotConfiguredError,
   HandlerNotInitializedError: Stagehand.HandlerNotInitializedError,
@@ -23,7 +26,10 @@ const publicApiShape = {
   MCPConnectionError: Stagehand.MCPConnectionError,
   MissingEnvironmentVariableError: Stagehand.MissingEnvironmentVariableError,
   MissingLLMConfigurationError: Stagehand.MissingLLMConfigurationError,
+  PageNotFoundError: Stagehand.PageNotFoundError,
   Response: Stagehand.Response,
+  ResponseBodyError: Stagehand.ResponseBodyError,
+  ResponseParseError: Stagehand.ResponseParseError,
   Stagehand: Stagehand.Stagehand,
   StagehandAPIError: Stagehand.StagehandAPIError,
   StagehandAPIUnauthorizedError: Stagehand.StagehandAPIUnauthorizedError,
@@ -47,6 +53,7 @@ const publicApiShape = {
   StagehandShadowSegmentEmptyError: Stagehand.StagehandShadowSegmentEmptyError,
   StagehandShadowSegmentNotFoundError:
     Stagehand.StagehandShadowSegmentNotFoundError,
+  TimeoutError: Stagehand.TimeoutError,
   UnsupportedAISDKModelProviderError:
     Stagehand.UnsupportedAISDKModelProviderError,
   UnsupportedModelError: Stagehand.UnsupportedModelError,
