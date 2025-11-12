@@ -122,7 +122,7 @@ jobs:
         run: pnpm run build
 
       - name: Run Vitest
-        run: pnpm run test:vitest
+        run: pnpm --filter @browserbasehq/stagehand run test:vitest
 
   run-e2e-local-tests:
     needs: [run-lint, run-build]
