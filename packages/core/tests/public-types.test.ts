@@ -11,7 +11,8 @@ const publicApiShape = {
   CaptchaTimeoutError: Stagehand.CaptchaTimeoutError,
   ConsoleMessage: Stagehand.ConsoleMessage,
   ContentFrameNotFoundError: Stagehand.ContentFrameNotFoundError,
-  CreateChatCompletionResponseError: Stagehand.CreateChatCompletionResponseError,
+  CreateChatCompletionResponseError:
+    Stagehand.CreateChatCompletionResponseError,
   ExperimentalApiConflictError: Stagehand.ExperimentalApiConflictError,
   ExperimentalNotConfiguredError: Stagehand.ExperimentalNotConfiguredError,
   HandlerNotInitializedError: Stagehand.HandlerNotInitializedError,
@@ -44,8 +45,10 @@ const publicApiShape = {
   StagehandServerError: Stagehand.StagehandServerError,
   StagehandShadowRootMissingError: Stagehand.StagehandShadowRootMissingError,
   StagehandShadowSegmentEmptyError: Stagehand.StagehandShadowSegmentEmptyError,
-  StagehandShadowSegmentNotFoundError: Stagehand.StagehandShadowSegmentNotFoundError,
-  UnsupportedAISDKModelProviderError: Stagehand.UnsupportedAISDKModelProviderError,
+  StagehandShadowSegmentNotFoundError:
+    Stagehand.StagehandShadowSegmentNotFoundError,
+  UnsupportedAISDKModelProviderError:
+    Stagehand.UnsupportedAISDKModelProviderError,
   UnsupportedModelError: Stagehand.UnsupportedModelError,
   UnsupportedModelProviderError: Stagehand.UnsupportedModelProviderError,
   V3: Stagehand.V3,
@@ -79,7 +82,7 @@ type PublicAPI = {
 };
 
 describe("Stagehand public API types", () => {
-  it('public API shape matches module exports', () => {
+  it("public API shape matches module exports", () => {
     const _check: PublicAPI = publicApiShape;
     void _check;
   });
