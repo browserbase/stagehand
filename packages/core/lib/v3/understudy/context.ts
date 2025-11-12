@@ -68,7 +68,6 @@ export class V3Context {
     },
   ): Promise<V3Context> {
     const conn = await CdpConnection.connect(wsUrl);
-    await conn.enableAutoAttach();
     const ctx = new V3Context(
       conn,
       opts?.env ?? "LOCAL",
@@ -101,6 +100,37 @@ export class V3Context {
       "waitForFirstTopLevelPage (no top-level Page)",
       timeoutMs,
     );
+  }
+
+  private async waitForInitialTopLevelTargets(
+    targetIds: TargetId[],
+    timeoutMs = 3000,
+  ): Promise<void> {
+    if (!targetIds.length) return;
+    const pending = new Set(targetIds);
+    const deadline = Date.now() + timeoutMs;
+    while (pending.size && Date.now() < deadline) {
+      for (const tid of Array.from(pending)) {
+        if (this.pagesByTarget.has(tid)) {
+          pending.delete(tid);
+        }
+      }
+      if (!pending.size) return;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    if (pending.size) {
+      v3Logger({
+        category: "ctx",
+        message: "Timed out waiting for existing top-level targets to attach",
+        level: 2,
+        auxiliary: {
+          remainingTargets: {
+            value: JSON.stringify(Array.from(pending)),
+            type: "object",
+          },
+        },
+      });
+    }
   }
 
   private async ensurePiercer(session: CDPSessionLike): Promise<void> {
@@ -306,6 +336,9 @@ export class V3Context {
       },
     );
 
+    // Only enable auto-attach after listeners are ready so replayed targets are captured.
+    await this.conn.enableAutoAttach();
+
     const targets = await this.conn.getTargets();
     for (const t of targets) {
       try {
@@ -314,6 +347,11 @@ export class V3Context {
         // ignore attach race
       }
     }
+
+    const topLevelTargetIds = targets
+      .filter((t) => isTopLevelPage(t))
+      .map((t) => t.targetId);
+    await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
   /**
