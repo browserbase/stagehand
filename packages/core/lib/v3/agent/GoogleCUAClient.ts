@@ -6,6 +6,7 @@ import {
   FunctionCall,
   GenerateContentConfig,
   Tool,
+  GoogleGenAIOptions,
 } from "@google/genai";
 import { LogLine } from "../types/public/logs";
 import {
@@ -42,6 +43,7 @@ export class GoogleCUAClient extends AgentClient {
     "ENVIRONMENT_BROWSER";
   private generateContentConfig: GenerateContentConfig;
   private tools?: ToolSet;
+  private baseURL?: string;
   constructor(
     type: AgentType,
     modelName: string,
@@ -58,11 +60,14 @@ export class GoogleCUAClient extends AgentClient {
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
       "";
+    this.baseURL = clientOptions?.baseURL as string | undefined;
 
     // Initialize the Google Generative AI client
-    this.client = new GoogleGenAI({
+    const genAIOptions: GoogleGenAIOptions = {
       apiKey: this.apiKey,
-    });
+      ...(this.baseURL ? { httpOptions: { baseUrl: this.baseURL } } : {}),
+    };
+    this.client = new GoogleGenAI(genAIOptions);
 
     // Get environment if specified
     if (
@@ -92,6 +97,7 @@ export class GoogleCUAClient extends AgentClient {
     // Store client options for reference
     this.clientOptions = {
       apiKey: this.apiKey,
+      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
     };
 
     // Initialize tools if provided
