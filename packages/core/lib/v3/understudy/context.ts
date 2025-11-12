@@ -120,7 +120,7 @@ export class V3Context {
       v3Logger({
         category: "ctx",
         message: "Timed out waiting for existing top-level targets to attach",
-        level: 1,
+        level: 2,
         auxiliary: {
           remainingTargets: {
             value: JSON.stringify(Array.from(pending)),
