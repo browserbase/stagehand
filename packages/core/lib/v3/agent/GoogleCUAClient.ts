@@ -466,7 +466,7 @@ export class GoogleCUAClient extends AgentClient {
         if (result.functionCalls.length > 0 || hasError) {
           // Filter out custom tool function calls as they've already been handled
           const computerUseFunctionCalls = result.functionCalls.filter(
-            (fc) => !isCustomTool(fc, this.tools, logger),
+            (fc) => !isCustomTool(fc, this.tools),
           );
 
           if (computerUseFunctionCalls.length > 0) {
@@ -890,8 +890,13 @@ export class GoogleCUAClient extends AgentClient {
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
-      const base64Image = await this.screenshotProvider();
-      return `data:image/png;base64,${base64Image}`;
+      try {
+        const base64Image = await this.screenshotProvider();
+        return `data:image/png;base64,${base64Image}`;
+      } catch (error) {
+        console.error("Error capturing screenshot:", error);
+        throw error;
+      }
     }
 
     throw new AgentScreenshotProviderError(
