@@ -73,6 +73,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gpt-4o-mini": "openai",
   "gpt-4o-2024-08-06": "openai",
   "gpt-4.5-preview": "openai",
+  "gpt-5.1-2025-11-13": "openai",
   "o1-preview": "openai",
   "claude-3-5-sonnet-latest": "anthropic",
   "claude-3-5-sonnet-20240620": "anthropic",

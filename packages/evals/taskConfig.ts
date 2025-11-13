@@ -32,6 +32,7 @@ const ALL_EVAL_MODELS = [
   "gpt-4o-mini",
   "gpt-4o",
   "gpt-4.5-preview",
+  "gpt-5.1-2025-11-13",
   "o3",
   "o3-mini",
   "o4-mini",
