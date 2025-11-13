@@ -39,6 +39,7 @@ export type AvailableModel =
   | "gpt-4o-mini"
   | "gpt-4o-2024-08-06"
   | "gpt-4.5-preview"
+  | "gpt-5.1-2025-11-13"
   | "o1-preview"
   | "claude-3-5-sonnet-latest"
   | "claude-3-5-sonnet-20241022"
