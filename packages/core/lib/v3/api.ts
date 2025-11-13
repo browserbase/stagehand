@@ -221,6 +221,11 @@ export class StagehandAPIClient {
     executeOptions: AgentExecuteOptions | string,
     frameId?: string,
   ): Promise<AgentResult> {
+    if (agentConfig.customLLMClient) {
+      throw new StagehandAPIError(
+        "customLLMClient is not supported in API mode. Remove the custom client or disable API execution.",
+      );
+    }
     // Check if integrations are being used in API mode
     if (agentConfig.integrations && agentConfig.integrations.length > 0) {
       throw new StagehandAPIError(

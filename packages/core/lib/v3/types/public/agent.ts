@@ -5,6 +5,7 @@ import { Page as PlaywrightPage } from "playwright-core";
 import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page";
+import type { LLMClient } from "../../llm/LLMClient";
 
 export interface AgentAction {
   type: string;
@@ -190,6 +191,10 @@ export type AgentConfig = {
    * The model to use for agent functionality
    */
   model?: string | AgentModelConfig<string>;
+  /**
+   * Provide a fully configured LLM client for the agent. Used when no model is supplied.
+   */
+  customLLMClient?: LLMClient;
   /**
    * The model to use for tool execution (observe/act calls within agent tools).
    * If not specified, inherits from the main model configuration.

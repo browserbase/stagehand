@@ -73,6 +73,20 @@ type ResolvedModelConfiguration = {
   clientOptions?: ClientOptions;
 };
 
+function getProviderFromModelName(modelName: string): string | undefined {
+  if (!modelName) {
+    return undefined;
+  }
+  if (modelName.includes("/")) {
+    return modelName.slice(0, modelName.indexOf("/"));
+  }
+  try {
+    return LLMProvider.getModelProvider(modelName as AvailableModel);
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveModelConfiguration(
   model?: V3Options["model"],
 ): ResolvedModelConfiguration {
@@ -209,7 +223,9 @@ export class V3 {
     } catch {
       // ignore
     }
-    const { modelName, clientOptions } = resolveModelConfiguration(opts.model);
+    const { modelName, clientOptions } = resolveModelConfiguration(
+      opts.model ?? DEFAULT_MODEL_NAME,
+    );
     this.modelName = modelName;
     this.experimental = opts.experimental ?? false;
     this.logInferenceToFile = opts.logInferenceToFile ?? false;
@@ -219,19 +235,20 @@ export class V3 {
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
-    if (opts.llmClient) {
+    const shouldUseCustomClient = !opts.model && !!opts.llmClient;
+    if (shouldUseCustomClient) {
       this.llmClient = opts.llmClient;
-      this.modelClientOptions = baseClientOptions;
+      this.modelName = opts.llmClient.modelName as AvailableModel;
+      this.modelClientOptions =
+        (opts.llmClient.clientOptions as ClientOptions) ?? ({} as ClientOptions);
       this.disableAPI = true;
     } else {
-      // Ensure API key is set
-      let apiKey = (baseClientOptions as { apiKey?: string }).apiKey;
+      this.modelClientOptions = baseClientOptions;
+      let apiKey = (this.modelClientOptions as { apiKey?: string }).apiKey;
       if (!apiKey) {
         try {
-          apiKey = loadApiKeyFromEnv(
-            this.modelName.split("/")[0], // "openai", "anthropic", etc
-            this.logger,
-          );
+          const provider = getProviderFromModelName(this.modelName);
+          apiKey = loadApiKeyFromEnv(provider, this.logger);
         } catch (error) {
           this.logger({
             category: "init",
@@ -242,11 +259,10 @@ export class V3 {
         }
       }
       this.modelClientOptions = {
-        ...baseClientOptions,
-        apiKey,
+        ...this.modelClientOptions,
+        ...(apiKey ? { apiKey } : {}),
       } as ClientOptions;
 
-      // Get the default client for this model
       this.llmClient = this.llmProvider.getClient(
         this.modelName,
         this.modelClientOptions,
@@ -324,17 +340,18 @@ export class V3 {
       return this.llmClient;
     }
 
-    const overrideProvider = String(modelName).split("/")[0];
-    const baseProvider = String(this.modelName).split("/")[0];
+    const overrideProvider = getProviderFromModelName(String(modelName));
+    const baseProvider = getProviderFromModelName(String(this.modelName));
 
     const mergedOptions = {
-      ...(overrideProvider === baseProvider ? this.modelClientOptions : {}),
+      ...(overrideProvider && baseProvider && overrideProvider === baseProvider
+        ? this.modelClientOptions
+        : {}),
       ...(clientOptions ?? {}),
     } as ClientOptions;
 
-    const providerKey = overrideProvider;
     if (!(mergedOptions as { apiKey?: string }).apiKey) {
-      const apiKey = loadApiKeyFromEnv(providerKey, this.logger);
+      const apiKey = loadApiKeyFromEnv(overrideProvider, this.logger);
       if (apiKey) {
         (mergedOptions as { apiKey?: string }).apiKey = apiKey;
       }
@@ -1369,6 +1386,16 @@ export class V3 {
     throw new Error("Unsupported page object.");
   }
 
+  private resolveAgentLlmClient(options?: AgentConfig): LLMClient {
+    if (options?.model) {
+      return this.resolveLlmClient(options.model);
+    }
+    if (options?.customLLMClient) {
+      return options.customLLMClient;
+    }
+    return this.llmClient;
+  }
+
   /**
    * Create a v3 agent instance (AISDK tool-based) with execute().
    * Mirrors the v2 Stagehand.agent() tool mode (no CUA provider here).
@@ -1378,9 +1405,22 @@ export class V3 {
       instructionOrOptions: string | AgentExecuteOptions,
     ) => Promise<AgentResult>;
   } {
+    const serializedAgentOptions = (() => {
+      if (!options) {
+        return "{}";
+      }
+      const { customLLMClient, ...rest } = options;
+      return JSON.stringify({
+        ...rest,
+        ...(customLLMClient
+          ? { customLLMClient: { modelName: customLLMClient.modelName } }
+          : {}),
+      });
+    })();
+
     this.logger({
       category: "agent",
-      message: `Creating v3 agent instance with options: ${JSON.stringify(options)}`,
+      message: `Creating v3 agent instance with options: ${serializedAgentOptions}`,
       level: 1,
       auxiliary: {
         cua: { value: options?.cua ? "true" : "false", type: "boolean" },
@@ -1399,6 +1439,18 @@ export class V3 {
         }),
       },
     });
+
+    if (options?.customLLMClient && options?.cua) {
+      throw new Error(
+        "customLLMClient is not supported with cua agents. Provide a supported CUA model instead.",
+      );
+    }
+
+    if (options?.customLLMClient && this.apiClient && !this.experimental) {
+      throw new Error(
+        "customLLMClient is not supported when using the Stagehand API. Disable API mode or omit the custom client.",
+      );
+    }
 
     // If CUA is enabled, use the computer-use agent path
     if (options?.cua) {
@@ -1535,11 +1587,7 @@ export class V3 {
             ? await resolveTools(options.integrations, options.tools)
             : (options?.tools ?? {});
 
-          // Resolve the LLM client for the agent based on the model parameter
-          // Use the agent's model if specified, otherwise fall back to the default
-          const agentLlmClient = options?.model
-            ? this.resolveLlmClient(options.model)
-            : this.llmClient;
+          const agentLlmClient = this.resolveAgentLlmClient(options);
 
           const handler = new V3AgentHandler(
             this,

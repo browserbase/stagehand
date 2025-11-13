@@ -112,6 +112,9 @@ export class AgentCache {
       systemPrompt: this.getSystemPrompt() ?? "",
       agent: {
         cua: agentOptions?.cua ?? false,
+        customClientModel: agentOptions?.customLLMClient
+          ? agentOptions.customLLMClient.modelName
+          : null,
         model: serializedModel ?? null,
         executionModel: agentOptions?.cua ? null : serializedExecutionModel,
         systemPrompt: agentOptions?.systemPrompt ?? null,
