@@ -466,7 +466,7 @@ export class GoogleCUAClient extends AgentClient {
         if (result.functionCalls.length > 0 || hasError) {
           // Filter out custom tool function calls as they've already been handled
           const computerUseFunctionCalls = result.functionCalls.filter(
-            (fc) => !isCustomTool(fc, this.tools),
+            (fc) => !isCustomTool(fc, this.tools, logger),
           );
 
           if (computerUseFunctionCalls.length > 0) {
