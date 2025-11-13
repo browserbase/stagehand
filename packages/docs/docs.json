@@ -274,184 +274,32 @@
   },
   "redirects": [
     {
-      "source": "/first-steps/introduction",
-      "destination": "/v3/first-steps/introduction"
+      "source": "/first-steps/:slug*",
+      "destination": "/v3/first-steps/:slug*"
     },
     {
-      "source": "/first-steps/quickstart",
-      "destination": "/v3/first-steps/quickstart"
+      "source": "/basics/:slug*",
+      "destination": "/v3/basics/:slug*"
     },
     {
-      "source": "/first-steps/installation",
-      "destination": "/v3/first-steps/installation"
+      "source": "/configuration/:slug*",
+      "destination": "/v3/configuration/:slug*"
     },
     {
-      "source": "/first-steps/ai-rules",
-      "destination": "/v3/first-steps/ai-rules"
+      "source": "/best-practices/:slug*",
+      "destination": "/v3/best-practices/:slug*"
     },
     {
-      "source": "/basics/act",
-      "destination": "/v3/basics/act"
+      "source": "/integrations/mcp/:slug*",
+      "destination": "/v3/integrations/mcp/:slug*"
     },
     {
-      "source": "/basics/extract",
-      "destination": "/v3/basics/extract"
+      "source": "/references/:slug*",
+      "destination": "/v3/references/:slug*"
     },
     {
-      "source": "/basics/observe",
-      "destination": "/v3/basics/observe"
-    },
-    {
-      "source": "/basics/agent",
-      "destination": "/v3/basics/agent"
-    },
-    {
-      "source": "/basics/evals",
-      "destination": "/v3/basics/evals"
-    },
-    {
-      "source": "/configuration/browser",
-      "destination": "/v3/configuration/browser"
-    },
-    {
-      "source": "/configuration/observability",
-      "destination": "/v3/configuration/observability"
-    },
-    {
-      "source": "/configuration/logging",
-      "destination": "/v3/configuration/logging"
-    },
-    {
-      "source": "/configuration/models",
-      "destination": "/v3/configuration/models"
-    },
-    {
-      "source": "/best-practices/caching",
-      "destination": "/v3/best-practices/caching"
-    },
-    {
-      "source": "/best-practices/cost-optimization",
-      "destination": "/v3/best-practices/cost-optimization"
-    },
-    {
-      "source": "/best-practices/deterministic-agent",
-      "destination": "/v3/best-practices/deterministic-agent"
-    },
-    {
-      "source": "/best-practices/using-multiple-tabs",
-      "destination": "/v3/best-practices/using-multiple-tabs"
-    },
-    {
-      "source": "/best-practices/deployments",
-      "destination": "/v3/best-practices/deployments"
-    },
-    {
-      "source": "/best-practices/history",
-      "destination": "/v3/best-practices/history"
-    },
-    {
-      "source": "/best-practices/computer-use",
-      "destination": "/v3/best-practices/computer-use"
-    },
-    {
-      "source": "/best-practices/contributing",
-      "destination": "/v3/best-practices/contributing"
-    },
-    {
-      "source": "/best-practices/agent-fallbacks",
-      "destination": "/v3/best-practices/agent-fallbacks"
-    },
-    {
-      "source": "/best-practices/prompting-best-practices",
-      "destination": "/v3/best-practices/prompting-best-practices"
-    },
-    {
-      "source": "/best-practices/mcp-integrations",
-      "destination": "/v3/best-practices/mcp-integrations"
-    },
-    {
-      "source": "/best-practices/speed-optimization",
-      "destination": "/v3/best-practices/speed-optimization"
-    },
-    {
-      "source": "/integrations/mcp/introduction",
-      "destination": "/v3/integrations/mcp/introduction"
-    },
-    {
-      "source": "/integrations/mcp/setup",
-      "destination": "/v3/integrations/mcp/setup"
-    },
-    {
-      "source": "/integrations/mcp/tools",
-      "destination": "/v3/integrations/mcp/tools"
-    },
-    {
-      "source": "/integrations/mcp/configuration",
-      "destination": "/v3/integrations/mcp/configuration"
-    },
-    {
-      "source": "/integrations/crew-ai/introduction",
-      "destination": "/v3/integrations/crew-ai/introduction"
-    },
-    {
-      "source": "/integrations/crew-ai/configuration",
-      "destination": "/v3/integrations/crew-ai/configuration"
-    },
-    {
-      "source": "/integrations/langchain/introduction",
-      "destination": "/v3/integrations/langchain/introduction"
-    },
-    {
-      "source": "/integrations/langchain/configuration",
-      "destination": "/v3/integrations/langchain/configuration"
-    },
-    {
-      "source": "/integrations/vercel/introduction",
-      "destination": "/v3/integrations/vercel/introduction"
-    },
-    {
-      "source": "/integrations/vercel/configuration",
-      "destination": "/v3/integrations/vercel/configuration"
-    },
-    {
-      "source": "/references/stagehand",
-      "destination": "/v3/references/stagehand"
-    },
-    {
-      "source": "/references/page",
-      "destination": "/v3/references/page"
-    },
-    {
-      "source": "/references/context",
-      "destination": "/v3/references/context"
-    },
-    {
-      "source": "/references/act",
-      "destination": "/v3/references/act"
-    },
-    {
-      "source": "/references/extract",
-      "destination": "/v3/references/extract"
-    },
-    {
-      "source": "/references/observe",
-      "destination": "/v3/references/observe"
-    },
-    {
-      "source": "/references/agent",
-      "destination": "/v3/references/agent"
-    },
-    {
-      "source": "/references/locator",
-      "destination": "/v3/references/locator"
-    },
-    {
-      "source": "/references/deeplocator",
-      "destination": "/v3/references/deeplocator"
-    },
-    {
-      "source": "/migrations/v2",
-      "destination": "/v3/migrations/v2"
+      "source": "/migrations/:slug*",
+      "destination": "/v3/migrations/:slug*"
     }
   ]
 }
