@@ -40,8 +40,10 @@ export class AISdkClient extends LLMClient {
 
   async createChatCompletion<T = ChatCompletion>({
     options,
+    logger,
   }: CreateChatCompletionOptions): Promise<T> {
-    this.logger?.({
+    const effectiveLogger = logger ?? this.logger;
+    effectiveLogger?.({
       category: "aisdk",
       message: "creating chat completion",
       level: 2,
@@ -145,7 +147,7 @@ export class AISdkClient extends LLMClient {
         });
       } catch (err) {
         if (NoObjectGeneratedError.isInstance(err)) {
-          this.logger?.({
+          effectiveLogger?.({
             category: "AISDK error",
             message: err.message,
             level: 0,
@@ -191,7 +193,7 @@ export class AISdkClient extends LLMClient {
         },
       } as T;
 
-      this.logger?.({
+      effectiveLogger?.({
         category: "aisdk",
         message: "response",
         level: 1,
@@ -277,7 +279,7 @@ export class AISdkClient extends LLMClient {
       },
     } as T;
 
-    this.logger?.({
+    effectiveLogger?.({
       category: "aisdk",
       message: "response",
       level: 2,
