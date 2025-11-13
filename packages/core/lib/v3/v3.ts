@@ -59,7 +59,6 @@ import {
   PatchrightPage,
   PlaywrightPage,
   PuppeteerPage,
-  ExperimentalApiConflictError,
   ExperimentalNotConfiguredError,
   CuaModelRequiredError,
   StagehandInvalidArgumentError,
@@ -224,10 +223,6 @@ export class V3 {
     this.domSettleTimeoutMs = opts.domSettleTimeout;
     this.disableAPI = opts.disableAPI ?? false;
 
-    // Validate that experimental and API are not both enabled
-    if (this.experimental && !this.disableAPI) {
-      throw new ExperimentalApiConflictError();
-    }
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
