@@ -66,14 +66,8 @@ export class ObserveHandler {
     const doObserve = async (): Promise<Action[]> => {
       v3Logger({
         category: "observation",
-        message: "starting observation",
+        message: `[observe] ${effectiveInstruction}`,
         level: 1,
-        auxiliary: {
-          instruction: {
-            value: effectiveInstruction,
-            type: "string",
-          },
-        },
       });
 
       // Build the hybrid snapshot (a11y-centric text tree + lookup maps)

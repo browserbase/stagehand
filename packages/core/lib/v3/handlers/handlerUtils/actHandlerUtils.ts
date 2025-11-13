@@ -103,7 +103,7 @@ export async function performUnderstudyMethod(
       }
     }
 
-    await handlePossibleNavigation("action", selectorRaw, initialUrl, frame);
+    await handlePossibleNavigation(initialUrl, frame);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -628,7 +628,7 @@ export async function waitForDomNetworkQuiet(
           v3Logger({
             category: "dom",
             message: "⏳ forcing completion of stalled iframe document",
-            level: 1,
+            level: 2,
             auxiliary: {
               url: { value: (m.url ?? "").slice(0, 120), type: "string" },
             },
@@ -671,16 +671,13 @@ export async function waitForDomNetworkQuiet(
 }
 
 async function handlePossibleNavigation(
-  actionDescription: string,
-  xpath: string,
   initialUrl: string,
   frame: Frame,
 ): Promise<void> {
   v3Logger({
     category: "action",
-    message: `${actionDescription}, checking for page navigation`,
+    message: `checking for page navigation`,
     level: 1,
-    auxiliary: { xpath: { value: xpath, type: "string" } },
   });
 
   // We only have a frame-scoped session, so detect navigation by URL change.
@@ -690,14 +687,14 @@ async function handlePossibleNavigation(
     v3Logger({
       category: "action",
       message: "new page (frame) URL detected",
-      level: 1,
+      level: 2,
       auxiliary: { url: { value: afterUrl, type: "string" } },
     });
   } else {
     v3Logger({
       category: "action",
       message: "no new (frame) URL detected",
-      level: 1,
+      level: 2,
       auxiliary: { url: { value: afterUrl, type: "string" } },
     });
   }

@@ -194,7 +194,7 @@ export class AISdkClient extends LLMClient {
       this.logger?.({
         category: "aisdk",
         message: "response",
-        level: 1,
+        level: 2,
         auxiliary: {
           response: {
             value: JSON.stringify({
