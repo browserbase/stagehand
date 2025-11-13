@@ -33,10 +33,10 @@ export async function executeGoogleCustomTool(
       message: `Executing custom tool: ${toolName}`,
       level: 1,
       auxiliary: {
-        toolName,
-        toolCallId,
-        arguments: toolArgs,
-        functionCallName: functionCall.name,
+        toolName: { value: toolName, type: "string" as const },
+        toolCallId: { value: toolCallId, type: "string" as const },
+        arguments: { value: JSON.stringify(toolArgs), type: "object" as const },
+        functionCallName: { value: functionCall.name, type: "string" as const },
       },
     });
 
@@ -48,8 +48,11 @@ export async function executeGoogleCustomTool(
         message: errorMessage,
         level: 0,
         auxiliary: {
-          toolName,
-          availableTools: Object.keys(tools),
+          toolName: { value: toolName, type: "string" as const },
+          availableTools: {
+            value: JSON.stringify(Object.keys(tools)),
+            type: "object" as const,
+          },
         },
       });
       throw new Error(errorMessage);
@@ -60,9 +63,12 @@ export async function executeGoogleCustomTool(
       message: `Tool ${toolName} found, executing with ${Object.keys(toolArgs).length} argument(s)`,
       level: 2,
       auxiliary: {
-        toolName,
-        toolCallId,
-        argumentCount: Object.keys(toolArgs).length,
+        toolName: { value: toolName, type: "string" as const },
+        toolCallId: { value: toolCallId, type: "string" as const },
+        argumentCount: {
+          value: String(Object.keys(toolArgs).length),
+          type: "integer" as const,
+        },
       },
     });
 
@@ -80,11 +86,11 @@ export async function executeGoogleCustomTool(
       message: `Tool ${toolName} completed successfully in ${executionTime}ms`,
       level: 1,
       auxiliary: {
-        toolName,
-        toolCallId,
-        executionTime: { value: String(executionTime), unit: "ms" },
-        resultSize: { value: String(resultSize), unit: "bytes" },
-        result: toolResult,
+        toolName: { value: toolName, type: "string" as const },
+        toolCallId: { value: toolCallId, type: "string" as const },
+        executionTime: { value: `${executionTime}ms`, type: "string" as const },
+        resultSize: { value: `${resultSize} bytes`, type: "string" as const },
+        result: { value: JSON.stringify(toolResult), type: "object" as const },
       },
     });
 
@@ -117,13 +123,15 @@ export async function executeGoogleCustomTool(
       message: `Error executing custom tool ${toolName}: ${errorMessage}`,
       level: 0,
       auxiliary: {
-        toolName,
-        toolCallId,
-        executionTime: { value: String(executionTime), unit: "ms" },
-        errorType,
-        errorMessage,
-        ...(errorStack ? { errorStack } : {}),
-        arguments: toolArgs,
+        toolName: { value: toolName, type: "string" as const },
+        toolCallId: { value: toolCallId, type: "string" as const },
+        executionTime: { value: `${executionTime}ms`, type: "string" as const },
+        errorType: { value: errorType, type: "string" as const },
+        errorMessage: { value: errorMessage, type: "string" as const },
+        ...(errorStack
+          ? { errorStack: { value: errorStack, type: "string" as const } }
+          : {}),
+        arguments: { value: JSON.stringify(toolArgs), type: "object" as const },
       },
     });
 
@@ -160,9 +168,12 @@ export function isCustomTool(
       message: `Checking if function call "${functionCall.name}" is a custom tool: ${isCustom}`,
       level: 2,
       auxiliary: {
-        functionCallName: functionCall.name,
-        isCustomTool: isCustom,
-        availableCustomTools: tools ? Object.keys(tools) : [],
+        functionCallName: { value: functionCall.name, type: "string" as const },
+        isCustomTool: { value: String(isCustom), type: "boolean" as const },
+        availableCustomTools: {
+          value: JSON.stringify(tools ? Object.keys(tools) : []),
+          type: "object" as const,
+        },
       },
     });
   }
@@ -186,8 +197,11 @@ export function convertToolSetToFunctionDeclarations(
       message: `Converting ${toolCount} tool(s) to Google FunctionDeclarations`,
       level: 2,
       auxiliary: {
-        toolCount,
-        toolNames: Object.keys(tools),
+        toolCount: { value: String(toolCount), type: "integer" as const },
+        toolNames: {
+          value: JSON.stringify(Object.keys(tools)),
+          type: "object" as const,
+        },
       },
     });
   }
@@ -214,12 +228,21 @@ export function convertToolSetToFunctionDeclarations(
       message: `Converted ${functionDeclarations.length} of ${toolCount} tool(s) to FunctionDeclarations`,
       level: functionDeclarations.length === toolCount ? 2 : 1,
       auxiliary: {
-        successfulConversions: functionDeclarations.length,
-        totalTools: toolCount,
+        successfulConversions: {
+          value: String(functionDeclarations.length),
+          type: "integer" as const,
+        },
+        totalTools: { value: String(toolCount), type: "integer" as const },
         ...(failedConversions.length > 0
           ? {
-              failedConversions,
-              warning: "Some tools failed to convert and were excluded",
+              failedConversions: {
+                value: JSON.stringify(failedConversions),
+                type: "object" as const,
+              },
+              warning: {
+                value: "Some tools failed to convert and were excluded",
+                type: "string" as const,
+              },
             }
           : {}),
       },
@@ -244,8 +267,11 @@ function convertToolToFunctionDeclaration(
         message: `Converting tool "${name}" to FunctionDeclaration`,
         level: 2,
         auxiliary: {
-          toolName: name,
-          hasDescription: !!tool.description,
+          toolName: { value: name, type: "string" as const },
+          hasDescription: {
+            value: String(!!tool.description),
+            type: "boolean" as const,
+          },
         },
       });
     }
@@ -268,12 +294,21 @@ function convertToolToFunctionDeclaration(
         message: `Tool "${name}" schema converted: ${propertyCount} property(ies), ${requiredCount} required`,
         level: 2,
         auxiliary: {
-          toolName: name,
-          propertyCount,
-          requiredCount,
-          properties: jsonSchema.properties
-            ? Object.keys(jsonSchema.properties)
-            : [],
+          toolName: { value: name, type: "string" as const },
+          propertyCount: {
+            value: String(propertyCount),
+            type: "integer" as const,
+          },
+          requiredCount: {
+            value: String(requiredCount),
+            type: "integer" as const,
+          },
+          properties: {
+            value: JSON.stringify(
+              jsonSchema.properties ? Object.keys(jsonSchema.properties) : [],
+            ),
+            type: "object" as const,
+          },
         },
       });
     }
@@ -296,9 +331,15 @@ function convertToolToFunctionDeclaration(
         message: `Successfully converted tool "${name}" to FunctionDeclaration`,
         level: 2,
         auxiliary: {
-          toolName: name,
-          parameterType: parameters.type,
-          parameterCount: Object.keys(parameters.properties || {}).length,
+          toolName: { value: name, type: "string" as const },
+          parameterType: {
+            value: String(parameters.type),
+            type: "string" as const,
+          },
+          parameterCount: {
+            value: String(Object.keys(parameters.properties || {}).length),
+            type: "integer" as const,
+          },
         },
       });
     }
@@ -317,11 +358,11 @@ function convertToolToFunctionDeclaration(
         message: `Failed to convert tool "${name}" to FunctionDeclaration: ${errorMessage}`,
         level: 0,
         auxiliary: {
-          toolName: name,
-          errorType,
-          errorMessage,
+          toolName: { value: name, type: "string" as const },
+          errorType: { value: errorType, type: "string" as const },
+          errorMessage: { value: errorMessage, type: "string" as const },
           ...(error instanceof Error && error.stack
-            ? { errorStack: error.stack }
+            ? { errorStack: { value: error.stack, type: "string" as const } }
             : {}),
         },
       });
@@ -382,9 +423,17 @@ function convertJsonSchemaToGoogleParameters(
       message: `Converted ${Object.keys(properties).length} property type(s) for ${toolName || "tool"}`,
       level: 2,
       auxiliary: {
-        ...(toolName ? { toolName } : {}),
-        typeMappings,
-        propertyCount: Object.keys(properties).length,
+        ...(toolName
+          ? { toolName: { value: toolName, type: "string" as const } }
+          : {}),
+        typeMappings: {
+          value: JSON.stringify(typeMappings),
+          type: "object" as const,
+        },
+        propertyCount: {
+          value: String(Object.keys(properties).length),
+          type: "integer" as const,
+        },
       },
     });
   }
@@ -435,11 +484,23 @@ function mapJsonTypeToGoogleType(
           message: `Unknown JSON schema type "${jsonType}", defaulting to STRING`,
           level: 1,
           auxiliary: {
-            ...(toolName ? { toolName } : {}),
-            ...(propertyName ? { propertyName } : {}),
-            originalType: jsonType,
-            mappedType: "STRING",
-            warning: "Type mapping fallback used",
+            ...(toolName
+              ? { toolName: { value: toolName, type: "string" as const } }
+              : {}),
+            ...(propertyName
+              ? {
+                  propertyName: {
+                    value: propertyName,
+                    type: "string" as const,
+                  },
+                }
+              : {}),
+            originalType: { value: jsonType, type: "string" as const },
+            mappedType: { value: "STRING", type: "string" as const },
+            warning: {
+              value: "Type mapping fallback used",
+              type: "string" as const,
+            },
           },
         });
       }
@@ -457,10 +518,14 @@ function mapJsonTypeToGoogleType(
       message: `Mapped JSON type "${jsonType}" to Google type "${Type[mappedType]}"`,
       level: 2,
       auxiliary: {
-        ...(toolName ? { toolName } : {}),
-        ...(propertyName ? { propertyName } : {}),
-        originalType: jsonType,
-        mappedType: Type[mappedType],
+        ...(toolName
+          ? { toolName: { value: toolName, type: "string" as const } }
+          : {}),
+        ...(propertyName
+          ? { propertyName: { value: propertyName, type: "string" as const } }
+          : {}),
+        originalType: { value: jsonType, type: "string" as const },
+        mappedType: { value: Type[mappedType], type: "string" as const },
       },
     });
   }

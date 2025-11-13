@@ -369,71 +369,67 @@ export class OpenAICUAClient extends AgentClient {
     responseId: string;
     usage: Record<string, number>;
   }> {
-    try {
-      // Create the request parameters
-      const requestParams: Record<string, unknown> = {
-        model: this.modelName,
-        tools: [
-          {
-            type: "computer_use_preview",
-            display_width: this.currentViewport.width,
-            display_height: this.currentViewport.height,
-            environment: this.environment,
-          },
-        ],
-        input: inputItems,
-        truncation: "auto",
-      };
+    // Create the request parameters
+    const requestParams: Record<string, unknown> = {
+      model: this.modelName,
+      tools: [
+        {
+          type: "computer_use_preview",
+          display_width: this.currentViewport.width,
+          display_height: this.currentViewport.height,
+          environment: this.environment,
+        },
+      ],
+      input: inputItems,
+      truncation: "auto",
+    };
 
-      // Add custom tools if available
-      if (this.tools && Object.keys(this.tools).length > 0) {
-        const customTools = Object.entries(this.tools).map(([name, tool]) => ({
-          type: "function" as const,
+    // Add custom tools if available
+    if (this.tools && Object.keys(this.tools).length > 0) {
+      const customTools = Object.entries(this.tools).map(([name, tool]) => ({
+        type: "function" as const,
+        name,
+        function: {
           name,
-          function: {
-            name,
-            description: tool.description,
-            parameters: tool.inputSchema,
-          },
-        }));
+          description: tool.description,
+          parameters: tool.inputSchema,
+        },
+      }));
 
-        requestParams.tools = [
-          ...(requestParams.tools as Record<string, unknown>[]),
-          ...customTools,
-        ];
-      }
-
-      // Add previous_response_id if available
-      if (previousResponseId) {
-        requestParams.previous_response_id = previousResponseId;
-      }
-
-      const startTime = Date.now();
-      // Create the response using the OpenAI Responses API
-      // @ts-expect-error - Force type to match what the OpenAI SDK expects
-      const response = await this.client.responses.create(requestParams);
-      const endTime = Date.now();
-      const elapsedMs = endTime - startTime;
-
-      // Extract only the input_tokens and output_tokens
-      const usage = {
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        inference_time_ms: elapsedMs,
-      };
-
-      // Store the response ID for future use
-      this.lastResponseId = response.id;
-
-      // Return the output and response ID
-      return {
-        output: response.output as unknown as ResponseItem[],
-        responseId: response.id,
-        usage,
-      };
-    } catch (error) {
-      throw error;
+      requestParams.tools = [
+        ...(requestParams.tools as Record<string, unknown>[]),
+        ...customTools,
+      ];
     }
+
+    // Add previous_response_id if available
+    if (previousResponseId) {
+      requestParams.previous_response_id = previousResponseId;
+    }
+
+    const startTime = Date.now();
+    // Create the response using the OpenAI Responses API
+    // @ts-expect-error - Force type to match what the OpenAI SDK expects
+    const response = await this.client.responses.create(requestParams);
+    const endTime = Date.now();
+    const elapsedMs = endTime - startTime;
+
+    // Extract only the input_tokens and output_tokens
+    const usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      inference_time_ms: elapsedMs,
+    };
+
+    // Store the response ID for future use
+    this.lastResponseId = response.id;
+
+    // Return the output and response ID
+    return {
+      output: response.output as unknown as ResponseItem[],
+      responseId: response.id,
+      usage,
+    };
   }
 
   async takeAction(

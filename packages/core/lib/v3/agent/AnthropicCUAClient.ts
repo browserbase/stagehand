@@ -402,107 +402,103 @@ export class AnthropicCUAClient extends AgentClient {
     id: string;
     usage: Record<string, number>;
   }> {
-    try {
-      // For the API request, we use the inputItems directly
-      // These should already be properly formatted as a sequence of user/assistant messages
-      const messages: AnthropicMessage[] = [];
+    // For the API request, we use the inputItems directly
+    // These should already be properly formatted as a sequence of user/assistant messages
+    const messages: AnthropicMessage[] = [];
 
-      for (const item of inputItems) {
-        if ("role" in item) {
-          // Skip system messages as Anthropic requires system as a top-level parameter
-          if (item.role !== "system") {
-            messages.push(item);
-          }
+    for (const item of inputItems) {
+      if ("role" in item) {
+        // Skip system messages as Anthropic requires system as a top-level parameter
+        if (item.role !== "system") {
+          messages.push(item);
         }
-        // Note: We don't need special handling for tool_result items here anymore
-        // as they should already be properly wrapped in user messages
       }
-
-      // Configure thinking capability if available
-      const thinking = this.thinkingBudget
-        ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
-        : undefined;
-
-      // Create the request parameters
-      const requestParams: Record<string, unknown> = {
-        model: this.modelName,
-        max_tokens: 4096,
-        messages: messages,
-        tools: [
-          {
-            type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
-            name: "computer",
-            display_width_px: this.currentViewport.width,
-            display_height_px: this.currentViewport.height,
-            display_number: 1,
-          },
-        ],
-        betas: ["computer-use-2025-01-24"],
-      };
-
-      // Add custom tools if available
-      if (this.tools && Object.keys(this.tools).length > 0) {
-        const customTools = Object.entries(this.tools).map(([name, tool]) => {
-          // Convert Zod schema to proper JSON schema format for Anthropic
-          const jsonSchema = zodToJsonSchema(tool.inputSchema as z.ZodType) as {
-            properties?: Record<string, unknown>;
-            required?: string[];
-          };
-
-          const inputSchema = {
-            type: "object",
-            properties: jsonSchema.properties || {},
-            required: jsonSchema.required || [],
-          };
-
-          return {
-            name,
-            description: tool.description,
-            input_schema: inputSchema,
-          };
-        });
-
-        requestParams.tools = [
-          ...(requestParams.tools as Record<string, unknown>[]),
-          ...customTools,
-        ];
-      }
-
-      // Add system parameter if provided
-      if (this.userProvidedInstructions) {
-        requestParams.system = this.userProvidedInstructions;
-      }
-
-      // Add thinking parameter if available
-      if (thinking) {
-        requestParams.thinking = thinking;
-      }
-
-      const startTime = Date.now();
-      // Create the message using the Anthropic Messages API
-      // @ts-expect-error - The Anthropic SDK types are stricter than what we need
-      const response = await this.client.beta.messages.create(requestParams);
-      const endTime = Date.now();
-      const elapsedMs = endTime - startTime;
-      const usage = {
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        inference_time_ms: elapsedMs,
-      };
-
-      // Store the message ID for future use
-      this.lastMessageId = response.id;
-
-      // Return the content and message ID
-      return {
-        // Cast the response content to our internal type
-        content: response.content as unknown as AnthropicContentBlock[],
-        id: response.id,
-        usage,
-      };
-    } catch (error) {
-      throw error;
+      // Note: We don't need special handling for tool_result items here anymore
+      // as they should already be properly wrapped in user messages
     }
+
+    // Configure thinking capability if available
+    const thinking = this.thinkingBudget
+      ? { type: "enabled" as const, budget_tokens: this.thinkingBudget }
+      : undefined;
+
+    // Create the request parameters
+    const requestParams: Record<string, unknown> = {
+      model: this.modelName,
+      max_tokens: 4096,
+      messages: messages,
+      tools: [
+        {
+          type: "computer_20250124", // Use the latest version for Claude 3.7 Sonnet
+          name: "computer",
+          display_width_px: this.currentViewport.width,
+          display_height_px: this.currentViewport.height,
+          display_number: 1,
+        },
+      ],
+      betas: ["computer-use-2025-01-24"],
+    };
+
+    // Add custom tools if available
+    if (this.tools && Object.keys(this.tools).length > 0) {
+      const customTools = Object.entries(this.tools).map(([name, tool]) => {
+        // Convert Zod schema to proper JSON schema format for Anthropic
+        const jsonSchema = zodToJsonSchema(tool.inputSchema as z.ZodType) as {
+          properties?: Record<string, unknown>;
+          required?: string[];
+        };
+
+        const inputSchema = {
+          type: "object",
+          properties: jsonSchema.properties || {},
+          required: jsonSchema.required || [],
+        };
+
+        return {
+          name,
+          description: tool.description,
+          input_schema: inputSchema,
+        };
+      });
+
+      requestParams.tools = [
+        ...(requestParams.tools as Record<string, unknown>[]),
+        ...customTools,
+      ];
+    }
+
+    // Add system parameter if provided
+    if (this.userProvidedInstructions) {
+      requestParams.system = this.userProvidedInstructions;
+    }
+
+    // Add thinking parameter if available
+    if (thinking) {
+      requestParams.thinking = thinking;
+    }
+
+    const startTime = Date.now();
+    // Create the message using the Anthropic Messages API
+    // @ts-expect-error - The Anthropic SDK types are stricter than what we need
+    const response = await this.client.beta.messages.create(requestParams);
+    const endTime = Date.now();
+    const elapsedMs = endTime - startTime;
+    const usage = {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+      inference_time_ms: elapsedMs,
+    };
+
+    // Store the message ID for future use
+    this.lastMessageId = response.id;
+
+    // Return the content and message ID
+    return {
+      // Cast the response content to our internal type
+      content: response.content as unknown as AnthropicContentBlock[],
+      id: response.id,
+      usage,
+    };
   }
 
   async takeAction(
@@ -943,12 +939,8 @@ export class AnthropicCUAClient extends AgentClient {
 
     // Use the screenshot provider if available
     if (this.screenshotProvider) {
-      try {
-        const base64Image = await this.screenshotProvider();
-        return `data:image/png;base64,${base64Image}`;
-      } catch (error) {
-        throw error;
-      }
+      const base64Image = await this.screenshotProvider();
+      return `data:image/png;base64,${base64Image}`;
     }
 
     throw new AgentScreenshotProviderError(
