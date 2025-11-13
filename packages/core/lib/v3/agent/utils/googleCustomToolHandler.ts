@@ -136,10 +136,8 @@ function convertToolToFunctionDeclaration(
       parameters,
     };
   } catch (error) {
-    console.error(
-      `Error converting tool ${name} to function declaration:`,
-      error,
-    );
+    // Tool conversion failed - return null to filter this tool out
+    // This typically indicates an invalid tool schema definition
     return null;
   }
 }

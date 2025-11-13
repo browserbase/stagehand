@@ -894,7 +894,6 @@ export class GoogleCUAClient extends AgentClient {
         const base64Image = await this.screenshotProvider();
         return `data:image/png;base64,${base64Image}`;
       } catch (error) {
-        console.error("Error capturing screenshot:", error);
         throw error;
       }
     }

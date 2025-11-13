@@ -432,7 +432,6 @@ export class OpenAICUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
-      console.error("Error getting action from OpenAI:", error);
       throw error;
     }
   }

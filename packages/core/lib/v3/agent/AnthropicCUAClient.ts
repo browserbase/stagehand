@@ -269,7 +269,7 @@ export class AnthropicCUAClient extends AgentClient {
           });
 
           // Convert tool use to action and add to actions list
-          const action = this.convertToolUseToAction(toolUseItem);
+          const action = this.convertToolUseToAction(toolUseItem, logger);
           if (action) {
             logger({
               category: "agent",
@@ -501,7 +501,6 @@ export class AnthropicCUAClient extends AgentClient {
         usage,
       };
     } catch (error) {
-      console.error("Error getting action from Anthropic:", error);
       throw error;
     }
   }
@@ -736,7 +735,10 @@ export class AnthropicCUAClient extends AgentClient {
     return toolResults;
   }
 
-  private convertToolUseToAction(item: ToolUseItem): AgentAction | null {
+  private convertToolUseToAction(
+    item: ToolUseItem,
+    logger: (message: LogLine) => void,
+  ): AgentAction | null {
     try {
       const { name, input } = item;
 
@@ -745,7 +747,14 @@ export class AnthropicCUAClient extends AgentClient {
         const action = input.action as string;
 
         if (!action) {
-          console.warn("Missing action in tool use item:", item);
+          logger({
+            category: "agent",
+            message: "Missing action in tool use item",
+            level: 0,
+            auxiliary: {
+              item: { value: JSON.stringify(item), type: "object" },
+            },
+          });
           return null;
         }
 
@@ -901,10 +910,24 @@ export class AnthropicCUAClient extends AgentClient {
         return null;
       }
 
-      console.warn(`Unknown tool name: ${name}`);
+      logger({
+        category: "agent",
+        message: `Unknown tool name: ${name}`,
+        level: 0,
+      });
       return null;
     } catch (error) {
-      console.error("Error converting tool use to action:", error);
+      logger({
+        category: "agent",
+        message: "Error converting tool use to action",
+        level: 0,
+        auxiliary: {
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
       return null;
     }
   }
@@ -924,7 +947,6 @@ export class AnthropicCUAClient extends AgentClient {
         const base64Image = await this.screenshotProvider();
         return `data:image/png;base64,${base64Image}`;
       } catch (error) {
-        console.error("Error capturing screenshot:", error);
         throw error;
       }
     }
