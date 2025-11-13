@@ -4,6 +4,7 @@ import {
   AgentType,
   AgentExecutionOptions,
 } from "../types/public/agent";
+import { LogLine } from "../types/public/logs";
 
 /**
  * Abstract base class for agent clients
@@ -29,6 +30,7 @@ export abstract class AgentClient {
   abstract execute(options: AgentExecutionOptions): Promise<AgentResult>;
 
   abstract captureScreenshot(
+    logger: (message: LogLine) => void,
     options?: Record<string, unknown>,
   ): Promise<unknown>;
 
