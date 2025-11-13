@@ -214,7 +214,11 @@ export class OpenAICUAClient extends AgentClient {
   }> {
     try {
       // Get response from the model
-      const result = await this.getAction(inputItems, previousResponseId, logger);
+      const result = await this.getAction(
+        inputItems,
+        previousResponseId,
+        logger,
+      );
       const output = result.output;
       const responseId = result.responseId;
       const usage = {

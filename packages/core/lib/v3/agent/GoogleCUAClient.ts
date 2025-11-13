@@ -614,7 +614,10 @@ export class GoogleCUAClient extends AgentClient {
         });
 
         // Convert function call to action(s)
-        const action = this.convertFunctionCallToAction(part.functionCall, logger);
+        const action = this.convertFunctionCallToAction(
+          part.functionCall,
+          logger,
+        );
         if (action) {
           // Special handling for type_text_at - we need to click first
           if (
