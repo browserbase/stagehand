@@ -294,6 +294,18 @@
       "destination": "/v3/integrations/mcp/:slug*"
     },
     {
+      "source": "/integrations/crew-ai/:slug*",
+      "destination": "/v3/integrations/crew-ai/:slug*"
+    },
+    {
+      "source": "/integrations/langchain/:slug*",
+      "destination": "/v3/integrations/langchain/:slug*"
+    },
+    {
+      "source": "/integrations/vercel/:slug*",
+      "destination": "/v3/integrations/vercel/:slug*"
+    },
+    {
       "source": "/references/:slug*",
       "destination": "/v3/references/:slug*"
     },
