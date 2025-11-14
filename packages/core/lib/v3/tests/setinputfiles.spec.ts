@@ -45,4 +45,21 @@ test.describe("tests setInputFiles()", () => {
       .textContent();
     expect(successMessage).toContain("file uploaded successfully");
   });
+
+  test("locator().setInputFiles() accepts payload objects", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads/",
+    );
+    await page.locator("/html/body/div/div[1]/input").setInputFiles({
+      name: "payload.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("hello stagehand", "utf-8"),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const successMessage = await page
+      .locator("body > div > div:nth-of-type(2)")
+      .textContent();
+    expect(successMessage).toContain("file uploaded successfully");
+  });
 });
